@@ -68,3 +68,11 @@ compile_commands
 diff.txt
 newdiff.txt
 .vscode/settings.json
+src/madness/chem/HF_EXCHANGE_SMALLMEM_SYM_MT_OWNER.md
+src/madness/chem/HF_EXCHANGE_NOTES.md
+.gitignore
+bin/exchange_perf_model.py
+bin/__pycache__/exchange_perf_model.cpython-39.pyc
+bin/__pycache__/hfex_owner_batching.cpython-39.pyc
+.gitignore
+bin/hfex_owner_batching.py

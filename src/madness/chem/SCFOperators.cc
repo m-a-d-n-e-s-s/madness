@@ -746,6 +746,18 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& inf
     return *this;
 }
 
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_min_batch_size(const long& n) {
+    impl->set_min_batch_size(n);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_max_batch_size(const long& n) {
+    impl->set_max_batch_size(n);
+    return *this;
+}
+
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();
@@ -787,5 +799,3 @@ template class Fock<double_complex,3>;
 template class Fock<double,3>;
 
 } // namespace madness
-
-

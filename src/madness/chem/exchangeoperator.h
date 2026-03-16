@@ -5,6 +5,7 @@
 #include<madness/world/cloud.h>
 #include<madness/mra/macrotaskq.h>
 #include<madness/chem/SCFOperators.h>
+#include<unordered_map>
 
 namespace madness {
 
@@ -19,15 +20,25 @@ class Exchange<T,NDIM>::ExchangeImpl {
     typedef std::vector<functionT> vecfuncT;
 
     static inline std::atomic<long> apply_timer;
+    static inline std::atomic<long> mul2_truncate_timer;
     static inline std::atomic<long> mul2_timer;
+    static inline std::atomic<long> mul1_truncate_timer;
     static inline std::atomic<long> mul1_timer; ///< timing
+    static inline std::atomic<long> owner_fetch_timer;
+    static inline std::atomic<long> owner_compute_timer;
     static inline double elapsed_time;
+    static inline double elapsed_process_cpu_time;
 
     static void reset_timer() {
         mul1_timer = 0l;
+        mul1_truncate_timer = 0l;
         mul2_timer = 0l;
+        mul2_truncate_timer = 0l;
         apply_timer = 0l;
+        owner_fetch_timer = 0l;
+        owner_compute_timer = 0l;
         elapsed_time = 0.0;
+        elapsed_process_cpu_time = 0.0;
     }
 
 public:
@@ -35,13 +46,28 @@ public:
         double t1 = double(mul1_timer) * 0.001;
         double t2 = double(apply_timer) * 0.001;
         double t3 = double(mul2_timer) * 0.001;
+        double t4 = double(mul1_truncate_timer) * 0.001;
+        double t5 = double(mul2_truncate_timer) * 0.001;
+        double t_fetch_owner = double(owner_fetch_timer) * 0.001;
+        double t_compute_owner = double(owner_compute_timer) * 0.001;
         world.gop.sum(t1);
         world.gop.sum(t2);
         world.gop.sum(t3);
+        world.gop.sum(t4);
+        world.gop.sum(t5);
+        world.gop.sum(t_fetch_owner);
+        world.gop.sum(t_compute_owner);
         nlohmann::json j;
         j["multiply1"] = t1;
+        j["truncate1"] = t4;
         j["apply"] = t2;
         j["multiply2"] = t3;
+        j["truncate2"] = t5;
+        j["owner_fetch"] = t_fetch_owner;
+        j["owner_compute"] = t_compute_owner;
+        double total_cpu = elapsed_process_cpu_time;
+        world.gop.sum(total_cpu);
+        j["total_cpu"] = total_cpu;
         j["total"] = elapsed_time;
         return j;
     }
@@ -50,8 +76,13 @@ public:
         auto timings= gather_timings(world);
         if (world.rank() == 0) {
             printf(" cpu time spent in multiply1   %8.2fs\n", timings["multiply1"].template get<double>());
+            printf(" cpu time spent in truncate1   %8.2fs\n", timings["truncate1"].template get<double>());
             printf(" cpu time spent in apply       %8.2fs\n", timings["apply"].template get<double>());
             printf(" cpu time spent in multiply2   %8.2fs\n", timings["multiply2"].template get<double>());
+            printf(" cpu time spent in truncate2   %8.2fs\n", timings["truncate2"].template get<double>());
+            printf(" cpu time owner fetch          %8.2fs\n", timings["owner_fetch"].template get<double>());
+            printf(" cpu time owner compute        %8.2fs\n", timings["owner_compute"].template get<double>());
+            printf(" total process cpu time        %8.2fs\n", timings["total_cpu"].template get<double>());
             printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
         }
     }
@@ -123,6 +154,16 @@ public:
         printlevel=level;
         return *this;
     }
+    
+    ExchangeImpl& set_max_batch_size(const long& n) {
+        max_batch_size_ = std::max<long>(1, n);
+        return *this;
+    }
+    
+    ExchangeImpl& set_min_batch_size(const long& n) {
+        min_batch_size_ = std::max<long>(1, n);
+        return *this;
+    }
 
     std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
 
@@ -156,6 +197,9 @@ private:
     /// computing the full square of the double sum (over vket and the K orbitals)
     vecfuncT K_small_memory(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
+    /// computing the upper triangle and mirrored contributions for symmetric bra/ket/vket
+    vecfuncT K_small_memory_symmetric(const vecfuncT& vket, const double mul_tol = 0.0) const;
+
     /// computing the upper triangle of the double sum (over vket and the K orbitals)
     vecfuncT K_large_memory(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
@@ -176,6 +220,8 @@ private:
     double lo = 1.e-4;
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
+    long min_batch_size_ = 5;
+    long max_batch_size_ = 30;
     double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
@@ -186,6 +232,142 @@ private:
         double lo = 1.e-4;
         double mul_tol = 1.e-7;
         bool symmetric = false;
+        Algorithm algorithm_ = multiworld_efficient;
+        static inline std::unordered_map<long, functionT> bra_cache_;
+        static inline std::unordered_map<long, functionT> ket_cache_;
+        struct VfPrefetchState {
+            Batch_1D current_range;
+            vecfuncT current_data;
+            bool has_current = false;
+
+            Batch_1D next_range;
+            vecfuncT next_data;
+            bool has_next = false;
+
+            Batch_1D next_hint;
+            bool has_hint = false;
+        };
+        static inline VfPrefetchState vf_prefetch_;
+        static inline long cache_world_id_ = -1;
+
+        bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner; }
+
+        static bool same_range(const Batch_1D& a, const Batch_1D& b) {
+            return (a.begin == b.begin) and (a.end == b.end);
+        }
+
+        static bool hint_matches_range(const Batch_1D& hint, const Batch_1D& range) {
+            if (hint.begin != range.begin) return false;
+            if (hint.end < 0) return true;
+            return hint.end == range.end;
+        }
+
+        static Batch_1D normalize_range(const Batch_1D& range, const long full_size) {
+            Batch_1D normalized = range;
+            if (normalized.is_full_size()) normalized.end = full_size;
+            return normalized;
+        }
+
+        static void clear_vf_prefetch() {
+            vf_prefetch_.current_data.clear();
+            vf_prefetch_.next_data.clear();
+            vf_prefetch_.has_current = false;
+            vf_prefetch_.has_next = false;
+            vf_prefetch_.has_hint = false;
+            vf_prefetch_.current_range = Batch_1D();
+            vf_prefetch_.next_range = Batch_1D();
+            vf_prefetch_.next_hint = Batch_1D();
+        }
+
+        static void clear_local_caches() {
+            bra_cache_.clear();
+            ket_cache_.clear();
+            clear_vf_prefetch();
+        }
+
+        void add_owner_fetch_time(const double cpu0, const double cpu1) const {
+            if (use_owner_aware_fetch()) owner_fetch_timer += long((cpu1 - cpu0) * 1000l);
+        }
+
+        void add_owner_compute_time(const double cpu0, const double cpu1) const {
+            if (use_owner_aware_fetch()) owner_compute_timer += long((cpu1 - cpu0) * 1000l);
+        }
+
+        void ensure_cache_world(World& world) const {
+            if (cache_world_id_ != world.id()) {
+                clear_local_caches();
+                cache_world_id_ = world.id();
+            }
+        }
+
+        vecfuncT fetch_batch_with_cache(World& world, const vecfuncT& batch, const Batch_1D& range,
+                                        std::unordered_map<long, functionT>& cache) const {
+            const double cpu0 = process_cpu_time();
+            MADNESS_CHECK_THROW(long(batch.size())==range.size(),
+                                "batch/range size mismatch in fetch_batch_with_cache");
+            ensure_cache_world(world);
+            vecfuncT result;
+            result.reserve(batch.size());
+            for (long local_index = 0; local_index < long(batch.size()); ++local_index) {
+                const long global_index = range.begin + local_index;
+                auto it = cache.find(global_index);
+                if (it==cache.end()) {
+                    functionT local_copy = copy(world, batch[local_index], false);
+                    it = cache.emplace(global_index, std::move(local_copy)).first;
+                }
+                result.push_back(it->second);
+            }
+            world.gop.fence();
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+            return result;
+        }
+
+        vecfuncT fetch_batch_transient(World& world, const vecfuncT& batch) const {
+            const double cpu0 = process_cpu_time();
+            vecfuncT result;
+            result.reserve(batch.size());
+            for (const auto& f : batch) {
+                result.push_back(copy(world, f, false));
+            }
+            world.gop.fence();
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+            return result;
+        }
+
+        vecfuncT fetch_range_with_cache(World& world, const vecfuncT& source, const Batch_1D& range,
+                                        std::unordered_map<long, functionT>& cache) const {
+            const double cpu0 = process_cpu_time();
+            ensure_cache_world(world);
+            vecfuncT result;
+            result.reserve(range.size());
+            for (long global_index = range.begin; global_index < range.end; ++global_index) {
+                auto it = cache.find(global_index);
+                if (it==cache.end()) {
+                    functionT local_copy = copy(world, source[global_index], false);
+                    it = cache.emplace(global_index, std::move(local_copy)).first;
+                }
+                result.push_back(it->second);
+            }
+            world.gop.fence();
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+            return result;
+        }
+
+        vecfuncT fetch_range_transient(World& world, const vecfuncT& source, const Batch_1D& range) const {
+            const double cpu0 = process_cpu_time();
+            vecfuncT result;
+            result.reserve(range.size());
+            for (long global_index = range.begin; global_index < range.end; ++global_index) {
+                result.push_back(copy(world, source[global_index], false));
+            }
+            world.gop.fence();
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+            return result;
+        }
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
 
@@ -193,8 +375,13 @@ private:
         /// with f and vbra being batched, result and vket being passed on as a whole
         class MacroTaskPartitionerExchange : public MacroTaskPartitioner {
         public:
-            MacroTaskPartitionerExchange(const bool symmetric) : symmetric(symmetric) {
-                max_batch_size=30;
+            MacroTaskPartitionerExchange(const bool symmetric, const long min_batch_size_input,
+                                         const long max_batch_size_input)
+                    : symmetric(symmetric) {
+                const long min_bs = std::max<long>(1, min_batch_size_input);
+                const long max_bs = std::max<long>(min_bs, std::max<long>(1, max_batch_size_input));
+                min_batch_size=min_bs;
+                max_batch_size=max_bs;
             }
 
             bool symmetric = false;
@@ -235,9 +422,115 @@ private:
         };
 
     public:
-        MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol, const bool symmetric)
-                : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric) {
-            partitioner.reset(new MacroTaskPartitionerExchange(symmetric));
+        MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol, const bool symmetric,
+                                const long min_batch_size,
+                                const long max_batch_size,
+                                const Algorithm algorithm = multiworld_efficient)
+                : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric), algorithm_(algorithm) {
+            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size));
+        }
+
+        long owner_hint(const Batch& task_batch, const long nsubworld) const override {
+            if (not use_owner_aware_fetch() or nsubworld<=0) return -1;
+            MADNESS_CHECK_THROW(task_batch.input.size()>0, "empty task batch in owner_hint");
+            const Batch_1D& row_range = (task_batch.input.size()>1) ? task_batch.input[1] : task_batch.input[0];
+            return std::max<long>(0,row_range.begin) % nsubworld;
+        }
+
+        void set_next_vf_hint(const Batch_1D& next_hint, const bool has_hint) {
+            if (not use_owner_aware_fetch()) return;
+            vf_prefetch_.has_hint = has_hint;
+            if (has_hint) {
+                vf_prefetch_.next_hint = next_hint;
+                if (vf_prefetch_.has_next and not hint_matches_range(next_hint, vf_prefetch_.next_range)) {
+                    vf_prefetch_.next_data.clear();
+                    vf_prefetch_.has_next = false;
+                    vf_prefetch_.next_range = Batch_1D();
+                }
+            } else {
+                vf_prefetch_.next_hint = Batch_1D();
+                vf_prefetch_.next_data.clear();
+                vf_prefetch_.has_next = false;
+                vf_prefetch_.next_range = Batch_1D();
+            }
+        }
+
+        void prefetch_next_vf_async(World& world, const vecfuncT& vf_full) const {
+            if (not use_owner_aware_fetch()) return;
+            const double cpu0 = process_cpu_time();
+            ensure_cache_world(world);
+            if (not vf_prefetch_.has_hint) return;
+
+            const Batch_1D hint = normalize_range(vf_prefetch_.next_hint, long(vf_full.size()));
+            MADNESS_CHECK_THROW(hint.begin >= 0 and hint.end >= hint.begin and hint.end <= long(vf_full.size()),
+                                "prefetch_next_vf_async: invalid next vf hint range");
+
+            if (vf_prefetch_.has_current and same_range(vf_prefetch_.current_range, hint)) return;
+            if (vf_prefetch_.has_next and same_range(vf_prefetch_.next_range, hint)) return;
+
+            vecfuncT prefetched;
+            prefetched.reserve(hint.size());
+            for (long global_index = hint.begin; global_index < hint.end; ++global_index) {
+                prefetched.push_back(copy(world, vf_full[global_index], false));
+            }
+            // no fence here: overlap prefetch with current task compute
+            vf_prefetch_.next_range = hint;
+            vf_prefetch_.next_data = std::move(prefetched);
+            vf_prefetch_.has_next = true;
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+        }
+
+        const vecfuncT& acquire_current_vf(World& world, const vecfuncT& vf_batch, const Batch_1D& vf_range) const {
+            ensure_cache_world(world);
+            const Batch_1D normalized = normalize_range(vf_range, long(vf_batch.size()));
+
+            if (vf_prefetch_.has_current and same_range(vf_prefetch_.current_range, normalized)) {
+                return vf_prefetch_.current_data;
+            }
+
+            if (vf_prefetch_.has_next and same_range(vf_prefetch_.next_range, normalized)) {
+                // Do not fence here; keep overlap with currently outstanding prefetches.
+                // MADNESS function kernels will synchronize as needed when data is touched.
+                vf_prefetch_.current_range = vf_prefetch_.next_range;
+                vf_prefetch_.current_data = std::move(vf_prefetch_.next_data);
+                vf_prefetch_.has_current = true;
+                vf_prefetch_.next_data.clear();
+                vf_prefetch_.has_next = false;
+                vf_prefetch_.next_range = Batch_1D();
+                return vf_prefetch_.current_data;
+            }
+
+            vf_prefetch_.current_data = fetch_batch_transient(world, vf_batch);
+            vf_prefetch_.current_range = normalized;
+            vf_prefetch_.has_current = true;
+            return vf_prefetch_.current_data;
+        }
+
+        void release_finished_vf(const Batch_1D& vf_range) const {
+            if (not use_owner_aware_fetch()) return;
+            if (vf_prefetch_.has_current and same_range(vf_prefetch_.current_range, vf_range)) {
+                const bool keep_current_for_next = vf_prefetch_.has_hint and hint_matches_range(vf_prefetch_.next_hint, vf_range);
+                if (not keep_current_for_next) {
+                    vf_prefetch_.current_data.clear();
+                    vf_prefetch_.has_current = false;
+                    vf_prefetch_.current_range = Batch_1D();
+                }
+            }
+
+            if (vf_prefetch_.has_next) {
+                const bool keep_next = vf_prefetch_.has_hint and hint_matches_range(vf_prefetch_.next_hint, vf_prefetch_.next_range);
+                if (not keep_next) {
+                    vf_prefetch_.next_data.clear();
+                    vf_prefetch_.has_next = false;
+                    vf_prefetch_.next_range = Batch_1D();
+                }
+            }
+        }
+
+        void cleanup() override {
+            clear_local_caches();
+            cache_world_id_ = -1;
         }
 
 
@@ -261,7 +554,8 @@ private:
                    const std::vector<Function<T, NDIM>>& bra_batch,    // will be batched (row)
                    const std::vector<Function<T, NDIM>>& vket) {       // will not be batched
 
-            World& world = vf_batch.front().world();
+            MADNESS_CHECK_THROW(subworld_ptr!=0, "MacroTaskExchangeSimple: subworld_ptr is null");
+            World& world = *subworld_ptr;
             resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
 
             bool diagonal_block = batch.input[0] == batch.input[1];
@@ -274,28 +568,54 @@ private:
             MADNESS_CHECK(vf_range.end <= nresult);
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
+            vecfuncT bra_local;
+            const vecfuncT* bra_work = &bra_batch;
+            const vecfuncT* vf_work = &vf_batch;
+            if (use_owner_aware_fetch()) {
+                bra_local = fetch_batch_with_cache(world, bra_batch, bra_range, bra_cache_);
+                bra_work = &bra_local;
+                vf_work = &acquire_current_vf(world, vf_batch, vf_range);
+            }
+
             if (symmetric and diagonal_block) {
-                auto ket_batch = bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch,
-                                                                                   vf_batch);
+                vecfuncT ket_batch = use_owner_aware_fetch()
+                        ? fetch_range_with_cache(world, vket, bra_range, ket_cache_)
+                        : bra_range.copy_batch(vket);
+                vecfuncT resultcolumn;
+                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
+                    resultcolumn = compute_diagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, ket_batch,
+                                                                                                  *bra_work, *vf_work);
+                } else {
+                    resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, *bra_work, *vf_work);
+                }
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
-                auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch,
-                                                                                            vf_batch);
+                std::pair<vecfuncT, vecfuncT> resultpair;
+                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
+                    resultpair = compute_offdiagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, vket,
+                                                                                                    *bra_work, *vf_work);
+                } else {
+                    resultpair = compute_offdiagonal_batch_in_symmetric_matrix(world, vket, *bra_work, *vf_work);
+                }
+                auto& resultcolumn = resultpair.first;
+                auto& resultrow = resultpair.second;
 
                 for (int i = bra_range.begin; i < bra_range.end; ++i){
                     Kf[i] += resultcolumn[i - bra_range.begin];}
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultrow[i - vf_range.begin];}
             } else {
-                auto ket_batch = bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
+                vecfuncT ket_batch = use_owner_aware_fetch()
+                        ? fetch_range_with_cache(world, vket, bra_range, ket_cache_)
+                        : bra_range.copy_batch(vket);
+                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, *bra_work, *vf_work);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
             }
+            if (use_owner_aware_fetch()) release_finished_vf(vf_range);
             return Kf;
         }
 
@@ -318,6 +638,62 @@ private:
                                                      mul_tol);
         }
 
+        /// scaffold for small-memory symmetric diagonal tiles
+        vecfuncT compute_diagonal_batch_in_symmetric_matrix_smallmem_symmetric(World& subworld,
+                                                                                const vecfuncT& ket_batch,
+                                                                                const vecfuncT& bra_batch,
+                                                                                const vecfuncT& vf_batch) const {
+            const double cpu0 = process_cpu_time();
+            MADNESS_CHECK_THROW(ket_batch.size()==bra_batch.size(),
+                                "smallmem_sym_mt diagonal: ket/bra batch size mismatch");
+            MADNESS_CHECK_THROW(vf_batch.size()==bra_batch.size(),
+                                "smallmem_sym_mt diagonal: vf/bra batch size mismatch");
+
+            const long n = vf_batch.size();
+            vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, n);
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+
+            for (long i = 0; i < n; ++i) {
+                // Build N_ij for the upper-triangle of this diagonal tile row.
+                vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
+                vecfuncT psif = mul_sparse2(subworld, bra_batch[i], vf_subset, mul_tol*0.1, true, false, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_sym_mt diagonal i=", i, " psif.size()=", psif.size());
+                }
+                truncate(subworld, psif);
+                psif = apply(subworld, *poisson.get(), psif);
+                truncate(subworld, psif);
+                make_redundant(subworld, psif, true);
+
+                // Assemble full row update within the tile and accumulate by vector gaxpy.
+                vecfuncT update_i = zero_functions_compressed<T, NDIM>(subworld, n);
+                compress(subworld, update_i);
+
+                vecfuncT row_contrib = mul_sparse2(subworld, ket_batch[i], psif, mul_tol*0.1, true, false, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_sym_mt diagonal i=", i, " vpsi.size()=", row_contrib.size());
+                }
+                compress(subworld, row_contrib);
+                for (long j = 0; j <= i; ++j) {
+                    update_i[j] += row_contrib[j];
+                }
+
+                for (long j = 0; j < i; ++j) {
+                    vecfuncT psif_single(1, psif[j]);
+                    vecfuncT mirrored = mul_sparse2(subworld, ket_batch[j], psif_single, mul_tol*0.1, true, false,
+                                                    false);
+                    compress(subworld, mirrored);
+                    update_i[i] += mirrored[0];
+                }
+
+                gaxpy(subworld, 1.0, resultcolumn, 1.0, update_i);
+            }
+
+            const double cpu1 = process_cpu_time();
+            add_owner_compute_time(cpu0, cpu1);
+            return resultcolumn;
+        }
+
         /// compute a batch of the exchange matrix, with non-identical ranges
 
         /// \param subworld     the world we're computing in
@@ -329,11 +705,15 @@ private:
                                                     const vecfuncT& ket_batch,
                                                     const vecfuncT& bra_batch,
                                                     const vecfuncT& vf_batch) const {
+            const double cpu0 = process_cpu_time();
             double mul_tol = 0.0;
             double symmetric = false;
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
-            return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
-                                                     mul_tol);
+            auto result = Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
+                                                                           mul_tol);
+            const double cpu1 = process_cpu_time();
+            add_owner_compute_time(cpu0, cpu1);
+            return result;
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
@@ -347,6 +727,70 @@ private:
                                                                                     const vecfuncT& ket, // not batched
                                                                                     const vecfuncT& bra_batch, // batched
                                                                                     const vecfuncT& vf_batch) const; // batched
+
+        /// scaffold for small-memory symmetric offdiagonal tiles
+        std::pair<vecfuncT, vecfuncT> compute_offdiagonal_batch_in_symmetric_matrix_smallmem_symmetric(
+                World& subworld, const vecfuncT& ket, const vecfuncT& bra_batch, const vecfuncT& vf_batch) const {
+            MADNESS_CHECK_THROW(bra_batch.size() > 0 and vf_batch.size() > 0,
+                                "smallmem_sym_mt offdiagonal: empty tile batch");
+
+            // Row range corresponds to bra_batch, column range corresponds to vf_batch.
+            auto row_range = batch.input[1];
+            auto column_range = batch.input[0];
+            MADNESS_CHECK_THROW(row_range.size() == long(bra_batch.size()),
+                                "smallmem_sym_mt offdiagonal: row range mismatch");
+            MADNESS_CHECK_THROW(column_range.size() == long(vf_batch.size()),
+                                "smallmem_sym_mt offdiagonal: column range mismatch");
+
+            // ket vectors corresponding to tile row and tile column ranges.
+            vecfuncT ket_rows = use_owner_aware_fetch()
+                    ? fetch_range_with_cache(subworld, ket, row_range, ket_cache_)
+                    : row_range.copy_batch(ket);
+            vecfuncT ket_columns = use_owner_aware_fetch()
+                    ? fetch_range_transient(subworld, ket, column_range)
+                    : column_range.copy_batch(ket);
+            MADNESS_CHECK_THROW(ket_rows.size() == bra_batch.size(),
+                                "smallmem_sym_mt offdiagonal: ket_rows size mismatch");
+            MADNESS_CHECK_THROW(ket_columns.size() == vf_batch.size(),
+                                "smallmem_sym_mt offdiagonal: ket_columns size mismatch");
+
+            const double cpu0 = process_cpu_time();
+            const long nrow = bra_batch.size();
+            const long ncolumn = vf_batch.size();
+            vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, nrow);   // maps to bra_range
+            vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to vf_range
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+
+            for (long irow = 0; irow < nrow; ++irow) {
+                // Build N_ij for this offdiagonal tile row, all tile columns.
+                vecfuncT psif = mul_sparse2(subworld, bra_batch[irow], vf_batch, mul_tol*0.1, true, false, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_sym_mt offdiag irow=", irow, " psif.size()=", psif.size());
+                }
+                truncate(subworld, psif);
+                psif = apply(subworld, *poisson.get(), psif);
+                truncate(subworld, psif);
+                make_redundant(subworld, psif, true);
+
+                // Row accumulation for vf-range: resultrow[j] += ket_row[irow] * N_ij.
+                vecfuncT row_update = mul_sparse2(subworld, ket_rows[irow], psif, mul_tol*0.1, true, false, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_sym_mt offdiag irow=", irow, " vpsi.size()=", row_update.size());
+                }
+                compress(subworld, row_update);
+                gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
+
+                // Mirror accumulation for bra-range: resultcolumn[irow] += sum_j ket_column[j] * N_ij.
+                auto column_update = dot(subworld, ket_columns, psif, true, false, false, mul_tol*0.1, true);
+                vecfuncT single_column_update = zero_functions_compressed<T, NDIM>(subworld, nrow);
+                single_column_update[irow] = copy(column_update);
+                gaxpy(subworld, 1.0, resultcolumn, 1.0, single_column_update);
+            }
+
+            const double cpu1 = process_cpu_time();
+            add_owner_compute_time(cpu0, cpu1);
+            return std::make_pair(resultcolumn, resultrow);
+        }
 
     };
 
@@ -425,22 +869,16 @@ private:
             MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
-            //auto vket_redundant = copy(vket[i]);
-            //vket_redundant.compress();
-            //vket_redundant.make_redundant();
 
             for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
                 size_t iend = std::min(ilo+ntile,mo_bra.size());
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
-                //vecfuncT tmp_mo_bra_redundant = copy(tmp_mo_bra);
-                //compress(tmp_mo_bra_redundant);
-                //make_redundant(world, tmp_mo_bra_redundant);
 
                 // mul_sparse legacy for reference
                 //
-                //cpu0 = cpu_time();
+                //cpu0 = process_cpu_time();
                 //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol*0.1, true, false, false);
-                //cpu1 = cpu_time();
+                //cpu1 = process_cpu_time();
                 //for (unsigned int i=0; i<tmp_psif.size(); ++i){
                 //    print(ilo+i, "mul_sparse output ", tmp_psif[i].tree_size());
                 //}
@@ -452,19 +890,17 @@ private:
 
                 // vector size 1 function call (debug)
                 //
-                //vket_redundant.compress(true);
-                //vket_redundant.make_redundant(true);
-               // vecfuncT tmp_psif2;
-               // for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
-               //     auto v = zero_functions_compressed<T, NDIM>(world, 1);
-               //     v[0] += tmp_mo_bra_redundant[i];
-               //     v[0].make_redundant();
-               //     auto res = mul_sparse2(world, vket_redundant, v, mul_tol*0.1, true, false, false);
-               //     print(ilo+i, "mw_mul output size ", res[0].tree_size());
-               //     truncate(res);
-               //     print(ilo+i, "mw_mul truncated size ", res[0].tree_size());
-               //     tmp_psif2.push_back(res[0]);
-               // }
+                //vecfuncT tmp_psif2;
+                //for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
+                //    //vecfuncT v;
+                //    //v.push_back(copy(tmp_mo_bra[i]));
+                //    //auto res = mul_sparse2(world, vket[0], v, mul_tol*0.1, true, false, false);
+                //    auto res = mul_sparse_debug(vket[0], tmp_mo_bra[i], mul_tol*0.1, true, false, false, true);
+                //    print(ilo+i, "mw_mul output size ", res.tree_size());
+                //    res.truncate();
+                //    print(ilo+i, "mw_mul truncated size ", res.tree_size());
+                //    tmp_psif2.push_back(res);
+                //}
 
         //        for (unsigned int i=0; i<tmp_mo_bra_redundant.size(); ++i){
         //            print("START ", ilo+i);
@@ -475,14 +911,14 @@ private:
         //        vket_redundant.print_tree();
         //        print("end vket");
 
-                cpu0 = cpu_time();
+                cpu0 = process_cpu_time();
                 auto tmp_psif2 = mul_sparse2(world, vket[0], tmp_mo_bra, mul_tol*0.1, true, false, false);
-                cpu1 = cpu_time();
+                cpu1 = process_cpu_time();
                 mul1_timer += long((cpu1 - cpu0) * 1000l);
                 
                 // mul_sparse2 (new) for mw screening
                 //
-              //  cpu0 = cpu_time();
+              //  cpu0 = process_cpu_time();
               //  //vket_redundant.compress(true);
               //  //vket_redundant.make_redundant(true);
               //  //compress(tmp_mo_bra_redundant);
@@ -494,27 +930,30 @@ private:
               //      auto res = mul_sparse_debug(vket[0], tmp_mo_bra[i], mul_tol*0.1, true, false, false, true);
               //      tmp_psif2.push_back(res);
               //  }
-              //  cpu1 = cpu_time();
+              //  cpu1 = process_cpu_time();
               //  mul1_timer += long((cpu1 - cpu0) * 1000l);
                 for (unsigned int i=0; i<tmp_psif2.size(); ++i){
                     print(ilo+i, "mw_mul output ", tmp_psif2[i].tree_size());
                 }
+                cpu0 = process_cpu_time();
                 truncate(world, tmp_psif2);
+                cpu1 = process_cpu_time();
+                mul1_truncate_timer += long((cpu1 - cpu0) * 1000l);
                 for (unsigned int i=0; i<tmp_psif2.size(); ++i){
                     print(ilo+i, "mw_mul truncated ", tmp_psif2[i].tree_size());
                 }
 
-                cpu0 = cpu_time();
+                cpu0 = process_cpu_time();
                 //tmp_psif = apply(world, *poisson.get(), tmp_psif);
                 tmp_psif2 = apply(world, *poisson.get(), tmp_psif2);
-                cpu1 = cpu_time();
+                cpu1 = process_cpu_time();
                 print("finished apply");
                 apply_timer += long((cpu1 - cpu0) * 1000l);
                 //truncate(world, tmp_psif);
                 truncate(world, tmp_psif2);
                 print("finished truncate");
 
-                cpu0 = cpu_time();
+                cpu0 = process_cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
                 //auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, true, false, false, mul_tol*0.01);
                 //for (unsigned int i=0; i<tmp_mo_ket.size(); ++i){
@@ -524,11 +963,14 @@ private:
                 make_redundant(world, tmp_psif2, true);
                 auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif2, true, false, false, mul_tol*0.1, true);
                 print("finished dot");
-                cpu1 = cpu_time();
+                cpu1 = process_cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
 
                 Kf[0] += tmp_Kf;
+                cpu0 = process_cpu_time();
                 truncate(world, Kf);
+                cpu1 = process_cpu_time();
+                mul2_truncate_timer += long((cpu1 - cpu0) * 1000l);
             }
 
             return Kf;
@@ -548,11 +990,11 @@ private:
             {
                 // create the two worlds that will be used for fetching and computing
                 // std::shared_ptr<World> executing_world(subworld_ptr);
-                double cpu0=cpu_time();
+                double cpu0=process_cpu_time();
                 SafeMPI::Intracomm comm = subworld_ptr->mpi.comm();
                 std::shared_ptr<World> fetching_world(new World(comm.Clone()));
                 std::shared_ptr<World> executing_world(new World(comm.Clone()));
-                double cpu1=cpu_time();
+                double cpu1=process_cpu_time();
                 print("time to create two worlds:",cpu1-cpu0,"seconds");
                 print("executing_world.id()",executing_world->id(),"fetching_world.id()",fetching_world->id(),"in MacroTaskExchangeRow");
 
@@ -611,21 +1053,21 @@ private:
                         }
                         MADNESS_CHECK_THROW(world_id==phi_id && world_id==bra_id && world_id==ket_id,msg.c_str());
 
-                        double cpu0 = cpu_time();
+                        double cpu0 = process_cpu_time();
                         auto tmp_psif = mul_sparse(world, phi, mo_bra, mul_tol);
                         truncate(world, tmp_psif);
-                        double cpu1 = cpu_time();
+                        double cpu1 = process_cpu_time();
                         mul1_timer += long((cpu1 - cpu0) * 1000l);
 
-                        cpu0 = cpu_time();
+                        cpu0 = process_cpu_time();
                         tmp_psif = apply(world, *poisson.get(), tmp_psif);
                         truncate(world, tmp_psif);
-                        cpu1 = cpu_time();
+                        cpu1 = process_cpu_time();
                         apply_timer += long((cpu1 - cpu0) * 1000l);
 
-                        cpu0 = cpu_time();
+                        cpu0 = process_cpu_time();
                         auto tmp_Kf = dot(world, mo_ket, tmp_psif);
-                        cpu1 = cpu_time();
+                        cpu1 = process_cpu_time();
                         mul2_timer += long((cpu1 - cpu0) * 1000l);
 
                         return tmp_Kf.truncate();
@@ -644,19 +1086,19 @@ private:
                         Tile& tile = tiles[itile];
 
                         if (itile==0) {
-                            double t0=cpu_time();
+                            double t0=process_cpu_time();
                             print("fetching tile",tile.ilo,"into world",executing_world->id());
                             std::tie(tmp_mo_bra1,tmp_mo_ket1)=fetch_data(*executing_world,tiles[itile]);
                             fetching_world->gop.set_forbid_fence(false);
-                            double t2=cpu_time();
+                            double t2=process_cpu_time();
                             executing_world->gop.fence();
-                            double t1=cpu_time();
+                            double t1=process_cpu_time();
                             total_fetch_time += (t1 - t0);
                             total_fetch_spawn_time += (t2 - t0);
                         }
 
                         if (itile>=0) {
-                            double t0=cpu_time();
+                            double t0=process_cpu_time();
                             fetching_world->gop.set_forbid_fence(true);
                             if (itile<tiles.size()-1) {
                                 // fetch data into fetching_world while computing in executing_world
@@ -664,17 +1106,17 @@ private:
                                 std::tie(tmp_mo_bra2,tmp_mo_ket2)=fetch_data(*fetching_world,tiles[itile+1]);
                             }
                             fetching_world->gop.set_forbid_fence(false);
-                            double t2=cpu_time();
+                            double t2=process_cpu_time();
                             // uncomment the next line to enforce that fetching is finished before executing
                             // fetching_world->gop.fence();
-                            double t1=cpu_time();
+                            double t1=process_cpu_time();
                             total_fetch_time += (t1 - t0);
                             total_fetch_spawn_time += (t2 - t0);
 
                             print("executing tile",tile.ilo,"in world",executing_world->id());
-                            double dpu0=cpu_time();
+                            double dpu0=process_cpu_time();
                             Kf[0]+=execute(*executing_world,poisson1,phi1,tmp_mo_bra1,tmp_mo_ket1);
-                            double dpu1=cpu_time();
+                            double dpu1=process_cpu_time();
                             print("time to execute tile",tile.ilo,"in world",executing_world->id(),dpu1-dpu0,"seconds");
                             total_execution_time += dpu1-dpu0;
 
@@ -693,7 +1135,7 @@ private:
                 // deferred destruction of WorldObjects happens here
                 fetching_world->gop.fence();
                 executing_world->gop.fence();
-                double cpu2=cpu_time();
+                double cpu2=process_cpu_time();
                 print("overall time: ",cpu2-cpu0,"seconds");
                 print("total execution time:",total_execution_time,"seconds");
                 print("total fetch time:",total_fetch_time,"seconds");

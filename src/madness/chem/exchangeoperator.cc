@@ -52,19 +52,26 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         const std::vector<Function<T, NDIM> >& vket) const {
 
-    //reconstruct(world, mo_bra, false);
-    //reconstruct(world, mo_ket, false);
-    //TODO: this only works for multiworld_row algrotihm
-    make_redundant(world, mo_bra, false);
-    make_redundant(world, mo_ket, false);
-    world.gop.fence();
-    //norm_tree(world, mo_bra, false);
-    //norm_tree(world, mo_ket, false);
-    //world.gop.fence();
+    const bool needs_reconstructed_inputs =
+            (algorithm_ == multiworld_efficient) ||
+            (algorithm_ == large_memory) ||
+            (algorithm_ == fetch_compute);
 
-    //reconstruct(world, vket);
-    //norm_tree(world, vket);
-    make_redundant(world, vket);
+    if (needs_reconstructed_inputs) {
+        reconstruct(world, mo_bra, false);
+        reconstruct(world, mo_ket, false);
+        world.gop.fence();
+        reconstruct(world, vket);
+        norm_tree(world, mo_bra, false);
+        norm_tree(world, mo_ket, false);
+        world.gop.fence();
+        norm_tree(world, vket);
+    } else {
+        make_redundant(world, mo_bra, false);
+        make_redundant(world, mo_ket, false);
+        world.gop.fence();
+        make_redundant(world, vket);
+    }
 
     // pick your algorithm.
     // Note that the macrotask algorithm partitions the exchange matrix into tiles. The final truncation
@@ -73,14 +80,20 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Other truncations are elementwise and are not affected.
     reset_timer();
     statistics=gather_statistics();
-    double cpu0=wall_time();
+    double wall0=wall_time();
+    double process_cpu0=process_cpu_time();
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
-    } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute) {
+    } else if (algorithm_ == small_memory_symmetric_mt or algorithm_ == small_memory_symmetric_mt_owner) {
+        Kf = K_macrotask_efficient(vket, mul_tol);
+    } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute
+               ) {
         Kf = K_macrotask_efficient_row(vket, mul_tol);
     } else if (algorithm_ == small_memory) {
         Kf = K_small_memory(vket, mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
+    } else if (algorithm_ == small_memory_symmetric) {
+        Kf = K_small_memory_symmetric(vket, mul_tol);
     } else if (algorithm_ == large_memory) {
         Kf = K_large_memory(vket, mul_tol);
     } else {
@@ -95,8 +108,10 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         auto size=get_size(world,Kf);
         if (world.rank()==0) print("total size of Kf after truncation",size);
     }
-    double cpu1=wall_time();
-    elapsed_time=cpu1-cpu0;
+    double process_cpu1=process_cpu_time();
+    double wall1=wall_time();
+    elapsed_process_cpu_time=process_cpu1-process_cpu0;
+    elapsed_time=wall1-wall0;
 
     if (printtimings_detail()) print_timer(world);
     return Kf;
@@ -121,12 +136,17 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
+    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
+                                  min_batch_size_, max_batch_size_, algorithm_);
     if (taskq) taskq->set_printlevel(printlevel);
+    auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info);
+    if (algorithm_ == small_memory_symmetric_mt_owner) {
+        taskq_factory.set_nworld(world.size());
+    }
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
-                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info));
+                 : MacroTask(world, xtask, taskq_factory);
 
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
@@ -183,13 +203,63 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory(
     auto poisson = set_poisson(world, lo);
 
     for (int i = 0; i < nocc; ++i) {
-        vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol); /// was vtol
+        vecfuncT psif = mul_sparse2(world, mo_bra[i], vket, mul_tol*0.1, true, false, false); /// was vtol
         truncate(world, psif);
         psif = apply(world, *poisson.get(), psif);
         truncate(world, psif);
-        psif = mul_sparse(world, mo_ket[i], psif, mul_tol); /// was vtol
+        make_redundant(world, psif, true);
+        psif = mul_sparse2(world, mo_ket[i], psif, mul_tol*0.1, true, false, false); /// was vtol
         gaxpy(world, 1.0, Kf, 1.0, psif);
     }
+    truncate(world, Kf);
+    return Kf;
+}
+
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory_symmetric(const vecfuncT& vket,
+                                                                                            const double mul_tol) const {
+
+    if (!is_symmetric()) return K_small_memory(vket, mul_tol);
+
+    const long nocc = mo_ket.size();
+    const long nf = vket.size();
+    if (nocc != nf) return K_small_memory(vket, mul_tol);
+
+    vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nf);
+    auto poisson = set_poisson(world, lo);
+
+    for (int i = 0; i < nocc; ++i) {
+        vecfuncT vket_subset(vket.begin(), vket.begin() + i + 1);
+        vecfuncT psif = mul_sparse2(world, mo_bra[i], vket_subset, mul_tol*0.1, true, false, false);
+
+        truncate(world, psif);
+        psif = apply(world, *poisson.get(), psif);
+        truncate(world, psif);
+        make_redundant(world, psif, true);
+
+        // Build one full update vector and accumulate with vector gaxpy
+        vecfuncT update_i = zero_functions_compressed<T, NDIM>(world, nf);
+        compress(world, update_i);
+
+        // Row contribution: update_i[j] += ket[i] * N_ij for j <= i
+        vecfuncT row_contrib = mul_sparse2(world, mo_ket[i], psif, mul_tol*0.1, true, false, false);
+        compress(world, row_contrib);
+        for (int j = 0; j <= i; ++j) {
+            update_i[j] += row_contrib[j];
+        }
+
+        // Mirrored contribution: update_i[i] += ket[j] * N_ij for j < i
+        for (int j = 0; j < i; ++j) {
+            vecfuncT psif_single(1, psif[j]);
+            vecfuncT mirrored = mul_sparse2(world, mo_ket[j], psif_single, mul_tol*0.1, true, false, false);
+            compress(world, mirrored);
+            update_i[i] += mirrored[0];
+        }
+
+        truncate(world, update_i);
+        gaxpy(world, 1.0, Kf, 1.0, update_i);
+    }
+
     truncate(world, Kf);
     return Kf;
 }
@@ -210,7 +280,7 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
                                   const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
                                   const bool symmetric, const double mul_tol) {
 
-    double cpu0 = cpu_time();
+    double cpu0 = process_cpu_time();
     const long nf = vket.size();
     const long nocc = mo_ket.size();
     vecfuncT Kf = zero_functions_compressed<T, NDIM>(world, nf);
@@ -227,16 +297,16 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
 
     world.gop.fence();
     truncate(world, psif);
-    double cpu1 = cpu_time();
+    double cpu1 = process_cpu_time();
     mul1_timer += long((cpu1 - cpu0) * 1000l);
 
-    cpu0 = cpu_time();
+    cpu0 = process_cpu_time();
     psif = apply(world, *poisson.get(), psif);
     truncate(world, psif);
-    cpu1 = cpu_time();
+    cpu1 = process_cpu_time();
     apply_timer += long((cpu1 - cpu0) * 1000l);
 
-    cpu0 = cpu_time();
+    cpu0 = process_cpu_time();
     reconstruct(world, psif);
     norm_tree(world, psif);
     vecfuncT psipsif = zero_functions<T, NDIM>(world, nf * nocc);
@@ -254,7 +324,7 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
     }
 
     world.gop.fence();
-    cpu1 = cpu_time();
+    cpu1 = process_cpu_time();
     mul2_timer += long((cpu1 - cpu0) * 1000l);
     psif.clear();
     world.gop.fence();
@@ -287,23 +357,23 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
                                                                                           const vecfuncT& bra_batch,   // batched
                                                                                           const vecfuncT& vf_batch) const { // batched
     // orbital_product is a vector of vectors
-    double cpu0 = cpu_time();
+    double cpu0 = process_cpu_time();
     std::vector<vecfuncT> orbital_product = matrix_mul_sparse<T, T, NDIM>(subworld, bra_batch, vf_batch, mul_tol);
     vecfuncT orbital_product_flat = flatten(orbital_product); // convert into a flattened vector
     truncate(subworld, orbital_product_flat);
-    double cpu1 = cpu_time();
+    double cpu1 = process_cpu_time();
     mul1_timer += long((cpu1 - cpu0) * 1000l);
 
-    cpu0 = cpu_time();
+    cpu0 = process_cpu_time();
     auto poisson = set_poisson(subworld, lo);
     vecfuncT Nij = apply(subworld, *poisson.get(), orbital_product_flat);
     truncate(subworld, Nij);
-    cpu1 = cpu_time();
+    cpu1 = process_cpu_time();
     apply_timer += long((cpu1 - cpu0) * 1000l);
 
     // accumulate columns:      resultrow(i)=\sum_j j N_ij
     // accumulate rows:      resultcolumn(j)=\sum_i i N_ij
-    cpu0 = cpu_time();
+    cpu0 = process_cpu_time();
 
     // some helper functions
     std::size_t nrow = bra_batch.size();
@@ -349,7 +419,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 
     // !! NO TRUNCATION AT THIS POINT !!
     subworld.gop.fence();
-    cpu1 = cpu_time();
+    cpu1 = process_cpu_time();
     mul2_timer += long((cpu1 - cpu0) * 1000l);
 
     return std::make_pair(resultcolumn, resultrow);

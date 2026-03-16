@@ -40,6 +40,7 @@
 #ifndef SRC_MADNESS_MRA_MACROTASKQ_H_
 #define SRC_MADNESS_MRA_MACROTASKQ_H_
 
+#include <algorithm>
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/mra/macrotaskpartitioner.h>
@@ -305,9 +306,10 @@ struct MacroTaskInfo {
 	}
 
 	/// return some preset policies
-	/// - "default": StoreFunctionViaPointer, cloud rank-replicated, initial functions node-replicated
-	/// - "small_memory": StoreFunctionViaPointer, cloud rank-replicated, initial functions distributed
-	/// - "large_memory": StoreFunction, cloud rank-replicated, initial functions distributed
+		/// - "default": StoreFunctionViaPointer, cloud rank-replicated, initial functions node-replicated
+		/// - "small_memory": StoreFunctionViaPointer, cloud rank-replicated, initial functions distributed
+		/// - "small_memory_owner": StorePointerToFunction, cloud rank-replicated, initial functions distributed
+		/// - "large_memory": StoreFunction, cloud rank-replicated, initial functions distributed
 	/// the user can also set the policies manually
 	/// note: the policies are checked for consistency when the MacroTaskQ is created
 	static MacroTaskInfo preset(const std::string name) {
@@ -320,13 +322,17 @@ struct MacroTaskInfo {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
 			info.cloud_distribution_policy=DistributionType::RankReplicated;
 			info.ptr_target_distribution_policy=DistributionType::NodeReplicated;
-		} else if (name=="small_memory") {
-			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
-			info.cloud_distribution_policy=DistributionType::RankReplicated;
-			info.ptr_target_distribution_policy=DistributionType::Distributed;
-		} else if (name=="large_memory") {
-			info.storage_policy=MacroTaskInfo::StoreFunction;
-			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			} else if (name=="small_memory") {
+				info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
+				info.cloud_distribution_policy=DistributionType::RankReplicated;
+				info.ptr_target_distribution_policy=DistributionType::Distributed;
+			} else if (name=="small_memory_owner") {
+				info.storage_policy=MacroTaskInfo::StorePointerToFunction;
+				info.cloud_distribution_policy=DistributionType::RankReplicated;
+				info.ptr_target_distribution_policy=DistributionType::Distributed;
+			} else if (name=="large_memory") {
+				info.storage_policy=MacroTaskInfo::StoreFunction;
+				info.cloud_distribution_policy=DistributionType::RankReplicated;
 			info.ptr_target_distribution_policy=DistributionType::Distributed;
 		} else {
 			std::string msg="MacroTaskQFactory::preset: unknown preset "+name;
@@ -335,9 +341,9 @@ struct MacroTaskInfo {
 		return info;
 	}
 
-	static std::vector<std::string> get_all_preset_names() {
-		return {"default","node_replicated_target","small_memory","large_memory"};
-	}
+		static std::vector<std::string> get_all_preset_names() {
+			return {"default","node_replicated_target","small_memory","small_memory_owner","large_memory"};
+		}
 
 	/// helper function to return all presets
 	static std::vector<MacroTaskInfo> get_all_presets() {
@@ -474,6 +480,7 @@ public:
 	virtual ~MacroTaskBase() {};
 
 	double priority=1.0;
+	long owner_slot=-1;   // -1 means unowned and schedulable by any requester
 	enum Status {Running, Waiting, Complete, Unknown} stat=Unknown;
 
 	void set_complete() {stat=Complete;}
@@ -487,6 +494,8 @@ public:
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element,
 		const bool debug, const MacroTaskInfo policy) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
+	virtual bool has_batch_info() const { return false; }
+	virtual Batch get_batch() const { return Batch(); }
 
     virtual void print_me(std::string s="") const {
         printf("this is task with priority %4.1f\n",priority);
@@ -500,8 +509,11 @@ public:
         return ss.str();
     }
 
-    double get_priority() const {return priority;}
-    void set_priority(const double p) {priority=p;}
+	    double get_priority() const {return priority;}
+	    void set_priority(const double p) {priority=p;}
+	    long get_owner_slot() const {return owner_slot;}
+	    void set_owner_slot(const long owner) {owner_slot=owner;}
+	    bool is_owned_by(const long slot) const {return (owner_slot<0) or (owner_slot==slot);}
 
     friend std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
     	if (s==MacroTaskBase::Status::Running) os << "Running";
@@ -701,7 +713,7 @@ public:
         if (printdebug()) cloud.print_size(universe);
 		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
         universe.gop.fence();
-        universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
+        const bool previous_forbid_fence = universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
         pmap2=FunctionDefaults<2>::get_pmap();
         pmap3=FunctionDefaults<3>::get_pmap();
@@ -713,79 +725,118 @@ public:
         double cpu00=cpu_time();
 
 		World& subworld=get_subworld();
-//		if (printdebug()) print("I am subworld",subworld.id());
-		double tasktime=0.0;
-		if (printprogress() and universe.rank()==0) std::cout << "progress in percent: " << std::flush;
-		while (true) {
-			long element=get_scheduled_task_number(subworld);
-			double cpu0=cpu_time();
-			if (element<0) break;
-			std::shared_ptr<MacroTaskBase> task=taskq[element];
-			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+		bool did_cleanup=false;
+		auto cleanup_after_run = [&]() {
+			if (did_cleanup) return;
+			did_cleanup=true;
 
-			task->run(subworld,cloud, taskq, element, printdebug(), policy);
+			universe.gop.set_forbid_fence(false);
 
-			double cpu1=cpu_time();
-			set_complete(element);
-			tasktime+=(cpu1-cpu0);
-			if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+			// cleanup task-persistent input data
+			for (auto& task : taskq) task->cleanup();
+			cloud.clear_cache(subworld);
+			cloud.clear_cache(universe);
+			subworld.gop.fence();
+	        subworld.gop.fence();
+	        universe.gop.fence();
+	        FunctionDefaults<1>::set_pmap(pmap1);
+	        FunctionDefaults<2>::set_pmap(pmap2);
+	        FunctionDefaults<3>::set_pmap(pmap3);
+	        FunctionDefaults<4>::set_pmap(pmap4);
+	        FunctionDefaults<5>::set_pmap(pmap5);
+	        FunctionDefaults<6>::set_pmap(pmap6);
+	        universe.gop.fence();
+			// restore targets to their original state
+			if (policy.ptr_target_distribution_policy!=Distributed) cloud.distribute_targets();
+			universe.gop.fence();
+			subworld.gop.fence();
+			cloud.clear();
+			universe.gop.fence();
+			subworld.gop.fence();
+			universe.gop.fence();
 
-			// print progress
-			const std::size_t ntask=taskq.size();
-			// return percentile of ntask for element
-			auto in_percentile = [&ntask](const long element) {
-				return std::floor(element/(0.1*(ntask+1)));
-			};
-			auto is_first_in_percentile = [&](const long element) {
-				return (in_percentile(element)!=in_percentile(element-1));
-			};
-			if (printprogress() and is_first_in_percentile(element)) {
-				std::cout << int(in_percentile(element)*10) << " " << std::flush;
+			universe.gop.set_forbid_fence(previous_forbid_fence);
+		};
+
+		try {
+	//		if (printdebug()) print("I am subworld",subworld.id());
+			double tasktime=0.0;
+			const long requester_slot = universe.rank() % std::max<long>(1,nsubworld);
+			const bool all_tasks_owned = (not taskq.empty()) and std::all_of(taskq.begin(), taskq.end(),
+					[](const std::shared_ptr<MacroTaskBase>& t) { return t->get_owner_slot() >= 0; });
+
+			if (all_tasks_owned and (nsubworld==universe.size())) {
+				for (long element=0; element<long(taskq.size()); ++element) {
+					std::shared_ptr<MacroTaskBase> task=taskq[element];
+					if (not task->is_owned_by(requester_slot)) continue;
+					double cpu0=cpu_time();
+					if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+					task->run(subworld,cloud, taskq, element, printdebug(), policy);
+					double cpu1=cpu_time();
+					tasktime+=(cpu1-cpu0);
+					if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+				}
+			} else {
+				if (printprogress() and universe.rank()==0) std::cout << "progress in percent: " << std::flush;
+				while (true) {
+					long element=get_scheduled_task_number(subworld);
+					double cpu0=cpu_time();
+					if (element<0) break;
+					std::shared_ptr<MacroTaskBase> task=taskq[element];
+					if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+
+					task->run(subworld,cloud, taskq, element, printdebug(), policy);
+
+					double cpu1=cpu_time();
+					set_complete(element);
+					tasktime+=(cpu1-cpu0);
+					if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+
+					// print progress
+					const std::size_t ntask=taskq.size();
+					// return percentile of ntask for element
+					auto in_percentile = [&ntask](const long element) {
+						return std::floor(element/(0.1*(ntask+1)));
+					};
+					auto is_first_in_percentile = [&](const long element) {
+						return (in_percentile(element)!=in_percentile(element-1));
+					};
+					if (printprogress() and is_first_in_percentile(element)) {
+						std::cout << int(in_percentile(element)*10) << " " << std::flush;
+					}
+				}
 			}
-		}
-        universe.gop.set_forbid_fence(false);
-		universe.gop.fence();
-		universe.gop.sum(tasktime);
-		if (printprogress() and universe.rank()==0) std::cout << std::endl;
-		cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
-        double cpu11=cpu_time();
-        if (printlevel>=4) {
-        	if (universe.rank()==0) {
-        		Cloud::print_timings(cloud_statistics);
-        		Cloud::print_memory_statistics(cloud_statistics);
-        		print("all tasks complete");
-        	}
-        	MemoryMeasurer::measure_and_print(universe);
-        }
-        if (printtimings_detail()) {
-            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
-            printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
-        }
-		taskq_statistics["elapsed_time"]=cpu11-cpu00;
-		taskq_statistics["cpu_time_per_world"]=tasktime/universe.size();
-		taskq_statistics["total_cpu_time"]=tasktime;
+	        universe.gop.set_forbid_fence(false);
+			universe.gop.fence();
+			universe.gop.sum(tasktime);
+			if (printprogress() and universe.rank()==0) std::cout << std::endl;
+			cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
+	        double cpu11=cpu_time();
+	        if (printlevel>=4) {
+	        	if (universe.rank()==0) {
+	        		Cloud::print_timings(cloud_statistics);
+	        		Cloud::print_memory_statistics(cloud_statistics);
+	        		print("all tasks complete");
+	        	}
+	        	MemoryMeasurer::measure_and_print(universe);
+	        }
+	        if (printtimings_detail()) {
+	            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
+	            printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
+	        }
+			taskq_statistics["elapsed_time"]=cpu11-cpu00;
+			taskq_statistics["cpu_time_per_world"]=tasktime/universe.size();
+			taskq_statistics["total_cpu_time"]=tasktime;
 
-		// cleanup task-persistent input data
-		for (auto& task : taskq) task->cleanup();
-		cloud.clear_cache(subworld);
-		subworld.gop.fence();
-        subworld.gop.fence();
-        universe.gop.fence();
-        FunctionDefaults<1>::set_pmap(pmap1);
-        FunctionDefaults<2>::set_pmap(pmap2);
-        FunctionDefaults<3>::set_pmap(pmap3);
-        FunctionDefaults<4>::set_pmap(pmap4);
-        FunctionDefaults<5>::set_pmap(pmap5);
-        FunctionDefaults<6>::set_pmap(pmap6);
-        universe.gop.fence();
-		// restore targets to their original state
-		if (policy.ptr_target_distribution_policy!=Distributed) cloud.distribute_targets();
-		universe.gop.fence();
-		subworld.gop.fence();
-		cloud.clear();
-		universe.gop.fence();
-		subworld.gop.fence();
-		universe.gop.fence();
+			cleanup_after_run();
+		} catch (...) {
+			try {
+				cleanup_after_run();
+			} catch (...) {
+				// preserve the original exception
+			}
+			throw;
+		}
 	}
 
 	void add_tasks(MacroTaskBase::taskqT& vtask) {
@@ -796,12 +847,112 @@ public:
 	}
 
     void print_taskq() const {
+        if (not printdebug()) return;
         universe.gop.fence();
         if (universe.rank()==0) {
             print("\ntaskq on universe rank",universe.rank());
             print("total number of tasks: ",taskq.size());
             print(" task                                   batch                 priority  status");
             for (const auto& t : taskq) t->print_me_as_table();
+
+            const long nslots = std::max<long>(1, nsubworld);
+            const bool has_owned_tasks = std::any_of(
+                taskq.begin(),
+                taskq.end(),
+                [](const std::shared_ptr<MacroTaskBase>& t) { return t->get_owner_slot() >= 0; }
+            );
+
+            if (has_owned_tasks) {
+                auto batch_range_to_string = [](const Batch_1D& b) {
+                    std::ostringstream ss;
+                    if (b.is_full_size()) ss << "[----)";
+                    else ss << "[" << b.begin << "," << b.end << ")";
+                    return ss.str();
+                };
+                auto row_range_from_batch = [](const Batch& b) {
+                    if (b.input.empty()) return Batch_1D();
+                    if (b.input.size() > 1) return b.input[1];
+                    return b.input[0];
+                };
+
+                std::vector<std::vector<Batch_1D>> owned_row_ranges(nslots);
+                std::vector<std::vector<std::pair<long, std::shared_ptr<MacroTaskBase>>>> per_rank_tasks(nslots);
+
+                for (long tid = 0; tid < long(taskq.size()); ++tid) {
+                    const auto& t = taskq[tid];
+                    const long owner = t->get_owner_slot();
+                    if (owner < 0 || owner >= nslots) continue;
+                    per_rank_tasks[owner].push_back(std::make_pair(tid, t));
+                    if (t->has_batch_info()) {
+                        owned_row_ranges[owner].push_back(row_range_from_batch(t->get_batch()));
+                    }
+                }
+
+                print("\nowner distribution (row-range ownership)");
+                print("rank | owned row ranges");
+                print("-----|------------------");
+                for (long rank = 0; rank < nslots; ++rank) {
+                    auto ranges = owned_row_ranges[rank];
+                    std::sort(
+                        ranges.begin(),
+                        ranges.end(),
+                        [](const Batch_1D& a, const Batch_1D& b) {
+                            if (a.begin != b.begin) return a.begin < b.begin;
+                            return a.end < b.end;
+                        }
+                    );
+                    ranges.erase(
+                        std::unique(
+                            ranges.begin(),
+                            ranges.end(),
+                            [](const Batch_1D& a, const Batch_1D& b) {
+                                return (a.begin == b.begin) && (a.end == b.end);
+                            }
+                        ),
+                        ranges.end()
+                    );
+                    std::ostringstream rows;
+                    if (ranges.empty()) {
+                        rows << "-";
+                    } else {
+                        for (std::size_t i = 0; i < ranges.size(); ++i) {
+                            if (i > 0) rows << ", ";
+                            rows << batch_range_to_string(ranges[i]);
+                        }
+                    }
+                    std::ostringstream line;
+                    line << std::setw(4) << rank << " | " << rows.str();
+                    print(line.str());
+                }
+
+                print("\nper-rank taskq (owned tasks in queue order)");
+                for (long rank = 0; rank < nslots; ++rank) {
+                    print("");
+                    print("rank", rank, ":");
+                    print("task_id | diag | col range | row range | priority");
+                    print("--------|------|-----------|-----------|---------");
+                    bool any = false;
+                    for (const auto& tid_task : per_rank_tasks[rank]) {
+                        const long tid = tid_task.first;
+                        const auto& t = tid_task.second;
+                        if (not t->has_batch_info()) continue;
+                        const Batch b = t->get_batch();
+                        if (b.input.empty()) continue;
+                        const Batch_1D col_range = b.input[0];
+                        const Batch_1D row_range = row_range_from_batch(b);
+                        const bool diagonal = (b.input.size() > 1) ? (b.input[0] == b.input[1]) : true;
+                        std::ostringstream line;
+                        line << std::setw(7) << tid
+                             << " | " << std::setw(4) << (diagonal ? "Y" : "N")
+                             << " | " << std::setw(9) << batch_range_to_string(col_range)
+                             << " | " << std::setw(9) << batch_range_to_string(row_range)
+                             << " | " << std::setw(8) << long(t->get_priority());
+                        print(line.str());
+                        any = true;
+                    }
+                    if (not any) print("-");
+                }
+            }
         }
         universe.gop.fence();
     }
@@ -814,8 +965,9 @@ private:
 	/// scheduler is located on universe.rank==0
 	long get_scheduled_task_number(World& subworld) {
 		long number=0;
+		const long requester_slot = universe.rank() % std::max<long>(1,nsubworld);
 		if (subworld.rank()==0) {
-		  Future<long> r = this->send(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local);
+		  Future<long> r = this->send(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local, requester_slot);
 		  number=r.get();
 		}
 		subworld.gop.broadcast_serializable(number, 0);
@@ -824,12 +976,14 @@ private:
 
 	}
 
-	long get_scheduled_task_number_local() {
+	long get_scheduled_task_number_local(const long requester_slot) {
 		MADNESS_ASSERT(universe.rank()==0);
 		std::lock_guard<std::mutex> lock(taskq_mutex);
 
-		auto is_Waiting = [](const std::shared_ptr<MacroTaskBase>& mtb_ptr) {return mtb_ptr->is_waiting();};
-		auto it=std::find_if(taskq.begin(),taskq.end(),is_Waiting);
+		auto is_schedulable = [&](const std::shared_ptr<MacroTaskBase>& mtb_ptr) {
+			return mtb_ptr->is_waiting() and mtb_ptr->is_owned_by(requester_slot);
+		};
+		auto it=std::find_if(taskq.begin(),taskq.end(),is_schedulable);
 		if (it!=taskq.end()) {
 			it->get()->set_running();
 			long element=it-taskq.begin();
@@ -877,6 +1031,35 @@ class MacroTask {
     template<typename Q>
     struct is_vector<std::vector<Q>> : std::true_type {
     };
+
+    template<typename Q>
+    static auto owner_hint_or_default(const Q& task, const Batch& batch, const long nsubworld, int)
+        -> decltype(task.owner_hint(batch, nsubworld), long()) {
+        return task.owner_hint(batch, nsubworld);
+    }
+
+    template<typename Q>
+    static long owner_hint_or_default(const Q&, const Batch&, const long, ...) {
+        return -1;
+    }
+
+    template<typename Q>
+    static auto set_next_vf_hint_or_noop(Q& task, const Batch_1D& next_hint, const bool has_hint, int)
+        -> decltype(task.set_next_vf_hint(next_hint, has_hint), void()) {
+        task.set_next_vf_hint(next_hint, has_hint);
+    }
+
+    template<typename Q>
+    static void set_next_vf_hint_or_noop(Q&, const Batch_1D&, const bool, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static auto prefetch_next_vf_async_or_noop(Q& task, World& subworld, const ArgTuple& argtuple, int)
+        -> decltype(task.prefetch_next_vf_async(subworld, std::get<0>(argtuple)), void()) {
+        task.prefetch_next_vf_async(subworld, std::get<0>(argtuple));
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void prefetch_next_vf_async_or_noop(Q&, World&, const ArgTuple&, ...) {}
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
@@ -946,6 +1129,8 @@ public:
         if (not partitioner) partitioner.reset(new MacroTaskPartitioner);
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
+        // Execute larger/higher-priority batches first to reduce long-tail imbalance.
+        partition.sort([](const auto& a, const auto& b) { return a.second > b.second; });
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
@@ -953,12 +1138,13 @@ public:
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
-        // create tasks and add them to the taskq
-        MacroTaskBase::taskqT vtask;
-        for (const auto& batch_prio : partition) {
-            vtask.push_back(
-                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
-        }
+	        // create tasks and add them to the taskq
+	        MacroTaskBase::taskqT vtask;
+	        for (const auto& batch_prio : partition) {
+	        	const long owner_slot = owner_hint_or_default(task, batch_prio.first, taskq_ptr->get_nsubworld(), 0);
+	            vtask.push_back(
+	                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, owner_slot)));
+	        }
         taskq_ptr->add_tasks(vtask);
         if (immediate_execution) taskq_ptr->run_all();
 
@@ -1028,18 +1214,19 @@ private:
     		return task.name;
     	}
 
-        MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
-                          const recordlistT &inputrecords, const recordlistT &outputrecords)
-  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
+	        MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
+	                          const recordlistT &inputrecords, const recordlistT &outputrecords, const long owner_slot)
+	  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
     		if constexpr (is_tuple<resultT>::value) {
     			static_assert(check_tuple_is_valid_task_result<resultT,0>(),
     							"tuple has invalid result type in prepare_output_records");
     		} else {
     			static_assert(is_valid_task_result_v<resultT>, "unknown result type in prepare_output_records");
     		}
-            this->task.batch=batch_prio.first;
-            this->priority=batch_prio.second;
-        }
+	            this->task.batch=batch_prio.first;
+	            this->priority=batch_prio.second;
+	            this->set_owner_slot(owner_slot);
+	        }
 
 
         void print_me(std::string s="") const override {
@@ -1062,6 +1249,27 @@ private:
                 << std::setw(10) << strbatch
                 << this->print_priority_and_status_to_string();
             print(ss.str());
+        }
+
+        bool has_batch_info() const override {
+            return true;
+        }
+
+        Batch get_batch() const override {
+            return task.batch;
+        }
+
+        std::pair<Batch_1D, bool> next_owned_col_range(const MacroTaskBase::taskqT& taskq, const long element) const {
+            const long owner_slot = this->get_owner_slot();
+            if (owner_slot < 0) return std::make_pair(Batch_1D(), false);
+            for (long next = element + 1; next < long(taskq.size()); ++next) {
+                if (not taskq[next]->is_owned_by(owner_slot)) continue;
+                auto next_task = std::dynamic_pointer_cast<MacroTaskInternal>(taskq[next]);
+                if (not next_task) continue;
+                if (next_task->task.batch.input.empty()) continue;
+                return std::make_pair(next_task->task.batch.input[0], true);
+            }
+            return std::make_pair(Batch_1D(), false);
         }
 
     	/// accumulate the result of the task into the final result living in the universe
@@ -1113,6 +1321,11 @@ private:
         	const MacroTaskInfo policy) override {
         	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
+            {
+                const auto [next_hint, has_hint] = next_owned_col_range(taskq, element);
+                set_next_vf_hint_or_noop(task, next_hint, has_hint, 0);
+                prefetch_next_vf_async_or_noop(task, subworld, argtuple, 0);
+            }
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
     		std::string msg="";
@@ -1180,14 +1393,20 @@ private:
         		print(e.what());
         		print_me_as_table();
         		print("\n\n");
+        		{
+        			io_redirect_cout io2;
+        			print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
+        			print(e.what());
+        		}
         		MADNESS_EXCEPTION("failing task",1);
         	}
 
         };
 
-    	// this is called after all tasks have been executed and the taskq has ended
-    	void cleanup() override {
-    	}
+	    	// this is called after all tasks have been executed and the taskq has ended
+	    	void cleanup() override {
+	    		task.cleanup();
+	    	}
 
     	template<typename T, std::size_t NDIM>
     	static Function<T,NDIM> pointer2WorldObject(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {
@@ -1292,6 +1511,8 @@ public:
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
+	virtual long owner_hint(const Batch&, const long) const { return -1; }
+	virtual void cleanup() {}
 };
 
 

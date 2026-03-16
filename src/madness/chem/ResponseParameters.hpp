@@ -24,9 +24,17 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<double>("maxbsh", 10, "Max bsh residual");
     initialize<size_t>("maxsub", 8, "size of iterative subspace ... set to 0 or 1 to disable");
     initialize<std::string>("xc", "hf", "XC input line");
-    initialize<std::string>("hfexalg", "multiworld_row",
-                            "hf exchange algorithm: choose from multiworld "
-                            "(default), multiworld_row, smallmem, largemem");
+	    initialize<std::string>("hfexalg", "multiworld_row",
+	                            "hf exchange algorithm: choose from multiworld "
+	                            "(default), multiworld_row, smallmem, smallmem_sym, "
+	                            "smallmem_sym_mt, smallmem_sym_mt_owner, largemem");
+	    initialize<std::string>("hfex_cloud_policy", "default",
+	                            "HF exchange macrotask cloud policy: default, small_memory, "
+	                            "small_memory_owner, large_memory, node_replicated_target");
+    initialize<int>("hfex_min_batch_size", 0,
+                    "minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
+    initialize<int>("hfex_max_batch_size", 0,
+                    "maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
     initialize<double>("dconv", 1e-6, "density convergence");
     initialize<bool>("step_restrict", true, "Toggles step restriction");
     initialize<std::vector<std::string>>("requested_properties", {"polarizability"},
@@ -68,6 +76,9 @@ struct ResponseParameters : public QCCalculationParametersBase {
   [[nodiscard]] std::string dft_deriv() const { return get<std::string>("dft_deriv"); }
   [[nodiscard]] std::string xc() const { return get<std::string>("xc"); }
   [[nodiscard]] std::string hfexalg() const { return get<std::string>("hfexalg"); }
+  [[nodiscard]] std::string hfex_cloud_policy() const { return get<std::string>("hfex_cloud_policy"); }
+  [[nodiscard]] int hfex_min_batch_size() const { return get<int>("hfex_min_batch_size"); }
+  [[nodiscard]] int hfex_max_batch_size() const { return get<int>("hfex_max_batch_size"); }
   [[nodiscard]] double maxrotn() const { return get<double>("maxrotn"); }
   [[nodiscard]] bool property() const { return get<bool>("property"); }
   [[nodiscard]] std::vector<std::string> requested_properties() const {

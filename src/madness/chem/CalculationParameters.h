@@ -67,8 +67,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
-		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
+		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","smallmem_sym","smallmem_sym_mt","smallmem_sym_mt_owner","largemem"});
+		initialize<std::string> ("hfex_cloud_policy","default","HF exchange macrotask cloud policy",{"default","small_memory","small_memory_owner","large_memory","node_replicated_target"});
+		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
+		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -202,8 +204,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
-	std::string xc() const {return get<std::string>("xc");}
+    std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
+    std::string hfex_cloud_policy() const {return get<std::string>("hfex_cloud_policy");}
+    int hfex_min_batch_size() const {return get<int>("hfex_min_batch_size");}
+    int hfex_max_batch_size() const {return get<int>("hfex_max_batch_size");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 

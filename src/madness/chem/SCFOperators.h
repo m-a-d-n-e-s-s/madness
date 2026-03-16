@@ -115,13 +115,23 @@ private:
 
 public:
     enum ExchangeAlgorithm {
-        small_memory, large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
+        small_memory, small_memory_symmetric, small_memory_symmetric_mt, small_memory_symmetric_mt_owner,
+        large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
     };
     // print out algorithm
     friend std::ostream& operator<<(std::ostream& os, const ExchangeAlgorithm& alg) {
         switch (alg) {
             case small_memory:
                 os << "smallmem";
+                break;
+            case small_memory_symmetric:
+                os << "smallmem_sym";
+                break;
+            case small_memory_symmetric_mt:
+                os << "smallmem_sym_mt";
+                break;
+            case small_memory_symmetric_mt_owner:
+                os << "smallmem_sym_mt_owner";
                 break;
             case large_memory:
                 os << "largemem";
@@ -151,6 +161,9 @@ public:
         ExchangeAlgorithm alg;
         std::string alg_lc=commandlineparser::tolower(alg_string);
         if (alg_lc=="smallmem") alg=small_memory;
+        else if (alg_lc=="smallmem_sym") alg=small_memory_symmetric;
+        else if (alg_lc=="smallmem_sym_mt") alg=small_memory_symmetric_mt;
+        else if (alg_lc=="smallmem_sym_mt_owner") alg=small_memory_symmetric_mt_owner;
         else if (alg_lc=="largemem") alg=large_memory;
         else if (alg_lc=="multiworld") alg=multiworld_efficient;
         else if (alg_lc=="multiworld_row") alg=multiworld_efficient_row;
@@ -187,6 +200,9 @@ public:
 
 
     Exchange& set_printlevel(const long& level);
+    
+    Exchange& set_min_batch_size(const long& n);
+    Exchange& set_max_batch_size(const long& n);
 
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;

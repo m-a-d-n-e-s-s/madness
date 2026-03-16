@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <madness/madness_config.h>
@@ -139,6 +140,17 @@ namespace madness {
       const auto nanoseconds_since_epoch = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
       return nanoseconds_since_epoch / 1e9;
 #endif
+    }
+
+    /// Returns process CPU time in seconds (aggregated over all threads in this process).
+    static inline double process_cpu_time() {
+#if defined(CLOCK_PROCESS_CPUTIME_ID)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+            return static_cast<double>(ts.tv_sec) + 1.0e-9 * static_cast<double>(ts.tv_nsec);
+        }
+#endif
+        return static_cast<double>(std::clock()) / static_cast<double>(CLOCKS_PER_SEC);
     }
 
 

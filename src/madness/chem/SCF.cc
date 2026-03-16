@@ -38,9 +38,12 @@
 #include "funcdefaults.h"
 #include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
+#include <madness/world/vector_archive.h>
+#include <madness/world/parallel_archive.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
 #include <madchem.h>
+#include <numeric>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -660,9 +663,9 @@ void SCF::analyze_vectors(World& world, const vecfuncT& mo,
             printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i),
                    dip(1, i), dip(2, i), sqrt(rsq(i)));
             aobasis.print_anal(molecule, C(i, _));
-            printf("total number of coefficients = %.8e\n\n", double(ncoeff));
         }
     }
+    if (world.rank() == 0 and (print_level > 1)) printf("total number of coefficients = %.8e\n\n", double(ncoeff));
 }
 
 // this version is faster than the previous version on BG/Q
@@ -1349,14 +1352,127 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     vecfuncT Vpsi;
     print_meminfo(world.rank(), "V*psi");
-    if (xc.hf_exchange_coefficient()) {
-        START_TIMER(world);
-        Exchange<double, 3> K(world, this, ispin);
+	    if (xc.hf_exchange_coefficient()) {
+	        START_TIMER(world);
+	        Exchange<double, 3> K(world, this, ispin);
 
-        K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
-        K.set_symmetric(true).set_printlevel(param.print_level());
-        K.set_macro_task_info(MacroTaskInfo::preset("default"));
-        K.set_macro_task_info(param.memory());
+	        auto exchange_alg = Exchange<double,3>::string2algorithm(param.hfexalg());
+	        K.set_algorithm(exchange_alg);
+	        K.set_symmetric(true).set_printlevel(param.print_level());
+        long min_batch_size = param.hfex_min_batch_size();
+        long max_batch_size = param.hfex_max_batch_size();
+        if (min_batch_size <= 0 || max_batch_size <= 0) {
+            const long norb = amo.size();
+            const long nproc = std::max<long>(1, world.size());
+            long auto_batch_size = 1;
+
+            if (exchange_alg == Exchange<double,3>::small_memory_symmetric_mt_owner) {
+                // Owner-aware strategy:
+                // 1) target ~2 row batches per rank to keep memory/caching behavior favorable
+                // 2) pick a batch size co-prime with nproc so owner slots (begin % nproc) cycle over all ranks
+                // 3) if N>=R but B<R, fall back to b=1 to avoid idle ranks
+                const long target_row_batches = std::max<long>(1, std::min<long>(norb, 2 * nproc));
+                auto_batch_size = std::max<long>(1, (norb + target_row_batches - 1) / target_row_batches);
+                while (auto_batch_size < norb && std::gcd(auto_batch_size, nproc) != 1) {
+                    ++auto_batch_size;
+                }
+                const long realized_batches = std::max<long>(1, (norb + auto_batch_size - 1) / auto_batch_size);
+                if (norb >= nproc && realized_batches < nproc) auto_batch_size = 1;
+            } else {
+                // Existing protocol-aware auto batch size:
+                // low   band around 1e-4  -> fewer larger tasks
+                // mid   band around 1e-6  -> medium granularity
+                // high  band around 1e-8  -> more finer-grained tasks
+                const double thresh = FunctionDefaults<3>::get_thresh();
+                const long tasks_per_rank =
+                        (thresh >= 1.e-5) ? 2 :   // low (1e-4 neighborhood)
+                        (thresh >= 1.e-7) ? 4 :   // mid (1e-6 neighborhood)
+                                            8;    // high (1e-8 neighborhood)
+                const long target_tasks = std::max<long>(1, tasks_per_rank * nproc);
+                const long nbatch = std::max<long>(1,
+                        long((std::sqrt(1.0 + 8.0 * double(target_tasks)) - 1.0) / 2.0));
+                auto_batch_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
+            }
+
+            if (min_batch_size <= 0) min_batch_size = auto_batch_size;
+            if (max_batch_size <= 0) max_batch_size = auto_batch_size;
+        }
+        if (max_batch_size < min_batch_size) max_batch_size = min_batch_size;
+        K.set_min_batch_size(min_batch_size);
+        K.set_max_batch_size(max_batch_size);
+	        std::string cloud_policy = param.hfex_cloud_policy();
+	        if (exchange_alg == Exchange<double,3>::small_memory_symmetric_mt_owner
+	            and not param.is_user_defined("hfex_cloud_policy")) {
+	            cloud_policy = "small_memory_owner";
+	        }
+	        K.set_macro_task_info(MacroTaskInfo::preset(cloud_policy));
+
+        // Temporary serialization diagnostics for MO vectors before HF exchange.
+        bool test_serialize = true;
+        if (test_serialize) {
+            const double gb2bytes = 1024.0 * 1024.0 * 1024.0;
+            double total_pre_size_gb_sum = 0.0;
+            unsigned long long total_serialized_bytes_sum = 0ull;
+            double total_serialization_time_s_sum = 0.0;
+            double total_deserialization_time_s_sum = 0.0;
+
+            for (std::size_t i = 0; i < amo.size(); ++i) {
+                const double pre_size_local_gb = get_size(amo[i]);
+                double pre_size_gb_sum = pre_size_local_gb;
+                world.gop.sum(pre_size_gb_sum);
+
+                const double t0 = wall_time();
+                std::vector<unsigned char> serialized;
+                {
+                    archive::VectorOutputArchive var(serialized);
+                    archive::ParallelOutputArchive ar(world, var);
+                    ar & amo[i];
+                }
+                world.gop.fence();
+                const double t1 = wall_time();
+
+                functionT restored(world);
+                const double t2 = wall_time();
+                {
+                    archive::VectorInputArchive var_in(serialized);
+                    archive::ParallelInputArchive ar_in(world, var_in);
+                    ar_in & restored;
+                }
+                world.gop.fence();
+                const double t3 = wall_time();
+
+                unsigned long long serialized_bytes_sum = static_cast<unsigned long long>(serialized.size());
+                world.gop.sum(serialized_bytes_sum);
+                double serialization_time_s_sum = t1 - t0;
+                world.gop.sum(serialization_time_s_sum);
+                double deserialization_time_s_sum = t3 - t2;
+                world.gop.sum(deserialization_time_s_sum);
+
+                total_pre_size_gb_sum += pre_size_gb_sum;
+                total_serialized_bytes_sum += serialized_bytes_sum;
+                total_serialization_time_s_sum += serialization_time_s_sum;
+                total_deserialization_time_s_sum += deserialization_time_s_sum;
+
+                if (world.rank() == 0) {
+                    print("HFEX serialization probe amo[", long(i), "]",
+                          "pre_size_GB(sum)", pre_size_gb_sum,
+                          "serialized_bytes(sum)", serialized_bytes_sum,
+                          "serialized_GB(sum)", double(serialized_bytes_sum) / gb2bytes,
+                          "serialize_time_s(sum)", serialization_time_s_sum,
+                          "deserialize_time_s(sum)", deserialization_time_s_sum);
+                }
+            }
+
+            if (world.rank() == 0) {
+                print("HFEX serialization probe total",
+                      "pre_size_GB(sum)", total_pre_size_gb_sum,
+                      "serialized_bytes(sum)", total_serialized_bytes_sum,
+                      "serialized_GB(sum)", double(total_serialized_bytes_sum) / gb2bytes,
+                      "serialize_time_s(sum)", total_serialization_time_s_sum,
+                      "deserialize_time_s(sum)", total_deserialization_time_s_sum);
+            }
+        }
+
 
         // change truncate mode for sparse multiplication inside xc macrotask
         //for (unsigned int i=0; i<amo.size(); ++i){
@@ -1441,14 +1557,14 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 //}
                 auto tmpVpsi2 = mul_sparse2(world, vloc, tmpamo, vtol*0.1, true, false, true);
 
-                for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
-                    print(ilo+i, "V*psi mw_mul output ", tmpVpsi2[i].tree_size()); 
-                }
+              //  for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
+              //      print(ilo+i, "V*psi mw_mul output ", tmpVpsi2[i].tree_size()); 
+              //  }
 
                 truncate(world, tmpVpsi2);
-                for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
-                    print(ilo+i, "V*psi mw_mul truncated ", tmpVpsi2[i].tree_size());
-                }
+              //  for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
+              //      print(ilo+i, "V*psi mw_mul truncated ", tmpVpsi2[i].tree_size());
+              //  }
 
                 for (size_t i = ilo; i<iend; ++i){
                     Vpsi[i] += tmpVpsi2[i-ilo];
