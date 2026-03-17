@@ -1845,20 +1845,6 @@ namespace madness {
         return result[0];
     }
 
-    template <typename L, typename R,std::size_t NDIM>
-    Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul_sparse_debug(const Function<L,NDIM>& left,
-               const Function<R,NDIM>& right,
-               double tol, bool fence=true,
-               bool do_reconstruct=true,
-               bool do_norm_tree=true,
-               bool mw_screening=false) {
-        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        result.set_impl(left, false);
-        result.get_impl()->mulXX(left.get_impl().get(), right.get_impl().get(), tol, fence, mw_screening);
-        return result;
-    }
-
     /// Same as \c operator* but with optional fence and no automatic reconstruction
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
@@ -1867,12 +1853,8 @@ namespace madness {
         bool fence=true,
         bool do_reconstruct=true,
         bool do_norm_tree=true,
-        double tol=0.0,
-        bool mw_screening=false) {
-        if (mw_screening)
-            return mul_sparse_debug(left,right,tol,fence,do_reconstruct,do_norm_tree,mw_screening);
-        else 
-            return mul_sparse(left,right,tol,fence,do_reconstruct || do_norm_tree);
+        double tol=0.0) {
+        return mul_sparse(left,right,tol,fence,do_reconstruct || do_norm_tree);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values

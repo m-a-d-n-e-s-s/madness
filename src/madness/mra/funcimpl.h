@@ -2965,15 +2965,27 @@ template<size_t NDIM>
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
             if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXveca2(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
+                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
             if (fence)
                 world.gop.fence();
         }
 
-        //vector version of sparse multiplication with mw screening
-        //
+        /// Multiplies a function against a vector of functions using recursive descent,
+        /// assuming same distribution. Uses d- and s-coefficient norms to estimate the 
+        /// required level for accurate representation of the result (mw-screening).
+        /// Both left and right functions must be in the redundant form (scaling function basis).
+        /// @param[in] key the key to the current function node (box)
+        /// @param[in] left the function impl associated with the left function
+        /// @param[in] lcin the scaling function coefficients associated with the
+        ///            current box in the left function
+        /// @param[in] vrightin the vector of function impl's associated with
+        ///            the vector of right functions
+        /// @param[in] vrcin the vector of scaling function coefficients associated with the
+        ///            current box in the right functions
+        /// @param[out] vresultin the vector of resulting functions (impl's)
+        /// @param[in] tol numerical tolerance for screening
         template <typename L, typename R>
-        void mulXXveca2(const keyT& key,
+        void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
@@ -3111,196 +3123,15 @@ template<size_t NDIM>
                     }
 
                     //print(key, "recursion", child);
-                    woT::task(coeffs.owner(child), &implT:: template mulXXveca2<L,R>, child, left, ll, vright, vv, vresult, tol);
+                    woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
                 }
             }
         }
 
-        // function mulxx w/ wavelet norm screening
-        // functions must be in redundant form
-        //
-        template <typename L, typename R>
-        void mulXXa2(const keyT& key,
-                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
-                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
-                    double tol) {
-            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
-            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
-
-            double lnorm=1e99, rnorm=1e99, ldnorm=1e99, rdnorm=1e99;
-            bool r_is_leaf=false, l_is_leaf=false;
-
-            // get norms of left function
-            Tensor<L> lc = lcin;
-            if (lc.size() == 0) {
-                literT it = left->coeffs.find(key).get();
-                MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
-                ldnorm = it->second.get_dnorm_tree();
-                l_is_leaf = !it->second.has_children();
-            } else {
-                lnorm = lc.normf();
-                ldnorm = 0.0; 
-                l_is_leaf = true;
-            }
-
-            // get norms of right function
-            Tensor<R> rc = rcin;
-            if (rc.size() == 0) {
-                riterT it = right->coeffs.find(key).get();
-                MADNESS_ASSERT(it != right->coeffs.end());
-                rnorm = it->second.get_norm_tree();
-                rdnorm = it->second.get_dnorm_tree();
-                r_is_leaf = !it->second.has_children();
-            } else {
-                rnorm = rc.normf();
-                rdnorm = 0.0; 
-                r_is_leaf = true;
-            }
-
-            // multiply if error in representation of product in this box is below thresh
-            if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
-                if (lc.size() == 0) {
-                    literT it = left->coeffs.find(key).get();
-                    if (it->second.has_coeff()) lc = it->second.coeff().full_tensor_copy();
-                }
-                if (rc.size() == 0) {
-                    riterT it = right->coeffs.find(key).get();
-                    if (it->second.has_coeff()) rc = it->second.coeff().full_tensor_copy();
-                }
-                do_mul<L,R>(key, lc, std::make_pair(key,rc));
-                return;
-            }
-
-            // Recur down
-            coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
-
-            // unfilter left
-            Tensor<L> lss;
-            if (lc.size()) {
-                Tensor<L> ld(cdata.v2k);
-                ld(cdata.s0) = lc(___);
-                lss = left->unfilter(ld);
-            } else if (l_is_leaf) {
-                literT it = left->coeffs.find(key).get();
-                if (it->second.has_coeff()) lc = it->second.coeff().full_tensor_copy();
-                Tensor<L> ld(cdata.v2k);
-                ld(cdata.s0) = lc(___);
-                lss = left->unfilter(ld);
-            }
-
-            // unfilter right
-            Tensor<R> rss;
-            if (rc.size()) {
-                Tensor<R> rd(cdata.v2k);
-                rd(cdata.s0) = rc(___);
-                rss = right->unfilter(rd);
-            } else if (r_is_leaf) {
-                riterT it = right->coeffs.find(key).get();
-                if (it->second.has_coeff()) rc = it->second.coeff().full_tensor_copy();
-                Tensor<R> rd(cdata.v2k);
-                rd(cdata.s0) = rc(___);
-                rss = right->unfilter(rd);
-            }
-
-            // spawn tasks for children
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                Tensor<L> ll;
-                Tensor<R> rr;
-                if (lc.size() || l_is_leaf)
-                    ll = copy(lss(child_patch(child)));
-                if (rc.size() || r_is_leaf)
-                    rr = copy(rss(child_patch(child)));
-
-                woT::task(coeffs.owner(child), &implT:: template mulXXa2<L,R>, child, left, ll, right, rr, tol);
-            }
-        }
 
 
-        /// Multiplication using recursive descent and assuming same distribution
-        /// Both left and right functions are in the scaling function basis
-        /// @param[in] key the key to the current function node (box)
-        /// @param[in] left the function impl associated with the left function
-        /// @param[in] lcin the scaling function coefficients associated with the
-        ///            current box in the left function
-        /// @param[in] right the function impl associated with the right function
-        /// @param[in] rcin the scaling function coefficients associated with the
-        ///            current box in the right function
-        template <typename L, typename R>
-        void mulXXa(const keyT& key,
-                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
-                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
-                    double tol) {
-            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
-            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
-            double lnorm=1e99, rnorm=1e99;
 
-            Tensor<L> lc = lcin;
-            if (lc.size() == 0) {
-                literT it = left->coeffs.find(key).get();
-                MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
-                if (it->second.has_coeff())
-                    lc = it->second.coeff().reconstruct_tensor();
-            }
-
-            Tensor<R> rc = rcin;
-            if (rc.size() == 0) {
-                riterT it = right->coeffs.find(key).get();
-                MADNESS_ASSERT(it != right->coeffs.end());
-                rnorm = it->second.get_norm_tree();
-                if (it->second.has_coeff())
-                    rc = it->second.coeff().reconstruct_tensor();
-            }
-
-            // both nodes are leaf nodes: multiply and return
-            if (rc.size() && lc.size()) { // Yipee!
-                do_mul<L,R>(key, lc, std::make_pair(key,rc));
-                return;
-            }
-
-            if (tol) {
-                if (lc.size())
-                    lnorm = lc.normf(); // Otherwise got from norm tree above
-                if (rc.size())
-                    rnorm = rc.normf();
-                if (lnorm*rnorm < truncate_tol(tol, key)) {
-                    coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf node
-                    return;
-                }
-            }
-
-            // Recur down
-            coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
-
-            Tensor<L> lss;
-            if (lc.size()) {
-                Tensor<L> ld(cdata.v2k);
-                ld(cdata.s0) = lc(___);
-                lss = left->unfilter(ld);
-            }
-
-            Tensor<R> rss;
-            if (rc.size()) {
-                Tensor<R> rd(cdata.v2k);
-                rd(cdata.s0) = rc(___);
-                rss = right->unfilter(rd);
-            }
-
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                Tensor<L> ll;
-                Tensor<R> rr;
-                if (lc.size())
-                    ll = copy(lss(child_patch(child)));
-                if (rc.size())
-                    rr = copy(rss(child_patch(child)));
-
-                woT::task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
-            }
-        }
 
 
         // Binary operation on values using recursive descent and assuming same distribution
@@ -3426,22 +3257,7 @@ template<size_t NDIM>
             }
         }
 
-        /// Multiplies two functions (impl's) together. Delegates to the mulXXa() method
-        /// @param[in] left pointer to the left function impl
-        /// @param[in] right pointer to the right function impl
-        /// @param[in] tol numerical tolerance
-        template <typename L, typename R>
-        void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, bool fence, bool mw_screening=false) {
-            if (world.rank() == coeffs.owner(cdata.key0))
-                if (mw_screening)
-                    mulXXa2(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), tol);
-                else 
-                    mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), tol);
-            if (fence)
-                world.gop.fence();
 
-            //verify_tree();
-        }
 
         /// Performs binary operation on two functions (impl's). Delegates to the binaryXXa() method
         /// @param[in] left pointer to the left function impl
