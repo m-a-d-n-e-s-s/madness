@@ -2958,7 +2958,7 @@ template<size_t NDIM>
         }
 
         template <typename L, typename R>
-        void mulXXvec2(const FunctionImpl<L,NDIM>* left,
+        void mulXXvec(const FunctionImpl<L,NDIM>* left,
                       const std::vector<const FunctionImpl<R,NDIM>*>& vright,
                       const std::vector<FunctionImpl<T,NDIM>*>& vresult,
                       double tol,
@@ -3217,115 +3217,6 @@ template<size_t NDIM>
             }
         }
 
-        // Multiplication assuming same distribution and recursive descent
-        /// Both left and right functions are in the scaling function basis
-        /// @param[in] key the key to the current function node (box)
-        /// @param[in] left the function impl associated with the left function
-        /// @param[in] lcin the scaling function coefficients associated with the
-        ///            current box in the left function
-        /// @param[in] vrightin the vector of function impl's associated with
-        ///            the vector of right functions
-        /// @param[in] vrcin the vector scaling function coefficients associated with the
-        ///            current box in the right functions
-        /// @param[out] vresultin the vector of resulting functions (impl's)
-        template <typename L, typename R>
-        void mulXXveca(const keyT& key,
-                       const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
-                       const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
-                       const std::vector< Tensor<R> >& vrcin,
-                       const std::vector<FunctionImpl<T,NDIM>*> vresultin,
-                       double tol) {
-            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
-            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
-
-            double lnorm = 1e99;
-            Tensor<L> lc = lcin;
-            if (lc.size() == 0) {
-                literT it = left->coeffs.find(key).get();
-                MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
-                if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
-            }
-            else {
-                lnorm = lc.normf();
-            }
-
-            // Loop thru RHS functions seeing if anything can be multiplied
-            std::vector<FunctionImpl<T,NDIM>*> vresult;
-            std::vector<const FunctionImpl<R,NDIM>*> vright;
-            std::vector< Tensor<R> > vrc;
-            vresult.reserve(vrightin.size());
-            vright.reserve(vrightin.size());
-            vrc.reserve(vrightin.size());
-
-            for (unsigned int i=0; i<vrightin.size(); ++i) {
-                FunctionImpl<T,NDIM>* result = vresultin[i];
-                const FunctionImpl<R,NDIM>* right = vrightin[i];
-                Tensor<R> rc = vrcin[i];
-                double rnorm;
-                if (rc.size() == 0) {
-                    riterT it = right->coeffs.find(key).get();
-                    MADNESS_ASSERT(it != right->coeffs.end());
-                    rnorm = it->second.get_norm_tree();
-                    if (it->second.has_coeff())
-                        rc = it->second.coeff().full_tensor_copy();
-                }
-                else {
-                    rnorm = rc.normf();
-                }
-
-                if (rc.size() && lc.size()) { // Yipee!
-                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
-                }
-                //else if (tol && std::min(rnorm*lnorm_inf, rnorm_inf*lnorm) < truncate_tol(tol, key)) {
-                else if (tol && rnorm*lnorm < truncate_tol(tol, key)) {
-                    result->coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf
-                }
-                else {  // Interior node
-                    result->coeffs.replace(key, nodeT(coeffT(),true));
-                    vresult.push_back(result);
-                    vright.push_back(right);
-                    vrc.push_back(rc);
-                }
-            }
-
-            if (vresult.size()) {
-                Tensor<L> lss;
-                if (lc.size()) {
-                    Tensor<L> ld(cdata.v2k);
-                    ld(cdata.s0) = lc(___);
-                    lss = left->unfilter(ld);
-                }
-
-                std::vector< Tensor<R> > vrss(vresult.size());
-                for (unsigned int i=0; i<vresult.size(); ++i) {
-                    if (vrc[i].size()) {
-                        Tensor<R> rd(cdata.v2k);
-                        rd(cdata.s0) = vrc[i](___);
-                        vrss[i] = vright[i]->unfilter(rd);
-                    }
-                }
-
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    const keyT& child = kit.key();
-                    Tensor<L> ll;
-
-                    std::vector<Slice> cp = child_patch(child);
-
-                    if (lc.size())
-                        ll = copy(lss(cp));
-
-                    std::vector< Tensor<R> > vv(vresult.size());
-                    for (unsigned int i=0; i<vresult.size(); ++i) {
-                        if (vrc[i].size())
-                            vv[i] = copy(vrss[i](cp));
-                    }
-
-                    woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
-                }
-            }
-        }
 
         /// Multiplication using recursive descent and assuming same distribution
         /// Both left and right functions are in the scaling function basis
@@ -3593,24 +3484,7 @@ template<size_t NDIM>
             //verify_tree();
         }
 
-        /// Multiplies a function (impl) with a vector of functions (impl's). Delegates to the
-        /// mulXXveca() method.
-        /// @param[in] left pointer to the left function impl
-        /// @param[in] vright vector of pointers to the right function impl's
-        /// @param[in] tol numerical tolerance
-        /// @param[out] vresult vector of pointers to the resulting function impl's
-        template <typename L, typename R>
-        void mulXXvec(const FunctionImpl<L,NDIM>* left,
-                      const std::vector<const FunctionImpl<R,NDIM>*>& vright,
-                      const std::vector<FunctionImpl<T,NDIM>*>& vresult,
-                      double tol,
-                      bool fence) {
-            std::vector< Tensor<R> > vr(vright.size());
-            if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
-            if (fence)
-                world.gop.fence();
-        }
+
 
         Future<double> get_norm_tree_recursive(const keyT& key) const;
 

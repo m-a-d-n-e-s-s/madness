@@ -1648,7 +1648,7 @@ namespace madness {
             }
 
             left.world().gop.fence(); // Is this still essential?  Yes.
-            vresult[0]->mulXXvec2(left.get_impl().get(), vright, vresult, tol, fence);
+            vresult[0]->mulXXvec(left.get_impl().get(), vright, vresult, tol, fence);
         }
 
         /// Same as \c operator* but with optional fence and no automatic reconstruction
