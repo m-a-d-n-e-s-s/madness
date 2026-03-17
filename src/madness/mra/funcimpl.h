@@ -558,6 +558,67 @@ namespace madness {
         }
     };
 
+
+    /// returns true if the sum of hartree products is a leaf node (compute combined norm & error)
+
+    /// Generalizes hartree_leaf_op for a sum of matched pairs: Σ_i f_i(1) * g_i(2)
+    /// Uses the triangle inequality bound over all pairs to determine leafness.
+    template<typename T, size_t NDIM>
+    struct hartree_leaf_op_vec {
+
+        typedef FunctionImpl<T,NDIM> implT;
+        const FunctionImpl<T,NDIM>* f;
+        long k;
+        bool do_error_leaf_op() const {return false;}
+
+        hartree_leaf_op_vec() = default;
+        hartree_leaf_op_vec(const implT* f, const long& k) : f(f), k(k) {}
+
+        /// no pre-determination
+        bool operator()(const Key<NDIM>& key) const {return false;}
+
+        /// post-determination for vector of pairs: true if well-represented
+
+        /// @param[in]  key      the hi-dimensional key
+        /// @param[in]  fcoeffs  vector of coefficients of f_i in NS form
+        /// @param[in]  gcoeffs  vector of coefficients of g_i in NS form
+        bool operator()(const Key<NDIM>& key, const std::vector<Tensor<T>>& fcoeffs,
+                        const std::vector<Tensor<T>>& gcoeffs) const {
+
+            MADNESS_ASSERT(fcoeffs.size()==gcoeffs.size());
+            if (key.level()<2) return false;
+            Slice s = Slice(0,k-1);
+            std::vector<Slice> s0(NDIM/2,s);
+
+            const double tol=f->get_thresh();
+            const double thresh=f->truncate_tol(tol, key)*0.3;
+
+            // triangle inequality bound: Σ_i ||f_i|| * ||g_i||
+            double total_norm=0.0;
+            double total_error=0.0;
+            for (size_t i=0; i<fcoeffs.size(); ++i) {
+                const double fnorm=fcoeffs[i].normf();
+                const double gnorm=gcoeffs[i].normf();
+
+                total_norm += fnorm*gnorm;
+
+                const double sfnorm=fcoeffs[i](s0).normf();
+                const double sgnorm=gcoeffs[i](s0).normf();
+                const double ferror=sqrt(std::abs(fnorm*fnorm-sfnorm*sfnorm));
+                const double gerror=sqrt(std::abs(gnorm*gnorm-sgnorm*sgnorm));
+                total_error += fnorm*gerror + ferror*gnorm + ferror*gerror;
+            }
+
+            if (total_norm < thresh) return true;
+            if (total_error < thresh) return true;
+            return false;
+        }
+
+        template <typename Archive> void serialize (Archive& ar) {
+            ar & f & k;
+        }
+    };
+
     /// returns true if the result of the convolution operator op with some provided
     /// coefficients will be small
     template<typename T, size_t NDIM, typename opT>
@@ -5154,10 +5215,15 @@ template<size_t NDIM>
                 if ((not do_kernel) and (shell==0)) continue;
 
                 keyT disp1;
-                if (op->particle()==1) disp1=it->merge_with(nullkey);
-                else if (op->particle()==2) disp1=nullkey.merge_with(*it);
-                else {
-                    MADNESS_EXCEPTION("confused particle in operator??",1);
+                if constexpr (opdim==NDIM) {
+                    // full-dimensional operator: displacement is the full key, no particle needed
+                    disp1=*it;
+                } else {
+                    if (op->particle()==1) disp1=it->merge_with(nullkey);
+                    else if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                    else {
+                        MADNESS_EXCEPTION("confused particle in operator??",1);
+                    }
                 }
 
                 keyT dest = neighbor_in_volume(key, disp1);
@@ -5380,6 +5446,191 @@ template<size_t NDIM>
 
             template <typename Archive> void serialize(const Archive& ar) {
                 ar & result & iaf & iag & apply_op;
+            }
+        };
+
+        /// traverse a non-existing tree for a sum of hartree products and apply an operator
+
+        /// invoked by result
+        /// Fuses the loop over matched pairs into a single tree traversal:
+        /// result = op( Σ_i f_i(1) * g_i(2) )
+        /// The hi-dim NS coefficients are the sum of outer products of the
+        /// underlying low-dim functions (in NS form), formed on the fly.
+        /// @param[in]	apply_op the operator acting on the NS tree
+        /// @param[in]	fimpls   vector of funcimpls of particle 1
+        /// @param[in]	gimpls   vector of funcimpls of particle 2
+        template<typename opT, std::size_t LDIM>
+        void recursive_apply(opT& apply_op,
+                             const std::vector<const FunctionImpl<T,LDIM>*>& fimpls,
+                             const std::vector<const FunctionImpl<T,LDIM>*>& gimpls,
+                             const bool fence) {
+
+            MADNESS_ASSERT(fimpls.size()==gimpls.size());
+            MADNESS_ASSERT(fimpls.size()>0);
+            const keyT& key0=cdata.key0;
+
+            if (world.rank() == coeffs.owner(key0)) {
+
+                std::vector<CoeffTracker<T,LDIM>> ffs, ggs;
+                for (size_t i=0; i<fimpls.size(); ++i) {
+                    ffs.push_back(CoeffTracker<T,LDIM>(fimpls[i]));
+                    ggs.push_back(CoeffTracker<T,LDIM>(gimpls[i]));
+                }
+
+                typedef recursive_apply_op_vec<opT,LDIM> coeff_opT;
+                coeff_opT coeff_op(this,ffs,ggs,&apply_op);
+
+                typedef noop<T,NDIM> apply_opT;
+                apply_opT noop_op;
+
+                ProcessID p= coeffs.owner(key0);
+                woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, coeff_op, noop_op, key0);
+            }
+            if (fence) world.gop.fence();
+            set_tree_state(TreeState::nonstandard_after_apply);
+        }
+
+        /// recursive part of recursive_apply for a vector of matched pairs
+
+        /// Handles Σ_i f_i(1) * g_i(2) in a single tree traversal,
+        /// accumulating outer products with immediate truncation.
+        template<typename opT, std::size_t LDIM>
+        struct recursive_apply_op_vec {
+            bool randomize() const {return true;}
+
+            typedef recursive_apply_op_vec<opT,LDIM> this_type;
+            typedef CoeffTracker<T,LDIM> ctL;
+
+            implT* result;
+            std::vector<ctL> iafs;
+            std::vector<ctL> iags;
+            opT* apply_op;
+
+            // ctor
+            recursive_apply_op_vec() = default;
+            recursive_apply_op_vec(implT* result,
+                                   const std::vector<ctL>& iafs, const std::vector<ctL>& iags,
+                                   const opT* apply_op)
+                : result(result), iafs(iafs), iags(iags), apply_op(apply_op)
+            {
+                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+                MADNESS_ASSERT(iafs.size()==iags.size());
+            }
+            recursive_apply_op_vec(const recursive_apply_op_vec& other)
+                : result(other.result), iafs(other.iafs), iags(other.iags), apply_op(other.apply_op) {}
+
+
+            /// make the summed NS-coefficients and send off the application of the operator
+
+            /// Forms Σ_i outer(f_i, g_i) with immediate truncation after each addition
+            /// @return		a pair<bool,coeffT>(is_leaf,coeffT())
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+                // break key into particles
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+
+                const size_t npairs=iafs.size();
+
+                // collect all lo-dim coefficients in full tensor form
+                std::vector<tensorT> fcoeffs(npairs), gcoeffs(npairs);
+                for (size_t i=0; i<npairs; ++i) {
+                    fcoeffs[i]=iafs[i].coeff(key1).full_tensor();
+                    gcoeffs[i]=iags[i].coeff(key2).full_tensor();
+                }
+
+                // determine if this is a leaf node using combined norm bound
+                hartree_leaf_op_vec<T,NDIM> leaf_op(result,result->get_k());
+                bool is_leaf=leaf_op(key,fcoeffs,gcoeffs);
+
+                if (not is_leaf) {
+                    const std::vector<Slice>& s0=iafs[0].get_impl()->cdata.s0;
+                    const double reduce_thresh=result->truncate_tol(result->get_thresh(), key);
+
+                    // accumulate: coeff = Σ_i outer(f_i, g_i) with immediate truncation
+                    coeffT coeff;
+                    for (size_t i=0; i<npairs; ++i) {
+                        coeffT term;
+                        if (apply_op->modified()) {
+                            term=outer(copy(fcoeffs[i](s0)),copy(gcoeffs[i](s0)),result->targs);
+                        } else {
+                            term=outer(fcoeffs[i],gcoeffs[i],result->targs);
+                        }
+                        if (i==0) {
+                            coeff=term;
+                        } else {
+                            coeff.gaxpy(1.0, term, 1.0);
+                            coeff.reduce_rank(reduce_thresh);
+                        }
+                    }
+
+                    // send off the operator application once on the summed coefficient
+                    ProcessID p=result->world.rank();
+                    double norm0=result->do_apply_directed_screening<opT,T>(apply_op, key, coeff, true);
+
+                    result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
+                                 apply_op,key,coeff,false);
+
+                    return finalize(norm0,key,coeff);
+
+                } else {
+                    return std::pair<bool,coeffT> (is_leaf,coeffT());
+                }
+            }
+
+            /// sole purpose is to wait for the kernel norm, wrap it and send it back to caller
+            std::pair<bool,coeffT> finalize(const double kernel_norm, const keyT& key,
+                                            const coeffT& coeff) const {
+                const double thresh=result->get_thresh()*0.1;
+                bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
+                if (key.level()<2) is_leaf=false;
+                return std::pair<bool,coeffT> (is_leaf,coeff);
+            }
+
+
+            this_type make_child(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+
+                std::vector<ctL> child_fs(iafs.size()), child_gs(iags.size());
+                for (size_t i=0; i<iafs.size(); ++i) {
+                    child_fs[i]=iafs[i].make_child(key1);
+                    child_gs[i]=iags[i].make_child(key2);
+                }
+                return this_type(result,child_fs,child_gs,apply_op);
+            }
+
+            /// activate all CoeffTrackers using fan-in: all 2N futures are registered
+            /// as dependencies and the forward_ctor task fires only when all are resolved
+            Future<this_type> activate() const {
+                const size_t n=iafs.size();
+                std::vector<Future<ctL>> f_futures(n), g_futures(n);
+                for (size_t i=0; i<n; ++i) {
+                    f_futures[i]=iafs[i].activate();
+                    g_futures[i]=iags[i].activate();
+                }
+                return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *>(this),
+                                               &this_type::forward_ctor),result,f_futures,g_futures,apply_op);
+            }
+
+            this_type forward_ctor(implT* r,
+                                   const std::vector<Future<ctL>>& f_futures,
+                                   const std::vector<Future<ctL>>& g_futures,
+                                   const opT* apply_op1) {
+                std::vector<ctL> new_fs(f_futures.size()), new_gs(g_futures.size());
+                for (size_t i=0; i<f_futures.size(); ++i) {
+                    new_fs[i]=const_cast<std::vector<Future<ctL>>&>(f_futures)[i].get();
+                }
+                for (size_t i=0; i<g_futures.size(); ++i) {
+                    new_gs[i]=const_cast<std::vector<Future<ctL>>&>(g_futures)[i].get();
+                }
+                return this_type(r,new_fs,new_gs,apply_op1);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & result & iafs & iags & apply_op;
             }
         };
 

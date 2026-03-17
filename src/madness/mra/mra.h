@@ -2201,9 +2201,15 @@ namespace madness {
     	result.get_impl()->reset_timer();
     	op.reset_timer();
 
-		// will fence here
-        for (size_t i=0; i<f1.size(); ++i)
-            result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
+		// fuse all pairs into a single tree traversal
+        {
+            std::vector<const FunctionImpl<T,LDIM>*> fimpls(f1.size()), gimpls(f2.size());
+            for (size_t i=0; i<f1.size(); ++i) {
+                fimpls[i]=f1[i].get_impl().get();
+                gimpls[i]=f2[i].get_impl().get();
+            }
+            result.get_impl()->recursive_apply(op, fimpls, gimpls, false);
+        }
         world.gop.fence();
 
         if (op.print_timings) {

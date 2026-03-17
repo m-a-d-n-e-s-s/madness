@@ -836,7 +836,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             if (metric.size()>0) {
                 metric=inner(XXinv_g,inner(metric,XXinv_h,1,1),1,0);      // Xg . M . Xh^T
             } else {
+                // if it was canonical keep it canonical
                 metric = inner(XXinv_g,XXinv_h,1,1);      // Xg . Xh^T
+                canonicalize();
             }
         }
 

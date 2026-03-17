@@ -405,12 +405,14 @@ public:
 
     float_scalar_type normf() const {
 		float_scalar_type norm;
+		if (not is_assigned()) return 0.0;
 		std::visit([&norm](auto& obj) {norm=obj->normf();}, tensor);
 		return norm;
     }
 
     float_scalar_type svd_normf() const {
 		float_scalar_type norm;
+		if (not is_assigned()) return 0.0;
 		if (is_svd_tensor()) return get_svdtensor().svd_normf();
 		std::visit([&norm](auto& obj) {norm=obj->normf();}, tensor);
 		return norm;

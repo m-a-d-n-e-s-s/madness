@@ -162,6 +162,69 @@ int test_stuff(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
+/// test recursive_apply: apply a full-dimensional operator on a Hartree product
+///
+/// Build f(1)*g(2), apply a 2D BSH operator via the recursive_apply pathway
+/// (which calls do_apply_directed_screening with opdim==NDIM), and compare
+/// against applying the same operator on an explicitly constructed Hartree product.
+int test_recursive_apply(World& world) {
+    test_output t1("test_recursive_apply");
+    t1.set_cout_to_terminal();
+
+    constexpr std::size_t LDIM = 1;
+    constexpr std::size_t NDIM = 2 * LDIM;
+
+    // ensure coefficients are stored in SVD (TT_2D) form for apply2
+    const TensorType original_tt = FunctionDefaults<NDIM>::get_tensor_type();
+    FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+
+    const double thresh = FunctionDefaults<NDIM>::get_thresh();
+    const int k = FunctionDefaults<NDIM>::get_k();
+
+    // 1D Gaussian functions
+    auto gauss = [](double a, double c) {
+        return [a, c](const Vector<double, LDIM>& r) {
+            return c * exp(-a * r[0] * r[0]);
+        };
+    };
+
+    Function<double, LDIM> f = FunctionFactory<double, LDIM>(world).functor(gauss(1.0, 1.0));
+    Function<double, LDIM> g = FunctionFactory<double, LDIM>(world).functor(gauss(2.0, 1.0));
+    f.truncate();
+    g.truncate();
+
+    // create a full-dimensional (2D) BSH operator
+    const double mu = 1.0;
+    SeparatedConvolution<double, NDIM> op = BSHOperator<NDIM>(world, mu, 1.e-5, thresh);
+
+    // reference: build explicit Hartree product and apply the operator
+    Function<double, NDIM> fg_explicit = hartree_product(f, g);
+    fg_explicit.truncate();
+    Function<double, NDIM> ref = apply(op, fg_explicit);
+
+    // test: apply operator on Hartree product via recursive_apply
+    Function<double, NDIM> result = apply(op, std::vector<Function<double, LDIM>>({f}),
+                                              std::vector<Function<double, LDIM>>({g}));
+
+    double ref_norm = ref.norm2();
+    double result_norm = result.norm2();
+    Function<double, NDIM> diff = ref - result;
+    double error = diff.norm2();
+
+    print("  ref norm   ", ref_norm);
+    print("  result norm", result_norm);
+    print("  error norm ", error);
+
+    // the error should be small relative to the result
+    bool success = (error < 10.0 * thresh * ref_norm);
+    t1.logger << "error: " << error << " ref_norm: " << ref_norm << std::endl;
+
+    // restore original tensor type
+    FunctionDefaults<NDIM>::set_tensor_type(original_tt);
+
+    return t1.end(success);
+}
+
 /// test the K commutator of the He atom
 
 /// < ij | K f12 | ij >
@@ -1176,6 +1239,7 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     isuccess+=test_stuff(world,parameters);
+    isuccess+=test_recursive_apply(world);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     parameters.set_derived_value("gridtype",std::string("random"));
