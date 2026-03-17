@@ -1130,15 +1130,15 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& v,
         bool fence=true) {
         PROFILE_BLOCK(Vmul);
-        a.reconstruct(false);
-        reconstruct(world, v, false);
+        make_redundant(world, v, false);
+        a.make_redundant(false);
         world.gop.fence();
         return vmulXX(a, v, 0.0, fence);
     }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
     ///
-    /// This now uses the redundant-tree mw-screening kernel (vmulXX2). By default it
+    /// This now uses the redundant-tree mw-screening kernel (vmulXX). By default it
     /// will make both inputs redundant before multiplication. Set
     /// do_make_redundant=false to skip the automatic preparation.
     template <typename T, typename R, std::size_t NDIM>
@@ -1160,7 +1160,7 @@ namespace madness {
             MADNESS_CHECK_THROW(get_tree_state(v) == TreeState::redundant,
                                 "mul_sparse skip-prep requires right input in redundant state");
         }
-        return vmulXX2(a, v, tol, fence);
+        return vmulXX(a, v, tol, fence);
     }
 
     /// Outer product of a vector of functions with a vector of functions using sparsity
@@ -1185,11 +1185,8 @@ namespace madness {
                       bool symm = false) {
         PROFILE_BLOCK(Vmulsp);
         bool same=(&f == &g);
-        reconstruct(world, f, false);
-        if (not same) reconstruct(world, g, false);
-        world.gop.fence();
-        for (auto& ff : f) ff.norm_tree(false);
-        if (not same) for (auto& gg : g) gg.norm_tree(false);
+        make_redundant(world, f, false);
+        if (not same) make_redundant(world, g, false);
         world.gop.fence();
 
         std::vector<std::vector<Function<R,NDIM> > >result(f.size());

@@ -588,17 +588,18 @@ namespace madness {
     template <typename T, typename R, std::size_t NDIM>
       std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
       mul(World& world,
-	  const Function<T,NDIM>& a,
-	  const std::vector< Function<R,NDIM> >& v,
-	  const unsigned int blk=1,
-	  const bool fence=true) {
+		  const Function<T,NDIM>& a,
+		  const std::vector< Function<R,NDIM> >& v,
+		  const unsigned int blk=1,
+		  const bool fence=true) {
 
-      PROFILE_BLOCK(Vmul);
-      a.reconstruct(false);
-      reconstruct(world, v, blk, false);
-      world.gop.fence();
-      return vmulXX(a, v, 0.0, fence);
-    }
+	      PROFILE_BLOCK(Vmul);
+	      (void) blk;
+	      a.make_redundant(false);
+	      for (unsigned int i=0; i<v.size(); ++i) v[i].make_redundant(false);
+	      world.gop.fence();
+	      return vmulXX(a, v, 0.0, fence);
+	    }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
     template <typename T, typename R, std::size_t NDIM>
@@ -609,21 +610,14 @@ namespace madness {
 		 const double tol,
 		 const bool fence=true,
 		 const unsigned int blk=1)
- {
-      PROFILE_BLOCK(Vmulsp);
-      a.reconstruct(false);
-      reconstruct(world, v, blk, false);
-      world.gop.fence();
-
-      unsigned int vvsize = v.size();
-      for (unsigned int i=0; i<vvsize; i+= blk) {
-	for (unsigned int j=i; j<std::min(vvsize,(i+1)*blk); ++j)
-	  v[j].norm_tree(false);
-	if ( fence && (blk == 1)) world.gop.fence();
-      }
-      a.norm_tree();
-      return vmulXX(a, v, tol, fence);
-    }
+	 {
+	      PROFILE_BLOCK(Vmulsp);
+	      (void) blk;
+	      a.make_redundant(false);
+	      for (unsigned int i=0; i<v.size(); ++i) v[i].make_redundant(false);
+	      world.gop.fence();
+	      return vmulXX(a, v, tol, fence);
+	    }
 
     /// Makes the norm tree for all functions in a vector
     template <typename T, std::size_t NDIM>

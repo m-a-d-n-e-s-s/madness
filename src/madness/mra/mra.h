@@ -1630,28 +1630,9 @@ namespace madness {
 
 
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
+        /// with redundant-tree mw-screening.
         template <typename L, typename R>
         void vmulXX(const Function<L,NDIM>& left,
-                    const std::vector< Function<R,NDIM> >& right,
-                    std::vector< Function<T,NDIM> >& result,
-                    double tol,
-                    bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-
-            std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
-            std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
-            for (unsigned int i=0; i<right.size(); ++i) {
-                result[i].set_impl(left,false);
-                vresult[i] = result[i].impl.get();
-                vright[i] = right[i].get_impl().get();
-            }
-
-            left.world().gop.fence(); // Is this still essential?  Yes.
-            vresult[0]->mulXXvec(left.get_impl().get(), vright, vresult, tol, fence);
-        }
-
-        template <typename L, typename R>
-        void vmulXX2(const Function<L,NDIM>& left,
                     const std::vector< Function<R,NDIM> >& right,
                     std::vector< Function<T,NDIM> >& result,
                     double tol,
@@ -1934,23 +1915,13 @@ namespace madness {
 
     /// This so that we don't have to have friend functions in a different header.
     ///
-    /// If using sparsity (tol != 0) you must have created the tree of norms
-    /// already for both left and right.
+    /// left and right must be in redundant state (with tree norms available).
     template <typename L, typename R, std::size_t D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true) {
         if (vright.size() == 0) return std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >();
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> > vresult(vright.size());
         vresult[0].vmulXX(left, vright, vresult, tol, fence);
-        return vresult;
-    }
-
-    template <typename L, typename R, std::size_t D>
-    std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-    vmulXX2(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true) {
-        if (vright.size() == 0) return std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >();
-        std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> > vresult(vright.size());
-        vresult[0].vmulXX2(left, vright, vresult, tol, fence);
         return vresult;
     }
 
