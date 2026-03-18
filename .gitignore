@@ -76,3 +76,4 @@ bin/__pycache__/exchange_perf_model.cpython-39.pyc
 bin/__pycache__/hfex_owner_batching.cpython-39.pyc
 .gitignore
 bin/hfex_owner_batching.py
+.claude/settings.json

@@ -1330,7 +1330,13 @@ private:
 
     		std::string msg="";
 			// maybe move this block to the cloud?
-    		if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
+			// auto-copy for StoreFunctionViaPointer, and for StorePointerToFunction
+			// unless the task declares it handles its own data movement
+			const bool need_auto_copy =
+				(policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) ||
+				(policy.storage_policy==MacroTaskInfo::StorePointerToFunction
+					&& !task.handles_own_data_movement());
+    		if (need_auto_copy) {
     			double cpu0=wall_time();
     			Cloud::cloudtimer timer(subworld,cloud.copy_time);
     			// the functions loaded from the cloud are pointers to the universe functions,
@@ -1513,6 +1519,10 @@ public:
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
 	virtual long owner_hint(const Batch&, const long) const { return -1; }
 	virtual void cleanup() {}
+	/// return true if the task copies function arguments to the subworld itself
+	/// (only relevant for StorePointerToFunction / small_memory_owner policy).
+	/// Generic tasks should leave this as false; the framework will auto-copy.
+	virtual bool handles_own_data_movement() const { return false; }
 };
 
 

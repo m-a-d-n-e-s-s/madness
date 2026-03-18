@@ -354,6 +354,8 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
             t1.checkpoint(global_memsize>1.e3*byte2gbyte,"cloud global memory size > 1 kB");
         } else if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
             t1.checkpoint(global_memsize<1.e3*byte2gbyte,"cloud global memory size < 1 kB");
+        } else if (policy.storage_policy==MacroTaskInfo::StorePointerToFunction) {
+            t1.checkpoint(global_memsize<1.e3*byte2gbyte,"cloud global memory size < 1 kB");
         }
         taskq->run_all();
         taskq->cloud.print_timings(taskq->cloud.gather_timings(universe));

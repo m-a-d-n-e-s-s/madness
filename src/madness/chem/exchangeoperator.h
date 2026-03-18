@@ -437,6 +437,9 @@ private:
             return std::max<long>(0,row_range.begin) % nsubworld;
         }
 
+        /// the exchange task manages its own data movement via owner-aware fetch
+        bool handles_own_data_movement() const override { return use_owner_aware_fetch(); }
+
         void set_next_vf_hint(const Batch_1D& next_hint, const bool has_hint) {
             if (not use_owner_aware_fetch()) return;
             vf_prefetch_.has_hint = has_hint;
