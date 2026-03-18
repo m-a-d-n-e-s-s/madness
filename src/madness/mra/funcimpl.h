@@ -6674,7 +6674,8 @@ template<size_t NDIM>
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
-                    bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
+                    // bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
+                    bool need_s_coeffs= childnode_exists ? (acc->second.coeff().size()==0) : true;
 
                     coeffT child_s_coeffs;
                     if (need_s_coeffs) {
