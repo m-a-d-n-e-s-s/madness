@@ -5548,21 +5548,10 @@ template<size_t NDIM>
                     const double reduce_thresh=result->truncate_tol(result->get_thresh(), key);
 
                     // accumulate: coeff = Σ_i outer(f_i, g_i) with immediate truncation
-                    coeffT coeff;
-                    for (size_t i=0; i<npairs; ++i) {
-                        coeffT term;
-                        if (apply_op->modified()) {
-                            term=outer(copy(fcoeffs[i](s0)),copy(gcoeffs[i](s0)),result->targs);
-                        } else {
-                            term=outer(fcoeffs[i],gcoeffs[i],result->targs);
-                        }
-                        if (i==0) {
-                            coeff=term;
-                        } else {
-                            coeff.gaxpy(1.0, term, 1.0);
-                            coeff.reduce_rank(reduce_thresh);
-                        }
-                    }
+                    std::list<coeffT> one_term_coeffs;
+                    for (size_t i=0; i<npairs; ++i)
+                        one_term_coeffs.push_back(outer(fcoeffs[i],gcoeffs[i],result->targs));
+                    coeffT coeff=reduce(one_term_coeffs,FunctionDefaults<NDIM>::get_thresh()*0.1,false);
 
                     // send off the operator application once on the summed coefficient
                     ProcessID p=result->world.rank();

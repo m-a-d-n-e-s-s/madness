@@ -167,11 +167,11 @@ int test_stuff(World& world, LowRankFunctionParameters parameters) {
 /// Build f(1)*g(2), apply a 2D BSH operator via the recursive_apply pathway
 /// (which calls do_apply_directed_screening with opdim==NDIM), and compare
 /// against applying the same operator on an explicitly constructed Hartree product.
+template<std::size_t LDIM>
 int test_recursive_apply(World& world) {
     test_output t1("test_recursive_apply");
     t1.set_cout_to_terminal();
 
-    constexpr std::size_t LDIM = 1;
     constexpr std::size_t NDIM = 2 * LDIM;
 
     // ensure coefficients are stored in SVD (TT_2D) form for apply2
@@ -179,32 +179,32 @@ int test_recursive_apply(World& world) {
     FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
 
     const double thresh = FunctionDefaults<NDIM>::get_thresh();
-    const int k = FunctionDefaults<NDIM>::get_k();
 
     // 1D Gaussian functions
     auto gauss = [](double a, double c) {
         return [a, c](const Vector<double, LDIM>& r) {
-            return c * exp(-a * r[0] * r[0]);
+            return c * exp(-a * inner(r,r));
         };
     };
 
-    Function<double, LDIM> f = FunctionFactory<double, LDIM>(world).functor(gauss(1.0, 1.0));
-    Function<double, LDIM> g = FunctionFactory<double, LDIM>(world).functor(gauss(2.0, 1.0));
-    f.truncate();
-    g.truncate();
+    std::vector<Function<double, LDIM>> f,g;
+    for (int i=0; i<3; ++i) {
+        f.push_back(FunctionFactory<double, LDIM>(world).functor(gauss(1.0*i, 1.0)));
+        g.push_back(FunctionFactory<double, LDIM>(world).functor(gauss(2.0*i, 1.0)));
+    }
+
+    LowRankFunction<double,NDIM> lrf(f,g,FunctionDefaults<NDIM>::get_thresh(),"cholesky");
 
     // create a full-dimensional (2D) BSH operator
     const double mu = 1.0;
     SeparatedConvolution<double, NDIM> op = BSHOperator<NDIM>(world, mu, 1.e-5, thresh);
 
     // reference: build explicit Hartree product and apply the operator
-    Function<double, NDIM> fg_explicit = hartree_product(f, g);
-    fg_explicit.truncate();
+    Function<double, NDIM> fg_explicit = lrf.reconstruct();
     Function<double, NDIM> ref = apply(op, fg_explicit);
 
     // test: apply operator on Hartree product via recursive_apply
-    Function<double, NDIM> result = apply(op, std::vector<Function<double, LDIM>>({f}),
-                                              std::vector<Function<double, LDIM>>({g}));
+    Function<double, NDIM> result = apply(op, lrf.get_g(),lrf.get_h());
 
     double ref_norm = ref.norm2();
     double result_norm = result.norm2();
@@ -1239,23 +1239,22 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     isuccess+=test_stuff(world,parameters);
-    isuccess+=test_recursive_apply(world);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
-    parameters.set_derived_value("gridtype",std::string("random"));
-//    isuccess+=test_molecular_grid<1>(world,parameters);
-//    isuccess+=test_molecular_grid<2>(world,parameters);
-//    isuccess+=test_molecular_grid<3>(world,parameters);
+    isuccess+=test_molecular_grid<1>(world,parameters);
+    isuccess+=test_molecular_grid<2>(world,parameters);
+    isuccess+=test_molecular_grid<3>(world,parameters);
 
     try {
 
         // make_ri_basis<3>(world, parameters);
         isuccess+=test_construction<1>(world, parameters);
         isuccess+=test_adaptive_grid_projection<1>(world, parameters);
-//        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
-//        isuccess+=test_remove_lindep<1>(world,parameters);
-//        isuccess+=test_arithmetic<1>(world,parameters);
-//        isuccess+=test_inner<1>(world,parameters);
+        isuccess+=test_recursive_apply<1>(world);
+        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
+        isuccess+=test_remove_lindep<1>(world,parameters);
+        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_inner<1>(world,parameters);
 
         if (long_test) {
             isuccess+=test_remove_lindep<2>(world,parameters);
