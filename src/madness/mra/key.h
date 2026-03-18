@@ -37,13 +37,14 @@
 
 #include <madness/mra/bc.h>
 #include <madness/mra/power.h>
+#include <madness/tensor/tensor.h>
 #include <madness/world/vector.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 
+#include <algorithm>
 #include <climits>  // CHAR_BIT
 #include <cstdint>
-#include <vector>
 
 namespace madness {
 
@@ -188,9 +189,20 @@ namespace madness {
             return dist;
         }
 
+        // The distance of a displacement in real space.
+        double real_distsq(const madness::Tensor<double>& widths) const {
+            double dist = 0;
+            for (std::size_t d = 0; d < NDIM; ++d) {
+                // Subtract 1 to account for the least distance between points in the boxes.
+                const auto least_displacement_distance = std::max(std::abs(l[d]) - 1, static_cast<Translation>(0));
+                const auto real_width = widths(d) * least_displacement_distance;
+                dist += real_width * real_width;
+            }
+            return dist;
+        }
+
         /// like distsq() but accounts for periodicity
-        uint64_t
-        distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
+        uint64_t distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
           const Translation twonm1 = (Translation(1) << level()) >> 1;
 
           uint64_t dsq = 0;
@@ -207,6 +219,32 @@ namespace madness {
               }
             }
             dsq += la * la;
+          }
+
+          return dsq;
+        }
+
+        /// like real_distsq() but accounts for periodicity
+        double real_distsq_bc(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          double dsq = 0;
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1) {
+                la -= twonm1 * 2;
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
+                la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
+            }
+            // Subtract 1 to account for the least distance between points in the boxes.
+            const auto least_displacement_distance = std::max(std::abs(la) - 1, static_cast<Translation>(0));
+            const auto real_width = widths(d) * least_displacement_distance;
+            dsq += real_width * real_width;
           }
 
           return dsq;

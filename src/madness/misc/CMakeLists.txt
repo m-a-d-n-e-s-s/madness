@@ -2,7 +2,7 @@
 
 set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h info.h gnuplot.h array_of_bools.h kahan_accumulator.h)
 set(MADMISC_SOURCES
-    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc info.cc unique_filename.cc)
+    checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc info.cc numerics.cc unique_filename.cc)
 # retrieve git metadata
 include(GetGitMetadata)
 vgkit_cmake_git_metadata()
