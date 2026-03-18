@@ -780,7 +780,7 @@ private:
                 gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
 
                 // Mirror accumulation for bra-range: resultcolumn[irow] += sum_j ket_column[j] * N_ij.
-                auto column_update = dot(subworld, ket_columns, psif, true, false, false, mul_tol*0.1);
+                auto column_update = dot(subworld, ket_columns, psif, true, false, mul_tol*0.1);
                 vecfuncT single_column_update = zero_functions_compressed<T, NDIM>(subworld, nrow);
                 single_column_update[irow] = copy(column_update);
                 gaxpy(subworld, 1.0, resultcolumn, 1.0, single_column_update);
@@ -960,7 +960,7 @@ private:
                 //    tmp_psif2[i].make_redundant(true);
                 //}
                 make_redundant(world, tmp_psif2, true);
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif2, true, false, false, mul_tol*0.1);
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif2, true, false, mul_tol*0.1);
                 print("finished dot");
                 cpu1 = process_cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);

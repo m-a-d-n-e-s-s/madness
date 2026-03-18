@@ -1845,16 +1845,15 @@ namespace madness {
         return result[0];
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    /// Same as \c operator* but with optional fence
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left,
         const Function<R,NDIM>& right,
         bool fence=true,
-        bool do_reconstruct=true,
-        bool do_norm_tree=true,
+        bool do_make_redundant=true,
         double tol=0.0) {
-        return mul_sparse(left,right,tol,fence,do_reconstruct || do_norm_tree);
+        return mul_sparse(left,right,tol,fence,do_make_redundant);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values

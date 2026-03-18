@@ -1224,15 +1224,14 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_reconstruct=true,
-        bool do_norm_tree=true,
+        bool do_make_redundant=true,
         double tol=0.0) {
         PROFILE_BLOCK(Vmulvv);
 //        if (&a != &b) reconstruct(world, b, true); // fails if type(a) != type(b)
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false, do_reconstruct, do_norm_tree, tol);
+            q[i] = mul(a[i], b[i], false, do_make_redundant, tol);
         }
         if (fence) world.gop.fence();
         return q;
@@ -1595,11 +1594,10 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_reconstruct=true,
-        bool do_norm_tree=true,
+        bool do_make_redundant=true,
         double tol=0.0) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true,do_reconstruct,do_norm_tree,tol),fence);
+        return sum(world,mul(world,a,b,true,do_make_redundant,tol),fence);
     }
 
 
