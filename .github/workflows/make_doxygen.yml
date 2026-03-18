@@ -16,7 +16,9 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Create clean gh-pages branch
-        run:  git checkout -b gh-pages
+        run: |
+          git checkout --orphan gh-pages
+          git rm -rf --cached .
 
       - name: Install prerequisites Ubuntu packages
         run: |
@@ -46,7 +48,7 @@ jobs:
           git config --global user.email "florian.bischoff@hu-berlin.de"
           git config --global user.name  "$GITHUB_WORKFLOW GitHub action"
           git add api-doc
-          git commit -am "Generated API doc"
+          git commit -m "Generated API doc"
 
       - name: Publish autodocs as GitHub pages
         run:  git push -f origin gh-pages:gh-pages
