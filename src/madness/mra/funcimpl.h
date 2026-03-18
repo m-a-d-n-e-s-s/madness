@@ -4991,7 +4991,7 @@ template<size_t NDIM>
               const auto real_distsq = real_distance_squared(displacement);
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
-                  real_distsq != *real_last_distsq || (*real_last_distsq == 0 && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
+                  !nearlyEqual(real_distsq, *real_last_distsq) || (nearlyEqual(*real_last_distsq, 0) && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
