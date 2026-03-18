@@ -4992,7 +4992,7 @@ template<size_t NDIM>
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
                   real_distsq != *real_last_distsq || (*real_last_distsq == 0 && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
-                  if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
+                if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
                   // of neighbors made significant contributions.  Thus,
@@ -5003,7 +5003,7 @@ template<size_t NDIM>
                 nvalid = 0;
                 real_last_distsq = real_distsq;
                 // After real_last_distsq > 0, we stop caring about keeping lattice_last_distsq up-to-date.
-                lattice_last_distsq = real_distsq ? std::optional<std::uint64_t>{} : lattice_distsq; 
+                lattice_last_distsq = real_distsq ? std::optional<std::uint64_t>{} : lattice_distsq;
               }
 
               keyT dest = neighbor(key, d, func_is_treated_by_op_as_periodic);

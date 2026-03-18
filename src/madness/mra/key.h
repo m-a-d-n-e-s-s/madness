@@ -191,14 +191,14 @@ namespace madness {
 
         // The distance of a displacement in real space.
         double real_distsq(const madness::Tensor<double>& widths) const {
-          double dist = 0;
-          for (std::size_t d = 0; d < NDIM; ++d) {
-              // Subtract 1 to account for the least distance between points in the boxes.
-              const auto least_displacement_distance = std::max(std::abs(l[d]) - 1, static_cast<Translation>(0));
-              const auto real_width = widths(d) * least_displacement_distance;
-              dist += real_width * real_width;
+            double dist = 0;
+            for (std::size_t d = 0; d < NDIM; ++d) {
+                // Subtract 1 to account for the least distance between points in the boxes.
+                const auto least_displacement_distance = std::max(std::abs(l[d]) - 1, static_cast<Translation>(0));
+                const auto real_width = widths(d) * least_displacement_distance;
+                dist += real_width * real_width;
             }
-          return dist;
+            return dist;
         }
 
         /// like distsq() but accounts for periodicity
@@ -230,26 +230,25 @@ namespace madness {
 
           double dsq = 0;
           for (std::size_t d = 0; d < NDIM; ++d) {
-              Translation la = translation()[d];
-              if (is_periodic[d]) {
-                  if (la > twonm1) {
-                      la -= twonm1 * 2;
-                      MADNESS_ASSERT(la <= twonm1);
-                    }
-                  if (la < -twonm1) {
-                      la += twonm1 * 2;
-                      MADNESS_ASSERT(la >= -twonm1);
-                    }
-                }
-              // Subtract 1 to account for the least distance between points in the boxes.
-              const auto least_displacement_distance = std::max(std::abs(la) - 1, static_cast<Translation>(0));
-              const auto real_width = widths(d) * least_displacement_distance;
-              dsq += real_width * real_width;
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1) {
+                la -= twonm1 * 2;
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
+                la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
             }
+            // Subtract 1 to account for the least distance between points in the boxes.
+            const auto least_displacement_distance = std::max(std::abs(la) - 1, static_cast<Translation>(0));
+            const auto real_width = widths(d) * least_displacement_distance;
+            dsq += real_width * real_width;
+          }
 
           return dsq;
         }
-
 
         /// like "periodic" distsq() but only selects the prescribed axes
         template <std::size_t NDIM2>
