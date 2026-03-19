@@ -1,0 +1,21 @@
+[build-system]
+requires = ["scikit-build-core>=0.5", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pymadness"
+version = "0.1.0"
+description = "Python bindings for MADNESS (Multiresolution Adaptive Numerical Environment)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "GPL-2.0-or-later"}
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+test = ["pytest", "numpy"]
+plot = ["matplotlib"]
+
+[tool.scikit-build]
+cmake.args = ["-DENABLE_PYTHON=ON"]
+cmake.source-dir = "../.."
+install.components = ["python"]
