@@ -3,6 +3,7 @@
   Function<T,NDIM> bindings for Phase 1: real functions in 1D, 2D, 3D.
 */
 
+#include <cstdint>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -187,6 +188,22 @@ static void bind_function_type(py::module_& m, const char* name) {
             return f;
         }, py::arg("world"), py::arg("filename"),
            "Load function from binary file")
+
+        // --- Construct from C function pointer (numba @cfunc support) ---
+        .def_static("from_cfunc", [](World& world, uintptr_t addr, int k, double thresh) {
+            // Cast the integer address to a C function pointer
+            auto fptr = reinterpret_cast<T (*)(const Vector<double, NDIM>&)>(addr);
+            FunctionFactory<T, NDIM> factory(world);
+            factory.f(fptr);
+            if (k > 0) factory.k(k);
+            if (thresh > 0) factory.thresh(thresh);
+            py::gil_scoped_release release;
+            return FuncT(factory);
+        },
+            py::arg("world"), py::arg("cfunc_address"),
+            py::arg("k") = -1, py::arg("thresh") = -1.0,
+            "Create function from a C function pointer (e.g. from numba @cfunc).\n"
+            "The function must have signature T(const Vector<double,NDIM>&).")
 
         // --- Print info ---
         .def("print_size", [](const FuncT& f, const std::string& msg) {

@@ -119,6 +119,84 @@ class TestFunction1D:
         assert error < 1e-3
 
 
+class TestVectorized:
+    """Tests for vectorized (batch) callable evaluation."""
+
+    def test_vectorized_3d(self, world):
+        """Vectorized callable should give same result as scalar."""
+        def gaussian_vectorized(r):
+            # r has shape (npts, 3) — use numpy broadcasting
+            return np.exp(-np.sum(r**2, axis=1))
+
+        f_vec = pymadness.function_3d(world, gaussian_vectorized)
+        expected_norm = (np.pi / 2.0) ** 0.75
+        assert abs(f_vec.norm2() - expected_norm) < 1e-3
+
+    def test_vectorized_matches_scalar_3d(self, world):
+        """Vectorized and scalar callables should produce the same function."""
+        def scalar_fn(r):
+            return np.exp(-np.dot(r, r))
+
+        def vectorized_fn(r):
+            return np.exp(-np.sum(r**2, axis=1))
+
+        f_scalar = pymadness.function_3d(world, scalar_fn)
+        f_vec = pymadness.function_3d(world, vectorized_fn)
+        diff = (f_scalar - f_vec).norm2()
+        assert diff < 1e-4
+
+    def test_vectorized_1d(self, world):
+        """Vectorized callable should work for 1D too."""
+        def gaussian_1d_vec(r):
+            return np.exp(-r[:, 0]**2)
+
+        f = pymadness.function_1d(world, gaussian_1d_vec)
+        expected = (np.pi / 2.0) ** 0.25
+        assert abs(f.norm2() - expected) < 1e-3
+
+    def test_scalar_still_works(self, world):
+        """Old-style scalar callables must still work through vectorized path."""
+        # This callable uses np.dot which only works for 1D input
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.dot(r, r)))
+        expected = (np.pi / 2.0) ** 0.75
+        assert abs(f.norm2() - expected) < 1e-3
+
+
+class TestCfunc:
+    """Tests for numba @cfunc path (optional)."""
+
+    @pytest.fixture(autouse=True)
+    def _skip_without_numba(self):
+        pytest.importorskip("numba")
+
+    def test_cfunc_3d(self, world):
+        """numba @cfunc should give same result as Python callable."""
+        import numba
+        import ctypes
+
+        @numba.cfunc("float64(CPointer(float64))")
+        def gaussian_c(r_ptr):
+            r = numba.carray(r_ptr, (3,))
+            return np.exp(-(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]))
+
+        f = pymadness.function_3d_cfunc(world, gaussian_c)
+        expected = (np.pi / 2.0) ** 0.75
+        assert abs(f.norm2() - expected) < 1e-3
+
+    def test_cfunc_1d(self, world):
+        """numba @cfunc should work for 1D."""
+        import numba
+
+        @numba.cfunc("float64(CPointer(float64))")
+        def gaussian_1d_c(r_ptr):
+            r = numba.carray(r_ptr, (1,))
+            return np.exp(-r[0]*r[0])
+
+        f = pymadness.function_1d_cfunc(world, gaussian_1d_c)
+        expected = (np.pi / 2.0) ** 0.25
+        assert abs(f.norm2() - expected) < 1e-3
+
+
 class TestOperators:
     """Tests for operator application."""
 

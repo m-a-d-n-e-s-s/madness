@@ -16,6 +16,42 @@ Basic usage::
 
         f = pymadness.function_3d(world, lambda r: r[0]**2 + r[1]**2)
         print(f"norm = {f.norm2()}")
+
+
+Vectorized callables (recommended)
+-----------------------------------
+For best performance, write callables that operate on batches of points.
+A vectorized callable receives a numpy array of shape ``(npts, NDIM)``
+and returns an array of shape ``(npts,)``::
+
+    # Scalar (simple, slow — one Python call per quadrature point per box):
+    def f_scalar(r):            # r shape: (3,)
+        return np.exp(-np.dot(r, r))
+
+    # Vectorized (fast — one Python call per box, numpy does the loop):
+    def f_vectorized(r):        # r shape: (npts, 3)
+        return np.exp(-np.sum(r**2, axis=1))
+
+pymadness auto-detects which convention the callable uses.  Both signatures
+are passed to ``function_3d`` the same way — no flag needed.
+
+For functions that cannot be vectorized with numpy, the scalar form still
+works; pymadness falls back to a per-point Python loop but still acquires
+the GIL only once per box.
+
+
+numba @cfunc (zero overhead)
+-----------------------------
+For maximum performance, compile the function with ``numba.cfunc`` and pass
+it via ``function_3d_cfunc``.  This bypasses Python entirely::
+
+    import numba, math
+    @numba.cfunc("float64(CPointer(float64))")
+    def gaussian_c(r_ptr):
+        r = numba.carray(r_ptr, (3,))
+        return math.exp(-(r[0]**2 + r[1]**2 + r[2]**2))
+
+    f = pymadness.function_3d_cfunc(world, gaussian_c, k=8, thresh=1e-6)
 """
 
 from _pymadness import (
@@ -107,9 +143,15 @@ class World:
 def function_1d(world, f, k=None, thresh=None):
     """Create a 1D function from a Python callable.
 
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(1,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 1)``, returns
+        an array of shape ``(npts,)``.  This is much faster because the
+        GIL is acquired only once per box instead of once per point.
+
     Args:
         world: MADNESS World object
-        f: callable taking a numpy array of shape (1,) and returning float
+        f: Python callable (scalar or vectorized)
         k: wavelet order (None = use FunctionDefaults)
         thresh: truncation threshold (None = use FunctionDefaults)
 
@@ -124,9 +166,15 @@ def function_1d(world, f, k=None, thresh=None):
 def function_2d(world, f, k=None, thresh=None):
     """Create a 2D function from a Python callable.
 
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(2,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 2)``, returns
+        an array of shape ``(npts,)``.  This is much faster because the
+        GIL is acquired only once per box instead of once per point.
+
     Args:
         world: MADNESS World object
-        f: callable taking a numpy array of shape (2,) and returning float
+        f: Python callable (scalar or vectorized)
         k: wavelet order (None = use FunctionDefaults)
         thresh: truncation threshold (None = use FunctionDefaults)
 
@@ -141,9 +189,15 @@ def function_2d(world, f, k=None, thresh=None):
 def function_3d(world, f, k=None, thresh=None):
     """Create a 3D function from a Python callable.
 
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(3,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 3)``, returns
+        an array of shape ``(npts,)``.  This is much faster because the
+        GIL is acquired only once per box instead of once per point.
+
     Args:
         world: MADNESS World object
-        f: callable taking a numpy array of shape (3,) and returning float
+        f: Python callable (scalar or vectorized)
         k: wavelet order (None = use FunctionDefaults)
         thresh: truncation threshold (None = use FunctionDefaults)
 
@@ -153,6 +207,65 @@ def function_3d(world, f, k=None, thresh=None):
     return Function3D(world, f,
                       k=k if k is not None else -1,
                       thresh=thresh if thresh is not None else -1.0)
+
+
+def function_1d_cfunc(world, cfunc, k=None, thresh=None):
+    """Create a 1D function from a numba @cfunc.
+
+    The cfunc must have signature ``float64(CPointer(float64))`` (a pointer
+    to a double[1] coordinate array).  Pass the compiled cfunc object directly;
+    its address is extracted automatically.
+
+    Args:
+        world: MADNESS World object
+        cfunc: a numba ``@cfunc`` compiled function (with ``.address`` attribute)
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function1D
+    """
+    return Function1D.from_cfunc(world, cfunc.address,
+                                 k=k if k is not None else -1,
+                                 thresh=thresh if thresh is not None else -1.0)
+
+
+def function_2d_cfunc(world, cfunc, k=None, thresh=None):
+    """Create a 2D function from a numba @cfunc.
+
+    See :func:`function_1d_cfunc` for details on the cfunc convention.
+
+    Args:
+        world: MADNESS World object
+        cfunc: a numba ``@cfunc`` compiled function
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function2D
+    """
+    return Function2D.from_cfunc(world, cfunc.address,
+                                 k=k if k is not None else -1,
+                                 thresh=thresh if thresh is not None else -1.0)
+
+
+def function_3d_cfunc(world, cfunc, k=None, thresh=None):
+    """Create a 3D function from a numba @cfunc.
+
+    See :func:`function_1d_cfunc` for details on the cfunc convention.
+
+    Args:
+        world: MADNESS World object
+        cfunc: a numba ``@cfunc`` compiled function
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function3D
+    """
+    return Function3D.from_cfunc(world, cfunc.address,
+                                 k=k if k is not None else -1,
+                                 thresh=thresh if thresh is not None else -1.0)
 
 
 def diff(world, f, axis=0):
@@ -174,6 +287,7 @@ __all__ = [
     "World",
     # Function constructors
     "function_1d", "function_2d", "function_3d",
+    "function_1d_cfunc", "function_2d_cfunc", "function_3d_cfunc",
     # Function types
     "Function1D", "Function2D", "Function3D", "ComplexFunction3D",
     # Defaults

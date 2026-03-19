@@ -7,6 +7,50 @@ Uses the BSH (bound-state Helmholtz) operator to iteratively solve:
 
 where V(r) = -1/r is the nuclear potential.
 The exact ground state energy is -0.5 Hartree.
+
+
+Vectorized callables
+--------------------
+When pymadness projects a Python callable onto the adaptive grid, MADNESS
+evaluates it at many quadrature points.  There are two ways to write the
+callable:
+
+**Scalar** (simple, but slow)::
+
+    def V_scalar(r):                          # r has shape (3,)
+        return -1.0 / max(np.linalg.norm(r), 1e-6)
+
+**Vectorized** (fast — recommended)::
+
+    def V_vectorized(r):                      # r has shape (npts, 3)
+        rr = np.sqrt(np.sum(r**2, axis=1))    # shape (npts,)
+        return -1.0 / np.maximum(rr, 1e-6)    # shape (npts,)
+
+The vectorized form receives *all* quadrature points for one box at once as
+a numpy array of shape ``(npts, NDIM)`` and must return an array of shape
+``(npts,)``.  pymadness auto-detects which convention the callable uses on
+the first call:
+
+  - If the callable returns an array of the expected length, it is treated
+    as vectorized and all subsequent calls use the batch path.
+  - If it raises an exception or returns something else (e.g. a scalar),
+    pymadness falls back to calling it once per point.
+
+Either way the GIL is only acquired **once per box** (not once per point),
+but the vectorized form is much faster because numpy evaluates the whole
+batch in compiled C code rather than looping in Python.  For k=8 in 3D
+(512 points per box) the speedup is typically 10–50x.
+
+Writing vectorized callables — tips:
+
+  - Use ``np.sum(r**2, axis=1)`` instead of ``np.dot(r, r)``
+    (``np.dot`` on a 2D array does matrix multiplication, not a row-wise
+    dot product).
+  - Use ``np.maximum(x, c)`` instead of ``max(x, c)`` (the built-in
+    ``max`` doesn't work element-wise on arrays).
+  - Use ``np.linalg.norm(r, axis=1)`` for row-wise norms.
+  - If your function has branches (``if``/``else``), replace them with
+    ``np.where(condition, value_if_true, value_if_false)``.
 """
 
 import numpy as np
@@ -23,14 +67,23 @@ def run(world):
     pymadness.FunctionDefaults3D.set_thresh(thresh)
     pymadness.FunctionDefaults3D.set_cubic_cell(-L, L)
 
-    # Nuclear potential: V(r) = -1/|r|
+    # ----------------------------------------------------------------
+    # Nuclear potential: V(r) = -1/|r|, regularized at the origin.
+    #
+    # Vectorized: r has shape (npts, 3), return shape (npts,).
+    # np.maximum replaces the scalar max() so the clamp works on arrays.
+    # ----------------------------------------------------------------
     def V_func(r):
-        rr = np.sqrt(r[0]**2 + r[1]**2 + r[2]**2)
-        return -1.0 / max(rr, 1e-6)
+        rr = np.sqrt(np.sum(r**2, axis=1))
+        return -1.0 / np.maximum(rr, 1e-6)
 
-    # Initial guess: normalized Gaussian
+    # ----------------------------------------------------------------
+    # Initial guess: exp(-r^2), a simple Gaussian.
+    #
+    # Vectorized: np.sum(..., axis=1) computes the row-wise dot product.
+    # ----------------------------------------------------------------
     def guess(r):
-        return np.exp(-np.dot(r, r))
+        return np.exp(-np.sum(r**2, axis=1))
 
     print("Projecting potential and initial guess...")
     V = pymadness.function_3d(world, V_func)
