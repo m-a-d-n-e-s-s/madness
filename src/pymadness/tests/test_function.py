@@ -309,3 +309,119 @@ class TestOperators:
         # Each component of gradient of a symmetric Gaussian integrates to zero
         for i in range(3):
             assert abs(grad[i].trace()) < 1e-4
+
+
+class TestUnaryOp:
+    """Tests for pointwise unary operations."""
+
+    def test_exp(self, world):
+        """exp of a constant function should give exp(c)."""
+        # f(x) = 1.0 everywhere → exp(f) = e everywhere
+        one = pymadness.function_3d(world, lambda r: np.ones(r.shape[0]))
+        g = pymadness.exp(one)
+        val = g(np.array([0.0, 0.0, 0.0]))
+        assert abs(val - np.e) < 1e-2
+
+    def test_log(self, world):
+        """log(exp(f)) should give back f."""
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        g = pymadness.log(pymadness.exp(f))
+        diff = (g - f).norm2()
+        assert diff < 1e-3
+
+    def test_sqrt(self, world):
+        """sqrt(f*f) should give |f|."""
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        g = pymadness.sqrt(f * f)
+        diff = (g - f).norm2()
+        assert diff < 1e-3
+
+    def test_unaryop_inplace(self, world):
+        """In-place unaryop should modify the function."""
+        f = pymadness.function_3d(world, lambda r: np.ones(r.shape[0]))
+        f.unaryop("exp")
+        val = f(np.array([0.0, 0.0, 0.0]))
+        assert abs(val - np.e) < 1e-2
+
+
+class TestPlottingDataPipeline:
+    """Tests for plotting evaluation helpers (no display needed)."""
+
+    def test_eval_2d_slice_data_shape(self, world):
+        """_eval_2d_slice_data should return correct shapes."""
+        from pymadness.plotting import _eval_2d_slice_data
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        x, y, vals, labels = _eval_2d_slice_data(f, fixed_axis=2,
+                                                   fixed_value=0.0, npt=30)
+        assert vals.shape == (30, 30)
+        assert len(x) == 30
+        assert len(y) == 30
+        assert labels == ["x", "y"]
+
+    def test_eval_2d_slice_data_values(self, world):
+        """Slice of a Gaussian at z=0 should peak at origin."""
+        from pymadness.plotting import _eval_2d_slice_data
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        x, y, vals, labels = _eval_2d_slice_data(f, fixed_axis=2,
+                                                   fixed_value=0.0, npt=21)
+        # Center of grid should be close to exp(0) = 1
+        assert abs(vals[10, 10] - 1.0) < 1e-2
+
+    def test_eval_2d_slice_data_custom_range(self, world):
+        """Per-axis ranges should be respected."""
+        from pymadness.plotting import _eval_2d_slice_data
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        x, y, vals, labels = _eval_2d_slice_data(
+            f, fixed_axis=2, fixed_value=0.0, npt=10,
+            xlo=-1.0, xhi=1.0, ylo=-2.0, yhi=2.0)
+        assert abs(x[0] - (-1.0)) < 1e-10
+        assert abs(x[-1] - 1.0) < 1e-10
+        assert abs(y[0] - (-2.0)) < 1e-10
+        assert abs(y[-1] - 2.0) < 1e-10
+
+    def test_eval_2d_data_shape(self, world):
+        """_eval_2d_data should return correct shapes for Function2D."""
+        from pymadness.plotting import _eval_2d_data
+        pymadness.FunctionDefaults2D.set_k(6)
+        pymadness.FunctionDefaults2D.set_thresh(1e-5)
+        pymadness.FunctionDefaults2D.set_cubic_cell(-10.0, 10.0)
+        f = pymadness.function_2d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        x, y, vals, labels = _eval_2d_data(f, npt=20)
+        assert vals.shape == (20, 20)
+        assert labels == ["x", "y"]
+
+    def test_eval_grid_1d(self, world):
+        """eval_grid_1d should return matching x and values arrays."""
+        from pymadness.plotting import eval_grid_1d
+        f = pymadness.function_1d(world, lambda r: np.exp(-r[:, 0]**2))
+        x, vals = eval_grid_1d(f, lo=-5.0, hi=5.0, npt=50)
+        assert len(x) == 50
+        assert len(vals) == 50
+        # Value at center should be ~1
+        assert abs(vals[25] - 1.0) < 0.1
+
+    def test_plot_surface_returns_figure(self, world):
+        """plot_surface with show=False should return a plotly Figure."""
+        plotly = pytest.importorskip("plotly")
+        from pymadness.plotting import plot_surface
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        fig = plot_surface(f, npt=10, show=False)
+        assert fig is not None
+        assert len(fig.data) == 1
+
+    def test_plot_surface_multi(self, world):
+        """plot_surface with multiple functions should create multiple traces."""
+        plotly = pytest.importorskip("plotly")
+        from pymadness.plotting import plot_surface
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        fig = plot_surface([f, f * f], npt=10, show=False)
+        assert len(fig.data) == 2
+
+    def test_plot_line_cut_no_display(self, world):
+        """plot_line_cut should produce a matplotlib figure."""
+        import matplotlib
+        matplotlib.use("Agg")
+        from pymadness.plotting import plot_line_cut
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        fig, ax = plot_line_cut(f, axis=0, npt=30)
+        assert len(ax.lines) == 1

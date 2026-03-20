@@ -149,7 +149,7 @@ jobs:
       working-directory: ${{github.workspace}}/build
       shell: bash
       run: |
-        pip install numpy pytest
+        pip install numpy pytest matplotlib plotly
         cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DENABLE_PYTHON=ON
         cmake --build . --target _pymadness
         cd src/pymadness
