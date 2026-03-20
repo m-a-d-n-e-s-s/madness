@@ -35,6 +35,7 @@
 
 #include <madness/mra/indexit.h>
 #include <madness/mra/funcdefaults.h>
+#include <madness/tensor/tensor.h>
 
 #include <algorithm>
 #include <array>
@@ -63,16 +64,19 @@ namespace madness {
     template <std::size_t NDIM>
     class Displacements {
 
-        static std::vector< Key<NDIM> > disp; ///< standard displacements to be used with standard kernels (range-unrestricted, no lattice sum)
-        static array_of_bools<NDIM> periodic_axes;  ///< along which axes lattice summation is performed?
-        static std::vector< Key<NDIM> > disp_periodic[64];  ///< displacements to be used with lattice-summed kernels
+        inline static std::vector< Key<NDIM> > disp = {}; ///< standard displacements to be used with standard kernels (range-unrestricted, no lattice sum)
+        inline static array_of_bools<NDIM> periodic_axes{false};  ///< along which axes lattice summation is performed?
+        inline static std::array<std::vector< Key<NDIM>>, 64 > disp_periodic{};  ///< displacements to be used with lattice-summed kernels
+        inline static Tensor<double> widths{NDIM}; ///< cell width, used to order displacements from least to most real space distance
 
     public:
         static int bmax_default() {
+            // Numbers determined by trial and error. The entire idea of bmax is non-adaptive,
+            // and the decision to have bmax be isotropic is only valid for hypercubes.
             int bmax;
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
-            else if (NDIM == 3) bmax = 3;
+            else if (NDIM == 3) bmax = 4;
             else if (NDIM == 4) bmax = 3;
             else if (NDIM == 5) bmax = 3;
             else if (NDIM == 6) bmax = 3;
@@ -82,11 +86,17 @@ namespace madness {
 
     private:
         static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            return a.distsq() < b.distsq();
+            const auto a_width = a.real_distsq(widths);
+            const auto b_width = b.real_distsq(widths);
+            if (a_width == 0 and a_width == b_width) return a.distsq() < b.distsq();
+            else return a_width < b_width;
         }
 
         static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-          return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
+            const auto a_width = a.real_distsq_bc(periodic_axes, widths);
+            const auto b_width = b.real_distsq_bc(periodic_axes, widths);
+            if (a_width == 0 and a_width == b_width) return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
+            else return a_width < b_width;
         }
 
         static void make_disp(int bmax) {
@@ -204,6 +214,8 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic push)
           MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
+          if (widths.normf() < 1e-8) widths = 1;
+
           if (disp.empty()) {
                 make_disp(bmax_default());
           }
@@ -228,7 +240,7 @@ namespace madness {
 
             if (kernel_lattice_sum_axes.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
-                MADNESS_ASSERT((std::size_t)n < std::extent_v<decltype(disp_periodic)>);
+                MADNESS_ASSERT(n < disp_periodic.size());
                 if ((kernel_lattice_sum_axes && periodic_axes) != kernel_lattice_sum_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
@@ -272,6 +284,18 @@ namespace madness {
               make_disp_periodic(bmax_default(), n);
           }
           MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
+
+        static void set_width(const Tensor<double>& width) {
+          widths = width;
+          if (!disp.empty()) {
+            std::sort(disp.begin(), disp.end(), cmp_keys);
+          }
+          for (size_t n = 0; n < 64; ++n) {
+            if (!disp_periodic[n].empty()) {
+              std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+            }
+          }
         }
     };
 
@@ -763,7 +787,7 @@ namespace madness {
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
       using Periodicity = array_of_bools<NDIM>;
-      using DistanceSquaredFunc = std::function<Translation(const Displacement&)>;
+      using DistanceSquaredFunc = std::function<double(const Displacement&)>;
 
       /// \param is_infinite_domain whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
       /// \param is_lattice_summed if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `is_infinite_domain`.
@@ -775,7 +799,7 @@ namespace madness {
           const array_of_bools<NDIM>& is_lattice_summed,
           const std::array<KernelRange, NDIM>& range,
           DistanceSquaredFunc default_distance_squared,
-          Translation max_distsq_reached
+          double max_distsq_reached
           ) :
               range_(range),
               default_distance_squared_(default_distance_squared),
@@ -898,7 +922,7 @@ namespace madness {
       std::array<ExtraDomainPolicy, NDIM> domain_policies_;
       std::array<KernelRange, NDIM> range_;
       DistanceSquaredFunc default_distance_squared_;
-      Translation max_distsq_reached_;
+      double max_distsq_reached_;
     };
 
 }  // namespace madness
