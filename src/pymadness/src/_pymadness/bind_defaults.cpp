@@ -85,4 +85,7 @@ void bind_defaults(py::module_& m) {
     bind_function_defaults<1>(m, "FunctionDefaults1D");
     bind_function_defaults<2>(m, "FunctionDefaults2D");
     bind_function_defaults<3>(m, "FunctionDefaults3D");
+    bind_function_defaults<4>(m, "FunctionDefaults4D");
+    bind_function_defaults<5>(m, "FunctionDefaults5D");
+    bind_function_defaults<6>(m, "FunctionDefaults6D");
 }

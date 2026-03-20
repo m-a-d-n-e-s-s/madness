@@ -197,6 +197,107 @@ class TestCfunc:
         assert abs(f.norm2() - expected) < 1e-3
 
 
+class TestEvalCube:
+    """Tests for eval_cube grid evaluation."""
+
+    def test_eval_cube_1d(self, world):
+        """eval_cube on a 1D Gaussian should match analytical values."""
+        f = pymadness.function_1d(world, lambda r: np.exp(-r[:, 0]**2))
+        cell = np.array([[-5.0, 5.0]])
+        npt = 50
+        vals = f.eval_cube(cell, [npt])
+        assert vals.shape == (npt,)
+        x = np.linspace(-5.0, 5.0, npt)
+        expected = np.exp(-x**2)
+        assert np.max(np.abs(vals - expected)) < 1e-3
+
+    def test_eval_cube_3d(self, world):
+        """eval_cube on a 3D Gaussian at the origin should be ~1."""
+        f = pymadness.function_3d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        # Small cube centered at origin
+        cell = np.array([[-0.1, 0.1], [-0.1, 0.1], [-0.1, 0.1]])
+        vals = f.eval_cube(cell, [3, 3, 3])
+        assert vals.shape == (3, 3, 3)
+        # Center value should be close to 1.0
+        assert abs(vals[1, 1, 1] - 1.0) < 1e-2
+
+    def test_eval_cube_2d(self, world):
+        """eval_cube on a 2D function."""
+        pymadness.FunctionDefaults2D.set_k(6)
+        pymadness.FunctionDefaults2D.set_thresh(1e-5)
+        pymadness.FunctionDefaults2D.set_cubic_cell(-10.0, 10.0)
+        f = pymadness.function_2d(world, lambda r: np.exp(-np.sum(r**2, axis=1)))
+        cell = np.array([[-1.0, 1.0], [-1.0, 1.0]])
+        vals = f.eval_cube(cell, [5, 5])
+        assert vals.shape == (5, 5)
+        # Center should be close to 1.0
+        assert abs(vals[2, 2] - 1.0) < 1e-2
+
+
+class TestFunctionFactory:
+    """Tests for FunctionFactory Python bindings."""
+
+    def test_factory_basic(self, world):
+        """Build a function through FunctionFactory with chained methods."""
+        factory = pymadness.FunctionFactory3D(world)
+        factory.functor(lambda r: np.exp(-np.sum(r**2, axis=1)))
+        factory.k(6)
+        factory.thresh(1e-5)
+        f = factory.create()
+        assert f.is_initialized()
+        expected = (np.pi / 2.0) ** 0.75
+        assert abs(f.norm2() - expected) < 1e-3
+
+    def test_factory_chaining(self, world):
+        """FunctionFactory methods should be chainable."""
+        f = (pymadness.FunctionFactory3D(world)
+             .functor(lambda r: np.exp(-np.sum(r**2, axis=1)))
+             .k(6)
+             .thresh(1e-5)
+             .create())
+        assert f.is_initialized()
+
+    def test_factory_1d(self, world):
+        """FunctionFactory1D should work."""
+        f = (pymadness.FunctionFactory1D(world)
+             .functor(lambda r: np.exp(-r[:, 0]**2))
+             .create())
+        expected = (np.pi / 2.0) ** 0.25
+        assert abs(f.norm2() - expected) < 1e-3
+
+    def test_factory_norefine(self, world):
+        """norefine() should produce a shallower tree."""
+        f_refined = (pymadness.FunctionFactory3D(world)
+                     .functor(lambda r: np.exp(-np.sum(r**2, axis=1)))
+                     .create())
+        f_shallow = (pymadness.FunctionFactory3D(world)
+                     .functor(lambda r: np.exp(-np.sum(r**2, axis=1)))
+                     .norefine()
+                     .create())
+        assert f_shallow.max_depth() <= f_refined.max_depth()
+
+
+class TestHigherDimensions:
+    """Tests for 4D, 5D, 6D functions."""
+
+    def test_function_4d(self, world):
+        """4D Gaussian should have correct norm."""
+        pymadness.FunctionDefaults4D.set_k(5)
+        pymadness.FunctionDefaults4D.set_thresh(1e-3)
+        pymadness.FunctionDefaults4D.set_cubic_cell(-5.0, 5.0)
+
+        f = pymadness.function_4d(world,
+            lambda r: np.exp(-np.sum(r**2, axis=1)))
+        # ||exp(-r^2)||_4D = (pi/2)^(4/4) = pi/2
+        expected = (np.pi / 2.0) ** 1.0
+        assert abs(f.norm2() - expected) < 0.1  # loose tol for low k
+
+    def test_defaults_4d(self, world):
+        """FunctionDefaults4D should be accessible."""
+        pymadness.FunctionDefaults4D.set_k(5)
+        assert pymadness.FunctionDefaults4D.get_k() == 5
+
+
 class TestOperators:
     """Tests for operator application."""
 

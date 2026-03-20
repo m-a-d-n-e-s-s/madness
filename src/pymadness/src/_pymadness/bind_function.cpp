@@ -1,6 +1,6 @@
 /*
   pymadness - Python bindings for MADNESS
-  Function<T,NDIM> bindings for Phase 1: real functions in 1D, 2D, 3D.
+  Function<T,NDIM> bindings for dimensions 1–6.
 */
 
 #include <cstdint>
@@ -155,6 +155,30 @@ static void bind_function_type(py::module_& m, const char* name) {
             py::gil_scoped_release release;
             f.abs_square();
         }, "Absolute square in-place: f(x) = |f(x)|^2")
+        .def("unaryop", [](FuncT& f, const std::string& op) {
+            // Use SimpleUnaryOpWrapper via the function-pointer overload
+            // of unaryop(T (*f)(T)). We need a plain function pointer,
+            // so define static helpers.
+            using fptr_t = T(*)(T);
+            fptr_t fn = nullptr;
+            if (op == "exp") {
+                fn = +[](T x) -> T { return std::exp(x); };
+            } else if (op == "log") {
+                fn = +[](T x) -> T { return std::log(x); };
+            } else if (op == "abs") {
+                fn = +[](T x) -> T { return std::abs(x); };
+            } else if (op == "sqrt") {
+                fn = +[](T x) -> T { return std::sqrt(x); };
+            } else {
+                throw std::invalid_argument(
+                    "Unknown unary op '" + op + "'. "
+                    "Supported: exp, log, abs, sqrt");
+            }
+            py::gil_scoped_release release;
+            f.unaryop(fn);
+        }, py::arg("op"),
+           "Apply a pointwise unary operation in-place.\n"
+           "Supported: 'exp', 'log', 'abs', 'sqrt'")
 
         // --- Properties ---
         .def("k", &FuncT::k, "Wavelet order")
@@ -177,14 +201,19 @@ static void bind_function_type(py::module_& m, const char* name) {
         }, "Create a deep copy of this function")
 
         // --- Save / Load ---
+        // Use ParallelArchive to match the C++ save()/load() free functions
         .def("save", [](const FuncT& f, const std::string& filename) {
-            archive::BinaryFstreamOutputArchive ar(filename.c_str());
-            f.store(ar);
+            py::gil_scoped_release release;
+            archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(f.world(), filename.c_str(), 1);
+            ar & f;
         }, py::arg("filename"), "Save function to binary file")
         .def_static("load", [](World& w, const std::string& filename) {
             FuncT f;
-            archive::BinaryFstreamInputArchive ar(filename.c_str());
-            f.load(w, ar);
+            {
+                py::gil_scoped_release release;
+                archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(w, filename.c_str());
+                ar & f;
+            }
             return f;
         }, py::arg("world"), py::arg("filename"),
            "Load function from binary file")
@@ -204,6 +233,49 @@ static void bind_function_type(py::module_& m, const char* name) {
             py::arg("k") = -1, py::arg("thresh") = -1.0,
             "Create function from a C function pointer (e.g. from numba @cfunc).\n"
             "The function must have signature T(const Vector<double,NDIM>&).")
+
+        // --- Grid evaluation ---
+        .def("eval_cube", [](const FuncT& f,
+                             py::array_t<double, py::array::c_style> cell_arr,
+                             std::vector<long> npt) {
+            // cell_arr is shape (NDIM, 2): [[lo0, hi0], [lo1, hi1], ...]
+            auto buf = cell_arr.unchecked<2>();
+            if (buf.shape(0) != static_cast<py::ssize_t>(NDIM) || buf.shape(1) != 2) {
+                throw std::invalid_argument(
+                    "cell must have shape (" + std::to_string(NDIM) + ", 2)");
+            }
+            if (npt.size() != NDIM) {
+                throw std::invalid_argument(
+                    "npt must have " + std::to_string(NDIM) + " elements");
+            }
+            Tensor<double> cell(NDIM, 2L);
+            for (std::size_t d = 0; d < NDIM; ++d) {
+                cell(d, 0L) = buf(d, 0);
+                cell(d, 1L) = buf(d, 1);
+            }
+            Tensor<T> result;
+            {
+                py::gil_scoped_release release;
+                result = f.eval_cube(cell, npt);
+            }
+            // Convert Tensor<T> to numpy array
+            std::vector<py::ssize_t> shape(result.ndim());
+            for (long i = 0; i < result.ndim(); ++i) {
+                shape[i] = result.dim(i);
+            }
+            py::array_t<T> arr(shape);
+            T* dst = arr.mutable_data();
+            const T* src = result.ptr();
+            std::copy(src, src + result.size(), dst);
+            return arr;
+        },
+            py::arg("cell"), py::arg("npt"),
+            "Evaluate function on a regular grid.\n\n"
+            "Args:\n"
+            "    cell: numpy array of shape (NDIM, 2) with [lo, hi] per dimension\n"
+            "    npt: list of ints giving number of points per dimension\n\n"
+            "Returns:\n"
+            "    numpy array of shape (npt[0], npt[1], ..., npt[NDIM-1])")
 
         // --- Print info ---
         .def("print_size", [](const FuncT& f, const std::string& msg) {
@@ -244,11 +316,106 @@ static void bind_function_ops(py::module_& m) {
     }, py::arg("f"), py::arg("g"), "Inner product of two functions");
 }
 
+// --- FunctionFactory<T,NDIM> Python binding ---
+template<typename T, std::size_t NDIM>
+static void bind_factory_type(py::module_& m, const char* name) {
+    using FactoryT = FunctionFactory<T, NDIM>;
+
+    py::class_<FactoryT>(m, name,
+        "Chainable factory for configuring Function construction")
+        .def(py::init<World&>(), py::arg("world"))
+
+        // Functor / callable
+        .def("functor", [](FactoryT& self, py::object callable) -> FactoryT& {
+            std::shared_ptr<FunctionFunctorInterface<T, NDIM>> f =
+                std::make_shared<PyFunctor<T, NDIM>>(callable);
+            self.functor(f);
+            return self;
+        }, py::arg("f"), py::return_value_policy::reference_internal,
+           "Set Python callable as functor")
+
+        // Wavelet settings
+        .def("k", [](FactoryT& self, int k) -> FactoryT& {
+            return self.k(k);
+        }, py::arg("k"), py::return_value_policy::reference_internal,
+           "Set wavelet order")
+        .def("thresh", [](FactoryT& self, double t) -> FactoryT& {
+            return self.thresh(t);
+        }, py::arg("thresh"), py::return_value_policy::reference_internal,
+           "Set truncation threshold")
+
+        // Refinement
+        .def("initial_level", [](FactoryT& self, int level) -> FactoryT& {
+            return self.initial_level(level);
+        }, py::arg("level"), py::return_value_policy::reference_internal,
+           "Set initial projection level")
+        .def("max_refine_level", [](FactoryT& self, int level) -> FactoryT& {
+            return self.max_refine_level(level);
+        }, py::arg("level"), py::return_value_policy::reference_internal,
+           "Set maximum adaptive refinement level")
+        .def("refine", [](FactoryT& self, bool flag) -> FactoryT& {
+            return self.refine(flag);
+        }, py::arg("flag") = true, py::return_value_policy::reference_internal,
+           "Enable/disable adaptive refinement")
+        .def("norefine", [](FactoryT& self) -> FactoryT& {
+            return self.norefine(true);
+        }, py::return_value_policy::reference_internal,
+           "Disable adaptive refinement")
+        .def("autorefine", [](FactoryT& self) -> FactoryT& {
+            return self.autorefine();
+        }, py::return_value_policy::reference_internal,
+           "Enable auto-refinement in operations")
+        .def("noautorefine", [](FactoryT& self) -> FactoryT& {
+            return self.noautorefine();
+        }, py::return_value_policy::reference_internal,
+           "Disable auto-refinement")
+
+        // Truncation
+        .def("truncate_mode", [](FactoryT& self, int mode) -> FactoryT& {
+            return self.truncate_mode(mode);
+        }, py::arg("mode"), py::return_value_policy::reference_internal,
+           "Set truncation mode (0, 1, or 2)")
+        .def("truncate_on_project", [](FactoryT& self) -> FactoryT& {
+            return self.truncate_on_project();
+        }, py::return_value_policy::reference_internal,
+           "Enable truncation during projection")
+        .def("notruncate_on_project", [](FactoryT& self) -> FactoryT& {
+            return self.notruncate_on_project();
+        }, py::return_value_policy::reference_internal,
+           "Disable truncation during projection")
+
+        // Fencing
+        .def("fence", [](FactoryT& self, bool flag) -> FactoryT& {
+            return self.fence(flag);
+        }, py::arg("flag") = true, py::return_value_policy::reference_internal,
+           "Enable/disable fence")
+        .def("nofence", [](FactoryT& self) -> FactoryT& {
+            return self.nofence();
+        }, py::return_value_policy::reference_internal,
+           "Disable fence")
+
+        // Empty function
+        .def("empty", [](FactoryT& self) -> FactoryT& {
+            return self.empty();
+        }, py::return_value_policy::reference_internal,
+           "Create an empty function (no projection)")
+
+        // Build the function
+        .def("create", [](FactoryT& self) {
+            using FuncT = Function<T, NDIM>;
+            py::gil_scoped_release release;
+            return FuncT(self);
+        }, "Build and return the Function from this factory's settings");
+}
+
 void bind_function(py::module_& m) {
-    // Phase 1: real functions in 1D, 2D, 3D
+    // Real functions in 1D–6D
     bind_function_type<double, 1>(m, "Function1D");
     bind_function_type<double, 2>(m, "Function2D");
     bind_function_type<double, 3>(m, "Function3D");
+    bind_function_type<double, 4>(m, "Function4D");
+    bind_function_type<double, 5>(m, "Function5D");
+    bind_function_type<double, 6>(m, "Function6D");
 
     // Complex 3D (needed for periodic systems)
     bind_function_type<double_complex, 3>(m, "ComplexFunction3D");
@@ -257,5 +424,17 @@ void bind_function(py::module_& m) {
     bind_function_ops<double, 1>(m);
     bind_function_ops<double, 2>(m);
     bind_function_ops<double, 3>(m);
+    bind_function_ops<double, 4>(m);
+    bind_function_ops<double, 5>(m);
+    bind_function_ops<double, 6>(m);
     bind_function_ops<double_complex, 3>(m);
+
+    // FunctionFactory bindings
+    bind_factory_type<double, 1>(m, "FunctionFactory1D");
+    bind_factory_type<double, 2>(m, "FunctionFactory2D");
+    bind_factory_type<double, 3>(m, "FunctionFactory3D");
+    bind_factory_type<double, 4>(m, "FunctionFactory4D");
+    bind_factory_type<double, 5>(m, "FunctionFactory5D");
+    bind_factory_type<double, 6>(m, "FunctionFactory6D");
+    bind_factory_type<double_complex, 3>(m, "ComplexFunctionFactory3D");
 }

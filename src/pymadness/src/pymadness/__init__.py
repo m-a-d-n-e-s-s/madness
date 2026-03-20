@@ -54,6 +54,40 @@ it via ``function_3d_cfunc``.  This bypasses Python entirely::
     f = pymadness.function_3d_cfunc(world, gaussian_c, k=8, thresh=1e-6)
 """
 
+# Ensure the directory containing _pymadness.*.so (the parent of this
+# package) is on sys.path.  This is needed when the working directory
+# isn't automatically added, e.g. in Jupyter kernels.
+import importlib as _importlib, os as _os, sys as _sys
+
+try:
+    _importlib.import_module("_pymadness")
+except ModuleNotFoundError:
+    _parent = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    if _parent not in _sys.path:
+        _sys.path.insert(0, _parent)
+    try:
+        _importlib.import_module("_pymadness")
+    except ModuleNotFoundError:
+        # Provide a helpful error message
+        import glob as _glob
+        _so_files = _glob.glob(_os.path.join(_parent, "_pymadness*"))
+        _py_ver = f"cpython-{_sys.version_info.major}{_sys.version_info.minor}"
+        _msg = (
+            f"Cannot find the _pymadness extension module.\n"
+            f"  Looked in: {_parent}\n"
+            f"  Found:     {_so_files or 'nothing'}\n"
+            f"  Running:   Python {_sys.version.split()[0]} ({_py_ver})\n"
+            f"\n"
+            f"Common causes:\n"
+            f"  1. pymadness was built with a different Python version.\n"
+            f"     Rebuild with: cmake --build <builddir> --target _pymadness\n"
+            f"  2. The build directory is not on sys.path.\n"
+            f"     Add to your notebook:  import sys; sys.path.insert(0, '{_parent}')\n"
+        )
+        raise ModuleNotFoundError(_msg) from None
+
+del _importlib, _os, _sys
+
 from _pymadness import (
     # World and runtime
     World as _RawWorld,
@@ -65,12 +99,27 @@ from _pymadness import (
     FunctionDefaults1D,
     FunctionDefaults2D,
     FunctionDefaults3D,
+    FunctionDefaults4D,
+    FunctionDefaults5D,
+    FunctionDefaults6D,
 
     # Function types
     Function1D,
     Function2D,
     Function3D,
+    Function4D,
+    Function5D,
+    Function6D,
     ComplexFunction3D,
+
+    # FunctionFactory types
+    FunctionFactory1D,
+    FunctionFactory2D,
+    FunctionFactory3D,
+    FunctionFactory4D,
+    FunctionFactory5D,
+    FunctionFactory6D,
+    ComplexFunctionFactory3D,
 
     # Operators
     CoulombOperator,
@@ -268,6 +317,72 @@ def function_3d_cfunc(world, cfunc, k=None, thresh=None):
                                  thresh=thresh if thresh is not None else -1.0)
 
 
+def function_4d(world, f, k=None, thresh=None):
+    """Create a 4D function from a Python callable.
+
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(4,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 4)``, returns
+        an array of shape ``(npts,)``.
+
+    Args:
+        world: MADNESS World object
+        f: Python callable (scalar or vectorized)
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function4D
+    """
+    return Function4D(world, f,
+                      k=k if k is not None else -1,
+                      thresh=thresh if thresh is not None else -1.0)
+
+
+def function_5d(world, f, k=None, thresh=None):
+    """Create a 5D function from a Python callable.
+
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(5,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 5)``, returns
+        an array of shape ``(npts,)``.
+
+    Args:
+        world: MADNESS World object
+        f: Python callable (scalar or vectorized)
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function5D
+    """
+    return Function5D(world, f,
+                      k=k if k is not None else -1,
+                      thresh=thresh if thresh is not None else -1.0)
+
+
+def function_6d(world, f, k=None, thresh=None):
+    """Create a 6D function from a Python callable.
+
+    The callable can use either calling convention:
+      - Scalar: ``f(r)`` where ``r`` has shape ``(6,)``, returns a float.
+      - Vectorized: ``f(r)`` where ``r`` has shape ``(npts, 6)``, returns
+        an array of shape ``(npts,)``.
+
+    Args:
+        world: MADNESS World object
+        f: Python callable (scalar or vectorized)
+        k: wavelet order (None = use FunctionDefaults)
+        thresh: truncation threshold (None = use FunctionDefaults)
+
+    Returns:
+        Function6D
+    """
+    return Function6D(world, f,
+                      k=k if k is not None else -1,
+                      thresh=thresh if thresh is not None else -1.0)
+
+
 def diff(world, f, axis=0):
     """Compute derivative of a function along a given axis.
 
@@ -282,22 +397,79 @@ def diff(world, f, axis=0):
     return _diff(world, f, axis)
 
 
+def exp(f):
+    """Pointwise exponential: returns a new function g(x) = exp(f(x)).
+
+    Args:
+        f: a MADNESS Function
+
+    Returns:
+        New function with exp applied pointwise.
+    """
+    g = f.copy()
+    g.unaryop("exp")
+    return g
+
+
+def log(f):
+    """Pointwise natural logarithm: returns a new function g(x) = log(f(x)).
+
+    The function values should be positive; log of non-positive values
+    will produce -inf or NaN.
+
+    Args:
+        f: a MADNESS Function
+
+    Returns:
+        New function with log applied pointwise.
+    """
+    g = f.copy()
+    g.unaryop("log")
+    return g
+
+
+def sqrt(f):
+    """Pointwise square root: returns a new function g(x) = sqrt(f(x)).
+
+    Args:
+        f: a MADNESS Function
+
+    Returns:
+        New function with sqrt applied pointwise.
+    """
+    g = f.copy()
+    g.unaryop("sqrt")
+    return g
+
+
 __all__ = [
     # Context manager
     "World",
     # Function constructors
     "function_1d", "function_2d", "function_3d",
+    "function_4d", "function_5d", "function_6d",
     "function_1d_cfunc", "function_2d_cfunc", "function_3d_cfunc",
     # Function types
-    "Function1D", "Function2D", "Function3D", "ComplexFunction3D",
+    "Function1D", "Function2D", "Function3D",
+    "Function4D", "Function5D", "Function6D",
+    "ComplexFunction3D",
+    # FunctionFactory types
+    "FunctionFactory1D", "FunctionFactory2D", "FunctionFactory3D",
+    "FunctionFactory4D", "FunctionFactory5D", "FunctionFactory6D",
+    "ComplexFunctionFactory3D",
     # Defaults
     "FunctionDefaults1D", "FunctionDefaults2D", "FunctionDefaults3D",
+    "FunctionDefaults4D", "FunctionDefaults5D", "FunctionDefaults6D",
     # Operators
     "CoulombOperator", "BSHOperator3D", "BSHOperator1D", "SlaterOperator",
     "Derivative1D", "Derivative2D", "Derivative3D",
     "SeparatedConvolution1D", "SeparatedConvolution3D",
     # Free functions
     "apply", "inner", "copy", "gradient", "diff",
+    # Pointwise math
+    "exp", "log", "sqrt",
+    # Plotting
+    "plotting",
     # Tensor
     "Tensor", "tensor_to_numpy", "numpy_to_tensor",
 ]

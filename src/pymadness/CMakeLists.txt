@@ -34,8 +34,12 @@ if(BUILD_TESTING)
   # Discover the module output directory so tests can import it
   set(PYMADNESS_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
-  # Copy pure-python package next to the .so for testing
-  file(COPY src/pymadness/ DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/pymadness")
+  # Copy pure-python package next to the .so for testing (re-copies on every build)
+  add_custom_command(TARGET _pymadness POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+              "${CMAKE_CURRENT_SOURCE_DIR}/src/pymadness"
+              "${CMAKE_CURRENT_BINARY_DIR}/pymadness"
+      COMMENT "Syncing pymadness Python package to build directory")
 
   add_test(NAME pymadness/test_basic
       COMMAND ${Python3_EXECUTABLE} -m pytest -xvs

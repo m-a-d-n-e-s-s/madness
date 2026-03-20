@@ -112,26 +112,32 @@ private:
     }
 
 public:
-    // Vectorized operator() overrides for NDIM = 1, 2, 3
+    // Vectorized operator() overrides for NDIM = 1..6
     // These match the signatures in FunctionFunctorInterface (function_interface.h:99-121).
-    // We provide all three and only the one matching our NDIM will be called.
+    // We provide all six and only the one matching our NDIM will be called.
 
     void operator()(const madness::Vector<double*, 1>& xvals, T* fvals, int npts) const override {
-        if constexpr (NDIM == 1) {
-            eval_vectorized(xvals, fvals, npts);
-        }
+        if constexpr (NDIM == 1) { eval_vectorized(xvals, fvals, npts); }
     }
 
     void operator()(const madness::Vector<double*, 2>& xvals, T* fvals, int npts) const override {
-        if constexpr (NDIM == 2) {
-            eval_vectorized(xvals, fvals, npts);
-        }
+        if constexpr (NDIM == 2) { eval_vectorized(xvals, fvals, npts); }
     }
 
     void operator()(const madness::Vector<double*, 3>& xvals, T* fvals, int npts) const override {
-        if constexpr (NDIM == 3) {
-            eval_vectorized(xvals, fvals, npts);
-        }
+        if constexpr (NDIM == 3) { eval_vectorized(xvals, fvals, npts); }
+    }
+
+    void operator()(const madness::Vector<double*, 4>& xvals, T* fvals, int npts) const override {
+        if constexpr (NDIM == 4) { eval_vectorized(xvals, fvals, npts); }
+    }
+
+    void operator()(const madness::Vector<double*, 5>& xvals, T* fvals, int npts) const override {
+        if constexpr (NDIM == 5) { eval_vectorized(xvals, fvals, npts); }
+    }
+
+    void operator()(const madness::Vector<double*, 6>& xvals, T* fvals, int npts) const override {
+        if constexpr (NDIM == 6) { eval_vectorized(xvals, fvals, npts); }
     }
 };
 
