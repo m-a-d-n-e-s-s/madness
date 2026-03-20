@@ -8,7 +8,11 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/complex.h>
 #include <madness/mra/function_interface.h>
+#include <atomic>
+#include <stdexcept>
+#include <string>
 
 namespace py = pybind11;
 
@@ -24,7 +28,7 @@ namespace py = pybind11;
 template<typename T, std::size_t NDIM>
 class PyFunctor : public madness::FunctionFunctorInterface<T, NDIM> {
     py::object py_callable_;
-    mutable int vectorized_mode_ = 0;  // 0=unknown, 1=returns array, 2=returns scalar
+    mutable std::atomic<int> vectorized_mode_{0};  // 0=unknown, 1=returns array, 2=returns scalar
 
 public:
     explicit PyFunctor(py::object f) : py_callable_(std::move(f)) {}
@@ -61,36 +65,55 @@ private:
             }
         }
 
-        // Probe on first call to determine if callable returns array or scalar
-        if (vectorized_mode_ == 0) {
+        // Probe on first call to determine if callable returns array or scalar.
+        // Note: eval_vectorized always holds the GIL (acquired above), so only one
+        // thread can execute this block at a time.  The atomic CAS still ensures
+        // correct memory ordering across threads.
+        int expected = 0;
+        if (vectorized_mode_.compare_exchange_strong(expected, -1,
+                std::memory_order_acq_rel, std::memory_order_acquire)) {
+            // We won the probe; expected was 0, now set to -1 (in-progress sentinel)
+            int result_mode = 2;  // default: fall back to per-point scalar loop
             try {
                 py::object result = py_callable_(coords);
-                py::array_t<double> arr = result.cast<py::array_t<double>>();
+                py::array_t<T> arr = result.cast<py::array_t<T>>();
                 if (arr.ndim() == 1 && arr.shape(0) == npts) {
-                    vectorized_mode_ = 1;  // returns array
+                    result_mode = 1;
                     auto rbuf = arr.unchecked<1>();
                     for (int i = 0; i < npts; ++i) {
-                        fvals[i] = static_cast<T>(rbuf(i));
+                        fvals[i] = rbuf(i);
                     }
-                    return;
                 }
             } catch (...) {
                 // Call failed or didn't return a proper array — fall through
                 // Clear any pending Python exception
                 PyErr_Clear();
             }
-            // Fall back to per-point evaluation in Python.
-            vectorized_mode_ = 2;
-            eval_scalar_loop(coords, fvals, npts);
+            vectorized_mode_.store(result_mode, std::memory_order_release);
+            if (result_mode == 2) {
+                eval_scalar_loop(coords, fvals, npts);
+            }
             return;
         }
 
-        if (vectorized_mode_ == 1) {
+        // If another thread is probing (-1), re-load until it completes.
+        // In practice this loop is never entered because the GIL serializes us.
+        int mode = expected;  // CAS failure: expected holds the current value
+        while (mode == -1) {
+            mode = vectorized_mode_.load(std::memory_order_acquire);
+        }
+
+        if (mode == 1) {
             py::object result = py_callable_(coords);
-            py::array_t<double> arr = result.cast<py::array_t<double>>();
+            py::array_t<T> arr = result.cast<py::array_t<T>>();
+            if (arr.ndim() != 1 || arr.shape(0) != npts) {
+                throw std::runtime_error(
+                    "PyFunctor: vectorized callable returned array with wrong shape; "
+                    "expected 1D array of length " + std::to_string(npts));
+            }
             auto rbuf = arr.unchecked<1>();
             for (int i = 0; i < npts; ++i) {
-                fvals[i] = static_cast<T>(rbuf(i));
+                fvals[i] = rbuf(i);
             }
         } else {
             eval_scalar_loop(coords, fvals, npts);
