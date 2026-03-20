@@ -280,7 +280,8 @@ _DEFAULT_COLORSCALES = [
 
 
 def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
-                 lo=None, hi=None, colorscale="RdBu_r", opacity=1.0,
+                 lo=None, hi=None, xrange=None, yrange=None, zrange=None,
+                 colorscale="RdBu_r", opacity=1.0,
                  labels=None, show=True, **kwargs):
     """Plot one or more MADNESS functions as interactive 3D surfaces using plotly.
 
@@ -302,7 +303,12 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
         fixed_axis: for 3D+ functions, axis to hold constant (0=x, 1=y, 2=z)
         fixed_value: for 3D+ functions, value along the fixed axis
         npt: grid points per free axis
-        lo, hi: range for the free axes (default: simulation cell)
+        lo, hi: range for the free axes (default: simulation cell).
+            Sets both spatial axes at once.  Use ``xrange``/``yrange`` to
+            override individual axes.
+        xrange: [lo, hi] for the first free axis (overrides ``lo``/``hi``)
+        yrange: [lo, hi] for the second free axis (overrides ``lo``/``hi``)
+        zrange: [lo, hi] for the function-value (z) axis display range
         colorscale: plotly colorscale name, or list of names (one per function).
             Default: auto-cycles through distinct colorscales.
         opacity: surface opacity 0.0–1.0, or list of opacities
@@ -311,12 +317,16 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
         **kwargs: passed to each ``go.Surface()``
 
     Returns:
-        plotly ``Figure`` object
+        plotly ``Figure`` object (only when ``show=False``)
 
     Examples::
 
         # Single function
         plot_surface(f, npt=100)
+
+        # Zoom into a region and clamp z-axis
+        plot_surface(f, npt=100, xrange=[-2, 2], yrange=[-2, 2],
+                     zrange=[-0.5, 1.0])
 
         # Multiple functions overlaid
         plot_surface([f1, f2, f3], npt=150, fixed_value=0.1,
@@ -363,17 +373,26 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
     else:
         trace_labels = list(labels)
 
+    # Resolve per-axis spatial ranges: xrange/yrange override lo/hi
+    eff_xlo = xrange[0] if xrange is not None else lo
+    eff_xhi = xrange[1] if xrange is not None else hi
+    eff_ylo = yrange[0] if yrange is not None else lo
+    eff_yhi = yrange[1] if yrange is not None else hi
+
     fig = go.Figure()
     axis_labels = None
 
     for i, func in enumerate(funcs):
         ndim = _get_ndim(func)
         if ndim == 2:
-            x, y, vals, ax_labels = _eval_2d_data(func, npt=npt, lo=lo, hi=hi)
+            x, y, vals, ax_labels = _eval_2d_data(
+                func, npt=npt, lo=lo, hi=hi,
+                xlo=eff_xlo, xhi=eff_xhi, ylo=eff_ylo, yhi=eff_yhi)
         elif ndim >= 3:
             x, y, vals, ax_labels = _eval_2d_slice_data(
                 func, fixed_axis=fixed_axis, fixed_value=fixed_value,
-                npt=npt, lo=lo, hi=hi)
+                npt=npt, lo=lo, hi=hi,
+                xlo=eff_xlo, xhi=eff_xhi, ylo=eff_ylo, yhi=eff_yhi)
         else:
             raise ValueError("plot_surface requires 2D or higher functions")
 
@@ -405,21 +424,35 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
     if axis_labels is None:
         axis_labels = ["x", "y"]
 
+    xaxis_opts = dict(title=axis_labels[0])
+    yaxis_opts = dict(title=axis_labels[1])
+    zaxis_opts = dict(title="f")
+    if xrange is not None:
+        xaxis_opts["range"] = list(xrange)
+    if yrange is not None:
+        yaxis_opts["range"] = list(yrange)
+    if zrange is not None:
+        zaxis_opts["range"] = list(zrange)
+
+    scene = dict(
+        xaxis=xaxis_opts,
+        yaxis=yaxis_opts,
+        zaxis=zaxis_opts,
+        aspectmode="manual",
+        aspectratio=dict(x=1, y=1, z=0.6),
+    )
+
     fig.update_layout(
         title=title,
-        scene=dict(
-            xaxis_title=axis_labels[0],
-            yaxis_title=axis_labels[1],
-            zaxis_title="f",
-            aspectmode="manual",
-            aspectratio=dict(x=1, y=1, z=0.6),
-        ),
+        scene=scene,
         margin=dict(l=0, r=0, t=40, b=0),
     )
 
-    if show:
-        _show_plotly(fig)
-    return fig
+    if not show:
+        return fig
+    _show_plotly(fig)
+    # Return None so Jupyter doesn't auto-display a second copy.
+    # Use show=False to get the Figure object back.
 
 
 # Keep as an alias for explicit slice calls
@@ -429,12 +462,13 @@ plot_surface_slice = plot_surface
 def _show_plotly(fig):
     """Display a plotly figure, auto-detecting the best renderer."""
     try:
+        from IPython.display import display, HTML
         shell = get_ipython().__class__.__name__  # noqa: F821
         if shell == "ZMQInteractiveShell":
-            fig.show(renderer="notebook")
+            display(HTML(fig.to_html(include_plotlyjs="cdn", full_html=False)))
         else:
             fig.show()
-    except NameError:
+    except (NameError, ImportError):
         fig.show()
 
 
@@ -723,8 +757,11 @@ def _get_defaults(ndim):
     }[ndim]
 
 
-def _eval_2d_data(f, npt=200, lo=None, hi=None):
+def _eval_2d_data(f, npt=200, lo=None, hi=None,
+                   xlo=None, xhi=None, ylo=None, yhi=None):
     """Evaluate a 2D function on a grid.
+
+    Per-axis bounds (xlo/xhi, ylo/yhi) override lo/hi.
 
     Returns:
         (x, y, vals, labels) where vals has shape (npt, npt).
@@ -732,9 +769,10 @@ def _eval_2d_data(f, npt=200, lo=None, hi=None):
     import pymadness
     cell = pymadness.tensor_to_numpy(pymadness.FunctionDefaults2D.get_cell())
     cell_arr = np.zeros((2, 2))
-    for i in range(2):
-        cell_arr[i, 0] = lo if lo is not None else cell[i, 0]
-        cell_arr[i, 1] = hi if hi is not None else cell[i, 1]
+    cell_arr[0, 0] = xlo if xlo is not None else (lo if lo is not None else cell[0, 0])
+    cell_arr[0, 1] = xhi if xhi is not None else (hi if hi is not None else cell[0, 1])
+    cell_arr[1, 0] = ylo if ylo is not None else (lo if lo is not None else cell[1, 0])
+    cell_arr[1, 1] = yhi if yhi is not None else (hi if hi is not None else cell[1, 1])
     vals = f.eval_cube(cell_arr, [npt, npt])
     x = np.linspace(cell_arr[0, 0], cell_arr[0, 1], npt)
     y = np.linspace(cell_arr[1, 0], cell_arr[1, 1], npt)
@@ -742,8 +780,11 @@ def _eval_2d_data(f, npt=200, lo=None, hi=None):
 
 
 def _eval_2d_slice_data(f, fixed_axis=2, fixed_value=0.0, npt=200,
-                         lo=None, hi=None):
+                         lo=None, hi=None,
+                         xlo=None, xhi=None, ylo=None, yhi=None):
     """Evaluate a 2D slice of a 3D+ function on a grid.
+
+    Per-axis bounds (xlo/xhi, ylo/yhi) override lo/hi for the two free axes.
 
     Returns:
         (x, y, vals, labels) where vals has shape (npt, npt).
@@ -765,6 +806,16 @@ def _eval_2d_slice_data(f, fixed_axis=2, fixed_value=0.0, npt=200,
             cell_arr[i, 1] = hi if hi is not None else cell[i, 1]
             npt_list[i] = npt
             free_axes.append(i)
+
+    # Apply per-axis overrides to the two free axes
+    if xlo is not None:
+        cell_arr[free_axes[0], 0] = xlo
+    if xhi is not None:
+        cell_arr[free_axes[0], 1] = xhi
+    if ylo is not None:
+        cell_arr[free_axes[1], 0] = ylo
+    if yhi is not None:
+        cell_arr[free_axes[1], 1] = yhi
 
     vals = f.eval_cube(cell_arr, npt_list)
     vals = vals.squeeze()

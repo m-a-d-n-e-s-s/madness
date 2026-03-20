@@ -238,6 +238,9 @@ plot_surface(f2d, npt=100)
 # 3D surface of a z=0 slice through a Function3D
 plot_surface(f3d, fixed_axis=2, fixed_value=0.0, npt=100)
 
+# Zoom into a region and clamp the function-value axis
+plot_surface(f3d, npt=100, xrange=[-2, 2], yrange=[-2, 2], zrange=[-0.5, 1.0])
+
 # Multiple functions overlaid
 plot_surface([f1, f2, f3], npt=150, fixed_value=0.1,
              colorscale="Viridis", opacity=0.5)
@@ -247,7 +250,18 @@ plot_surface([rho, V_nuc], npt=100,
              colorscale=["RdBu_r", "Greens"],
              opacity=[0.9, 0.5],
              labels=["density", "nuclear potential"])
+
+# To get the plotly Figure object for further customization:
+fig = plot_surface(f, npt=100, show=False)
+fig.update_layout(...)
+fig.show(renderer="notebook")
 ```
+
+**Axis ranges:**
+- `xrange`, `yrange` — set the spatial evaluation domain per axis.  The
+  function is re-evaluated on this region at full `npt` resolution, so
+  zooming in reveals finer detail.  `lo`/`hi` set both axes at once.
+- `zrange` — clamps the displayed function-value axis (visual only).
 
 When multiple functions are passed, each gets a distinct colorscale
 (auto-assigned or explicitly specified) and its own colorbar.
@@ -328,6 +342,7 @@ exit.  In a notebook the kernel persists across cells, so use `World.get()`
 # Cell 1 — initialize (run once)
 import numpy as np
 import pymadness
+from pymadness.plotting import *
 
 world = pymadness.World.get(quiet=True)
 pymadness.FunctionDefaults3D.set_k(8)
@@ -545,6 +560,44 @@ Parameters: `mu` = exponent, `lo` = smallest length scale, `eps` = precision.
 f.save("function.mad")
 g = pymadness.Function3D.load(world, "function.mad")
 ```
+
+### Plotting
+
+All plotting functions live in `pymadness.plotting`:
+
+```python
+from pymadness.plotting import (
+    plot_1d, plot_2d, plot_line_cut, plot_2d_slice,  # matplotlib, static
+    iplot_2d, iplot_2d_slice,                         # matplotlib, interactive
+    plot_surface,                                      # plotly, 3D surface
+)
+```
+
+| Function | Backend | Description |
+|----------|---------|-------------|
+| `plot_1d(f, ...)` | matplotlib | Plot a 1D function |
+| `plot_2d(f, ...)` | matplotlib | 2D color map of a Function2D |
+| `plot_line_cut(f, axis, ...)` | matplotlib | 1D line cut through a 2D/3D function |
+| `plot_2d_slice(f, fixed_axis, ...)` | matplotlib | 2D color map slice of a 3D function |
+| `iplot_2d(f, ...)` | matplotlib | Interactive 2D plot (re-evaluates on zoom) |
+| `iplot_2d_slice(f, ...)` | matplotlib | Interactive 2D slice (zoom + scroll/key to change slice) |
+| `plot_surface(f, ...)` | plotly | Interactive 3D surface (rotate/zoom/pan) |
+
+Common parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `npt` | Grid points per axis (constant across zoom levels) |
+| `lo`, `hi` | Spatial range for all axes (default: simulation cell) |
+| `xrange`, `yrange` | Per-axis spatial range, overrides `lo`/`hi` (`plot_surface` only) |
+| `zrange` | Function-value display range (`plot_surface` only) |
+| `fixed_axis` | Axis to hold constant for slices (0=x, 1=y, 2=z) |
+| `fixed_value` | Value along the fixed axis |
+| `colorscale` | Plotly colorscale name or list (`plot_surface` only) |
+| `opacity` | Surface opacity 0–1, or list (`plot_surface` only) |
+| `labels` | Trace names for legend (`plot_surface` only) |
+| `show` | Display immediately (default: True) |
+| `ax` | Existing matplotlib Axes to plot into (matplotlib functions only) |
 
 ## Examples
 
