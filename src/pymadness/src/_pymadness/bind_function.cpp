@@ -41,7 +41,13 @@ static void bind_function_type(py::module_& m, const char* name) {
             py::arg("world"), py::arg("f"),
             py::arg("k") = -1, py::arg("thresh") = -1.0,
             "Create function by projecting a Python callable.\n"
-            "The callable must accept a numpy array of shape (NDIM,) and return a scalar.")
+            "Two calling conventions are supported (probed at construction time):\n"
+            "  - Vectorized: f(r) where r has shape (npts, NDIM) and returns\n"
+            "    an array of shape (npts,).  Preferred: the GIL is acquired\n"
+            "    only once per box, making projection much faster.\n"
+            "  - Scalar: f(r) where r has shape (NDIM,) and returns a float.\n"
+            "    Used as a fallback if the callable does not accept the\n"
+            "    vectorized form.")
 
         // --- Point evaluation ---
         .def("__call__", [](const FuncT& f, py::array_t<double> r) -> T {

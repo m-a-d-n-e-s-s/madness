@@ -1,5 +1,7 @@
 """Tests for pymadness Function bindings."""
 
+import gc
+
 import numpy as np
 import pytest
 
@@ -17,6 +19,7 @@ def world():
     pymadness.FunctionDefaults1D.set_thresh(1e-5)
     pymadness.FunctionDefaults1D.set_cubic_cell(-10.0, 10.0)
     yield w
+    gc.collect()  # Destroy MADNESS-backed objects before finalizing
     pymadness.World.close()
 
 

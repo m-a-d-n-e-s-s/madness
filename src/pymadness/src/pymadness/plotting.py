@@ -188,9 +188,11 @@ def plot_2d_slice(f, fixed_axis=2, fixed_value=0.0, npt=200,
     if ndim < 3:
         raise ValueError("plot_2d_slice requires a 3D (or higher) function")
 
-    cell = pymadness.tensor_to_numpy(pymadness.FunctionDefaults3D.get_cell())
+    cell = pymadness.tensor_to_numpy(_get_defaults(ndim).get_cell())
 
     # Build cell and npt arrays for eval_cube
+    # Only two axes are sampled; any additional non-fixed axes are pinned to
+    # their cell midpoint so that eval_cube always returns a 2D result.
     cell_arr = np.zeros((ndim, 2))
     npt_list = [1] * ndim
     free_axes = []
@@ -198,11 +200,16 @@ def plot_2d_slice(f, fixed_axis=2, fixed_value=0.0, npt=200,
         if i == fixed_axis:
             cell_arr[i] = [fixed_value, fixed_value]
             npt_list[i] = 1
-        else:
+        elif len(free_axes) < 2:
             cell_arr[i, 0] = lo if lo is not None else cell[i, 0]
             cell_arr[i, 1] = hi if hi is not None else cell[i, 1]
             npt_list[i] = npt
             free_axes.append(i)
+        else:
+            # Pin extra axes to their cell midpoint
+            mid = (cell[i, 0] + cell[i, 1]) / 2.0
+            cell_arr[i] = [mid, mid]
+            npt_list[i] = 1
 
     vals = f.eval_cube(cell_arr, npt_list)
     vals = vals.squeeze()  # shape (npt, npt)
@@ -372,6 +379,11 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
         trace_labels = [f"f{i+1}" if nfuncs > 1 else None for i in range(nfuncs)]
     else:
         trace_labels = list(labels)
+        # Pad or truncate so len(trace_labels) always equals nfuncs
+        if len(trace_labels) < nfuncs:
+            trace_labels += [f"f{i+1}" for i in range(len(trace_labels), nfuncs)]
+        elif len(trace_labels) > nfuncs:
+            trace_labels = trace_labels[:nfuncs]
 
     # Resolve per-axis spatial ranges: xrange/yrange override lo/hi
     eff_xlo = xrange[0] if xrange is not None else lo
@@ -801,11 +813,16 @@ def _eval_2d_slice_data(f, fixed_axis=2, fixed_value=0.0, npt=200,
         if i == fixed_axis:
             cell_arr[i] = [fixed_value, fixed_value]
             npt_list[i] = 1
-        else:
+        elif len(free_axes) < 2:
             cell_arr[i, 0] = lo if lo is not None else cell[i, 0]
             cell_arr[i, 1] = hi if hi is not None else cell[i, 1]
             npt_list[i] = npt
             free_axes.append(i)
+        else:
+            # Pin extra axes to their cell midpoint so the result is always 2D
+            mid = (cell[i, 0] + cell[i, 1]) / 2.0
+            cell_arr[i] = [mid, mid]
+            npt_list[i] = 1
 
     # Apply per-axis overrides to the two free axes
     if xlo is not None:
