@@ -144,6 +144,17 @@ jobs:
       shell: bash
       run: cmake --build . --target check-short-madness
 
+    - name: Build and Test Python bindings
+      if: matrix.task_backend == 'Threads' && matrix.build_type == 'Release'
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: |
+        pip install numpy pytest
+        cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DENABLE_PYTHON=ON
+        cmake --build . --target _pymadness
+        cd src/pymadness
+        PYTHONPATH=. python -m pytest -xvs $GITHUB_WORKSPACE/src/pymadness/tests/
+
     - name: Install
       if: matrix.build_type != 'Debug'
       working-directory: ${{github.workspace}}/build
