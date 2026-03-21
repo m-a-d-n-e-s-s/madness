@@ -79,7 +79,7 @@ private:
                 py::array_t<T> arr = result.cast<py::array_t<T>>();
                 if (arr.ndim() == 1 && arr.shape(0) == npts) {
                     result_mode = 1;
-                    auto rbuf = arr.unchecked<1>();
+                    auto rbuf = arr.template unchecked<1>();
                     for (int i = 0; i < npts; ++i) {
                         fvals[i] = rbuf(i);
                     }
