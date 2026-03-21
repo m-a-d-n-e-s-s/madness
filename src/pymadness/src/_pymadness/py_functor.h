@@ -111,7 +111,7 @@ private:
                     "PyFunctor: vectorized callable returned array with wrong shape; "
                     "expected 1D array of length " + std::to_string(npts));
             }
-            auto rbuf = arr.unchecked<1>();
+            auto rbuf = arr.template unchecked<1>();
             for (int i = 0; i < npts; ++i) {
                 fvals[i] = rbuf(i);
             }
