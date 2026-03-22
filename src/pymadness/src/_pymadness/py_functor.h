@@ -28,7 +28,7 @@ namespace py = pybind11;
 template<typename T, std::size_t NDIM>
 class PyFunctor : public madness::FunctionFunctorInterface<T, NDIM> {
     py::object py_callable_;
-    mutable std::atomic<int> vectorized_mode_{0};  // 0=unknown, 1=returns array, 2=returns scalar
+    mutable std::atomic<int> vectorized_mode_{0};  // -1=probing, 0=unknown, 1=returns array, 2=returns scalar
 
 public:
     explicit PyFunctor(py::object f) : py_callable_(std::move(f)) {}

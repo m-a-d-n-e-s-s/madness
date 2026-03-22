@@ -525,6 +525,12 @@ class InteractivePlot2D:
         self.cmap = cmap
         self.mesh_kwargs = kwargs
 
+        if self.ndim < 2:
+            raise ValueError(
+                f"InteractivePlot2D requires a function of dimension >= 2, "
+                f"got {self.ndim}D"
+            )
+
         # For 2D functions there is no slice axis
         if self.ndim == 2:
             self.fixed_axis = None
