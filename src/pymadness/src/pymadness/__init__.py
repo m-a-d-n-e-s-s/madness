@@ -145,6 +145,8 @@ from _pymadness import (
     numpy_to_tensor,
 )
 
+from . import plotting
+
 
 class World:
     """Context manager for the MADNESS parallel runtime.

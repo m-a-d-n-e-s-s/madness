@@ -525,11 +525,22 @@ class InteractivePlot2D:
         self.cmap = cmap
         self.mesh_kwargs = kwargs
 
+        if self.ndim < 2:
+            raise ValueError(
+                f"InteractivePlot2D requires a function of dimension >= 2, "
+                f"got {self.ndim}D"
+            )
+
         # For 2D functions there is no slice axis
         if self.ndim == 2:
             self.fixed_axis = None
             self.fixed_value = None
         else:
+            if fixed_axis < 0 or fixed_axis >= self.ndim:
+                raise ValueError(
+                    f"fixed_axis={fixed_axis} is out of range for a {self.ndim}D function "
+                    f"(must be in [0, {self.ndim - 1}])"
+                )
             self.fixed_axis = fixed_axis
             self.fixed_value = fixed_value
 
@@ -597,7 +608,8 @@ class InteractivePlot2D:
                     cell_arr[i] = self.ylim
                     npt_list[i] = self.npt
                 else:
-                    cell_arr[i] = [0.0, 0.0]
+                    mid = (self.cell[i, 0] + self.cell[i, 1]) / 2.0
+                    cell_arr[i] = [mid, mid]
                     npt_list[i] = 1
 
         vals = self.f.eval_cube(cell_arr, npt_list)
