@@ -354,6 +354,10 @@ namespace madness {
     	/// Existing functions are probably rendered useless
     	static void clear_cell() {
 	        cell.clear();
+            cell_width.clear();
+            rcell_width.clear();
+            cell_volume = 0.0;
+            cell_min_width = 0.0;
         }
 
         /// Sets the user cell for the simulation

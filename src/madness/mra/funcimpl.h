@@ -1071,7 +1071,6 @@ template<size_t NDIM>
         FunctionImpl(const FunctionImpl<Q,NDIM>& other,
              const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
              bool dozero) : FunctionImpl(other.world, other, pmap, dozero) {
-            MADNESS_CHECK_THROW((other.cell-cell).normf()<1.e-14,"cell size mismatch in copy constructor");
         }
 
         /// Copy constructor
@@ -1375,7 +1374,7 @@ template<size_t NDIM>
         double get_thresh() const;
 
         /// return the simulation cell
-        Tensor<double> get_cell() const {return cell;}
+        const Tensor<double>& get_cell() const { return cell; }
 
         void set_thresh(double value);
 
