@@ -13,6 +13,7 @@
 #include <atomic>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 namespace py = pybind11;
 
@@ -96,10 +97,15 @@ private:
             return;
         }
 
-        // If another thread is probing (-1), re-load until it completes.
-        // In practice this loop is never entered because the GIL serializes us.
+        // If another thread is probing (-1), we must release the GIL while
+        // waiting.  The probing thread needs the GIL to finish its Python call,
+        // so spinning here with the GIL held would deadlock.
         int mode = expected;  // CAS failure: expected holds the current value
         while (mode == -1) {
+            {
+                py::gil_scoped_release release;
+                std::this_thread::yield();
+            }
             mode = vectorized_mode_.load(std::memory_order_acquire);
         }
 
