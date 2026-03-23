@@ -1534,14 +1534,38 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             // Type checking since we are probably circumventing the archive's own type checking
             long magic = 0l, id = 0l, ndim = 0l, k = 0l;
-            ar & magic & id & ndim & k;
+            Tensor<double> cell;
+            ar & magic & id & ndim & k & cell;
             MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
             MADNESS_ASSERT(id == TensorTypeData<T>::id);
             MADNESS_ASSERT(ndim == NDIM);
 
-            impl.reset(new implT(FunctionFactory<T,NDIM>(world).k(k).empty()));
+            bool cell_ok=false;
+            // if simulation cell is set it must match the cell from function on file.
+            // if simulation cell is not set set it to the one found on file
+            //  -- for the latter the only use case seems a python script for plotting
+            if (FunctionDefaults<NDIM>::get_cell().size()>0) {
+                if ((cell-FunctionDefaults<NDIM>::get_cell()).normf()>1.e-14) {
+                    print("simulation cells inconsistent: \n",FunctionDefaults<NDIM>::get_cell()," vs. \n",cell);
+                    print("clear simulation cell and reload this function to proceed -- the cell will be reset");
+                    print("FunctionDefaults::<NDIM>::clear_cell()");
+                    print("this will render all existing functions useless!");
+                } else {
+                    cell_ok=true;
+                }
+            } else {    // no cell set in the defaults: use the one from file
+                FunctionDefaults<NDIM>::set_cell(cell);
+                cell_ok=true;
 
-            impl->load(ar);
+            }
+
+            if (cell_ok) {
+                impl.reset(new implT(FunctionFactory<T,NDIM>(world).k(k).empty()));
+                impl->load(ar);
+            } else {
+                impl.reset();
+                print("no function has been loaded, function has been cleared");
+            }
         }
 
 
@@ -1555,7 +1579,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             // For type checking, etc.
-            ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
+            ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k()) & impl->get_cell();
 
             impl->store(ar);
         }

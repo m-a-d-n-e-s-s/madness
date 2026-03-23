@@ -349,7 +349,14 @@ namespace madness {
         	return cell;
         }
 
-        /// Gets the user cell for the simulation
+    	/// clear user cell -- will be reset once a function is loaded from file
+
+    	/// Existing functions are probably rendered useless
+    	static void clear_cell() {
+	        cell.clear();
+        }
+
+        /// Sets the user cell for the simulation
 
         /// Existing functions are probably rendered useless
         static void set_cell(const Tensor<double>& value) {
