@@ -307,6 +307,9 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         LRFunctorF12<double,6> lrfunctor(f12ptr,phi,one);
 //        LowRankFunction<double, 6> fi_one(f12ptr, copy(phi), copy(one));
         auto fi_one=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+        print("fi_one",fi_one.get_g().size(),fi_one.get_h().size());
+        print("memsize",get_size(world,fi_one.get_g()),get_size(world,fi_one.get_h()));
+
 //        fi_one.project(parameters);
         double l2error=fi_one.l2error(lrfunctor);
         print("left_project_l2error",l2error);
@@ -368,6 +371,15 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
             t2.tag("multiply 2 ");
             std::string msg=(i==0) ? "LRF exchange commutator no optimization" : "LRF exchange commutator optimization";
             t1.checkpoint(result4,reference,1.e-4,msg);
+
+            // test application of the BSH operator
+            print("thresh 3D, 6D",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh());
+            auto bsh=BSHOperator<NDIM>(world,1.0,1.e-6,1.e-6);
+            kgf12kij.canonicalize();
+            print("sizes ",kgf12kij.get_g().size(),kgf12kij.get_h().size());
+            auto Gf = bsh(kgf12kij.get_g(),kgf12kij.get_h());
+            msg="apply BSH-6D on LRF";
+            t1.checkpoint(true,msg);
         }
     }
 
@@ -1237,7 +1249,7 @@ int main(int argc, char **argv) {
 
     bool long_test=false;
     int isuccess=0;
-    // isuccess+=test_Kcommutator(world,parameters);
+    isuccess+=test_Kcommutator(world,parameters);
     isuccess+=test_stuff(world,parameters);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);

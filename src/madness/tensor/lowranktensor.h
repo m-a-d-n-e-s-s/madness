@@ -142,17 +142,17 @@ public:
 
     /// ctor with a regular Tensor, deep
 	GenTensor(const Tensor<T>& other)  {
-		tensor=std::shared_ptr<Tensor<T> >(new Tensor<T>(copy(other)));
+		tensor=std::shared_ptr<Tensor<T> >(new Tensor<T>((other)));
     }
 
     /// ctor with a TensorTrain as argument, shallow
 	GenTensor(const TensorTrain<T>& other) {
-		tensor=std::shared_ptr<TensorTrain<T> >(new TensorTrain<T>(copy(other))) ;
+		tensor=std::shared_ptr<TensorTrain<T> >(new TensorTrain<T>((other))) ;
     }
 
     /// ctor with a SVDTensor as argument, shallow
 	GenTensor(const SVDTensor<T>& other) {
-		tensor=std::shared_ptr<SVDTensor<T> >(new SVDTensor<T>(copy(other)));
+		tensor=std::shared_ptr<SVDTensor<T> >(new SVDTensor<T>((other)));
     }
 
     /// ctor with a SliceLowRankTensor as argument, deep

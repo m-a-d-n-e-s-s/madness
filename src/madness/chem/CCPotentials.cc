@@ -1811,6 +1811,7 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
 
     auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
     auto f12ptr=f12_op->get_op();
+    print("Operator type",f12ptr->info.type);
 
     real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
     const auto kket=info.mo_ket;
@@ -1818,9 +1819,10 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
 
     auto builder=LowRankFunctionFactory<double,6>(LowRankFunctionParameters())
                 .set_gridtype("twostage").set_centers(info.molecular_coordinates);
-    builder.parameters.print("lrf parameters in apply_KffK_lowrank");
     builder.set_volume_element(0.3);
+    builder.parameters.print("lrf parameters in apply_KffK_lowrank");
     double tight_thresh=FunctionDefaults<3>::get_thresh();
+    std::cout << std::scientific;
 
     // K_1 f12 |ij> = \sum_k k(1) \int G(1,1') f(1',2) k(1') i(1') d1' j(2)
     // K_2 f12 |ij> = \sum_k k(2) \int G(2,2') f(1,2') k(2') j(2') d2' i(1)
@@ -1843,6 +1845,8 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
                                       : LRFunctorF12<double,6>(f12ptr,one, phi_j.function);
 
         auto f12_k=builder.project(lrfunctor);
+        print("f12_k",f12_k.get_g().size(),f12_k.get_h().size());
+        print("memsize",get_size(world,f12_k.get_g()),get_size(world,f12_k.get_h()));
 
         // Absorb the coupling matrix M into g:
         //   gtilde_p(x) = \sum_q g_q(x) M_qp
@@ -1894,16 +1898,26 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
     auto tmp_i = K(phi_i.function);
     auto tmp_j = K(phi_j.function);
     CCPairFunction<double,6> result1(f12_op,{phi_i.function,tmp_i},{tmp_j,phi_j.function});
-    result.push_back(result1);
-    print("before consolidation");
-    result=consolidate(result,{"remove_lindep"});
+    // result.push_back(result1);
+    print("thresh 3D, 6D",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh());
+
     print("result.size()",result.size());
+    print("result",result[0].get_a().size(),result[0].get_b().size());
+    print("memsize",get_size(world,result[0].get_a()),get_size(world,result[0].get_b()));
+
+
     timer t(world,true);
+    t.tag("before consolidateion");
+    print("before consolidation");
+    // result=consolidate(result,{"remove_lindep"});
+    t.tag("after consolidateion");
+    print("result.size()",result.size());
     for (auto& c : result) print(c.name());
-    (*Gscreen)(result[0].get_a(),result[0].get_b());
+    auto bsh=BSHOperator<6>(world,1.0,1.e-6,1.e-6);
+    bsh(result[0].get_a(),result[0].get_b());
     t.tag("after apply");
     print("after apply test");
-    result=consolidate(result,{"op_dec_to_pure","dec_to_pure"});
+    // result=consolidate(result,{"op_dec_to_pure","dec_to_pure"});
 
     // result+=result1.to_pure().get_function();
     return result[0].get_function();
