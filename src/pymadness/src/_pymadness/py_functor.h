@@ -34,6 +34,14 @@ class PyFunctor : public madness::FunctionFunctorInterface<T, NDIM> {
 public:
     explicit PyFunctor(py::object f) : py_callable_(std::move(f)) {}
 
+    ~PyFunctor() {
+        // py::object's destructor decrements Python's refcount, which requires
+        // the GIL.  MADNESS may destroy the shared_ptr<PyFunctor> from a worker
+        // thread that does not hold the GIL, so we must acquire it here.
+        py::gil_scoped_acquire gil;
+        py_callable_ = py::none();
+    }
+
     T operator()(const madness::Vector<double, NDIM>& r) const override {
         py::gil_scoped_acquire gil;
 

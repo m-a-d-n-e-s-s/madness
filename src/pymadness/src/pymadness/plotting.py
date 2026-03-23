@@ -353,7 +353,7 @@ def plot_surface(f, fixed_axis=2, fixed_value=0.0, npt=100,
             "  pip install plotly") from None
 
     # Normalize to a list of functions
-    if not isinstance(f, (list, tuple, set)):
+    if not isinstance(f, (list, tuple)):
         funcs = [f]
     else:
         funcs = list(f)
@@ -757,7 +757,7 @@ def iplot_2d_slice(f, fixed_axis=2, fixed_value=0.0, npt=200,
 
 def _get_ndim(f):
     """Infer NDIM from a Function object's type name."""
-    if isinstance(f, (list, tuple, set)):
+    if isinstance(f, (list, tuple)):
         raise TypeError(
             f"Expected a single MADNESS Function, got {type(f).__name__}. "
             f"Did you mean to pass a list to plot_surface()?")

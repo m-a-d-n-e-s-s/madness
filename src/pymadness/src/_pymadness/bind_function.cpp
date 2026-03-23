@@ -285,6 +285,7 @@ static void bind_function_type(py::module_& m, const char* name) {
 
         // --- Print info ---
         .def("print_size", [](const FuncT& f, const std::string& msg) {
+            py::gil_scoped_release release;
             f.print_size(msg);
         }, py::arg("msg") = "", "Print tree size information")
 
@@ -292,10 +293,20 @@ static void bind_function_type(py::module_& m, const char* name) {
             std::ostringstream os;
             os << "Function<" << typeid(T).name() << "," << NDIM << ">(";
             if (f.is_initialized()) {
-                os << "k=" << f.k()
-                   << ", thresh=" << f.thresh()
-                   << ", nodes=" << f.tree_size()
-                   << ", depth=" << f.max_depth();
+                int k;
+                double thresh;
+                long nodes, depth;
+                {
+                    py::gil_scoped_release release;
+                    k = f.k();
+                    thresh = f.thresh();
+                    nodes = f.tree_size();
+                    depth = f.max_depth();
+                }
+                os << "k=" << k
+                   << ", thresh=" << thresh
+                   << ", nodes=" << nodes
+                   << ", depth=" << depth;
             } else {
                 os << "uninitialized";
             }

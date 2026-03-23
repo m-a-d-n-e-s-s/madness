@@ -15,18 +15,20 @@ using namespace madness;
 /// Convert a MADNESS Tensor<double> to a numpy array (copies data).
 static py::array_t<double> tensor_to_numpy(const Tensor<double>& t) {
     std::vector<py::ssize_t> shape(t.ndim());
-    std::vector<py::ssize_t> strides(t.ndim());
     for (long i = 0; i < t.ndim(); ++i) {
         shape[i] = t.dim(i);
-        strides[i] = t.stride(i) * sizeof(double);
     }
-    // Copy data into a new numpy array
-    py::array_t<double> arr(shape, strides);
-    auto buf = arr.mutable_unchecked();
-    // Flat copy
-    const double* src = t.ptr();
+    // Allocate a C-contiguous numpy array
+    py::array_t<double> arr(shape);
     double* dst = arr.mutable_data();
-    std::copy(src, src + t.size(), dst);
+    if (t.iscontiguous()) {
+        std::copy(t.ptr(), t.ptr() + t.size(), dst);
+    } else {
+        // Non-contiguous tensor (e.g. from slicing): make a contiguous
+        // copy first, then flat-copy into the numpy buffer.
+        Tensor<double> tc = madness::copy(t);
+        std::copy(tc.ptr(), tc.ptr() + tc.size(), dst);
+    }
     return arr;
 }
 

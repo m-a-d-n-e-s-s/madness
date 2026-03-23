@@ -164,8 +164,6 @@ class World:
         pymadness.World.close()
     """
 
-    _instance = None
-
     def __init__(self, quiet=True):
         self._quiet = quiet
         self._world = None
