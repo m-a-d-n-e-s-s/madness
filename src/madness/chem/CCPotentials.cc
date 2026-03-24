@@ -1804,123 +1804,181 @@ madness::real_function_6d
 CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
                                                       const Info& info, const real_convolution_6d *Gscreen) {
 
+    constexpr std::size_t LDIM=3;
+    constexpr std::size_t NDIM=2*LDIM;
+    std::cout << std::scientific << std::setprecision(6);
+    print("eps(3D), eps(6D), k",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh(),FunctionDefaults<NDIM>::get_k());
+    info.parameters.print("ccparameters");
     // the exchange commutator: K f12 |phi_i phi_j> - f12 K |phi_i phi_j>
 
-    real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<3>::get_thresh()));
+    LowRankFunctionParameters lrfparameters;
+    lrfparameters.set_derived_value("gridtype",std::string("random"));
+    lrfparameters.set_derived_value("volume_element",3.e-1);
+    lrfparameters.set_derived_value("tol",1.e-6);
+    lrfparameters.print("lrf");
+    auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
+
+    real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     g12.particle()=1;
+    std::shared_ptr<real_convolution_3d> f12ptr;
+    f12ptr.reset(SlaterF12OperatorPtr(world,info.parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
-    auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
-    auto f12ptr=f12_op->get_op();
-    print("Operator type",f12ptr->info.type);
+    auto bsh=BSHOperator<NDIM>(world,1.0,1.e-6,1.e-6);
 
-    real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
-    const auto kket=info.mo_ket;
-    const auto kbra=info.mo_bra;
+    real_convolution_3d& f12=*f12ptr;
+    // real_function_3d phi=real_factory_3d(world).f([](const coord_3d& r){return exp(-r.normf());});
+    // double n=phi.norm2();
+    // phi.scale(1.0/n);
+    real_function_3d phi=phi_i.function;
+    real_function_3d phi_k=phi; // looks silly, helps reading.
+    real_function_3d phi_bra=info.mo_bra[0];
 
-    auto builder=LowRankFunctionFactory<double,6>(LowRankFunctionParameters())
-                .set_gridtype("twostage").set_centers(info.molecular_coordinates);
-    builder.set_volume_element(0.3);
-    builder.parameters.print("lrf parameters in apply_KffK_lowrank");
-    double tight_thresh=FunctionDefaults<3>::get_thresh();
+    LowRankFunction<double,6> phi0(world);
+    phi0.g=info.mo_bra;
+    phi0.h=info.mo_bra;
+
+    timer t1(world);
     std::cout << std::scientific;
+    if (1) {
+        print_header2("start LRF version");
 
-    // K_1 f12 |ij> = \sum_k k(1) \int G(1,1') f(1',2) k(1') i(1') d1' j(2)
-    // K_2 f12 |ij> = \sum_k k(2) \int G(2,2') f(1,2') k(2') j(2') d2' i(1)
-    //
-    // Strategy: project f12*phi_x as a LowRankFunction, canonicalize (absorb
-    // metric M into g), apply exchange on same-electron functions, then wrap
-    // the result as a decomposed CCPairFunction.  All particle contributions
-    // are accumulated and converted to a pure 6D function in a single
-    // fill_tree call, avoiding rank-many hartree_product calls.
-    vector_real_function_3d Kf12_a, Kf12_b;
-    std::vector<CCPairFunction<double,6>> result;
+        // reference term ( < ij | K(1) )  = <Ki(1) j(2) |
+        real_function_3d Ki=phi_bra*g12(phi_bra*phi_k);
+        // < ij | K(1) f12 | ij > = < Ki(1) j(2) | f12 | i(1) j(2) > = <i* Ki(1) f12( j*j(2))
+        double reference=inner(Ki*phi,f12(phi_bra*phi));
+        print("reference <ij | K(1) f12 | ij>",reference);
+        t1.tag("compute reference");
 
-    for (auto particle : {1,2}) {       // loop over K_1 and K_2
-        g12.particle()=particle;
+        real_function_3d one = real_factory_3d(world).f([](const coord_3d& r) { return 1.0; });
+        LRFunctorF12<double,6> lrfunctor(f12ptr,phi_i.function,one);
 
-        // project f12(1',2)*phi_i(1')  [particle==1]
-        //      or f12(1,2')*phi_j(2')  [particle==2]
-        // giving f12_k(1,2) = \sum_pq g_p(1) M_pq h_q(2)  (possibly non-canonical)
-        auto lrfunctor= (particle==1) ? LRFunctorF12<double,6>(f12ptr,phi_i.function,one)
-                                      : LRFunctorF12<double,6>(f12ptr,one, phi_j.function);
+        auto fi_one=builder.project(lrfunctor);
+        t1.tag("compute lrf");
 
-        auto f12_k=builder.project(lrfunctor);
-        print("f12_k",f12_k.get_g().size(),f12_k.get_h().size());
-        print("memsize",get_size(world,f12_k.get_g()),get_size(world,f12_k.get_h()));
+        print("fi_one sizes",fi_one.get_g().size(),fi_one.get_h().size());
+        print("fi_one mem  ",get_size(world,fi_one.get_g()),get_size(world,fi_one.get_h()));
 
-        // Absorb the coupling matrix M into g:
-        //   gtilde_p(x) = \sum_q g_q(x) M_qp
-        // so that f12_k(1,2) = \sum_p gtilde_p(1) h_p(2)  (canonical, M=1).
-        // Without this, get_g()/get_h() return the raw basis vectors, not
-        // the metric-contracted effective functions, and the exchange would
-        // be applied to the wrong functions.
-        f12_k.canonicalize();
+//        fi_one.project(parameters);
+        double l2error=fi_one.l2error(lrfunctor);
+        print("left_project_l2error",l2error);
 
-        // same_index : canonical LRF functions on the electron acted on by K
-        // other_index: canonical LRF functions on the other electron
-        auto same_index  = (particle==1) ? f12_k.get_g() : f12_k.get_h();
-        auto other_index = (particle==1) ? f12_k.get_h() : f12_k.get_g();
 
-        // c_p(x) = \sum_k [G(x,x') gtilde_p(x') k_bra(x')] k_ket(x)
-        vector_real_function_3d c_ip = zero_functions_compressed<double,3>(world, same_index.size());
-        for (int i=0; i<(int)kket.size(); ++i) {
-            // multiply gtilde_p(x') k_bra(x')
-            auto a_ikp1 = truncate(same_index * kbra[i], tight_thresh);
-            // apply Coulomb: [G(x,x') gtilde_p(x') k_bra(x')]
-            auto a_ikp  = g12(a_ikp1);
-            // accumulate: c_p(x) += a_ikp(x) k_ket(x)
-            c_ip += a_ikp * kket[i];
-        }
+        // this is f12|ij>
+        auto f12ij=copy(fi_one);
+        f12ij.h=f12ij.h*phi;
+        double result1=inner(phi0,f12ij);
+        print("<ij | f12 | ij>",result1);
+        t1.tag("multiply 1(1)* phi(1))");
 
-        // K_particle f12 |ij>(1,2) = \sum_p c_p(same) other_p(other)
-        // Append to the combined a/b vectors for the single fill_tree below.
-        if (particle==1) {
-            Kf12_a.insert(Kf12_a.end(), c_ip.begin(),        c_ip.end());
-            Kf12_b.insert(Kf12_b.end(), other_index.begin(), other_index.end());
-        } else {
-            Kf12_a.insert(Kf12_a.end(), other_index.begin(), other_index.end());
-            Kf12_b.insert(Kf12_b.end(), c_ip.begin(),        c_ip.end());
-        }
+        // this is f12|(ki) j>
+        auto f12kij=copy(f12ij);
+        f12kij.g=f12kij.g*info.mo_bra[0];
+        double result3=inner(phi0,f12kij);
+        print("<ij | f12 | (ki) j>",result3);
+        t1.tag("multiply 1");
+
+        // this is g(f12|(ki) j>);
+        auto gf12kij=copy(f12kij);
+        gf12kij.g=g12(f12kij.g);
+        double result2=inner(phi0,gf12kij);
+        print("<ij | g(f12 | (ki) j>)",result2);
+        t1.tag("apply g ");
+
+        // this is kg(f12|(ki) j>);
+        auto kgf12kij=copy(gf12kij);
+        kgf12kij.g=gf12kij.g * phi;
+        double result4=inner(phi0,kgf12kij);
+        print("<ij | k g(f12 | (ki) j>)",result4);
+        t1.tag("multiply 2 ");
+
+        // test application of the BSH operator
+        kgf12kij.canonicalize();
+        t1.tag("canonicalize");
+        double result5=inner(phi0,kgf12kij);
+        print("<ij | k g(f12 | (ki) j>)",result5);
+        print("bsh arg sizes ",kgf12kij.get_g().size(),kgf12kij.get_h().size());
+        auto Gf = bsh(kgf12kij.get_g(),kgf12kij.get_h());
+        t1.tag("apply BSH-6D on LRF");
     }
 
-    // Convert all K f12 |ij> contributions to pure 6D in one fill_tree call.
-    // CCPairFunction(a,b) is decomposed_no_op; to_pure() uses
-    //   CompositeFactory(...).particle1(a).particle2(b).fill_tree()
-    // building \sum_p a_p(1) b_p(2) adaptively in a single pass, instead of
-    // calling hartree_product once per rank term as reconstruct() would do.
-    result.push_back(CCPairFunction<double,6> (Kf12_a, Kf12_b));
-    // result -= Kf12_ccpf.to_pure().get_function();
-
-    // f12 (K_1 + K_2) |ij> = f12 * (|K_i, j> + |i, K_j>)
-    // This part is already an op_decomposed CCPairFunction using fill_tree.
-    Exchange<double,3> K(world,info.parameters.lo());
-    K.set_bra_and_ket(kbra,kket);
-    auto tmp_i = K(phi_i.function);
-    auto tmp_j = K(phi_j.function);
-    CCPairFunction<double,6> result1(f12_op,{phi_i.function,tmp_i},{tmp_j,phi_j.function});
-    // result.push_back(result1);
-    print("thresh 3D, 6D",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh());
-
-    print("result.size()",result.size());
-    print("result",result[0].get_a().size(),result[0].get_b().size());
-    print("memsize",get_size(world,result[0].get_a()),get_size(world,result[0].get_b()));
+    // auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    // auto f12ptr=f12_op->get_op();
+    // print("Operator type",f12ptr->info.type);
 
 
-    timer t(world,true);
-    t.tag("before consolidateion");
-    print("before consolidation");
-    // result=consolidate(result,{"remove_lindep"});
-    t.tag("after consolidateion");
-    print("result.size()",result.size());
-    for (auto& c : result) print(c.name());
-    auto bsh=BSHOperator<6>(world,1.0,1.e-6,1.e-6);
-    bsh(result[0].get_a(),result[0].get_b());
-    t.tag("after apply");
-    print("after apply test");
-    // result=consolidate(result,{"op_dec_to_pure","dec_to_pure"});
+    {
+        real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
+        const auto kket=info.mo_ket;
+        const auto kbra=info.mo_bra;
 
-    // result+=result1.to_pure().get_function();
-    return result[0].get_function();
+        double tight_thresh=FunctionDefaults<3>::get_thresh();
+        std::cout << std::scientific;
+
+        // K_1 f12 |ij> = \sum_k k(1) \int G(1,1') f(1',2) k(1') i(1') d1' j(2)
+        // K_2 f12 |ij> = \sum_k k(2) \int G(2,2') f(1,2') k(2') j(2') d2' i(1)
+        //
+        // Strategy: project f12*phi_x as a LowRankFunction, canonicalize (absorb
+        // metric M into g), apply exchange on same-electron functions, then wrap
+        // the result as a decomposed CCPairFunction.  All particle contributions
+        // are accumulated and converted to a pure 6D function in a single
+        // fill_tree call, avoiding rank-many hartree_product calls.
+        vector_real_function_3d Kf12_a, Kf12_b;
+        std::vector<CCPairFunction<double,6>> result;
+
+        print_header2("start ccpairfunction version");
+        t1.tag("start ccpairfunction version");
+        auto lrfunctor=LRFunctorF12<double,6>(f12ptr,phi_i.function,one);
+        auto f12_k=builder.project(lrfunctor);
+        t1.tag("projection");
+        // giving f12_k(1,2) = \sum_pq g_p(1) M_pq h_q(2)  (possibly non-canonical)
+        print("f12_k sizes",f12_k.get_g().size(),f12_k.get_h().size());
+        print("f12_k mem  ",get_size(world,f12_k.get_g()),get_size(world,f12_k.get_h()));
+        LowRankFunction<double,6> lrf_result(world);
+
+
+        // for (auto particle : {1,2}) {       // loop over K_1 and K_2
+        for (auto particle : {1}) {       // loop over K_1 and K_2
+            // g12.particle()=particle;
+
+            auto f12_p=copy(f12_k);
+            f12_p.h=f12_p.h*phi;
+            if (particle==2) {
+                std::swap(f12_p.g,f12_p.h);
+                f12_p.metric=copy(transpose(f12_p.metric));
+                t1.tag("swap particle");
+            }
+            double result3=inner(phi0,f12_p);
+            print("<ij | f12 | ij>)",result3);
+
+
+            // apply exchange on one of the particles
+            Exchange<double,3> K(world,info.parameters.lo());
+            K.set_bra_and_ket(info.mo_bra,info.mo_ket);
+            if (particle==1) f12_p.g=K(f12_p.g);
+            else f12_p.h=K(f12_p.h);
+            t1.tag("apply exchange");
+
+            double result4=inner(phi0,f12_p);
+            print("<ij | k g(f12 | (ki) j>)",result4);
+
+            if (particle==1) lrf_result=f12_p;
+            else lrf_result+=f12_p;
+            t1.tag("accumulate result");
+
+            lrf_result.canonicalize();
+            t1.tag("canonicalize lrf_result");
+            double result5=inner(phi0,lrf_result);
+            print("<ij | k g(f12 | (ki) j>)",result5);
+        }
+
+        print("lrf_result sizes",lrf_result.get_g().size(),lrf_result.get_h().size());
+        print("lrf_result mem  ",get_size(world,lrf_result.get_g()),get_size(world,lrf_result.get_h()));
+        auto bla=bsh(lrf_result.get_g(),lrf_result.get_h());
+
+        t1.tag("after apply");
+        print("after apply test");
+        return result[0].get_function();
+    }
 
 }
 

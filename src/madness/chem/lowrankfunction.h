@@ -686,6 +686,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// the canonical representation is a special case of the general representation where the coupling matrix
         /// is the identity, so we can check for that
         bool is_canonical() const {
+            // some sanity check
+            if (metric.size()==0) MADNESS_CHECK_THROW(g.size()==h.size(),"inconsistent sizes in LRF");
+            if (metric.size()>0) {
+                MADNESS_CHECK_THROW(g.size()==metric.dim(0),"inconsistent g sizes in LRF");
+                MADNESS_CHECK_THROW(h.size()==metric.dim(1),"inconsistent h sizes in LRF");
+            }
             return metric.size()==0;
         }
 
