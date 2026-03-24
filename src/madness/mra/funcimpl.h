@@ -974,6 +974,7 @@ template<size_t NDIM>
         int initial_level; ///< Initial level for refinement
         int special_level; ///< Minimium level for refinement on special points
         std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
+        const Tensor<double> cell;          ///< the size of the root cell in each dimension, unchangeable
         int max_refine_level; ///< Do not refine below this level
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
@@ -1007,19 +1008,16 @@ template<size_t NDIM>
             , k(factory._k)
             , thresh(factory._thresh)
             , initial_level(factory._initial_level)
-        , special_level(factory._special_level)
-        , special_points(factory._special_points)
+            , special_level(factory._special_level)
+            , special_points(factory._special_points)
+            , cell(FunctionDefaults<NDIM>::get_cell())
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
             , truncate_on_project(factory._truncate_on_project)
-//		  , nonstandard(false)
             , targs(factory._thresh,FunctionDefaults<NDIM>::get_tensor_type())
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , functor(factory.get_functor())
-//		  , on_demand(factory._is_on_demand)
-//		  , compressed(factory._compressed)
-//		  , redundant(false)
           , tree_state(factory._tree_state)
             , coeffs(world,factory._pmap,false)
             //, bc(factory._bc)
@@ -1095,6 +1093,7 @@ template<size_t NDIM>
                 , initial_level(other.initial_level)
                 , special_level(other.special_level)
                 , special_points(other.special_points)
+                , cell(other.cell)
                 , max_refine_level(other.max_refine_level)
                 , truncate_mode(other.truncate_mode)
                 , autorefine(other.autorefine)
@@ -1373,6 +1372,9 @@ template<size_t NDIM>
         void set_tensor_args(const TensorArgs& t);
 
         double get_thresh() const;
+
+        /// return the simulation cell
+        const Tensor<double>& get_cell() const { return cell; }
 
         void set_thresh(double value);
 
