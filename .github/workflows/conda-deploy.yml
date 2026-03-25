@@ -21,13 +21,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-latest]
+        mpi: [nompi, openmpi]
         include:
           - os: ubuntu-24.04
             cxx: /usr/bin/g++-13
           - os: macos-latest
             cxx: clang++
 
-    name: "conda ${{ matrix.os }}"
+    name: "conda ${{ matrix.os }} ${{ matrix.mpi }}"
     runs-on: ${{ matrix.os }}
 
     defaults:
@@ -51,6 +52,15 @@ jobs:
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Version: $VERSION"
 
+    - name: Set package name
+      id: pkg
+      run: |
+        if [ "${{ matrix.mpi }}" = "openmpi" ]; then
+          echo "name=madness-mpi" >> "$GITHUB_OUTPUT"
+        else
+          echo "name=madness" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Set up Miniconda
       uses: conda-incubator/setup-miniconda@v3
       with:
@@ -61,6 +71,11 @@ jobs:
     - name: Install conda-build and anaconda-client
       run: |
         conda install -y conda-build anaconda-client
+
+    - name: Install conda OpenMPI
+      if: matrix.mpi == 'openmpi'
+      run: |
+        conda install -y openmpi openmpi-mpicc openmpi-mpicxx
 
     - name: Install build prerequisites (Ubuntu)
       if: matrix.os == 'ubuntu-24.04'
@@ -77,11 +92,15 @@ jobs:
       env:
         CXX: ${{ matrix.cxx }}
       run: |
+        MPI_FLAG="-DENABLE_MPI=OFF"
+        if [ "${{ matrix.mpi }}" = "openmpi" ]; then
+          MPI_FLAG="-DENABLE_MPI=ON"
+        fi
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
           -DBUILD_SHARED_LIBS=OFF \
-          -DENABLE_MPI=OFF \
+          ${MPI_FLAG} \
           -DENABLE_LIBXC=OFF \
           -DBUILD_TESTING=OFF
         cmake --build build -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
@@ -89,12 +108,21 @@ jobs:
 
     - name: Prepare conda recipe
       env:
+        PKG_NAME: ${{ steps.pkg.outputs.name }}
         PKG_VERSION: ${{ steps.version.outputs.version }}
+        MPI_VARIANT: ${{ matrix.mpi }}
       run: |
         mkdir -p conda-recipe
+
+        # Build run dependencies list
+        RUN_DEPS=""
+        if [ "${MPI_VARIANT}" = "openmpi" ]; then
+          RUN_DEPS="    - openmpi"
+        fi
+
         cat > conda-recipe/meta.yaml <<RECIPE
         package:
-          name: madness
+          name: "${PKG_NAME}"
           version: "${PKG_VERSION}"
 
         source:
@@ -103,6 +131,10 @@ jobs:
         build:
           number: 0
           script: bash \${RECIPE_DIR}/install.sh
+
+        requirements:
+          run:
+        ${RUN_DEPS}
 
         about:
           home: https://github.com/m-a-d-n-e-s-s/madness

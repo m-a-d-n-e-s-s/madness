@@ -2,18 +2,28 @@
 
 Conda packages are built and uploaded to [anaconda.org/m-a-d-n-e-s-s](https://anaconda.org/m-a-d-n-e-s-s) automatically via GitHub Actions.
 
-Users install MADNESS with:
-```
-conda install -c m-a-d-n-e-s-s madness
-```
+## Available Packages
+
+| Package | MPI | Install command |
+|---------|-----|-----------------|
+| `madness` | no | `conda install -c m-a-d-n-e-s-s madness` |
+| `madness-mpi` | OpenMPI (from conda-forge) | `conda install -c m-a-d-n-e-s-s -c conda-forge madness-mpi` |
+
+Both packages are built for Linux and macOS.
+
+The **no-MPI** variant is the simplest option for single-node workstation use.
+
+The **MPI variant** uses OpenMPI from conda-forge and is suitable for workstations and small clusters. Note that the conda-provided OpenMPI uses TCP networking and will not take advantage of high-performance interconnects (InfiniBand, Cray Aries, etc.).
+
+**For HPC clusters**: expert users who need optimal performance should build MADNESS from source to take full advantage of their hardware (native MPI, vendor-tuned BLAS/LAPACK, InfiniBand, etc.). See the main project README for build instructions.
 
 ## Automated Workflow
 
-The workflow is defined in `/.github/workflows/conda-deploy.yml`. It builds a minimal MADNESS (no MPI, no libxc) for Linux and macOS and uploads the conda package.
-
-It runs automatically when:
-- The CI tests pass on `master` (triggered by `workflow_run` after the "Linux/MacOS Build" workflow succeeds)
+The workflow is defined in `/.github/workflows/conda-deploy.yml`. It runs automatically when:
+- The CI tests pass on `master` (triggered after the "Linux/MacOS Build" workflow succeeds)
 - A version tag (`v*`) is pushed
+
+For each trigger, four packages are built and uploaded (2 platforms x 2 MPI variants).
 
 Untagged builds on `master` produce development versions like `0.10.1.dev20260325+abcd1234`. Tagged releases produce clean version numbers (see below).
 
@@ -37,14 +47,14 @@ Untagged builds on `master` produce development versions like `0.10.1.dev2026032
    git push origin master --tags
    ```
 
-The tag triggers the conda deploy workflow directly (without waiting for CI), producing a package with version `0.10.2`.
+The tag triggers the conda deploy workflow directly, producing packages with version `0.10.2`.
 
 ## Setup Requirements
 
 The workflow requires an **Anaconda.org API token** stored as a GitHub repository secret:
 
 1. Go to [anaconda.org](https://anaconda.org) and log in to the `m-a-d-n-e-s-s` organization
-2. Navigate to Settings > Access and generate an API token with upload permissions
+2. Navigate to Settings > Access and generate an API token with upload (write) permissions
 3. In the GitHub repository, go to Settings > Secrets and variables > Actions
 4. Add a new secret named `ANACONDA_TOKEN` with the token value
 
