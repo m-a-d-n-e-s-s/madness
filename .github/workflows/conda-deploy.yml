@@ -39,7 +39,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # need tags for versioning
-        repository: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name || github.repository }}
+        repository: ${{ github.repository }}
         ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
     - name: Determine version
@@ -165,6 +165,8 @@ jobs:
         mkdir -p "${PREFIX}/etc/conda/activate.d"
         mkdir -p "${PREFIX}/etc/conda/deactivate.d"
         cat > "${PREFIX}/etc/conda/activate.d/activate_madness.sh" <<'EOF'
+        # MADNESS installs data into a versioned subdirectory; find the first one.
+        # Only one version of MADNESS is expected per conda environment.
         MADNESS_DATA_BASE="${CONDA_PREFIX}/share/madness"
         if [ -d "${MADNESS_DATA_BASE}" ]; then
           MADNESS_VERSION_DIR=""
@@ -196,5 +198,6 @@ jobs:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
         shopt -s globstar
-        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.tar.bz2 || \
-        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.conda
+        for pkg in conda-output/**/*.tar.bz2 conda-output/**/*.conda; do
+          [ -f "$pkg" ] && anaconda upload --user m-a-d-n-e-s-s --force "$pkg"
+        done
