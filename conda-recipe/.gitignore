@@ -1,0 +1,5 @@
+# Override root .gitignore which excludes build*
+!build.sh
+
+# Ignore conda-build work directories
+.conda/

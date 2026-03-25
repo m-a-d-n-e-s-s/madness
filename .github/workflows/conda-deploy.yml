@@ -10,26 +10,26 @@ on:
   push:
     tags:
       - 'v*'
+  # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
   conda-build-upload:
-    # Only run if CI succeeded (for workflow_run trigger) or if it's a tag push
+    # Only run if CI succeeded (for workflow_run trigger) or if it's a tag/manual push
     if: >
       github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success')
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-latest]
         mpi: [nompi, openmpi]
-        include:
-          - os: ubuntu-24.04
-            cxx: /usr/bin/g++-13
-          - os: macos-latest
-            cxx: clang++
 
     name: "conda ${{ matrix.os }} ${{ matrix.mpi }}"
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
 
     defaults:
       run:
@@ -38,7 +38,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # need tags for versioning
+        fetch-depth: 0  # full history needed for git describe
         repository: ${{ github.repository }}
         ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
@@ -47,157 +47,56 @@ jobs:
       env:
         SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       run: |
-        SHORT_SHA="${SOURCE_SHA::8}"
         if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
           VERSION="${GITHUB_REF#refs/tags/v}"
         else
-          # Use CMake version + date + short SHA for untagged builds
-          VERSION="$(grep 'set(MADNESS_VERSION ' CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/').dev$(date +%Y%m%d)+${SHORT_SHA}"
+          # Use the most recent version tag, falling back to CMakeLists.txt
+          TAG_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          if [ -z "${TAG_VERSION}" ]; then
+            MAJOR=$(grep -m1 'set(MADNESS_MAJOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MINOR=$(grep -m1 'set(MADNESS_MINOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MICRO=$(grep -m1 'set(MADNESS_MICRO_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            TAG_VERSION="${MAJOR}.${MINOR}.${MICRO}"
+          fi
+          SHORT_SHA="${SOURCE_SHA::8}"
+          VERSION="${TAG_VERSION}.dev$(date +%Y%m%d)+${SHORT_SHA}"
         fi
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "GIT_DESCRIBE_TAG=$VERSION" >> "$GITHUB_ENV"
         echo "Version: $VERSION"
-
-    - name: Set package name
-      id: pkg
-      run: |
-        if [ "${{ matrix.mpi }}" = "openmpi" ]; then
-          echo "name=madness-mpi" >> "$GITHUB_OUTPUT"
-        else
-          echo "name=madness" >> "$GITHUB_OUTPUT"
-        fi
 
     - name: Set up Miniconda
       uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
-        python-version: "3.11"
+        python-version: "3.12"
         channels: conda-forge,defaults
+        channel-priority: strict
 
     - name: Install conda-build and anaconda-client
       run: |
         conda install -y conda-build anaconda-client
 
-    - name: Install conda OpenMPI
-      if: matrix.mpi == 'openmpi'
-      run: |
-        conda install -y openmpi openmpi-mpicc openmpi-mpicxx
-
-    - name: Install build prerequisites (Ubuntu)
-      if: matrix.os == 'ubuntu-24.04'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev ccache
-
-    - name: Install build prerequisites (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install ninja boost eigen ccache
-
-    - name: Build and install MADNESS
+    - name: Build conda package
       env:
-        CXX: ${{ matrix.cxx }}
-      run: |
-        MPI_FLAG="-DENABLE_MPI=OFF"
-        if [ "${{ matrix.mpi }}" = "openmpi" ]; then
-          MPI_FLAG="-DENABLE_MPI=ON"
-        fi
-        cmake -S . -B build -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
-          -DBUILD_SHARED_LIBS=OFF \
-          ${MPI_FLAG} \
-          -DENABLE_LIBXC=OFF \
-          -DBUILD_TESTING=OFF
-        cmake --build build -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
-        cmake --build build --target install
-
-    - name: Prepare conda recipe
-      env:
-        PKG_NAME: ${{ steps.pkg.outputs.name }}
-        PKG_VERSION: ${{ steps.version.outputs.version }}
         MPI_VARIANT: ${{ matrix.mpi }}
       run: |
-        mkdir -p conda-recipe
+        conda build conda-recipe/ \
+          --no-anaconda-upload \
+          --output-folder "${{ github.workspace }}/conda-dist/"
 
-        # Build run dependencies list
-        RUN_DEPS=$(printf "    - liblapack\n    - libblas")
-        if [ "${MPI_VARIANT}" = "openmpi" ]; then
-          RUN_DEPS=$(printf "%s\n    - openmpi" "${RUN_DEPS}")
-        fi
-
-        cat > conda-recipe/meta.yaml <<RECIPE
-        package:
-          name: "${PKG_NAME}"
-          version: "${PKG_VERSION}"
-
-        source:
-          path: ${{ github.workspace }}/install
-
-        build:
-          number: 0
-          script: bash \${RECIPE_DIR}/install.sh
-
-        requirements:
-          host:
-            - liblapack
-            - libblas
-          run:
-        ${RUN_DEPS}
-
-        about:
-          home: https://github.com/m-a-d-n-e-s-s/madness
-          license: GPL-2.0-or-later
-          summary: MADNESS - fast, adaptive multiresolution integrodifferential calculus
-        RECIPE
-
-        cat > conda-recipe/install.sh <<'INSTALL'
-        #!/bin/bash
-        set -ex
-        # Copy everything from the pre-built install tree
-        cp -a "${SRC_DIR}/bin/." "${PREFIX}/bin/"
-        cp -a "${SRC_DIR}/include/." "${PREFIX}/include/"
-        cp -a "${SRC_DIR}/lib/." "${PREFIX}/lib/"
-        if [ -d "${SRC_DIR}/share" ]; then
-          cp -a "${SRC_DIR}/share/." "${PREFIX}/share/"
-        fi
-
-        # Set up environment activation for data directories
-        mkdir -p "${PREFIX}/etc/conda/activate.d"
-        mkdir -p "${PREFIX}/etc/conda/deactivate.d"
-        cat > "${PREFIX}/etc/conda/activate.d/activate_madness.sh" <<'EOF'
-        # MADNESS installs data into a versioned subdirectory; find the first one.
-        # Only one version of MADNESS is expected per conda environment.
-        MADNESS_DATA_BASE="${CONDA_PREFIX}/share/madness"
-        if [ -d "${MADNESS_DATA_BASE}" ]; then
-          MADNESS_VERSION_DIR=""
-          for d in "${MADNESS_DATA_BASE}"/*; do
-            if [ -d "$d" ]; then
-              MADNESS_VERSION_DIR="$d"
-              break
-            fi
-          done
-          if [ -n "${MADNESS_VERSION_DIR}" ] && [ -d "${MADNESS_VERSION_DIR}/data" ]; then
-            export MRA_DATA_DIR="${MADNESS_VERSION_DIR}/data"
-            export MRA_CHEMDATA_DIR="${MADNESS_VERSION_DIR}/data"
-          fi
-        fi
-        EOF
-        cat > "${PREFIX}/etc/conda/deactivate.d/deactivate_madness.sh" <<'EOF'
-        unset MRA_DATA_DIR
-        unset MRA_CHEMDATA_DIR
-        EOF
-        INSTALL
-        chmod +x conda-recipe/install.sh
-
-    - name: Build conda package
-      run: |
-        conda build conda-recipe --no-anaconda-upload --output-folder conda-output
+    - name: Upload conda package as workflow artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: conda-${{ matrix.os }}-${{ matrix.mpi }}-${{ steps.version.outputs.version }}
+        path: ${{ github.workspace }}/conda-dist/**/*.conda
+        if-no-files-found: warn
 
     - name: Upload to Anaconda.org
       env:
-        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
         shopt -s globstar
-        for pkg in conda-output/**/*.tar.bz2 conda-output/**/*.conda; do
-          [ -f "$pkg" ] && anaconda upload --user m-a-d-n-e-s-s --force "$pkg"
+        for pkg in "${{ github.workspace }}"/conda-dist/**/*.tar.bz2 "${{ github.workspace }}"/conda-dist/**/*.conda; do
+          [ -f "$pkg" ] && anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
         done

@@ -17,13 +17,21 @@ The **MPI variant** uses OpenMPI from conda-forge and is suitable for workstatio
 
 **For HPC clusters**: expert users who need optimal performance should build MADNESS from source to take full advantage of their hardware (native MPI, vendor-tuned BLAS/LAPACK, InfiniBand, etc.). See the main project README for build instructions.
 
+## Conda Recipe
+
+The conda recipe lives in `/conda-recipe/` and consists of:
+
+- **`meta.yaml`** — Package metadata, dependencies, and build configuration. Uses Jinja templating with `GIT_DESCRIBE_TAG` for versioning and `MPI_VARIANT` to control MPI support. Conditional selectors (`# [mpi == 'openmpi']`) toggle MPI dependencies.
+- **`build.sh`** — Build script invoked by `conda build`. Runs the full CMake build inside the conda environment using conda-forge compilers and installs activation scripts that set `MRA_DATA_DIR` and `MRA_CHEMDATA_DIR`.
+
 ## Automated Workflow
 
 The workflow is defined in `/.github/workflows/conda-deploy.yml`. It runs automatically when:
 - The CI tests pass on `master` (triggered after the "Linux/MacOS Build" workflow succeeds)
 - A version tag (`v*`) is pushed
+- Manually via `workflow_dispatch`
 
-For each trigger, four packages are built and uploaded (2 platforms x 2 MPI variants).
+For each trigger, four packages are built and uploaded (2 platforms x 2 MPI variants). Build artifacts are also saved as GitHub workflow artifacts.
 
 Untagged builds on `master` produce development versions like `0.10.1.dev20260325+abcd1234`. Tagged releases produce clean version numbers (see below).
 
