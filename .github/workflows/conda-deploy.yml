@@ -1,0 +1,147 @@
+name: Conda Deploy
+
+on:
+  # Run after CI passes on master
+  workflow_run:
+    workflows: ["Linux/MacOS Build"]
+    types: [completed]
+    branches: [master]
+  # Also run on version tags
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  conda-build-upload:
+    # Only run if CI succeeded (for workflow_run trigger) or if it's a tag push
+    if: >
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            cxx: /usr/bin/g++-13
+          - os: macos-latest
+            cxx: clang++
+
+    name: "conda ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # need tags for versioning
+
+    - name: Determine version
+      id: version
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+        else
+          # Use CMake version + date + short SHA for untagged builds
+          VERSION="$(grep 'set(MADNESS_VERSION ' CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/').dev$(date +%Y%m%d)+${GITHUB_SHA::8}"
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Version: $VERSION"
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-update-conda: true
+        python-version: "3.11"
+        channels: conda-forge,defaults
+
+    - name: Install conda-build and anaconda-client
+      run: |
+        conda install -y conda-build anaconda-client
+
+    - name: Install build prerequisites (Ubuntu)
+      if: matrix.os == 'ubuntu-24.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev ccache
+
+    - name: Install build prerequisites (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install ninja boost eigen ccache
+
+    - name: Build and install MADNESS
+      env:
+        CXX: ${{ matrix.cxx }}
+      run: |
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DENABLE_MPI=OFF \
+          -DENABLE_LIBXC=OFF \
+          -DBUILD_TESTING=OFF
+        cmake --build build -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+        cmake --build build --target install
+
+    - name: Prepare conda recipe
+      env:
+        PKG_VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        mkdir -p conda-recipe
+        cat > conda-recipe/meta.yaml <<RECIPE
+        package:
+          name: madness
+          version: "${PKG_VERSION}"
+
+        source:
+          path: ${{ github.workspace }}/install
+
+        build:
+          number: 0
+          script: bash \${RECIPE_DIR}/install.sh
+
+        about:
+          home: https://github.com/m-a-d-n-e-s-s/madness
+          license: GPL-2.0-or-later
+          summary: MADNESS - fast, adaptive multiresolution integrodifferential calculus
+        RECIPE
+
+        cat > conda-recipe/install.sh <<'INSTALL'
+        #!/bin/bash
+        set -ex
+        # Copy everything from the pre-built install tree
+        cp -r "${SRC_DIR}/bin" "${PREFIX}/bin"
+        cp -r "${SRC_DIR}/include" "${PREFIX}/include"
+        cp -r "${SRC_DIR}/lib" "${PREFIX}/lib"
+        if [ -d "${SRC_DIR}/share" ]; then
+          cp -r "${SRC_DIR}/share" "${PREFIX}/share"
+        fi
+
+        # Set up environment activation for data directories
+        mkdir -p "${PREFIX}/etc/conda/activate.d"
+        mkdir -p "${PREFIX}/etc/conda/deactivate.d"
+        cat > "${PREFIX}/etc/conda/activate.d/activate_madness.sh" <<'EOF'
+        export MRA_DATA_DIR="${CONDA_PREFIX}/share/madness/data/"
+        export MRA_CHEMDATA_DIR="${CONDA_PREFIX}/share/madness/data/"
+        EOF
+        cat > "${PREFIX}/etc/conda/deactivate.d/deactivate_madness.sh" <<'EOF'
+        unset MRA_DATA_DIR
+        unset MRA_CHEMDATA_DIR
+        EOF
+        INSTALL
+        chmod +x conda-recipe/install.sh
+
+    - name: Build conda package
+      run: |
+        conda build conda-recipe --no-anaconda-upload --output-folder conda-output
+
+    - name: Upload to Anaconda.org
+      env:
+        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.tar.bz2 || \
+        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.conda
