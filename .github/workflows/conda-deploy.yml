@@ -39,15 +39,20 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # need tags for versioning
+        repository: ${{ github.repository }}
+        ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
     - name: Determine version
       id: version
+      env:
+        SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       run: |
+        SHORT_SHA="${SOURCE_SHA::8}"
         if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
           VERSION="${GITHUB_REF#refs/tags/v}"
         else
           # Use CMake version + date + short SHA for untagged builds
-          VERSION="$(grep 'set(MADNESS_VERSION ' CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/').dev$(date +%Y%m%d)+${GITHUB_SHA::8}"
+          VERSION="$(grep 'set(MADNESS_VERSION ' CMakeLists.txt | sed 's/.*"\(.*\)".*/\1/').dev$(date +%Y%m%d)+${SHORT_SHA}"
         fi
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Version: $VERSION"
@@ -115,9 +120,9 @@ jobs:
         mkdir -p conda-recipe
 
         # Build run dependencies list
-        RUN_DEPS=""
+        RUN_DEPS=$(printf "    - liblapack\n    - libblas")
         if [ "${MPI_VARIANT}" = "openmpi" ]; then
-          RUN_DEPS="    - openmpi"
+          RUN_DEPS=$(printf "%s\n    - openmpi" "${RUN_DEPS}")
         fi
 
         cat > conda-recipe/meta.yaml <<RECIPE
@@ -133,6 +138,9 @@ jobs:
           script: bash \${RECIPE_DIR}/install.sh
 
         requirements:
+          host:
+            - liblapack
+            - libblas
           run:
         ${RUN_DEPS}
 
@@ -146,19 +154,33 @@ jobs:
         #!/bin/bash
         set -ex
         # Copy everything from the pre-built install tree
-        cp -r "${SRC_DIR}/bin" "${PREFIX}/bin"
-        cp -r "${SRC_DIR}/include" "${PREFIX}/include"
-        cp -r "${SRC_DIR}/lib" "${PREFIX}/lib"
+        cp -a "${SRC_DIR}/bin/." "${PREFIX}/bin/"
+        cp -a "${SRC_DIR}/include/." "${PREFIX}/include/"
+        cp -a "${SRC_DIR}/lib/." "${PREFIX}/lib/"
         if [ -d "${SRC_DIR}/share" ]; then
-          cp -r "${SRC_DIR}/share" "${PREFIX}/share"
+          cp -a "${SRC_DIR}/share/." "${PREFIX}/share/"
         fi
 
         # Set up environment activation for data directories
         mkdir -p "${PREFIX}/etc/conda/activate.d"
         mkdir -p "${PREFIX}/etc/conda/deactivate.d"
         cat > "${PREFIX}/etc/conda/activate.d/activate_madness.sh" <<'EOF'
-        export MRA_DATA_DIR="${CONDA_PREFIX}/share/madness/data/"
-        export MRA_CHEMDATA_DIR="${CONDA_PREFIX}/share/madness/data/"
+        # MADNESS installs data into a versioned subdirectory; find the first one.
+        # Only one version of MADNESS is expected per conda environment.
+        MADNESS_DATA_BASE="${CONDA_PREFIX}/share/madness"
+        if [ -d "${MADNESS_DATA_BASE}" ]; then
+          MADNESS_VERSION_DIR=""
+          for d in "${MADNESS_DATA_BASE}"/*; do
+            if [ -d "$d" ]; then
+              MADNESS_VERSION_DIR="$d"
+              break
+            fi
+          done
+          if [ -n "${MADNESS_VERSION_DIR}" ] && [ -d "${MADNESS_VERSION_DIR}/data" ]; then
+            export MRA_DATA_DIR="${MADNESS_VERSION_DIR}/data"
+            export MRA_CHEMDATA_DIR="${MADNESS_VERSION_DIR}/data"
+          fi
+        fi
         EOF
         cat > "${PREFIX}/etc/conda/deactivate.d/deactivate_madness.sh" <<'EOF'
         unset MRA_DATA_DIR
@@ -175,5 +197,7 @@ jobs:
       env:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.tar.bz2 || \
-        anaconda upload --user m-a-d-n-e-s-s --force conda-output/**/*.conda
+        shopt -s globstar
+        for pkg in conda-output/**/*.tar.bz2 conda-output/**/*.conda; do
+          [ -f "$pkg" ] && anaconda upload --user m-a-d-n-e-s-s --force "$pkg"
+        done
