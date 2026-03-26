@@ -448,14 +448,14 @@ public:
     apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFunction<double,3>& y, const Info& info,
         const CCParameters& param);
 
-    static real_function_6d
+    static std::vector<CCPairFunction<double, 6>>
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                const Info& info, const real_convolution_6d* Gscreen);
 
     /// apply the exchange commutator using a low-rank approximation for f12 k(1)
-    static real_function_6d
+    static std::vector<CCPairFunction<double, 6>>
     apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-               const Info& info, const real_convolution_6d* Gscreen);
+                        const Info& info, const real_convolution_6d* Gscreen);
 
     static CCPairFunction<double, 6>
     apply_commutator_F_Qt_f12(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,

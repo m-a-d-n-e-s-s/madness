@@ -30,7 +30,7 @@ bool CCPairFunction<T,NDIM>::is_convertible_to_pure_no_op() const {
 
 
 template<typename T, std::size_t NDIM>
-void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
+void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace(const SeparatedConvolution<T,NDIM>* Gscreen) {
     pureT result;
     if (is_pure_no_op()) {
         return;
@@ -50,7 +50,11 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
     } else {
         MADNESS_EXCEPTION("error in convert_to_pure_no_op_inplace",1);
     }
-    result.fill_tree();
+    if (Gscreen==NULL) {
+        result.fill_tree();
+    } else {
+        result.fill_cuspy_tree(*Gscreen).truncate().reduce_rank();
+    }
     result.truncate(FunctionDefaults<NDIM>::get_thresh()*0.1);
     component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(result));
 };
@@ -625,6 +629,9 @@ double CCPairFunction<T,NDIM>::inner_internal(const CCPairFunction<T,NDIM>& othe
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const ProjectorBase& projector, const std::vector<CCPairFunction<T,NDIM>>& argument) {
     if (argument.size()==0) return argument;
+
+    typedef std::vector<CCPairFunction<T,NDIM>> vecT;
+
     World& world=argument.front().world();
     constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
 //    print("apply projector on argument with terms",argument.size());
@@ -649,9 +656,9 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
 
 
             } else if (auto Q=dynamic_cast<const QProjector<double,LDIM>*>(&projector)) {
-                // result.push_back(CCPairFunction<T,NDIM>((*Q)(pf.get_function())));
                 result.push_back(pf);
-                result.push_back(-1.0*Q->get_P_projector()(pf));
+                auto tmp=(-1.0*Q->get_P_projector()(vecT({pf})));
+                result.insert(result.end(),tmp.begin(),tmp.end());
 
             } else {
                 MADNESS_EXCEPTION("CCPairFunction<T,NDIM>: unknown projector type",1);

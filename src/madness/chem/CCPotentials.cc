@@ -800,7 +800,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
                 result.push_back(cc);
                 result.push_back(CCPairFunction<double,6>(left,right));
             } else if (cc.is_decomposed()) {
-                result.push_back(Q(cc));
+
+                result+=Q(cc);
+            } else {
+                MADNESS_CHECK_THROW(false,"unknown type of CCPairFunction");
             }
         }
         return result;
@@ -869,11 +872,12 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             // apply_G_and_print(tmp,"commutator projector response");
         }
     }
+    print("finished computing potential for constant part, now applying G");
 
     V=consolidate(V);
-    MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
+    // MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
     t1.end("finished computing potential for constant part");
-    save(V[0].get_function(),"V_fullrank_const"+pair.name());
+    // save(V[0].get_function(),"V_fullrank_const"+pair.name());
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -1336,7 +1340,7 @@ std::vector<CCPairFunction<double,6>>
     // calculate the regularized potential
     real_function_6d V=real_factory_6d(world);
     std::vector<CCPairFunction<double,6>> V_lowrank;
-    if (exists("KffK")) V -= apply_KffK(world,ti,tj,info,&Gscreen);
+    if (exists("KffK")) V_lowrank -= apply_KffK(world,ti,tj,info,&Gscreen);
     if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
     if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
     if (exists("comm_F_Qt_f12")) {
@@ -1800,10 +1804,11 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     return result[0];
 }
 
-madness::real_function_6d
-CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
-                                                      const Info& info, const real_convolution_6d *Gscreen) {
+std::vector<CCPairFunction<double, 6>>
+CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+                                  const Info& info, const real_convolution_6d* Gscreen) {
 
+    timer t2(world);
     constexpr std::size_t LDIM=3;
     constexpr std::size_t NDIM=2*LDIM;
     std::cout << std::scientific << std::setprecision(6);
@@ -1813,106 +1818,38 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
 
     LowRankFunctionParameters lrfparameters;
     lrfparameters.set_derived_value("gridtype",std::string("random"));
-    lrfparameters.set_derived_value("volume_element",3.e-1);
+    lrfparameters.set_derived_value("volume_element",2.e-1);
     lrfparameters.set_derived_value("tol",1.e-6);
     lrfparameters.print("lrf");
     auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
 
     real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     g12.particle()=1;
-    std::shared_ptr<real_convolution_3d> f12ptr;
-    f12ptr.reset(SlaterF12OperatorPtr(world,info.parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
+    auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    auto f12ptr=f12_op->get_op();
+    real_convolution_3d& f12=*f12ptr;
+    print("Operator type",f12ptr->info.type);
+
+    CCConvolutionOperator<double,3> f12_operator(world,OT_F12,info.parameters);
     auto bsh=BSHOperator<NDIM>(world,1.0,1.e-6,1.e-6);
 
-    real_convolution_3d& f12=*f12ptr;
-    // real_function_3d phi=real_factory_3d(world).f([](const coord_3d& r){return exp(-r.normf());});
-    // double n=phi.norm2();
-    // phi.scale(1.0/n);
-    real_function_3d phi=phi_i.function;
-    real_function_3d phi_k=phi; // looks silly, helps reading.
-    real_function_3d phi_bra=info.mo_bra[0];
-
+    // for projecting intermediate results for diagnosis
     LowRankFunction<double,6> phi0(world);
-    phi0.g=info.mo_bra;
-    phi0.h=info.mo_bra;
+    phi0.g={phi_i.function};
+    phi0.h={phi_j.function};
 
     timer t1(world);
     std::cout << std::scientific;
-    if (1) {
-        print_header2("start LRF version");
 
-        // reference term ( < ij | K(1) )  = <Ki(1) j(2) |
-        real_function_3d Ki=phi_bra*g12(phi_bra*phi_k);
-        // < ij | K(1) f12 | ij > = < Ki(1) j(2) | f12 | i(1) j(2) > = <i* Ki(1) f12( j*j(2))
-        double reference=inner(Ki*phi,f12(phi_bra*phi));
-        print("reference <ij | K(1) f12 | ij>",reference);
-        t1.tag("compute reference");
+    // the exchange operator
+    Exchange<double,3> K(world,info.parameters.lo());
+    K.set_bra_and_ket(info.mo_bra,info.mo_ket);
 
-        real_function_3d one = real_factory_3d(world).f([](const coord_3d& r) { return 1.0; });
-        LRFunctorF12<double,6> lrfunctor(f12ptr,phi_i.function,one);
-
-        auto fi_one=builder.project(lrfunctor);
-        t1.tag("compute lrf");
-
-        print("fi_one sizes",fi_one.get_g().size(),fi_one.get_h().size());
-        print("fi_one mem  ",get_size(world,fi_one.get_g()),get_size(world,fi_one.get_h()));
-
-//        fi_one.project(parameters);
-        double l2error=fi_one.l2error(lrfunctor);
-        print("left_project_l2error",l2error);
-
-
-        // this is f12|ij>
-        auto f12ij=copy(fi_one);
-        f12ij.h=f12ij.h*phi;
-        double result1=inner(phi0,f12ij);
-        print("<ij | f12 | ij>",result1);
-        t1.tag("multiply 1(1)* phi(1))");
-
-        // this is f12|(ki) j>
-        auto f12kij=copy(f12ij);
-        f12kij.g=f12kij.g*info.mo_bra[0];
-        double result3=inner(phi0,f12kij);
-        print("<ij | f12 | (ki) j>",result3);
-        t1.tag("multiply 1");
-
-        // this is g(f12|(ki) j>);
-        auto gf12kij=copy(f12kij);
-        gf12kij.g=g12(f12kij.g);
-        double result2=inner(phi0,gf12kij);
-        print("<ij | g(f12 | (ki) j>)",result2);
-        t1.tag("apply g ");
-
-        // this is kg(f12|(ki) j>);
-        auto kgf12kij=copy(gf12kij);
-        kgf12kij.g=gf12kij.g * phi;
-        double result4=inner(phi0,kgf12kij);
-        print("<ij | k g(f12 | (ki) j>)",result4);
-        t1.tag("multiply 2 ");
-
-        // test application of the BSH operator
-        kgf12kij.canonicalize();
-        t1.tag("canonicalize");
-        double result5=inner(phi0,kgf12kij);
-        print("<ij | k g(f12 | (ki) j>)",result5);
-        print("bsh arg sizes ",kgf12kij.get_g().size(),kgf12kij.get_h().size());
-        auto Gf = bsh(kgf12kij.get_g(),kgf12kij.get_h());
-        t1.tag("apply BSH-6D on LRF");
-    }
-
-    // auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
-    // auto f12ptr=f12_op->get_op();
-    // print("Operator type",f12ptr->info.type);
-
-
+    CCPairFunction<double,6> Kf;
+    // compute the term (K1 + K2) f12 | ij >
     {
         real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
-        const auto kket=info.mo_ket;
-        const auto kbra=info.mo_bra;
-
-        double tight_thresh=FunctionDefaults<3>::get_thresh();
-        std::cout << std::scientific;
 
         // K_1 f12 |ij> = \sum_k k(1) \int G(1,1') f(1',2) k(1') i(1') d1' j(2)
         // K_2 f12 |ij> = \sum_k k(2) \int G(2,2') f(1,2') k(2') j(2') d2' i(1)
@@ -1922,38 +1859,29 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
         // the result as a decomposed CCPairFunction.  All particle contributions
         // are accumulated and converted to a pure 6D function in a single
         // fill_tree call, avoiding rank-many hartree_product calls.
-        vector_real_function_3d Kf12_a, Kf12_b;
-        std::vector<CCPairFunction<double,6>> result;
 
         print_header2("start ccpairfunction version");
         t1.tag("start ccpairfunction version");
-        auto lrfunctor=LRFunctorF12<double,6>(f12ptr,phi_i.function,one);
+        // auto lrfunctor=LRFunctorF12<double,6>(f12ptr,phi_i.function,one);
+        auto lrfunctor=LRFunctorF12<double,6>(f12ptr,phi_i.function,phi_j.function);
         auto f12_k=builder.project(lrfunctor);
-        t1.tag("projection");
+        t1.tag("compute lrf");
         // giving f12_k(1,2) = \sum_pq g_p(1) M_pq h_q(2)  (possibly non-canonical)
         print("f12_k sizes",f12_k.get_g().size(),f12_k.get_h().size());
         print("f12_k mem  ",get_size(world,f12_k.get_g()),get_size(world,f12_k.get_h()));
+        f12_k.canonicalize();
+        t1.tag("canonicalize lrf");
         LowRankFunction<double,6> lrf_result(world);
 
 
-        // for (auto particle : {1,2}) {       // loop over K_1 and K_2
-        for (auto particle : {1}) {       // loop over K_1 and K_2
-            // g12.particle()=particle;
+        for (auto particle : {1,2}) {       // loop over K_1 and K_2
 
             auto f12_p=copy(f12_k);
-            f12_p.h=f12_p.h*phi;
-            if (particle==2) {
-                std::swap(f12_p.g,f12_p.h);
-                f12_p.metric=copy(transpose(f12_p.metric));
-                t1.tag("swap particle");
-            }
             double result3=inner(phi0,f12_p);
             print("<ij | f12 | ij>)",result3);
 
 
             // apply exchange on one of the particles
-            Exchange<double,3> K(world,info.parameters.lo());
-            K.set_bra_and_ket(info.mo_bra,info.mo_ket);
             if (particle==1) f12_p.g=K(f12_p.g);
             else f12_p.h=K(f12_p.h);
             t1.tag("apply exchange");
@@ -1961,28 +1889,34 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_
             double result4=inner(phi0,f12_p);
             print("<ij | k g(f12 | (ki) j>)",result4);
 
+            f12_p.canonicalize();
+            t1.tag("canonicalize f12_p");
             if (particle==1) lrf_result=f12_p;
             else lrf_result+=f12_p;
             t1.tag("accumulate result");
-
-            lrf_result.canonicalize();
-            t1.tag("canonicalize lrf_result");
-            double result5=inner(phi0,lrf_result);
-            print("<ij | k g(f12 | (ki) j>)",result5);
         }
+
+        lrf_result.remove_linear_dependencies();
+        lrf_result.canonicalize();
+        Kf=CCPairFunction<double,6>(lrf_result.get_g(),lrf_result.get_h());
 
         print("lrf_result sizes",lrf_result.get_g().size(),lrf_result.get_h().size());
         print("lrf_result mem  ",get_size(world,lrf_result.get_g()),get_size(world,lrf_result.get_h()));
-        auto bla=bsh(lrf_result.get_g(),lrf_result.get_h());
-
-        t1.tag("after apply");
-        print("after apply test");
-        return result[0].get_function();
     }
+
+    // compute term f12 (K1 + K2) | ij> = f12 ( | Ki j > + | i Kj> )
+    auto Ki=K({phi_i.function});
+    auto Kj=K({phi_j.function});
+    CCPairFunction<double,6> fk(f12_op,{Ki,phi_i.function},{phi_j.function,Kj});
+    // BSH needs pure for decomposed-no-op functions.
+    fk.convert_to_pure_no_op_inplace(Gscreen);
+    t2.end("computed exchange commutator");
+
+    return std::vector<CCPairFunction<double,6>>({Kf,-1.0*fk});
 
 }
 
-madness::real_function_6d
+std::vector<CCPairFunction<double,6>>
 CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
                                                   const Info& info, const real_convolution_6d *Gscreen) {
     real_function_3d x_ket = phi_i.function;
@@ -2002,7 +1936,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 
     bool symmetric_kf = false;
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
-    real_function_6d result;
+    std::vector<CCPairFunction<double,6>> result;
 
     // First make the 6D function f12|x,y>
 //    print("old KffK algorithm");
@@ -2046,34 +1980,29 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         Kfxy.truncate().reduce_rank();
         Kfxy.print_size("Kf after truncation" + x_name + y_name);
         fKxy.print_size("fK" + x_name + y_name);
-        result = (Kfxy - fKxy);
+        auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
+        result = std::vector<CCPairFunction<double,6>>({KffK});
     } else {
         result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen);
     }
-    result.set_thresh(parameters.thresh_6D());
-    result.print_size("[K,f]" + x_name + y_name);
-    result.truncate().reduce_rank();
-    result.print_size("[K,f]" + x_name + y_name);
 
     //sanity check
     CCTimer sanity(world, "[K,f] sanity check");
     // make the <xy| bra state which is <xy|R2
     const real_function_3d brax = (x_ket * info.R_square);
     const real_function_3d bray = (y_ket * info.R_square);
-    real_function_3d xres = result.project_out(brax, 0);
-    const double test = bray.inner(xres);
-    const double diff = test;
-    if (world.rank() == 0) {
-        std::cout << std::fixed << std::setprecision(10)
-                  << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << test << "\n";
+    CCPairFunction<double,6> bra(brax,bray);
+    const double diff = inner({bra},result);
+    if (world.rank() == 0) { std::cout << std::fixed << std::setprecision(10)
+                  << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << diff << "\n";
     }
     if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D()) print("Exchange Commutator Plain Wrong");
     else print("Exchange Commutator seems to be sane, diff=" + std::to_string(diff));
 
-    if (parameters.debug()) sanity.info(diff);
-
-    if (parameters.debug()) print("\n");
-    save(result, "KffK_" + x_name + y_name);
+    if (parameters.debug()) {
+        sanity.info(diff);
+        print("\n");
+    }
 
     return result;
 }
@@ -2439,40 +2368,9 @@ CCPotentials::apply_Ot(const CCPairFunction<double,6>& f, const CC_vecfunction& 
     else mbra = CC_vecfunction(copy(world, get_active_mo_bra()), HOLE, parameters.freeze());
     Projector<double,3> O(mbra.get_vecfunction(), t.get_vecfunction());
     O.set_particle(particle-1); // shift particle index
-    return O(f);
-
-    MADNESS_ASSERT(mbra.size() == t.size());
-    if (f.is_pure()) {
-        vector_real_function_3d projected;
-        for (const auto& ktmp : t.functions) {
-            const CCFunction<double,3>& bra = mbra(ktmp.first);
-            const real_function_3d kf = f.project_out(bra, particle);
-            projected.push_back(kf);
-        }
-        if (particle == 1) {
-            return CCPairFunction<double,6>(copy(world, t.get_vecfunction()), projected);
-        } else {
-            return CCPairFunction<double,6>(projected, copy(world, t.get_vecfunction()));
-        }
-
-    } else if (f.is_decomposed_no_op()) {
-        if (particle == 1) return CCPairFunction<double,6>(apply_projector(f.get_a(), t), f.get_b());
-        else return CCPairFunction<double,6>(f.get_a(), apply_projector(f.get_b(), t));
-    } else if (f.is_op_decomposed()) {
-        if (particle == 1) {
-            const vector_real_function_3d a = copy(world, t.get_vecfunction());
-//            const vector_real_function_3d b = mul(world, f.get_b()[0], f.op->operator()(mbra, f.get_a()[0]));
-            const vector_real_function_3d b = mul(world, f.get_b()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_a()[0]));
-            return CCPairFunction<double,6>(a, b);
-        } else {
-            const vector_real_function_3d a = mul(world, f.get_a()[0], f.decomposed().get_operator_ptr()->operator()(mbra, f.get_b()[0]));
-            const vector_real_function_3d b = copy(world, t.get_vecfunction());
-            return CCPairFunction<double,6>(a, b);
-        }
-    } else MADNESS_EXCEPTION("Should not end up here", 1)
-
-    ;
-    return CCPairFunction<double,6>(vector_real_function_3d(), vector_real_function_3d());
+    std::vector<CCPairFunction<double,6>> tmp=O(f);
+    MADNESS_CHECK_THROW(tmp.size()==1,"invalid Ot projector");
+    return tmp[0];
 }
 
 madness::real_function_6d

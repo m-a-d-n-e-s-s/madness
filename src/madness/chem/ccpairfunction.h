@@ -636,7 +636,7 @@ public:
     }
 
     /// convert this into a pure hi-dim function
-    void convert_to_pure_no_op_inplace();
+    void convert_to_pure_no_op_inplace(const SeparatedConvolution<T,NDIM>* Gscreen=NULL);
 
     CCPairFunction& operator*=(const double fac) {
         if (component->is_pure()) pure()*=fac;
@@ -975,18 +975,18 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPair
 /// result can be
 ///  Q12 f12 |ij> = (1 - O1) (1 - O2) f12 i(1) j(2)
 ///              = f12 ij - \sum_k k(1) f_ik(2) j(2) - \sum_k k(2) f_ij(1)j(1)
-/// which is a pure function and a decomposed function
+/// which is a op-decomposed function and a decomposed function
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const std::vector<CCPairFunction<T,NDIM>>& argument) {
     return CCPairFunction<T,NDIM>::apply(projector,argument);
 }
 
 
+/// application of the projector might return a vector of ccpairfunctions, e.g. Q12 f12 |ij> = f12 |ij > + |ab>
 template<typename T, std::size_t NDIM>
-CCPairFunction<T,NDIM> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
+std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
     auto result=madness::apply(projector,std::vector<CCPairFunction<T,NDIM>> (1,argument));
-    MADNESS_CHECK(result.size()==1);
-    return result[0];
+    return result;
 }
 
 template<typename T, std::size_t NDIM>
