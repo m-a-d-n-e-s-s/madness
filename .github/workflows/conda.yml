@@ -1,0 +1,80 @@
+name: Conda Build and Upload
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight UTC
+  push:
+    branches: [master]
+    tags:
+      - 'v*'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  conda-build:
+    name: Build and Upload Conda Package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git describe
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: '3.12'
+          channels: conda-forge,defaults
+          channel-priority: strict
+
+      - name: Install conda-build and anaconda-client
+        shell: bash -l {0}
+        run: |
+          conda install -y conda-build anaconda-client
+
+      - name: Determine package version
+        id: get_version
+        shell: bash -l {0}
+        run: |
+          # Use the most recent version tag, falling back to the version in CMakeLists.txt
+          TAG_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          if [ -n "${TAG_VERSION}" ]; then
+            VERSION="${TAG_VERSION}"
+          else
+            MAJOR=$(grep -m1 'set(MADNESS_MAJOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MINOR=$(grep -m1 'set(MADNESS_MINOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MICRO=$(grep -m1 'set(MADNESS_MICRO_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            VERSION="${MAJOR}.${MINOR}.${MICRO}"
+          fi
+          echo "GIT_DESCRIBE_TAG=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Package version: ${VERSION}"
+
+      - name: Build Conda Package
+        shell: bash -l {0}
+        run: |
+          conda build conda-recipe/ \
+            --no-test \
+            --output-folder ${{ github.workspace }}/conda-dist/
+
+      - name: Upload to Anaconda.org
+        if: |
+          github.event_name == 'schedule' ||
+          github.event_name == 'workflow_dispatch' ||
+          startsWith(github.ref, 'refs/tags/')
+        shell: bash -l {0}
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          # Upload all built packages (both .conda and legacy .tar.bz2 formats)
+          find ${{ github.workspace }}/conda-dist/ \( -name '*.conda' -o -name '*.tar.bz2' \) | \
+            xargs -r -I{} anaconda -t "${ANACONDA_TOKEN}" upload --force {}
+
+      - name: Upload conda package as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-package-${{ steps.get_version.outputs.version }}
+          path: ${{ github.workspace }}/conda-dist/**/*.conda
+          if-no-files-found: warn
