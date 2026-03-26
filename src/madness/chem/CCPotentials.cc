@@ -1547,6 +1547,7 @@ madness::real_function_6d
 CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
         const Info& info, const real_convolution_6d *Gscreen) {
 
+    timer t1(world);
     const std::string x_name = phi_i.name();
     const std::string y_name = phi_j.name();
     const auto& parameters=info.parameters;
@@ -1572,6 +1573,7 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     Uxy.set_thresh(tight_thresh);
     // Apply the untransformed U Potential
     Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+    t1.tag("finished local part of Ue");
     Uxy.set_thresh(tight_thresh);
     // Apply the double commutator R^{-1}[[T,f,R]
     for (size_t axis = 0; axis < 3; axis++) {
@@ -1609,6 +1611,7 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
         Uxy = (Uxy + diff).truncate();
     }
     if (parameters.debug()) time_Ue.info();
+    t1.tag("finished semi-local part of Ue");
 
     // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
     CCTimer time_sane(world, "Ue-Sanity-Check");
@@ -1635,7 +1638,8 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
         else if (error > FunctionDefaults<6>::get_thresh()) std::cout << ("Ue Potential wrong!!!!\n");
         else std::cout << ("Ue seems to be sane, diff=" + std::to_string(diff)) << std::endl;
     }
-    save(Uxy, "Ue_" + x_name + y_name);
+    // save(Uxy, "Ue_" + x_name + y_name);
+    t1.end("finished checking Ue");
     return Uxy;
 }
 
