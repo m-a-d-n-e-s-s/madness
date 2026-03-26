@@ -249,12 +249,13 @@ int test_emul(const TensorType& tt) {
 			error=compute_difference(lrt1,tensor1);
 			print("error",error);
 			break;
-		} catch (std::exception& e) {
-			if (e.what() == std::string("emul in TensorTrain too large -- use full rank tensor")) {
+		} catch (const MadnessException& e) {
+			if (std::string(e.what()) == "emul in TensorTrain too large -- use full rank tensor") {
 				print("e.what()", e.what());
 				print("caught exception, retrying with smaller tensors");
 				continue;
 			}
+			throw;
 		}
 	}
 

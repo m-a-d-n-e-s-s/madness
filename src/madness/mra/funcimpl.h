@@ -1035,6 +1035,7 @@ template<size_t NDIM>
         int initial_level; ///< Initial level for refinement
         int special_level; ///< Minimium level for refinement on special points
         std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
+        const Tensor<double> cell;          ///< the size of the root cell in each dimension, unchangeable
         int max_refine_level; ///< Do not refine below this level
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
@@ -1068,19 +1069,16 @@ template<size_t NDIM>
             , k(factory._k)
             , thresh(factory._thresh)
             , initial_level(factory._initial_level)
-        , special_level(factory._special_level)
-        , special_points(factory._special_points)
+            , special_level(factory._special_level)
+            , special_points(factory._special_points)
+            , cell(FunctionDefaults<NDIM>::get_cell())
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
             , truncate_on_project(factory._truncate_on_project)
-//		  , nonstandard(false)
             , targs(factory._thresh,FunctionDefaults<NDIM>::get_tensor_type())
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , functor(factory.get_functor())
-//		  , on_demand(factory._is_on_demand)
-//		  , compressed(factory._compressed)
-//		  , redundant(false)
           , tree_state(factory._tree_state)
             , coeffs(world,factory._pmap,false)
             //, bc(factory._bc)
@@ -1156,6 +1154,7 @@ template<size_t NDIM>
                 , initial_level(other.initial_level)
                 , special_level(other.special_level)
                 , special_points(other.special_points)
+                , cell(other.cell)
                 , max_refine_level(other.max_refine_level)
                 , truncate_mode(other.truncate_mode)
                 , autorefine(other.autorefine)
@@ -1434,6 +1433,9 @@ template<size_t NDIM>
         void set_tensor_args(const TensorArgs& t);
 
         double get_thresh() const;
+
+        /// return the simulation cell
+        const Tensor<double>& get_cell() const { return cell; }
 
         void set_thresh(double value);
 
@@ -4988,7 +4990,11 @@ template<size_t NDIM>
                   : array_of_bools<NDIM>{false}.or_back(
                         op->func_domain_is_periodic());
 
-          const auto default_distance_squared = [&](const auto &displacement)
+          const auto default_real_distance_squared = [&](const auto &displacement)
+              -> double {
+            return displacement.real_distsq_bc(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
+          };
+          const auto default_lattice_distance_squared = [&](const auto &displacement)
               -> std::uint64_t {
             return displacement.distsq_bc(op->lattice_summed());
           };
@@ -4997,8 +5003,9 @@ template<size_t NDIM>
             return false;
           };
           const auto for_each = [&](const auto &displacements,
-                                    const auto &distance_squared,
-                                    const auto &skip_predicate) -> std::optional<std::uint64_t> {
+                                    const auto &real_distance_squared,
+                                    const auto &lattice_distance_squared,
+                                    const auto &skip_predicate) -> std::optional<double> {
 
             // used to screen estimated and actual contributions
             //const double tol = truncate_tol(thresh, key);
@@ -5014,7 +5021,8 @@ template<size_t NDIM>
             // where fac takes into account
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
-            std::optional<std::uint64_t> distsq;
+            std::optional<double> real_last_distsq;
+            std::optional<std::uint64_t> lattice_last_distsq;
 
             // displacements to the kernel range boundary are typically same magnitude (modulo variation)
             // estimate the norm of the resulting contributions and skip all if one is too small
@@ -5028,10 +5036,7 @@ template<size_t NDIM>
               }
             }
 
-            const auto disp_end = displacements.end();
-            for (auto disp_it = displacements.begin(); disp_it != disp_end;
-                 ++disp_it) {
-              const auto &displacement = *disp_it;
+            for (const auto& displacement: displacements) {
               if (skip_predicate(displacement)) continue;
 
               keyT d;
@@ -5042,11 +5047,15 @@ template<size_t NDIM>
               else
                 d = nullkey.merge_with(displacement);
 
-              // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
-              const uint64_t dsq = distance_squared(displacement);
-              if (!distsq ||
-                  dsq != *distsq) { // Moved to next shell of neighbors
-                if (nvalid > 0 && nused == 0 && dsq > 1) {
+              // Screen out shells. We assume shells are grouped into shells so that the operator decays with shell index.
+              // Shells are indexed by least distance from box to the central box.
+              // Cells touching so much as a corner of the central box are further grouped by their lattice distance.
+              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              const auto real_distsq = real_distance_squared(displacement);
+              const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
+              if (!real_last_distsq.has_value() ||
+                  !nearlyEqual(real_distsq, *real_last_distsq) || (nearlyEqual(*real_last_distsq, 0) && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
+                if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
                   // of neighbors made significant contributions.  Thus,
@@ -5055,7 +5064,9 @@ template<size_t NDIM>
                 }
                 nused = 0;
                 nvalid = 0;
-                distsq = dsq;
+                real_last_distsq = real_distsq;
+                // After real_last_distsq > 0, we stop caring about keeping lattice_last_distsq up-to-date.
+                lattice_last_distsq = real_distsq ? std::optional<std::uint64_t>{} : lattice_distsq;
               }
 
               keyT dest = neighbor(key, d, func_is_treated_by_op_as_periodic);
@@ -5079,7 +5090,7 @@ template<size_t NDIM>
               }
             }
 
-            return distsq;
+            return real_last_distsq;
           };
 
           // process "standard" displacements, screening assumes monotonic decay of the kernel
@@ -5087,7 +5098,7 @@ template<size_t NDIM>
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
           const std::vector<opkeyT> &disp = op->get_disp(key.level());
-          const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
+          const auto max_distsq_reached = for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
           // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
@@ -5108,7 +5119,7 @@ template<size_t NDIM>
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
             // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
             if (max_distsq_reached)
-              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
@@ -5120,6 +5131,7 @@ template<size_t NDIM>
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
+                [](const auto &displacement) -> double { return 0; },
                 [](const auto &displacement) -> std::uint64_t { return 0; },
                 default_skip_predicate);
           }
@@ -5131,11 +5143,7 @@ template<size_t NDIM>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
-            typename dcT::const_iterator end = f.coeffs.end();
-            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
-                // looping through all the coefficients in the source
-                const keyT& key = it->first;
-                const FunctionNode<R,NDIM>& node = it->second;
+            for (const auto& [key, node]: f.coeffs) {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
@@ -5207,23 +5215,16 @@ template<size_t NDIM>
             // non-periodic even if op treats any modes of this as periodic
             const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const opkeyT& d = *it;
-
+            for (const auto& d: disp) {
                 const int shell=d.distsq_bc(op->lattice_summed());
                 if (do_kernel and (shell>0)) break;
                 if ((not do_kernel) and (shell==0)) continue;
 
                 keyT disp1;
-                if constexpr (opdim==NDIM) {
-                    // full-dimensional operator: displacement is the full key, no particle needed
-                    disp1=*it;
-                } else {
-                    if (op->particle()==1) disp1=it->merge_with(nullkey);
-                    else if (op->particle()==2) disp1=nullkey.merge_with(*it);
-                    else {
-                        MADNESS_EXCEPTION("confused particle in operator??",1);
-                    }
+                if (op->particle()==1) disp1=d.merge_with(nullkey);
+                else if (op->particle()==2) disp1=nullkey.merge_with(d);
+                else {
+                    MADNESS_EXCEPTION("confused particle in operator??",1);
                 }
 
                 keyT dest = neighbor_in_volume(key, disp1);
@@ -6457,8 +6458,6 @@ template<size_t NDIM>
 
             std::list<contractionmapT> all_contraction_maps;
             for (std::size_t n=0; n<nmax; ++n) {
-                // print("------------");
-                // print("working on scale n=", n);
 
                 // list of nodes with d coefficients (and their parents)
 	      //double wall0 = wall_time();
@@ -6470,12 +6469,8 @@ template<size_t NDIM>
                 //wall0 = wall1;
 //                print("g_jlist");
 //                for (const auto& kv : g_jlist) print(kv.first,kv.second);
-//                print("g_ijlist");
-//                for (const auto& kv : g_ijlist) print(kv);
 //                print("h_jlist");
 //                for (const auto& kv : h_jlist) print(kv.first,kv.second);
-//                print("h_ijlist");
-//                for (const auto& kv : h_ijlist) print(kv);
 
                 // next lines will insert s nodes into g and h -> possible race condition!
                 bool this_first = true;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
@@ -6493,8 +6488,6 @@ template<size_t NDIM>
 
                 // will contain duplicate entries
                 contraction_map.merge(contraction_map1);
-                // print("raw contraction");
-                // print_map(contraction_map);
                 // turn multimap into a map of list
                 auto it = contraction_map.begin();
                 while (it != contraction_map.end()) {
@@ -6518,8 +6511,8 @@ template<size_t NDIM>
                 //wall1 = wall_time();
                 //wall_recur += (wall1 - wall0);
 //                if (n==2) {
-                    // print("contraction map for n=", n);
-                    // print_map(contraction_map);
+//                    print("contraction map for n=", n);
+//                    print_map(contraction_map);
 //                }
                 all_contraction_maps.push_back(contraction_map);
 
@@ -6620,10 +6613,10 @@ template<size_t NDIM>
             // extract relevant node translations from this node
             const auto j_this_key=key.extract_key(v_this);
 
-            // print("\nkey, j_this_key", key, j_this_key);
+//            print("\nkey, j_this_key", key, j_this_key);
             const double max_d_norm=j_other_list.find(j_this_key)->second;
             const bool sd_norm_product_large = node.get_snorm() * max_d_norm > truncate_tol(thresh,key);
-            // print("sd_product_norm",node.get_snorm() * max_d_norm, node.get_snorm(), max_d_norm, thresh);
+//            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
 
             // end recursion if we have reached the final scale n
             // with which nodes from other will this node be contracted?
@@ -6634,10 +6627,10 @@ template<size_t NDIM>
                     if (j_this_key != j_other_key) continue;
                     auto i_key=key.extract_complement_key(v_this);
                     auto k_key=other_key.extract_complement_key(v_other);
-                    // print("key, ij_other_key",key,other_key);
-                    // print("i, k, j key",i_key, k_key, j_this_key);
+//                    print("key, ij_other_key",key,other_key);
+//                    print("i, k, j key",i_key, k_key, j_this_key);
                     Key<FDIM> ik_key=(this_first) ? i_key.merge_with(k_key) : k_key.merge_with(i_key);
-                    // print("ik_key",ik_key);
+//                    print("ik_key",ik_key);
 //                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
                     contraction_map.insert(std::make_pair(ik_key,std::list<Key<CDIM>>{j_this_key}));
                 }
@@ -6655,7 +6648,7 @@ template<size_t NDIM>
                 // in case we need to compute children's coefficients: unfilter only once
                 bool compute_child_s_coeffs=true;
                 coeffT d = node.coeff();
-                // print("continuing recursion from key",key);
+//                print("continuing recursion from key",key);
 
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     keyT child=kit.key();
@@ -6684,7 +6677,6 @@ template<size_t NDIM>
                     if (not childnode_exists) {
                         get_coeffs().replace(child,nodeT(child_s_coeffs,false));
                         get_coeffs().find(acc,child);
-                        // print("inserting child node ", child, "with snorm", child_s_coeffs.normf() );
                     } else if (childnode_exists and need_s_coeffs) {
                         acc->second.coeff()=child_s_coeffs;
                     }
@@ -6692,7 +6684,7 @@ template<size_t NDIM>
                     MADNESS_CHECK(exists);
                     nodeT& childnode = acc->second;
                     if (need_s_coeffs) childnode.recompute_snorm_and_dnorm(get_cdata());
-                    // print("recurring down to",child);
+//                    print("recurring down to",child);
                     contraction_map.merge(recur_down_for_contraction_map(child,childnode, v_this, v_other,
                                                                          ij_other_list, j_other_list, this_first, thresh));
 //                    print("contraction_map.size()",contraction_map.size());

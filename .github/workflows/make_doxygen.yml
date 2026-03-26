@@ -13,48 +13,47 @@ jobs:
     steps:
 
       - name: Git Checkout
-        uses: actions/checkout@v2
-
-      - name: Create clean gh-pages branch
-        run:  git checkout -b gh-pages
+        uses: actions/checkout@v4
 
       - name: Install prerequisites Ubuntu packages
         run: |
           sudo apt-get update
-          sudo apt-get install ninja-build g++-9 liblapack-dev openmpi-bin libopenmpi-dev libtbb-dev doxygen doxygen-latex graphviz 
+          sudo apt-get install -y ninja-build g++-13 liblapack-dev openmpi-bin libopenmpi-dev libtbb-dev doxygen graphviz
 
-      - name: configure
+      - name: Configure CMake
         shell: bash
         working-directory: ${{github.workspace}}
-        run:  |
+        run: |
           cmake -E make_directory ${{github.workspace}}/build
-          cd build && cmake $GITHUB_WORKSPACE 
+          cd build && cmake $GITHUB_WORKSPACE -G Ninja -DCMAKE_BUILD_TYPE=Release
 
-      - name: build
+      - name: Build doxygen docs
         shell: bash
         working-directory: ${{github.workspace}}/build
-        run:
-          cd ${{github.workspace}}/build && make docs
+        run: cmake --build . --target html-madness
 
-      - name: Move generated autodocs to target directory
-        working-directory: ${{github.workspace}}/build
-        run:  mv doc/html ../api-doc
-
-      - name: Add generated autodocs to Git repo in the gh-pages branch
-        working-directory: ${{github.workspace}}
-        run:  |
-          git config --global user.email "florian.bischoff@hu-berlin.de"
-          git config --global user.name  "$GITHUB_WORKFLOW GitHub action"
-          git add api-doc
-          git commit -am "Generated API doc"
-
-      - name: Publish autodocs as GitHub pages
-        run:  git push -f origin gh-pages:gh-pages
+      - name: Deploy to GitHub Pages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Actions"
+          cmake -E make_directory ${{github.workspace}}/gh-pages-deploy
+          cp -rp ${{github.workspace}}/build/doc/html ${{github.workspace}}/gh-pages-deploy/api-doc
+          cd ${{github.workspace}}/gh-pages-deploy
+          # create a brand-new repo so that gh-pages contains no history
+          git init
+          git add .
+          git commit -q -m "Generated API doc via GitHub Actions (run $GITHUB_RUN_NUMBER)"
+          git checkout -b gh-pages
+          git remote add origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          git push origin +gh-pages
 
       - name: Result URLs
-        run:  |
+        run: |
           REPO_OWNER=$(echo $GITHUB_REPOSITORY | cut -d '/' -f 1)
           REPO_NAME=$(echo $GITHUB_REPOSITORY | cut -d '/' -f 2)
           echo "Formatted API docs:  https://$REPO_OWNER.github.io/$REPO_NAME/api-doc"
           echo ""
-          echo "GitHub pages branch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/gh-pages" 
+          echo "GitHub pages branch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/gh-pages"
