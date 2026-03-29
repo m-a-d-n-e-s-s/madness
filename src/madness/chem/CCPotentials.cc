@@ -1824,6 +1824,7 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
     lrfparameters.set_derived_value("gridtype",std::string("random"));
     lrfparameters.set_derived_value("volume_element",2.e-1);
     lrfparameters.set_derived_value("tol",1.e-6);
+    lrfparameters.set_derived_value("canonicalize",true);
     lrfparameters.print("lrf");
     auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
 
@@ -1903,18 +1904,33 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
         lrf_result.remove_linear_dependencies();
         lrf_result.canonicalize();
         Kf=CCPairFunction<double,6>(lrf_result.get_g(),lrf_result.get_h());
+        Kf.print_size("Kfphixphiy");
 
         print("lrf_result sizes",lrf_result.get_g().size(),lrf_result.get_h().size());
         print("lrf_result mem  ",get_size(world,lrf_result.get_g()),get_size(world,lrf_result.get_h()));
     }
 
     // compute term f12 (K1 + K2) | ij> = f12 ( | Ki j > + | i Kj> )
-    auto Ki=K({phi_i.function});
-    auto Kj=K({phi_j.function});
-    CCPairFunction<double,6> fk(f12_op,{Ki,phi_i.function},{phi_j.function,Kj});
-    // BSH needs pure for decomposed-no-op functions.
-    fk.convert_to_pure_no_op_inplace(Gscreen);
-    t2.end("computed exchange commutator");
+    CCPairFunction<double,6> fk;
+    {
+        auto Ki=K({phi_i.function});
+        auto Kj=K({phi_j.function});
+        if (0) {
+            fk=CCPairFunction<double,6>(f12_op,{Ki,phi_i.function},{phi_j.function,Kj});
+            // BSH needs pure for decomposed-no-op functions.
+            fk.convert_to_pure_no_op_inplace(Gscreen);
+        }
+        {
+            print("converting fk to decomposed-no-op form");
+            auto lrfunctor=LRFunctorF12<double,6>(f12ptr,{Ki,phi_i.function},{phi_j.function,Kj});
+            auto fk_lrf=builder.project(lrfunctor);
+            fk_lrf.canonicalize();
+            fk=CCPairFunction<double,6>(fk_lrf.get_g(),fk_lrf.get_h());
+        }
+
+        fk.print_size("fkphixphiy");
+        t2.end("computed exchange commutator");
+    }
 
     return std::vector<CCPairFunction<double,6>>({Kf,-1.0*fk});
 
@@ -1932,6 +1948,11 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 
     const auto& parameters=info.parameters;
 
+    // make the <xy| bra state which is <xy|R2
+    const real_function_3d brax = (x_ket * info.R_square);
+    const real_function_3d bray = (y_ket * info.R_square);
+    CCPairFunction<double,6> bra(brax,bray);
+
     //apply Kf
     if (parameters.debug()) print("\nComputing [K,f]|" + x_name + y_name + ">\n");
 
@@ -1942,18 +1963,32 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
     std::vector<CCPairFunction<double,6>> result;
 
+    std::string algo="old" ; // old/lowrank
+    real_function_6d Kfxy;
+
     // First make the 6D function f12|x,y>
-//    print("old KffK algorithm");
-//    real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
-//        parameters, phi_i.type, phi_j.type, Gscreen);
-//    f12xy.truncate().reduce_rank();
-//    // Apply the Exchange Operator
-//    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
-    bool new_algo=false;
-    if (new_algo) {
+    if (algo=="old") {
+        print("old KffK algorithm");
+        real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+            parameters, phi_i.type, phi_j.type, Gscreen);
+        f12xy.truncate().reduce_rank();
+        // Apply the Exchange Operator
+        Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
+        double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
+        print("<ij | K f12 | ij> ",n1);
+
+    }
+
+    algo="new";
+    if (algo=="new") {
         print("new KffK algorithm");
-        real_function_6d Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
-        save(Kfxy, "Kf_" + x_name + y_name);
+        Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
+        double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
+        print("<ij | K f12 | ij> ",n1);
+        // save(Kfxy, "Kf_" + x_name + y_name);
+    }
+
+    if (algo=="new" or algo=="old") {
 
         if (parameters.debug()) part1_time.info();
 
@@ -1984,18 +2019,25 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         Kfxy.truncate().reduce_rank();
         Kfxy.print_size("Kf after truncation" + x_name + y_name);
         fKxy.print_size("fK" + x_name + y_name);
+        double n1=inner(bra,CCPairFunction<double,6>(fKxy));
+        print("<ij | f12 K | ij> ",n1);
         auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
         result = std::vector<CCPairFunction<double,6>>({KffK});
-    } else {
+    }
+
+    algo="lowrank";
+    if (algo=="lowrank")
+    {
         result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen);
     }
+
 
     //sanity check
     CCTimer sanity(world, "[K,f] sanity check");
     // make the <xy| bra state which is <xy|R2
-    const real_function_3d brax = (x_ket * info.R_square);
-    const real_function_3d bray = (y_ket * info.R_square);
-    CCPairFunction<double,6> bra(brax,bray);
+//    const real_function_3d brax = (x_ket * info.R_square);
+//    const real_function_3d bray = (y_ket * info.R_square);
+//    CCPairFunction<double,6> bra(brax,bray);
     const double diff = inner({bra},result);
     if (world.rank() == 0) { std::cout << std::fixed << std::setprecision(10)
                   << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << diff << "\n";
