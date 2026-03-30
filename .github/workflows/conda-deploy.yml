@@ -98,7 +98,7 @@ jobs:
       env:
         ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        shopt -s globstar
-        for pkg in "${{ github.workspace }}"/conda-dist/**/*.tar.bz2 "${{ github.workspace }}"/conda-dist/**/*.conda; do
-          [ -f "$pkg" ] && anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
-        done
+        find "${{ github.workspace }}/conda-dist" \( -name '*.tar.bz2' -o -name '*.conda' \) -print0 | \
+          while IFS= read -r -d '' pkg; do
+            anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
+          done
