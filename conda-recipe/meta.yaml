@@ -22,15 +22,21 @@ requirements:
     - {{ compiler('c') }}
     - cmake >=3.12
     - ninja
-    - openmpi  # [mpi == 'openmpi']
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
   host:
     - libblas
     - liblapack
-    - openmpi  # [mpi == 'openmpi']
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
   run:
     - libblas
     - liblapack
-    - openmpi  # [mpi == 'openmpi']
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
 
 test:
   commands:
