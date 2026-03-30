@@ -22,6 +22,7 @@ requirements:
     - {{ compiler('c') }}
     - cmake >=3.12
     - ninja
+    - openmpi  # [mpi == 'openmpi']
   host:
     - libblas
     - liblapack

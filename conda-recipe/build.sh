@@ -4,11 +4,11 @@ set -ex
 MPI_FLAG="-DENABLE_MPI=OFF"
 if [ "${MPI_VARIANT}" = "openmpi" ]; then
   MPI_FLAG="-DENABLE_MPI=ON"
-  # Tell OpenMPI wrappers where to find their installation so mpicc --showme works
+  # Point OpenMPI wrappers at the host-env libraries/headers
   export OPAL_PREFIX="${PREFIX}"
-  # Point CMake to the wrappers in the host environment
-  MPI_FLAG="${MPI_FLAG} -DMPI_C_COMPILER=${PREFIX}/bin/mpicc"
-  MPI_FLAG="${MPI_FLAG} -DMPI_CXX_COMPILER=${PREFIX}/bin/mpicxx"
+  # Use the build-env wrappers (they have the compiler toolchain)
+  MPI_FLAG="${MPI_FLAG} -DMPI_C_COMPILER=${BUILD_PREFIX}/bin/mpicc"
+  MPI_FLAG="${MPI_FLAG} -DMPI_CXX_COMPILER=${BUILD_PREFIX}/bin/mpicxx"
 fi
 
 mkdir -p build
