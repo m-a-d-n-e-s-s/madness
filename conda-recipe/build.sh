@@ -3,7 +3,7 @@ set -ex
 
 MPI_FLAG="-DENABLE_MPI=OFF"
 if [ "${MPI_VARIANT}" = "openmpi" ]; then
-  MPI_FLAG="-DENABLE_MPI=ON"
+  MPI_FLAG="-DENABLE_MPI=ON -DMPI_C_COMPILER=${PREFIX}/bin/mpicc -DMPI_CXX_COMPILER=${PREFIX}/bin/mpicxx"
 fi
 
 mkdir -p build
