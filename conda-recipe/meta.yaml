@@ -1,0 +1,61 @@
+{% set version = environ.get('GIT_DESCRIBE_TAG', 'dev') %}
+{% set mpi = environ.get('MPI_VARIANT', 'nompi') %}
+
+package:
+  name: {{ 'madness-mpi' if mpi == 'openmpi' else 'madness' }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  skip: true  # [win]
+  script_env:
+    - MPI_VARIANT={{ mpi }}
+    - OMPI_ALLOW_RUN_AS_ROOT=1
+    - OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
+    - cmake >=3.12
+    - ninja
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
+  host:
+    - libblas
+    - liblapack
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
+  run:
+    - libblas
+    - liblapack
+{% if mpi == 'openmpi' %}
+    - openmpi
+{% endif %}
+
+test:
+  commands:
+    - test -f $PREFIX/include/madness/world/world.h  # [unix]
+    - test -f $PREFIX/lib/libMADworld.a  # [unix]
+
+about:
+  home: https://github.com/m-a-d-n-e-s-s/madness
+  license: GPL-2.0-or-later
+  license_file: LICENSE
+  summary: 'MADNESS: Multiresolution Adaptive Numerical Environment for Scientific Simulation'
+  description: |
+    MADNESS provides a high-level environment for the solution of integral and
+    differential equations in many dimensions using adaptive, fast methods with
+    guaranteed precision based on multi-resolution analysis and novel separated
+    representations.
+  dev_url: https://github.com/m-a-d-n-e-s-s/madness
+  doc_url: https://madness.readthedocs.io/
+
+extra:
+  recipe-maintainers:
+    - m-a-d-n-e-s-s
