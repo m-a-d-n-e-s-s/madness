@@ -10,8 +10,6 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - 'pr-conda-deploy'  # TEMPORARY: remove after testing
   # Allow manual triggering
   workflow_dispatch:
 
