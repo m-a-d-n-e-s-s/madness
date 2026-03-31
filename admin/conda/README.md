@@ -7,7 +7,7 @@ Conda packages are built and uploaded to [anaconda.org/m-a-d-n-e-s-s](https://an
 | Package | MPI | Install command |
 |---------|-----|-----------------|
 | `madness` | no | `conda install -c m-a-d-n-e-s-s madness` |
-| `madness-mpi` | OpenMPI (from conda-forge) | `conda install -c m-a-d-n-e-s-s -c conda-forge madness-mpi` |
+| `madness-mpi` | Open MPI (from conda-forge) | `conda install -c m-a-d-n-e-s-s -c conda-forge madness-mpi` |
 
 Both packages are built for Linux and macOS.
 
