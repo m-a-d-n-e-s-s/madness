@@ -234,9 +234,11 @@ double Nemo::value(const Tensor<double>& x) {
 	save(rhonemo,"rhonemo");
 	Tensor<double> dipole=calc->dipole(world,rho);
 
-	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
-
-    calc->output_calc_info_schema();
+	if(world.rank()==0)
+	{
+	    std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
+	    calc->output_calc_info_schema();
+	}
 
     if (world.rank()==0) print_header2("end computing the nemo wave function");
     return calc->current_energy;

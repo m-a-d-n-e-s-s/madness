@@ -1415,63 +1415,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             World& world=lrfunctor1.world();
             std::vector<Function<double,LDIM>> Y;
-            if (parameters.gridtype()=="harmonics") {
-                // harmonics-based Y
-                struct GaussianFunction : public FunctionFunctorInterface<double,LDIM> {
-                    std::vector<long> ijk; // angular momentum
-                    Vector<double,LDIM> center;
-                    double zeta = 1.0;
-                    GaussianFunction() = default;
-                    GaussianFunction(const std::vector<long>& ijk, const Vector<double,LDIM>& center, const double zeta)
-                            : ijk(ijk), center(center), zeta(zeta) {}
-                    double operator()(const Vector<double,LDIM>& r) const override {
-                        auto r_rel=r-center;
-                        double val=exp(-zeta*madness::inner(r_rel,r_rel));
-                        for (int d=0; d<LDIM; ++d) val*=std::pow(r_rel[d],ijk[d]);
-                        return val;
-                    }
-                };
-
-                // compute the monomial exponents for the Cartesian Gaussian functions up to a certain angular momentum
-                std::vector<std::vector<long>> types;
-                int lmax=parameters.lmax();
-                for (int l=0; l<=lmax; ++l) {
-                    std::vector<long> ijk(LDIM,0);
-                    std::function<void(int,int)> generate_ijk=[&](int pos, int remaining_l) {
-                        if (pos==LDIM-1) {
-                            ijk[pos]=remaining_l;
-                            types.push_back(ijk);
-                            return;
-                        }
-                        for (int i=0; i<=remaining_l; ++i) {
-                            ijk[pos]=i;
-                            generate_ijk(pos+1, remaining_l-i);
-                        }
-                    };
-                    generate_ijk(0,l);
-                }
-
-                {
-                    std::vector<double> zetas;
-                    double z=parameters.tempered()[0];
-                    while (z<parameters.tempered()[1]) {
-                        zetas.push_back(z);
-                        z*=parameters.tempered()[2];
-                        if (zetas.size()>100) {
-                            print("too many zetas in even-tempered basis, check your parameters.tempered",parameters.tempered());
-                            break;
-                        }
-                    }
-                    auto center=Vector<double,LDIM>(0.0);
-
-                    for (auto type : types) {
-                        for (auto zeta : zetas) {
-                            GaussianFunction gf(type, center, zeta);
-                            Function<double,LDIM> f=FunctionFactory<double,LDIM>(world).functor(gf);
-                            Y.push_back(f);
-                        }
-                    }
-                }
+            if (parameters.gridtype()=="harmonics") { // use harmonics-based LHS
+                Y = harmonic_basis(world, {parameters.radius(), parameters.radius() * 10.0, 2.0}, parameters.lmax(), origins);
             } else {
                 // default: use localized Gaussian RHS (for gridtype values other than "harmonics")
                 std::vector<Function<double,LDIM>> omega;
@@ -1502,6 +1447,93 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             if (not Ynormalized.empty()) normalize(world,Ynormalized);
             return {Ynormalized,norms,significant_indices};
         }
+
+        /// return a set of solid harmonic functions up to lmax with a zeta range on the given (atomic) centers
+
+        /// @param[in] World
+        /// @param[in] zeta_range range of the Gaussian exponent zeta, given as {zeta_min, zeta_max, zeta_step}
+        ///             for even-tempered progression
+        /// @param[in] lmax maximum angular momentum of the solid harmonics
+        /// @param[in] centers the centers of the solid harmonics, typically the atomic positions
+        static std::vector<Function<T, LDIM>> harmonic_basis(World& world,
+                                                             const std::vector<double> zeta_range, const int lmax,
+                                                             const std::vector<Vector<double, LDIM>> centers)
+        {
+            std::vector<Function<T, LDIM>> harmonics;
+            // harmonics-based Y
+            struct GaussianFunction : public FunctionFunctorInterface<double, LDIM>
+            {
+                std::vector<long> ijk; // angular momentum
+                Vector<double, LDIM> center;
+                double zeta = 1.0;
+                GaussianFunction() = default;
+
+                GaussianFunction(const std::vector<long>& ijk, const Vector<double, LDIM>& center, const double zeta)
+                    : ijk(ijk), center(center), zeta(zeta)
+                {
+                }
+
+                double operator()(const Vector<double, LDIM>& r) const override
+                {
+                    auto r_rel = r - center;
+                    double val = exp(-zeta * madness::inner(r_rel, r_rel));
+                    for (int d = 0; d < LDIM; ++d) val *= std::pow(r_rel[d], ijk[d]);
+                    return val;
+                }
+            };
+
+            // compute the monomial exponents for the Cartesian Gaussian functions up to a certain angular momentum
+            std::vector<std::vector<long>> types;
+            for (int l = 0; l <= lmax; ++l)
+            {
+                std::vector<long> ijk(LDIM, 0);
+                std::function<void(int, int)> generate_ijk = [&](int pos, int remaining_l)
+                {
+                    if (pos == LDIM - 1)
+                    {
+                        ijk[pos] = remaining_l;
+                        types.push_back(ijk);
+                        return;
+                    }
+                    for (int i = 0; i <= remaining_l; ++i)
+                    {
+                        ijk[pos] = i;
+                        generate_ijk(pos + 1, remaining_l - i);
+                    }
+                };
+                generate_ijk(0, l);
+            }
+
+            {
+                std::vector<double> zetas;
+                double z = zeta_range[0];
+                while (z < zeta_range[1])
+                {
+                    zetas.push_back(z);
+                    z *= zeta_range[2];
+                    if (zetas.size() > 100)
+                    {
+                        print("too many zetas in even-tempered basis, check your parameters.tempered", zeta_range);
+                        break;
+                    }
+                }
+
+                for (auto type : types)
+                {
+                    for (auto zeta : zetas)
+                    {
+                        for (auto& center : centers)
+                        {
+                            GaussianFunction gf(type, center, zeta);
+                            Function<double, LDIM> f = FunctionFactory<double, LDIM>(world).functor(gf);
+                            harmonics.push_back(f);
+                        }
+                    }
+                }
+            }
+            return harmonics;
+        }
+
 
     };
 

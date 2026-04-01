@@ -457,6 +457,11 @@ public:
     apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                         const Info& info, const real_convolution_6d* Gscreen);
 
+    static void
+    compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
+        const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij);
+
+
     static CCPairFunction<double, 6>
     apply_commutator_F_Qt_f12(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                               const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
