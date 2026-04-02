@@ -1741,6 +1741,23 @@ namespace madness {
     }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    /// N.B. bloch_k species how the function's phase changes as the **operator** translates,
+    /// which (by translational invariance) is the additive inverse of how the function's
+    /// phase changes as the **cell** shifts
+    static
+    inline
+    SeparatedConvolution<double_complex,3>* PeriodicHFExchangeOperatorPtr(World& world,
+                                                   Vector<double,3> bloch_k,
+                                                   double lo,
+                                                   double eps,
+                                                   const std::array<KernelRange, 3>& kernel_ranges = std::array<KernelRange, 3>(),
+                                                   const std::array<LatticeRange, 3>& lattice_ranges = FunctionDefaults<3>::get_bc().lattice_range(),
+                                                   int k=FunctionDefaults<3>::get_k()) {
+      return new SeparatedConvolution<double_complex, 3>(world, OperatorInfo(0.0, lo, eps, OT_G12, std::nullopt, kernel_ranges),
+                                                         lattice_ranges, k, false, bloch_k);
+    }
+
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static
     inline
     SeparatedConvolution<double,3> CoulombOperator(World& world,
