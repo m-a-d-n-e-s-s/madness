@@ -423,10 +423,10 @@ void SCF::load_mos(World& world) {
 
     if (param.have_beta()) {
         bmos.load_mos(ar, molecule, param.nmo_beta());
-        bmo= amos.get_mos();
-        bocc=amos.get_occ();
-        beps=amos.get_eps();
-        bset=amos.get_localize_sets();
+        bmo= bmos.get_mos();
+        bocc=bmos.get_occ();
+        beps=bmos.get_eps();
+        bset=bmos.get_localize_sets();
         check_and_project_k(bmo);
         check_and_set_thresh(bmo);
     }
