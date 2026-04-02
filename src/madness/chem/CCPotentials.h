@@ -455,7 +455,7 @@ public:
     /// apply the exchange commutator using a low-rank approximation for f12 k(1)
     static std::vector<CCPairFunction<double, 6>>
     apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-                        const Info& info, const real_convolution_6d* Gscreen);
+                        const Info& info, const real_convolution_6d* Gscreen, LowRankFunctionParameters lrfparameters);
 
     static void
     compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,

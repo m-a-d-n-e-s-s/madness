@@ -1887,7 +1887,7 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
 
 std::vector<CCPairFunction<double, 6>>
 CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-                                  const Info& info, const real_convolution_6d* Gscreen) {
+                                  const Info& info, const real_convolution_6d* Gscreen, LowRankFunctionParameters lrfparameters) {
 
 
     timer t2(world);
@@ -1898,12 +1898,6 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
     info.parameters.print("ccparameters");
     // the exchange commutator: K f12 |phi_i phi_j> - f12 K |phi_i phi_j>
 
-    LowRankFunctionParameters lrfparameters;
-    lrfparameters.set_derived_value("gridtype",std::string("random"));
-    lrfparameters.set_derived_value("volume_element",2.e-1);
-    lrfparameters.set_derived_value("tol",1.e-6);
-    lrfparameters.set_derived_value("canonicalize",true);
-    lrfparameters.print("lrf");
     auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
 
     std::vector<real_function_3d> lhs=LowRankFunctionFactory<double,6>::harmonic_basis(world,lrfparameters.tempered(),lrfparameters.lmax(),
@@ -2047,11 +2041,11 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
     std::vector<CCPairFunction<double,6>> result;
 
-    std::string algo="old" ; // old/lowrank
+    std::string algo="lowrank" ; // old/lowrank
     real_function_6d Kfxy, fKxy;
 
 
-    if (algo=="new" or algo=="old") {
+    if (algo=="new" or algo=="old" or algo=="all") {
 
         if (parameters.debug()) part1_time.info();
 
@@ -2083,8 +2077,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     }
 
 
-    algo="old";
-    if (algo=="old") {
+    if (algo=="old" or algo=="all") {
         print("old KffK algorithm");
         real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
             parameters, phi_i.type, phi_j.type, Gscreen);
@@ -2102,8 +2095,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 
     }
 
-    algo="new";
-    if (algo=="new") {
+    if (algo=="new" or algo=="all") {
         print("new KffK algorithm");
         Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
         Kfxy.print_size("Kf" + x_name + y_name);
@@ -2117,15 +2109,34 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         // save(Kfxy, "Kf_" + x_name + y_name);
     }
 
-    auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
-    result = std::vector<CCPairFunction<double,6>>({KffK});
+    if (algo=="new" or algo=="old" or algo=="all")
+    {
+        auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
+        result = std::vector<CCPairFunction<double,6>>({KffK});
+    }
     // print("unsing new algorithm for KffK, not low-rank");
 
     // First make the 6D function f12|x,y>
-    algo="lowrank";
-    if (algo=="lowrank")
+    if (algo=="lowrank" or algo=="all")
     {
-        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen);
+        LowRankFunctionParameters lrfparameters;
+        lrfparameters.set_derived_value("gridtype",std::string("random"));
+        lrfparameters.set_derived_value("volume_element",2.e-1);
+        lrfparameters.set_derived_value("tol",1.e-6);
+        lrfparameters.set_derived_value("canonicalize",false);
+        lrfparameters.print("lrf");
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+
+        lrfparameters.set_derived_value("volume_element",1.e-1);
+        lrfparameters.set_derived_value("tol",1.e-6);
+        lrfparameters.print("lrf");
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+
+        lrfparameters.set_derived_value("volume_element",1.e-1);
+        lrfparameters.set_derived_value("tol",1.e-7);
+        lrfparameters.print("lrf");
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+
     }
 
 
