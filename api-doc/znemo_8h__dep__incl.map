@@ -1,0 +1,28 @@
+<map id="znemo.h" name="znemo.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="353,5,432,31"/>
+<area shape="rect" id="Node000002" href="$diamagneticpotentialfactor_8h.html" title=" " alt="" coords="126,79,337,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="355,39,259,81,257,76,353,34"/>
+<area shape="rect" id="Node000004" href="$madchem_8h.html" title=" " alt="" coords="354,152,453,177"/>
+<area shape="poly" id="edge8_Node000001_Node000004" title=" " alt="" coords="397,44,405,152,400,152,392,45"/>
+<area shape="rect" id="Node000008" href="$madness_2chem_2znemo_8cc.html" title=" " alt="" coords="5,152,89,177"/>
+<area shape="poly" id="edge14_Node000001_Node000008" title=" " alt="" coords="340,23,290,27,231,37,171,54,115,81,95,97,78,117,55,153,51,151,74,114,92,93,113,76,169,49,230,32,289,22,339,17"/>
+<area shape="rect" id="Node000009" href="$zcis_8h.html" title=" " alt="" coords="430,79,489,104"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="415,39,450,77,447,80,411,43"/>
+<area shape="rect" id="Node000012" href="$apps_2znemo_2znemo_8cc.html" title=" " alt="" coords="513,79,597,104"/>
+<area shape="poly" id="edge13_Node000001_Node000012" title=" " alt="" coords="432,34,530,76,528,81,430,39"/>
+<area shape="rect" id="Node000003" href="$diamagneticpotentialfactor_8cc.html" title=" " alt="" coords="114,152,330,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="231,118,226,152,221,152,225,117"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="272,107,376,149,374,154,270,112"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="190,111,78,154,76,149,188,106"/>
+<area shape="rect" id="Node000005" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="257,225,320,251"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="375,187,309,227,306,223,372,182"/>
+<area shape="rect" id="Node000006" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="344,225,463,251"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="406,191,406,225,401,225,401,191"/>
+<area shape="rect" id="Node000007" href="$simple__hf_8cpp.html" title=" " alt="" coords="486,225,598,251"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="439,181,521,223,518,227,436,186"/>
+<area shape="poly" id="edge10_Node000009_Node000004" title=" " alt="" coords="444,117,414,154,410,150,439,113"/>
+<area shape="rect" id="Node000010" href="$apps_2zcis_2zcis_8cc.html" title=" " alt="" coords="567,152,632,177"/>
+<area shape="poly" id="edge11_Node000009_Node000010" title=" " alt="" coords="495,108,578,149,575,154,493,113"/>
+<area shape="rect" id="Node000011" href="$madness_2chem_2zcis_8cc.html" title=" " alt="" coords="477,152,543,177"/>
+<area shape="poly" id="edge12_Node000009_Node000011" title=" " alt="" coords="478,114,504,150,500,153,474,117"/>
+</map>

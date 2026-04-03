@@ -1,0 +1,13 @@
+<map id="madness::MolecularOptimizationTargetInterface" name="madness::MolecularOptimizationTargetInterface">
+<area shape="rect" id="Node000001" title=" " alt="" coords="28,93,265,133"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1NemoBase.html" title=" " alt="" coords="67,181,227,207"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="149,147,149,181,144,181,144,147"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="40,5,253,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,59,149,93,144,93,144,59"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Nemo.html" title="The Nemo class." alt="" coords="5,255,133,280"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="126,218,84,256,80,252,122,214"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Znemo.html" title=" " alt="" coords="158,255,293,280"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="171,214,214,252,211,256,168,218"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1OEP.html" title=" " alt="" coords="12,328,127,353"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="72,294,72,328,67,328,67,294"/>
+</map>
