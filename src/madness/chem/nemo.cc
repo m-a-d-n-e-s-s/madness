@@ -820,6 +820,62 @@ real_function_3d Nemo::make_sigma(const real_function_3d& rho1,
 
 }
 
+MolecularOrbitals<double,3> Nemo::compute_virtual_orbitals(const int nvir) const
+{
+    // set up guess: orthonormal and orthogonal to occupied space
+    QProjector<double,3> Q(calc->amo);
+    std::vector<real_function_3d> guess=Q(calc->ao);
+    guess=orthonormalize_canonical(guess);
+    if (guess.size()>nvir) guess.erase(guess.begin()+nvir,guess.end());
+
+    // make Fock operator -- without T
+    auto F_ptr=make_fock_operator();
+    auto F=*F_ptr;
+    F.remove_operator("T");
+    auto T=Kinetic<double,3>(world);
+
+    BSHApply<double,3> bsh_apply(world);
+    bsh_apply.metric=R_square;
+    bsh_apply.ret_value=BSHApply<double,3>::update;
+    bsh_apply.printme=true;
+
+
+    typedef vector_function_allocator<double, 3> allocT;
+    typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+    allocT alloc(world, guess.size());
+    solverT solver(allocT(world, guess.size()));
+    solver.do_print=true;
+    solver.initialize(guess);
+
+    Tensor<double> fmat;
+    // iterate
+    for (int i=0; i<get_calc_param().maxiter(); ++i)
+    {
+        // compute virtual orbital energies
+        std::vector<real_function_3d> Vguess=F(guess);
+        fmat=T(R_square*guess,guess) +matrix_inner(world,R_square*guess,Vguess);
+        auto [guess_new,fmat_new]=bsh_apply(guess,fmat,Vguess);
+        guess=solver.update(guess_new);
+        double resnorm=1.0;
+        if (i>2) resnorm=norm2(world,guess-guess_new);
+        if (world.rank()==0) print("finished virtual orbital iteration", i, "with residual norm",resnorm);
+        if (resnorm< get_calc_param().econv()) break;
+    }
+
+    // canonicalize the orbitals
+    Tensor<double> eps(guess.size()), occ(guess.size());
+    occ=1.0;
+    tensorT overlap = matrix_inner(world, R_square*guess, guess, true);
+    tensorT U=calc->get_fock_transformation(world,overlap,
+            fmat,eps,occ,FunctionDefaults<3>::get_thresh());
+
+    guess = transform(world, guess, U, trantol(), true);
+    truncate(world, guess);
+    normalize(guess,R);
+    return MolecularOrbitals<double,3>(guess,eps);
+
+}
+
 
 
 /// compute the nuclear gradients

@@ -1809,11 +1809,21 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     return result[0];
 }
 
+void
+CCPotentials::compare_Ue_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
+        const Info& info, const CCPairFunction<double,6> Ue)
+{
+    // use the identity [F,f] = Ue - [K,f] - g12
+    // use the identity [T,f] = Ue - g12
+    // then: < ab | [F,f] | ij > = ( e_a + a_b - e_i - e_j ) <ab | f | ij> + <ab | g | ij>  = <ab | Ue - [K,f] | ij>
+
+}
 
 /// pass in the Kf|ij> and fK|ij> functions and compare matrix elements to high-precision 3d
 void
 CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-        const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij)
+        const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij,
+        const CCPairFunction<double,6> KffKij)
     {
 
     // set up exchange operator
@@ -1834,11 +1844,11 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
     std::vector<real_function_3d> Kobspace=K_hc(obspace);
 
     int nbra=obspace.size();
-    int npair=nbra*nbra;
-
+    Tensor<double> Kf_reference(nbra,nbra), Kf(nbra,nbra);
+    Tensor<double> fK_reference(nbra,nbra), fK(nbra,nbra);
+    Tensor<double> KffK(nbra,nbra);
 
     // compute matrix element <pq | (K1 + K2) f12 | ij>
-    Tensor<double> Kf_reference(nbra,nbra), Kf(nbra,nbra);
     for (int p=0; p<nbra; ++p)
     {
         for (int q=0; q<nbra; ++q) {
@@ -1846,20 +1856,25 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
             CCPairFunction<double,6> bra1({obspace[p],Kobspace[p]},{Kobspace[q],obspace[q]});
             Kf_reference(p,q) = inner(bra1,f12ij);
             CCPairFunction<double,6> bra2({obspace[p]},{obspace[q]});
-            Kf(p,q)=inner(bra2,Kfij);
+            if (Kfij.is_assigned()) Kf(p,q)=inner(bra2,Kfij);
         }
     }
 
-    Tensor<double> diff=Kf_reference-Kf;
-    print("Kf_reference, Kf, diff (norm): ",diff.normf());
-    print(Kf_reference);
-    print(Kf);
-    print(diff);
+    if (Kfij.is_assigned()) {
+        Tensor<double> diff=Kf_reference-Kf;
+        print("Kf_reference, Kf, diff (abs. norm, rel. norm): ",diff.normf(), diff.normf()/Kf_reference.normf());
+        print(Kf_reference);
+        print(Kf);
+        print(diff);
+    } else
+    {
+        print("Kfij not assigned");
+    }
+
 
     // compute matrix element <pq | f12 (K1 + K2) | ij>
     auto Ki=K(phi_i.function);
     auto Kj=K(phi_j.function);
-    Tensor<double> fK_reference(nbra,nbra), fK(nbra,nbra);
     for (int p=0; p<nbra; ++p)
     {
         for (int q=0; q<nbra; ++q) {
@@ -1867,23 +1882,126 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
             CCPairFunction<double,6> ket({Ki,phi_i.function},{phi_j.function,Kj});
             CCPairFunction<double,6> bra({obspace[p]},{obspace[q]});
             fK_reference(p,q) = inner(bra,f12*ket);
-            fK(p,q)=inner(bra,fKij);
+            if (fKij.is_assigned()) fK(p,q)=inner(bra,fKij);
         }
     }
-    diff=fK_reference-fK;
-    print("fK_reference, fK, diff (norm): ",diff.normf());
-    print(fK_reference);
-    print(fK);
+    if (fKij.is_assigned()) {
+        Tensor<double> diff=fK_reference-fK;
+        print("fK_reference, fK, diff (abs. norm, rel. norm): ",diff.normf(),diff.normf()/fK_reference.normf());
+        print(fK_reference);
+        print(fK);
+        print(diff);
+    }
+
+    if (KffKij.is_assigned())
+    {
+        for (int p=0; p<nbra; ++p)
+        {
+            for (int q=0; q<nbra; ++q) {
+                // bra= < p Kq | + <Kp q|
+                CCPairFunction<double,6> bra({obspace[p]},{obspace[q]});
+                KffK(p,q)=inner(bra,KffKij);
+            }
+        }
+    } else
+    {
+        KffK=Kf-fK;
+    }
+
+    // compare the commutator
+    Tensor<double> KffK_reference=Kf_reference-fK_reference;
+    Tensor<double> diff=KffK_reference-KffK;
+    print("KffK_reference, KffK, diff (abs. norm, rel. norm): ",diff.normf(),diff.normf()/KffK_reference.normf());
+    print(KffK_reference);
+    print(KffK);
     print(diff);
 
-    // finally do the sanity test
-    typedef std::vector<CCPairFunction<double,6>> cpfvecT;
-    auto KffK=cpfvecT({Kfij}) - cpfvecT({fKij});
-    CCPairFunction<double,6> bra(phi_i.function*info.R_square,phi_j.function*info.R_square);
-    double sanity=inner({bra},KffK);
-    print("KffK sanity check ", sanity);
+    // finally do the legacy sanity test
+    if (fKij.is_assigned() and Kfij.is_assigned())
+    {
+        typedef std::vector<CCPairFunction<double,6>> cpfvecT;
+        auto KffK_legacy=cpfvecT({Kfij}) - cpfvecT({fKij});
+        CCPairFunction<double,6> bra(phi_i.function*info.R_square,phi_j.function*info.R_square);
+        double sanity=inner({bra},KffK_legacy);
+        print("KffK sanity check ", sanity);
+    }
 
 }
+
+std::vector<CCPairFunction<double, 6>>
+CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+                                      const Info& info, const real_convolution_6d* Gscreen, LowRankFunctionParameters lrfparameters)
+{
+
+    timer t2(world);
+    print_header2("computing [K,f]|ij> directly");
+
+    constexpr std::size_t LDIM=3;
+    constexpr std::size_t NDIM=2*LDIM;
+    std::cout << std::scientific << std::setprecision(6);
+    print("eps(3D), eps(6D), k",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh(),FunctionDefaults<NDIM>::get_k());
+    lrfparameters.print("lrf");
+    auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
+
+    auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    auto f12ptr=f12_op->get_op();
+    real_convolution_3d& f12=*f12ptr;
+
+    real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    g12.particle()=1;
+
+    auto mo_bra=info.mo_bra;
+    real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
+
+    LowRankFunction<double,6> result(world);
+
+    // loop over all k, decompose f12*k
+    for (int k=0; k<mo_bra.size(); ++k)
+    {
+        t2.tag("start k loop");
+        auto lrfunctor=LRFunctorF12<double,6>(f12ptr,mo_bra[k],one);
+        LowRankFunction<double,6> f12_k=builder.project(lrfunctor);
+        print("f12_k.sizes",f12_k.g.size(),f12_k.h.size());
+        t2.tag("decompose f12 k");
+        std::vector<real_function_3d> aikp, bikp;
+
+        // particle 1
+        {
+            aikp=info.mo_ket[k]*g12(f12_k.g*phi_i.function);
+            t2.tag("make a_ikp, particle 1");
+            bikp=f12_k.g*g12(mo_bra[k]*phi_i.function);
+            t2.tag("make b_ikp, particle 2");
+            std::vector<real_function_3d> cikp=truncate(aikp-bikp);
+            t2.tag("subtract/truncate");
+            madness::print_size(world,cikp,"cipk");
+            f12_k.g=cikp;
+        }
+        // particle 2
+        {
+            std::swap(f12_k.g, f12_k.h);
+            if (f12_k.metric) f12_k.metric=transpose(f12_k.metric);
+            aikp=info.mo_ket[k]*g12(f12_k.h*phi_j.function);
+            t2.tag("make a_ikp, particle 1");
+            bikp=f12_k.h*g12(mo_bra[k]*phi_j.function);
+            t2.tag("make b_ikp, particle 2");
+            std::vector<real_function_3d> cikp=truncate(aikp-bikp);
+            t2.tag("subtract/truncate");
+            madness::print_size(world,cikp,"cipk");
+            f12_k.h=cikp;
+        }
+        f12_k.remove_linear_dependencies();
+        result+=f12_k;
+        t2.tag("remove lindep/accumulate");
+    }
+    result.remove_linear_dependencies();
+    result.canonicalize();
+    t2.tag("final remove lindep/canonicalize");
+    auto result1=CCPairFunction<double,6>(result.g,result.h);
+    CCPairFunction<double,6> dummy;
+    compare_KffK_matrix_elements(world,phi_i,phi_j,info,dummy,dummy,result1);
+    return std::vector<CCPairFunction<double,6>>({result1});
+}
+
 
 std::vector<CCPairFunction<double, 6>>
 CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
@@ -1891,11 +2009,11 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
 
 
     timer t2(world);
+    print_header2("computing [K,f]|ij> ");
     constexpr std::size_t LDIM=3;
     constexpr std::size_t NDIM=2*LDIM;
     std::cout << std::scientific << std::setprecision(6);
     print("eps(3D), eps(6D), k",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh(),FunctionDefaults<NDIM>::get_k());
-    info.parameters.print("ccparameters");
     // the exchange commutator: K f12 |phi_i phi_j> - f12 K |phi_i phi_j>
 
     auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
@@ -2002,13 +2120,13 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
             auto fk_lrf=builder.project(lrfunctor);
             fk_lrf.canonicalize();
             fk=CCPairFunction<double,6>(fk_lrf.get_g(),fk_lrf.get_h());
+            print("compare low_rank matrix elements with fKij low rank");
+            compare_KffK_matrix_elements(world,phi_i,phi_j,info,Kf,fk);
         }
 
         fk.print_size("fkphixphiy");
         t2.end("computed exchange commutator");
     }
-    print("Comparing matrix elements for low rank");
-    compare_KffK_matrix_elements(world,phi_i,phi_j,info,Kf,fk);
 
     return std::vector<CCPairFunction<double,6>>({Kf,-1.0*fk});
 
@@ -2044,7 +2162,6 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     std::string algo="lowrank" ; // old/lowrank
     real_function_6d Kfxy, fKxy;
 
-
     if (algo=="new" or algo=="old" or algo=="all") {
 
         if (parameters.debug()) part1_time.info();
@@ -2076,6 +2193,21 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         print("<ij | f12 K | ij> ",n1);
     }
 
+    if (algo=="new" or algo=="all") {
+        print("new KffK algorithm");
+        Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
+        Kfxy.print_size("Kf" + x_name + y_name);
+        Kfxy.set_thresh(parameters.thresh_6D());
+        Kfxy.truncate().reduce_rank();
+        Kfxy.print_size("Kf after truncation" + x_name + y_name);
+        double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
+        print("<ij | K f12 | ij> ",n1);
+        print("comparing new algorithm matrix elements");
+        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy));
+        // save(Kfxy, "Kf_" + x_name + y_name);
+    }
+
+
 
     if (algo=="old" or algo=="all") {
         print("old KffK algorithm");
@@ -2095,20 +2227,6 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 
     }
 
-    if (algo=="new" or algo=="all") {
-        print("new KffK algorithm");
-        Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
-        Kfxy.print_size("Kf" + x_name + y_name);
-        Kfxy.set_thresh(parameters.thresh_6D());
-        Kfxy.truncate().reduce_rank();
-        Kfxy.print_size("Kf after truncation" + x_name + y_name);
-        double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
-        print("<ij | K f12 | ij> ",n1);
-        print("comparing new algorithm matrix elements");
-        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy));
-        // save(Kfxy, "Kf_" + x_name + y_name);
-    }
-
     if (algo=="new" or algo=="old" or algo=="all")
     {
         auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
@@ -2121,19 +2239,28 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     {
         LowRankFunctionParameters lrfparameters;
         lrfparameters.set_derived_value("gridtype",std::string("random"));
+
         lrfparameters.set_derived_value("volume_element",2.e-1);
         lrfparameters.set_derived_value("tol",1.e-6);
         lrfparameters.set_derived_value("canonicalize",false);
         lrfparameters.print("lrf");
         result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+        result=apply_KffK_low_rank_direct(world,phi_i,phi_j,info,Gscreen,lrfparameters);
 
         lrfparameters.set_derived_value("volume_element",1.e-1);
         lrfparameters.set_derived_value("tol",1.e-6);
         lrfparameters.print("lrf");
         result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+        result=apply_KffK_low_rank_direct(world,phi_i,phi_j,info,Gscreen,lrfparameters);
 
         lrfparameters.set_derived_value("volume_element",1.e-1);
         lrfparameters.set_derived_value("tol",1.e-7);
+        lrfparameters.print("lrf");
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+
+        lrfparameters.set_derived_value("volume_element",1.e-1);
+        lrfparameters.set_derived_value("tol",1.e-6);
+        lrfparameters.set_derived_value("canonicalize",true);
         lrfparameters.print("lrf");
         result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
 
@@ -2258,10 +2385,69 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
      const CCParameters& parameters) {
 
     CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
-    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
+    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson()*0.1);
     g12.destructive()=true;
+    auto f12=SlaterF12Operator(world,1.0,parameters.lo(),parameters.thresh_poisson()*0.1);
 
     real_function_6d result=FunctionFactory<double,6>(world);
+
+    // set up test space <p| R2 and <p| R2 K
+    int lmax=0;
+    std::vector<double> zeta_range({0.1,1,9});
+    std::vector<real_function_3d> obspace=LowRankFunctionFactory<double,6>::harmonic_basis(world,zeta_range,lmax,info.molecular_coordinates);
+    obspace=info.R_square*obspace;
+
+    /// test the matrix elements <ab | f12 | kx y >
+    auto test_f_kxy = [&obspace,&f12](const real_function_3d& kx, const real_function_3d y, const real_function_6d& fkxy)
+    {
+        std::size_t nvir=obspace.size();
+        Tensor<double> ref(nvir,nvir), val(nvir,nvir);
+        // < ab | f12 | kx y> = <a * kx | f(b * y) >
+        for (int a=0; a<obspace.size(); ++a)
+        {
+            for (int b=0; b<obspace.size(); ++b)
+            {
+                ref(a,b) = inner(obspace[a]*kx,f12(obspace[b]*y));
+                val(a,b) = inner(CCPairFunction<double,6>(obspace[a],obspace[b]),CCPairFunction<double,6>(fkxy));
+            }
+        }
+        return (ref-val).normf();
+    };
+
+    /// test the matrix elements <a(1) b(2) | \int g(1,1') f(1',2) kx(1') y(2) \d1' > = < g(a)(1') * kx(1') | f(b*y)(1') >
+    auto test_g_f_kxy = [&obspace,&g12,&f12](const real_function_3d& kx, const real_function_3d y, const real_function_6d& gfkxy)
+    {
+        std::size_t nvir=obspace.size();
+        Tensor<double> ref(nvir,nvir), val(nvir,nvir);
+        for (int a=0; a<obspace.size(); ++a)
+        {
+            auto ga=g12(copy(obspace[a]));  // copy: g12 is destructive and would invalidate obspace[a]
+            for (int b=0; b<obspace.size(); ++b)
+            {
+                ref(a,b) = inner(ga*kx,f12(obspace[b]*y));
+                val(a,b) = inner(CCPairFunction<double,6>(obspace[a],obspace[b]),CCPairFunction<double,6>(gfkxy));
+            }
+        }
+        return (ref-val).normf();
+    };
+
+    /// test the matrix elements <a(1) b(2) | k(1) \int g(1,1') f(1',2) kx(1') y(2) \d1' > = < g(a*k)(1') * kx(1') | f(b*y)(1') >
+    auto test_k_g_f_kxy = [&obspace,&g12,&f12](const real_function_3d& kx, const real_function_3d y,
+        const real_function_3d& k, const real_function_6d& kgfkxy)
+    {
+        std::size_t nvir=obspace.size();
+        Tensor<double> ref(nvir,nvir), val(nvir,nvir);
+        for (int a=0; a<obspace.size(); ++a)
+        {
+            auto ga=g12(obspace[a]*k);
+            for (int b=0; b<obspace.size(); ++b)
+            {
+                ref(a,b) = inner(ga*kx,f12(obspace[b]*y));
+                val(a,b) = inner(CCPairFunction<double,6>(obspace[a],obspace[b]),CCPairFunction<double,6>(kgfkxy));
+            }
+        }
+        return (ref-val).normf();
+    };
 
     for (int particle : {1,2}) {
 
@@ -2280,11 +2466,19 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
                 real_function_6d X = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
                                                         particle1(copy(xx)).particle2(copy(yy));
                 X.fill_cuspy_tree().truncate(parameters.tight_thresh_6D()).reduce_rank();
+                double err1=test_f_kxy(xx,yy,X);
 
                 // apply Coulomb operator g(1,3) to f(2,3) k*(3) x(3) y(2)
                 g12.particle() = particle;
                 real_function_6d Y = g12(X);     // overwrite X to save space
+                double err2=test_g_f_kxy(xx,yy,Y);
                 auto tmp=(multiply(copy(Y), copy(info.mo_ket[k]),particle)).truncate(parameters.tight_thresh_6D()*3.0);
+                double err3=test_k_g_f_kxy(xx,yy,info.mo_ket[k],tmp);
+
+                char buf[256];
+                snprintf(buf,sizeof(buf),"particle %d, k %zu, err_f_kxy=%e, err_g_f_kxy=%e, err_k_g_f_kxy=%e\n", particle, k, err1, err2, err3);
+                print(buf);
+
                 result += tmp;
             }
             result.truncate(parameters.tight_thresh_6D()).reduce_rank(parameters.tight_thresh_6D());

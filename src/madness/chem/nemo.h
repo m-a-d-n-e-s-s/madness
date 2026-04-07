@@ -51,6 +51,7 @@
 #include<madness/chem/SCFProtocol.h>
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/molecular_optimizer.h>
+#include<madness/chem/MolecularOrbitals.h>
 #include <madness/mra/nonlinsol.h>
 #include <madness/mra/vmra.h>
 #include<madness/chem/pcm.h>
@@ -59,6 +60,7 @@
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
+
 
 namespace madness {
 
@@ -571,6 +573,9 @@ public:
     /// R. A. King and N. C. Handy, “Kinetic energy functionals from the Kohn–Sham potential,”
     /// Phys. Chem. Chem. Phys., vol. 2, no. 22, pp. 5049–5056, 2000.
     real_function_3d kinetic_energy_potential(const vecfuncT& nemo) const;
+
+	/// compute some virtual orbitals
+	MolecularOrbitals<double,3> compute_virtual_orbitals(const int nvir=5) const;
 
 
     /// smooth a function by projecting it onto k-1 and then average with k

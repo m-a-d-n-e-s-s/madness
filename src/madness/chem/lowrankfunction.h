@@ -1393,11 +1393,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.tag("Y backprojection");
 
             LowRankFunction<T,NDIM> result(g,h,parameters.tol(),parameters.orthomethod(),metric);
+            result.remove_linear_dependencies(); // improves numerical stability
+            t1.tag("removing lindep");
 
-            if (not parameters.canonicalize()) {
-                result.remove_linear_dependencies(); // improves numerical stability
-                t1.tag("removing lindep");
-            }
             return result;
         }
 
