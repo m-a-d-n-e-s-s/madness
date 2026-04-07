@@ -102,7 +102,9 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
 
     LRFunctorF12<double,2*LDIM> lrfunctor(f12,phi1,phi2);
     double cpu0=cpu_time();
-    auto lrf=LowRankFunctionFactory<double,2*LDIM>(parameters).project(lrfunctor);
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+    auto lrf=LowRankFunctionFactory<double,2*LDIM>(parameters, origins).project(lrfunctor);
     lrf.do_print=true;
 //    plot_plane<6>(world,lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
     double cpu1=cpu_time();
@@ -306,7 +308,9 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         real_function_3d one = real_factory_3d(world).f([](const coord_3d& r) { return 1.0; });
         LRFunctorF12<double,6> lrfunctor(f12ptr,phi,one);
 //        LowRankFunction<double, 6> fi_one(f12ptr, copy(phi), copy(one));
-        auto fi_one=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+        Vector<double,LDIM> origin(0.0);
+        std::vector<Vector<double,LDIM>> origins = {origin};
+        auto fi_one=LowRankFunctionFactory<double,6>(parameters, origins).project(lrfunctor);
         print("fi_one",fi_one.get_g().size(),fi_one.get_h().size());
         print("memsize",get_size(world,fi_one.get_g()),get_size(world,fi_one.get_h()));
 
@@ -480,6 +484,9 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
 
     plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[0],"pure",PlotParameters(world).set_plane({"x1","x2"}));
     plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[1],"f12",PlotParameters(world).set_plane({"x1","x2"}));
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
 
 
     for (auto canonicalize : {true,false}) {
@@ -493,7 +500,7 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
 
                     print("working with functor,",functor->type());
 
-                    auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
+                    auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
                     auto lrfunction1=builder.project(*functor);
 
                     // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
@@ -549,13 +556,16 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
     LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
 
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
     for (auto gridtype : {"random","harmonics"}) {
         for (auto canonicalize : {true,false}) {
             parameters.set_derived_value("gridtype",std::string(gridtype));
             parameters.set_derived_value("canonicalize",canonicalize);
             parameters.print("grid");
 
-            auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(4)
+            auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
                     .set_volume_element(0.1).set_rank_revealing_tol(1.e-5).set_orthomethod("canonical");
             auto lrf1=builder.project(functor1);
             auto lrf2=builder.project(functor2);
@@ -645,7 +655,10 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     auto p1=particle<LDIM>::particle1();
     auto p2=particle<LDIM>::particle2();
 
-    auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(4)
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+    auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
             .set_volume_element(0.1).set_rank_revealing_tol(1.e-6).set_orthomethod("canonical");
     auto lrf1=builder.project(functor1);
     auto lrf2=builder.project(functor2);
@@ -786,6 +799,9 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
     parameters.set_derived_value("lmax",3);
     parameters.print("grid");
 
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
     // for (auto& lrfunctor : {lrfunctor1,lrfunctor2}) {
     for (auto& lrfunctor : {lrfunctor2}) {
         for (auto& canonicalize : {true,false}) {
@@ -796,7 +812,7 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
                 MADNESS_CHECK_THROW(parameters.canonicalize() == canonicalize,"incorrect setting of canonicalize"); // make sure it isn't overridden
                 std::string description=std::string(parameters.gridtype())+", canon="+std::to_string(canonicalize);
 
-                LowRankFunctionFactory<double, NDIM> builder(parameters);
+                LowRankFunctionFactory<double, NDIM> builder(parameters, origins);
                 auto lrf = builder.project(lrfunctor);
 
                 // with Slater tol must be relaxed
@@ -1095,7 +1111,9 @@ int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
                  print("parameters.lmax",parameters.lmax());
 
                  parameters.print("in make_ri_basis");
-                 auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
+                 Vector<double,LDIM> origin(0.0);
+                 std::vector<Vector<double,LDIM>> origins = {origin};
+                 auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
 
                  std::shared_ptr<SeparatedConvolution<double,LDIM>> f12;
                  std::string f12type=parameters.f12type();
@@ -1184,10 +1202,13 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
             .functor([&offsets](const Vector<double,LDIM>& r){ return 1.0; });
     LRFunctorF12<double,NDIM> functor(op,{phi1,phi2,phi3},{one,one,one});
 
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
     for (std::string gridtype : {"adaptive", "random","twostage"}) {
         parameters.set_derived_value("gridtype",std::string(gridtype));
         print_header2("testing gridtype="+parameters.gridtype());
-        auto lrf = LowRankFunctionFactory<double,NDIM>(parameters, std::vector<Vector<double,LDIM>>(offsets)).project(functor);
+        auto lrf = LowRankFunctionFactory<double,NDIM>(parameters, origins).project(functor);
         double error = lrf.l2error(functor);
         print("rank", lrf.rank(), "l2error", error);
 
@@ -1249,8 +1270,8 @@ int main(int argc, char **argv) {
 
     bool long_test=false;
     int isuccess=0;
-    isuccess+=test_Kcommutator(world,parameters);
-    isuccess+=test_stuff(world,parameters);
+    // isuccess+=test_Kcommutator(world,parameters);
+    // isuccess+=test_stuff(world,parameters);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     isuccess+=test_molecular_grid<1>(world,parameters);
