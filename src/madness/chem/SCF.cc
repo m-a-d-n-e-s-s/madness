@@ -671,28 +671,58 @@ void SCF::analyze_vectors(World& world, const vecfuncT& mo,
 // this version is faster than the previous version on BG/Q
 distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     PROFILE_MEMBER_FUNC(SCF);
+    const bool tile_KEmat = true;
+    const size_t ntile = 10;
     int n = v.size();
     distmatT r = column_distributed_matrix<double>(world, n, n);
     START_TIMER(world);
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
-    START_TIMER(world);
-    vecfuncT dvx = apply(world, *(gradop[0]), v, false);
-    vecfuncT dvy = apply(world, *(gradop[1]), v, false);
-    vecfuncT dvz = apply(world, *(gradop[2]), v, false);
-    world.gop.fence();
-    END_TIMER(world, "KEmat differentiate");
-    START_TIMER(world);
-    compress(world, dvx, false);
-    compress(world, dvy, false);
-    compress(world, dvz, false);
-    world.gop.fence();
-    END_TIMER(world, "KEmat compress");
-    START_TIMER(world);
-    r += matrix_inner(r.distribution(), dvx, dvx, true);
-    r += matrix_inner(r.distribution(), dvy, dvy, true);
-    r += matrix_inner(r.distribution(), dvz, dvz, true);
-    END_TIMER(world, "KEmat inner products");
+
+    if (tile_KEmat) {
+        // Process one gradient direction at a time: peak live memory 2n (v + one dv)
+        // instead of 4n (v + dvx + dvy + dvz). Within each direction, apply is tiled
+        // over ntile orbitals to limit intermediates during differentiation.
+        for (int axis = 0; axis < 3; ++axis) {
+            START_TIMER(world);
+            vecfuncT dv(n);
+            for (size_t ilo = 0; ilo < (size_t)n; ilo += ntile) {
+                size_t iend = std::min(ilo + ntile, (size_t)n);
+                vecfuncT v_tile(v.begin() + ilo, v.begin() + iend);
+                vecfuncT dv_tile = apply(world, *(gradop[axis]), v_tile, false);
+                world.gop.fence();
+                compress(world, dv_tile, false);
+                world.gop.fence();
+                for (size_t i = ilo; i < iend; ++i) dv[i] = dv_tile[i - ilo];
+                dv_tile.clear();
+            }
+            END_TIMER(world, "KEmat differentiate+compress");
+            START_TIMER(world);
+            r += matrix_inner(r.distribution(), dv, dv, true);
+            dv.clear();
+            world.gop.fence();
+            END_TIMER(world, "KEmat inner product");
+        }
+    } else {
+        START_TIMER(world);
+        vecfuncT dvx = apply(world, *(gradop[0]), v, false);
+        vecfuncT dvy = apply(world, *(gradop[1]), v, false);
+        vecfuncT dvz = apply(world, *(gradop[2]), v, false);
+        world.gop.fence();
+        END_TIMER(world, "KEmat differentiate");
+        START_TIMER(world);
+        compress(world, dvx, false);
+        compress(world, dvy, false);
+        compress(world, dvz, false);
+        world.gop.fence();
+        END_TIMER(world, "KEmat compress");
+        START_TIMER(world);
+        r += matrix_inner(r.distribution(), dvx, dvx, true);
+        r += matrix_inner(r.distribution(), dvy, dvy, true);
+        r += matrix_inner(r.distribution(), dvz, dvz, true);
+        END_TIMER(world, "KEmat inner products");
+    }
+
     r *= 0.5;
     //tensorT p(v.size(),v.size());
     //r.copy_to_replicated(p);
