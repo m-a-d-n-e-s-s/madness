@@ -1951,46 +1951,64 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     g12.particle()=1;
 
     auto mo_bra=info.mo_bra;
-    real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
-
     LowRankFunction<double,6> result(world);
 
-    // loop over all k, decompose f12*k
+    // loop over all k
+    // particle 1: decompose f12(1,2) * k_bra(1) * tj(2) = sum_pq g_p(1) M_pq h_q(2)   (eq 32)
+    // [K1,f]|ti tj> = sum_kpq [a_ikp(1) - b_ikp(1)] M_pq h_q(2)                        (eq 35)
+    // particle 2: decompose f12(1,2) * ti(1) * k_bra(2) = sum_pq g_p(1) M_pq h_q(2)
+    // [K2,f]|ti tj> = sum_kpq g_p(1) M_pq [a_jkp(2) - b_jkp(2)]
     for (int k=0; k<mo_bra.size(); ++k)
     {
         t2.tag("start k loop");
-        auto lrfunctor=LRFunctorF12<double,6>(f12ptr,mo_bra[k],one);
-        LowRankFunction<double,6> f12_k=builder.project(lrfunctor);
-        print("f12_k.sizes",f12_k.g.size(),f12_k.h.size());
-        t2.tag("decompose f12 k");
         std::vector<real_function_3d> aikp, bikp;
 
-        // particle 1
+        // particle 1: [K1, f12]|ti tj>
+        // decompose f12(1,2) * k_bra(1) * tj(2): g_p acts on coord 1, h_q on coord 2 (includes tj)
+        // a_ikp(1) = k(1) * g12(g_p * ti)(1)       (eq 33)
+        // b_ikp(1) = g_p(1) * g12(k * ti)(1)       (eq 34)
+        LowRankFunction<double,6> lrf1(world);
         {
+            auto lrfunctor=LRFunctorF12<double,6>(f12ptr,mo_bra[k],phi_j.function);
+            LowRankFunction<double,6> f12_k=builder.project(lrfunctor);
+            print("f12_k (particle 1) sizes",f12_k.g.size(),f12_k.h.size());
+            t2.tag("decompose f12 k, particle 1");
             aikp=info.mo_ket[k]*g12(f12_k.g*phi_i.function);
             t2.tag("make a_ikp, particle 1");
             bikp=f12_k.g*g12(mo_bra[k]*phi_i.function);
-            t2.tag("make b_ikp, particle 2");
+            t2.tag("make b_ikp, particle 1");
             std::vector<real_function_3d> cikp=truncate(aikp-bikp);
             t2.tag("subtract/truncate");
-            madness::print_size(world,cikp,"cipk");
-            f12_k.g=cikp;
+            madness::print_size(world,cikp,"cikp particle 1");
+            lrf1.g=cikp;                              // c_ikp(1), includes ti
+            lrf1.h=f12_k.h;                           // h_q(2), tj already included
+            lrf1.metric=f12_k.metric;
         }
-        // particle 2
+        // particle 2: [K2, f12]|ti tj>
+        // decompose f12(1,2) * ti(1) * k_bra(2): g_p acts on coord 1 (includes ti), h_q on coord 2
+        // a_jkp(2) = k(2) * g12(h_q * tj)(2)
+        // b_jkp(2) = h_q(2) * g12(k * tj)(2)
+        LowRankFunction<double,6> lrf2(world);
         {
-            std::swap(f12_k.g, f12_k.h);
-            if (f12_k.metric) f12_k.metric=transpose(f12_k.metric);
-            aikp=info.mo_ket[k]*g12(f12_k.h*phi_j.function);
-            t2.tag("make a_ikp, particle 1");
-            bikp=f12_k.h*g12(mo_bra[k]*phi_j.function);
-            t2.tag("make b_ikp, particle 2");
-            std::vector<real_function_3d> cikp=truncate(aikp-bikp);
+            auto lrfunctor2=LRFunctorF12<double,6>(f12ptr,phi_i.function,mo_bra[k]);
+            LowRankFunction<double,6> f12_k2=builder.project(lrfunctor2);
+            print("f12_k (particle 2) sizes",f12_k2.g.size(),f12_k2.h.size());
+            t2.tag("decompose f12 k, particle 2");
+            aikp=info.mo_ket[k]*g12(f12_k2.h*phi_j.function);
+            t2.tag("make a_jkp, particle 2");
+            bikp=f12_k2.h*g12(mo_bra[k]*phi_j.function);
+            t2.tag("make b_jkp, particle 2");
+            std::vector<real_function_3d> cjkp=truncate(aikp-bikp);
             t2.tag("subtract/truncate");
-            madness::print_size(world,cikp,"cipk");
-            f12_k.h=cikp;
+            madness::print_size(world,cjkp,"cjkp particle 2");
+            lrf2.g=f12_k2.g;                          // g_p(1), ti already included
+            lrf2.h=cjkp;                              // c_jkp(2), includes tj
+            lrf2.metric=f12_k2.metric;
         }
-        f12_k.remove_linear_dependencies();
-        result+=f12_k;
+        lrf1.remove_linear_dependencies();
+        lrf2.remove_linear_dependencies();
+        result+=lrf1;
+        result+=lrf2;
         t2.tag("remove lindep/accumulate");
     }
     result.remove_linear_dependencies();
@@ -2244,8 +2262,8 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         lrfparameters.set_derived_value("tol",1.e-6);
         lrfparameters.set_derived_value("canonicalize",false);
         lrfparameters.print("lrf");
-        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
         result=apply_KffK_low_rank_direct(world,phi_i,phi_j,info,Gscreen,lrfparameters);
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen,lrfparameters);
 
         lrfparameters.set_derived_value("volume_element",1.e-1);
         lrfparameters.set_derived_value("tol",1.e-6);

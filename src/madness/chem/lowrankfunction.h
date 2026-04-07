@@ -719,10 +719,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             if (metric or b.metric) {
                 Tensor<T> tmp_metric=Tensor<T>(g.size() + b.g.size(), h.size() + b.h.size());
                 Tensor<T> ametric= (metric) ? metric : identity_matrix<T>(g.size());
-                tmp_metric(Slice(0,g.size()-1),Slice(0,h.size()-1))=ametric;
+                if (ametric) tmp_metric(Slice(0,g.size()-1),Slice(0,h.size()-1))=ametric;
 
                 Tensor<T> bmetric= (b.metric) ? b.metric : identity_matrix<T>(b.g.size());
-                tmp_metric(Slice(g.size(),g.size()+b.g.size()-1),Slice(h.size(),h.size()+b.h.size()-1))=bmetric;
+                if (bmetric) tmp_metric(Slice(g.size(),g.size()+b.g.size()-1),Slice(h.size(),h.size()+b.h.size()-1))=bmetric;
                 metric=tmp_metric;
             }
 
@@ -1345,6 +1345,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
                 Y = retry.Y;
             }
+            if (Y.empty()) {
+                print("hello world");
+            }
             MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
             t1.tag("Yforming");
             print("y.size()",Y.size());
@@ -1414,7 +1417,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             World& world=lrfunctor1.world();
             std::vector<Function<double,LDIM>> Y;
             if (parameters.gridtype()=="harmonics") { // use harmonics-based LHS
-                Y = harmonic_basis(world, {parameters.radius(), parameters.radius() * 10.0, 2.0}, parameters.lmax(), origins);
+                Y = harmonic_basis(world, parameters.tempered(), parameters.lmax(), origins);
             } else {
                 // default: use localized Gaussian RHS (for gridtype values other than "harmonics")
                 std::vector<Function<double,LDIM>> omega;
