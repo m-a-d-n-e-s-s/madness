@@ -1373,11 +1373,14 @@ functionT SCF::make_lda_potential(World& world, const functionT& arho) {
 }
 
 /// Compute resolved {min, max} batch sizes for HF exchange macrotask partitioning.
-/// User-supplied values <= 0 are replaced by threshold-aware heuristics that pick
-/// tasks_per_rank in {2,4,8} based on convergence threshold, then invert the
-/// triangular number formula N*(N+1)/2 = T to get the number of row-batches.
-/// Load balancing across ranks is handled separately by the fold-based owner
-/// assignment in MacroTaskExchangeSimple::prepare_owner_assignment.
+/// User-supplied values <= 0 are replaced by a heuristic that:
+///  1. Picks an initial batch count from threshold and rank count.
+///  2. Searches a window of batch sizes around the initial estimate for the one
+///     that best satisfies two constraints (in priority order):
+///     a) half (= R/2, the number of rectangle rows after folding) should be a
+///        multiple of nproc so rectangle rows divide evenly across ranks.
+///     b) The runt batch (norb mod bs) should be as small as possible — ideally
+///        zero (no runt) or close to bs (nearly full-size).
 static std::pair<long,long> resolve_hfex_batch_sizes(
         long norb, long nproc,
         long user_min, long user_max)
@@ -1396,15 +1399,48 @@ static std::pair<long,long> resolve_hfex_batch_sizes(
         // Invert triangular number formula nbatch*(nbatch+1)/2 = target_tasks.
         long nbatch = std::max<long>(1,
                 long((std::sqrt(1.0 + 8.0 * double(target_tasks)) - 1.0) / 2.0));
-        // The fold-based owner assignment pairs row batches from opposite ends of
-        // the triangle, so we need at least 2*nproc row batches to give every rank
-        // at least one rectangle row.  Increase nbatch if needed, capped by norb.
+        // Need at least 2*nproc row batches so the fold gives every rank work.
         nbatch = std::max(nbatch, std::min(2 * nproc, norb));
-        long auto_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
-        // Verify the realized row count is sufficient: ceil(norb/auto_size) may be
-        // less than nbatch due to integer rounding.  Shrink batch size until we
-        // reach the target number of row batches.
-        while (auto_size > 1 && (norb + auto_size - 1) / auto_size < std::min(2 * nproc, norb))
+        long initial_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
+
+        // Search a window around initial_size for the batch size that best
+        // satisfies the two constraints.
+        const long lo = std::max<long>(1, initial_size * 7 / 10);
+        const long hi = std::max<long>(lo, initial_size * 13 / 10);
+
+        long best_bs = initial_size;
+        double best_score = 1e18;
+
+        for (long bs = lo; bs <= hi; ++bs) {
+            const long R = (norb + bs - 1) / bs;
+            const long half = R / 2;
+
+            // Primary constraint: half should be a multiple of nproc so rect rows
+            // divide evenly across ranks.  Penalty is the remainder half % nproc,
+            // normalized by nproc, so 0.0 = perfect, ~1.0 = worst.
+            const double alignment_penalty = (nproc > 0)
+                    ? static_cast<double>(half % nproc) / static_cast<double>(nproc)
+                    : 0.0;
+
+            // Secondary: runt penalty.  remainder==0 means no runt (penalty 0).
+            // Otherwise (bs - remainder) / bs, scaled down so it never outweighs
+            // the alignment constraint.
+            const long remainder = norb % bs;
+            const double runt_penalty = (remainder == 0) ? 0.0
+                    : 0.1 * static_cast<double>(bs - remainder) / static_cast<double>(bs);
+
+            const double score = alignment_penalty + runt_penalty;
+
+            if (score < best_score) {
+                best_score = score;
+                best_bs = bs;
+            }
+        }
+
+        long auto_size = best_bs;
+        // Final check: ensure enough row batches for all ranks.
+        const long min_row_batches = std::min(2 * nproc, norb);
+        while (auto_size > 1 && (norb + auto_size - 1) / auto_size < min_row_batches)
             --auto_size;
 
         if (resolved_min <= 0) resolved_min = auto_size;
