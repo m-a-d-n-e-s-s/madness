@@ -7,6 +7,7 @@
 #include<madness/chem/SCFOperators.h>
 #include<unordered_map>
 #include<queue>
+#include<random>
 
 namespace madness {
 
@@ -255,6 +256,9 @@ private:
         /// populated by prepare_owner_assignment() using the fold algorithm
         std::map<std::pair<long,long>, long> owner_map_;
 
+        /// if true, shuffle per-owner task order to reduce synchronized fetch contention
+        bool shuffle_task_order_ = true;
+
         bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner; }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
@@ -452,21 +456,27 @@ private:
         /// Fold the triangular task list and assign owners for load balance.
         ///
         /// 1. Group tasks by row range (input[1]), giving R row groups ordered by
-        ///    row index. Row group r has (R - r) column batches in the triangle.
+        ///    row index. Cost is accumulated from task priority (batch area), not
+        ///    raw task count, so runt batches are weighted correctly.
         /// 2. Fold: pair row group (half-1-k) with row group (half+k) to form
-        ///    rectangle row k. Each rectangle row has ~uniform task count.
-        ///    For odd R, the middle row group is assigned to the least-loaded rank.
-        /// 3. Greedy assignment: each rectangle row goes to the least-loaded rank.
+        ///    rectangle row k. Each rectangle row has ~uniform cost.
+        ///    For odd R, the middle row group's tasks are distributed round-robin
+        ///    across rectangle rows.
+        /// 3. Greedy (LPT) assignment: rectangle rows to ranks by cost.
         /// 4. Build a map from (col_begin, row_begin) -> owner rank for each task.
         static std::map<std::pair<long,long>, long> fold_and_assign(
                 const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
 
             // -- Step 1: group tasks by row range --
-            // Use row_begin as the key; collect tasks per row group and track ordering.
+            // Use row_begin as the key; accumulate priority-weighted cost.
+            struct TaskEntry {
+                std::pair<long,long> key;  // (col_begin, row_begin)
+                double priority;
+            };
             struct RowGroup {
                 long row_begin = 0;
-                long task_count = 0;
-                std::vector<std::pair<long,long>> task_keys;  // (col_begin, row_begin)
+                double cost = 0.0;
+                std::vector<TaskEntry> tasks;
             };
 
             // Discover row groups from partition (order by row_begin)
@@ -476,8 +486,8 @@ private:
                 const Batch_1D& row_range = (batch.input.size() > 1) ? batch.input[1] : batch.input[0];
                 auto& rg = row_group_map[row_range.begin];
                 rg.row_begin = row_range.begin;
-                rg.task_count++;
-                rg.task_keys.emplace_back(col_range.begin, row_range.begin);
+                rg.cost += prio;
+                rg.tasks.push_back({{col_range.begin, row_range.begin}, prio});
             }
 
             // Flatten into ordered vector
@@ -488,7 +498,7 @@ private:
             }
             const long R = static_cast<long>(row_groups.size());
 
-            // Degenerate case: fewer row groups than ranks
+            // Degenerate case
             if (R == 0) return {};
 
             // -- Step 2: fold --
@@ -501,41 +511,39 @@ private:
             const bool odd = (R % 2 != 0);
 
             struct RectRow {
-                long cost = 0;
+                double cost = 0.0;
                 std::vector<std::pair<long,long>> task_keys;
             };
             std::vector<RectRow> rect_rows(half);
 
             for (long k = 0; k < half; ++k) {
                 auto& rr = rect_rows[k];
-                // Bottom half: row group at index (half + k), or (half + 1 + k) if odd
                 const long bottom_idx = half + (odd ? 1 : 0) + k;
-                // Top half: row group at index (half - 1 - k)
                 const long top_idx = half - 1 - k;
 
                 const auto& bottom = row_groups[bottom_idx];
                 const auto& top = row_groups[top_idx];
-                rr.cost = bottom.task_count + top.task_count;
-                rr.task_keys.insert(rr.task_keys.end(), bottom.task_keys.begin(), bottom.task_keys.end());
-                rr.task_keys.insert(rr.task_keys.end(), top.task_keys.begin(), top.task_keys.end());
+                rr.cost = bottom.cost + top.cost;
+                for (const auto& te : bottom.tasks) rr.task_keys.push_back(te.key);
+                for (const auto& te : top.tasks) rr.task_keys.push_back(te.key);
             }
 
             // Distribute middle row group's tasks round-robin across rectangle rows
             if (odd && half > 0) {
                 const auto& mid = row_groups[half];
-                for (long t = 0; t < static_cast<long>(mid.task_keys.size()); ++t) {
+                for (long t = 0; t < static_cast<long>(mid.tasks.size()); ++t) {
                     auto& rr = rect_rows[t % half];
-                    rr.task_keys.push_back(mid.task_keys[t]);
-                    rr.cost++;
+                    rr.task_keys.push_back(mid.tasks[t].key);
+                    rr.cost += mid.tasks[t].priority;
                 }
             }
 
             // -- Step 3: greedy assignment of rectangle rows to ranks --
             // Min-heap: (load, rank_id)
-            using heap_entry = std::pair<long, long>;
+            using heap_entry = std::pair<double, long>;
             std::priority_queue<heap_entry, std::vector<heap_entry>, std::greater<heap_entry>> heap;
             for (long p = 0; p < nsubworld; ++p) {
-                heap.push({0, p});
+                heap.push({0.0, p});
             }
 
             // Assign rectangle rows (sorted by cost descending for LPT scheduling)
@@ -555,12 +563,60 @@ private:
             // Edge case: odd R with half==0 means R==1, single row group, assign directly
             if (odd && half == 0) {
                 const auto& mid = row_groups[0];
-                for (const auto& key : mid.task_keys) {
-                    owner_map[key] = 0;
+                for (const auto& te : mid.tasks) {
+                    owner_map[te.key] = 0;
                 }
             }
 
             return owner_map;
+        }
+
+        /// Shuffle the partition list so that each owner's tasks appear in random
+        /// order, reducing synchronized fetch contention across ranks.
+        /// The shuffling is deterministic (seeded by nsubworld) for reproducibility.
+        /// Tasks from different owners are interleaved round-robin so the queue
+        /// keeps all ranks fed from the start.
+        void shuffle_partition_by_owner(MacroTaskPartitioner::partitionT& partition, long nsubworld) const {
+            if (!use_owner_aware_fetch() || !shuffle_task_order_ || owner_map_.empty() || nsubworld <= 0) return;
+
+            // Group partition entries by owner
+            std::map<long, std::vector<std::pair<Batch,double>>> per_owner;
+            for (auto& entry : partition) {
+                const Batch_1D& col_range = entry.first.input[0];
+                const Batch_1D& row_range = (entry.first.input.size() > 1)
+                        ? entry.first.input[1] : entry.first.input[0];
+                auto key = std::make_pair(col_range.begin, row_range.begin);
+                auto it = owner_map_.find(key);
+                long owner = (it != owner_map_.end()) ? it->second : -1;
+                per_owner[owner].push_back(std::move(entry));
+            }
+
+            // Shuffle each owner's task list independently
+            for (auto& [owner, tasks] : per_owner) {
+                std::mt19937 rng(static_cast<unsigned>(owner * 31 + nsubworld));
+                std::shuffle(tasks.begin(), tasks.end(), rng);
+            }
+
+            // Rebuild partition by round-robin interleaving across owners
+            partition.clear();
+            bool any_remaining = true;
+            std::vector<long> owner_ids;
+            for (const auto& [owner, tasks] : per_owner) {
+                owner_ids.push_back(owner);
+            }
+            std::vector<std::size_t> indices(owner_ids.size(), 0);
+
+            while (any_remaining) {
+                any_remaining = false;
+                for (std::size_t g = 0; g < owner_ids.size(); ++g) {
+                    const auto& tasks = per_owner[owner_ids[g]];
+                    if (indices[g] < tasks.size()) {
+                        partition.push_back(tasks[indices[g]]);
+                        indices[g]++;
+                        if (indices[g] < tasks.size()) any_remaining = true;
+                    }
+                }
+            }
         }
 
         long owner_hint(const Batch& task_batch, const long nsubworld) const override {

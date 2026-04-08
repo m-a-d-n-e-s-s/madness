@@ -1054,6 +1054,16 @@ class MacroTask {
     static void prepare_owner_assignment_or_noop(Q&, const MacroTaskPartitioner::partitionT&, const long, ...) {}
 
     template<typename Q>
+    static auto shuffle_partition_or_noop(Q& task,
+            MacroTaskPartitioner::partitionT& partition, const long nsubworld, int)
+        -> decltype(task.shuffle_partition_by_owner(partition, nsubworld), void()) {
+        task.shuffle_partition_by_owner(partition, nsubworld);
+    }
+
+    template<typename Q>
+    static void shuffle_partition_or_noop(Q&, MacroTaskPartitioner::partitionT&, const long, ...) {}
+
+    template<typename Q>
     static auto set_next_vf_hint_or_noop(Q& task, const Batch_1D& next_hint, const bool has_hint, int)
         -> decltype(task.set_next_vf_hint(next_hint, has_hint), void()) {
         task.set_next_vf_hint(next_hint, has_hint);
@@ -1142,8 +1152,10 @@ public:
         // Execute larger/higher-priority batches first to reduce long-tail imbalance.
         partition.sort([](const auto& a, const auto& b) { return a.second > b.second; });
 
-        // Allow tasks to pre-compute owner assignments from the full partition list.
+        // Allow tasks to pre-compute owner assignments from the full partition list,
+        // then optionally shuffle per-owner task order to reduce fetch contention.
         prepare_owner_assignment_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
+        shuffle_partition_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
