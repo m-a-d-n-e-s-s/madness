@@ -6,6 +6,7 @@
 #include<madness/mra/macrotaskq.h>
 #include<madness/chem/SCFOperators.h>
 #include<unordered_map>
+#include<queue>
 
 namespace madness {
 
@@ -250,6 +251,10 @@ private:
         static inline VfPrefetchState vf_prefetch_;
         static inline long cache_world_id_ = -1;
 
+        /// pre-computed owner map: (col_begin, row_begin) -> owner rank
+        /// populated by prepare_owner_assignment() using the fold algorithm
+        std::map<std::pair<long,long>, long> owner_map_;
+
         bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner; }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
@@ -430,9 +435,148 @@ private:
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size));
         }
 
+        /// Pre-compute a load-balanced owner assignment for all tasks in the partition.
+        ///
+        /// Uses a fold algorithm inspired by the triangle-to-rectangle transformation:
+        /// row groups from opposite ends of the triangular task matrix are paired so
+        /// that each "rectangle row" has approximately equal task count. Rectangle rows
+        /// are then assigned to ranks via greedy (least-loaded-first) scheduling.
+        ///
+        /// Called automatically by the MacroTask framework (via SFINAE hook) after
+        /// partitioning and before per-task owner_hint queries.
+        void prepare_owner_assignment(const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
+            if (!use_owner_aware_fetch() || nsubworld <= 0 || !symmetric) return;
+            owner_map_ = fold_and_assign(partition, nsubworld);
+        }
+
+        /// Fold the triangular task list and assign owners for load balance.
+        ///
+        /// 1. Group tasks by row range (input[1]), giving R row groups ordered by
+        ///    row index. Row group r has (R - r) column batches in the triangle.
+        /// 2. Fold: pair row group (half-1-k) with row group (half+k) to form
+        ///    rectangle row k. Each rectangle row has ~uniform task count.
+        ///    For odd R, the middle row group is assigned to the least-loaded rank.
+        /// 3. Greedy assignment: each rectangle row goes to the least-loaded rank.
+        /// 4. Build a map from (col_begin, row_begin) -> owner rank for each task.
+        static std::map<std::pair<long,long>, long> fold_and_assign(
+                const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
+
+            // -- Step 1: group tasks by row range --
+            // Use row_begin as the key; collect tasks per row group and track ordering.
+            struct RowGroup {
+                long row_begin = 0;
+                long task_count = 0;
+                std::vector<std::pair<long,long>> task_keys;  // (col_begin, row_begin)
+            };
+
+            // Discover row groups from partition (order by row_begin)
+            std::map<long, RowGroup> row_group_map;
+            for (const auto& [batch, prio] : partition) {
+                const Batch_1D& col_range = batch.input[0];
+                const Batch_1D& row_range = (batch.input.size() > 1) ? batch.input[1] : batch.input[0];
+                auto& rg = row_group_map[row_range.begin];
+                rg.row_begin = row_range.begin;
+                rg.task_count++;
+                rg.task_keys.emplace_back(col_range.begin, row_range.begin);
+            }
+
+            // Flatten into ordered vector
+            std::vector<RowGroup> row_groups;
+            row_groups.reserve(row_group_map.size());
+            for (auto& [key, rg] : row_group_map) {
+                row_groups.push_back(std::move(rg));
+            }
+            const long R = static_cast<long>(row_groups.size());
+
+            // Degenerate case: fewer row groups than ranks
+            if (R == 0) return {};
+
+            // -- Step 2: fold --
+            // Pair row group (half-1-k) with row group (half+k) to form rectangle rows.
+            // For even R: half = R/2, R/2 rectangle rows.
+            // For odd R:  half = R/2, R/2 rectangle rows; the middle row group's
+            //             tasks are distributed round-robin across the rectangle rows
+            //             to avoid dumping ~50% extra load onto a single rank.
+            const long half = R / 2;
+            const bool odd = (R % 2 != 0);
+
+            struct RectRow {
+                long cost = 0;
+                std::vector<std::pair<long,long>> task_keys;
+            };
+            std::vector<RectRow> rect_rows(half);
+
+            for (long k = 0; k < half; ++k) {
+                auto& rr = rect_rows[k];
+                // Bottom half: row group at index (half + k), or (half + 1 + k) if odd
+                const long bottom_idx = half + (odd ? 1 : 0) + k;
+                // Top half: row group at index (half - 1 - k)
+                const long top_idx = half - 1 - k;
+
+                const auto& bottom = row_groups[bottom_idx];
+                const auto& top = row_groups[top_idx];
+                rr.cost = bottom.task_count + top.task_count;
+                rr.task_keys.insert(rr.task_keys.end(), bottom.task_keys.begin(), bottom.task_keys.end());
+                rr.task_keys.insert(rr.task_keys.end(), top.task_keys.begin(), top.task_keys.end());
+            }
+
+            // Distribute middle row group's tasks round-robin across rectangle rows
+            if (odd && half > 0) {
+                const auto& mid = row_groups[half];
+                for (long t = 0; t < static_cast<long>(mid.task_keys.size()); ++t) {
+                    auto& rr = rect_rows[t % half];
+                    rr.task_keys.push_back(mid.task_keys[t]);
+                    rr.cost++;
+                }
+            }
+
+            // -- Step 3: greedy assignment of rectangle rows to ranks --
+            // Min-heap: (load, rank_id)
+            using heap_entry = std::pair<long, long>;
+            std::priority_queue<heap_entry, std::vector<heap_entry>, std::greater<heap_entry>> heap;
+            for (long p = 0; p < nsubworld; ++p) {
+                heap.push({0, p});
+            }
+
+            // Assign rectangle rows (sorted by cost descending for LPT scheduling)
+            std::sort(rect_rows.begin(), rect_rows.end(),
+                      [](const RectRow& a, const RectRow& b) { return a.cost > b.cost; });
+
+            std::map<std::pair<long,long>, long> owner_map;
+            for (const auto& rr : rect_rows) {
+                auto [load, rank] = heap.top();
+                heap.pop();
+                for (const auto& key : rr.task_keys) {
+                    owner_map[key] = rank;
+                }
+                heap.push({load + rr.cost, rank});
+            }
+
+            // Edge case: odd R with half==0 means R==1, single row group, assign directly
+            if (odd && half == 0) {
+                const auto& mid = row_groups[0];
+                for (const auto& key : mid.task_keys) {
+                    owner_map[key] = 0;
+                }
+            }
+
+            return owner_map;
+        }
+
         long owner_hint(const Batch& task_batch, const long nsubworld) const override {
             if (not use_owner_aware_fetch() or nsubworld<=0) return -1;
             MADNESS_CHECK_THROW(task_batch.input.size()>0, "empty task batch in owner_hint");
+
+            // Use pre-computed fold-based assignment if available
+            if (!owner_map_.empty()) {
+                const Batch_1D& col_range = task_batch.input[0];
+                const Batch_1D& row_range = (task_batch.input.size() > 1) ? task_batch.input[1] : task_batch.input[0];
+                auto key = std::make_pair(col_range.begin, row_range.begin);
+                auto it = owner_map_.find(key);
+                if (it != owner_map_.end()) return it->second;
+            }
+
+            // Fallback: modulo assignment (should not be reached after prepare_owner_assignment)
             const Batch_1D& row_range = (task_batch.input.size()>1) ? task_batch.input[1] : task_batch.input[0];
             return std::max<long>(0,row_range.begin) % nsubworld;
         }

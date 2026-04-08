@@ -1373,45 +1373,39 @@ functionT SCF::make_lda_potential(World& world, const functionT& arho) {
 }
 
 /// Compute resolved {min, max} batch sizes for HF exchange macrotask partitioning.
-/// User-supplied values <= 0 are replaced by algorithm- and threshold-aware heuristics:
-///  - small_memory_symmetric_mt_owner: targets ~2 row-batches per rank, nudges batch
-///    size to be coprime with nproc so owner slots cycle over all ranks evenly.
-///  - all other algorithms: picks tasks_per_rank in {2,4,8} based on convergence
-///    threshold, targets tasks_per_rank*nproc total batch-pairs; inverts the triangular
-///    number formula N*(N+1)/2 = T to get the number of row-batches.
+/// User-supplied values <= 0 are replaced by threshold-aware heuristics that pick
+/// tasks_per_rank in {2,4,8} based on convergence threshold, then invert the
+/// triangular number formula N*(N+1)/2 = T to get the number of row-batches.
+/// Load balancing across ranks is handled separately by the fold-based owner
+/// assignment in MacroTaskExchangeSimple::prepare_owner_assignment.
 static std::pair<long,long> resolve_hfex_batch_sizes(
         long norb, long nproc,
-        Exchange<double,3>::ExchangeAlgorithm alg,
         long user_min, long user_max)
 {
     long resolved_min = user_min;
     long resolved_max = user_max;
 
     if (resolved_min <= 0 || resolved_max <= 0) {
-        long auto_size = 1;
-
-        if (alg == Exchange<double,3>::small_memory_symmetric_mt_owner) {
-            // Owner-aware: target ~2 row-batches per rank, coprime with nproc.
-            const long target_batches = std::max<long>(1, std::min<long>(norb, 2 * nproc));
-            auto_size = std::max<long>(1, (norb + target_batches - 1) / target_batches);
-            while (auto_size < norb && std::gcd(auto_size, nproc) != 1)
-                ++auto_size;
-            // Fall back to b=1 if realized batch count would leave ranks idle.
-            const long realized = std::max<long>(1, (norb + auto_size - 1) / auto_size);
-            if (norb >= nproc && realized < nproc) auto_size = 1;
-        } else {
-            // Threshold-aware: coarser threshold -> fewer, larger batches.
-            const double thresh = FunctionDefaults<3>::get_thresh();
-            const long tasks_per_rank =
-                    (thresh >= 1.e-5) ? 2 :   // low  (1e-4 neighbourhood)
-                    (thresh >= 1.e-7) ? 4 :   // mid  (1e-6 neighbourhood)
-                                        8;    // high (1e-8 neighbourhood)
-            const long target_tasks = std::max<long>(1, tasks_per_rank * nproc);
-            // Invert triangular number formula nbatch*(nbatch+1)/2 = target_tasks.
-            const long nbatch = std::max<long>(1,
-                    long((std::sqrt(1.0 + 8.0 * double(target_tasks)) - 1.0) / 2.0));
-            auto_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
-        }
+        // Threshold-aware: coarser threshold -> fewer, larger batches.
+        const double thresh = FunctionDefaults<3>::get_thresh();
+        const long tasks_per_rank =
+                (thresh >= 1.e-5) ? 2 :   // low  (1e-4 neighbourhood)
+                (thresh >= 1.e-7) ? 4 :   // mid  (1e-6 neighbourhood)
+                                    8;    // high (1e-8 neighbourhood)
+        const long target_tasks = std::max<long>(1, tasks_per_rank * nproc);
+        // Invert triangular number formula nbatch*(nbatch+1)/2 = target_tasks.
+        long nbatch = std::max<long>(1,
+                long((std::sqrt(1.0 + 8.0 * double(target_tasks)) - 1.0) / 2.0));
+        // The fold-based owner assignment pairs row batches from opposite ends of
+        // the triangle, so we need at least 2*nproc row batches to give every rank
+        // at least one rectangle row.  Increase nbatch if needed, capped by norb.
+        nbatch = std::max(nbatch, std::min(2 * nproc, norb));
+        long auto_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
+        // Verify the realized row count is sufficient: ceil(norb/auto_size) may be
+        // less than nbatch due to integer rounding.  Shrink batch size until we
+        // reach the target number of row batches.
+        while (auto_size > 1 && (norb + auto_size - 1) / auto_size < std::min(2 * nproc, norb))
+            --auto_size;
 
         if (resolved_min <= 0) resolved_min = auto_size;
         if (resolved_max <= 0) resolved_max = auto_size;
@@ -1507,7 +1501,6 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	        K.set_symmetric(true).set_printlevel(param.print_level());
         auto [min_batch_size, max_batch_size] = resolve_hfex_batch_sizes(
                 amo.size(), std::max<long>(1, world.size()),
-                exchange_alg,
                 param.hfex_min_batch_size(), param.hfex_max_batch_size());
         K.set_min_batch_size(min_batch_size);
         K.set_max_batch_size(max_batch_size);
