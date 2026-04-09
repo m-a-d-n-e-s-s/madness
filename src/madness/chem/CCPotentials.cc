@@ -1950,7 +1950,9 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     g12.particle()=1;
 
-    auto mo_bra=info.mo_bra;
+    const auto& mo_bra=info.mo_bra;
+    const auto& mo_ket=info.mo_ket;
+    const auto& R2=info.R_square;
     LowRankFunction<double,6> result(world);
 
     // loop over all k
@@ -1969,11 +1971,11 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
         // b_ikp(1) = g_p(1) * g12(k * ti)(1)       (eq 34)
         LowRankFunction<double,6> lrf1(world);
         {
-            auto lrfunctor=LRFunctorF12<double,6>(f12ptr,mo_bra[k],phi_j.function);
+            auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],phi_j.function);
             LowRankFunction<double,6> f12_k=builder.project(lrfunctor);
             print("f12_k (particle 1) sizes",f12_k.g.size(),f12_k.h.size());
             t2.tag("decompose f12 k, particle 1");
-            aikp=info.mo_ket[k]*g12(f12_k.g*phi_i.function);
+            aikp=info.mo_ket[k]*g12(f12_k.g*phi_i.function*R2);
             t2.tag("make a_ikp, particle 1");
             bikp=f12_k.g*g12(mo_bra[k]*phi_i.function);
             t2.tag("make b_ikp, particle 1");
@@ -1990,11 +1992,11 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
         // b_jkp(2) = h_q(2) * g12(k * tj)(2)
         LowRankFunction<double,6> lrf2(world);
         {
-            auto lrfunctor2=LRFunctorF12<double,6>(f12ptr,phi_i.function,mo_bra[k]);
+            auto lrfunctor2=LRFunctorF12<double,6>(f12ptr,phi_i.function,mo_ket[k]);
             LowRankFunction<double,6> f12_k2=builder.project(lrfunctor2);
             print("f12_k (particle 2) sizes",f12_k2.g.size(),f12_k2.h.size());
             t2.tag("decompose f12 k, particle 2");
-            aikp=info.mo_ket[k]*g12(f12_k2.h*phi_j.function);
+            aikp=info.mo_ket[k]*g12(f12_k2.h*phi_j.function*R2);
             t2.tag("make a_jkp, particle 2");
             bikp=f12_k2.h*g12(mo_bra[k]*phi_j.function);
             t2.tag("make b_jkp, particle 2");

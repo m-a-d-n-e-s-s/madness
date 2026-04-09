@@ -330,7 +330,8 @@ namespace madness {
   public:
     explicit CC2Application(World& w, const Params& p, const SCFApplicationT& reference)
         : Application(p), 
-          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()),
+          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(),
+            p.get<LowRankFunctionParameters>(), reference.get_nemo()),
           world_(w), reference_(reference) {
     }
 

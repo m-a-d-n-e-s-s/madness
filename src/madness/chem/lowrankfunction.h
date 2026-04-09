@@ -19,9 +19,21 @@
 namespace madness {
 
     struct LowRankFunctionParameters : QCCalculationParametersBase {
+        static constexpr char const *tag = "lrf";
 
-        LowRankFunctionParameters() : QCCalculationParametersBase() {
+        LowRankFunctionParameters() : QCCalculationParametersBase()
+        {
+            set_defaults();
+        }
 
+        LowRankFunctionParameters(World& world, const commandlineparser& parser) : QCCalculationParametersBase()
+        {
+            set_defaults();
+            read_and_set_derived_values(world,parser,"lrf");
+        }
+
+
+        void set_defaults() {
             // initialize with: key, value, comment (optional), allowed values (optional)
             initialize<double>("radius",2.0,"the radius");
             initialize<double>("gamma",1.0,"the exponent of the correlation factor");

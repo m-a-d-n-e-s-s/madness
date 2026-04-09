@@ -7,6 +7,7 @@
 
 
 #include<madness/chem/CC2.h>
+#include<madness/chem/lowrankfunction.h>
 #include<madness/chem/Results.h>
 #include<madness/mra/commandlineparser.h>
 #include "MolecularOrbitals.h"
@@ -19,7 +20,7 @@ namespace madness {
 
 /// solve the CC2 ground state equations, returns the correlation energy
 nlohmann::json CC2::solve() {
-    if (parameters.test()) CCOPS.test();
+    // if (parameters.test()) CCOPS.test();
 
     if (world.rank()==0) {
         print_header1("Starting the correlated treatment");
@@ -51,6 +52,21 @@ nlohmann::json CC2::solve() {
     Info info;
     info=CCOPS.update_info(parameters,nemo);
     info.intermediate_potentials=CCIntermediatePotentials(parameters);
+
+    // early-exit test: run apply_KffK_low_rank_direct on the first active pair and return
+    if (parameters.test()) {
+        const int nfreeze = parameters.freeze();
+        auto phi_i = CCOPS.mo_ket()(nfreeze);
+        auto phi_j = CCOPS.mo_ket()(nfreeze);
+        LowRankFunctionParameters lrfparam(this->lrfparameters);
+        lrfparam.set_derived_value("gridtype", std::string("random"));
+        lrfparam.set_derived_value("volume_element", 2.e-1);
+        lrfparam.set_derived_value("tol", 1.e-6);
+        lrfparam.set_derived_value("canonicalize", false);
+        lrfparam.print("lrf");
+        CCPotentials::apply_KffK_low_rank_direct(world, phi_i, phi_j, info, nullptr, lrfparam);
+        return {};
+    }
 
     // check if all pair functions have been loaded or computed
     auto all_pairs_exist = [](const Pairs<CCPair>& pairs) {
