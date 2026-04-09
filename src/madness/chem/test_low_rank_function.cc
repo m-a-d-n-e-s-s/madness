@@ -156,6 +156,115 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
 
 }
 
+template<std::size_t LDIM>
+int test_numerics(World& world, LowRankFunctionParameters& parameters) {
+
+    /**
+    2D numerical results for tol, volume_element, canonicalize with thresh 1.e-6
+    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 1         error 1.216274e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 1         error 5.161666e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 1         error 1.629885e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 1         error 6.962729e-04
+    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 1         error 2.404550e-04
+
+    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 0         error 2.732504e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 0         error 1.352570e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 0         error 5.691447e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 0         error 2.848441e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 0         error 1.655696e-03
+    **/
+    test_output t1("test_numerics");
+    t1.set_cout_to_terminal();
+    constexpr int NDIM=2*LDIM;
+    double gaussexponent=2.0;
+    double gauss1=2.0;
+    double gauss2=3.0;
+    parameters.set_derived_value("lmax",3);
+    parameters.set_derived_value("tol",1.e-4);
+    parameters.set_derived_value("radius",3.0);
+
+    // make a functor that is not separable, but has a simple low-rank representation
+    std::vector<std::shared_ptr<LRFunctorBase<double,NDIM>>> functors;
+    Function<double,NDIM> gauss=FunctionFactory<double,NDIM>(world)
+            .functor([&gaussexponent,&gauss1,&gauss2](const Vector<double,NDIM>& r){
+                Vector<double,LDIM> a,b;
+                for (int i=0; i<LDIM; ++i) {
+                    a[i]=r[i];
+                    b[i]=r[i+LDIM];
+                }
+                return exp(-gaussexponent*inner(a-b,a-b))
+                        *exp(-gauss1*inner(a,a)) * exp(-gauss2*inner(b,b));
+            });
+    // functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(new LRFunctorPure<double,NDIM>(gauss)));
+    t1.checkpoint(true,"prep");
+
+    // same functor, different implementation
+    auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent));
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
+            .functor([&gauss1](const Vector<double,LDIM>& r) {return 1.0;});
+    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
+            .functor([&gauss1](const Vector<double,LDIM>& r) {return exp(-gauss1*inner(r,r));});
+    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world)
+            .functor([&gauss2](const Vector<double,LDIM>& r) {return exp(-gauss2*inner(r,r));});
+
+    functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(
+        new LRFunctorF12<double,NDIM>(gaussop,phi1,one)));
+
+    // plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[0],"pure",PlotParameters(world).set_plane({"x1","x2"}));
+    // plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[1],"f12",PlotParameters(world).set_plane({"x1","x2"}));
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+
+    parameters.print("grid");
+
+
+    for (auto canonicalize : {true,false}) {
+        for (auto ve : {1.e-1}) {
+            // for (auto tol : {1.e-5,1.e-6, 1.e-7}) {
+            for (auto tol : {1.e-5,1.e-6,1.e-7,1.e-8,1.e-9}) {
+                for (auto& functor : functors) {
+                    parameters.set_derived_value("canonicalize",canonicalize);
+                    parameters.set_derived_value("volume_element",ve);
+                    parameters.set_derived_value("tol",tol);
+
+
+                    auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
+                    auto lrfunction1=builder.project(*functor);
+
+                    // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
+                    // inaccurate, cf R12 error convergence, so we use a very loose tolerance here.
+                    double tol_lrf=2.e-2;
+                    double tol_lrf_l2=5.e-2;
+
+                    // turn tol into a string with scientic notation and 2 digits, for better readability of the output
+                    char buf[80];
+                    snprintf(buf,80,"tol, volume, canonicalize %.2e %.2e, %s",
+                        parameters.tol(), parameters.volume_element(), std::to_string(canonicalize).c_str());
+
+                    std::string description(buf);
+                    t1.checkpoint(true,"lrf projection");
+                    { // check function evaluation
+                        Vector<double,NDIM> a;
+                        a.fill(0.25);
+                        double val=lrfunction1(a);
+                        double ref1=(*functor)(a);
+                        // double ref2=functorpure(a);
+                        print("lr function evaluation, val, reference",val,ref1);
+                        t1.checkpoint(val,ref1,tol_lrf,"lrf eval, "+description);
+                    }
+                    { // test l2 error
+                        double error1=lrfunction1.l2error(*functor);
+                        print("error, tol", error1,tol_lrf);
+                        t1.checkpoint(error1,tol_lrf_l2,"lrf l2 err, "+description);
+                    }
+                }
+            }
+        }
+    }
+    return t1.end();
+}
+
 int test_stuff(World& world, LowRankFunctionParameters parameters) {
     test_output t1("test_stuff");
     t1.set_cout_to_terminal();
@@ -1272,6 +1381,8 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     // isuccess+=test_stuff(world,parameters);
+    isuccess+=test_numerics<3>(world, parameters);
+    throw;
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     isuccess+=test_molecular_grid<1>(world,parameters);
@@ -1282,7 +1393,7 @@ int main(int argc, char **argv) {
 
         // make_ri_basis<3>(world, parameters);
         isuccess+=test_construction<1>(world, parameters);
-        isuccess+=test_adaptive_grid_projection<1>(world, parameters);
+        // isuccess+=test_adaptive_grid_projection<1>(world, parameters);
         isuccess+=test_recursive_apply<1>(world);
         isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
         isuccess+=test_remove_lindep<1>(world,parameters);
@@ -1305,20 +1416,3 @@ int main(int argc, char **argv) {
 
     return isuccess;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

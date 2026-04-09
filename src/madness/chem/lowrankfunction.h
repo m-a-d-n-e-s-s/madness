@@ -45,7 +45,7 @@ namespace madness {
             initialize<std::string>("gridtype","random","the grid type",{"random","adaptive","twostage","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
-            initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity");
+            initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity (non-canon. sensitive to thresh!)");
             initialize<std::vector<double>>("tempered",{0.05,2.0,3.0},"zeta_min,zeta_max,factor");
             initialize<double>("adaptive_coarse_factor",8.0,"coarse grid uses volume_element*factor");
             initialize<double>("adaptive_refine_radius",0.5,"local refinement radius as fraction of radius");
@@ -1397,19 +1397,30 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             // default: g is just Y without linear dependencies, no orthonormalization
             auto g=pY;
+            print("g.size()",g.size());
 
             // canonicalization: orthonormalize g
+            double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
             if (parameters.canonicalize()) {
-                g=truncate(transform(world,g,X));
+                g=truncate(transform(world,g,X),tight_thresh);
                 metric.clear();
-                t1.tag("Y orthonormalization");
+                t1.tag("Y canonicalization");
+
             }
-            auto h=truncate(inner(lrfunctor,g,p1,p1));
+            auto h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
             t1.tag("Y backprojection");
+            // if (not parameters.canonicalize()) {
+                // for some reason this goes sideways..
+                // g=truncate(transform(world,g,X),tight_thresh);
+                // h=truncate(transform(world,h,X),tight_thresh);
+                // metric.clear();
+                // t1.tag("Y semi-canonicalization");
+            // }
 
             LowRankFunction<T,NDIM> result(g,h,parameters.tol(),parameters.orthomethod(),metric);
             result.remove_linear_dependencies(); // improves numerical stability
             t1.tag("removing lindep");
+            print("final lrf sizes ",g.size(),h.size());
 
             return result;
         }
