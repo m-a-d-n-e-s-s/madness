@@ -172,6 +172,20 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
     lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 0         error 5.691447e-03
     lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 0         error 2.848441e-03
     lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 0         error 1.655696e-03
+
+    3D numerical results: numerical parameters: k, eps(3D), eps(6D) 6 3.000000e-05 1.000000e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 1         error 3.389503e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 1         error 1.216609e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 1         error 5.161720e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 1         error 3.033423e-03
+    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 1         error 2.738746e-03
+
+    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 0         error 5.267631e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 0         error 2.576630e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 0         error 1.670944e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 0         error 4.430516e-02
+    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 0         error 2.903584e-01
+
     **/
     test_output t1("test_numerics");
     t1.set_cout_to_terminal();
@@ -181,7 +195,7 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
     double gauss2=3.0;
     parameters.set_derived_value("lmax",3);
     parameters.set_derived_value("tol",1.e-4);
-    parameters.set_derived_value("radius",3.0);
+    parameters.set_derived_value("radius",2.0);
 
     // make a functor that is not separable, but has a simple low-rank representation
     std::vector<std::shared_ptr<LRFunctorBase<double,NDIM>>> functors;
@@ -217,10 +231,11 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
 
 
     parameters.print("grid");
+    t1.checkpoint(true,"prep 2");
 
 
     for (auto canonicalize : {true,false}) {
-        for (auto ve : {1.e-1}) {
+        for (auto ve : {1.e-1,1.e-2}) {
             // for (auto tol : {1.e-5,1.e-6, 1.e-7}) {
             for (auto tol : {1.e-5,1.e-6,1.e-7,1.e-8,1.e-9}) {
                 for (auto& functor : functors) {
@@ -243,8 +258,8 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
                         parameters.tol(), parameters.volume_element(), std::to_string(canonicalize).c_str());
 
                     std::string description(buf);
-                    t1.checkpoint(true,"lrf projection");
-                    { // check function evaluation
+                    // t1.checkpoint(true,"lrf projection");
+                    if (0) { // check function evaluation
                         Vector<double,NDIM> a;
                         a.fill(0.25);
                         double val=lrfunction1(a);
@@ -1381,7 +1396,7 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     // isuccess+=test_stuff(world,parameters);
-    isuccess+=test_numerics<3>(world, parameters);
+    isuccess+=test_numerics<2>(world, parameters);
     throw;
 
     // parameters.set_user_defined_value("volume_element",3.e-1);

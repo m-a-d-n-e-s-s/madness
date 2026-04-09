@@ -1386,36 +1386,34 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 MADNESS_EXCEPTION("no such orthomethod",1);
             }
 
-            // some diagnosis on the numerics of the metric
-            Tensor<T> metric=inner(X,X,1,1); // metric = t t^T
-            auto condition=condition_number(metric);
-            if (condition.front()>1.e5) {
-                auto conditionX = condition_number(X);
+            // some diagnosis on the numerics of the half-metric
+            auto conditionX = condition_number(X);
+            if (conditionX.front()>1.e3) {
                 print("warning: ill-conditioned half-metric X in low-rank function projection",conditionX);
-                print("warning: ill-conditioned metric in low-rank function projection",condition);
             }
 
-            // default: g is just Y without linear dependencies, no orthonormalization
-            auto g=pY;
-            print("g.size()",g.size());
-
-            // canonicalization: orthonormalize g
             double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
-            if (parameters.canonicalize()) {
-                g=truncate(transform(world,g,X),tight_thresh);
-                metric.clear();
-                t1.tag("Y canonicalization");
 
-            }
-            auto h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
+            // always form orthonormal g for clean backprojection of h
+            auto g_orth=truncate(transform(world,pY,X),tight_thresh);
+            t1.tag("Y orthonormalization");
+
+            // backproject from orthonormal basis -- numerically clean
+            auto h=truncate(inner(lrfunctor,g_orth,p1,p1),tight_thresh);
             t1.tag("Y backprojection");
-            // if (not parameters.canonicalize()) {
-                // for some reason this goes sideways..
-                // g=truncate(transform(world,g,X),tight_thresh);
-                // h=truncate(transform(world,h,X),tight_thresh);
-                // metric.clear();
-                // t1.tag("Y semi-canonicalization");
-            // }
+
+            Tensor<T> metric;
+            std::vector<Function<T,LDIM>> g;
+            if (parameters.canonicalize()) {
+                g=g_orth;
+            } else {
+                // non-canonical: store half-metric X instead of full metric X^T X
+                // f(1,2) = Σ_{ij} pY_i(1) X_{ij} h_j(2) = Σ_j g_orth_j(1) h_j(2)
+                // cond(X) ~ 1/√tol  vs  cond(X^T X) ~ 1/tol
+                g=pY;
+                metric=X;
+            }
+            print("g.size()",g.size());
 
             LowRankFunction<T,NDIM> result(g,h,parameters.tol(),parameters.orthomethod(),metric);
             result.remove_linear_dependencies(); // improves numerical stability
