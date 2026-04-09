@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
-            if (world.rank() == 0) print(info::print_revision_information());
+            // if (world.rank() == 0) print(info::print_revision_information());
 
 
             // Create workflow
