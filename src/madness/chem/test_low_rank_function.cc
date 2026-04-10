@@ -1343,6 +1343,67 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
     return t1.end();
 }
 
+template<std::size_t LDIM>
+int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
+    constexpr std::size_t NDIM = 2 * LDIM;
+    test_output t1("LowRankFunction::adaptive_project in dimension " + std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+
+    // Gaussian product functor with known low-rank structure
+    double gaussexponent = 2.0;
+    double gauss1 = 2.0;
+    auto gaussop = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+        GaussOperatorPtr<LDIM>(world, gaussexponent));
+    Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
+        .functor([&gauss1](const Vector<double,LDIM>& r) {
+            return exp(-gauss1 * inner(r,r));
+        });
+    Function<double,LDIM> one = FunctionFactory<double,LDIM>(world)
+        .functor([](const Vector<double,LDIM>& r) { return 1.0; });
+
+    LRFunctorF12<double,NDIM> functor(gaussop, phi1, one);
+
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+    // Test 1: loose target should converge quickly
+    {
+        double target = 1.e-2;
+        auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
+        auto lrf = factory.adaptive_project(functor, target);
+        double error = lrf.l2error(functor);
+        auto rank = lrf.rank();
+        print("adaptive_project target=", target, "achieved=", error, "rank=", rank);
+        t1.checkpoint(error, target, "adaptive_project converges to 1e-2");
+    }
+
+    // Test 2: tighter target
+    {
+        double target = 1.e-3;
+        auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
+        auto lrf = factory.adaptive_project(functor, target);
+        double error = lrf.l2error(functor);
+        auto rank = lrf.rank();
+        print("adaptive_project target=", target, "achieved=", error, "rank=", rank);
+        // use a generous tolerance since random grids cause some variance
+        t1.checkpoint(error, 2.0*target, "adaptive_project converges to ~1e-3");
+    }
+
+    // Test 3: unachievable target (limited by thresh) should not crash
+    {
+        double target = 1.e-10;
+        auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
+        auto lrf = factory.adaptive_project(functor, target, 2);
+        auto rank = lrf.rank();
+        print("adaptive_project target=", target, "rank=", rank,
+              "(expected: valid LRF, not converged)");
+        t1.checkpoint(rank(0l) > 0 && rank(1l) > 0,
+                      "unachievable target returns valid LRF");
+    }
+
+    return t1.end();
+}
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -1396,6 +1457,7 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     // isuccess+=test_stuff(world,parameters);
+    isuccess+=test_adaptive_project<1>(world, parameters);
     isuccess+=test_numerics<2>(world, parameters);
     throw;
 

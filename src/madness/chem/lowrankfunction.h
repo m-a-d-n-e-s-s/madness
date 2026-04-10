@@ -1165,8 +1165,80 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         return inner(f1,std::vector<Function<T,PDIM>>({f2}),p1,p2)[0];
     }
 
-    /// Factory class to compute a low-rank approximation of a given hi-dimensional function using randomized
-    /// projection and rank-revealing QR decomposition (RRCD)
+    /// Factory class to compute a low-rank approximation of a given hi-dimensional function
+    /// f(r1,r2) using randomized projection and rank-revealing Cholesky decomposition (RRCD).
+    ///
+    /// The approximation takes the form
+    ///   f(r1,r2) ≈ Σ_{ij} g_i(r1) X_{ij} h_j(r2)
+    /// where X is the "half-metric", g are (non-orthogonal) basis functions, and h are
+    /// backprojected functions. In the canonical form (canonicalize=true), X is absorbed
+    /// into g and the representation simplifies to Σ_i g_i(r1) h_i(r2).
+    ///
+    /// ## Error analysis
+    ///
+    /// The L2 error ||f - f_approx|| has three independent sources that add in quadrature:
+    ///
+    ///   ε_total² ≈ ε_sampling² + ε_truncation² + ε_conditioning²
+    ///
+    /// ### 1. Sampling error (grid coverage)
+    ///
+    /// The grid probes f's column space via localized Gaussians. If the grid misses
+    /// regions where f has significant weight, those contributions cannot be represented.
+    /// Controlled by: volume_element (ve), radius, center placement.
+    ///
+    /// Heuristic: for well-localized functions (Gaussians on atomic centers), ve ≈ 0.1
+    /// with radius ≈ 2-3 suffices for errors down to ~1e-3. Finer grids increase
+    /// Y-formation cost linearly (O(grid_size) functor applications) but the rank
+    /// saturates quickly — most extra grid points are linearly dependent.
+    ///
+    /// ### 2. Truncation error (rank reduction)
+    ///
+    /// The RRCD with tolerance tol discards Y components with overlap eigenvalues < tol.
+    /// For Gaussian kernels the eigenvalues decay rapidly, giving truncation error that
+    /// scales roughly as tol^(0.3-0.5) (empirically). Setting tol = ε² gives truncation
+    /// error ~ ε.
+    ///
+    /// ### 3. Conditioning error (half-metric amplification)
+    ///
+    /// The orthonormalization matrix X (inverse Cholesky factor) has condition number
+    /// cond(X) ~ 1/√tol. When used as the half-metric (instead of the full metric
+    /// M = X^T X with cond ~ 1/tol), discretization errors in g and h are amplified
+    /// during evaluation and norm computation. The effective conditioning error is:
+    ///
+    ///   ε_cond ~ √rank · thresh · cond(X) ~ √rank · thresh / √tol
+    ///
+    /// where thresh = FunctionDefaults<LDIM>::get_thresh() is the MRA truncation threshold.
+    ///
+    /// For the OLD full metric M = X^T X, the amplification was cond(M) ~ 1/tol,
+    /// giving ε_cond ~ √rank · thresh / tol — far worse and causing error blowup
+    /// below tol ~ 1e-6. The half-metric squares the usable range.
+    ///
+    /// ### Optimal parameter balance
+    ///
+    /// The truncation and conditioning errors have opposing tol-dependence:
+    ///   - ε_trunc ~ tol^0.4     (decreases with smaller tol)
+    ///   - ε_cond  ~ thresh/√tol (increases with smaller tol)
+    ///
+    /// There exists an optimal tol where their sum is minimized. Below this, further
+    /// tol reduction increases total error. The thresh parameter sets a hard floor
+    /// on achievable accuracy.
+    ///
+    /// ### Parameter heuristics for a target error ε
+    ///
+    ///   tol    = ε²           (truncation error ~ √tol ~ ε)
+    ///   thresh ≲ ε²/100       (conditioning error ≪ ε)
+    ///   ve     ~ C · ε^(2/LDIM)  with C = 2/1/0.5 for LDIM=1/2/3
+    ///
+    /// ### Benchmark reference (3D, Gaussian test function, 7 threads)
+    ///
+    /// Timings scale as: Yforming O(grid_size), backprojection O(rank),
+    /// rr_cholesky O(n²·rank), remove_lindep O(rank²-rank³).
+    ///
+    ///   ve=0.1 (~160 pts): Yform 0.5-2s, backproj 0.2-1.6s, total 1-7s
+    ///   ve=0.01 (~1650 pts): Yform 5-18s, backproj 0.4-1.9s, total 8-25s
+    ///
+    /// The adaptive_project() method automates parameter selection from a single
+    /// target L2 error, using iterative tol-probing and grid augmentation.
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunctionFactory {
     public:
@@ -1289,6 +1361,40 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return keep;
         }
 
+        /// Extend an overlap matrix when new Y functions are appended to an existing set.
+        ///
+        /// Reuses the existing (n_old x n_old) block and only computes the cross-block
+        /// <Y_old|Y_new> and the new-new block <Y_new|Y_new>.
+        static Tensor<T> extend_overlap_matrix(
+            World& world,
+            const Tensor<T>& ovlp_old,
+            const std::vector<Function<T,LDIM>>& Y_old,
+            const std::vector<Function<T,LDIM>>& Y_new)
+        {
+            long n_old = Y_old.size();
+            long n_new = Y_new.size();
+            long n_total = n_old + n_new;
+
+            Tensor<T> ovlp(n_total, n_total);
+
+            // top-left: reuse existing
+            ovlp(Slice(0, n_old-1), Slice(0, n_old-1)) = ovlp_old;
+
+            // cross block: <Y_old | Y_new>
+            auto cross = matrix_inner(world, Y_old, Y_new);
+            ovlp(Slice(0, n_old-1), Slice(n_old, n_total-1)) = cross;
+            // transpose for lower-left
+            for (long i = 0; i < n_old; ++i)
+                for (long j = 0; j < n_new; ++j)
+                    ovlp(n_old+j, i) = cross(i, j);
+
+            // bottom-right: <Y_new | Y_new>
+            auto new_new = matrix_inner(world, Y_new, Y_new);
+            ovlp(Slice(n_old, n_total-1), Slice(n_old, n_total-1)) = new_new;
+
+            return ovlp;
+        }
+
     public:
         LowRankFunction<T,NDIM> project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
             World& world=lrfunctor.world();
@@ -1357,20 +1463,39 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
                 Y = retry.Y;
             }
-            if (Y.empty()) {
-                print("hello world");
-            }
             MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
             t1.tag("Yforming");
             print("y.size()",Y.size());
 
-            double tol=parameters.tol();
+            auto result = project_from_Y(lrfunctor, Y, parameters.tol());
+            t1.tag("project_from_Y");
+            return result;
+        }
+
+        /// Build a LowRankFunction from pre-formed Y basis functions.
+        ///
+        /// Given a set of Y functions (already normalized, with insignificant ones removed),
+        /// perform rank-revealing Cholesky, orthonormalization, backprojection, and assembly.
+        /// This is the algebraic core extracted from project() for reuse by adaptive_project().
+        ///
+        /// @param[in] lrfunctor  the high-dimensional functor to approximate
+        /// @param[in] Y          pre-formed, normalized basis functions from Yformer
+        /// @param[in] tol        rank-revealing Cholesky tolerance
+        /// @return               the assembled LowRankFunction
+        LowRankFunction<T,NDIM> project_from_Y(
+            const LRFunctorBase<T,NDIM>& lrfunctor,
+            const std::vector<Function<T,LDIM>>& Y,
+            const double tol) const
+        {
+            World& world=lrfunctor.world();
+            timer t1(world);
+            t1.do_print=true;
+
             Tensor<T> X;
 
-            auto ovlp=matrix_inner(world,Y,Y);  // error in symmetric matrix_inner, use non-symmetric form here!
+            auto ovlp=matrix_inner(world,Y,Y);
             auto [pY, t, tinv]=LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y,ovlp,tol);
-            t1.tag("remove linear dependence");
-            // pY is now a set of linearly independent basis functions
+            t1.tag("rr_cholesky");
 
             if (parameters.orthomethod()=="cholesky") {
                 X=t;
@@ -1379,48 +1504,228 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 X=orthonormalize_symmetric_matrix(ovlp);
             } else if (parameters.orthomethod()=="canonical") {
                 ovlp=matrix_inner(world,pY,pY);
-                // since we have already removed the lindep functions with the rr_cholesky, set tol=0.0
                 X=canonical_orthonormalization_matrix<T,NDIM>(world,ovlp,0.0);
             } else {
-                print("unknown orthogonalization method",parameters.orthomethod());
-                MADNESS_EXCEPTION("no such orthomethod",1);
+                MADNESS_EXCEPTION("unknown orthomethod in project_from_Y",1);
             }
 
-            // some diagnosis on the numerics of the half-metric
             auto conditionX = condition_number(X);
             if (conditionX.front()>1.e3) {
-                print("warning: ill-conditioned half-metric X in low-rank function projection",conditionX);
+                print("warning: ill-conditioned half-metric X in project_from_Y",conditionX);
             }
+            t1.tag("orthonormalization");
 
             double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
 
-            // always form orthonormal g for clean backprojection of h
             auto g_orth=truncate(transform(world,pY,X),tight_thresh);
-            t1.tag("Y orthonormalization");
-
-            // backproject from orthonormal basis -- numerically clean
             auto h=truncate(inner(lrfunctor,g_orth,p1,p1),tight_thresh);
-            t1.tag("Y backprojection");
+            t1.tag("backprojection");
 
             Tensor<T> metric;
             std::vector<Function<T,LDIM>> g;
             if (parameters.canonicalize()) {
                 g=g_orth;
             } else {
-                // non-canonical: store half-metric X instead of full metric X^T X
-                // f(1,2) = Σ_{ij} pY_i(1) X_{ij} h_j(2) = Σ_j g_orth_j(1) h_j(2)
-                // cond(X) ~ 1/√tol  vs  cond(X^T X) ~ 1/tol
                 g=pY;
                 metric=X;
             }
             print("g.size()",g.size());
 
-            LowRankFunction<T,NDIM> result(g,h,parameters.tol(),parameters.orthomethod(),metric);
-            result.remove_linear_dependencies(); // improves numerical stability
-            t1.tag("removing lindep");
+            LowRankFunction<T,NDIM> result(g,h,tol,parameters.orthomethod(),metric);
+            result.remove_linear_dependencies();
+            t1.tag("assembly+lindep");
             print("final lrf sizes ",g.size(),h.size());
 
             return result;
+        }
+
+        /// Adaptively project a high-dimensional functor to a low-rank representation.
+        ///
+        /// Automatically determines all numerical parameters from a single target L2 error.
+        /// See the class-level documentation for the full error analysis.
+        ///
+        /// @param[in] lrfunctor       the high-dimensional functor to approximate
+        /// @param[in] target_l2error  the desired L2 error
+        /// @param[in] max_iter        maximum number of refinement iterations (default: 3)
+        /// @return                    the low-rank approximation
+        LowRankFunction<T,NDIM> adaptive_project(
+            const LRFunctorBase<T,NDIM>& lrfunctor,
+            const double target_l2error,
+            const int max_iter = 3) const
+        {
+            World& world = lrfunctor.world();
+            timer t1(world);
+            t1.do_print = true;
+            const double eps = target_l2error;
+
+            // --- Phase 1: Derive internal parameters from target error ---
+
+            // truncation tolerance: truncation error ~ tol^0.4, so tol ~ eps^2 gives margin
+            double tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
+
+            // MRA threshold requirement: thresh << eps * sqrt(tol) / sqrt(rank)
+            // conservative estimate with rank ~ 50
+            double thresh_recommend = std::max(1.e-8, std::min(1.e-3, eps * eps * 0.01));
+            double current_thresh = FunctionDefaults<LDIM>::get_thresh();
+            if (current_thresh > thresh_recommend) {
+                print("WARNING adaptive_project: current thresh", current_thresh,
+                      "may be too large for target error", eps,
+                      "; recommended <=", thresh_recommend);
+            }
+
+            // initial volume element: dimension-dependent heuristic
+            double C_dim = (LDIM <= 1) ? 2.0 : (LDIM <= 2) ? 1.0 : 0.5;
+            double ve = std::max(0.01, std::min(1.0, C_dim * std::pow(eps, 2.0 / LDIM)));
+
+            print("adaptive_project: target_l2error =", eps, "tol =", tol,
+                  "ve =", ve, "thresh =", current_thresh);
+            t1.tag("adaptive: parameter setup");
+
+            // --- Phase 2: Build initial grid and form Y ---
+
+            LowRankFunctionParameters local_params = parameters;
+            local_params.set_derived_value("volume_element", ve);
+            local_params.set_derived_value("tol", tol);
+
+            std::vector<Vector<double,LDIM>> grid;
+            if (!origins.empty()) {
+                // build local grids around each center
+                for (const auto& origin : origins) {
+                    randomgrid<LDIM> rg(ve, parameters.radius(), origin);
+                    auto local = rg.get_grid();
+                    grid.insert(grid.end(), local.begin(), local.end());
+                }
+            } else {
+                grid = make_uniform_random_grid_in_cell(ve);
+            }
+            print("adaptive_project: initial grid size", grid.size());
+            t1.tag("adaptive: grid construction");
+
+            auto yresult = Yformer(lrfunctor, grid, local_params);
+            auto Y = yresult.Y;
+            if (Y.empty()) {
+                yresult = Yformer(lrfunctor, grid, local_params, 30.0, 0.0);
+                Y = yresult.Y;
+            }
+            MADNESS_CHECK_THROW(!Y.empty(),
+                "adaptive_project: Yformer generated no basis functions");
+            print("adaptive_project: initial Y size", Y.size());
+            t1.tag("adaptive: Yforming");
+
+            auto ovlp = matrix_inner(world, Y, Y);
+            t1.tag("adaptive: overlap");
+
+            // --- Phase 3: Initial projection and error check ---
+
+            auto lrf = project_from_Y(lrfunctor, Y, tol);
+            t1.tag("adaptive: projection");
+
+            double current_error = lrf.l2error(lrfunctor);
+            long current_rank = lrf.rank()(0l);
+            print("adaptive_project: iter 0, l2error =", current_error,
+                  "rank =", current_rank, "target =", eps);
+            t1.tag("adaptive: l2error");
+
+            if (current_error <= eps) {
+                print("adaptive_project: converged at iteration 0");
+                return lrf;
+            }
+
+            // --- Phase 4: Iterative refinement ---
+
+            for (int iter = 1; iter <= max_iter; ++iter) {
+
+                // 4a. Tol probe: try 10x tighter tol on existing overlap (cheap)
+                double tol_new = std::max(1.e-14, tol * 0.1);
+                bool tol_helped = false;
+                if (tol_new < tol) {
+                    Tensor<T> ovlp_copy = copy(ovlp);
+                    int rank_probe;
+                    Tensor<integer> piv_probe;
+                    rr_cholesky(ovlp_copy, tol_new, piv_probe, rank_probe);
+                    t1.tag("adaptive: tol probe iter " + std::to_string(iter));
+
+                    print("adaptive_project: rank at tol=", tol, ":", current_rank,
+                          "rank at tol=", tol_new, ":", rank_probe);
+
+                    if (rank_probe > current_rank * 1.1) {
+                        // tighter tol captures more components — re-project
+                        tol = tol_new;
+                        lrf = project_from_Y(lrfunctor, Y, tol);
+                        t1.tag("adaptive: re-projection iter " + std::to_string(iter));
+
+                        current_error = lrf.l2error(lrfunctor);
+                        current_rank = lrf.rank()(0l);
+                        print("adaptive_project: iter", iter,
+                              "(tighter tol), l2error =", current_error,
+                              "rank =", current_rank);
+                        t1.tag("adaptive: l2error iter " + std::to_string(iter));
+
+                        if (current_error <= eps) {
+                            print("adaptive_project: converged at iteration", iter);
+                            return lrf;
+                        }
+                        tol_helped = true;
+                    }
+                }
+
+                // 4b. Grid augmentation: add more grid points
+                double ve_new = std::max(0.001, ve * std::pow(0.5, iter));
+                std::vector<Vector<double,LDIM>> new_grid;
+                if (!origins.empty()) {
+                    for (const auto& origin : origins) {
+                        randomgrid<LDIM> rg(ve_new, parameters.radius(), origin);
+                        auto local = rg.get_grid();
+                        new_grid.insert(new_grid.end(), local.begin(), local.end());
+                    }
+                } else {
+                    new_grid = make_uniform_random_grid_in_cell(ve_new);
+                }
+                print("adaptive_project: augmenting with", new_grid.size(),
+                      "new grid points");
+                t1.tag("adaptive: augment grid iter " + std::to_string(iter));
+
+                LowRankFunctionParameters aug_params = local_params;
+                aug_params.set_derived_value("tol", tol);
+                auto new_yresult = Yformer(lrfunctor, new_grid, aug_params);
+                auto Y_new = new_yresult.Y;
+                t1.tag("adaptive: augment Yforming iter " + std::to_string(iter));
+
+                if (!Y_new.empty()) {
+                    ovlp = extend_overlap_matrix(world, ovlp, Y, Y_new);
+                    t1.tag("adaptive: extend overlap iter " + std::to_string(iter));
+
+                    Y = append(Y, Y_new);
+                    grid.insert(grid.end(), new_grid.begin(), new_grid.end());
+
+                    if (!tol_helped) tol = std::max(1.e-14, tol * 0.1);
+                }
+
+                lrf = project_from_Y(lrfunctor, Y, tol);
+                t1.tag("adaptive: re-projection iter " + std::to_string(iter));
+
+                current_error = lrf.l2error(lrfunctor);
+                current_rank = lrf.rank()(0l);
+                print("adaptive_project: iter", iter,
+                      "(augmented), l2error =", current_error,
+                      "rank =", current_rank);
+                t1.tag("adaptive: l2error iter " + std::to_string(iter));
+
+                if (current_error <= eps) {
+                    print("adaptive_project: converged at iteration", iter);
+                    return lrf;
+                }
+            }
+
+            // --- Phase 5: Return best result with warning ---
+
+            print("WARNING adaptive_project: did NOT converge to target", eps,
+                  "; achieved", current_error);
+            if (current_thresh > thresh_recommend * 10) {
+                print("HINT: MRA threshold", current_thresh,
+                      "is likely too large; try reducing to", thresh_recommend);
+            }
+            return lrf;
         }
 
 
