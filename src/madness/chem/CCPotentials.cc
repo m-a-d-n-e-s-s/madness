@@ -1823,7 +1823,7 @@ CCPotentials::compare_Ue_matrix_elements(World& world, const CCFunction<double, 
 void
 CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
         const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij,
-        const CCPairFunction<double,6> KffKij)
+        const CCPairFunction<double,6> KffKij, std::string msg)
     {
 
     // set up exchange operator
@@ -1862,7 +1862,7 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
 
     if (Kfij.is_assigned()) {
         Tensor<double> diff=Kf_reference-Kf;
-        print("Kf_reference, Kf, diff (abs. norm, rel. norm): ",diff.normf(), diff.normf()/Kf_reference.normf());
+        print("Kf_reference, Kf, diff (abs. norm, rel. norm) ",msg,diff.normf(), diff.normf()/Kf_reference.normf());
         print(Kf_reference);
         print(Kf);
         print(diff);
@@ -2018,7 +2018,7 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     t2.tag("final remove lindep/canonicalize");
     auto result1=CCPairFunction<double,6>(result.g,result.h);
     CCPairFunction<double,6> dummy;
-    compare_KffK_matrix_elements(world,phi_i,phi_j,info,dummy,dummy,result1);
+    compare_KffK_matrix_elements(world,phi_i,phi_j,info,dummy,dummy,result1,"lrf direct");
     return std::vector<CCPairFunction<double,6>>({result1});
 }
 
@@ -2223,7 +2223,8 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
         print("<ij | K f12 | ij> ",n1);
         print("comparing new algorithm matrix elements");
-        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy));
+        auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
+        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy),KffK,"new");
         // save(Kfxy, "Kf_" + x_name + y_name);
     }
 
@@ -2243,7 +2244,8 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         double n1=inner(bra,CCPairFunction<double,6>(Kfxy));
         print("<ij | K f12 | ij> ",n1);
         print("comparing old algorithm matrix elements");
-        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy));
+        auto KffK=CCPairFunction<double,6> (Kfxy - fKxy);
+        compare_KffK_matrix_elements(world,phi_i,phi_j,info,CCPairFunction<double,6>(Kfxy),CCPairFunction<double,6>(fKxy),KffK,"old");
 
     }
 

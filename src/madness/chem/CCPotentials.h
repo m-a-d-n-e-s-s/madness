@@ -465,7 +465,7 @@ public:
     static void
     compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
         const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij,
-        const CCPairFunction<double,6> KffKij=CCPairFunction<double,6>());
+        const CCPairFunction<double,6> KffKij=CCPairFunction<double,6>(), std::string msg="");
 
     static void
     compare_Ue_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
