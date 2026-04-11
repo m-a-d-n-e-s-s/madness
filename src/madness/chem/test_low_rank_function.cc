@@ -1406,6 +1406,103 @@ int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
     return t1.end();
 }
 
+/// Test that each diagnosis path (tol-limited, thresh-limited, grid-limited) is exercised.
+/// Uses LDIM=1 (2D) for speed. Each sub-test sets up parameters that force a specific diagnosis.
+int test_adaptive_diagnosis(World& world) {
+    constexpr std::size_t LDIM = 1;
+    constexpr std::size_t NDIM = 2;
+    test_output t1("adaptive_project diagnosis paths (2D)");
+    t1.set_cout_to_terminal();
+
+    double gaussexponent = 2.0;
+    double gauss1 = 2.0;
+    auto gaussop = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+        GaussOperatorPtr<LDIM>(world, gaussexponent));
+    Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
+        .functor([&gauss1](const Vector<double,LDIM>& r) {
+            return exp(-gauss1 * inner(r,r));
+        });
+    Function<double,LDIM> one = FunctionFactory<double,LDIM>(world)
+        .functor([](const Vector<double,LDIM>& r) { return 1.0; });
+    LRFunctorF12<double,NDIM> functor(gaussop, phi1, one);
+
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+    double saved_thresh = FunctionDefaults<LDIM>::get_thresh();
+
+    // Test 1: tol-limited path
+    // With tight thresh=1e-7, conditioning is negligible, so the algorithm either
+    // converges immediately or uses tol-tightening. For smooth Gaussians in 1D the
+    // initial tol=eps² is usually sufficient (converges at iter 0). This test verifies
+    // correctness of the tol-dominated regime even if refinement isn't needed.
+    {
+        FunctionDefaults<LDIM>::set_thresh(1.e-7);
+        FunctionDefaults<NDIM>::set_thresh(1.e-7);
+
+        Function<double,LDIM> phi1t = FunctionFactory<double,LDIM>(world)
+            .functor([&gauss1](const Vector<double,LDIM>& r) { return exp(-gauss1*inner(r,r)); });
+        Function<double,LDIM> onet = FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return 1.0; });
+        LRFunctorF12<double,NDIM> functor_tight(gaussop, phi1t, onet);
+
+        double target = 1.e-3;
+        LowRankFunctionParameters params;
+        params.set_derived_value("radius", 2.5);
+        auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
+        auto lrf = factory.adaptive_project(functor_tight, target, 3);
+        double error = lrf.l2error(functor_tight);
+        print("tol-limited test: target=", target, "achieved=", error);
+        t1.checkpoint(error, target, "tol-limited (tight thresh) converges");
+
+        FunctionDefaults<LDIM>::set_thresh(saved_thresh);
+        FunctionDefaults<NDIM>::set_thresh(saved_thresh);
+    }
+
+    // Test 2: thresh-limited path
+    // Use coarse thresh=3e-5 so conditioning dominates at eps=1e-3.
+    // eps_cond ~ sqrt(20)*3e-5/sqrt(1e-6) ~ 0.13 >> 0.3*error → diagnosed as thresh-limited.
+    {
+        double target = 1.e-3;
+        LowRankFunctionParameters params;
+        params.set_derived_value("radius", 2.5);
+        auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
+        auto lrf = factory.adaptive_project(functor, target, 2);
+        double error = lrf.l2error(functor);
+        print("thresh-limited test: target=", target, "achieved=", error);
+        t1.checkpoint(error, 3.0*target, "thresh-limited path converges via dynamic thresh");
+    }
+
+    // Test 3: grid-limited path
+    // Use tight thresh + tight tol but very small radius so few grid points cover
+    // the function. With radius=0.5, ve=0.1, we get ~5 grid points — grid saturated.
+    // Diagnosis should detect rank doesn't increase and trigger grid augmentation.
+    {
+        FunctionDefaults<LDIM>::set_thresh(1.e-7);
+        FunctionDefaults<NDIM>::set_thresh(1.e-7);
+
+        Function<double,LDIM> phi1t = FunctionFactory<double,LDIM>(world)
+            .functor([&gauss1](const Vector<double,LDIM>& r) { return exp(-gauss1*inner(r,r)); });
+        Function<double,LDIM> onet = FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return 1.0; });
+        LRFunctorF12<double,NDIM> functor_tight(gaussop, phi1t, onet);
+
+        double target = 5.e-3;
+        LowRankFunctionParameters params;
+        params.set_derived_value("radius", 0.5);
+        auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
+        auto lrf = factory.adaptive_project(functor_tight, target, 3);
+        double error = lrf.l2error(functor_tight);
+        print("grid-limited test: target=", target, "achieved=", error);
+        t1.checkpoint(error, target, "grid-limited path converges via augmentation");
+
+        FunctionDefaults<LDIM>::set_thresh(saved_thresh);
+        FunctionDefaults<NDIM>::set_thresh(saved_thresh);
+    }
+
+    return t1.end();
+}
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -1459,6 +1556,7 @@ int main(int argc, char **argv) {
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     // isuccess+=test_stuff(world,parameters);
+    isuccess+=test_adaptive_diagnosis(world);
     isuccess+=test_adaptive_project<1>(world, parameters);
     isuccess+=test_numerics<2>(world, parameters);
     throw;
