@@ -465,6 +465,10 @@ struct LRFunctorBase : public FunctionFunctorInterface<T,NDIM> {
     virtual std::string type() const = 0;
 
     virtual World& world() const =0;
+
+    /// set the MRA threshold on all internal functions and reproject to the new precision
+    virtual void set_thresh(double thresh) {}
+
     friend std::vector<Function<T,LDIM>> inner(const LRFunctorBase& functor, const std::vector<Function<T,LDIM>>& rhs,
                                                const particle<LDIM> p1, const particle<LDIM> p2) {
         return functor.inner(rhs,p1,p2);
@@ -504,6 +508,11 @@ private:
 public:
 
     World& world() const override {return f12->get_world();}
+
+    void set_thresh(double thresh) override {
+        for (auto& f : a) if (f.is_initialized()) f.set_thresh(thresh);
+        for (auto& f : b) if (f.is_initialized()) f.set_thresh(thresh);
+    }
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
                                         const particle<LDIM> p1, const particle<LDIM> p2) const override {
 
@@ -607,6 +616,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     LRFunctorPure() = default;
     LRFunctorPure(const Function<T,NDIM>& f) : f(f) {}
     World& world() const override {return f.world();}
+
+    void set_thresh(double thresh) override {
+        if (f.is_initialized()) f.set_thresh(thresh);
+    }
 
     Function<T, NDIM> f;    ///< a hi-dim function
 
@@ -1543,30 +1556,38 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// Exploits the block-triangular structure of pivoted Cholesky: when tol is
         /// tightened, the first r_prev pivots and orthonormal functions are unchanged,
         /// so only the new (r_new - r_prev) functions need backprojection.
+        /// IMPORTANT: the state must be built by project_incremental, not reconstructed
+        /// separately, to guarantee pivot consistency.
         struct IncrementalState {
             std::vector<Function<T,LDIM>> g_orth;  ///< orthonormalized basis
             std::vector<Function<T,LDIM>> h;       ///< backprojected functions
             std::vector<Function<T,LDIM>> pY;      ///< pivoted Y (linearly indep.)
-            Tensor<T> X;                           ///< orthonormalization matrix
+            Tensor<T> X;                           ///< orthonormalization matrix (cholesky)
             double tol = 0.0;                      ///< tol used for this state
 
             long rank() const { return g_orth.size(); }
         };
 
-        /// Incrementally extend a projection when tol is tightened on the same Y set.
+        /// Project from Y basis, building an IncrementalState.
         ///
-        /// Only backprojects the (r_new - r_prev) new orthonormal functions, reusing
-        /// the previous g_orth and h. Requires orthomethod="cholesky" for the
-        /// block-triangular X structure.
+        /// If prev is empty (rank 0), does a full projection. If prev has content,
+        /// exploits pivoted Cholesky's block-triangular structure to only backproject
+        /// the (r_new - r_prev) new functions.
+        ///
+        /// IMPORTANT: the overlap matrix must be passed in and reused across calls
+        /// to guarantee identical Cholesky pivots. Recomputing it via matrix_inner
+        /// gives non-deterministic results due to parallel reduction order.
         ///
         /// @param[in] lrfunctor  the high-dimensional functor
-        /// @param[in] Y          the full Y basis (unchanged from previous call)
-        /// @param[in] tol_new    the tighter tolerance
-        /// @param[in] prev       previous state to reuse
-        /// @return               updated state with new g_orth and h appended
+        /// @param[in] Y          the full Y basis
+        /// @param[in] ovlp       the overlap matrix <Y|Y> (will be copied, not modified)
+        /// @param[in] tol_new    the Cholesky tolerance
+        /// @param[in] prev       previous state to reuse (empty for initial projection)
+        /// @return               updated state
         IncrementalState project_incremental(
             const LRFunctorBase<T,NDIM>& lrfunctor,
             const std::vector<Function<T,LDIM>>& Y,
+            const Tensor<T>& ovlp,
             const double tol_new,
             const IncrementalState& prev) const
         {
@@ -1574,14 +1595,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             timer t1(world);
             t1.do_print = true;
 
-            auto ovlp = matrix_inner(world, Y, Y);
-            auto [pY_new, X_new, Xinv_new] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y, ovlp, tol_new);
+            // copy overlap — rr_cholesky destroys it in-place
+            Tensor<T> ovlp_work = copy(ovlp);
+            auto [pY_new, X_new, Xinv_new] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y, ovlp_work, tol_new);
             t1.tag("incremental: rr_cholesky");
 
             long r_prev = prev.rank();
             long r_new = pY_new.size();
-            print("incremental backprojection: r_prev =", r_prev, "r_new =", r_new,
-                  "new functions =", r_new - r_prev);
 
             IncrementalState state;
             state.pY = pY_new;
@@ -1590,21 +1610,28 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             double tight_thresh = FunctionDefaults<LDIM>::get_thresh() * 0.1;
 
-            if (r_new <= r_prev) {
-                // tighter tol didn't add functions (shouldn't happen, but be safe)
+            if (r_prev == 0) {
+                // initial projection: backproject everything
+                print("full projection: rank =", r_new);
+                auto g_orth_all = truncate(transform(world, pY_new, X_new), tight_thresh);
+                t1.tag("incremental: orthonormalization (full)");
+                auto h_all = truncate(inner(lrfunctor, g_orth_all, p1, p1), tight_thresh);
+                t1.tag("incremental: backprojection (full)");
+                state.g_orth = g_orth_all;
+                state.h = h_all;
+            } else if (r_new <= r_prev) {
+                print("incremental: no new functions (r_prev =", r_prev, "r_new =", r_new, ")");
                 state.g_orth = prev.g_orth;
                 state.h = prev.h;
             } else {
-                // form only the new g_orth from columns r_prev..r_new-1 of X_new
-                // X_new has block structure [X_old B; 0 C] so first r_prev columns
-                // produce identical g_orth — no need to recompute
+                // incremental: only backproject new columns r_prev..r_new-1
+                print("incremental backprojection: r_prev =", r_prev, "r_new =", r_new,
+                      "new functions =", r_new - r_prev);
                 Tensor<T> X_new_cols = X_new(_, Slice(r_prev, r_new - 1));
                 auto g_orth_new = truncate(transform(world, pY_new, X_new_cols), tight_thresh);
                 t1.tag("incremental: orthonormalization (new only)");
-
                 auto h_new = truncate(inner(lrfunctor, g_orth_new, p1, p1), tight_thresh);
                 t1.tag("incremental: backprojection (new only)");
-
                 state.g_orth = append(prev.g_orth, g_orth_new);
                 state.h = append(prev.h, h_new);
             }
@@ -1615,6 +1642,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// Assemble a LowRankFunction from an IncrementalState.
         /// Uses half-metric (non-canonical) form: g = pY, h = h, metric = X.
         /// If canonicalize is set, uses g = g_orth, no metric.
+        /// Does NOT run remove_linear_dependencies — that would invalidate the state
+        /// for subsequent incremental calls.
         LowRankFunction<T,NDIM> assemble_lrf(const IncrementalState& state) const {
             Tensor<T> metric;
             std::vector<Function<T,LDIM>> g;
@@ -1624,9 +1653,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 g = state.pY;
                 metric = state.X;
             }
-            LowRankFunction<T,NDIM> result(g, state.h, state.tol, parameters.orthomethod(), metric);
-            result.remove_linear_dependencies();
-            return result;
+            return LowRankFunction<T,NDIM>(g, state.h, state.tol, parameters.orthomethod(), metric);
         }
 
         /// Adaptively project a high-dimensional functor to a low-rank representation.
@@ -1634,10 +1661,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// Automatically determines all numerical parameters from a single target L2 error.
         /// See the class-level documentation for the full error analysis.
         ///
-        /// Uses incremental backprojection: when tightening tol, only the newly added
-        /// rank functions are backprojected (exploiting pivoted Cholesky's block-triangular
-        /// structure). When the MRA thresh floor is detected, falls back to a canonical
-        /// re-projection at temporarily tightened thresh.
+        /// ## Error diagnosis and refinement strategy
+        ///
+        /// After initial projection, estimates the dominant error source:
+        ///   - ε_cond = √rank · thresh / √tol  (conditioning via half-metric)
+        ///   - tol probe: does tighter tol increase rank?
+        ///   - error change: does tighter tol reduce error?
+        ///
+        /// Decision tree per iteration:
+        ///   ε_cond > 0.3·error          → thresh-limited → dynamic thresh (canonical)
+        ///   rank doesn't increase       → grid-limited → augment grid
+        ///   rank increases, error drops  → tol-limited → incremental tol-tightening
+        ///   rank increases, error flat   → thresh-limited → dynamic thresh
+        ///
+        /// After dynamic thresh, if still not converged, remaining error is from grid
+        /// coverage → augment grid at tight thresh.
         ///
         /// @param[in] lrfunctor       the high-dimensional functor to approximate
         /// @param[in] target_l2error  the desired L2 error
@@ -1652,15 +1690,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             timer t1(world);
             t1.do_print = true;
             const double eps = target_l2error;
+            const long max_Y_size = 5000;
 
             // --- Phase 1: Derive internal parameters from target error ---
 
             double tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
-            double thresh_recommend = std::max(1.e-8, std::min(1.e-3, eps * eps * 0.01));
             double original_thresh = FunctionDefaults<LDIM>::get_thresh();
-
-            double C_dim = (LDIM <= 1) ? 2.0 : (LDIM <= 2) ? 1.0 : 0.5;
-            double ve = std::max(0.01, std::min(1.0, C_dim * std::pow(eps, 2.0 / LDIM)));
+            double original_thresh_nd = FunctionDefaults<NDIM>::get_thresh();
+            double ve = 0.1;
 
             print("adaptive_project: eps =", eps, "tol =", tol,
                   "ve =", ve, "thresh =", original_thresh);
@@ -1699,29 +1736,15 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto ovlp = matrix_inner(world, Y, Y);
             t1.tag("adaptive: overlap");
 
-            // --- Phase 3: Initial projection (full, not incremental) ---
+            // --- Phase 3: Initial projection ---
 
-            auto lrf = project_from_Y(lrfunctor, Y, tol);
-            t1.tag("adaptive: projection");
-
-            // Build initial incremental state for subsequent tol-tightening
-            IncrementalState state;
-            state.tol = tol;
-            {
-                // reconstruct the state from what project_from_Y produced
-                auto ovlp2 = matrix_inner(world, Y, Y);
-                auto [pY0, X0, Xinv0] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y, ovlp2, tol);
-                state.pY = pY0;
-                state.X = X0;
-                double tight_thresh = FunctionDefaults<LDIM>::get_thresh() * 0.1;
-                state.g_orth = truncate(transform(world, pY0, X0), tight_thresh);
-                state.h = truncate(inner(lrfunctor, state.g_orth, p1, p1), tight_thresh);
-            }
-            t1.tag("adaptive: build initial state");
+            IncrementalState empty_state;
+            auto state = project_incremental(lrfunctor, Y, ovlp, tol, empty_state);
+            auto lrf = assemble_lrf(state);
+            t1.tag("adaptive: initial projection");
 
             double current_error = lrf.l2error(lrfunctor);
             long current_rank = state.rank();
-            bool negative_l2_detected = false;
             print("adaptive_project: iter 0, l2error =", current_error,
                   "rank =", current_rank, "target =", eps);
             t1.tag("adaptive: l2error");
@@ -1731,57 +1754,75 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return lrf;
             }
 
-            // --- Phase 4: Iterative refinement with incremental backprojection ---
-
-            const long max_Y_size = 5000;  // cap to prevent memory issues
+            // --- Phase 4: Diagnostic-driven refinement loop ---
 
             for (int iter = 1; iter <= max_iter; ++iter) {
 
                 double prev_error = current_error;
 
-                // 4a. Tol probe: try 10x tighter tol (cheap rr_cholesky test)
-                double tol_new = std::max(1.e-14, tol * 0.1);
-                bool tol_helped = false;
-                if (tol_new < tol) {
-                    Tensor<T> ovlp_copy = copy(ovlp);
-                    int rank_probe;
-                    Tensor<integer> piv_probe;
-                    rr_cholesky(ovlp_copy, tol_new, piv_probe, rank_probe);
-                    t1.tag("adaptive: tol probe iter " + std::to_string(iter));
+                // diagnose: estimate conditioning error
+                double eps_cond = std::sqrt(double(current_rank)) * original_thresh / std::sqrt(tol);
+                print("adaptive_project: diagnosis: eps_cond =", eps_cond,
+                      "error =", current_error, "rank =", current_rank, "tol =", tol);
 
-                    print("adaptive_project: rank at tol=", tol, ":", current_rank,
-                          "rank at tol=", tol_new, ":", rank_probe);
+                // --- 4a. If conditioning dominates, go directly to dynamic thresh ---
+                if (eps_cond > 0.3 * current_error) {
+                    print("adaptive_project: conditioning dominates (eps_cond/error =",
+                          eps_cond / current_error, "), switching to dynamic thresh");
+                    goto dynamic_thresh;
+                }
 
-                    if (rank_probe > current_rank * 1.1) {
-                        // incremental backprojection: only new functions
-                        tol = tol_new;
-                        state = project_incremental(lrfunctor, Y, tol, state);
-                        lrf = assemble_lrf(state);
-                        t1.tag("adaptive: incremental proj iter " + std::to_string(iter));
+                // --- 4b. Tol probe: does tighter tol increase rank? ---
+                {
+                    double tol_new = std::max(1.e-14, tol * 0.1);
+                    if (tol_new < tol) {
+                        Tensor<T> ovlp_copy = copy(ovlp);
+                        int rank_probe;
+                        Tensor<integer> piv_probe;
+                        rr_cholesky(ovlp_copy, tol_new, piv_probe, rank_probe);
+                        t1.tag("adaptive: tol probe iter " + std::to_string(iter));
 
-                        current_error = lrf.l2error(lrfunctor);
-                        current_rank = state.rank();
-                        print("adaptive_project: iter", iter,
-                              "(incr tol), l2error =", current_error,
-                              "rank =", current_rank);
-                        t1.tag("adaptive: l2error iter " + std::to_string(iter));
+                        print("adaptive_project: rank at tol=", tol, ":", current_rank,
+                              "rank at tol=", tol_new, ":", rank_probe);
 
-                        if (current_error <= eps) {
-                            print("adaptive_project: converged at iteration", iter);
-                            return lrf;
-                        }
-                        tol_helped = true;
+                        if (rank_probe > current_rank * 1.1) {
+                            // rank increases — try incremental backprojection
+                            tol = tol_new;
+                            state = project_incremental(lrfunctor, Y, ovlp, tol, state);
+                            lrf = assemble_lrf(state);
+                            t1.tag("adaptive: incremental proj iter " + std::to_string(iter));
 
-                        // detect thresh floor: error didn't improve or got worse
-                        if (current_error >= prev_error * 0.95) {
-                            negative_l2_detected = true;
-                            print("adaptive_project: thresh floor detected at iter", iter);
+                            current_error = lrf.l2error(lrfunctor);
+                            current_rank = state.rank();
+                            print("adaptive_project: iter", iter,
+                                  "(incr tol), l2error =", current_error,
+                                  "rank =", current_rank);
+                            t1.tag("adaptive: l2error iter " + std::to_string(iter));
+
+                            if (current_error <= eps) {
+                                print("adaptive_project: converged (tol-limited)");
+                                return lrf;
+                            }
+
+                            // did it actually help?
+                            if (current_error < prev_error * 0.8) {
+                                print("adaptive_project: tol-tightening helped, continuing");
+                                continue;  // tol-limited, keep tightening
+                            } else {
+                                print("adaptive_project: tol-tightening didn't help "
+                                      "-> thresh-limited");
+                                goto dynamic_thresh;
+                            }
+                        } else {
+                            // rank doesn't increase — grid saturated
+                            print("adaptive_project: grid saturated (rank didn't increase)");
+                            // fall through to grid augmentation
                         }
                     }
                 }
 
-                // 4b. Grid augmentation: only if tol didn't help AND Y size permits
-                if (!tol_helped && long(Y.size()) < max_Y_size) {
+                // --- 4c. Grid augmentation (grid-limited) ---
+                if (long(Y.size()) < max_Y_size) {
                     double ve_new = std::max(0.001, ve * std::pow(0.5, iter));
                     std::vector<Vector<double,LDIM>> new_grid;
                     if (!origins.empty()) {
@@ -1793,22 +1834,18 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     } else {
                         new_grid = make_uniform_random_grid_in_cell(ve_new);
                     }
-
-                    // cap new points to stay under max_Y_size
                     if (long(Y.size() + new_grid.size()) > max_Y_size) {
-                        long allowed = max_Y_size - Y.size();
+                        long allowed = max_Y_size - long(Y.size());
                         if (allowed > 0) new_grid.resize(allowed);
                         else new_grid.clear();
                     }
 
                     if (!new_grid.empty()) {
-                        print("adaptive_project: augmenting with", new_grid.size(),
-                              "new grid points");
+                        print("adaptive_project: grid-limited, augmenting with",
+                              new_grid.size(), "new points");
                         t1.tag("adaptive: augment grid iter " + std::to_string(iter));
 
-                        LowRankFunctionParameters aug_params = local_params;
-                        aug_params.set_derived_value("tol", tol);
-                        auto new_yresult = Yformer(lrfunctor, new_grid, aug_params);
+                        auto new_yresult = Yformer(lrfunctor, new_grid, local_params);
                         auto Y_new = new_yresult.Y;
                         t1.tag("adaptive: augment Yforming iter " + std::to_string(iter));
 
@@ -1818,21 +1855,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                             t1.tag("adaptive: extend overlap iter " + std::to_string(iter));
 
                             tol = std::max(1.e-14, tol * 0.1);
-
-                            // full re-projection after grid change (state is invalid)
-                            lrf = project_from_Y(lrfunctor, Y, tol);
+                            IncrementalState empty;
+                            state = project_incremental(lrfunctor, Y, ovlp, tol, empty);
+                            lrf = assemble_lrf(state);
                             t1.tag("adaptive: re-projection iter " + std::to_string(iter));
-
-                            // rebuild state for next incremental iteration
-                            auto ovlp3 = matrix_inner(world, Y, Y);
-                            auto [pY3, X3, Xinv3] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y, ovlp3, tol);
-                            state.pY = pY3;
-                            state.X = X3;
-                            double tight_thresh = FunctionDefaults<LDIM>::get_thresh() * 0.1;
-                            state.g_orth = truncate(transform(world, pY3, X3), tight_thresh);
-                            state.h = truncate(inner(lrfunctor, state.g_orth, p1, p1), tight_thresh);
-                            state.tol = tol;
-                            t1.tag("adaptive: rebuild state iter " + std::to_string(iter));
 
                             current_error = lrf.l2error(lrfunctor);
                             current_rank = state.rank();
@@ -1842,7 +1868,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                             t1.tag("adaptive: l2error iter " + std::to_string(iter));
 
                             if (current_error <= eps) {
-                                print("adaptive_project: converged at iteration", iter);
+                                print("adaptive_project: converged (grid augmentation)");
                                 return lrf;
                             }
                         }
@@ -1850,77 +1876,129 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 }
             }
 
-            // --- Phase 5: Dynamic thresh fallback ---
-            // If the thresh floor was hit, redo projection at tighter thresh in
-            // canonical form (no metric amplification), then truncate back.
-            // Half-metric doesn't survive truncation, so canonical is forced here.
+            // --- Phase 5: Dynamic thresh refinement ---
+            // Redo at tighter thresh in canonical form, then if grid-limited augment there too.
+            dynamic_thresh:
 
-            if (current_error > eps && (negative_l2_detected || original_thresh > thresh_recommend)) {
+            if (current_error > eps) {
                 double tight_thresh = std::max(1.e-10, original_thresh * std::sqrt(tol));
-                if (tight_thresh < original_thresh * 0.5) {
-                    print("adaptive_project: thresh floor detected, retrying at tight_thresh =",
-                          tight_thresh, "(canonical form)");
+                if (tight_thresh >= original_thresh * 0.5)
+                    tight_thresh = std::max(1.e-10, eps * eps * 0.01);
 
-                    // save and tighten thresh for both LDIM and NDIM
-                    double original_thresh_nd = FunctionDefaults<NDIM>::get_thresh();
-                    FunctionDefaults<LDIM>::set_thresh(tight_thresh);
-                    FunctionDefaults<NDIM>::set_thresh(tight_thresh);
-                    t1.tag("adaptive: thresh tightening");
+                print("adaptive_project: dynamic thresh refinement, tight_thresh =",
+                      tight_thresh);
 
-                    // force canonical for this pass — truncation back is only safe for canonical
-                    LowRankFunctionParameters tight_params = parameters;
-                    tight_params.set_derived_value("canonicalize", true);
-                    tight_params.set_derived_value("tol", tol);
-                    tight_params.set_derived_value("volume_element", ve);
+                FunctionDefaults<LDIM>::set_thresh(tight_thresh);
+                FunctionDefaults<NDIM>::set_thresh(tight_thresh);
+                // also tighten the functor's internal functions (without reprojecting)
+                const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor).set_thresh(tight_thresh);
+                t1.tag("adaptive: thresh tightening");
 
-                    // redo Y-formation at tight precision (existing Y is at original_thresh)
-                    auto Y_tight_result = Yformer(lrfunctor, grid, tight_params);
-                    auto Y_tight = Y_tight_result.Y;
-                    if (Y_tight.empty()) {
-                        Y_tight_result = Yformer(lrfunctor, grid, tight_params, 30.0, 0.0);
-                        Y_tight = Y_tight_result.Y;
-                    }
-                    t1.tag("adaptive: tight Yforming");
+                double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
 
-                    if (!Y_tight.empty()) {
-                        // project at tight precision, canonical form
-                        auto ovlp_tight = matrix_inner(world, Y_tight, Y_tight);
-                        auto [pY_t, X_t, Xinv_t] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
-                            Y_tight, ovlp_tight, tol);
-                        auto g_orth_t = truncate(transform(world, pY_t, X_t), tight_thresh * 0.1);
-                        auto h_t = truncate(inner(lrfunctor, g_orth_t, p1, p1), tight_thresh * 0.1);
-                        t1.tag("adaptive: tight projection");
+                // form Y at tight precision using current grid
+                LowRankFunctionParameters tight_params = parameters;
+                tight_params.set_derived_value("canonicalize", true);
+                tight_params.set_derived_value("tol", tol_tight);
+                auto Y_tight_result = Yformer(lrfunctor, grid, tight_params);
+                auto Y_tight = Y_tight_result.Y;
+                if (Y_tight.empty()) {
+                    Y_tight_result = Yformer(lrfunctor, grid, tight_params, 30.0, 0.0);
+                    Y_tight = Y_tight_result.Y;
+                }
+                t1.tag("adaptive: tight Yforming");
 
-                        // restore thresh
+                if (!Y_tight.empty()) {
+                    auto ovlp_tight = matrix_inner(world, Y_tight, Y_tight);
+                    auto [pY_t, X_t, Xinv_t] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
+                        Y_tight, ovlp_tight, tol_tight);
+                    auto g_orth_t = truncate(transform(world, pY_t, X_t), tight_thresh * 0.1);
+                    auto h_t = truncate(inner(lrfunctor, g_orth_t, p1, p1), tight_thresh * 0.1);
+                    t1.tag("adaptive: tight projection");
+
+                    // check error at tight precision (before truncation)
+                    LowRankFunction<T,NDIM> lrf_tight(g_orth_t, h_t, tol_tight, "cholesky");
+                    double err_tight = lrf_tight.l2error(lrfunctor);
+                    print("adaptive_project: tight projection l2error =", err_tight,
+                          "rank =", long(g_orth_t.size()));
+                    t1.tag("adaptive: tight l2error");
+
+                    if (err_tight <= eps) {
+                        // converged at tight precision — restore defaults and return
+                        // don't truncate back: the tight functions are correct and
+                        // truncation to original_thresh would degrade the result
+                        // (rank * original_thresh > eps typically)
                         FunctionDefaults<LDIM>::set_thresh(original_thresh);
                         FunctionDefaults<NDIM>::set_thresh(original_thresh_nd);
+                        const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor).set_thresh(original_thresh);
+                        current_error = err_tight;
+                        print("adaptive_project: converged (dynamic thresh), l2error =",
+                              current_error, "rank =", long(g_orth_t.size()));
+                        t1.tag("adaptive: converged at tight thresh");
+                        return lrf_tight;
+                    }
 
-                        // truncate canonical representation back to original precision
-                        // safe because canonical form has no metric amplification
-                        auto g_trunc = truncate(g_orth_t, original_thresh);
-                        auto h_trunc = truncate(h_t, original_thresh);
-                        lrf = LowRankFunction<T,NDIM>(g_trunc, h_trunc, tol, "cholesky");
-                        t1.tag("adaptive: truncate to original thresh");
+                    // --- Phase 6: Grid augmentation at tight thresh ---
+                    // tight projection didn't reach target → grid is the bottleneck
+                    print("adaptive_project: tight projection grid-limited, augmenting");
 
+                    double ve_fine = std::max(0.001, ve * 0.25);
+                    std::vector<Vector<double,LDIM>> fine_grid;
+                    if (!origins.empty()) {
+                        for (const auto& origin : origins) {
+                            randomgrid<LDIM> rg(ve_fine, parameters.radius(), origin);
+                            auto local = rg.get_grid();
+                            fine_grid.insert(fine_grid.end(), local.begin(), local.end());
+                        }
+                    } else {
+                        fine_grid = make_uniform_random_grid_in_cell(ve_fine);
+                    }
+                    if (long(fine_grid.size()) > max_Y_size)
+                        fine_grid.resize(max_Y_size);
+
+                    auto Y_fine_result = Yformer(lrfunctor, fine_grid, tight_params);
+                    auto Y_fine = Y_fine_result.Y;
+                    t1.tag("adaptive: tight augment Yforming");
+
+                    if (!Y_fine.empty()) {
+                        // combine original tight Y with fine Y
+                        auto Y_all = append(Y_tight, Y_fine);
+                        auto ovlp_all = matrix_inner(world, Y_all, Y_all);
+                        auto [pY_a, X_a, Xinv_a] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
+                            Y_all, ovlp_all, tol_tight);
+                        auto g_a = truncate(transform(world, pY_a, X_a), tight_thresh * 0.1);
+                        auto h_a = truncate(inner(lrfunctor, g_a, p1, p1), tight_thresh * 0.1);
+                        t1.tag("adaptive: tight augment projection");
+
+                        // restore thresh and truncate
+                        FunctionDefaults<LDIM>::set_thresh(original_thresh);
+                        FunctionDefaults<NDIM>::set_thresh(original_thresh_nd);
+                        const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor).set_thresh(original_thresh);
+                        auto g_trunc = truncate(g_a, original_thresh);
+                        auto h_trunc = truncate(h_a, original_thresh);
+                        lrf = LowRankFunction<T,NDIM>(g_trunc, h_trunc, tol_tight, "cholesky");
                         current_error = lrf.l2error(lrfunctor);
                         current_rank = lrf.rank()(0l);
-                        print("adaptive_project: after thresh tightening, l2error =",
+                        print("adaptive_project: tight+augmented, l2error =",
                               current_error, "rank =", current_rank);
-                        t1.tag("adaptive: l2error after thresh tightening");
+                        t1.tag("adaptive: tight augment l2error");
 
                         if (current_error <= eps) {
-                            print("adaptive_project: converged via thresh tightening");
+                            print("adaptive_project: converged (tight + grid augmentation)");
                             return lrf;
                         }
                     } else {
-                        // restore thresh even on failure
                         FunctionDefaults<LDIM>::set_thresh(original_thresh);
                         FunctionDefaults<NDIM>::set_thresh(original_thresh_nd);
+                        const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor).set_thresh(original_thresh);
                     }
+                } else {
+                    FunctionDefaults<LDIM>::set_thresh(original_thresh);
+                    FunctionDefaults<NDIM>::set_thresh(original_thresh_nd);
                 }
             }
 
-            // --- Phase 6: Return best result with warning ---
+            // --- Phase 7: Return best result with warning ---
 
             print("WARNING adaptive_project: did NOT converge to target", eps,
                   "; achieved", current_error);
