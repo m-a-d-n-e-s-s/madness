@@ -1138,8 +1138,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         auto matrix=matrix_inner(world,f1.get_functions(p1),f2.get_functions(p2));
         int index1 = (p1.is_first()) ? 0 : 1;
         int index2 = (p2.is_first()) ? 0 : 1;
-        auto tmp=inner(f1.metric,matrix,index1,0);
-        auto metric=inner(tmp,f2.metric,1,index2);
+        auto tmp = (f1.metric.size()>0) ? inner(f1.metric,matrix,index1,0) : matrix;
+        auto metric = (f2.metric.size()>0) ? inner(tmp,f2.metric,1,index2) : tmp;
         auto gg=copy(world,f1.get_functions(p1.complement()));
         auto hh=copy(world,f2.get_functions(p2.complement()));
         return LowRankFunction<T,NDIM>(gg,hh,f1.rank_revealing_tol,f1.orthomethod,metric);
@@ -1162,7 +1162,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         // inner(lrf(2,1), f_k(2) ) = \sum_i h1_j(1) M_{ij} <g1_i(2) f_k(2)>
         auto matrix_jk=matrix_inner(world,f1.get_functions(p1),vf);
         int index1 = (p1.is_first()) ? 0 : 1;
-        auto matrix = inner(f1.metric,matrix_jk,index1,0);
+        auto matrix = (f1.metric.size()>0) ? inner(f1.metric,matrix_jk,index1,0) : matrix_jk;
         return transform(world,f1.get_functions(p1.complement()),matrix);
     }
 
