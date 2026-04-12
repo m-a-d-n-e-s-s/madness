@@ -763,7 +763,7 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     static_assert(LDIM==1 or LDIM==2);
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::test_inner in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     double thresh=FunctionDefaults<LDIM>::get_thresh();
     double thresh_ndim=FunctionDefaults<LDIM>::get_thresh();
     print("thresh ldim/ndim",thresh,thresh_ndim);
@@ -784,8 +784,8 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
 
     auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
             .set_volume_element(0.1).set_rank_revealing_tol(1.e-6).set_orthomethod("canonical");
-    auto lrf1=builder.one_shot_project(functor1);
-    auto lrf2=builder.one_shot_project(functor2);
+    auto lrf1=builder.project(functor1);
+    auto lrf2=builder.project(functor2);
 
     // reference numbers: (by mathematica)
     // f1(x,y) = exp(-a*x^2) * exp(-(x-y)^2)
@@ -1567,11 +1567,11 @@ int main(int argc, char **argv) {
         isuccess+=test_construction<1>(world, parameters);
         // isuccess+=test_adaptive_grid_projection<1>(world, parameters);
         isuccess+=test_adaptive_diagnosis(world);
-//        isuccess+=test_adaptive_project<1>(world, parameters);
-//        isuccess+=test_recursive_apply<1>(world);
-//        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
-//        isuccess+=test_remove_lindep<1>(world,parameters);
-//        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_adaptive_project<1>(world, parameters);
+        isuccess+=test_recursive_apply<1>(world);
+        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
+        isuccess+=test_remove_lindep<1>(world,parameters);
+        isuccess+=test_arithmetic<1>(world,parameters);
         isuccess+=test_inner<1>(world,parameters);
 
         if (long_test) {

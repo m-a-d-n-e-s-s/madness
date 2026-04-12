@@ -1409,81 +1409,81 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
     public:
-        LowRankFunction<T,NDIM> one_shot_project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
-            World& world=lrfunctor.world();
-            bool do_print=true;
-            timer t1(world);
-            t1.do_print=do_print;
-
-            // get sampling grid
-            std::vector<Vector<double,LDIM>> grid;
-            if (parameters.gridtype()=="adaptive") {
-                const double coarse_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
-                auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
-                auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
-                auto centers = pick_significant_indices(coarse.norms);
-
-
-                // Baseline global coverage comes from the coarse probe itself.
-                grid = coarse_grid;
-
-                const double local_radius = std::max(parameters.volume_element(),
-                                                     parameters.radius() * parameters.adaptive_refine_radius());
-                for (auto icenter : centers) {
-                    randomgrid<LDIM> rg(parameters.volume_element(), local_radius, coarse_grid[icenter]);
-                    auto local = rg.get_grid();
-                    grid.insert(grid.end(), local.begin(), local.end());
-                }
-
-                // Robust fallback if coarse probing produced no points (degenerate cell/VE settings).
-                if (grid.empty()) {
-                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
-                }
-            } else if (parameters.gridtype()=="twostage") {
-                // go through all centers and place a probe grid point in each octand around the center, at distance 0.2
-                // if at least on of the probe points has a significant response, keep the center and continue
-                // with the random grid around the center, otherwise discard the center
-                const double probe_distance = 0.2;
-                const double probe_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
-                std::vector<Vector<double,LDIM>> probe_points;
-                for (const auto& origin : origins) {
-                    for (int octant = 0; octant < (1 << LDIM); ++octant) {
-                        Vector<double,LDIM> probe_point = origin;
-                        for (size_t d = 0; d < LDIM; ++d) {
-                            probe_point[d] += ((octant & (1 << d)) ? 1 : -1) * probe_distance;
-                        }
-                        probe_points.push_back(probe_point);
-                    }
-                    auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
-                    if (std::any_of(probe.norms.begin(), probe.norms.end(), [&](double norm) {
-                        return norm >= parameters.tol();
-                    })) {
-                        randomgrid<LDIM> rg(parameters.volume_element(), parameters.radius(), origin);
-                        auto local = rg.get_grid();
-                        grid.insert(grid.end(), local.begin(), local.end());
-                    }
-                }
-                MADNESS_CHECK_THROW(not grid.empty(),"grid is empty");
-            } else {
-                molecular_grid<LDIM> mgrid(origins,parameters);
-                grid=mgrid.get_grid();
-            }
-            print("initial grid size",grid.size());
-
-            auto yformed = Yformer(lrfunctor,grid,parameters);
-            auto Y = yformed.Y;
-            if (Y.empty()) {
-                auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
-                Y = retry.Y;
-            }
-            MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
-            t1.tag("Yforming");
-            print("y.size()",Y.size());
-
-            auto result = project_from_Y(lrfunctor, Y, parameters.tol());
-            t1.tag("project_from_Y");
-            return result;
-        }
+//        LowRankFunction<T,NDIM> one_shot_project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
+//            World& world=lrfunctor.world();
+//            bool do_print=true;
+//            timer t1(world);
+//            t1.do_print=do_print;
+//
+//            // get sampling grid
+//            std::vector<Vector<double,LDIM>> grid;
+//            if (parameters.gridtype()=="adaptive") {
+//                const double coarse_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
+//                auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
+//                auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
+//                auto centers = pick_significant_indices(coarse.norms);
+//
+//
+//                // Baseline global coverage comes from the coarse probe itself.
+//                grid = coarse_grid;
+//
+//                const double local_radius = std::max(parameters.volume_element(),
+//                                                     parameters.radius() * parameters.adaptive_refine_radius());
+//                for (auto icenter : centers) {
+//                    randomgrid<LDIM> rg(parameters.volume_element(), local_radius, coarse_grid[icenter]);
+//                    auto local = rg.get_grid();
+//                    grid.insert(grid.end(), local.begin(), local.end());
+//                }
+//
+//                // Robust fallback if coarse probing produced no points (degenerate cell/VE settings).
+//                if (grid.empty()) {
+//                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
+//                }
+//            } else if (parameters.gridtype()=="twostage") {
+//                // go through all centers and place a probe grid point in each octand around the center, at distance 0.2
+//                // if at least on of the probe points has a significant response, keep the center and continue
+//                // with the random grid around the center, otherwise discard the center
+//                const double probe_distance = 0.2;
+//                const double probe_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
+//                std::vector<Vector<double,LDIM>> probe_points;
+//                for (const auto& origin : origins) {
+//                    for (int octant = 0; octant < (1 << LDIM); ++octant) {
+//                        Vector<double,LDIM> probe_point = origin;
+//                        for (size_t d = 0; d < LDIM; ++d) {
+//                            probe_point[d] += ((octant & (1 << d)) ? 1 : -1) * probe_distance;
+//                        }
+//                        probe_points.push_back(probe_point);
+//                    }
+//                    auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
+//                    if (std::any_of(probe.norms.begin(), probe.norms.end(), [&](double norm) {
+//                        return norm >= parameters.tol();
+//                    })) {
+//                        randomgrid<LDIM> rg(parameters.volume_element(), parameters.radius(), origin);
+//                        auto local = rg.get_grid();
+//                        grid.insert(grid.end(), local.begin(), local.end());
+//                    }
+//                }
+//                MADNESS_CHECK_THROW(not grid.empty(),"grid is empty");
+//            } else {
+//                molecular_grid<LDIM> mgrid(origins,parameters);
+//                grid=mgrid.get_grid();
+//            }
+//            print("initial grid size",grid.size());
+//
+//            auto yformed = Yformer(lrfunctor,grid,parameters);
+//            auto Y = yformed.Y;
+//            if (Y.empty()) {
+//                auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
+//                Y = retry.Y;
+//            }
+//            MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
+//            t1.tag("Yforming");
+//            print("y.size()",Y.size());
+//
+//            auto result = project_from_Y(lrfunctor, Y, parameters.tol());
+//            t1.tag("project_from_Y");
+//            return result;
+//        }
 
         /// Build a LowRankFunction from pre-formed Y basis functions.
         ///
