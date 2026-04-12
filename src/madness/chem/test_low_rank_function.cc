@@ -17,7 +17,7 @@ using namespace madness;
 
 int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     test_output t1("CCPairFunction::low rank function");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     print("testing the representation of the function:   phi(1) phi(2) f(1,2)");
     print("by computing the norm of the projection : r(1) =  phi(1) int one(1) phi(2) f(1,2) d2");
     madness::default_random_generator.setstate(int(cpu_time())%4149);
@@ -188,7 +188,7 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
 
     **/
     test_output t1("test_numerics");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     constexpr int NDIM=2*LDIM;
     double gaussexponent=2.0;
     double gauss1=2.0;
@@ -282,7 +282,7 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
 
 int test_stuff(World& world, LowRankFunctionParameters parameters) {
     test_output t1("test_stuff");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     print("this is a placeholder for testing stuff");
 
     return t1.end();
@@ -296,7 +296,7 @@ int test_stuff(World& world, LowRankFunctionParameters parameters) {
 template<std::size_t LDIM>
 int test_recursive_apply(World& world) {
     test_output t1("test_recursive_apply");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     constexpr std::size_t NDIM = 2 * LDIM;
 
@@ -343,7 +343,7 @@ int test_recursive_apply(World& world) {
 
     // the error should be small relative to the result
     bool success = (error < 10.0 * thresh * ref_norm);
-    t1.logger << "error: " << error << " ref_norm: " << ref_norm << std::endl;
+    t1.checkpoint(error, 10*thresh*ref_norm,"recursive_apply");
 
     // restore original tensor type
     FunctionDefaults<NDIM>::set_tensor_type(original_tt);
@@ -356,7 +356,7 @@ int test_recursive_apply(World& world) {
 /// < ij | K f12 | ij >
 int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     test_output t1("CCPairFunction::low exchange commutator");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     madness::default_random_generator.setstate(int(cpu_time())%4149);
     std::string id=unique_fileid();
 
@@ -573,7 +573,7 @@ template<std::size_t LDIM>
 int test_construction(World& world, LowRankFunctionParameters parameters) {
 
     test_output t1("test_construction");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     constexpr int NDIM=2*LDIM;
     double gaussexponent=2.0;
     double gauss1=2.0;
@@ -668,7 +668,7 @@ template<std::size_t LDIM>
 int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::arithmetic in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     double thresh=FunctionDefaults<LDIM>::get_thresh()*10;
     double thresh_ndim=FunctionDefaults<LDIM>::get_thresh();
     print("thresh ldim/ndim",thresh,thresh_ndim);
@@ -784,8 +784,8 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
 
     auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
             .set_volume_element(0.1).set_rank_revealing_tol(1.e-6).set_orthomethod("canonical");
-    auto lrf1=builder.project(functor1);
-    auto lrf2=builder.project(functor2);
+    auto lrf1=builder.one_shot_project(functor1);
+    auto lrf2=builder.one_shot_project(functor2);
 
     // reference numbers: (by mathematica)
     // f1(x,y) = exp(-a*x^2) * exp(-(x-y)^2)
@@ -909,7 +909,7 @@ template<std::size_t LDIM>
 int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::remove_lindep in dimension "+std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
     auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
     Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.4*inner(r,r));});
@@ -941,7 +941,7 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
 
                 // with Slater tol must be relaxed
                 double tol = 2.e-2;
-                if (not canonicalize) tol=5.e-2;        // sad..
+                if (gridtype == std::string("harmonics")) tol=8.e-2; // harmonics cannot represent the cusp
 
                 double error = lrf.l2error(lrfunctor);
                 t1.checkpoint(error, tol, "l2 error in projection "+description);
@@ -976,7 +976,7 @@ template<std::size_t LDIM>
 int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::molecular_grid in dimension "+std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     // prepare a small set of atomic centers
     std::vector<Vector<double,LDIM>> atomic_sites;
@@ -1072,7 +1072,7 @@ template<std::size_t LDIM>
 int test_norm2_asymmetric_metric(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::norm2 with asymmetric metric in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
     double thresh = FunctionDefaults<LDIM>::get_thresh();
 
     // build a few basis functions for g and h
@@ -1288,7 +1288,7 @@ template<std::size_t LDIM>
 int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::adaptive grid projection in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     parameters.set_derived_value("gridtype",std::string("adaptive"));
     parameters.set_derived_value("canonicalize",true);
@@ -1347,7 +1347,7 @@ template<std::size_t LDIM>
 int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::adaptive_project in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     // Gaussian product functor with known low-rank structure
     double gaussexponent = 2.0;
@@ -1370,18 +1370,18 @@ int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
     {
         double target = 1.e-2;
         auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
-        auto lrf = factory.adaptive_project(functor, target);
+        auto lrf = factory.project(functor, target);
         double error = lrf.l2error(functor);
         auto rank = lrf.rank();
         print("adaptive_project target=", target, "achieved=", error, "rank=", rank);
-        t1.checkpoint(error, target, "adaptive_project converges to 1e-2");
+        t1.checkpoint(error, target, "project converges to 1e-2");
     }
 
     // Test 2: tighter target
     {
         double target = 1.e-3;
         auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
-        auto lrf = factory.adaptive_project(functor, target);
+        auto lrf = factory.project(functor, target);
         double error = lrf.l2error(functor);
         auto rank = lrf.rank();
         print("adaptive_project target=", target, "achieved=", error, "rank=", rank);
@@ -1395,7 +1395,7 @@ int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
     if (LDIM <= 1) {
         double target = 1.e-10;
         auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
-        auto lrf = factory.adaptive_project(functor, target, 2);
+        auto lrf = factory.project(functor, target, 2);
         auto rank = lrf.rank();
         print("adaptive_project target=", target, "rank=", rank,
               "(expected: valid LRF, not converged)");
@@ -1412,7 +1412,7 @@ int test_adaptive_diagnosis(World& world) {
     constexpr std::size_t LDIM = 1;
     constexpr std::size_t NDIM = 2;
     test_output t1("adaptive_project diagnosis paths (2D)");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     double gaussexponent = 2.0;
     double gauss1 = 2.0;
@@ -1450,7 +1450,7 @@ int test_adaptive_diagnosis(World& world) {
         LowRankFunctionParameters params;
         params.set_derived_value("radius", 2.5);
         auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
-        auto lrf = factory.adaptive_project(functor_tight, target, 3);
+        auto lrf = factory.project(functor_tight, target, 3);
         double error = lrf.l2error(functor_tight);
         print("tol-limited test: target=", target, "achieved=", error);
         t1.checkpoint(error, target, "tol-limited (tight thresh) converges");
@@ -1467,7 +1467,7 @@ int test_adaptive_diagnosis(World& world) {
         LowRankFunctionParameters params;
         params.set_derived_value("radius", 2.5);
         auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
-        auto lrf = factory.adaptive_project(functor, target, 2);
+        auto lrf = factory.project(functor, target, 2);
         double error = lrf.l2error(functor);
         print("thresh-limited test: target=", target, "achieved=", error);
         t1.checkpoint(error, 3.0*target, "thresh-limited path converges via dynamic thresh");
@@ -1491,7 +1491,7 @@ int test_adaptive_diagnosis(World& world) {
         LowRankFunctionParameters params;
         params.set_derived_value("radius", 0.5);
         auto factory = LowRankFunctionFactory<double,NDIM>(params, origins);
-        auto lrf = factory.adaptive_project(functor_tight, target, 3);
+        auto lrf = factory.project(functor_tight, target, 3);
         double error = lrf.l2error(functor_tight);
         print("grid-limited test: target=", target, "achieved=", error);
         t1.checkpoint(error, target, "grid-limited path converges via augmentation");
@@ -1508,7 +1508,7 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
-    // bool long_test = parser.key_exists("long_test");
+    bool long_test = parser.key_exists("long_test");
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
     double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 3.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
@@ -1552,14 +1552,9 @@ int main(int argc, char **argv) {
     parameters.set_derived_value("tempered",std::vector<double>({1.e-3,1.e2,4.0}));
     parameters.print("grid");
 
-    bool long_test=false;
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
     // isuccess+=test_stuff(world,parameters);
-    isuccess+=test_adaptive_diagnosis(world);
-    isuccess+=test_adaptive_project<1>(world, parameters);
-    isuccess+=test_numerics<2>(world, parameters);
-    throw;
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     isuccess+=test_molecular_grid<1>(world,parameters);
@@ -1571,13 +1566,20 @@ int main(int argc, char **argv) {
         // make_ri_basis<3>(world, parameters);
         isuccess+=test_construction<1>(world, parameters);
         // isuccess+=test_adaptive_grid_projection<1>(world, parameters);
-        isuccess+=test_recursive_apply<1>(world);
-        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
-        isuccess+=test_remove_lindep<1>(world,parameters);
-        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_adaptive_diagnosis(world);
+//        isuccess+=test_adaptive_project<1>(world, parameters);
+//        isuccess+=test_recursive_apply<1>(world);
+//        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
+//        isuccess+=test_remove_lindep<1>(world,parameters);
+//        isuccess+=test_arithmetic<1>(world,parameters);
         isuccess+=test_inner<1>(world,parameters);
 
         if (long_test) {
+            isuccess+=test_construction<2>(world, parameters);
+            isuccess+=test_adaptive_project<2>(world, parameters);
+            isuccess+=test_recursive_apply<2>(world);
+            isuccess+=test_norm2_asymmetric_metric<2>(world, parameters);
+            isuccess+=test_numerics<2>(world, parameters);
             isuccess+=test_remove_lindep<2>(world,parameters);
             isuccess+=test_arithmetic<2>(world,parameters);
             isuccess+=test_inner<2>(world,parameters);

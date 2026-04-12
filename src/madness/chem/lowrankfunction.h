@@ -37,7 +37,7 @@ namespace madness {
             // initialize with: key, value, comment (optional), allowed values (optional)
             initialize<double>("radius",2.0,"the radius");
             initialize<double>("gamma",1.0,"the exponent of the correlation factor");
-            initialize<double>("volume_element",0.1,"volume covered by each grid point");
+            initialize<double>("volume_element",0.1,"initial volume covered by each grid point");
             initialize<double>("tol",1.e-8,"rank-reduced cholesky tolerance");
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
@@ -1409,7 +1409,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
     public:
-        LowRankFunction<T,NDIM> project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
+        LowRankFunction<T,NDIM> one_shot_project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
             World& world=lrfunctor.world();
             bool do_print=true;
             timer t1(world);
@@ -1877,9 +1877,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// @param[in] target_l2error  the desired L2 error
         /// @param[in] max_iter        maximum refinement iterations (default: 5)
         /// @return                    the low-rank approximation
-        LowRankFunction<T,NDIM> adaptive_project(
+        LowRankFunction<T,NDIM> project(
             const LRFunctorBase<T,NDIM>& lrfunctor,
-            const double target_l2error,
+            const double target_l2error=FunctionDefaults<NDIM>::get_thresh(),
             const int max_iter = 5) const
         {
             World& world = lrfunctor.world();
@@ -1891,7 +1891,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
             double original_thresh = FunctionDefaults<LDIM>::get_thresh();
             double current_thresh = original_thresh;
-            double ve = 0.1;
+            double ve = parameters.volume_element();
 
             print("adaptive_project: eps =", eps, "tol =", tol,
                   "vol. element =", ve, "thresh =", current_thresh);
