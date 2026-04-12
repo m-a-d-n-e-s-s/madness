@@ -1640,14 +1640,15 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
         /// Assemble a LowRankFunction from an IncrementalState.
-        /// Uses half-metric (non-canonical) form: g = pY, h = h, metric = X.
-        /// If canonicalize is set, uses g = g_orth, no metric.
+        /// If canonicalize is true, uses g = g_orth with no metric (reliable l2error).
+        /// Otherwise uses half-metric form: g = pY, metric = X.
         /// Does NOT run remove_linear_dependencies — that would invalidate the state
         /// for subsequent incremental calls.
-        LowRankFunction<T,NDIM> assemble_lrf(const IncrementalState& state) const {
+        LowRankFunction<T,NDIM> assemble_lrf(const IncrementalState& state,
+                                              bool canonicalize) const {
             Tensor<T> metric;
             std::vector<Function<T,LDIM>> g;
-            if (parameters.canonicalize()) {
+            if (canonicalize) {
                 g = state.g_orth;
             } else {
                 g = state.pY;
@@ -1761,7 +1762,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double tol_new = std::max(1.e-14, tol * 0.1);
             tol = tol_new;
             state = project_incremental(lrfunctor, Y, ovlp, tol, state);
-            lrf = assemble_lrf(state);
+            lrf = assemble_lrf(state, parameters.canonicalize());
             t1.tag("adaptive: incremental proj iter " + std::to_string(iter));
 
             current_error = lrf.l2error(lrfunctor);
@@ -1811,7 +1812,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             tol = std::max(1.e-14, tol * 0.1);
             IncrementalState empty;
             state = project_incremental(lrfunctor, Y, ovlp, tol, empty);
-            lrf = assemble_lrf(state);
+            lrf = assemble_lrf(state, parameters.canonicalize());
             t1.tag("adaptive: re-projection iter " + std::to_string(iter));
 
             current_error = lrf.l2error(lrfunctor);
@@ -1854,56 +1855,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return mb;
         }
 
-        /// Project at temporarily tightened thresh in canonical form on the given grid.
-        ///
-        /// Pure projection step — no refinement logic. Returns the result with its
-        /// l2error stored in out_error. The caller decides what to do if it's not good enough.
-        /// Uses batched_transform to limit peak memory.
-        /// Returns empty LRF (rank 0) on failure.
-        LowRankFunction<T,NDIM> try_tight_projection(
-            const LRFunctorBase<T,NDIM>& lrfunctor,
-            const std::vector<Vector<double,LDIM>>& grid,
-            double tight_thresh, double tol_tight,
-            double& out_error,
-            timer& t1) const
-        {
-            ThreshGuard guard(tight_thresh,
-                const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor));
-            print("tight_projection at thresh =", tight_thresh, "tol =", tol_tight);
-
-            LowRankFunctionParameters tight_params = parameters;
-            tight_params.set_derived_value("canonicalize", true);
-            tight_params.set_derived_value("tol", tol_tight);
-
-            auto Y_tight = form_Y(lrfunctor, grid, tight_params);
-            t1.tag("adaptive: tight Yforming");
-            World& world = lrfunctor.world();
-            if (Y_tight.empty()) { out_error = 1.0; return LowRankFunction<T,NDIM>(world); }
-            report_memory(Y_tight, "Y_tight");
-
-            auto ovlp_tight = matrix_inner(world, Y_tight, Y_tight);
-            auto [pY_t, X_t, Xinv_t] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
-                Y_tight, ovlp_tight, tol_tight);
-            t1.tag("adaptive: tight rr_cholesky");
-            report_memory(pY_t, "pY_tight");
-
-            double trunc_thresh = tight_thresh * 0.1;
-            auto g_t = batched_transform(world, pY_t, X_t, trunc_thresh);
-            t1.tag("adaptive: tight transform");
-            report_memory(g_t, "g_orth_tight");
-
-            auto h_t = truncate(inner(lrfunctor, g_t, p1, p1), trunc_thresh);
-            t1.tag("adaptive: tight backprojection");
-
-            LowRankFunction<T,NDIM> lrf_tight(g_t, h_t, tol_tight, "cholesky");
-            out_error = lrf_tight.l2error(lrfunctor);
-            print("adaptive_project: tight projection l2error =", out_error,
-                  "rank =", long(g_t.size()));
-            t1.tag("adaptive: tight l2error");
-
-            return lrf_tight;
-        }
-
         /// Adaptively project a high-dimensional functor to a low-rank representation.
         ///
         /// Automatically determines all numerical parameters from a single target L2 error.
@@ -1911,22 +1862,25 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         ///
         /// ## Algorithm
         ///
-        /// 1. Initial projection at tol=ε², ve=0.1
-        /// 2. Diagnose dominant error source (thresh / tol / grid)
-        /// 3. Apply targeted refinement:
-        ///    - tol-limited: incremental tol-tightening (reuses previous backprojection)
-        ///    - grid-limited: augment grid with finer points
-        ///    - thresh-limited: redo at tighter thresh in canonical form
-        /// 4. Repeat until converged or max_iter exhausted
+        /// Single refinement loop with three symmetric actions:
+        ///   - tol-limited: incremental tol-tightening (reuses previous backprojection)
+        ///   - grid-limited: augment grid, reform Y, extend overlap, re-project
+        ///   - thresh-limited: tighten MRA thresh via ThreshGuard at loop level,
+        ///     reform Y at tight precision, rebuild incremental state, continue loop
+        ///
+        /// After thresh-tightening, subsequent tol/grid iterations operate at tight
+        /// precision using the same incremental machinery. The canonical form is used
+        /// at tight thresh for reliable l2error measurement (half-metric l2error is
+        /// unreliable at cond(X) > ~1000).
         ///
         /// @param[in] lrfunctor       the high-dimensional functor to approximate
         /// @param[in] target_l2error  the desired L2 error
-        /// @param[in] max_iter        maximum refinement iterations (default: 3)
+        /// @param[in] max_iter        maximum refinement iterations (default: 5)
         /// @return                    the low-rank approximation
         LowRankFunction<T,NDIM> adaptive_project(
             const LRFunctorBase<T,NDIM>& lrfunctor,
             const double target_l2error,
-            const int max_iter = 3) const
+            const int max_iter = 5) const
         {
             World& world = lrfunctor.world();
             timer t1(world);
@@ -1934,16 +1888,15 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             const double eps = target_l2error;
             const long max_Y_size = 5000;
 
-            // derive parameters from target error
             double tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
             double original_thresh = FunctionDefaults<LDIM>::get_thresh();
+            double current_thresh = original_thresh;
             double ve = 0.1;
 
             print("adaptive_project: eps =", eps, "tol =", tol,
-                  "vol. element =", ve, "thresh =", original_thresh);
+                  "vol. element =", ve, "thresh =", current_thresh);
             t1.tag("adaptive: parameter setup");
 
-            // build initial grid and form Y
             LowRankFunctionParameters local_params = parameters;
             local_params.set_derived_value("volume_element", ve);
             local_params.set_derived_value("tol", tol);
@@ -1960,10 +1913,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto ovlp = matrix_inner(world, Y, Y);
             t1.tag("adaptive: overlap");
 
-            // initial projection
             IncrementalState empty_state;
             auto state = project_incremental(lrfunctor, Y, ovlp, tol, empty_state);
-            auto lrf = assemble_lrf(state);
+            auto lrf = assemble_lrf(state, parameters.canonicalize());
             t1.tag("adaptive: initial projection");
 
             double current_error = lrf.l2error(lrfunctor);
@@ -1977,63 +1929,72 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return lrf;
             }
 
-            // iterative refinement — all decisions at this level
+            // ThreshGuard lives at loop level so tight thresh persists across iterations.
+            // Created on-demand when thresh-limited is diagnosed.
+            std::unique_ptr<ThreshGuard> thresh_guard;
+
             for (int iter = 1; iter <= max_iter; ++iter) {
                 auto diagnosis = diagnose_error(current_error, current_rank,
-                                                tol, original_thresh, Y, ovlp);
+                                                tol, current_thresh, Y, ovlp);
 
                 if (diagnosis == "tol") {
-                    // tol-limited: incremental backprojection
-                    bool helped = try_tol_refinement(lrfunctor, Y, ovlp, tol,
+                    try_tol_refinement(lrfunctor, Y, ovlp, tol,
                         state, lrf, current_error, current_rank, eps, t1, iter);
                     if (current_error <= eps) return lrf;
-                    if (helped) continue;
-                    // tol didn't help → will re-diagnose (likely thresh next)
-                    continue;
 
                 } else if (diagnosis == "grid") {
-                    // grid-limited: augment grid
                     bool augmented = try_grid_augmentation(lrfunctor, Y, ovlp, grid,
                         tol, state, lrf, current_error, current_rank,
                         ve, max_Y_size, local_params, t1, iter);
                     if (current_error <= eps) return lrf;
-                    if (augmented) continue;
-                    break;
+                    if (!augmented) break;
 
                 } else {
-                    // thresh-limited: project at tight thresh on current grid
-                    double tight_thresh = original_thresh * 0.1;
-                    double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
-
-                    double tight_error = 0.0;
-                    auto lrf_tight = try_tight_projection(lrfunctor, grid,
-                        tight_thresh, tol_tight, tight_error, t1);
-                    if (lrf_tight.rank()(0l) == 0) break;
-
-                    if (tight_error <= eps) {
-                        print("adaptive_project: converged (dynamic thresh)");
-                        return lrf_tight;
+                    // thresh-limited: tighten thresh and rebuild state
+                    if (thresh_guard) {
+                        print("adaptive_project: thresh already tightened, giving up");
+                        break;
                     }
+                    current_thresh *= 0.1;
+                    print("adaptive_project: tightening thresh to", current_thresh);
 
-                    // tight projection improved but didn't converge → grid-limited at tight thresh
-                    // augment grid and retry tight projection
-                    if (tight_error < current_error * 0.8) {
-                        print("adaptive_project: tight projection grid-limited, augmenting");
-                        double ve_fine = std::max(0.001, ve * 0.25);
-                        auto fine_grid = build_grid(ve_fine, max_Y_size);
-                        std::vector<Vector<double,LDIM>> merged_grid = grid;
-                        merged_grid.insert(merged_grid.end(),
-                            fine_grid.begin(), fine_grid.end());
+                    // activate ThreshGuard — persists for remaining iterations,
+                    // restores original thresh on scope exit (end of adaptive_project)
+                    thresh_guard = std::make_unique<ThreshGuard>(current_thresh,
+                        const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor));
+                    t1.tag("adaptive: thresh tightening");
 
-                        double aug_error = 0.0;
-                        auto lrf_aug = try_tight_projection(lrfunctor, merged_grid,
-                            tight_thresh, tol_tight, aug_error, t1);
-                        if (lrf_aug.rank()(0l) > 0 && aug_error <= eps) {
-                            print("adaptive_project: converged (tight + grid augmentation)");
-                            return lrf_aug;
-                        }
+                    // use canonical form at tight thresh for reliable l2error
+                    local_params.set_derived_value("canonicalize", true);
+
+                    // reform Y at tight precision on current grid
+                    Y = form_Y(lrfunctor, grid, local_params);
+                    if (Y.empty()) break;
+                    report_memory(Y, "Y_tight");
+                    t1.tag("adaptive: tight Yforming");
+
+                    ovlp = matrix_inner(world, Y, Y);
+                    t1.tag("adaptive: tight overlap");
+
+                    // reset tol and rebuild incremental state from scratch
+                    tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
+                    IncrementalState empty;
+                    state = project_incremental(lrfunctor, Y, ovlp, tol, empty);
+                    // assemble canonical for reliable l2error at tight thresh
+                    lrf = assemble_lrf(state, true);
+                    t1.tag("adaptive: tight projection");
+
+                    current_error = lrf.l2error(lrfunctor);
+                    current_rank = state.rank();
+                    print("adaptive_project: after thresh tightening, l2error =",
+                          current_error, "rank =", current_rank);
+                    t1.tag("adaptive: tight l2error");
+
+                    if (current_error <= eps) {
+                        print("adaptive_project: converged (tight thresh)");
+                        return lrf;
                     }
-                    break;  // thresh path exhausted
+                    // continue loop — will re-diagnose with tight state
                 }
             }
 
