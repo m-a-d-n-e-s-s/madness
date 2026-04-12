@@ -1854,16 +1854,19 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return mb;
         }
 
-        /// Perform projection at temporarily tightened thresh (canonical form).
-        /// Returns the tight LRF if it converges, or empty LRF if not.
-        /// Uses batched_transform to limit peak memory from the orthonormalization step.
+        /// Project at temporarily tightened thresh in canonical form on the given grid.
+        ///
+        /// Pure projection step — no refinement logic. Returns the result with its
+        /// l2error stored in out_error. The caller decides what to do if it's not good enough.
+        /// Uses batched_transform to limit peak memory.
+        /// Returns empty LRF (rank 0) on failure.
         LowRankFunction<T,NDIM> try_tight_projection(
             const LRFunctorBase<T,NDIM>& lrfunctor,
             const std::vector<Vector<double,LDIM>>& grid,
-            double tight_thresh, double tol_tight, double eps,
+            double tight_thresh, double tol_tight,
+            double& out_error,
             timer& t1) const
         {
-            // RAII guard: tightens thresh on entry, restores on exit
             ThreshGuard guard(tight_thresh,
                 const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor));
             print("tight_projection at thresh =", tight_thresh, "tol =", tol_tight);
@@ -1875,7 +1878,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto Y_tight = form_Y(lrfunctor, grid, tight_params);
             t1.tag("adaptive: tight Yforming");
             World& world = lrfunctor.world();
-            if (Y_tight.empty()) return LowRankFunction<T,NDIM>(world);
+            if (Y_tight.empty()) { out_error = 1.0; return LowRankFunction<T,NDIM>(world); }
             report_memory(Y_tight, "Y_tight");
 
             auto ovlp_tight = matrix_inner(world, Y_tight, Y_tight);
@@ -1893,44 +1896,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.tag("adaptive: tight backprojection");
 
             LowRankFunction<T,NDIM> lrf_tight(g_t, h_t, tol_tight, "cholesky");
-            double err = lrf_tight.l2error(lrfunctor);
-            print("adaptive_project: tight projection l2error =", err,
+            out_error = lrf_tight.l2error(lrfunctor);
+            print("adaptive_project: tight projection l2error =", out_error,
                   "rank =", long(g_t.size()));
             t1.tag("adaptive: tight l2error");
 
-            if (err <= eps) {
-                print("adaptive_project: converged (dynamic thresh)");
-                return lrf_tight;
-            }
-
-            // not converged — try grid augmentation at tight thresh
-            print("adaptive_project: tight projection grid-limited, augmenting");
-            double ve_fine = std::max(0.001, 0.1 * 0.25);
-            auto fine_grid = build_grid(ve_fine, 5000);
-            auto Y_fine = form_Y(lrfunctor, fine_grid, tight_params);
-            t1.tag("adaptive: tight augment Yforming");
-            if (Y_fine.empty()) return LowRankFunction<T,NDIM>(world);
-
-            auto Y_all = append(Y_tight, Y_fine);
-            auto ovlp_all = matrix_inner(world, Y_all, Y_all);
-            auto [pY_a, X_a, Xinv_a] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
-                Y_all, ovlp_all, tol_tight);
-            t1.tag("adaptive: tight augment rr_cholesky");
-            report_memory(pY_a, "pY_augmented");
-
-            auto g_a = batched_transform(world, pY_a, X_a, trunc_thresh);
-            t1.tag("adaptive: tight augment transform");
-
-            auto h_a = truncate(inner(lrfunctor, g_a, p1, p1), trunc_thresh);
-            t1.tag("adaptive: tight augment backprojection");
-
-            LowRankFunction<T,NDIM> lrf_aug(g_a, h_a, tol_tight, "cholesky");
-            double err_aug = lrf_aug.l2error(lrfunctor);
-            print("adaptive_project: tight+augmented l2error =", err_aug,
-                  "rank =", long(g_a.size()));
-            t1.tag("adaptive: tight augment l2error");
-
-            return (err_aug <= eps) ? lrf_aug : LowRankFunction<T,NDIM>(world);
+            return lrf_tight;
         }
 
         /// Adaptively project a high-dimensional functor to a low-rank representation.
@@ -2006,49 +1977,63 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return lrf;
             }
 
-            // iterative refinement
+            // iterative refinement — all decisions at this level
             for (int iter = 1; iter <= max_iter; ++iter) {
                 auto diagnosis = diagnose_error(current_error, current_rank,
                                                 tol, original_thresh, Y, ovlp);
 
-                if (diagnosis == "thresh") {
-                    // thresh-limited: redo at tight precision (canonical)
-                    // tighten by one order of magnitude — aggressive tightening
-                    // (original_thresh * sqrt(tol)) causes excessive memory in 6D
-                    double tight_thresh = original_thresh * 0.1;
-                    double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
-
-                    auto lrf_tight = try_tight_projection(lrfunctor, grid,
-                        tight_thresh, tol_tight, eps, t1);
-                    if (lrf_tight.rank()(0l) > 0) {
-                        return lrf_tight;
-                    }
-                    break;  // tight projection didn't converge, nothing more to try
-
-                } else if (diagnosis == "tol") {
+                if (diagnosis == "tol") {
                     // tol-limited: incremental backprojection
                     bool helped = try_tol_refinement(lrfunctor, Y, ovlp, tol,
                         state, lrf, current_error, current_rank, eps, t1, iter);
                     if (current_error <= eps) return lrf;
-                    if (!helped) {
-                        // tol didn't help -> actually thresh-limited, try tight
-                        double tight_thresh = std::max(1.e-10, original_thresh * std::sqrt(tol));
-                        if (tight_thresh >= original_thresh * 0.5)
-                            tight_thresh = std::max(1.e-10, eps * eps * 0.01);
-                        double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
-                        auto lrf_tight = try_tight_projection(lrfunctor, grid,
-                            tight_thresh, tol_tight, eps, t1);
-                        if (lrf_tight.rank()(0l) > 0) return lrf_tight;
-                        break;
-                    }
+                    if (helped) continue;
+                    // tol didn't help → will re-diagnose (likely thresh next)
+                    continue;
 
-                } else {
+                } else if (diagnosis == "grid") {
                     // grid-limited: augment grid
                     bool augmented = try_grid_augmentation(lrfunctor, Y, ovlp, grid,
                         tol, state, lrf, current_error, current_rank,
                         ve, max_Y_size, local_params, t1, iter);
                     if (current_error <= eps) return lrf;
-                    if (!augmented) break;
+                    if (augmented) continue;
+                    break;
+
+                } else {
+                    // thresh-limited: project at tight thresh on current grid
+                    double tight_thresh = original_thresh * 0.1;
+                    double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
+
+                    double tight_error = 0.0;
+                    auto lrf_tight = try_tight_projection(lrfunctor, grid,
+                        tight_thresh, tol_tight, tight_error, t1);
+                    if (lrf_tight.rank()(0l) == 0) break;
+
+                    if (tight_error <= eps) {
+                        print("adaptive_project: converged (dynamic thresh)");
+                        return lrf_tight;
+                    }
+
+                    // tight projection improved but didn't converge → grid-limited at tight thresh
+                    // augment grid and retry tight projection
+                    if (tight_error < current_error * 0.8) {
+                        print("adaptive_project: tight projection grid-limited, augmenting");
+                        double ve_fine = std::max(0.001, ve * 0.25);
+                        auto fine_grid = build_grid(ve_fine, max_Y_size);
+                        std::vector<Vector<double,LDIM>> merged_grid = grid;
+                        merged_grid.insert(merged_grid.end(),
+                            fine_grid.begin(), fine_grid.end());
+
+                        double aug_error = 0.0;
+                        auto lrf_aug = try_tight_projection(lrfunctor, merged_grid,
+                            tight_thresh, tol_tight, aug_error, t1);
+                        if (lrf_aug.rank()(0l) > 0 && aug_error <= eps) {
+                            print("adaptive_project: converged (tight + grid augmentation)");
+                            return lrf_aug;
+                        }
+                    }
+                    break;  // thresh path exhausted
                 }
             }
 
