@@ -1822,8 +1822,41 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return true;
         }
 
+        /// Batched transform: compute transform(world, v, c) in batches to limit peak memory.
+        /// Processes batch_size output columns at a time instead of all at once.
+        std::vector<Function<T,LDIM>> batched_transform(
+            World& world,
+            const std::vector<Function<T,LDIM>>& v,
+            const Tensor<T>& c,
+            double trunc_thresh,
+            long batch_size = 50) const
+        {
+            long m = c.dim(1);
+            std::vector<Function<T,LDIM>> result;
+            result.reserve(m);
+            for (long col = 0; col < m; col += batch_size) {
+                long col_end = std::min(col + batch_size, m);
+                Tensor<T> c_batch = c(_, Slice(col, col_end - 1));
+                auto batch = truncate(transform(world, v, c_batch), trunc_thresh);
+                for (auto& f : batch) result.push_back(f);
+            }
+            return result;
+        }
+
+        /// Report total memory of a vector of LDIM functions in MB.
+        double report_memory(const std::vector<Function<T,LDIM>>& v,
+                             const std::string& name) const
+        {
+            std::size_t total = 0;
+            for (const auto& f : v) total += f.size();
+            double mb = double(total) * sizeof(T) / (1024.0 * 1024.0);
+            print("memory:", name, v.size(), "functions,", mb, "MB");
+            return mb;
+        }
+
         /// Perform projection at temporarily tightened thresh (canonical form).
         /// Returns the tight LRF if it converges, or empty LRF if not.
+        /// Uses batched_transform to limit peak memory from the orthonormalization step.
         LowRankFunction<T,NDIM> try_tight_projection(
             const LRFunctorBase<T,NDIM>& lrfunctor,
             const std::vector<Vector<double,LDIM>>& grid,
@@ -1833,7 +1866,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             // RAII guard: tightens thresh on entry, restores on exit
             ThreshGuard guard(tight_thresh,
                 const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor));
-            t1.tag("adaptive: thresh tightening");
+            print("tight_projection at thresh =", tight_thresh, "tol =", tol_tight);
 
             LowRankFunctionParameters tight_params = parameters;
             tight_params.set_derived_value("canonicalize", true);
@@ -1843,14 +1876,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.tag("adaptive: tight Yforming");
             World& world = lrfunctor.world();
             if (Y_tight.empty()) return LowRankFunction<T,NDIM>(world);
+            report_memory(Y_tight, "Y_tight");
 
             auto ovlp_tight = matrix_inner(world, Y_tight, Y_tight);
             auto [pY_t, X_t, Xinv_t] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
                 Y_tight, ovlp_tight, tol_tight);
+            t1.tag("adaptive: tight rr_cholesky");
+            report_memory(pY_t, "pY_tight");
+
             double trunc_thresh = tight_thresh * 0.1;
-            auto g_t = truncate(transform(world, pY_t, X_t), trunc_thresh);
+            auto g_t = batched_transform(world, pY_t, X_t, trunc_thresh);
+            t1.tag("adaptive: tight transform");
+            report_memory(g_t, "g_orth_tight");
+
             auto h_t = truncate(inner(lrfunctor, g_t, p1, p1), trunc_thresh);
-            t1.tag("adaptive: tight projection");
+            t1.tag("adaptive: tight backprojection");
 
             LowRankFunction<T,NDIM> lrf_tight(g_t, h_t, tol_tight, "cholesky");
             double err = lrf_tight.l2error(lrfunctor);
@@ -1875,9 +1915,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto ovlp_all = matrix_inner(world, Y_all, Y_all);
             auto [pY_a, X_a, Xinv_a] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
                 Y_all, ovlp_all, tol_tight);
-            auto g_a = truncate(transform(world, pY_a, X_a), trunc_thresh);
+            t1.tag("adaptive: tight augment rr_cholesky");
+            report_memory(pY_a, "pY_augmented");
+
+            auto g_a = batched_transform(world, pY_a, X_a, trunc_thresh);
+            t1.tag("adaptive: tight augment transform");
+
             auto h_a = truncate(inner(lrfunctor, g_a, p1, p1), trunc_thresh);
-            t1.tag("adaptive: tight augment projection");
+            t1.tag("adaptive: tight augment backprojection");
 
             LowRankFunction<T,NDIM> lrf_aug(g_a, h_a, tol_tight, "cholesky");
             double err_aug = lrf_aug.l2error(lrfunctor);
@@ -1924,7 +1969,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double ve = 0.1;
 
             print("adaptive_project: eps =", eps, "tol =", tol,
-                  "ve =", ve, "thresh =", original_thresh);
+                  "vol. element =", ve, "thresh =", original_thresh);
             t1.tag("adaptive: parameter setup");
 
             // build initial grid and form Y
@@ -1968,9 +2013,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
                 if (diagnosis == "thresh") {
                     // thresh-limited: redo at tight precision (canonical)
-                    double tight_thresh = std::max(1.e-10, original_thresh * std::sqrt(tol));
-                    if (tight_thresh >= original_thresh * 0.5)
-                        tight_thresh = std::max(1.e-10, eps * eps * 0.01);
+                    // tighten by one order of magnitude — aggressive tightening
+                    // (original_thresh * sqrt(tol)) causes excessive memory in 6D
+                    double tight_thresh = original_thresh * 0.1;
                     double tol_tight = std::max(1.e-14, std::min(1.e-3, eps * eps));
 
                     auto lrf_tight = try_tight_projection(lrfunctor, grid,
