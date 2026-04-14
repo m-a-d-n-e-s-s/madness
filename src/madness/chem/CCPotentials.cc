@@ -1947,6 +1947,8 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     auto f12ptr=f12_op->get_op();
     real_convolution_3d& f12=*f12ptr;
 
+    real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
+
     real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     g12.particle()=1;
 
@@ -1962,8 +1964,69 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     // [K2,f]|ti tj> = sum_kpq g_p(1) M_pq [a_jkp(2) - b_jkp(2)]
     for (int k=0; k<mo_bra.size(); ++k)
     {
-        t2.tag("start k loop");
+        t2.tag("start k loop: "+stringify(k)+" / "+stringify(mo_bra.size()));
         std::vector<real_function_3d> aikp, bikp;
+
+        if (k==phi_j.i) {
+            {
+                print("decomposing f12(1,2) * k_bra(1)");
+                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],one);
+                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
+                double size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte: ",size);
+                f12_k.remove_linear_dependencies();
+                size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte after remove_lindep: ",size);
+                print("f12(1,2) k(1) sizes",f12_k.g.size(),f12_k.h.size());
+                t2.tag("decompose f12 k, particle 1");
+            }
+            {
+                print("decomposing f12(1,2) * k_bra(2)");
+                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,one,info.mo_ket[k]);
+                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
+                double size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte: ",size);
+                f12_k.remove_linear_dependencies();
+                size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte after remove_lindep: ",size);
+                print("f12(1,2) k(2) sizes",f12_k.g.size(),f12_k.h.size());
+                t2.tag("decompose f12 k, particle 1");
+            }
+            {
+                print("decomposing f12(1,2) * k_bra(1) * phi_i(1)");
+                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k]*phi_i.function,one);
+                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
+                double size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte: ",size);
+                f12_k.remove_linear_dependencies();
+                size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte after remove_lindep: ",size);
+                print("f12(1,2) k(j) phi(1) sizes",f12_k.g.size(),f12_k.h.size());
+                t2.tag("decompose f12 k, particle 1");
+            }
+            {
+                print("decomposing f12(1,2) * k_bra(1) * phi_j(2)");
+                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],phi_j.function);
+                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
+                double size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte: ",size);
+                f12_k.remove_linear_dependencies();
+                size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte after remove_lindep: ",size);
+                print("f12(1,2) k(1) j(2) sizes",f12_k.g.size(),f12_k.h.size());
+                t2.tag("decompose f12 k, particle 1");
+            }
+        }
+        continue;
+
 
         // particle 1: [K1, f12]|ti tj>
         // decompose f12(1,2) * k_bra(1) * tj(2): g_p acts on coord 1, h_q on coord 2 (includes tj)

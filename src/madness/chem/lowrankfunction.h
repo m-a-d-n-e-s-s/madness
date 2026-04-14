@@ -1552,6 +1552,73 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return result;
         }
 
+        /// Numerically stable projection using power-iteration.
+        ///
+        /// Unlike project_from_Y (which orthonormalizes Y via ill-conditioned X = U^{-1}),
+        /// this method orthonormalizes h = f·Y instead. The overlap <h|h> has eigenvalues
+        /// weighted by σ_k² (singular values of f), making the rank reduction well-conditioned.
+        /// The result is canonical by construction (no metric).
+        ///
+        /// Algorithm:
+        ///   1. rr_cholesky(<Y|Y>, tol_coarse) → pY              (coarse rank reduction)
+        ///   2. h_raw = inner(f, pY, p1, p1)                     (backproject to r2)
+        ///   3. rr_cholesky(<h_raw|h_raw>, tol) → ph              (well-conditioned rank)
+        ///   4. orthonormalize ph → h_ortho                       (via Cholesky factor)
+        ///   5. g = inner(f, h_ortho, p2, p1)                     (reproject to r1)
+        ///   6. return LowRankFunction(g, h_ortho)                (canonical)
+        ///
+        /// @param[in] lrfunctor  the functor
+        /// @param[in] Y          the probe basis from Yformer
+        /// @param[in] tol        the target Cholesky tolerance
+        /// @return               canonical LowRankFunction
+        LowRankFunction<T,NDIM> project_from_Y_stable(
+            const LRFunctorBase<T,NDIM>& lrfunctor,
+            const std::vector<Function<T,LDIM>>& Y,
+            const double tol) const
+        {
+            World& world = lrfunctor.world();
+            timer t1(world);
+            t1.do_print = true;
+
+            double tight_thresh = FunctionDefaults<LDIM>::get_thresh() * 0.1;
+
+            // Step 1: coarse rank reduction on Y (cheap, removes exact lindep only)
+            // Use TIGHT tolerance so we don't prematurely discard info; the
+            // authoritative rank reduction happens on <h|h> below.
+            double tol_coarse = std::max(1.e-14, tol * 0.01);
+            auto ovlp_Y = matrix_inner(world, Y, Y);
+            auto [pY, Ut_Y, Xinv_Y] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
+                Y, ovlp_Y, tol_coarse);
+            t1.tag("stable: rr_cholesky on Y (coarse)");
+            print("stable: Y.size =", Y.size(), "pY.size =", pY.size());
+
+            // Step 2: backproject pY to r2 space — h_raw inherits σ_k² conditioning
+            auto h_raw = truncate(inner(lrfunctor, pY, p1, p1), tight_thresh);
+            t1.tag("stable: backprojection (h_raw)");
+
+            // Step 3: rank reduction on <h|h> — well-conditioned
+            auto ovlp_h = matrix_inner(world, h_raw, h_raw);
+            auto [ph, Ut_h, Xinv_h] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
+                h_raw, ovlp_h, tol);
+            t1.tag("stable: rr_cholesky on h");
+            print("stable: h_raw.size =", h_raw.size(), "ph.size =", ph.size());
+
+            // Step 4: orthonormalize ph → h_ortho via Cholesky factor X = U^{-1}
+            // Since <h|h> is well-conditioned, this orthonormalization is stable
+            auto h_ortho = truncate(transform(world, ph, Ut_h), tight_thresh);
+            t1.tag("stable: orthonormalization");
+
+            // Step 5: reproject to r1 space — g lives in r1 and is well-behaved
+            auto g = truncate(inner(lrfunctor, h_ortho, p2, p1), tight_thresh);
+            t1.tag("stable: reprojection (g)");
+
+            // Step 6: canonical form, no metric
+            LowRankFunction<T,NDIM> result(g, h_ortho, tol, parameters.orthomethod());
+            print("stable: final rank =", g.size());
+
+            return result;
+        }
+
         /// State for incremental backprojection across tol-tightening iterations.
         /// Exploits the block-triangular structure of pivoted Cholesky: when tol is
         /// tightened, the first r_prev pivots and orthonormal functions are unchanged,
