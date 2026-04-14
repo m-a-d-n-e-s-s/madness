@@ -1297,6 +1297,19 @@ private:
             return std::make_pair(Batch_1D(), false);
         }
 
+        /// find the next task in taskq owned by the same subworld as this task
+        std::pair<long, MacroTaskInternal*> find_next_owned_task(
+                const MacroTaskBase::taskqT& taskq, const long element) const {
+            const long owner_slot = this->get_owner_slot();
+            if (owner_slot < 0) return {-1, nullptr};
+            for (long next = element + 1; next < long(taskq.size()); ++next) {
+                if (not taskq[next]->is_owned_by(owner_slot)) continue;
+                auto next_task = std::dynamic_pointer_cast<MacroTaskInternal>(taskq[next]);
+                if (next_task) return {next, next_task.get()};
+            }
+            return {-1, nullptr};
+        }
+
     	/// accumulate the result of the task into the final result living in the universe
     	template<typename resultT1, std::size_t I=0>
     	typename std::enable_if<is_tuple<resultT1>::value, void>::type
@@ -1345,12 +1358,9 @@ private:
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo policy) override {
         	io_redirect io(element,get_name()+"_task",debug);
+        	const double t_run_start = wall_time();
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
-            {
-                const auto [next_hint, has_hint] = next_owned_col_range(taskq, element);
-                set_next_vf_hint_or_noop(task, next_hint, has_hint, 0);
-                prefetch_next_vf_async_or_noop(task, subworld, argtuple, 0);
-            }
+            const double t_cloud_load_done = wall_time();
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
     		std::string msg="";
@@ -1386,6 +1396,7 @@ private:
     				print("copied coefficients for task",get_name(),"in",cpu1-cpu0,"seconds");
     			}
     		}
+    		const double t_fetch_done = wall_time();
 
     		try {
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
@@ -1393,12 +1404,14 @@ private:
     			task.subworld_ptr=&subworld;	// give the task access to the subworld
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
+        	    const double t_compute_done = wall_time();
 			    constexpr std::size_t bufsize=256;
 			    char buffer[bufsize];
 		    	std::snprintf(buffer,bufsize,"completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
         		print(std::string(buffer));
 
         		// move the result from the batch to the final result, all still in subworld
+        		const double t_accumulate_start = wall_time();
         		auto insert_batch = [&](auto& element1, auto& element2) {
             		typedef std::decay_t<decltype(element1)> decay_type;;
         			if constexpr (is_vector<decay_type>::value) {
@@ -1418,6 +1431,38 @@ private:
         		resultT result_universe=get_output(subworld, cloud);       // lives in the universe
 
         		accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        		const double t_accumulate_done = wall_time();
+
+        		// after compute + accumulate: issue vf prefetch for the next owned task.
+        		// Placed AFTER operator() (not before) so the current task can consume the
+        		// prefetch issued by the PREVIOUS task's run() before this task's hooks
+        		// overwrite the static prefetch state.
+        		{
+        		    auto [next_elem, next_ptr] = find_next_owned_task(taskq, element);
+        		    if (next_ptr and not next_ptr->task.batch.input.empty()) {
+        		        set_next_vf_hint_or_noop(task, next_ptr->task.batch.input[0], true, 0);
+        		    } else {
+        		        set_next_vf_hint_or_noop(task, Batch_1D(), false, 0);
+        		    }
+        		    prefetch_next_vf_async_or_noop(task, subworld, argtuple, 0);
+        		}
+        		const double t_prefetch_issue_done = wall_time();
+
+        		// per-task phase timing diagnostic
+        		{
+        		    constexpr std::size_t pbuf=512;
+        		    char pbuffer[pbuf];
+        		    std::snprintf(pbuffer,pbuf,
+        		        "RUN_PHASES task=%3ld subworld=%ld cloud_load=%6.3f fetch=%6.3f compute=%6.3f accumulate=%6.3f prefetch_issue=%6.3f total=%6.3f\n",
+        		        element, subworld.id(),
+        		        t_cloud_load_done - t_run_start,
+        		        t_fetch_done - t_cloud_load_done,
+        		        t_compute_done - t_fetch_done,
+        		        t_accumulate_done - t_accumulate_start,
+        		        t_prefetch_issue_done - t_accumulate_done,
+        		        t_prefetch_issue_done - t_run_start);
+        		    print(std::string(pbuffer));
+        		}
 
         	} catch (std::exception& e) {
         		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());

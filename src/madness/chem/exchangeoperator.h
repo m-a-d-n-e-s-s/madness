@@ -257,7 +257,8 @@ private:
         std::map<std::pair<long,long>, long> owner_map_;
 
         /// if true, shuffle per-owner task order to reduce synchronized fetch contention
-        bool shuffle_task_order_ = true;
+        /// disabled: shuffling destroys row-range locality needed for cache reuse and prefetch hits
+        bool shuffle_task_order_ = false;
 
         bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner; }
 
@@ -771,6 +772,13 @@ private:
             MADNESS_CHECK(vf_range.end <= nresult);
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
+            const double t_op_start = wall_time();
+            // detect prefetch hit: vf_prefetch_.has_next matching this vf_range means
+            // the previous task's run() pre-fetched our column batch
+            const bool prefetch_hit = use_owner_aware_fetch()
+                and vf_prefetch_.has_next
+                and same_range(vf_prefetch_.next_range, normalize_range(vf_range, long(vf_batch.size())));
+
             vecfuncT bra_local;
             const vecfuncT* bra_work = &bra_batch;
             const vecfuncT* vf_work = &vf_batch;
@@ -779,11 +787,13 @@ private:
                 bra_work = &bra_local;
                 vf_work = &acquire_current_vf(world, vf_batch, vf_range);
             }
+            const double t_bravf_done = wall_time();
 
             if (symmetric and diagonal_block) {
                 vecfuncT ket_batch = use_owner_aware_fetch()
                         ? fetch_range_with_cache(world, vket, bra_range, ket_cache_)
                         : bra_range.copy_batch(vket);
+                const double t_ket_done = wall_time();
                 vecfuncT resultcolumn;
                 if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
                     resultcolumn = compute_diagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, ket_batch,
@@ -791,18 +801,30 @@ private:
                 } else {
                     resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, *bra_work, *vf_work);
                 }
+                const double t_compute_end = wall_time();
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
+                if (world.rank()==0) {
+                    print("OVERLAP_OP task diag prefetch_hit=",int(prefetch_hit),
+                          " col=[",vf_range.begin,",",vf_range.end,
+                          ") row=[",bra_range.begin,",",bra_range.end,
+                          ") bravf_fetch=",t_bravf_done-t_op_start,
+                          " ket_fetch=",t_ket_done-t_bravf_done,
+                          " compute=",t_compute_end-t_ket_done);
+                }
+
             } else if (symmetric and not diagonal_block) {
                 std::pair<vecfuncT, vecfuncT> resultpair;
+                const double t_ket_done = wall_time(); // ket fetch is inside compute for offdiag
                 if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
                     resultpair = compute_offdiagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, vket,
                                                                                                     *bra_work, *vf_work);
                 } else {
                     resultpair = compute_offdiagonal_batch_in_symmetric_matrix(world, vket, *bra_work, *vf_work);
                 }
+                const double t_compute_end = wall_time();
                 auto& resultcolumn = resultpair.first;
                 auto& resultrow = resultpair.second;
 
@@ -810,13 +832,34 @@ private:
                     Kf[i] += resultcolumn[i - bra_range.begin];}
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultrow[i - vf_range.begin];}
+
+                if (world.rank()==0) {
+                    print("OVERLAP_OP task offdiag prefetch_hit=",int(prefetch_hit),
+                          " col=[",vf_range.begin,",",vf_range.end,
+                          ") row=[",bra_range.begin,",",bra_range.end,
+                          ") bravf_fetch=",t_bravf_done-t_op_start,
+                          " ket_fetch=",t_ket_done-t_bravf_done,
+                          " compute=",t_compute_end-t_ket_done);
+                }
+
             } else {
                 vecfuncT ket_batch = use_owner_aware_fetch()
                         ? fetch_range_with_cache(world, vket, bra_range, ket_cache_)
                         : bra_range.copy_batch(vket);
+                const double t_ket_done = wall_time();
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, *bra_work, *vf_work);
+                const double t_compute_end = wall_time();
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
+
+                if (world.rank()==0) {
+                    print("OVERLAP_OP task asym prefetch_hit=",int(prefetch_hit),
+                          " col=[",vf_range.begin,",",vf_range.end,
+                          ") row=[",bra_range.begin,",",bra_range.end,
+                          ") bravf_fetch=",t_bravf_done-t_op_start,
+                          " ket_fetch=",t_ket_done-t_bravf_done,
+                          " compute=",t_compute_end-t_ket_done);
+                }
             }
             if (use_owner_aware_fetch()) release_finished_vf(vf_range);
             return Kf;
