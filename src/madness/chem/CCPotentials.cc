@@ -1941,7 +1941,8 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     std::cout << std::scientific << std::setprecision(6);
     print("eps(3D), eps(6D), k",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh(),FunctionDefaults<NDIM>::get_k());
     lrfparameters.print("lrf");
-    auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates);
+    auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates)
+    .set_volume_element(0.1);
 
     auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
     auto f12ptr=f12_op->get_op();
@@ -1968,6 +1969,20 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
         std::vector<real_function_3d> aikp, bikp;
 
         if (k==phi_j.i) {
+            {
+                print("decomposing f12(1,2) * k_bra(1) * phi_j(2)");
+                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],phi_j.function);
+                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
+                double size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte: ",size);
+                f12_k.remove_linear_dependencies();
+                size=get_size(world,f12_k.g);
+                size+=get_size(world,f12_k.h);
+                print("size of f12_k in GByte after remove_lindep: ",size);
+                print("f12(1,2) k(1) j(2) sizes",f12_k.g.size(),f12_k.h.size());
+                t2.tag("decompose f12 k, particle 1");
+            }
             {
                 print("decomposing f12(1,2) * k_bra(1)");
                 auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],one);
@@ -2008,20 +2023,6 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
                 size+=get_size(world,f12_k.h);
                 print("size of f12_k in GByte after remove_lindep: ",size);
                 print("f12(1,2) k(j) phi(1) sizes",f12_k.g.size(),f12_k.h.size());
-                t2.tag("decompose f12 k, particle 1");
-            }
-            {
-                print("decomposing f12(1,2) * k_bra(1) * phi_j(2)");
-                auto lrfunctor=LRFunctorF12<double,6>(f12ptr,info.mo_ket[k],phi_j.function);
-                LowRankFunction<double,6> f12_k=builder.project(lrfunctor,3.e-3);
-                double size=get_size(world,f12_k.g);
-                size+=get_size(world,f12_k.h);
-                print("size of f12_k in GByte: ",size);
-                f12_k.remove_linear_dependencies();
-                size=get_size(world,f12_k.g);
-                size+=get_size(world,f12_k.h);
-                print("size of f12_k in GByte after remove_lindep: ",size);
-                print("f12(1,2) k(1) j(2) sizes",f12_k.g.size(),f12_k.h.size());
                 t2.tag("decompose f12 k, particle 1");
             }
         }
