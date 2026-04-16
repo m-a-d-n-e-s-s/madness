@@ -1675,7 +1675,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
 
             return state;
-        }
+            }
 
         /// Diagnose the dominant error source.
         /// With the stable (canonical) algorithm, conditioning is not an issue.

@@ -1942,7 +1942,7 @@ CCPotentials::apply_KffK_low_rank_direct(World& world, const CCFunction<double, 
     print("eps(3D), eps(6D), k",FunctionDefaults<3>::get_thresh(),FunctionDefaults<6>::get_thresh(),FunctionDefaults<NDIM>::get_k());
     lrfparameters.print("lrf");
     auto builder=LowRankFunctionFactory<double,6>(lrfparameters).set_centers(info.molecular_coordinates)
-    .set_volume_element(0.1).set_radius(2.0);
+    .set_volume_element(0.1);
 
     auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
     auto f12ptr=f12_op->get_op();
