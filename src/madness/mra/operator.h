@@ -487,7 +487,7 @@ namespace madness {
                     }
                     else {
 
-#ifdef USE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
                         r = std::max(2L,r+(r&1L)); // (needed for 6D == when GENTENSOR is on) NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
 #endif
                         if (r == 0) {
@@ -532,7 +532,7 @@ namespace madness {
                     }
                     else {
 
-#ifdef USE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
                         r = std::max(2L,r+(r&1L)); // (needed for 6D == GENTENSOR is USED) NOLONGER NEED TO FORCE OPERATOR RANK TO BE EVEN
 #endif
                         if (r == 0) {

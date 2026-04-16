@@ -328,7 +328,7 @@ namespace madness {
 
         /// Sets the default tensor type
         static void set_tensor_type(const TensorType& t) {
-#if HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
         	tt=t;
 #else
         	tt=TT_FULL;

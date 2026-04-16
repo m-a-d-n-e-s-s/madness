@@ -1235,47 +1235,31 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     /// scales roughly as tol^(0.3-0.5) (empirically). Setting tol = ε² gives truncation
     /// error ~ ε.
     ///
-    /// ### 3. Conditioning error (half-metric amplification)
+    /// ### 3. Conditioning (eliminated by power-iteration algorithm)
     ///
-    /// The orthonormalization matrix X (inverse Cholesky factor) has condition number
-    /// cond(X) ~ 1/√tol. When used as the half-metric (instead of the full metric
-    /// M = X^T X with cond ~ 1/tol), discretization errors in g and h are amplified
-    /// during evaluation and norm computation. The effective conditioning error is:
-    ///
-    ///   ε_cond ~ √rank · thresh · cond(X) ~ √rank · thresh / √tol
-    ///
-    /// where thresh = FunctionDefaults<LDIM>::get_thresh() is the MRA truncation threshold.
-    ///
-    /// For the OLD full metric M = X^T X, the amplification was cond(M) ~ 1/tol,
-    /// giving ε_cond ~ √rank · thresh / tol — far worse and causing error blowup
-    /// below tol ~ 1e-6. The half-metric squares the usable range.
-    ///
-    /// ### Optimal parameter balance
-    ///
-    /// The truncation and conditioning errors have opposing tol-dependence:
-    ///   - ε_trunc ~ tol^0.4     (decreases with smaller tol)
-    ///   - ε_cond  ~ thresh/√tol (increases with smaller tol)
-    ///
-    /// There exists an optimal tol where their sum is minimized. Below this, further
-    /// tol reduction increases total error. The thresh parameter sets a hard floor
-    /// on achievable accuracy.
+    /// The current algorithm orthonormalizes h = f·Y (not Y), so the overlap
+    /// <h|h> has eigenvalues weighted by σ_k² (singular values of f).  Rank
+    /// reduction on <h|h> is always well-conditioned — no half-metric or
+    /// full-metric amplification.  The result is canonical by construction
+    /// (no coupling metric), and conditioning is not an error source.
     ///
     /// ### Parameter heuristics for a target error ε
     ///
     ///   tol    = ε²           (truncation error ~ √tol ~ ε)
-    ///   thresh ≲ ε²/100       (conditioning error ≪ ε)
     ///   ve     ~ C · ε^(2/LDIM)  with C = 2/1/0.5 for LDIM=1/2/3
     ///
-    /// ### Benchmark reference (3D, Gaussian test function, 7 threads)
+    /// ### Algorithm (project())
     ///
-    /// Timings scale as: Yforming O(grid_size), backprojection O(rank),
-    /// rr_cholesky O(n²·rank), remove_lindep O(rank²-rank³).
+    /// 1. Build grid around origins (Gaussian-distributed, σ² = 0.5·radius)
+    /// 2. Form Y basis: multi-scale Gaussian RHS at grid points
+    /// 3. Power-iteration projection: Y → h_raw → rr_cholesky(<h|h>) → h_ortho → g
+    /// 4. Tol sweep: incrementally tighten rr_cholesky tolerance, reuse cached <h|h>
+    /// 5. If grid-limited: halve ve, rebuild Y, re-project from scratch
+    /// 6. If thresh-limited: tighten MRA thresh, rebuild Y, re-project
+    /// 7. L2 error via Pythagoras: ||f||² − Σ||g_k||² (no functor applications)
     ///
-    ///   ve=0.1 (~160 pts): Yform 0.5-2s, backproj 0.2-1.6s, total 1-7s
-    ///   ve=0.01 (~1650 pts): Yform 5-18s, backproj 0.4-1.9s, total 8-25s
-    ///
-    /// The adaptive_project() method automates parameter selection from a single
-    /// target L2 error, using iterative tol-probing and grid augmentation.
+    /// The project() method automates parameter selection from a single
+    /// target L2 error.
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunctionFactory {
     public:
@@ -1398,118 +1382,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return keep;
         }
 
-        /// Extend an overlap matrix when new Y functions are appended to an existing set.
-        ///
-        /// Reuses the existing (n_old x n_old) block and only computes the cross-block
-        /// <Y_old|Y_new> and the new-new block <Y_new|Y_new>.
-        static Tensor<T> extend_overlap_matrix(
-            World& world,
-            const Tensor<T>& ovlp_old,
-            const std::vector<Function<T,LDIM>>& Y_old,
-            const std::vector<Function<T,LDIM>>& Y_new)
-        {
-            long n_old = Y_old.size();
-            long n_new = Y_new.size();
-            long n_total = n_old + n_new;
-
-            Tensor<T> ovlp(n_total, n_total);
-
-            // top-left: reuse existing
-            ovlp(Slice(0, n_old-1), Slice(0, n_old-1)) = ovlp_old;
-
-            // cross block: <Y_old | Y_new>
-            auto cross = matrix_inner(world, Y_old, Y_new);
-            ovlp(Slice(0, n_old-1), Slice(n_old, n_total-1)) = cross;
-            // transpose for lower-left
-            for (long i = 0; i < n_old; ++i)
-                for (long j = 0; j < n_new; ++j)
-                    ovlp(n_old+j, i) = cross(i, j);
-
-            // bottom-right: <Y_new | Y_new>
-            auto new_new = matrix_inner(world, Y_new, Y_new);
-            ovlp(Slice(n_old, n_total-1), Slice(n_old, n_total-1)) = new_new;
-
-            return ovlp;
-        }
-
     public:
-//        LowRankFunction<T,NDIM> one_shot_project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
-//            World& world=lrfunctor.world();
-//            bool do_print=true;
-//            timer t1(world);
-//            t1.do_print=do_print;
-//
-//            // get sampling grid
-//            std::vector<Vector<double,LDIM>> grid;
-//            if (parameters.gridtype()=="adaptive") {
-//                const double coarse_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
-//                auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
-//                auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
-//                auto centers = pick_significant_indices(coarse.norms);
-//
-//
-//                // Baseline global coverage comes from the coarse probe itself.
-//                grid = coarse_grid;
-//
-//                const double local_radius = std::max(parameters.volume_element(),
-//                                                     parameters.radius() * parameters.adaptive_refine_radius());
-//                for (auto icenter : centers) {
-//                    randomgrid<LDIM> rg(parameters.volume_element(), local_radius, coarse_grid[icenter]);
-//                    auto local = rg.get_grid();
-//                    grid.insert(grid.end(), local.begin(), local.end());
-//                }
-//
-//                // Robust fallback if coarse probing produced no points (degenerate cell/VE settings).
-//                if (grid.empty()) {
-//                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
-//                }
-//            } else if (parameters.gridtype()=="twostage") {
-//                // go through all centers and place a probe grid point in each octand around the center, at distance 0.2
-//                // if at least on of the probe points has a significant response, keep the center and continue
-//                // with the random grid around the center, otherwise discard the center
-//                const double probe_distance = 0.2;
-//                const double probe_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
-//                std::vector<Vector<double,LDIM>> probe_points;
-//                for (const auto& origin : origins) {
-//                    for (int octant = 0; octant < (1 << LDIM); ++octant) {
-//                        Vector<double,LDIM> probe_point = origin;
-//                        for (size_t d = 0; d < LDIM; ++d) {
-//                            probe_point[d] += ((octant & (1 << d)) ? 1 : -1) * probe_distance;
-//                        }
-//                        probe_points.push_back(probe_point);
-//                    }
-//                    auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
-//                    if (std::any_of(probe.norms.begin(), probe.norms.end(), [&](double norm) {
-//                        return norm >= parameters.tol();
-//                    })) {
-//                        randomgrid<LDIM> rg(parameters.volume_element(), parameters.radius(), origin);
-//                        auto local = rg.get_grid();
-//                        grid.insert(grid.end(), local.begin(), local.end());
-//                    }
-//                }
-//                MADNESS_CHECK_THROW(not grid.empty(),"grid is empty");
-//            } else {
-//                molecular_grid<LDIM> mgrid(origins,parameters);
-//                grid=mgrid.get_grid();
-//            }
-//            print("initial grid size",grid.size());
-//
-//            auto yformed = Yformer(lrfunctor,grid,parameters);
-//            auto Y = yformed.Y;
-//            if (Y.empty()) {
-//                auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
-//                Y = retry.Y;
-//            }
-//            MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
-//            t1.tag("Yforming");
-//            print("y.size()",Y.size());
-//
-//            auto result = project_from_Y(lrfunctor, Y, parameters.tol());
-//            t1.tag("project_from_Y");
-//            return result;
-//        }
 
-        /// Build a LowRankFunction from pre-formed Y basis functions.
+        /// Build a LowRankFunction from pre-formed Y basis functions (half-metric legacy).
         ///
         /// Given a set of Y functions (already normalized, with insignificant ones removed),
         /// perform rank-revealing Cholesky, orthonormalization, backprojection, and assembly.
@@ -1852,181 +1727,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// Adaptively project a high-dimensional functor to a low-rank representation.
         ///
-        /// Augment an existing projection with new grid points using complement projection.
-        ///
-        /// New Y are probed, backprojected to h_new, then the existing h_ortho directions
-        /// are projected out. The complement captures only genuinely new information.
-        /// The existing state (h_ortho, g) is preserved intact.
-        ///
-        /// @param[in] lrfunctor  the functor
-        /// @param[in] Y_new     new Y basis functions from new grid points
-        /// @param[in] tol       Cholesky tolerance for the complement
-        /// @param[in] prev      existing projection state to augment
-        /// @return               augmented state
-        /// Adaptive augmentation: screen candidates by residual norm, keep only top-K.
-        ///
-        /// Given a dense set of candidate Y functions (already formed by Yformer),
-        /// cheaply score each one by how much NEW signal it carries that is not
-        /// already in prev.h_ortho:
-        ///
-        ///   alpha_{i,k} = <Y_i | h_ortho_k>          (normalized Y_i)
-        ///   newness_i   = (1 - sum_k alpha_{i,k}^2)  (fraction orthogonal to h_ortho)
-        ///   score_i     = ||Y_i_raw||^2 * newness_i  (weighted by raw signal magnitude)
-        ///
-        /// Candidates with high score carry new, strong signal. Pick top-K and run
-        /// the existing complement path on only those. Saves the backprojection +
-        /// project-out cost for the discarded (N-K) candidates.
-        ///
-        /// @param[in] lrfunctor       the functor
-        /// @param[in] Y_cand          dense candidate Y functions (normalized)
-        /// @param[in] raw_norms       un-normalized norms of Y_cand (for weighting)
-        /// @param[in] tol             Cholesky tolerance for the complement
-        /// @param[in] prev            existing projection state to augment
-        /// @param[in] K_target        max candidates to keep
-        /// @param[in] score_frac      keep candidates with score > score_frac*max_score
-        /// @return                    augmented state
-        ProjectionState augment_adaptive(
-            const LRFunctorBase<T,NDIM>& lrfunctor,
-            const std::vector<Function<T,LDIM>>& Y_cand,
-            const std::vector<double>& raw_norms,
-            const double tol,
-            const ProjectionState& prev,
-            const long K_target,
-            const double score_frac = 0.1) const
-        {
-            World& world = lrfunctor.world();
-            timer t1(world);
-            t1.do_print = true;
-
-            if (Y_cand.empty()) return prev;
-            if (prev.h_ortho.empty()) {
-                // nothing to project out — fall through to bulk complement
-                return augment_with_complement(lrfunctor, Y_cand, tol, prev);
-            }
-
-            // Screening: alpha(i,k) = <Y_cand_i | h_ortho_k>. Shape (n_cand x r_prev).
-            // Y_cand is normalized, h_ortho is orthonormal.
-            Tensor<T> alpha = matrix_inner(world, Y_cand, prev.h_ortho);
-            t1.tag("adaptive: screening matrix_inner");
-
-            // Per-candidate: score = raw_norm^2 * (1 - sum_k alpha_{i,k}^2)
-            std::vector<std::pair<double, size_t>> scored;
-            scored.reserve(Y_cand.size());
-            double score_max = 0.0;
-            for (size_t i = 0; i < Y_cand.size(); ++i) {
-                double alpha_sq = 0.0;
-                for (long k = 0; k < alpha.dim(1); ++k) {
-                    alpha_sq += alpha(i, k) * alpha(i, k);
-                }
-                double newness = std::max(0.0, 1.0 - alpha_sq);
-                double rn = (i < raw_norms.size()) ? raw_norms[i] : 1.0;
-                double s = rn * rn * newness;
-                scored.push_back({s, i});
-                if (s > score_max) score_max = s;
-            }
-
-            // Select top-K with score >= score_frac * max
-            long K = std::min(K_target, long(Y_cand.size()));
-            std::partial_sort(scored.begin(), scored.begin() + K, scored.end(),
-                [](const auto& a, const auto& b) { return a.first > b.first; });
-
-            double threshold = score_frac * score_max;
-            std::vector<Function<T,LDIM>> Y_selected;
-            Y_selected.reserve(K);
-            for (long k = 0; k < K; ++k) {
-                if (scored[k].first < threshold) break;
-                Y_selected.push_back(Y_cand[scored[k].second]);
-            }
-            print("adaptive: selected", Y_selected.size(), "of", Y_cand.size(),
-                  "candidates, max_score =", score_max,
-                  ", 3rd_top =", (scored.size()>=3 ? scored[2].first : 0.0));
-            t1.tag("adaptive: top-K selection");
-
-            if (Y_selected.empty()) {
-                print("adaptive: no candidates passed threshold");
-                return prev;
-            }
-
-            return augment_with_complement(lrfunctor, Y_selected, tol, prev);
-        }
-
-        ProjectionState augment_with_complement(
-            const LRFunctorBase<T,NDIM>& lrfunctor,
-            const std::vector<Function<T,LDIM>>& Y_new,
-            const double tol,
-            const ProjectionState& prev) const
-        {
-            World& world = lrfunctor.world();
-            timer t1(world);
-            t1.do_print = true;
-            double tight_thresh = FunctionDefaults<LDIM>::get_thresh() * 0.1;
-
-            // coarse rank reduction on new Y
-            double tol_coarse = std::max(1.e-14, tol * 0.01);
-            auto ovlp_Y = matrix_inner(world, Y_new, Y_new);
-            auto [pY_new, Ut_Y, Xinv_Y] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
-                Y_new, ovlp_Y, tol_coarse);
-            t1.tag("complement: rr_cholesky on Y_new");
-
-            // backproject new probes
-            auto h_new = truncate(inner(lrfunctor, pY_new, p1, p1), tight_thresh);
-            t1.tag("complement: backprojection");
-            print("complement: pY_new =", pY_new.size(), "h_new =", h_new.size());
-
-            // project out existing h_ortho directions:
-            // h_complement = h_new - Σ_i <h_new|h_ortho_i> h_ortho_i
-            if (!prev.h_ortho.empty()) {
-                auto proj = matrix_inner(world, h_new, prev.h_ortho);  // (n_new x r_prev)
-                auto h_proj = transform(world, prev.h_ortho, transpose(proj));  // (n_new functions)
-                h_new = truncate(h_new - h_proj, tight_thresh);
-            }
-            t1.tag("complement: project out existing");
-
-            // orthonormalize the complement
-            auto ovlp_c = matrix_inner(world, h_new, h_new);
-            auto [ph_c, Ut_c, Xinv_c] = LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(
-                h_new, ovlp_c, tol);
-            t1.tag("complement: rr_cholesky on complement");
-
-            if (ph_c.empty()) {
-                print("complement: no new directions found");
-                return prev;
-            }
-
-            auto h_ortho_new = truncate(transform(world, ph_c, Ut_c), tight_thresh);
-            t1.tag("complement: orthonormalization");
-
-            // reproject new directions only
-            auto g_new = truncate(inner(lrfunctor, h_ortho_new, p2, p1), tight_thresh);
-            t1.tag("complement: reprojection");
-
-            print("complement: added", h_ortho_new.size(), "new directions");
-
-            // build augmented state
-            ProjectionState state;
-            state.h_ortho = append(prev.h_ortho, h_ortho_new);
-            state.g = append(prev.g, g_new);
-            // h_raw and ovlp_h are invalidated (new basis), clear them
-            // (incremental tol-tightening won't work after augmentation —
-            //  the next tol step will need a fresh ovlp_h)
-            state.h_raw = {};
-            state.ovlp_h = Tensor<T>();
-            state.tol = tol;
-            state.f_norm_sq = prev.f_norm_sq;  // ||f||^2 is invariant
-
-            return state;
-        }
-
-        /// Adaptively project a high-dimensional functor to a low-rank representation.
-        ///
         /// Uses the numerically stable power-iteration algorithm:
         ///   Y → h = f·Y → orthonormalize h → g = f·h_ortho → canonical LRF
         ///
         /// Single refinement loop with three actions:
         ///   - tol-limited: tighten tol on <h|h>, incrementally extend h_ortho and g
-        ///   - grid-limited: augment with complement projection (preserves existing state)
+        ///   - grid-limited: halve ve and re-project from scratch (denser Y sampling)
         ///   - thresh-limited: tighten MRA thresh, reform everything
-        ///   - tol-degraded: revert to best state, augment with complement
+        ///   - tol-degraded: revert to best state, route to thresh or grid
         ///
         /// @param[in] lrfunctor       the high-dimensional functor to approximate
         /// @param[in] target_l2error  the desired L2 error (default: FunctionDefaults thresh)
@@ -2132,45 +1840,34 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     }
                 }
 
-                // --- grid-limited (or tol-degraded fallthrough): adaptive augmentation ---
+                // --- grid-limited (or tol-degraded fallthrough): fresh Y at finer ve ---
                 if (diagnosis == "grid") {
-                    // dense candidate grid at the same ve (random re-sampling);
-                    // adaptive screening will pick only the candidates that carry
-                    // genuinely new directions.
+                    ve *= 0.5;
+                    print("project: grid-limited, halving ve to", ve, "and re-projecting from scratch");
+                    local_params.set_derived_value("volume_element", ve);
+
                     auto new_grid = build_grid(ve, max_Y_size);
                     if (new_grid.empty()) break;
+                    print("project: new grid size", new_grid.size());
 
-                    print("project: adaptive augmentation with", new_grid.size(), "candidates");
-                    auto yresult = Yformer(lrfunctor, new_grid, local_params);
-                    if (yresult.Y.empty()) {
-                        // fall back with loose significance
-                        yresult = Yformer(lrfunctor, new_grid, local_params, 30.0, 0.0);
-                    }
-                    t1.tag("project: augment Yforming iter " + std::to_string(iter));
-                    if (yresult.Y.empty()) break;
+                    Y = form_Y(lrfunctor, new_grid, local_params);
+                    t1.tag("project: grid Yforming iter " + std::to_string(iter));
+                    if (Y.empty()) break;
+                    print("project: new Y size", Y.size());
 
-                    // collect raw (un-normalized) norms of the significant Y's
-                    std::vector<double> raw_norms;
-                    raw_norms.reserve(yresult.Y.size());
-                    for (auto idx : yresult.significant_indices) {
-                        raw_norms.push_back(yresult.norms[idx]);
-                    }
-
-                    // reset tol and prev_error so that subsequent iteration go into the tol-loop again
+                    // reset tol and prev_error for a fresh tol sweep
                     tol = std::max(1.e-14, std::min(1.e-3, eps * eps));
-                    prev_error=-1.0;
+                    prev_error = -1.0;
 
-                    // Keep up to ~10% of prev rank (with min 20, max 200). On a
-                    // near-saturated projection most candidates will be redundant.
-                    long K_target = std::max<long>(20, std::min<long>(200, current_rank / 10));
-                    state = augment_adaptive(lrfunctor, yresult.Y, raw_norms, tol, state, K_target);
+                    ProjectionState fresh;
+                    state = project_stable(lrfunctor, Y, tol, fresh);
                     lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho,
                         tol, parameters.orthomethod());
-                    t1.tag("project: complement projection iter " + std::to_string(iter));
+                    t1.tag("project: grid projection iter " + std::to_string(iter));
 
                     current_error = lrf.l2error_pythagoras(state.f_norm_sq);
                     current_rank = state.rank();
-                    print("project: iter", iter, "(complement), l2error =",
+                    print("project: iter", iter, "(grid ve=", ve, "), l2error =",
                           current_error, "rank =", current_rank);
                     t1.tag("project: l2error iter " + std::to_string(iter));
                     if (current_error <= eps) return lrf;

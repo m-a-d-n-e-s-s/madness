@@ -296,7 +296,7 @@ int test_stuff(World& world, LowRankFunctionParameters parameters) {
 template<std::size_t LDIM>
 int test_recursive_apply(World& world) {
     test_output t1("test_recursive_apply");
-    // t1.set_cout_to_terminal();
+    t1.set_cout_to_terminal();
 
     constexpr std::size_t NDIM = 2 * LDIM;
 
@@ -1628,7 +1628,7 @@ int main(int argc, char **argv) {
     int isuccess=0;
 
     try {
-        {
+        if (0) {
             // direct 6D projection test with full output
             constexpr std::size_t LDIM=3, NDIM=6;
             double gaussexponent=2.0, gauss1=2.0;
@@ -1653,7 +1653,16 @@ int main(int argc, char **argv) {
             double err2=lrf2.l2error(functor);
             print("RESULT eps=1e-3: error=",err2,"rank=",lrf2.rank());
         }
-        throw;
+
+        // isuccess+=test_construction<1>(world, parameters);
+        // isuccess+=test_adaptive_project<1>(world, parameters);
+        isuccess+=test_recursive_apply<1>(world);
+        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
+        isuccess+=test_numerics<1>(world, parameters);
+        isuccess+=test_remove_lindep<1>(world,parameters);
+        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_inner<1>(world,parameters);
+        isuccess+=test_molecular_grid<1>(world,parameters);
 
         if (long_test) {
             isuccess+=test_construction<2>(world, parameters);

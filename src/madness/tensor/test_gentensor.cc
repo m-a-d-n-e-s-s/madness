@@ -37,7 +37,7 @@
 #include <madness/world/print.h>
 #include "gentensor.h"
 
-#if defined USE_GENTENSOR && MADNESS_HAS_GOOGLE_TEST
+#if defined ENABLE_GENTENSOR && MADNESS_HAS_GOOGLE_TEST
 
 // The test code deliberately uses only the dumb ITERATOR macros
 // in order to test the optimized iterators used by the implementation.

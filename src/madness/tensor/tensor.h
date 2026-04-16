@@ -61,11 +61,6 @@
 #include <madness/tensor/tensorexcept.h>
 #include <madness/tensor/tensoriter.h>
 
-#ifdef ENABLE_GENTENSOR
-#define HAVE_GENTENSOR 1
-#else
-#define HAVE_GENTENSOR 0
-#endif
 
 
 /*!

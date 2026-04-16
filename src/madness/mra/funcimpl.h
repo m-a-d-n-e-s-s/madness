@@ -5206,7 +5206,7 @@ template<size_t NDIM>
             // do SVD tensors instead of tensortrains, because addition in apply
             // can be done in full form for the specific particle
             coeffT coeff_SVD=coeff.convert(TensorArgs(-1.0,TT_2D));
-#ifdef HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
@@ -6772,7 +6772,7 @@ template<size_t NDIM>
                 // c_i = \sum_j a_j b_ij = \sum_jr a_j b_rj b'_rj
                 //                       = \sum_jr ( a_j b_rj) b'_rj )
                 auto contract2 = [](const auto& svdcoeff, const auto& tensor, const int particle) {
-#if HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
                     const int spectator_particle=(particle+1)%2;
                     Tensor<Q> gtensor = svdcoeff.get_svdtensor().make_vector_with_weights(particle);
                     gtensor=gtensor.reshape(svdcoeff.rank(),gtensor.size()/svdcoeff.rank());

@@ -41,7 +41,7 @@
 
 */
 
-#if !defined USE_GENTENSOR
+#if !defined ENABLE_GENTENSOR
 
 #include <madness/chem/znemo.h>
 using namespace madness;

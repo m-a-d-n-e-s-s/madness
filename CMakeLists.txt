@@ -192,7 +192,7 @@ set(MADNESS_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL
     "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
-  add_definitions(-DUSE_GENTENSOR)
+  add_definitions(-DENABLE_GENTENSOR)
 endif()
 set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "enable generic tensors")
 

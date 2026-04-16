@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
     	    result+=test_converged_function<double,1>(world,shift,coupling);
     	    result+=test_converged_function<double,2>(world,shift,coupling);
     	    result+=test_converged_function<double,3>(world,shift,coupling);
-#ifndef USE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
     	    result+=test_converged_function<double_complex,1>(world,shift,coupling);
     	    result+=test_converged_function<double_complex,2>(world,shift,coupling);
 //    	    result+=test_converged_function<double_complex,3>(world,shift,coupling);
