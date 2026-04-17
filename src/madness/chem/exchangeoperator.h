@@ -93,6 +93,7 @@ public:
     typedef Exchange<T,NDIM>::ExchangeAlgorithm Algorithm;
     Algorithm algorithm_ = multiworld_efficient_row;
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
+    bool replicate_for_debug_ = false;  ///< if true, use StoreFunction policy to pre-replicate all data (zero communication during tasks)
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -167,6 +168,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_replicate_for_debug(const bool flag) {
+        replicate_for_debug_ = flag;
+        return *this;
+    }
+
     std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
 
     World& get_world() const {return world;}
@@ -235,6 +241,9 @@ private:
         double mul_tol = 1.e-7;
         bool symmetric = false;
         Algorithm algorithm_ = multiworld_efficient;
+    public:
+        bool replicate_for_debug_ = false;
+    private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
         struct VfPrefetchState {
@@ -260,7 +269,7 @@ private:
         /// disabled: shuffling destroys row-range locality needed for cache reuse and prefetch hits
         bool shuffle_task_order_ = false;
 
-        bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner; }
+        bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner and not replicate_for_debug_; }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
             return (a.begin == b.begin) and (a.end == b.end);

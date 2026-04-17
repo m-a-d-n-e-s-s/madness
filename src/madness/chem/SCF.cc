@@ -1546,6 +1546,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	            cloud_policy = "small_memory_owner";
 	        }
 	        K.set_macro_task_info(MacroTaskInfo::preset(cloud_policy));
+	        K.set_replicate_for_debug(param.hfex_replicate_debug());
 
         // Temporary serialization diagnostics — set to true to enable, to be removed soon.
         const bool run_hfex_serialization_probe = false;

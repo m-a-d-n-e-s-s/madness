@@ -138,8 +138,14 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     const long nresult = vf.size();
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   min_batch_size_, max_batch_size_, algorithm_);
+    xtask.replicate_for_debug_ = replicate_for_debug_;
     if (taskq) taskq->set_printlevel(printlevel);
-    auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info);
+    auto effective_policy = macro_task_info;
+    if (replicate_for_debug_) {
+        effective_policy.storage_policy = MacroTaskInfo::StoreFunction;
+        if (world.rank()==0) print("DEBUG: using StoreFunction policy to pre-replicate all data (zero communication during tasks)");
+    }
+    auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(effective_policy);
     if (algorithm_ == small_memory_symmetric_mt_owner) {
         taskq_factory.set_nworld(world.size());
     }

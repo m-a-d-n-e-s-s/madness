@@ -81,7 +81,7 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
     } else if (method == "boys") {
         dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, true);
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
@@ -448,11 +448,35 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
         tensorT gprev; // previous gradient
         bool rprev = true; // if true previous iteration restricted step or did incomplete search (so don't do conjugate)
         const int N = (nmo * (nmo - 1)) / 2; // number of independent variables
+
+        // ---------------------------------------------------------------
+        // Debug switches for the two algorithmic changes added for
+        // large-system (~1000 MO) convergence stability. Set to false to
+        // disable and restore baseline behavior for that change.
+        //   use_gamma_clip    : restart CG when Polak-Ribiere gamma is
+        //                       < 0 or > gamma_max (avoid stale-direction
+        //                       amplification)
+        //   use_mu2_probe_cap : cap mu2 at 30*mu when the gradient-
+        //                       relative cap (0.25/maxg) is loose
+        //                       (guard against quadratic-fit outliers)
+        // ---------------------------------------------------------------
+        const bool use_gamma_clip    = false;
+        const bool use_mu2_probe_cap = false;
+
+        // Phase timers to diagnose where iteration time is spent.
+        // makeGW: custom serial loops O(nmo^2 * natom)
+        // matexp: calls matrix_exponential, which uses BLAS (threaded or serial depending on MKL link)
+        // inner:  BLAS gemm calls (threaded or serial depending on MKL link)
+        double t_makeGW = 0.0, t_matexp = 0.0, t_inner = 0.0;
+        double t_loop_start = wall_time();
+
         for (int iter = 0; iter < 1200; ++iter) {
             tensorT g(nmo, nmo);
             double W;
 
+            double t0 = wall_time();
             makeGW(C, W, g);
+            t_makeGW += wall_time() - t0;
 
             if (randomize && iter == 0) {
                 for (int i = 0; i < nmo; ++i) {
@@ -471,6 +495,16 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             tensorT x = copy(g);
             if (!rprev) { // Only apply conjugacy if did LS with real gradient
                 double gamma = g.trace(g - gprev) / gprev.trace(gprev);
+                if (use_gamma_clip) {
+                    // Polak-Ribière+ with restart: negative gamma means restart with steepest descent.
+                    // Large gamma (>> 1) means the gradient changed drastically since the last step,
+                    // so the previous direction is no longer trustworthy -- restart instead of amplifying it.
+                    const double gamma_max = 3.0;
+                    if (gamma < 0.0 || gamma > gamma_max) {
+                        if (doprint) print("restarting CG, gamma out of range", gamma);
+                        gamma = 0.0;
+                    }
+                }
                 if (doprint) print("gamma", gamma);
                 x.gaxpy(1.0, xprev, gamma);
             }
@@ -486,12 +520,18 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             xprev = x; // Save for next iteration
             gprev = copy(g);
 
-            double mu = 0.05 / std::max(0.1,
-                                        maxg); // Take larger inital step (was 0.01), and restrict intial step mu by size of max gradient
+            double mu = 0.02 / std::max(0.1,
+                                        maxg); // Restrict intial step mu by size of max gradient
+            double t1 = wall_time();
             tensorT dU = matrix_exponential(x * mu);
+            t_matexp += wall_time() - t1;
+            t1 = wall_time();
             tensorT newC = inner(dU, C, 0, 0);
+            t_inner += wall_time() - t1;
             double newW;
+            t1 = wall_time();
             makeGW(newC, newW, g);
+            t_makeGW += wall_time() - t1;
             double dxgnew = x.trace(g) * 2.0;
 
             if (randomize && iter == 0) {
@@ -510,6 +550,13 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                 if (mu2 * maxg > 0.25) {
                     mu2 = 0.25 / maxg; // pi/6 = 0.524, pi/4=0.785
                     rprev = true; // since did not do line search
+                } else if (use_mu2_probe_cap && mu2 > 30.0 * mu) {
+                    // Near convergence (small maxg) the gradient-relative cap is useless;
+                    // clamp to a probe-step-relative limit only for extreme outliers
+                    // (quadratic fit went wild due to near-zero hessian).
+                    // The converged baseline has healthy mu2 values up to ~20*mu, so be generous.
+                    // Do NOT reset rprev so CG continues.
+                    mu2 = 30.0 * mu;
                 }
                 double f2p = f0 + dxgrad * mu2 + 0.5 * hess * mu2 * mu2;
                 if (doprint) print(f0, f1, f0 - f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
@@ -521,10 +568,28 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             //     rprev = true; // since just messed up the gradient
             // }
 
+            double t2 = wall_time();
             dU = matrix_exponential(x * mu);
+            t_matexp += wall_time() - t2;
+            t2 = wall_time();
             U = inner(U, dU, 1, 0);
             C = inner(dU, C, 0, 0);
+            t_inner += wall_time() - t2;
         }
+
+        // Report phase breakdown
+        if (doprint) {
+            double t_total = wall_time() - t_loop_start;
+            double t_other = t_total - t_makeGW - t_matexp - t_inner;
+            printf("localize_new phase times (s): total=%.2f  makeGW=%.2f (%.0f%%)  "
+                   "matexp=%.2f (%.0f%%)  inner=%.2f (%.0f%%)  other=%.2f (%.0f%%)\n",
+                   t_total,
+                   t_makeGW, 100.0 * t_makeGW / t_total,
+                   t_matexp, 100.0 * t_matexp / t_total,
+                   t_inner, 100.0 * t_inner / t_total,
+                   t_other, 100.0 * t_other / t_total);
+        }
+
         bool switched = true;
         while (switched) {
             switched = false;

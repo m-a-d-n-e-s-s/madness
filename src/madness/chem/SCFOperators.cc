@@ -758,6 +758,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_max_batch_size(const long& n) {
     return *this;
 }
 
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_replicate_for_debug(const bool flag) {
+    impl->set_replicate_for_debug(flag);
+    return *this;
+}
+
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();

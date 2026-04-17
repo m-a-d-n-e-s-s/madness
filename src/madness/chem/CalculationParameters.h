@@ -71,6 +71,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("hfex_cloud_policy","default","HF exchange macrotask cloud policy",{"default","small_memory","small_memory_owner","large_memory","node_replicated_target"});
 		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
+		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -209,6 +210,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
     std::string hfex_cloud_policy() const {return get<std::string>("hfex_cloud_policy");}
     int hfex_min_batch_size() const {return get<int>("hfex_min_batch_size");}
     int hfex_max_batch_size() const {return get<int>("hfex_max_batch_size");}
+    bool hfex_replicate_debug() const {return get<bool>("hfex_replicate_debug");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
