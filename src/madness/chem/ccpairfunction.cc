@@ -153,7 +153,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::remove_linearly_depe
         if (c.is_pure()) result.push_back(c);
         else if (c.is_decomposed()) {
 
-            LowRankFunction<T,NDIM> lrf(c.get_a(),c.get_b(),thresh,"canonical");
+            LowRankFunction<T,NDIM> lrf(c.get_a(),c.get_b(),thresh);
             lrf.reorthonormalize();
             result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),lrf.get_g(),lrf.get_h()));
 

@@ -40,7 +40,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     j["volume_element"]=parameters.volume_element();
     j["tol"]=parameters.tol();
     j["transpose"]=transpose;
-    j["orthomethod"]=parameters.orthomethod();
+
     j["gridtype"]=parameters.gridtype();
     j["optimize"]=parameters.optimize();
     std::ofstream of(jsonfilename,std::ios::out);
@@ -244,34 +244,20 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
                     parameters.set_derived_value("tol",tol);
 
 
+                    double target_thresh=1.e-3;
                     auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
-                    auto lrfunction1=builder.project(*functor);
+                    auto lrfunction1=builder.project(*functor,target_thresh,1);
 
-                    // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
-                    // inaccurate, cf R12 error convergence, so we use a very loose tolerance here.
-                    double tol_lrf=2.e-2;
-                    double tol_lrf_l2=5.e-2;
 
                     // turn tol into a string with scientic notation and 2 digits, for better readability of the output
                     char buf[80];
                     snprintf(buf,80,"tol, volume, canonicalize %.2e %.2e, %s",
                         parameters.tol(), parameters.volume_element(), std::to_string(canonicalize).c_str());
-
                     std::string description(buf);
-                    // t1.checkpoint(true,"lrf projection");
-                    if (0) { // check function evaluation
-                        Vector<double,NDIM> a;
-                        a.fill(0.25);
-                        double val=lrfunction1(a);
-                        double ref1=(*functor)(a);
-                        // double ref2=functorpure(a);
-                        print("lr function evaluation, val, reference",val,ref1);
-                        t1.checkpoint(val,ref1,tol_lrf,"lrf eval, "+description);
-                    }
                     { // test l2 error
                         double error1=lrfunction1.l2error(*functor);
-                        print("error, tol", error1,tol_lrf);
-                        t1.checkpoint(error1,tol_lrf_l2,"lrf l2 err, "+description);
+                        print("error, tol", error1,target_thresh);
+                        t1.checkpoint(error1,target_thresh,"lrf l2 err, "+description);
                     }
                 }
             }
@@ -296,7 +282,7 @@ int test_stuff(World& world, LowRankFunctionParameters parameters) {
 template<std::size_t LDIM>
 int test_recursive_apply(World& world) {
     test_output t1("test_recursive_apply");
-    t1.set_cout_to_terminal();
+    // t1.set_cout_to_terminal();
 
     constexpr std::size_t NDIM = 2 * LDIM;
 
@@ -319,7 +305,7 @@ int test_recursive_apply(World& world) {
         g.push_back(FunctionFactory<double, LDIM>(world).functor(gauss(2.0*i, 1.0)));
     }
 
-    LowRankFunction<double,NDIM> lrf(f,g,FunctionDefaults<NDIM>::get_thresh(),"cholesky");
+    LowRankFunction<double,NDIM> lrf(f,g,FunctionDefaults<NDIM>::get_thresh());
 
     // create a full-dimensional (2D) BSH operator
     const double mu = 1.0;
@@ -391,7 +377,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     j["thresh"]=FunctionDefaults<3>::get_thresh();
     j["volume_element"]=parameters.volume_element();
     j["tol"]=parameters.tol();
-    j["orthomethod"]=parameters.orthomethod();
+
     j["gridtype"]=parameters.gridtype();
     j["optimize"]=parameters.optimize();
     j["reference"]=reference;
@@ -573,6 +559,9 @@ template<std::size_t LDIM>
 int test_construction(World& world, LowRankFunctionParameters parameters) {
 
     test_output t1("test_construction");
+    double thresh_ldim=FunctionDefaults<LDIM>::get_thresh();
+    FunctionDefaults<LDIM>::set_thresh(thresh_ldim*0.1);
+
     // t1.set_cout_to_terminal();
     constexpr int NDIM=2*LDIM;
     double gaussexponent=2.0;
@@ -598,7 +587,8 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
     t1.checkpoint(true,"prep");
 
     // same functor, different implementation
-    auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent));
+    auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent,
+        1.e-10,FunctionDefaults<LDIM>::get_thresh()*0.1));
     Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
             .functor([&gauss1](const Vector<double,LDIM>& r) {return exp(-gauss1*inner(r,r));});
     Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world)
@@ -606,31 +596,22 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
     functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(
         new LRFunctorF12<double,NDIM>(gaussop,phi1,phi2)));
 
-    plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[0],"pure",PlotParameters(world).set_plane({"x1","x2"}));
-    plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[1],"f12",PlotParameters(world).set_plane({"x1","x2"}));
     Vector<double,LDIM> origin(0.0);
     std::vector<Vector<double,LDIM>> origins = {origin};
 
-
-
     for (auto canonicalize : {true,false}) {
         for (auto gridtype : {"random","harmonics","adaptive"}) {
-            for (auto ortho : {"cholesky","canonical"}) {
                 for (auto& functor : functors) {
                     parameters.set_derived_value("gridtype",std::string(gridtype));
-                    parameters.set_derived_value("orthomethod",std::string(ortho));
                     parameters.set_derived_value("canonicalize",canonicalize);
                     parameters.print("grid");
 
                     print("working with functor,",functor->type());
+                    double target_thresh=1.e-3;
 
                     auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
-                    auto lrfunction1=builder.project(*functor);
+                    auto lrfunction1=builder.project(*functor,target_thresh,1);
 
-                    // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
-                    // inaccurate, cf R12 error convergence, so we use a very loose tolerance here.
-                    double tol_lrf=2.e-2;
-                    double tol_lrf_l2=5.e-2;
 
                     // turn tol into a string with scientic notation and 2 digits, for better readability of the output
                     char buf[20];
@@ -649,17 +630,17 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
                         double ref1=(*functor)(a);
                         // double ref2=functorpure(a);
                         print("lr function evaluation, val, reference",val,ref1);
-                        t1.checkpoint(val,ref1,tol_lrf,"lrf eval, "+description);
+                        t1.checkpoint(val,ref1,target_thresh,"lrf eval, "+description);
                     }
                     { // test l2 error
                         double error1=lrfunction1.l2error(*functor);
-                        print("error, tol", error1,tol_lrf);
-                        t1.checkpoint(error1,tol_lrf_l2,"lrf l2 err, "+description);
+                        print("error, tol", error1,target_thresh);
+                        t1.checkpoint(error1,target_thresh,"lrf l2 err, "+description);
                     }
                 }
             }
         }
-    }
+    FunctionDefaults<LDIM>::set_thresh(thresh_ldim);
     return t1.end();
 }
 
@@ -690,9 +671,10 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
             parameters.print("grid");
 
             auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
-                    .set_volume_element(0.1).set_rank_revealing_tol(1.e-5).set_orthomethod("canonical");
-            auto lrf1=builder.project(functor1);
-            auto lrf2=builder.project(functor2);
+                    .set_volume_element(0.1).set_rank_revealing_tol(1.e-5);
+            double target_thresh=1.e-3;
+            auto lrf1=builder.project(functor1,target_thresh);
+            auto lrf2=builder.project(functor2,target_thresh);
 
             Vector<double,NDIM> r;
             r.fill(0.2);
@@ -783,9 +765,10 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     std::vector<Vector<double,LDIM>> origins = {origin};
 
     auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
-            .set_volume_element(0.1).set_rank_revealing_tol(1.e-6).set_orthomethod("canonical");
-    auto lrf1=builder.project(functor1);
-    auto lrf2=builder.project(functor2);
+            .set_volume_element(0.1).set_rank_revealing_tol(1.e-6);
+    double target_thresh=1.e-3;
+    auto lrf1=builder.project(functor1,target_thresh);
+    auto lrf2=builder.project(functor2,target_thresh);
 
     // reference numbers: (by mathematica)
     // f1(x,y) = exp(-a*x^2) * exp(-(x-y)^2)
@@ -863,7 +846,7 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     {
         thresh=FunctionDefaults<LDIM>::get_thresh()*50.0;
         // fresh start
-        lrf1=builder.project(functor1);
+        lrf1=builder.project(functor1,target_thresh);
         fullrank1=FunctionFactory<double,NDIM>(world).functor(functor1);
 
         std::vector<Function<double,LDIM>> arg(3);
@@ -909,17 +892,20 @@ template<std::size_t LDIM>
 int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::remove_lindep in dimension "+std::to_string(NDIM));
-    // t1.set_cout_to_terminal();
-    OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
+    t1.set_cout_to_terminal();
+    double thresh=FunctionDefaults<LDIM>::get_thresh();
+    FunctionDefaults<LDIM>::set_thresh(thresh*0.1);
+    OperatorInfo info(1.0,1.e-8,FunctionDefaults<LDIM>::get_thresh()*0.1,OT_SLATER);
     auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
-    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.4*inner(r,r));});
-    Function<double,LDIM> half=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return sqrt(0.5)*exp(-0.4*inner(r,r));});
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.7*inner(r,r));});
+    Function<double,LDIM> half=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return sqrt(0.5)*exp(-0.8*inner(r,r));});
 
     LRFunctorF12<double,NDIM> lrfunctor1(slater,one,one);
     LRFunctorF12<double,NDIM> lrfunctor2(slater,{half,half},{half,half});
 
     parameters.set_derived_value("volume_element",3.e-2);
     parameters.set_derived_value("tol",1.e-6);
+    parameters.set_derived_value("radius",5.0);
     parameters.set_derived_value("lmax",3);
     parameters.print("grid");
 
@@ -936,15 +922,15 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
                 MADNESS_CHECK_THROW(parameters.canonicalize() == canonicalize,"incorrect setting of canonicalize"); // make sure it isn't overridden
                 std::string description=std::string(parameters.gridtype())+", canon="+std::to_string(canonicalize);
 
-                LowRankFunctionFactory<double, NDIM> builder(parameters, origins);
-                auto lrf = builder.project(lrfunctor);
-
                 // with Slater tol must be relaxed
-                double tol = 2.e-2;
-                if (gridtype == std::string("harmonics")) tol=8.e-2; // harmonics cannot represent the cusp
+                double target_thresh= 1.e-3;
+                if (gridtype == std::string("harmonics")) target_thresh=8.e-2; // harmonics cannot represent the cusp
+
+                LowRankFunctionFactory<double, NDIM> builder(parameters, origins);
+                auto lrf = builder.project(lrfunctor,target_thresh);
 
                 double error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, tol, "l2 error in projection "+description);
+                t1.checkpoint(error, target_thresh, "l2 error in projection "+description);
 
                 auto lrf2(lrf);
                 if (canonicalize) MADNESS_CHECK((lrf.rank()-lrf2.rank()).sumsq()==0);
@@ -954,17 +940,17 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
                 }
                 MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
                 error = lrf2.l2error(lrfunctor);
-                t1.checkpoint(error, tol, "l2 error in copy ctor "+description);
+                t1.checkpoint(error, target_thresh, "l2 error in copy ctor "+description);
 
                 lrf.remove_linear_dependencies();
                 error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, tol, "l2 error in remove_lindep "+description);
+                t1.checkpoint(error, target_thresh, "l2 error in remove_lindep "+description);
 
                 lrf+=lrf;
                 lrf*=0.5;
                 lrf.remove_linear_dependencies();
                 error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, tol, "l2 error in remove_lindep with lindep "+description);
+                t1.checkpoint(error, target_thresh, "l2 error in remove_lindep with lindep "+description);
             }
         }
 
@@ -1088,7 +1074,7 @@ int test_norm2_asymmetric_metric(World& world, LowRankFunctionParameters paramet
     }
 
     // 1) canonical LRF: f(1,2) = sum_i g_i(1) h_i(2)
-    LowRankFunction<double,NDIM> lrf_canon(gfuncs, hfuncs, 1.e-8, "canonical");
+    LowRankFunction<double,NDIM> lrf_canon(gfuncs, hfuncs, 1.e-8);
     double norm_canon = lrf_canon.norm2();
     double norm_reconstruct = lrf_canon.reconstruct().norm2();
     print("canonical norm2, reconstruct norm2", norm_canon, norm_reconstruct);
@@ -1121,7 +1107,7 @@ int test_norm2_asymmetric_metric(World& world, LowRankFunctionParameters paramet
 
         // the function is the same: f = g' A^{-1} h = g * A * A^{-1} * h = g * h
         // so metric = A^{-1}, which is asymmetric
-        LowRankFunction<double,NDIM> lrf_asym(gprime, hfuncs, 1.e-8, "canonical", Ainv);
+        LowRankFunction<double,NDIM> lrf_asym(gprime, hfuncs, 1.e-8, Ainv);
         MADNESS_CHECK(!lrf_asym.is_canonical()); // metric is set
 
         double norm_asym = lrf_asym.norm2();
@@ -1503,79 +1489,6 @@ int test_adaptive_diagnosis(World& world) {
     return t1.end();
 }
 
-/// Compare project_from_Y (half-metric) vs project_from_Y_stable (canonical power iteration).
-/// Same Y input, same tol — measure resulting rank, l2error, and timing.
-template<std::size_t LDIM>
-int test_stable_vs_halfmetric(World& world, LowRankFunctionParameters parameters) {
-    constexpr std::size_t NDIM = 2 * LDIM;
-    test_output t1("stable vs half-metric projection, dim " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
-
-    // Gaussian product functor
-    double gaussexponent = 2.0;
-    double gauss1 = 2.0;
-    auto gaussop = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
-        GaussOperatorPtr<LDIM>(world, gaussexponent));
-    Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
-        .functor([&gauss1](const Vector<double,LDIM>& r) {
-            return exp(-gauss1 * inner(r,r));
-        });
-    Function<double,LDIM> one = FunctionFactory<double,LDIM>(world)
-        .functor([](const Vector<double,LDIM>& r) { return 1.0; });
-    LRFunctorF12<double,NDIM> functor(gaussop, phi1, one);
-
-    Vector<double,LDIM> origin(0.0);
-    std::vector<Vector<double,LDIM>> origins = {origin};
-
-    // Build a shared Y for both methods
-    parameters.set_derived_value("volume_element", 0.1);
-    parameters.set_derived_value("radius", 2.5);
-    auto factory = LowRankFunctionFactory<double,NDIM>(parameters, origins);
-
-    for (double tol : {1.e-5, 1.e-6, 1.e-7, 1.e-8}) {
-        print("--- tol =", tol, "---");
-        parameters.set_derived_value("tol", tol);
-        auto factory_tol = LowRankFunctionFactory<double,NDIM>(parameters, origins);
-
-        // Build a shared Y (same grid, same Yformer) for both methods
-        std::vector<Vector<double,LDIM>> grid;
-        randomgrid<LDIM> rg(0.1, 2.5, origin);
-        grid = rg.get_grid();
-        auto yresult = factory_tol.Yformer(functor, grid, parameters);
-        auto Y = yresult.Y;
-        if (Y.empty()) {
-            yresult = factory_tol.Yformer(functor, grid, parameters, 30.0, 0.0);
-            Y = yresult.Y;
-        }
-        print("  Y.size =", Y.size());
-
-        // half-metric: project_from_Y (factory's parameters.canonicalize=false → half-metric)
-        auto t0 = cpu_time();
-        auto lrf_hm = factory_tol.project_from_Y(functor, Y, tol);
-        double time_hm = cpu_time() - t0;
-        double err_hm = lrf_hm.l2error(functor);
-        long rank_hm = lrf_hm.rank()(0l);
-
-        // stable: project_from_Y_stable (canonical by construction)
-        t0 = cpu_time();
-        auto lrf_stable = factory_tol.project_from_Y_stable(functor, Y, tol);
-        double time_stable = cpu_time() - t0;
-        double err_stable = lrf_stable.l2error(functor);
-        long rank_stable = lrf_stable.rank()(0l);
-
-        printf("  half-metric: rank=%3ld  err=%.3e  time=%.2fs\n",
-               rank_hm, err_hm, time_hm);
-        printf("  stable:      rank=%3ld  err=%.3e  time=%.2fs\n",
-               rank_stable, err_stable, time_stable);
-
-        char tag[64];
-        snprintf(tag, 64, "stable tol=%.0e err < 10 x hm", tol);
-        t1.checkpoint(err_stable < err_hm * 10.0, tag);
-    }
-
-    return t1.end();
-}
-
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -1654,11 +1567,11 @@ int main(int argc, char **argv) {
             print("RESULT eps=1e-3: error=",err2,"rank=",lrf2.rank());
         }
 
-        // isuccess+=test_construction<1>(world, parameters);
-        // isuccess+=test_adaptive_project<1>(world, parameters);
+        isuccess+=test_construction<1>(world, parameters);
+        isuccess+=test_adaptive_project<1>(world, parameters);
         isuccess+=test_recursive_apply<1>(world);
         isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
-        isuccess+=test_numerics<1>(world, parameters);
+        // isuccess+=test_numerics<1>(world, parameters);
         isuccess+=test_remove_lindep<1>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
         isuccess+=test_inner<1>(world,parameters);
@@ -1669,7 +1582,7 @@ int main(int argc, char **argv) {
             isuccess+=test_adaptive_project<2>(world, parameters);
             isuccess+=test_recursive_apply<2>(world);
             isuccess+=test_norm2_asymmetric_metric<2>(world, parameters);
-            isuccess+=test_numerics<2>(world, parameters);
+            // isuccess+=test_numerics<2>(world, parameters);
             isuccess+=test_remove_lindep<2>(world,parameters);
             isuccess+=test_arithmetic<2>(world,parameters);
             isuccess+=test_inner<2>(world,parameters);

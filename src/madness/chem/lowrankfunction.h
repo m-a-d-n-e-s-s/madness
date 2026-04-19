@@ -40,7 +40,7 @@ namespace madness {
             initialize<double>("volume_element",0.1,"initial volume covered by each grid point");
             initialize<double>("tol",1.e-8,"rank-reduced cholesky tolerance");
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
-            initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
+            // orthomethod removed — always use cholesky (rr_cholesky) orthonormalization
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
             initialize<std::string>("gridtype","random","the grid type",{"random","adaptive","twostage","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
@@ -70,7 +70,7 @@ namespace madness {
         [[nodiscard]] int lmax() const {return get<int>("lmax");}
         [[nodiscard]] bool canonicalize() const {return get<bool>("canonicalize");}
         [[nodiscard]] std::string gridtype() const {return get<std::string>("gridtype");}
-        [[nodiscard]] std::string orthomethod() const {return get<std::string>("orthomethod");}
+        // orthomethod removed — always cholesky
         [[nodiscard]] std::string f12type() const {return get<std::string>("f12type");}
         [[nodiscard]] std::vector<double> tempered() const {return get<std::vector<double>>("tempered");}
         [[nodiscard]] double adaptive_coarse_factor() const {return get<double>("adaptive_coarse_factor");}
@@ -655,7 +655,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         World& world;
         double rank_revealing_tol=1.e-8;     // rrcd tol
-        std::string orthomethod="canonical";
         bool do_print=false;
         std::vector<Function<T,LDIM>> g,h;
         Tensor<T> metric;   ///< the coupling matrix in the general representation, empty in the canonical representation
@@ -665,26 +664,25 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         LowRankFunction(World& world) : world(world) {}
 
         LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
-                        double tol, std::string orthomethod, const Tensor<T> metric=Tensor<T>()) : world(g.front().world()),
-                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h), metric(metric) {
+                        double tol, const Tensor<T> metric=Tensor<T>()) : world(g.front().world()),
+                        rank_revealing_tol(tol), g(g), h(h), metric(metric) {
         }
 
         /// shallow copy ctor
         LowRankFunction(const LowRankFunction& other) : world(other.world),
-            rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod),
+            rank_revealing_tol(other.rank_revealing_tol),
             g(other.g), h(other.h), metric(other.metric) {
         }
 
         /// deep copy
         friend LowRankFunction copy(const LowRankFunction& other) {
             return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),
-                other.rank_revealing_tol,other.orthomethod, madness::copy(other.metric));
+                other.rank_revealing_tol, madness::copy(other.metric));
         }
 
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
             if (this == &f) return *this;
             rank_revealing_tol = f.rank_revealing_tol;
-            orthomethod = f.orthomethod;
             do_print = f.do_print;
             g = f.g;
             h = f.h;
@@ -768,12 +766,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// scale by a scalar
         template<typename Q>
         LowRankFunction operator*(const Q a) const {
-            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h),rank_revealing_tol,orthomethod,metric);
+            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h),rank_revealing_tol,metric);
         }
 
         /// out-of-place scale by a scalar (no type conversion)
         LowRankFunction operator*(const T a) const {
-            return LowRankFunction(g * a, h,rank_revealing_tol,orthomethod,metric);
+            return LowRankFunction(g * a, h,rank_revealing_tol,metric);
         }
 
         /// multiplication with a scalar
@@ -936,25 +934,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
     private:
-        /// orthonormalize the argument vector
+        /// orthonormalize the argument vector via rank-revealing Cholesky
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
-
             MADNESS_CHECK_THROW(is_canonical(),"no orthonormalization unless canonicalized");
-            double tol=rank_revealing_tol;
-            std::vector<Function<T,LDIM>> g2;
             auto ovlp=matrix_inner(world,g,g);
-            if (orthomethod=="canonical") {
-                tol*=0.01;
-                print("orthonormalizing with method/tol",orthomethod,tol);
-                g2=orthonormalize_canonical(g,ovlp,tol);
-            } else if (orthomethod=="cholesky") {
-                print("orthonormalizing with method/tol",orthomethod,tol);
-                g2=orthonormalize_rrcd(g,ovlp,tol);
-            }
-            else {
-                MADNESS_EXCEPTION("no such orthomethod",1);
-            }
-            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
+            auto g2=orthonormalize_rrcd(g,ovlp,rank_revealing_tol);
+            double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
             return truncate(g2,tight_thresh);
         }
 
@@ -1166,7 +1151,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         auto metric = (f2.metric.size()>0) ? inner(tmp,f2.metric,1,index2) : tmp;
         auto gg=copy(world,f1.get_functions(p1.complement()));
         auto hh=copy(world,f2.get_functions(p2.complement()));
-        return LowRankFunction<T,NDIM>(gg,hh,f1.rank_revealing_tol,f1.orthomethod,metric);
+        return LowRankFunction<T,NDIM>(gg,hh,f1.rank_revealing_tol,metric);
     }
 
     ///  f(1) = inner(lrf(1,2), f(2))
@@ -1295,10 +1280,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             parameters.set_user_defined_value("tol",rrtol);
             return *this;
         }
-        LowRankFunctionFactory& set_orthomethod(const std::string orthomethod) {
-            parameters.set_user_defined_value("orthomethod",orthomethod);
-            return *this;
-        }
+        // set_orthomethod removed — always use cholesky
         LowRankFunctionFactory& set_canonicalize(const bool canonicalize) {
             parameters.set_user_defined_value("canonicalize",canonicalize);
             return *this;
@@ -1384,77 +1366,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
     public:
 
-        /// Build a LowRankFunction from pre-formed Y basis functions (half-metric legacy).
-        ///
-        /// Given a set of Y functions (already normalized, with insignificant ones removed),
-        /// perform rank-revealing Cholesky, orthonormalization, backprojection, and assembly.
-        /// This is the algebraic core extracted from project() for reuse by adaptive_project().
-        ///
-        /// @param[in] lrfunctor  the high-dimensional functor to approximate
-        /// @param[in] Y          pre-formed, normalized basis functions from Yformer
-        /// @param[in] tol        rank-revealing Cholesky tolerance
-        /// @return               the assembled LowRankFunction
-        LowRankFunction<T,NDIM> project_from_Y(
-            const LRFunctorBase<T,NDIM>& lrfunctor,
-            const std::vector<Function<T,LDIM>>& Y,
-            const double tol) const
-        {
-            World& world=lrfunctor.world();
-            timer t1(world);
-            t1.do_print=true;
-
-            Tensor<T> X;
-
-            auto ovlp=matrix_inner(world,Y,Y);
-            auto [pY, t, tinv]=LowRankFunction<T,NDIM>::rr_cholesky_matrix_and_reorder(Y,ovlp,tol);
-            t1.tag("rr_cholesky");
-
-            if (parameters.orthomethod()=="cholesky") {
-                X=t;
-            } else if (parameters.orthomethod()=="symmetric") {
-                ovlp=matrix_inner(world,pY,pY);
-                X=orthonormalize_symmetric_matrix(ovlp);
-            } else if (parameters.orthomethod()=="canonical") {
-                ovlp=matrix_inner(world,pY,pY);
-                X=canonical_orthonormalization_matrix<T,NDIM>(world,ovlp,0.0);
-            } else {
-                MADNESS_EXCEPTION("unknown orthomethod in project_from_Y",1);
-            }
-
-            auto conditionX = condition_number(X);
-            if (conditionX.front()>1.e3) {
-                print("warning: ill-conditioned half-metric X in project_from_Y",conditionX);
-            }
-            t1.tag("orthonormalization");
-
-            double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
-
-            auto g_orth=truncate(transform(world,pY,X),tight_thresh);
-            auto h=truncate(inner(lrfunctor,g_orth,p1,p1),tight_thresh);
-            t1.tag("backprojection");
-
-            Tensor<T> metric;
-            std::vector<Function<T,LDIM>> g;
-            if (parameters.canonicalize()) {
-                g=g_orth;
-            } else {
-                g=pY;
-                metric=X;
-            }
-            print("g.size()",g.size());
-
-            LowRankFunction<T,NDIM> result(g,h,tol,parameters.orthomethod(),metric);
-            result.remove_linear_dependencies();
-            t1.tag("assembly+lindep");
-            print("final lrf sizes ",g.size(),h.size());
-
-            return result;
-        }
 
         /// Numerically stable projection using power-iteration.
         ///
-        /// Unlike project_from_Y (which orthonormalizes Y via ill-conditioned X = U^{-1}),
-        /// this method orthonormalizes h = f·Y instead. The overlap <h|h> has eigenvalues
+        /// this method orthonormalizes h = f·Y. The overlap <h|h> has eigenvalues
         /// weighted by σ_k² (singular values of f), making the rank reduction well-conditioned.
         /// The result is canonical by construction (no metric).
         ///
@@ -1512,7 +1427,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.tag("stable: reprojection (g)");
 
             // Step 6: canonical form, no metric
-            LowRankFunction<T,NDIM> result(g, h_ortho, tol, parameters.orthomethod());
+            LowRankFunction<T,NDIM> result(g, h_ortho, tol);
             print("stable: final rank =", g.size());
 
             return result;
@@ -1635,7 +1550,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
                 state.g = truncate(inner(lrfunctor, state.h_ortho, p2, p1), tight_thresh);
                 t1.tag("stable: reprojection (g)");
-                LowRankFunction<T,NDIM> lrf(state.g, state.h_ortho, tol, parameters.orthomethod());
+                LowRankFunction<T,NDIM> lrf(state.g, state.h_ortho, tol);
                 double current_error = lrf.l2error_pythagoras(state.f_norm_sq);
                 t1.tag("stable: compute error in optimization");
 
@@ -1776,7 +1691,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             ProjectionState empty_state;
             auto state = project_stable(lrfunctor, Y, tol, empty_state);
             auto lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho,
-                tol, parameters.orthomethod());
+                tol);
             t1.tag("project: initial projection");
 
             double current_error = lrf.l2error_pythagoras(state.f_norm_sq);
@@ -1795,6 +1710,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double prev_error = -1.0;
             int iter = 0;
 
+            // track best state seen across all iterations
+            auto best_lrf = lrf;
+            double best_error = current_error;
+
             while (iter < max_iter) {
                 if (state.ovlp_h.size() == 0) state.ovlp_h=matrix_inner(world,state.h_ortho,state.h_ortho);
                 auto diagnosis = diagnose_error(current_error, prev_error, current_rank,
@@ -1810,7 +1729,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     tol = std::max(1.e-14, tol * 0.01);
                     state = project_stable(lrfunctor, Y, tol, prev_state);
                     lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho,
-                        tol, parameters.orthomethod());
+                        tol);
                     t1.tag("project: tol refinement iter " + std::to_string(iter));
 
                     current_error = lrf.l2error_pythagoras(state.f_norm_sq);
@@ -1819,6 +1738,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                           current_error, "rank =", current_rank);
                     t1.tag("project: l2error iter " + std::to_string(iter));
                     if (current_error <= eps) return lrf;
+                    if (current_error < best_error) {
+                        best_error = current_error;
+                        best_lrf = lrf;
+                    }
 
                     if (current_error > prev_error * 1.1) {
                         // tol made it worse — revert. Tol-degradation is a strong
@@ -1862,7 +1785,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     ProjectionState fresh;
                     state = project_stable(lrfunctor, Y, tol, fresh);
                     lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho,
-                        tol, parameters.orthomethod());
+                        tol);
                     t1.tag("project: grid projection iter " + std::to_string(iter));
 
                     current_error = lrf.l2error_pythagoras(state.f_norm_sq);
@@ -1871,6 +1794,17 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                           current_error, "rank =", current_rank);
                     t1.tag("project: l2error iter " + std::to_string(iter));
                     if (current_error <= eps) return lrf;
+
+                    // stagnation: grid halving didn't beat the previous best
+                    if (current_error >= best_error * 0.9) {
+                        print("project: grid halving stagnated (best=", best_error,
+                              "), stopping");
+                        break;
+                    }
+                    if (current_error < best_error) {
+                        best_error = current_error;
+                        best_lrf = lrf;
+                    }
                     ++iter;
                     continue;
                 }
@@ -1895,7 +1829,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     ProjectionState empty;
                     state = project_stable(lrfunctor, Y, tol, empty);
                     lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho,
-                        tol, parameters.orthomethod());
+                        tol);
                     t1.tag("project: tight projection");
 
                     current_error = lrf.l2error_pythagoras(state.f_norm_sq);
@@ -1909,8 +1843,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
 
             print("WARNING project: did NOT converge to target", eps,
-                  "; achieved", current_error);
-            return lrf;
+                  "; achieved", best_error);
+            return best_lrf;
         }
 
 
