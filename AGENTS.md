@@ -32,10 +32,12 @@ be used directly without feature detection beyond the existing
 
 ## Build directories
 
-Several out-of-tree build directories are already checked out locally
-(`cmake-build-debug`, `cmake-build-release`, `cmake-build-relwithdebinfo`).
-Pick one that matches the task rather than creating a new `build/` — their
-configure state is not identical.
+Prefer reusing an existing out-of-tree build directory over creating a new
+one from scratch, so you don't re-pay CMake configure time. Common local
+conventions are `cmake-build-{debug,release,relwithdebinfo}` and `build*`.
+If several exist side-by-side, check their
+cached CMake options (`grep … CMakeCache.txt`) — configure state often
+diverges between them.
 
 For focused iteration, these scope flags drop rebuild time substantially:
 
@@ -47,11 +49,19 @@ For focused iteration, these scope flags drop rebuild time substantially:
 
 ## Tests
 
-Tests live next to the sources they exercise, named `test*.cc` or `test_*.cc`,
-and are registered through `add_unittests(component sources libs labels)`
-(see `cmake/modules/AddUnittests.cmake`). The macro creates one CTest entry
-per source file under the path `madness/test/<component>/<name>/run` with the
-given labels.
+Tests live next to the sources they exercise and are registered through
+`add_unittests(component sources libs labels)` (see
+`cmake/modules/AddUnittests.cmake`). The macro emits:
+
+- one CTest entry per source file at `madness/test/<component>/<name>/run`,
+  with `<name>` derived from the source filename, and
+- a per-component `madness/test/<component>/build` entry that builds the
+  unit-test targets on demand.
+
+Both entries carry the `labels` passed to the macro. There is no filename
+convention — most test sources follow `test*.cc` / `test_*.cc` by habit,
+but the macro accepts any source name (e.g. `src/madness/misc/interp3.cc`,
+`src/examples/periodic/erfcr.cc`).
 
 The `check-short-madness` target runs everything labeled `short` or `medium`
 via `ctest -L "short|medium"`. To run a subset without the full suite:
@@ -62,8 +72,10 @@ ctest -R "madness/test/mra/test_cloud/run"   # a single test by name
 ```
 
 Each test is also a normal binary under
-`<build-dir>/src/madness/<component>/<name>` and can be invoked directly for
-debugging.
+`<build-dir>/<path-of-source-dir>/<name>` (mirroring the source tree, so
+`src/madness/mra` tests land at `<build-dir>/src/madness/mra/<name>`, and
+`src/examples/periodic` tests at `<build-dir>/src/examples/periodic/<name>`)
+and can be invoked directly for debugging.
 
 ### Smoke test
 
