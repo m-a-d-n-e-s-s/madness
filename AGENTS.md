@@ -195,6 +195,43 @@ Pick by *why* you're checking, not by what's short to type:
 - **`MADNESS_ASSERT_NOEXCEPT`** — use inside `noexcept` functions where a
   throwing `MADNESS_ASSERT` would call `std::terminate`.
 
+### CMake harness
+
+MADNESS is designed to be consumed by parent projects both as an installed
+package *and* as a subproject (via `FetchContent` / `add_subdirectory`, e.g.
+from TiledArray and MPQC). Maintain both invariants when editing CMake.
+
+- **No generic target names.** `check`, `doc`, `unittests`, `applications`
+  would collide with a parent project's targets. Define subproject-scoped
+  targets with `add_custom_target_subproject(madness <name> …)` from
+  `cmake/modules/AddCustomTargetSubproject.cmake`; it creates `<name>-madness`
+  and hooks it into `<name>` if the parent already defined it.
+- **Use the `add_mad_*` wrappers**, not raw `add_library` / `add_executable`.
+  `add_mad_library` / `add_mad_hdr_library` / `add_mad_executable` apply
+  project-wide include paths, install rules, and the
+  `$<BUILD_INTERFACE:…>` / `$<INSTALL_INTERFACE:…>` generator expressions
+  that make targets consumable from both build and install trees.
+- **Consumable from both install tree and build tree.** Preserved via
+  `install(EXPORT madness …)` plus
+  `export(EXPORT madness FILE ${PROJECT_BINARY_DIR}/madness-targets.cmake)`
+  in the top-level `CMakeLists.txt`, and the genex pair in `add_mad_library`.
+  Breaks in either path (missing install rules on new targets, hard-coded
+  paths outside the genex) are silent regressions for downstream consumers.
+- **Optional dependencies follow the `FindOrFetch*` pattern** (e.g.
+  `FindOrFetchCereal.cmake`, `FindOrFetchPARSEC.cmake`): try `find_package`
+  first, fall back to `FetchContent`. Harness mantra: use preexisting deps
+  when available, build from source otherwise — except for the most basic
+  (MPI, BLAS), which must be found on the system.
+- **Component libraries** (`MADworld`, `MADmra`, `MADtensor`, `MADchem`, …)
+  are the public link targets. The aggregate `madness` library is composed
+  from per-component object libraries (`MADworld-obj`, etc.), which (a) lets
+  downstream projects pull a lean subset via `MADNESS_BUILD_MADWORLD_ONLY` /
+  `MADNESS_BUILD_LIBRARIES_ONLY`, and (b) lets developers build a single
+  component quickly without its prerequisites — useful for shorter build
+  tests during iteration.
+- **`CMAKE_FIND_NO_INSTALL_PREFIX=ON`** is set as a safety net so
+  `find_package` doesn't pick up a stale installed copy during development.
+
 ### Commit messages
 
 Write plain commit messages describing the change. **Do not append
