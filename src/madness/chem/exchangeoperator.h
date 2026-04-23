@@ -94,6 +94,7 @@ public:
     Algorithm algorithm_ = multiworld_efficient_row;
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
     bool replicate_for_debug_ = false;  ///< if true, use StoreFunction policy to pre-replicate all data (zero communication during tasks)
+    bool local_accumulation_ = true;    ///< if true (and using owner-aware algorithm), accumulate task results subworld-locally and do one final subworld->universe gaxpy
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -173,6 +174,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_local_accumulation(const bool flag) {
+        local_accumulation_ = flag;
+        return *this;
+    }
+
     std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
 
     World& get_world() const {return world;}
@@ -243,9 +249,21 @@ private:
         Algorithm algorithm_ = multiworld_efficient;
     public:
         bool replicate_for_debug_ = false;
+        // When true (and use_owner_aware_fetch() is true), the task accumulates
+        // each tile's contribution into a subworld-local buffer and performs a
+        // single subworld->universe gaxpy in finalize_into() after all tasks on
+        // this subworld have run. Defaults to true; flip off to contrast against
+        // the original per-task universe accumulation path.
+        bool local_accumulation_ = true;
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
+        // Subworld-local accumulator for own-output accumulation.
+        // Populated task-by-task via accumulate_locally(); drained once per
+        // subworld via finalize_into() into the universe-resident result.
+        static inline vecfuncT Kf_local_;
+        static inline bool Kf_local_initialized_ = false;
+        static inline long Kf_local_world_id_ = -1;
         struct VfPrefetchState {
             Batch_1D current_range;
             vecfuncT current_data;
@@ -650,6 +668,44 @@ private:
         /// the exchange task manages its own data movement via owner-aware fetch
         bool handles_own_data_movement() const override { return use_owner_aware_fetch(); }
 
+        /// opt into own-output accumulation: each task folds its result into a
+        /// subworld-local buffer; a single subworld->universe gaxpy happens in
+        /// finalize_into(). Only active for the owner-aware algorithm.
+        bool accumulates_own_output() const override {
+            return use_owner_aware_fetch() and local_accumulation_;
+        }
+
+        /// fold a task's subworld-local result vector into the subworld-local
+        /// accumulator Kf_local_. Lazily initialized on first call per subworld.
+        /// Typed as vecfuncT (== resultT) because resultT is declared later in
+        /// the class body.
+        void accumulate_locally(World& subworld, const vecfuncT& result_subworld) const {
+            const long wid = long(subworld.id());
+            if (not Kf_local_initialized_ or Kf_local_world_id_ != wid) {
+                Kf_local_ = zero_functions_compressed<T, NDIM>(subworld, nresult);
+                Kf_local_initialized_ = true;
+                Kf_local_world_id_ = wid;
+            }
+            // match MacroTaskInternal::accumulate_into_final_result state handling
+            vecfuncT& rs = const_cast<vecfuncT&>(result_subworld);
+            TreeState op_state = rs[0].get_impl()->get_tensor_type()==TT_FULL
+                                 ? compressed : reconstructed;
+            change_tree_state(rs, op_state);
+            gaxpy(1.0, Kf_local_, 1.0, rs, false);
+        }
+
+        /// single subworld->universe gaxpy, draining Kf_local_ into the
+        /// universe-resident result. No-op if the subworld ran zero owned
+        /// tasks (accumulator never initialized) or was already finalized.
+        void finalize_into(World& /*subworld*/, vecfuncT& universe_result) {
+            if (not Kf_local_initialized_) return;
+            change_tree_state(Kf_local_, compressed);
+            gaxpy(1.0, universe_result, 1.0, Kf_local_, false);
+            Kf_local_.clear();
+            Kf_local_initialized_ = false;
+            Kf_local_world_id_ = -1;
+        }
+
         void set_next_vf_hint(const Batch_1D& next_hint, const bool has_hint) {
             if (not use_owner_aware_fetch()) return;
             vf_prefetch_.has_hint = has_hint;
@@ -743,6 +799,9 @@ private:
 
         void cleanup() override {
             clear_local_caches();
+            Kf_local_.clear();
+            Kf_local_initialized_ = false;
+            Kf_local_world_id_ = -1;
             cache_world_id_ = -1;
         }
 

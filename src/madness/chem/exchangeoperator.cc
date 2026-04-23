@@ -139,6 +139,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   min_batch_size_, max_batch_size_, algorithm_);
     xtask.replicate_for_debug_ = replicate_for_debug_;
+    xtask.local_accumulation_ = local_accumulation_;
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {

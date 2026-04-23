@@ -494,6 +494,7 @@ public:
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element,
 		const bool debug, const MacroTaskInfo policy) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
+	virtual void finalize(World& /*subworld*/, Cloud& /*cloud*/) {}	// default no-op; see accumulates_own_output()
 	virtual bool has_batch_info() const { return false; }
 	virtual Batch get_batch() const { return Batch(); }
 
@@ -808,6 +809,14 @@ public:
 			}
 	        universe.gop.set_forbid_fence(false);
 			universe.gop.fence();
+
+			// give tasks that opted into own-output accumulation a chance to
+			// flush their subworld-local buffer into the universe result
+			// exactly once per subworld. finalize() is guarded per task so
+			// iterating is cheap (O(ntasks) virtual calls + bool checks).
+			for (auto& t : taskq) t->finalize(subworld, cloud);
+			universe.gop.fence();
+
 			universe.gop.sum(tasktime);
 			if (printprogress() and universe.rank()==0) std::cout << std::endl;
 			cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
@@ -1080,6 +1089,24 @@ class MacroTask {
 
     template<typename Q, typename ArgTuple>
     static void prefetch_next_vf_async_or_noop(Q&, World&, const ArgTuple&, ...) {}
+
+    template<typename Q, typename ResT>
+    static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
+        -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
+        task.accumulate_locally(subworld, result_subworld);
+    }
+
+    template<typename Q, typename ResT>
+    static void accumulate_locally_or_noop(Q&, World&, const ResT&, ...) {}
+
+    template<typename Q, typename ResT>
+    static auto finalize_into_or_noop(Q& task, World& subworld, ResT& universe_result, int)
+        -> decltype(task.finalize_into(subworld, universe_result), void()) {
+        task.finalize_into(subworld, universe_result);
+    }
+
+    template<typename Q, typename ResT>
+    static void finalize_into_or_noop(Q&, World&, ResT&, ...) {}
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
@@ -1428,9 +1455,14 @@ private:
 				}
 
         		// accumulate the subworld-local results into the final, universe result
-        		resultT result_universe=get_output(subworld, cloud);       // lives in the universe
-
-        		accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        		// — unless the task accumulates into its own subworld-local buffer and
+        		// defers the single universe gaxpy until finalize() (see run_all).
+        		if (task.accumulates_own_output()) {
+        			accumulate_locally_or_noop(task, subworld, result_subworld, 0);
+        		} else {
+        			resultT result_universe=get_output(subworld, cloud);       // lives in the universe
+        			accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        		}
         		const double t_accumulate_done = wall_time();
 
         		// after compute + accumulate: issue vf prefetch for the next owned task.
@@ -1482,6 +1514,16 @@ private:
 	    	// this is called after all tasks have been executed and the taskq has ended
 	    	void cleanup() override {
 	    		task.cleanup();
+	    	}
+
+	    	// called once per subworld after the task loop, before cleanup().
+	    	// For tasks that opt into own-output accumulation, load the universe
+	    	// result pointers and let the task perform a single subworld->universe gaxpy.
+	    	// Idempotent: guarded inside the task so repeated calls are no-ops.
+	    	void finalize(World& subworld, Cloud& cloud) override {
+	    		if (not task.accumulates_own_output()) return;
+	    		resultT result_universe = get_output(subworld, cloud);
+	    		finalize_into_or_noop(task, subworld, result_universe, 0);
 	    	}
 
     	template<typename T, std::size_t NDIM>
@@ -1593,6 +1635,10 @@ public:
 	/// (only relevant for StorePointerToFunction / small_memory_owner policy).
 	/// Generic tasks should leave this as false; the framework will auto-copy.
 	virtual bool handles_own_data_movement() const { return false; }
+	/// return true if the task accumulates the subworld result into a task-owned
+	/// buffer and performs the universe gaxpy in its finalize() hook, bypassing
+	/// the default per-task universe accumulation in MacroTaskInternal::run.
+	virtual bool accumulates_own_output() const { return false; }
 };
 
 
