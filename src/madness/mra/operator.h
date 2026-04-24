@@ -143,6 +143,13 @@ namespace madness {
 
         OperatorInfo info;
 
+        /// cached Gaussian-expansion coefficients/exponents (for combine_generic
+        /// and introspection). Populated by the (coeff, expnt, ...) ctor and by
+        /// the OperatorInfo ctor. May be empty for ctors that do not have
+        /// access to the raw (c, α) data.
+        Tensor<Q> stored_coeffs;
+        Tensor<double> stored_exponents;
+
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
 
       private:
@@ -1055,6 +1062,8 @@ namespace madness {
             ops.resize(rank);
             initialize(coeff,expnt,lattice_ranges,range,bloch_k);
             init_lattice_summed();
+            stored_coeffs = copy(coeff);
+            stored_exponents = copy(expnt);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1080,6 +1089,8 @@ namespace madness {
             initialize(coeff,expnt,lattice_ranges);
             init_range();
             init_lattice_summed();
+            stored_coeffs = copy(coeff);
+            stored_exponents = copy(expnt);
         }
 
         void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<LatticeRange, NDIM> lattice_range, std::array<KernelRange, NDIM> range = {}, const Vector<double, NDIM>& bloch_k = Vector<double, NDIM>(0.0)) {
@@ -1656,6 +1667,11 @@ namespace madness {
             OperatorInfo info=left.info;
             if ((left.info.type==OT_F12) and (right.info.type==OT_G12)) {
                 info.type=OT_FG12;
+            } else if ((left.info.type==OT_G12) and (right.info.type==OT_G12)) {
+                // 1/r · 1/r = 1/r^2
+                info=right.info;
+                info.type=OT_INVRSQ;
+                info.mu=0.0;
             } else if ((left.info.type==OT_GAUSS) and (right.info.type==OT_GAUSS)) {
                 info=right.info;
                 info.type=OT_GAUSS;
@@ -1702,6 +1718,80 @@ namespace madness {
 
             auto info=combine_OT(left,right);
             return SeparatedConvolution<Q,NDIM>(left.get_world(),info,lattice_summed,left.k);
+        }
+
+        /// Generic product of two Gaussian expansions: (c, α) tensors only
+        ///
+        /// For
+        ///   A(r) = Σ_i cA[i] exp(-αA[i] r²),
+        ///   B(r) = Σ_j cB[j] exp(-αB[j] r²)
+        /// the exact product is
+        ///   (A·B)(r) = Σ_{i,j} (cA[i] cB[j]) exp(-(αA[i]+αB[j]) r²).
+        /// Rank before pruning is rank(A)·rank(B). Terms whose contribution
+        /// |c| · exp(-α lo²) falls below 0.01·thresh are dropped when prune
+        /// is true.
+        ///
+        /// @param[in] cA, aA   coefficient / exponent tensors of operator A
+        /// @param[in] cB, aB   coefficient / exponent tensors of operator B
+        /// @param[in] lo       length scale (used only for the pruning bound)
+        /// @param[in] thresh   precision threshold (controls pruning)
+        /// @param[in] prune    enable coefficient-threshold pruning (default on)
+        /// @return             (c, α) tensors of the combined operator
+        static std::pair<Tensor<Q>, Tensor<double>>
+        combine_generic_coeffs(const Tensor<Q>& cA, const Tensor<double>& aA,
+                               const Tensor<Q>& cB, const Tensor<double>& aB,
+                               double lo, double thresh, bool prune = true) {
+            MADNESS_CHECK(cA.size() == aA.size());
+            MADNESS_CHECK(cB.size() == aB.size());
+            long nA = cA.size(), nB = cB.size();
+
+            std::vector<Q>      c_keep;
+            std::vector<double> a_keep;
+            c_keep.reserve(nA * nB);
+            a_keep.reserve(nA * nB);
+            const double cutoff = prune ? (thresh * 1.e-2) : 0.0;
+            for (long i = 0; i < nA; ++i) {
+                for (long j = 0; j < nB; ++j) {
+                    Q      c = cA[i] * cB[j];
+                    double a = aA[i] + aB[j];
+                    if (prune) {
+                        double contrib = std::abs(c) * std::exp(-a * lo * lo);
+                        if (contrib <= cutoff) continue;
+                    }
+                    c_keep.push_back(c);
+                    a_keep.push_back(a);
+                }
+            }
+            Tensor<Q>      c_out(long(c_keep.size()));
+            Tensor<double> a_out(long(a_keep.size()));
+            for (size_t k = 0; k < c_keep.size(); ++k) {
+                c_out[k] = c_keep[k];
+                a_out[k] = a_keep[k];
+            }
+            return {c_out, a_out};
+        }
+
+        /// Generic product of two SepConvs via outer product of their (c, α)
+        ///
+        /// Thin wrapper around combine_generic_coeffs that wraps the result
+        /// into a SeparatedConvolution. The resulting operator has
+        /// info.type = OT_UNDEFINED; specialized combine rules are preferred
+        /// where available. See combine_generic_coeffs for semantics.
+        ///
+        /// @param[in] world    world for the resulting SepConv
+        /// @param[in] cA, aA   operator A's (c, α)
+        /// @param[in] cB, aB   operator B's (c, α)
+        /// @param[in] lo       length scale to pass to the resulting SepConv
+        /// @param[in] thresh   precision of the resulting SepConv
+        /// @param[in] prune    enable coefficient-threshold pruning
+        /// @return             SepConv representing A·B as a sum of Gaussians
+        static SeparatedConvolution<Q,NDIM>
+        combine_generic(World& world,
+                        const Tensor<Q>& cA, const Tensor<double>& aA,
+                        const Tensor<Q>& cB, const Tensor<double>& aB,
+                        double lo, double thresh, bool prune = true) {
+            auto [c, a] = combine_generic_coeffs(cA, aA, cB, aB, lo, thresh, prune);
+            return SeparatedConvolution<Q,NDIM>(world, c, a, lo, thresh);
         }
 
         /// combine 2 convolution operators to one

@@ -509,6 +509,13 @@ public:
 
     World& world() const override {return f12->get_world();}
 
+    /// access the F12 operator
+    const std::shared_ptr<SeparatedConvolution<T,LDIM>>& get_f12() const { return f12; }
+    /// access the a functions (particle 1 pre-multipliers)
+    const std::vector<Function<T,LDIM>>& get_a() const { return a; }
+    /// access the b functions (particle 2 pre-multipliers)
+    const std::vector<Function<T,LDIM>>& get_b() const { return b; }
+
     void set_thresh(double thresh) override {
         for (auto& f : a) if (f.is_initialized()) f.set_thresh(thresh);
         for (auto& f : b) if (f.is_initialized()) f.set_thresh(thresh);
@@ -562,7 +569,23 @@ public:
         }
 
         const SeparatedConvolution<T,LDIM>& f12a=*(f12);
-        const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12a,f12a);
+        // Prefer the specialized combine rule when available; fall back to
+        // the generic outer-product construction for SepConvs built from
+        // raw (c, α) tensors whose OperatorInfo type is UNDEFINED.
+        auto build_f12sq = [&]() -> SeparatedConvolution<T,LDIM> {
+            try {
+                return SeparatedConvolution<T,LDIM>::combine(f12a, f12a);
+            } catch (const madness::MadnessException&) {
+                MADNESS_CHECK_THROW(f12a.stored_coeffs.size() > 0,
+                    "LRFunctorF12::norm2: cannot combine f12 with itself and no "
+                    "stored (c, α) available for generic fallback");
+                return SeparatedConvolution<T,LDIM>::combine_generic(
+                    world(), f12a.stored_coeffs, f12a.stored_exponents,
+                             f12a.stored_coeffs, f12a.stored_exponents,
+                    f12a.info.lo, f12a.info.thresh, /*prune=*/true);
+            }
+        };
+        const SeparatedConvolution<T,LDIM> f12sq = build_f12sq();
 
         // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
         // || \sum_i f(1,2) a_i(1) b_i(2) || = \int ( \sum_{ij} a_i(1) a_j(1) f(1,2)^2 b_i(1) b_j(2) ) d1d2
@@ -1714,7 +1737,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto best_lrf = lrf;
             double best_error = current_error;
 
-            while (iter < max_iter) {
+            while (iter <= max_iter) {
                 if (state.ovlp_h.size() == 0) state.ovlp_h=matrix_inner(world,state.h_ortho,state.h_ortho);
                 auto diagnosis = diagnose_error(current_error, prev_error, current_rank,
                                                 tol, current_thresh, state.ovlp_h);
@@ -1765,6 +1788,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
                 // --- grid-limited (or tol-degraded fallthrough): fresh Y at finer ve ---
                 if (diagnosis == "grid") {
+                    ++iter;
+                    if (iter>max_iter) break;
                     ve *= 0.5;
                     print("project: grid-limited, halving ve to", ve, "and re-projecting from scratch");
                     local_params.set_derived_value("volume_element", ve);
@@ -1805,12 +1830,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                         best_error = current_error;
                         best_lrf = lrf;
                     }
-                    ++iter;
                     continue;
                 }
 
                 // --- thresh-limited: tighten thresh, reform everything ---
                 if (diagnosis == "thresh") {
+                    ++iter;
+                    if (iter>max_iter) break;
                     if (thresh_guard) {
                         print("project: thresh already tightened, giving up");
                         break;
@@ -1838,13 +1864,151 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                           current_error, "rank =", current_rank);
                     t1.tag("project: l2error iter " + std::to_string(iter));
                     if (current_error <= eps) return lrf;
-                    ++iter;
                 }
             }
 
             print("WARNING project: did NOT converge to target", eps,
                   "; achieved", best_error);
             return best_lrf;
+        }
+
+    private:
+        /// Build a Taylor-expansion-based Y basis spanning the range of an F12 operator.
+        ///
+        /// For each Gaussian term c_m exp(-alpha_m r^2) in the operator's GFit
+        /// expansion and each multi-index k with |k| <= max_order, emits
+        ///     phi_{m,k}(r) = r^k * exp(-alpha_m |r|^2)
+        /// when the Taylor coefficient |c_m * prod_d (2 alpha_m)^{k_d}/k_d!|
+        /// exceeds coeff_cutoff. These monomial-Gaussians probe the operator's
+        /// range analytically rather than by random sampling.
+        std::vector<Function<T,LDIM>> build_taylor_y(
+            const LRFunctorF12<T,NDIM>& functor,
+            const int max_order,
+            const double coeff_cutoff) const
+        {
+            World& world = functor.world();
+            auto f12 = functor.get_f12();
+            GFit<T, LDIM> fit(f12->info);
+            Tensor<T> coeffs = fit.coeffs();
+            Tensor<T> expnts = fit.exponents();
+            const long M = coeffs.dim(0);
+
+            auto multi_indices = generate_multi_indices(max_order);
+
+            std::vector<Function<T,LDIM>> Y;
+            long skipped = 0;
+            for (long m = 0; m < M; ++m) {
+                double cm = coeffs(m);
+                double am = expnts(m);
+                for (const auto& kidx : multi_indices) {
+                    double coeff_mk = cm;
+                    for (std::size_t d = 0; d < LDIM; ++d) {
+                        for (int j = 0; j < kidx[d]; ++j) {
+                            coeff_mk *= (2.0 * am) / double(j + 1);
+                        }
+                    }
+                    if (std::abs(coeff_mk) < coeff_cutoff) { ++skipped; continue; }
+
+                    std::array<int, LDIM> k_copy = kidx;
+                    Function<T,LDIM> phi = FunctionFactory<T,LDIM>(world)
+                        .special_points({Vector<double,LDIM>(0.0)})
+                        .functor([k_copy, am](const Vector<double,LDIM>& r) -> T {
+                            double val = std::exp(-am * madness::inner(r, r));
+                            for (std::size_t d = 0; d < LDIM; ++d) {
+                                for (int p = 0; p < k_copy[d]; ++p) val *= r[d];
+                            }
+                            return T(val);
+                        });
+                    Y.push_back(phi);
+                }
+            }
+            print("build_taylor_y: M =", M, "max_order =", max_order,
+                  "Y =", Y.size(), "(skipped", skipped, "below cutoff", coeff_cutoff, ")");
+            return Y;
+        }
+
+        /// Generate all multi-indices k = (k_1, ..., k_LDIM) with total degree |k| <= max_order.
+        static std::vector<std::array<int, LDIM>> generate_multi_indices(int max_order) {
+            std::vector<std::array<int, LDIM>> result;
+            std::array<int, LDIM> k{};
+            std::function<void(std::size_t, int)> recurse = [&](std::size_t dim, int remaining) {
+                if (dim == LDIM) {
+                    result.push_back(k);
+                    return;
+                }
+                for (int ki = 0; ki <= remaining; ++ki) {
+                    k[dim] = ki;
+                    recurse(dim + 1, remaining - ki);
+                }
+            };
+            recurse(0, max_order);
+            return result;
+        }
+
+    public:
+        /// Construct LRF directly from the Gaussian expansion of an F12 operator.
+        ///
+        /// Instead of random-Y probing, uses the known separable structure:
+        /// each Gaussian term c_m exp(-alpha_m |r1-r2|^2) is Taylor-expanded via
+        ///     exp(2 alpha_m r1.r2) = sum_k (2 alpha)^|k| r1^k r2^k / k!
+        /// giving explicit g and h basis functions. After rr_cholesky rank
+        /// reduction, yields a canonical LRF accurate to the operator's Gaussian
+        /// fit precision (~1e-8), bypassing the O(1/r^{3/2}) error floor of
+        /// random probing for Slater-type kernels.
+        ///
+        /// @param[in] functor          the F12 functor with operator and a,b functions
+        /// @param[in] target_error     controls coefficient cutoff and rank reduction tol
+        /// @param[in] max_taylor_order max total degree of Taylor expansion per Gaussian term
+        /// @return                     canonical LowRankFunction
+        LowRankFunction<T,NDIM> project_from_operator(
+            const LRFunctorF12<T,NDIM>& functor,
+            const double target_error = FunctionDefaults<NDIM>::get_thresh(),
+            const int max_taylor_order = 15) const
+        {
+            World& world = functor.world();
+            timer t1(world);
+            t1.do_print = true;
+
+            double coeff_cutoff = target_error * target_error * 1.e-4;
+            auto Y = build_taylor_y(functor, max_taylor_order, coeff_cutoff);
+            t1.tag("direct: Y construction");
+
+            if (Y.empty()) {
+                print("WARNING project_from_operator: no significant Y terms");
+                return LowRankFunction<T,NDIM>(world);
+            }
+
+            // 4. Use project_stable with the Taylor-constructed Y basis
+            //    This lets the SeparatedConvolution handle coefficient summation
+            //    correctly: h_raw = K*(a*Y) sums over ALL Gaussian terms, preserving
+            //    cancellations that the pure Taylor construction loses.
+            double tol = std::max(1.e-14, std::min(1.e-3, target_error * target_error));
+            ProjectionState empty;
+            auto state = project_stable(functor, Y, tol, empty);
+            auto lrf = LowRankFunction<T,NDIM>(state.g, state.h_ortho, tol);
+
+            double current_error = lrf.l2error_pythagoras(state.f_norm_sq);
+            print("direct: Pythagoras error =", current_error, "rank =", state.rank());
+            t1.tag("direct: projection");
+
+            // incremental tol-tightening if needed
+            while (current_error > target_error && state.ovlp_h.size() > 0) {
+                double tighter = std::max(1.e-14, tol * 0.01);
+                if (tighter >= tol) break;
+                auto state2 = project_stable(functor, Y, tighter, state);
+                auto lrf2 = LowRankFunction<T,NDIM>(state2.g, state2.h_ortho, tighter);
+                double error2 = lrf2.l2error_pythagoras(state2.f_norm_sq);
+                print("direct: tol", tol, "->", tighter, ": error =", error2, "rank =", state2.rank());
+                if (error2 >= current_error * 0.9) break;  // stagnated
+                lrf = lrf2;
+                state = state2;
+                current_error = error2;
+                tol = tighter;
+                t1.tag("direct: tol tightening");
+            }
+
+            print("direct: final error =", current_error, "rank =", lrf.rank());
+            return lrf;
         }
 
 

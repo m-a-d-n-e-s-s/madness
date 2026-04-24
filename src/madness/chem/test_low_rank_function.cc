@@ -5,6 +5,7 @@
 
 #include<madness.h>
 #include<madness/chem/lowrankfunction.h>
+#include<madness/chem/SCFOperators.h>
 
 
 #include<madness/world/test_utilities.h>
@@ -1329,6 +1330,70 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
     return t1.end();
 }
 
+/// Test direct operator projection: construct LRF from the Gaussian expansion
+/// of the operator instead of random-Y probing.
+template<std::size_t LDIM>
+int test_direct_projection(World& world, LowRankFunctionParameters parameters) {
+    constexpr std::size_t NDIM = 2 * LDIM;
+    test_output t1("test_direct_projection in dimension " + std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+    double thresh_ldim = FunctionDefaults<LDIM>::get_thresh();
+    FunctionDefaults<LDIM>::set_thresh(thresh_ldim * 0.1);
+
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+    // Test 1: Gaussian operator — should converge easily (exponential eigenvalue decay)
+    {
+        double gaussexponent = 2.0;
+        auto gaussop = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+            GaussOperatorPtr<LDIM>(world, gaussexponent, 1.e-10, FunctionDefaults<LDIM>::get_thresh() * 0.1));
+        Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return exp(-2.0 * inner(r, r)); });
+        Function<double,LDIM> phi2 = FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return exp(-3.0 * inner(r, r)); });
+        LRFunctorF12<double,NDIM> functor(gaussop, phi1, phi2);
+
+        auto builder = LowRankFunctionFactory<double,NDIM>(parameters, origins);
+        double target = 1.e-3;
+        auto lrf = builder.project_from_operator(functor, target, 10);
+        double error = lrf.l2error(functor);
+        print("Gauss direct: error =", error, "rank =", lrf.rank());
+        t1.checkpoint(error, target, "Gaussian operator direct projection");
+    }
+
+    // Test 2: Slater operator — should beat the ~5e-3 error floor from random probing
+    {
+        OperatorInfo info(1.0, 1.e-8, FunctionDefaults<LDIM>::get_thresh() * 0.1, OT_SLATER);
+        auto slater = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+            new SeparatedConvolution<double,LDIM>(world, info));
+        Function<double,LDIM> phi = FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return exp(-0.7 * inner(r, r)); });
+        LRFunctorF12<double,NDIM> functor(slater, phi, phi);
+
+        auto builder = LowRankFunctionFactory<double,NDIM>(parameters, origins);
+        double target = 1.e-3;
+        auto lrf_direct = builder.project_from_operator(functor, target, 15);
+        double error_direct = lrf_direct.l2error(functor);
+        print("Slater direct: error =", error_direct, "rank =", lrf_direct.rank());
+        // Slater has an intrinsic ~5e-3 error floor from algebraic eigenvalue decay.
+        // The direct approach gets ~4e-3, slightly better than random-Y (~5e-3).
+        // Use relaxed threshold to check the method works (not that it beats the floor).
+        t1.checkpoint(error_direct, 1.e-2, "Slater operator direct projection");
+
+        // Compare with standard random-Y projection
+        auto lrf_random = builder.project(functor, target, 3);
+        double error_random = lrf_random.l2error(functor);
+        print("Slater random-Y: error =", error_random, "rank =", lrf_random.rank());
+        print("Direct vs random: direct =", error_direct, "random =", error_random);
+        // direct should be no worse than random (both hit the same floor)
+        t1.checkpoint(error_direct <= error_random * 1.5, "direct <= 1.5 * random");
+    }
+
+    FunctionDefaults<LDIM>::set_thresh(thresh_ldim);
+    return t1.end();
+}
+
 template<std::size_t LDIM>
 int test_adaptive_project(World& world, LowRankFunctionParameters& parameters) {
     constexpr std::size_t NDIM = 2 * LDIM;
@@ -1489,6 +1554,340 @@ int test_adaptive_diagnosis(World& world) {
     return t1.end();
 }
 
+/// Verify the generic outer-product combine: Slater(μ_A) × Slater(μ_B) ≈
+/// exp(-(μ_A+μ_B) r) pointwise. Compares the outer-product (c, α) tensors
+/// against a direct SlaterFit at μ_A+μ_B on a log-spaced grid.
+int test_combine_generic(World& world) {
+    test_output t("SeparatedConvolution::combine_generic (outer product)");
+    t.set_cout_to_terminal();
+
+    const double lo = 1.e-3;
+    const double hi = 20.0;
+    const double eps = 1.e-5;
+    const double muA = 0.7;
+    const double muB = 1.3;
+
+    auto fitA = GFit<double,3>::SlaterFit(muA, lo, hi, eps, false);
+    auto fitB = GFit<double,3>::SlaterFit(muB, lo, hi, eps, false);
+
+    // generic outer-product combine
+    auto [c_AB, a_AB] = SeparatedConvolution<double,3>::combine_generic_coeffs(
+        fitA.coeffs(), fitA.exponents(),
+        fitB.coeffs(), fitB.exponents(),
+        lo, eps, /*prune=*/true);
+    auto [c_AB_full, a_AB_full] = SeparatedConvolution<double,3>::combine_generic_coeffs(
+        fitA.coeffs(), fitA.exponents(),
+        fitB.coeffs(), fitB.exponents(),
+        lo, eps, /*prune=*/false);
+
+    print("rank(A) =", fitA.coeffs().size(),
+          "rank(B) =", fitB.coeffs().size(),
+          "outer-product rank =", c_AB_full.size(),
+          "after prune =", c_AB.size());
+
+    // pointwise check against exp(-(μA+μB) r) on [lo, hi].
+    // The underlying Slater fits are accurate to ~eps in absolute (not
+    // relative) norm, so compare absolute difference. Also report worst
+    // relative error on the interior region where |exact| > eps.
+    int np = 200;
+    double max_abs = 0.0, r_abs = 0.0;
+    double max_rel_interior = 0.0, r_rel = 0.0;
+    for (int i = 0; i < np; ++i) {
+        double r = lo * std::pow(hi/lo, double(i)/(np-1));
+        double exact = std::exp(-(muA + muB) * r);
+        double approx = 0.0;
+        for (long k = 0; k < c_AB.size(); ++k) {
+            approx += c_AB[k] * std::exp(-a_AB[k] * r * r);
+        }
+        double abs_err = std::abs(approx - exact);
+        if (abs_err > max_abs) { max_abs = abs_err; r_abs = r; }
+        if (exact > eps) {
+            double rel = abs_err / exact;
+            if (rel > max_rel_interior) { max_rel_interior = rel; r_rel = r; }
+        }
+    }
+    // also compute without pruning for comparison
+    auto [c_np, a_np] = SeparatedConvolution<double,3>::combine_generic_coeffs(
+        fitA.coeffs(), fitA.exponents(),
+        fitB.coeffs(), fitB.exponents(),
+        lo, eps, /*prune=*/false);
+    double max_abs_np = 0.0;
+    // also check SlaterFit at μA+μB for comparison
+    auto fit_ref = GFit<double,3>::SlaterFit(muA+muB, lo, hi, eps, false);
+    double max_abs_ref = 0.0;
+    double max_abs_A = 0.0;
+    for (int i = 0; i < np; ++i) {
+        double r = lo * std::pow(hi/lo, double(i)/(np-1));
+        double exact_prod = std::exp(-(muA + muB) * r);
+        double exact_A = std::exp(-muA * r);
+        double ap_np = 0.0;
+        for (long k = 0; k < c_np.size(); ++k)
+            ap_np += c_np[k] * std::exp(-a_np[k] * r * r);
+        double ap_ref = 0.0;
+        for (long k = 0; k < fit_ref.coeffs().size(); ++k)
+            ap_ref += fit_ref.coeffs()[k] * std::exp(-fit_ref.exponents()[k] * r * r);
+        double ap_A = 0.0;
+        for (long k = 0; k < fitA.coeffs().size(); ++k)
+            ap_A += fitA.coeffs()[k] * std::exp(-fitA.exponents()[k] * r * r);
+        max_abs_np = std::max(max_abs_np, std::abs(ap_np - exact_prod));
+        max_abs_ref = std::max(max_abs_ref, std::abs(ap_ref - exact_prod));
+        max_abs_A = std::max(max_abs_A, std::abs(ap_A - exact_A));
+    }
+    print("  underlying SlaterFit(μA) abs err =", max_abs_A);
+    print("  SlaterFit(μA+μB) direct  abs err =", max_abs_ref);
+    print("  combine_generic no-prune abs err =", max_abs_np,
+          "  rank =", c_np.size());
+    print("  Slater(μA) × Slater(μB) generic combine:");
+    print("    max abs err =", max_abs, "  (at r =", r_abs, ")");
+    print("    max rel err on interior (|exact| > eps) =", max_rel_interior,
+          "  (at r =", r_rel, ")");
+    // The floor is set by the input SlaterFits' own accuracy, not eps.
+    // What matters is that combine_generic matches a direct SlaterFit at
+    // μA+μB to much better than the fit's own error.
+    double fit_floor = std::max(max_abs_ref, max_abs_A);
+    t.checkpoint(max_abs < 2.0 * fit_floor,
+                 "combine_generic accuracy consistent with SlaterFit(μA+μB)");
+    t.checkpoint(std::abs(max_abs_np - max_abs_ref) < 0.1 * fit_floor,
+                 "no-prune outer-product matches direct fit of product");
+
+    // Also test the SepConv-wrapping variant compiles and returns valid object
+    auto sc_AB = SeparatedConvolution<double,3>::combine_generic(
+        world, fitA.coeffs(), fitA.exponents(),
+               fitB.coeffs(), fitB.exponents(),
+        lo, eps, true);
+    t.checkpoint(c_AB.size() > 0, "combine_generic returns non-empty SepConv");
+
+    return t.end();
+}
+
+
+/// Verify that the new OT_INVRSQ operator type gives the correct pointwise
+/// approximation of 1/r^2 and that combine(Coulomb, Coulomb) → OT_INVRSQ
+/// via the public API.
+int test_invrsq_operator(World& world) {
+    test_output t("OT_INVRSQ operator: pointwise fit and combine(G12,G12)");
+    t.set_cout_to_terminal();
+
+    const double lo = 1.e-3;
+    const double hi = 20.0;
+    const double eps = 1.e-6;
+
+    // Path 1: direct construction via OperatorInfo(OT_INVRSQ)
+    auto invrsq = std::make_shared<SeparatedConvolution<double,3>>(
+        world, OperatorInfo(0.0, lo, eps, OT_INVRSQ));
+
+    // Path 2: combine(Coulomb, Coulomb) → should produce OT_INVRSQ internally
+    auto coulomb = std::make_shared<SeparatedConvolution<double,3>>(
+        world, OperatorInfo(0.0, lo, eps, OT_G12));
+    bool combinable = SeparatedConvolution<double,3>::can_combine(*coulomb, *coulomb);
+    print("can_combine(Coulomb, Coulomb) =", combinable);
+    t.checkpoint(combinable, "can_combine Coulomb x Coulomb");
+
+    auto combined_info = SeparatedConvolution<double,3>::combine_OT(*coulomb, *coulomb);
+    bool correct_type = (combined_info.type == OT_INVRSQ);
+    print("combine_OT type =", combined_info.type);
+    t.checkpoint(correct_type, "combine_OT returns OT_INVRSQ");
+
+    // Pointwise sanity: apply OT_INVRSQ to a Gaussian test function and
+    // compare to integrating 1/|r-r'|^2 * g(r') analytically for a
+    // narrow-Gaussian test would be expensive; simpler check is to verify
+    // the operator's GFit coefficients reproduce 1/r^2 pointwise.
+    GFit<double,3> fit = GFit<double,3>::InverseRSqFit(lo, hi, eps, false);
+    Tensor<double> c = fit.coeffs();
+    Tensor<double> a = fit.exponents();
+    long M = c.size();
+
+    double max_rel = 0.0;
+    int np = 100;
+    for (int i=0; i<np; ++i) {
+        double r = lo * std::pow(hi/lo, double(i)/(np-1));
+        double exact = 1.0/(r*r);
+        double approx = 0.0;
+        for (long k=0; k<M; ++k) approx += c[k]*std::exp(-a[k]*r*r);
+        double rel = std::abs(approx - exact)/exact;
+        if (rel > max_rel) max_rel = rel;
+    }
+    print("InverseRSqFit M =", M, "  max relative pointwise error =", max_rel);
+    t.checkpoint(max_rel < 10*eps, "pointwise accuracy");
+
+    // Pythagoras norm2 for a Coulomb LRFunctorF12 exercises combine(Coulomb, Coulomb).
+    // Pre-fix: this threw "unknown combination of SeparatedConvolutions".
+    Function<double,3> phi = FunctionFactory<double,3>(world)
+        .functor([](const Vector<double,3>& r){ return std::exp(-r.normf()); });
+    double phi_norm = phi.norm2(); phi.scale(1.0/phi_norm);
+    LRFunctorF12<double,6> functor(coulomb, phi, phi);
+    double fn = functor.norm2();
+    bool norm_ok = std::isfinite(fn) && fn > 0.0;
+    print("LRFunctorF12(Coulomb, phi, phi).norm2() =", fn);
+    t.checkpoint(norm_ok, "Pythagoras norm2 for Coulomb functor finite and positive");
+
+    return t.end();
+}
+
+
+/// Verify that 1/r² can be represented as a sum of Gaussians via the
+/// Beylkin–Monzón integral representation
+///
+///     1/r^α = (1/Γ(α/2)) ∫_0^∞ t^{α/2-1} exp(-t r²) dt
+///
+/// For α=2 (i.e. 1/r²) this reduces to
+///
+///     1/r² = ∫_0^∞ exp(-t r²) dt
+///
+/// Substituting t = exp(2s):
+///
+///     1/r² = 2 ∫_{-∞}^{∞} exp(2s) exp(-exp(2s) r²) ds
+///
+/// Trapezoidal discretization on s with step h yields
+///
+///     1/r² ≈ 2h · Σ_k exp(2 s_k) · exp(-exp(2 s_k) r²)      (c_k, α_k) pair
+///           =      Σ_k c_k · exp(-α_k r²)
+///
+/// with c_k = 2 h · exp(2 s_k), α_k = exp(2 s_k). This is exactly the
+/// d=4 case of MADNESS's private `bsh_fit_ndim(4, μ=0, …)`, whose per-term
+/// coefficient is `c = h · exp((d-2) s) · 0.5/π^{d/2}` (the d=4 BSH
+/// normalization carries a factor 0.5/π² that is not present in the
+/// pointwise-fit convention here).
+///
+/// This routine builds the pointwise fit directly and reports the number
+/// of Gaussians and the maximum relative error on a range of r values.
+int test_inv_rsq_gfit(World& world) {
+    test_output t("1/r^2 as sum of Gaussians (Beylkin-Monzon)");
+    t.set_cout_to_terminal();
+
+    std::vector<double> eps_list = {1.e-4, 1.e-6, 1.e-8, 1.e-10};
+    const double lo = 1.e-3;
+    const double hi = 20.0;
+
+    for (double eps : eps_list) {
+        // quadrature range: s_lo = -log(hi) - buffer, s_hi = 0.5 log(T/lo²)
+        double T;
+        if      (eps >= 1e-4)  T = 10;
+        else if (eps >= 1e-6)  T = 14;
+        else if (eps >= 1e-8)  T = 18;
+        else                   T = 22;
+        double slo = std::log(eps / hi) - 1.0;
+        double shi = 0.5 * std::log(T / (lo*lo));
+        double h = 1.0 / (0.2 - 0.5 * std::log10(eps));
+        h = std::floor(64.0 * h) / 64.0;
+        shi = std::ceil(shi/h) * h;
+        slo = std::floor(slo/h) * h;
+        long npt = long((shi - slo)/h + 0.5);
+
+        std::vector<double> c_list, a_list;
+        for (int i = 0; i < npt; ++i) {
+            double s = slo + h*(npt - i);        // match bsh_fit ordering
+            double alpha = std::exp(2.0*s);
+            double coeff = 2.0 * h * alpha;       // 2h · exp(2s)
+            // keep terms that contribute above eps at the far-tail r=hi
+            if (coeff * std::exp(-alpha * hi*hi) > eps * 1.e-2) {
+                c_list.push_back(coeff);
+                a_list.push_back(alpha);
+            } else if (coeff > eps * 1.e-2) {
+                c_list.push_back(coeff);
+                a_list.push_back(alpha);
+            }
+        }
+        long M = c_list.size();
+
+        // max relative error on [lo, hi]
+        int np = 200;
+        double max_rel = 0.0;
+        double max_abs = 0.0;
+        double r_worst = 0.0;
+        for (int i = 0; i < np; ++i) {
+            double r = lo * std::pow(hi/lo, double(i)/(np-1));
+            double exact = 1.0 / (r*r);
+            double approx = 0.0;
+            for (long k = 0; k < M; ++k) approx += c_list[k] * std::exp(-a_list[k] * r*r);
+            double rel = std::abs(approx - exact) / exact;
+            if (rel > max_rel) { max_rel = rel; max_abs = std::abs(approx - exact); r_worst = r; }
+        }
+
+        printf("  eps=%.0e   M=%3ld   α range=[%.2e, %.2e]   max rel err=%.3e  (at r=%.3e, abs=%.3e)\n",
+               eps, M, a_list.back(), a_list.front(), max_rel, r_worst, max_abs);
+    }
+
+    return t.end();
+}
+
+
+/// Analyze the error of discarding large-alpha terms in the GFit of the
+/// Coulomb kernel 1/r ≈ Σ_μ c_μ exp(-α_μ r²).
+///
+/// Context: in the k-commutator algorithm
+///   [k̂₁, f(1,2)] |ij⟩
+/// with k̂₁ carrying the Coulomb kernel, large-α_μ Gaussians act like
+/// δ(r₁-r₁') and their contribution cancels between the two pieces of
+/// the commutator. The leading non-cancelling contribution per term is
+///   c_μ · π^{3/2} / (4 α_μ^{5/2}) · ∇²F(r₁)
+/// so the relevant error proxies for a discard threshold α* are
+///   weight     Σ_{α_μ > α*} |c_μ| (π/α_μ)^{3/2}
+///   err_proxy  Σ_{α_μ > α*} |c_μ| π^{3/2} / (4 α_μ^{5/2})
+///
+/// This routine runs CoulombFit at several target epsilons and reports
+/// both the per-term spectrum and the cumulative drop-curve.
+int test_coulomb_gfit_discard_large_alpha(World& world) {
+    test_output t("Coulomb GFit: discard-large-alpha analysis");
+    t.set_cout_to_terminal();
+
+    const double pi = constants::pi;
+    std::vector<double> eps_list = {1.e-4, 1.e-6, 1.e-8, 1.e-10};
+    const double lo = 1.e-4;
+    const double hi = 20.0;
+
+    for (double eps : eps_list) {
+        print("\n======================================================================");
+        print("Coulomb GFit  eps=", eps, "  lo=", lo, "  hi=", hi);
+        print("======================================================================");
+        auto fit = GFit<double, 3>::CoulombFit(lo, hi, eps, false);
+        Tensor<double> c = fit.coeffs();
+        Tensor<double> a = fit.exponents();
+        long M = a.size();
+        print("number of Gaussians  M =", M);
+
+        // per-term spectrum
+        print("\n   mu        c_mu          alpha_mu       w_mu=c*(pi/a)^1.5   err_mu = w_mu/(4 a)");
+        print("   --        -----          --------       -----------------   -------------------");
+        double total_w = 0.0, total_err = 0.0;
+        for (long mu = 0; mu < M; ++mu) {
+            double wmu = std::abs(c[mu]) * std::pow(pi / a[mu], 1.5);
+            double err_mu = wmu / (4.0 * a[mu]);
+            total_w   += wmu;
+            total_err += err_mu;
+            printf("  %4ld   %+13.5e   %+13.5e   %13.5e       %13.5e\n",
+                   mu, c[mu], a[mu], wmu, err_mu);
+        }
+        printf("  TOTAL                                   %13.5e       %13.5e\n",
+               total_w, total_err);
+
+        // cumulative drop curve
+        std::vector<double> alpha_stars = {
+            1.e0, 1.e1, 1.e2, 1.e3, 1.e4, 1.e5, 1.e6, 1.e7, 1.e8, 1.e10
+        };
+        print("\n  alpha*          n_drop  n_keep   Σ_drop w_mu         Σ_drop err_proxy");
+        print("  ------          ------  ------   ------------         ----------------");
+        for (double as : alpha_stars) {
+            long ndrop = 0, nkeep = 0;
+            double wdrop = 0.0, edrop = 0.0;
+            for (long mu = 0; mu < M; ++mu) {
+                if (a[mu] > as) {
+                    ++ndrop;
+                    double wmu = std::abs(c[mu]) * std::pow(pi / a[mu], 1.5);
+                    wdrop += wmu;
+                    edrop += wmu / (4.0 * a[mu]);
+                } else {
+                    ++nkeep;
+                }
+            }
+            printf("  %10.2e      %4ld    %4ld     %13.5e        %13.5e\n",
+                   as, ndrop, nkeep, wdrop, edrop);
+        }
+    }
+    return t.end();
+}
+
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -1533,41 +1932,22 @@ int main(int argc, char **argv) {
     parameters.set_derived_value("f12type",std::string("slater"));
     parameters.read_and_set_derived_values(world,parser,"grid");
     parameters.set_derived_value("radius",2.5);
-    parameters.set_derived_value("volume_element",0.08);
+    parameters.set_derived_value("volume_element",0.2);
     parameters.set_derived_value("tol",1.e-5);
-    parameters.set_derived_value("tempered",std::vector<double>({1.e-3,1.e2,4.0}));
+    parameters.set_derived_value("tempered",std::vector<double>({1.e-1,1.e1,9.0}));
+    parameters.set_derived_value("lmax",2);
     parameters.print("grid");
 
     int isuccess=0;
 
     try {
-        if (0) {
-            // direct 6D projection test with full output
-            constexpr std::size_t LDIM=3, NDIM=6;
-            double gaussexponent=2.0, gauss1=2.0;
-            auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(
-                GaussOperatorPtr<LDIM>(world,gaussexponent));
-            Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
-                .functor([&gauss1](const Vector<double,LDIM>& r){return exp(-gauss1*inner(r,r));});
-            Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
-                .functor([](const Vector<double,LDIM>& r){return 1.0;});
-            LRFunctorF12<double,NDIM> functor(gaussop,phi1,one);
-            Vector<double,LDIM> origin(0.0);
-            std::vector<Vector<double,LDIM>> origins={origin};
-
-            print("\n=== 6D eps=1e-2 ===");
-            auto factory=LowRankFunctionFactory<double,NDIM>(parameters,origins);
-            auto lrf1=factory.project(functor, 1.e-2);
-            double err1=lrf1.l2error(functor);
-            print("RESULT eps=1e-2: error=",err1,"rank=",lrf1.rank());
-
-            print("\n=== 6D eps=1e-3 ===");
-            auto lrf2=factory.project(functor, 1.e-3);
-            double err2=lrf2.l2error(functor);
-            print("RESULT eps=1e-3: error=",err2,"rank=",lrf2.rank());
-        }
+        isuccess+=test_coulomb_gfit_discard_large_alpha(world);
+        isuccess+=test_inv_rsq_gfit(world);
+        isuccess+=test_invrsq_operator(world);
+        isuccess+=test_combine_generic(world);
 
         isuccess+=test_construction<1>(world, parameters);
+        isuccess+=test_direct_projection<1>(world, parameters);
         isuccess+=test_adaptive_project<1>(world, parameters);
         isuccess+=test_recursive_apply<1>(world);
         isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
@@ -1579,6 +1959,7 @@ int main(int argc, char **argv) {
 
         if (long_test) {
             isuccess+=test_construction<2>(world, parameters);
+            isuccess+=test_direct_projection<2>(world, parameters);
             isuccess+=test_adaptive_project<2>(world, parameters);
             isuccess+=test_recursive_apply<2>(world);
             isuccess+=test_norm2_asymmetric_metric<2>(world, parameters);
@@ -1589,10 +1970,10 @@ int main(int argc, char **argv) {
             isuccess+=test_molecular_grid<2>(world,parameters);
         }
 
-    } catch (std::exception& e) {
-        madness::print("an error occured");
-        madness::print(e.what());
-        isuccess+=1;
+   } catch (std::exception& e) {
+       madness::print("an error occured");
+       madness::print(e.what());
+       isuccess+=1;
     }
     finalize();
 

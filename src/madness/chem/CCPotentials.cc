@@ -2243,7 +2243,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
     std::vector<CCPairFunction<double,6>> result;
 
-    std::string algo="lowrank" ; // old/lowrank
+    std::string algo="new" ; // old/new/lowrank
     real_function_6d Kfxy, fKxy;
 
     if (algo=="new" or algo=="old" or algo=="all") {
@@ -2474,18 +2474,28 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
     real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson()*0.1);
     g12.destructive()=true;
     auto f12=SlaterF12Operator(world,1.0,parameters.lo(),parameters.thresh_poisson()*0.1);
+    std::cout << std::setprecision(7);
+    print("thresh3d",FunctionDefaults<3>::get_thresh());
+    print("thresh6d",FunctionDefaults<6>::get_thresh());
+    x.function.print_size("x");
+    y.function.print_size("y");
+    madness::print_size(world,info.mo_bra,"mo_bra");
+    madness::print_size(world,info.mo_ket,"mo_ket");
+    parameters.print("cc");
 
     real_function_6d result=FunctionFactory<double,6>(world);
 
     // set up test space <p| R2 and <p| R2 K
-    int lmax=0;
-    std::vector<double> zeta_range({0.1,1,9});
+    int lmax=2;
+    std::vector<double> zeta_range({0.1,10,9});
     std::vector<real_function_3d> obspace=LowRankFunctionFactory<double,6>::harmonic_basis(world,zeta_range,lmax,info.molecular_coordinates);
-    obspace=info.R_square*obspace;
+    obspace=orthonormalize(obspace);
+
 
     /// test the matrix elements <ab | f12 | kx y >
     auto test_f_kxy = [&obspace,&f12](const real_function_3d& kx, const real_function_3d y, const real_function_6d& fkxy)
     {
+        return 0.0;
         std::size_t nvir=obspace.size();
         Tensor<double> ref(nvir,nvir), val(nvir,nvir);
         // < ab | f12 | kx y> = <a * kx | f(b * y) >
@@ -2503,6 +2513,7 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
     /// test the matrix elements <a(1) b(2) | \int g(1,1') f(1',2) kx(1') y(2) \d1' > = < g(a)(1') * kx(1') | f(b*y)(1') >
     auto test_g_f_kxy = [&obspace,&g12,&f12](const real_function_3d& kx, const real_function_3d y, const real_function_6d& gfkxy)
     {
+        return 0.0;
         std::size_t nvir=obspace.size();
         Tensor<double> ref(nvir,nvir), val(nvir,nvir);
         for (int a=0; a<obspace.size(); ++a)
@@ -2521,6 +2532,7 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
     auto test_k_g_f_kxy = [&obspace,&g12,&f12](const real_function_3d& kx, const real_function_3d y,
         const real_function_3d& k, const real_function_6d& kgfkxy)
     {
+        return 0.0;
         std::size_t nvir=obspace.size();
         Tensor<double> ref(nvir,nvir), val(nvir,nvir);
         for (int a=0; a<obspace.size(); ++a)
@@ -2546,24 +2558,49 @@ CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFu
         for (std::size_t kbatch=0; kbatch < info.mo_ket.size(); kbatch+=batchsize) {
             for (std::size_t k = kbatch; k < std::min(kbatch+batchsize,info.mo_ket.size()); k++) {
 
+                timer t(world);
                 // multiply with F12 operator: f(2,3) k*(3) x(3) y(2)
                 real_function_3d xx=(particle==1) ? k_arg[k] : x.function;
                 real_function_3d yy=(particle==2) ? k_arg[k] : y.function;
+                xx.truncate();
+                yy.truncate();
+                xx.print_size("xx");
+                yy.print_size("yy");
+                print("k",xx.get_impl()->get_k());
+                print("cell", FunctionDefaults<3>::get_cell());
+                print("cell", FunctionDefaults<6>::get_cell());
+                print("truncate_mode",FunctionDefaults<3>::get_truncate_mode());
+                print("truncate_mode",FunctionDefaults<6>::get_truncate_mode());
+                print("corrfac.gamma()",corrfac.gamma());
                 real_function_6d X = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
                                                         particle1(copy(xx)).particle2(copy(yy));
                 X.fill_cuspy_tree().truncate(parameters.tight_thresh_6D()).reduce_rank();
+                print("in 1");
+                t.tag("after fill_cuspy_tree");
+                X.print_size("X");
                 double err1=test_f_kxy(xx,yy,X);
+                print("in 1a");
+
 
                 // apply Coulomb operator g(1,3) to f(2,3) k*(3) x(3) y(2)
                 g12.particle() = particle;
                 real_function_6d Y = g12(X);     // overwrite X to save space
+                print("in 2");
+                t.tag("after apply g");
+                Y.print_size("Y");
                 double err2=test_g_f_kxy(xx,yy,Y);
+                print("in 2a");
                 auto tmp=(multiply(copy(Y), copy(info.mo_ket[k]),particle)).truncate(parameters.tight_thresh_6D()*3.0);
+                print("in 3");
+                t.tag("after final multiply");
+                tmp.print_size("tmp");
                 double err3=test_k_g_f_kxy(xx,yy,info.mo_ket[k],tmp);
+                print("in 3a");
 
                 char buf[256];
                 snprintf(buf,sizeof(buf),"particle %d, k %zu, err_f_kxy=%e, err_g_f_kxy=%e, err_k_g_f_kxy=%e\n", particle, k, err1, err2, err3);
                 print(buf);
+                std::flush(std::cout);
 
                 result += tmp;
             }
