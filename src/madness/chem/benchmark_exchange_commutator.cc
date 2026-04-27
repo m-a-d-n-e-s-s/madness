@@ -111,49 +111,45 @@ int main(int argc, char **argv) {
         CCFunction<double,3> phi_i(phi, 0, HOLE);
         CCFunction<double,3> phi_j(phi, 0, HOLE);
 
-        // Score lambda: take the algorithm result, project onto the harmonic
-        // basis via diagnose(), pass empty fK / KffK because we are testing the
-        // Kf piece only.  include_K2 is steered from the caller so the same
-        // lambda works for both the K̂₁-only regression and the K̂₁+K̂₂ run.
-        auto score_Kf = [&](const ExchangeCommutator::KffKResult& r,
-                             bool include_K2) {
-            std::vector<CCPairFunction<double,6>> empty_fK;
-            std::vector<CCPairFunction<double,6>> empty_KffK;
+        // Score lambda: project Kf, fK, and KffK onto the harmonic basis and
+        // print errors for whichever pieces are present in the result.  Empty
+        // entries in the KffKResult are skipped by diagnose().
+        auto score_full = [&](const ExchangeCommutator::KffKResult& r,
+                              bool include_K2) {
             auto d = ExchangeCommutator::diagnose(
                     world, amo, R2amo, phi, phi,
-                    r.Kf, empty_fK, empty_KffK, lrfparam,
+                    r.Kf, r.fK, r.KffK, lrfparam,
                     /*verbose=*/true,
                     include_K2);
             ExchangeCommutator::print_report(r, &d);
         };
 
         // -------------------- regression: K̂₁/Kf only --------------------
-        // Reproduce the working K̂₁-only configuration before re-enabling K̂₂.
-        // If err_Kf grows away from ~3e-3, the K̂₁ path itself has regressed
-        // and the K̂₁+K̂₂ result is not meaningful.
-        print("\n========== regression: K̂₁ piece only ==========");
+        // Reproduce the working K̂₁-only configuration before adding fK.
+        // If err_Kf grows away from ~1e-5, the K̂₁ path has regressed.
+        print("\n========== regression: K̂₁ piece only (Kf alone) ==========");
         {
             ExchangeCommutator::SplitAlphaOptions opt;
             opt.alpha_star               = 1.e4;
             opt.assemble_fK              = false;
             opt.include_symmetry_mirror  = false;
-            score_Kf(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+            score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
                     world, phi_i, phi_j, info, lrfparam, opt),
-                     /*include_K2=*/false);
+                       /*include_K2=*/false);
         }
 
-        // -------------------- K̂₁ + K̂₂ via swap_particles ----------------
-        print("\n========== K̂₁ + K̂₂ piece (swap_particles enabled) ==========");
+        // -------------------- full commutator: K̂₁+K̂₂ on Kf, fK, KffK ---
+        print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂ ==========");
         {
             ExchangeCommutator::SplitAlphaOptions opt;
             opt.alpha_star               = 1.e4;
-            opt.assemble_fK              = false;   // still Kf-only
-            opt.include_symmetry_mirror  = true;    // re-enable K̂₂ via swap
-            score_Kf(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+            opt.assemble_fK              = true;    // assemble the fK piece
+            opt.include_symmetry_mirror  = true;    // K̂₂ via swap_particles
+            score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
                     world, phi_i, phi_j, info, lrfparam, opt),
-                     /*include_K2=*/true);
+                       /*include_K2=*/true);
         }
-        // fK / lrf / lrf-direct paths intentionally disabled for this run.
+        // lrf / lrf-direct paths intentionally disabled for this run.
 
     } catch (std::exception& e) {
         print("an error occurred");
