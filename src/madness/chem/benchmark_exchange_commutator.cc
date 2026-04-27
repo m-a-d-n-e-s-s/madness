@@ -86,7 +86,15 @@ int main(int argc, char **argv) {
         FunctionDefaults<6>::set_cubic_cell(cell(0,0),cell(0,1));
 
         auto amo = nemo->get_calc()->get_amo();
-        Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
+        auto R2amo = nemo->R_square*(nemo->get_calc()->get_amo());
+
+        real_function_3d gauss=real_factory_3d(world).functor(
+            [](const coord_3d& r){ return std::exp(-r.normf()); });
+        real_function_3d one=real_factory_3d(world).functor([](const coord_3d&){ return 1.0; });
+        amo=std::vector<real_function_3d>({gauss});
+
+        // Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
+        Info info = make_info(world, amo, one, one, nemo->molecule());
         info.parameters.print("cc2");
         print("numerical parameters: k, eps(3D), eps(6D) =",
               FunctionDefaults<3>::get_k(),
@@ -99,20 +107,13 @@ int main(int argc, char **argv) {
 
         auto score = [&](const ExchangeCommutator::KffKResult& r) {
             auto d = ExchangeCommutator::diagnose(
-                    world, amo, phi, phi, r.Kf, r.fK, r.KffK, lrfparam);
+                    world, amo, R2amo, phi, phi, r.Kf, r.fK, r.KffK, lrfparam,
+                    /*verbose=*/true);
             ExchangeCommutator::print_report(r, &d);
         };
 
         // -------------------- 6D algorithm --------------------------------
-        score(ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info));
-
-        // -------------------- LRF canonical -------------------------------
-        score(ExchangeCommutator::apply_KffK_lowrank(
-                world, phi_i, phi_j, info, lrfparam));
-
-        // -------------------- LRF per-k direct ----------------------------
-        score(ExchangeCommutator::apply_KffK_lowrank_direct(
-                world, phi_i, phi_j, info, lrfparam));
+        // score(ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info));
 
         // -------------------- split-α 6D assembly -------------------------
         {
@@ -121,6 +122,14 @@ int main(int argc, char **argv) {
             score(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
                     world, phi_i, phi_j, info, lrfparam, opt));
         }
+
+        // -------------------- LRF canonical -------------------------------
+        score(ExchangeCommutator::apply_KffK_lowrank(
+                world, phi_i, phi_j, info, lrfparam));
+
+        // -------------------- LRF per-k direct ----------------------------
+        score(ExchangeCommutator::apply_KffK_lowrank_direct(
+                world, phi_i, phi_j, info, lrfparam));
 
     } catch (std::exception& e) {
         print("an error occurred");

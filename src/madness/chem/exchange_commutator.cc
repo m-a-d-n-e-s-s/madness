@@ -318,40 +318,124 @@ ExchangeCommutator::Diagnostics
 ExchangeCommutator::diagnose(
         World& world,
         const std::vector<Function<double,3>>& kvec,
+        const std::vector<Function<double,3>>& R2kvec,
         const Function<double,3>& phi_i,
         const Function<double,3>& phi_j,
         const std::vector<CCPairFunction<double,6>>& Kf,
         const std::vector<CCPairFunction<double,6>>& fK,
         const std::vector<CCPairFunction<double,6>>& KffK,
-        const LowRankFunctionParameters& obs_param)
+        const LowRankFunctionParameters& obs_param,
+        bool verbose)
 {
     Diagnostics d;
     wall_timer t(world);
 
     // Harmonic-basis observer functions (solid harmonics on origin).
+    // Use *canonical* orthonormalization with a linear-dependency cutoff:
+    // the iterative Löwdin in plain orthonormalize() diverges to NaN when
+    // the raw Cartesian-Gaussian set has near-zero overlap eigenvalues.
     auto centers = std::vector<Vector<double,3>>({ Vector<double,3>(0.0) });
     auto phi_a = LowRankFunctionFactory<double,6>::harmonic_basis(
             world, obs_param.tempered(), 2, centers);
-    phi_a = orthonormalize(phi_a);
+    phi_a = orthonormalize_canonical(phi_a);
 
+    if (verbose) {
+        print("[diagnose] harmonic basis: phi_a.size() =", phi_a.size(),
+              " kvec.size() =", kvec.size(),
+              " ||phi_i|| =", phi_i.norm2(),
+              " ||phi_j|| =", phi_j.norm2());
+        std::vector<double> norms_a(phi_a.size());
+        for (std::size_t a = 0; a < phi_a.size(); ++a) norms_a[a] = phi_a[a].norm2();
+        print("[diagnose] ||phi_a[a]||:", norms_a);
+    }
+
+    // K̂ in nemo formalism is non-self-adjoint: bra-side R² makes
+    //   K̂  = set_bra_and_ket(R²k, k)   acts on a ket: K̂φ(r) = Σ_k k(r) ∫ R²k(r') φ(r') dr'
+    //   K̂† = set_bra_and_ket(k, R²k)   acts on a bra: K̂†φ(r) = R²(r) Σ_k k(r) ∫ k(r') φ(r') dr'
+    // The algorithm (apply_KffK_lowrank etc.) uses info.mo_bra = R²·k and
+    // info.mo_ket = k internally, so the reference must respect this:
+    //   * apply K̂  on phi_i / phi_j (ket side)
+    //   * apply K̂† on phi_a         (bra side, when moved over from ⟨ab| via Hermiticity)
     madness::Exchange<double, 3> K(world, 1.e-6);
-    K.set_bra_and_ket(kvec, kvec);
+    K.set_bra_and_ket(R2kvec, kvec);
+    madness::Exchange<double, 3> Kdagger(world, 1.e-6);
+    Kdagger.set_bra_and_ket(kvec, R2kvec);
+
     auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
             SlaterF12OperatorPtr_ND<3>(world, 1.0, 1.e-6,
                                        FunctionDefaults<3>::get_thresh()));
     auto& f12 = *f12ptr;
 
-    // Reference integrals.
-    // <a b | [K̂₁, f] | i j> = <K(a)·i | f(b·j)> + <f(a·i) | K(a)·j>
-    d.ref_piece1  = matrix_inner(world, K(phi_a) * phi_i, f12(phi_a * phi_j));
-    d.ref_piece1 += matrix_inner(world, f12(phi_a * phi_i), K(phi_a) * phi_j);
+    if (verbose) {
+        auto Kdphi_a = Kdagger(phi_a);
+        std::vector<double> nKda(Kdphi_a.size());
+        for (std::size_t a = 0; a < Kdphi_a.size(); ++a) nKda[a] = Kdphi_a[a].norm2();
+        auto fphi_aj = f12(phi_a * phi_j);
+        std::vector<double> nfaj(fphi_aj.size());
+        for (std::size_t a = 0; a < fphi_aj.size(); ++a) nfaj[a] = fphi_aj[a].norm2();
+        print("[diagnose] ||K_dagger(phi_a)||:", nKda);
+        print("[diagnose] ||f12(phi_a*phi_j)||:", nfaj);
+        print("[diagnose] ||K(phi_i)|| =", K(phi_i).norm2(),
+              " ||K(phi_j)|| =", K(phi_j).norm2());
+    }
+
+    // Reference integrals (analytic <ab| [K̂_p, f] |ij>):
+    //   piece1[a,b] = ⟨ab | K̂₁ f | ij⟩ + ⟨ab | K̂₂ f | ij⟩
+    //   piece2[a,b] = ⟨ab | f K̂₁ | ij⟩ + ⟨ab | f K̂₂ | ij⟩
+    // K̂ on the ket gets `K(phi_{i/j})`; moved over to the bra via
+    // Hermiticity of the integral it becomes K̂†(phi_a).
+    d.ref_piece1  = matrix_inner(world, Kdagger(phi_a) * phi_i, f12(phi_a * phi_j));
+    d.ref_piece1 += matrix_inner(world, f12(phi_a * phi_i), Kdagger(phi_a) * phi_j);
     d.ref_piece2  = matrix_inner(world, phi_a * K(phi_i), f12(phi_a * phi_j));
     d.ref_piece2 += matrix_inner(world, f12(phi_a * phi_i), phi_a * K(phi_j));
 
-    // Sum over pair pieces when projecting onto the harmonic-basis bra.
-    auto compute_error = [&phi_a, &world](
+    if (verbose) {
+        print("[diagnose] ||ref_piece1|| =", d.ref_piece1.normf(),
+              " ||ref_piece2|| =", d.ref_piece2.normf(),
+              " ||ref_piece1 - ref_piece2|| =", (d.ref_piece1 - d.ref_piece2).normf());
+    }
+
+    // Describe one pair entry: kind, rank/size, factor norms.
+    auto dump_pair = [&world](const std::string& tag,
+                              const std::vector<CCPairFunction<double,6>>& v) {
+        if (v.empty()) { print("[diagnose]", tag, ": empty"); return; }
+        for (std::size_t k = 0; k < v.size(); ++k) {
+            const auto& f = v[k];
+            std::string kind = "unassigned";
+            if (f.is_assigned()) {
+                if (f.is_pure())                     kind = "pure-6d";
+                else if (f.is_decomposed_no_op())    kind = "decomposed";
+                else if (f.is_op_decomposed())       kind = "op-decomposed";
+                else                                 kind = "mixed";
+            }
+            std::stringstream ss;
+            ss << "[diagnose] " << tag << "[" << k << "] kind=" << kind;
+            if (f.is_assigned() && (f.is_decomposed_no_op() || f.is_op_decomposed())) {
+                auto a = f.get_a(); auto b = f.get_b();
+                ss << " rank=" << a.size()
+                   << " ||a||=" << get_size(world, a)
+                   << " GB ||b||=" << get_size(world, b) << " GB";
+            } else if (f.is_assigned() && f.is_pure()) {
+                ss << " ||f||=" << f.get_function().norm2();
+            }
+            print(ss.str());
+        }
+    };
+
+    if (verbose) {
+        dump_pair("Kf",   Kf);
+        dump_pair("fK",   fK);
+        dump_pair("KffK", KffK);
+    }
+
+    // Project each pair entry onto the harmonic-basis bras via partial_inner
+    // (integrate particle 1 against phi_a[a], then matrix_inner with phi_a
+    // over particle 2).  Sum contributions from all entries in v.
+    auto compute_error = [&phi_a, &world, verbose](
             const std::vector<CCPairFunction<double,6>>& v,
-            const Tensor<double>& reference) {
+            const Tensor<double>& reference,
+            const std::string& tag) {
+        if (v.empty()) return -1.0;
         auto p1 = particle<3>::particle1();
         Tensor<double> result(phi_a.size(), phi_a.size());
         for (const auto& f : v) {
@@ -362,12 +446,17 @@ ExchangeCommutator::diagnose(
             }
             result += matrix_inner(world, tmp, phi_a);
         }
+        if (verbose) {
+            print("[diagnose]", tag, "||computed||=", result.normf(),
+                  " ||reference||=", reference.normf(),
+                  " ||diff||=", (reference - result).normf());
+        }
         return (reference - result).normf();
     };
 
-    if (!Kf.empty())   d.err_Kf   = compute_error(Kf,   d.ref_piece1);
-    if (!fK.empty())   d.err_fK   = compute_error(fK,   d.ref_piece2);
-    if (!KffK.empty()) d.err_KffK = compute_error(KffK, d.ref_piece1 - d.ref_piece2);
+    if (!Kf.empty())   d.err_Kf   = compute_error(Kf,   d.ref_piece1,                     "Kf");
+    if (!fK.empty())   d.err_fK   = compute_error(fK,   d.ref_piece2,                     "fK");
+    if (!KffK.empty()) d.err_KffK = compute_error(KffK, d.ref_piece1 - d.ref_piece2,      "KffK");
 
     d.t_reference = t.elapsed();
     return d;

@@ -48,9 +48,9 @@ struct ExchangeCommutator {
     /// (see lrf_k_commutator_analysis.md and lrf_k_commutator_results.md).
     struct SplitAlphaOptions {
         double alpha_star = 1.0e4;   ///< GFit partition threshold; α_μ > α* is discarded
-        double lo         = 1.0e-4;
-        double hi         = 10.0;
-        double eps_gfit   = 1.0e-5;
+        double lo         = 1.0e-6;
+        double hi         = 60.0;
+        double eps_gfit   = 1.0e-7;
         double eps_lrf    = 1.0e-3;
     };
 
@@ -120,16 +120,21 @@ struct ExchangeCommutator {
 
     /// Pair-vector arguments allow commutator pieces built from multiple
     /// CCPairFunctions (e.g. the separable + f12-wrapped pair from the
-    /// split-α assembly).  An empty vector skips that role.
+    /// split-α assembly).  An empty vector skips that role.  Set verbose
+    /// to dump per-stage norms (harmonic basis, K applications, f12
+    /// applications, reference matrices, and per-pair shape/norms) — use
+    /// when a piece comes back as NaN to localize the source.
     static Diagnostics diagnose(
             World& world,
             const std::vector<Function<double, 3>>& kvec,
+            const std::vector<Function<double, 3>>& R2kvec,
             const Function<double, 3>& phi_i,
             const Function<double, 3>& phi_j,
             const std::vector<CCPairFunction<double, 6>>& Kf,
             const std::vector<CCPairFunction<double, 6>>& fK,
             const std::vector<CCPairFunction<double, 6>>& KffK,
-            const LowRankFunctionParameters& obs_param);
+            const LowRankFunctionParameters& obs_param,
+            bool verbose = false);
 
     /// Convenience: run diagnose() on a KffKResult treated as KffK and
     /// attach errors to stderr in a uniform one-line summary.
