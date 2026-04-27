@@ -89,18 +89,18 @@ int main(int argc, char **argv) {
         auto amo = nemo->get_calc()->get_amo();
         auto R2amo = nemo->R_square*(nemo->get_calc()->get_amo());
 
-        real_function_3d gauss=real_factory_3d(world).functor(
-            [](const coord_3d& r){ return std::exp(-r.normf()); });
-        real_function_3d one=real_factory_3d(world).functor([](const coord_3d&){ return 1.0; });
-        const double gauss_norm = gauss.norm2();
-        gauss.scale(1.0/gauss_norm);
-        print("orbital normalized: ||phi||_before =", gauss_norm,
-              "  ||phi||_after =", gauss.norm2());
-        amo  =std::vector<real_function_3d>({gauss});
-        R2amo=std::vector<real_function_3d>({gauss});   // info.R²=one, so R²·k == k
+//        real_function_3d gauss=real_factory_3d(world).functor(
+//            [](const coord_3d& r){ return std::exp(-r.normf()); });
+//        real_function_3d one=real_factory_3d(world).functor([](const coord_3d&){ return 1.0; });
+//        const double gauss_norm = gauss.norm2();
+//        gauss.scale(1.0/gauss_norm);
+//        print("orbital normalized: ||phi||_before =", gauss_norm,
+//              "  ||phi||_after =", gauss.norm2());
+        // amo  =std::vector<real_function_3d>({gauss});
+        // R2amo=std::vector<real_function_3d>({gauss});   // info.R²=one, so R²·k == k
 
-        // Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
-        Info info = make_info(world, amo, one, one, nemo->molecule());
+        Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
+        // Info info = make_info(world, amo, one, one, nemo->molecule());
         info.parameters.print("cc2");
         print("numerical parameters: k, eps(3D), eps(6D) =",
               FunctionDefaults<3>::get_k(),

@@ -242,12 +242,16 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
 
     long rank_accum = 0;
     for (std::size_t k = 0; k < info.mo_ket.size(); ++k) {
-        const auto& k_bra = info.mo_bra[k];
-        const auto& k_ket = info.mo_ket[k];
+        const auto& k_bra = info.mo_bra[k];   // R²·k in the nemo formulation
+        const auto& k_ket = info.mo_ket[k];   // bare k
 
-        // LRF of k_bra(1) · K_smooth(1,1') · k_ket(1') — represents the
-        // k-th occupied contribution to the exchange kernel.
-        LRFunctorF12<double, NDIM> functor(trunc_op, k_bra, k_ket);
+        // The nemo exchange kernel is K(r,r') = Σ_k k(r)·R²(r')·k(r')/|r-r'|,
+        // i.e. the bra-side R²-weighted orbital lives on the *integration*
+        // coordinate.  In the LRF picture (r,r') → (particle 1, particle 2),
+        // particle 2 is the integration coord, so k_bra (= R²·k) must be the
+        // particle-2 multiplier.  When R²=1 the two arguments coincide, which
+        // hid this asymmetry until non-trivial NCFs were tested.
+        LRFunctorF12<double, NDIM> functor(trunc_op, k_ket, k_bra);
         auto lrf = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
                    .project(functor, FunctionDefaults<6>::get_thresh(), 0);
 
