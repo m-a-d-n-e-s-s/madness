@@ -49,9 +49,10 @@ struct ExchangeCommutator {
     struct SplitAlphaOptions {
         double alpha_star = 1.0e4;   ///< GFit partition threshold; α_μ > α* is discarded
         double lo         = 1.0e-6;
-        double hi         = 60.0;
-        double eps_gfit   = 1.0e-7;
-        double eps_lrf    = 1.0e-3;
+        double hi         = 10.0;
+        double eps_gfit   = 1.0e-6;
+        bool   assemble_fK            = true;  ///< build the fK piece (set false to test Kf alone)
+        bool   include_symmetry_mirror = true; ///< apply swap_particles for K̂₂ (set false to test K̂₁ alone)
     };
 
     // ---------------------------------------------------------------------
@@ -134,7 +135,8 @@ struct ExchangeCommutator {
             const std::vector<CCPairFunction<double, 6>>& fK,
             const std::vector<CCPairFunction<double, 6>>& KffK,
             const LowRankFunctionParameters& obs_param,
-            bool verbose = false);
+            bool verbose = false,
+            bool include_K2 = true);
 
     /// Convenience: run diagnose() on a KffKResult treated as KffK and
     /// attach errors to stderr in a uniform one-line summary.

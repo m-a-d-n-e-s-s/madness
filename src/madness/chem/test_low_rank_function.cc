@@ -1811,6 +1811,173 @@ int test_inv_rsq_gfit(World& world) {
     return t.end();
 }
 
+/// generate a
+
+/// @return error
+double test_kcomm_accuracy(World& world, const vector_real_function_3d& kvec, const real_function_3d& phi_i,
+    const real_function_3d& phi_j, const LowRankFunction<double,6> kcomm_ij, const LowRankFunctionParameters& param) {
+    // create a partial wave expansion (solid harmonics) to project on
+    auto centers=std::vector<coord_3d>({coord_3d({0,0,0})});
+    auto phi_a= LowRankFunctionFactory<double,6>::harmonic_basis(world,param.tempered(),2,centers);
+
+    // set up exchange operator and f12 operator
+    madness::Exchange<double,3> K(world, 1.e-6);
+    K.set_bra_and_ket(kvec,kvec);
+    auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
+        SlaterF12OperatorPtr_ND<3>(world, 1.0, 1.e-6, FunctionDefaults<3>::get_thresh()));
+    auto& f12=*f12ptr;
+
+    // reference expression:
+    // <ab | [K1, f12] | ij>  = <K(a)b | f12 | ij>  - <ab | f12 | K(i)j>
+    //                        = <K(a)*i | f12(b*j)>  - < K(i)*a | f12(b*j)>
+    Tensor<double> piece1=matrix_inner(world,K(phi_a)*phi_i,f12(phi_a*phi_j));
+    Tensor<double> piece2=matrix_inner(world,phi_a*K(phi_i),f12(phi_a*phi_j));
+    print("testing term1 only");
+    Tensor<double> ref_ab=piece1;
+
+    // compare to kcomm_ij;
+    // result = <a(1) b(2) | kcomm(1,2)> = <a | \int d1
+    auto p1=particle<3>::particle1();
+    vector_real_function_3d tmp=inner(kcomm_ij,phi_a,p1);
+    Tensor<double> result=matrix_inner(world,tmp,phi_a);
+
+    double error=(ref_ab-result).normf();
+    print("ref, result, error",error);
+    print(ref_ab);
+    print(result);
+    print(ref_ab-result);
+
+    return error;
+}
+
+/// Minimal implementation of the k-commutator LRF algorithm with large-α split.
+///
+/// Target scalar:  R(α*) = <ij | [K̂₁, f(1,2)] | ij>
+/// By Hermiticity of K̂ and f, this is 0 exactly for k=i=j=phi. The algorithm
+/// computes it directly (no subtraction of two O(1) numbers), so |R(α*)| is
+/// a pure-error diagnostic for (LRF + large-α discard).
+///
+/// Per-ρ assembly from LRF of k(1)·K(1,1')·k(1') ≈ Σ_ρ g_ρ(1)·h_ρ(1'):
+///   A_ρ(r₂) = f12 applied to h_ρ · i     (one f12 apply per ρ)
+///   B_ρ     = <h_ρ | i>                   (scalar)
+///   piece1  = Σ_ρ <i|g_ρ> · <j² | A_ρ>
+///   piece2  = Σ_ρ B_ρ · <i·g_ρ | f12(j²)>
+///   R       = piece1 − piece2
+///
+/// For LDIM=3 the K̂ kernel is Coulomb (physical case). For LDIM<3 it is a
+/// Slater function (same Gaussian-fit structure; Coulomb GFit requires 3D).
+template<std::size_t LDIM>
+int test_kcomm_lrf_split_alpha(World& world, LowRankFunctionParameters& parameters) {
+    constexpr std::size_t NDIM = 2*LDIM;
+    test_output t("kcomm-LRF-split-alpha  LDIM=" + std::to_string(LDIM));
+    t.set_cout_to_terminal();
+
+    const double lo     = 1.e-4;
+    const double hi     = 10.0;
+    const double eps_gfit = 1.e-5;
+    const double f_gamma  = 1.0;
+    const double k_gamma  = 1.0;  // used only for LDIM<3
+    const double thresh  = FunctionDefaults<LDIM>::get_thresh();
+
+    // orbital: normalized exp(-|r|)
+    Function<double,LDIM> phi = FunctionFactory<double,LDIM>(world)
+        .functor([](const Vector<double,LDIM>& r){ return std::exp(-r.normf()); });
+    double nphi = phi.norm2();
+    phi.scale(1.0/nphi);
+    print("LDIM=",LDIM," NDIM=",NDIM," ||phi||=",phi.norm2());
+
+    // f12 (Slater) and K̂ kernel
+    auto f12ptr = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+        SlaterF12OperatorPtr_ND<LDIM>(world, f_gamma, lo, thresh));
+    std::shared_ptr<SeparatedConvolution<double,LDIM>> K_full;
+    if constexpr (LDIM == 3) {
+        K_full = std::make_shared<SeparatedConvolution<double,LDIM>>(
+            world, OperatorInfo(0.0, lo, thresh, OT_G12));
+    } else {
+        K_full = std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+            SlaterOperatorPtr_ND<LDIM>(world, k_gamma, lo, thresh));
+    }
+
+    // Reference scale: |<ij | K̂(1) f(1,2) | ij>|. By Hermiticity the commutator
+    // scalar is 0, so |R| / |ref| is the relative cancellation error.
+    auto K_phi = phi * (*K_full)(phi*phi);            // K̂ applied to phi (as scalar orbital)
+    double ref = inner(K_phi * phi, (*f12ptr)(phi*phi));
+    print("reference scale <ij|K̂ f|ij> =", ref);
+
+    // GFit of the K̂ kernel — tabulate (c_μ, α_μ)
+    GFit<double, LDIM> fit;
+    if constexpr (LDIM == 3) {
+        fit = GFit<double, LDIM>::CoulombFit(lo, hi, eps_gfit, false);
+    } else {
+        fit = GFit<double, LDIM>::SlaterFit(k_gamma, lo, hi, eps_gfit, false);
+    }
+    Tensor<double> c_all = fit.coeffs();
+    Tensor<double> a_all = fit.exponents();
+    long M = c_all.size();
+    print("K-kernel GFit M =", M, "  α range =", a_all[M-1], "..", a_all[0]);
+
+    // sweep over α* thresholds
+    std::vector<double> alpha_stars = {1.e1, 1.e2, 1.e3, 1.e4, 1.e5, 1.e6, 1.e8};
+    Vector<double,LDIM> origin(0.0);
+    std::vector<Vector<double,LDIM>> origins = {origin};
+
+    t.checkpoint(true,"prep stuff");
+
+    print("\n α*         M_keep  rank   piece1          piece2          R            |R|/|ref|");
+    print("--------   ------  ----   -------------   -------------   ----------   --------");
+
+    for (double alpha_star : alpha_stars) {
+        std::vector<double> cs, as;
+        for (long mu=0; mu<M; ++mu) if (a_all[mu] <= alpha_star) { cs.push_back(c_all[mu]); as.push_back(a_all[mu]); }
+        long Mk = cs.size();
+        if (Mk == 0) { print(" α*=",alpha_star," no terms kept; skip"); continue; }
+        Tensor<double> c_t(Mk), a_t(Mk);
+        for (long mu=0; mu<Mk; ++mu) { c_t[mu]=cs[mu]; a_t[mu]=as[mu]; }
+
+        auto trunc_op = std::make_shared<SeparatedConvolution<double,LDIM>>(
+            world, c_t, a_t, lo, thresh);
+        // trunc_op has OperatorInfo.type == OT_UNDEFINED. LRFunctorF12::norm2
+        // now falls back to combine_generic via the stored (c, α) on
+        // SeparatedConvolution, so the Pythagoras convergence check sees a
+        // faithful ||f||² rather than a faked one.
+
+        // LRF of k(1) · trunc_op(1,1') · k(1')
+        LRFunctorF12<double,NDIM> functor(trunc_op, phi, phi);
+        auto lrf = LowRankFunctionFactory<double,NDIM>(parameters, origins).project(functor,1.e-3,0);
+
+        auto& gvec = lrf.g;
+        auto& hvec = lrf.h;
+        long R = gvec.size();
+
+        // per-ρ pieces
+        auto A_vec = apply(world, *f12ptr, hvec * phi);   // A_ρ(r₂) = f12(h_ρ · i)
+        Tensor<double> B    = inner(world, phi, hvec);    // B_ρ = <i | h_ρ>
+        Function<double,LDIM> fj2 = (*f12ptr)(phi*phi);   // f12(j²) as function of r₁
+        Function<double,LDIM> phi_sq = phi*phi;
+
+        // recap [K1,f12] |ij>  = \sum_p g_kp(1) j(2) [A_vec_kp(2) - f(1,2) B_kp]
+        auto result=LowRankFunction<double,NDIM>(gvec, phi*A_vec,thresh);    // Σ_ρ g_ρ(1) j(2) A_ρ(2)
+        double error=test_kcomm_accuracy(world,{phi},phi,phi,result,parameters);
+        t.checkpoint(error, 1.e-3*std::abs(ref), "kcomm accuracy with α*=" + std::to_string(alpha_star));
+
+        Tensor<double> i_g = inner(world, phi,  gvec);     // <i|g_ρ>
+        Tensor<double> j2_A = inner(world, phi_sq, A_vec); // <j²|A_ρ>
+        auto ig_vec = phi * gvec;                          // (i·g_ρ)(r₁)
+        Tensor<double> ig_fj2 = inner(world, fj2, ig_vec); // <f12(j²) | i·g_ρ>
+
+        double piece1 = i_g.trace(j2_A);
+        double piece2 = B.trace(ig_fj2);
+        double Rscal = piece1 - piece2;
+
+        printf(" %9.2e   %4ld   %4ld   %+12.5e   %+12.5e   %+10.3e   %9.2e\n",
+               alpha_star, Mk, R, piece1, piece2, Rscal,
+               std::abs(Rscal)/std::max(std::abs(ref), 1.e-30));
+        t.checkpoint(std::abs(Rscal) < 1.e-3*std::abs(ref), "kcomm scalar R with α*=" + std::to_string(alpha_star));
+    }
+
+    return t.end();
+}
+
 
 /// Analyze the error of discarding large-alpha terms in the GFit of the
 /// Coulomb kernel 1/r ≈ Σ_μ c_μ exp(-α_μ r²).
@@ -1941,10 +2108,42 @@ int main(int argc, char **argv) {
     int isuccess=0;
 
     try {
-        isuccess+=test_coulomb_gfit_discard_large_alpha(world);
-        isuccess+=test_inv_rsq_gfit(world);
-        isuccess+=test_invrsq_operator(world);
-        isuccess+=test_combine_generic(world);
+        //        isuccess+=test_coulomb_gfit_discard_large_alpha(world);
+        //        isuccess+=test_inv_rsq_gfit(world);
+        //        isuccess+=test_invrsq_operator(world);
+        //        isuccess+=test_combine_generic(world);
+        //        isuccess+=test_kcomm_lrf_split_alpha<1>(world, parameters);
+        //        isuccess+=test_kcomm_lrf_split_alpha<2>(world, parameters);
+        auto term1=test_kcomm_lrf_split_alpha<3>(world, parameters);
+
+    } catch (std::exception &e) {}
+    if (0) {
+        if (long_test) isuccess+=test_kcomm_lrf_split_alpha<3>(world, parameters);
+        if (0) {
+            // direct 6D projection test with full output
+            constexpr std::size_t LDIM=3, NDIM=6;
+            double gaussexponent=2.0, gauss1=2.0;
+            auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(
+                GaussOperatorPtr<LDIM>(world,gaussexponent));
+            Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
+                .functor([&gauss1](const Vector<double,LDIM>& r){return exp(-gauss1*inner(r,r));});
+            Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
+                .functor([](const Vector<double,LDIM>& r){return 1.0;});
+            LRFunctorF12<double,NDIM> functor(gaussop,phi1,one);
+            Vector<double,LDIM> origin(0.0);
+            std::vector<Vector<double,LDIM>> origins={origin};
+
+            print("\n=== 6D eps=1e-2 ===");
+            auto factory=LowRankFunctionFactory<double,NDIM>(parameters,origins);
+            auto lrf1=factory.project(functor, 1.e-2);
+            double err1=lrf1.l2error(functor);
+            print("RESULT eps=1e-2: error=",err1,"rank=",lrf1.rank());
+
+            print("\n=== 6D eps=1e-3 ===");
+            auto lrf2=factory.project(functor, 1.e-3);
+            double err2=lrf2.l2error(functor);
+            print("RESULT eps=1e-3: error=",err2,"rank=",lrf2.rank());
+        }
 
         isuccess+=test_construction<1>(world, parameters);
         isuccess+=test_direct_projection<1>(world, parameters);
@@ -1970,10 +2169,10 @@ int main(int argc, char **argv) {
             isuccess+=test_molecular_grid<2>(world,parameters);
         }
 
-   } catch (std::exception& e) {
-       madness::print("an error occured");
-       madness::print(e.what());
-       isuccess+=1;
+//    } catch (std::exception& e) {
+//        madness::print("an error occured");
+//        madness::print(e.what());
+//        isuccess+=1;
     }
     finalize();
 

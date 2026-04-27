@@ -249,7 +249,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
         // k-th occupied contribution to the exchange kernel.
         LRFunctorF12<double, NDIM> functor(trunc_op, k_bra, k_ket);
         auto lrf = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
-                   .project(functor, opt.eps_lrf, 0);
+                   .project(functor, FunctionDefaults<6>::get_thresh(), 0);
 
         auto& gvec = lrf.g;
         auto& hvec = lrf.h;
@@ -270,10 +270,12 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
 
         // piece 2 (f K̂₁ part):  Σ_ρ B_ρ · g_ρ(1) · f(1,2) · phi_j(2)
         // (phi_i does NOT appear here — it only enters via B_ρ = ⟨h_ρ | i⟩.)
-        for (long r = 0; r < R; ++r) {
-            Function<double, LDIM> scaled = B(r) * gvec[r];
-            fK_g.push_back(scaled);
-            fK_h.push_back(phi_j.function);
+        if (opt.assemble_fK) {
+            for (long r = 0; r < R; ++r) {
+                Function<double, LDIM> scaled = B(r) * gvec[r];
+                fK_g.push_back(scaled);
+                fK_h.push_back(phi_j.function);
+            }
         }
     }
 
@@ -289,7 +291,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     if (!out.fK.empty())  out.KffK.push_back(-1.0 * out.fK[0]);
 
     // Symmetric case (phi_i == phi_j): particle-2 mirror via swap_particles.
-    if (symmetric) {
+    if (symmetric && opt.include_symmetry_mirror) {
         if (!out.Kf.empty()) {
             auto m = swap_particles(out.Kf);
             for (auto&& cc : m) out.Kf.push_back(std::move(cc));
@@ -325,7 +327,8 @@ ExchangeCommutator::diagnose(
         const std::vector<CCPairFunction<double,6>>& fK,
         const std::vector<CCPairFunction<double,6>>& KffK,
         const LowRankFunctionParameters& obs_param,
-        bool verbose)
+        bool verbose,
+        bool include_K2)
 {
     Diagnostics d;
     wall_timer t(world);
@@ -340,7 +343,7 @@ ExchangeCommutator::diagnose(
     phi_a = orthonormalize_canonical(phi_a);
 
     if (verbose) {
-        print("[diagnose] harmonic basis: phi_a.size() =", phi_a.size(),
+        print("[diagnose] orthonormalized harmonic basis: phi_a.size() =", phi_a.size(),
               " kvec.size() =", kvec.size(),
               " ||phi_i|| =", phi_i.norm2(),
               " ||phi_j|| =", phi_j.norm2());
@@ -385,9 +388,13 @@ ExchangeCommutator::diagnose(
     // K̂ on the ket gets `K(phi_{i/j})`; moved over to the bra via
     // Hermiticity of the integral it becomes K̂†(phi_a).
     d.ref_piece1  = matrix_inner(world, Kdagger(phi_a) * phi_i, f12(phi_a * phi_j));
-    d.ref_piece1 += matrix_inner(world, f12(phi_a * phi_i), Kdagger(phi_a) * phi_j);
+    if (include_K2) {
+        d.ref_piece1 += matrix_inner(world, f12(phi_a * phi_i), Kdagger(phi_a) * phi_j);
+    }
     d.ref_piece2  = matrix_inner(world, phi_a * K(phi_i), f12(phi_a * phi_j));
-    d.ref_piece2 += matrix_inner(world, f12(phi_a * phi_i), phi_a * K(phi_j));
+    if (include_K2) {
+        d.ref_piece2 += matrix_inner(world, f12(phi_a * phi_i), phi_a * K(phi_j));
+    }
 
     if (verbose) {
         print("[diagnose] ||ref_piece1|| =", d.ref_piece1.normf(),

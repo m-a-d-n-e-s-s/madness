@@ -84,6 +84,7 @@ int main(int argc, char **argv) {
         nemo->value();
         auto cell=FunctionDefaults<3>::get_cell();
         FunctionDefaults<6>::set_cubic_cell(cell(0,0),cell(0,1));
+        FunctionDefaults<3>::set_thresh(thresh);
 
         auto amo = nemo->get_calc()->get_amo();
         auto R2amo = nemo->R_square*(nemo->get_calc()->get_amo());
@@ -91,7 +92,12 @@ int main(int argc, char **argv) {
         real_function_3d gauss=real_factory_3d(world).functor(
             [](const coord_3d& r){ return std::exp(-r.normf()); });
         real_function_3d one=real_factory_3d(world).functor([](const coord_3d&){ return 1.0; });
-        amo=std::vector<real_function_3d>({gauss});
+        const double gauss_norm = gauss.norm2();
+        gauss.scale(1.0/gauss_norm);
+        print("orbital normalized: ||phi||_before =", gauss_norm,
+              "  ||phi||_after =", gauss.norm2());
+        amo  =std::vector<real_function_3d>({gauss});
+        R2amo=std::vector<real_function_3d>({gauss});   // info.R²=one, so R²·k == k
 
         // Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
         Info info = make_info(world, amo, one, one, nemo->molecule());
@@ -105,31 +111,49 @@ int main(int argc, char **argv) {
         CCFunction<double,3> phi_i(phi, 0, HOLE);
         CCFunction<double,3> phi_j(phi, 0, HOLE);
 
-        auto score = [&](const ExchangeCommutator::KffKResult& r) {
+        // Score lambda: take the algorithm result, project onto the harmonic
+        // basis via diagnose(), pass empty fK / KffK because we are testing the
+        // Kf piece only.  include_K2 is steered from the caller so the same
+        // lambda works for both the K̂₁-only regression and the K̂₁+K̂₂ run.
+        auto score_Kf = [&](const ExchangeCommutator::KffKResult& r,
+                             bool include_K2) {
+            std::vector<CCPairFunction<double,6>> empty_fK;
+            std::vector<CCPairFunction<double,6>> empty_KffK;
             auto d = ExchangeCommutator::diagnose(
-                    world, amo, R2amo, phi, phi, r.Kf, r.fK, r.KffK, lrfparam,
-                    /*verbose=*/true);
+                    world, amo, R2amo, phi, phi,
+                    r.Kf, empty_fK, empty_KffK, lrfparam,
+                    /*verbose=*/true,
+                    include_K2);
             ExchangeCommutator::print_report(r, &d);
         };
 
-        // -------------------- 6D algorithm --------------------------------
-        // score(ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info));
-
-        // -------------------- split-α 6D assembly -------------------------
+        // -------------------- regression: K̂₁/Kf only --------------------
+        // Reproduce the working K̂₁-only configuration before re-enabling K̂₂.
+        // If err_Kf grows away from ~3e-3, the K̂₁ path itself has regressed
+        // and the K̂₁+K̂₂ result is not meaningful.
+        print("\n========== regression: K̂₁ piece only ==========");
         {
             ExchangeCommutator::SplitAlphaOptions opt;
-            opt.alpha_star = 1.e4;
-            score(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-                    world, phi_i, phi_j, info, lrfparam, opt));
+            opt.alpha_star               = 1.e4;
+            opt.assemble_fK              = false;
+            opt.include_symmetry_mirror  = false;
+            score_Kf(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+                    world, phi_i, phi_j, info, lrfparam, opt),
+                     /*include_K2=*/false);
         }
 
-        // -------------------- LRF canonical -------------------------------
-        score(ExchangeCommutator::apply_KffK_lowrank(
-                world, phi_i, phi_j, info, lrfparam));
-
-        // -------------------- LRF per-k direct ----------------------------
-        score(ExchangeCommutator::apply_KffK_lowrank_direct(
-                world, phi_i, phi_j, info, lrfparam));
+        // -------------------- K̂₁ + K̂₂ via swap_particles ----------------
+        print("\n========== K̂₁ + K̂₂ piece (swap_particles enabled) ==========");
+        {
+            ExchangeCommutator::SplitAlphaOptions opt;
+            opt.alpha_star               = 1.e4;
+            opt.assemble_fK              = false;   // still Kf-only
+            opt.include_symmetry_mirror  = true;    // re-enable K̂₂ via swap
+            score_Kf(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+                    world, phi_i, phi_j, info, lrfparam, opt),
+                     /*include_K2=*/true);
+        }
+        // fK / lrf / lrf-direct paths intentionally disabled for this run.
 
     } catch (std::exception& e) {
         print("an error occurred");
