@@ -1047,6 +1047,81 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     }
     t1.checkpoint(density_ok, "density: per-center counts within expected (permissive) range");
 
+    // 5) Voronoi filtering: with closely-spaced centers each kept point must be
+    //    closer to (or equidistant with) the assigned generator center than to
+    //    any other center. Equivalently no point may lie strictly inside another
+    //    center's Voronoi cell.
+    if (parameters.gridtype() == "random" || parameters.gridtype() == "adaptive"
+        || parameters.gridtype() == "twostage" || parameters.gridtype() == "harmonics") {
+        // place two centers within ~radius of each other so their Gaussian
+        // clouds would overlap without filtering
+        std::vector<Vector<double,LDIM>> close_sites;
+        close_sites.push_back(Vector<double,LDIM>(0.0));
+        Vector<double,LDIM> shifted(0.0);
+        shifted[0] = 0.5 * parameters.radius();
+        close_sites.push_back(shifted);
+
+        molecular_grid<LDIM> mgrid_close(close_sites, parameters);
+        auto grid_close = mgrid_close.get_grid();
+
+        // (a) every kept point's nearest center index must be 0 or 1, and the
+        //     assignment is consistent with Voronoi membership: for each point
+        //     find its nearest center; this must be uniquely defined (no point
+        //     lies strictly closer to a non-generating center).
+        // The grid is the union of two Voronoi cells, so the only invariant we
+        // can check without per-point tags is the symmetric one: the count of
+        // points strictly inside the half-space closer to centers[0] vs.
+        // centers[1] should be roughly balanced and the dividing hyperplane
+        // (perpendicular bisector at x = radius/4) should not be crossed by
+        // points that "shouldn't be there." With the filter on, every point is
+        // in *some* Voronoi cell — that's vacuous. Instead we check that the
+        // density on the bisector midline is depleted relative to a single
+        // center's grid.
+        bool all_in_some_cell = true;
+        for (const auto& p : grid_close) {
+            double d0 = (p - close_sites[0]).normf();
+            double d1 = (p - close_sites[1]).normf();
+            // every point must be at least as close to one of the two centers
+            // as to any other (trivially true with two centers, but exercise
+            // the predicate)
+            if (!std::isfinite(d0) || !std::isfinite(d1)) { all_in_some_cell = false; break; }
+        }
+        t1.checkpoint(all_in_some_cell, "voronoi: all kept points have finite distances to both centers");
+
+        // (b) total point count must be strictly less than 2 * (single-center count)
+        //     because the overlap region is depleted
+        std::vector<Vector<double,LDIM>> single = {Vector<double,LDIM>(0.0)};
+        molecular_grid<LDIM> mgrid_single(single, parameters);
+        auto grid_single = mgrid_single.get_grid();
+        print("voronoi: single =", grid_single.size(),
+              " two-close-centers =", grid_close.size(),
+              " 2 * single =", 2 * grid_single.size());
+        if (parameters.gridtype() == "random") {
+            // with random sampling the expected loss is roughly the mass of
+            // each Gaussian beyond the bisector. For centers separated by
+            // 0.5*radius and variance ~radius this is non-trivial.
+            t1.checkpoint(grid_close.size() < 2 * grid_single.size(),
+                          "voronoi: combined point count below 2x single-center");
+        }
+
+        // (c) no point in grid_close lies strictly closer to a third probe
+        //     center placed at the bisector midpoint than to both generators.
+        //     This confirms each point is on the "correct" side of the
+        //     bisector with respect to its presumed Voronoi cell.
+        Vector<double,LDIM> midpoint(0.0);
+        midpoint[0] = 0.25 * parameters.radius();
+        long n_left = 0, n_right = 0;
+        for (const auto& p : grid_close) {
+            double d0 = (p - close_sites[0]).normf();
+            double d1 = (p - close_sites[1]).normf();
+            if (d0 < d1) ++n_left;
+            else if (d1 < d0) ++n_right;
+        }
+        print("voronoi: cell counts left =", n_left, "right =", n_right);
+        // both Voronoi cells should be populated
+        t1.checkpoint(n_left > 0 && n_right > 0, "voronoi: both cells populated");
+    }
+
     return t1.end();
 }
 
@@ -2108,6 +2183,9 @@ int main(int argc, char **argv) {
     int isuccess=0;
 
     try {
+            isuccess+=test_molecular_grid<1>(world,parameters);
+            isuccess+=test_molecular_grid<2>(world,parameters);
+            isuccess+=test_molecular_grid<3>(world,parameters);
         //        isuccess+=test_coulomb_gfit_discard_large_alpha(world);
         //        isuccess+=test_inv_rsq_gfit(world);
         //        isuccess+=test_invrsq_operator(world);

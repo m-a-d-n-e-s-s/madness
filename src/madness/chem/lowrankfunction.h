@@ -337,23 +337,52 @@ namespace madness {
         std::vector<Vector<double,NDIM>> get_grid() const {
             MADNESS_CHECK_THROW(grid_builder,"no grid builder given in molecular_grid");
             MADNESS_CHECK_THROW(centers.size()>0,"no centers given in molecular_grid");
+
+            // A point generated around centers[ic] is kept iff centers[ic] is its
+            // nearest center — i.e. it lies in the Voronoi cell of its generator.
+            // This eliminates the over-density that arises when neighbouring
+            // per-center Gaussian clouds overlap. With a single center the test
+            // is vacuous.
+            const bool do_voronoi = (centers.size() > 1);
+            auto in_own_voronoi_cell = [&](const Vector<double,NDIM>& p, const std::size_t ic) {
+                double d_own = (p - centers[ic]).normf();
+                for (std::size_t jc = 0; jc < centers.size(); ++jc) {
+                    if (jc == ic) continue;
+                    if ((p - centers[jc]).normf() < d_own) return false;
+                }
+                return true;
+            };
+
             std::vector<Vector<double,NDIM>> grid;
-            for (const auto& coords : centers) {
+            for (std::size_t ic = 0; ic < centers.size(); ++ic) {
+                const auto& coords = centers[ic];
                 print("atom sites",coords);
+                std::vector<Vector<double,NDIM>> atomgrid;
                 if (auto builder=dynamic_cast<dftgrid<NDIM>*>(grid_builder.get())) {
                     if constexpr (NDIM==3) {
                         dftgrid<NDIM> b1(builder->builder.get_nradial(),builder->builder.get_angular_order(),coords);
-                        auto atomgrid=b1.get_grid();
-                        grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+                        atomgrid=b1.get_grid();
                     } else {
                         MADNESS_EXCEPTION("no DFT grid for NDIM /= 3",1);
                     }
                 } else if (auto builder=dynamic_cast<randomgrid<NDIM>*>(grid_builder.get())) {
                     randomgrid<NDIM> b1(builder->get_volume_element(),builder->get_radius(),coords);
-                    auto atomgrid=b1.get_grid();
-                    grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+                    atomgrid=b1.get_grid();
                 } else {
                     MADNESS_EXCEPTION("no such grid builder",1);
+                }
+
+                if (do_voronoi) {
+                    std::size_t kept = 0;
+                    for (const auto& p : atomgrid) {
+                        if (in_own_voronoi_cell(p, ic)) {
+                            grid.push_back(p);
+                            ++kept;
+                        }
+                    }
+                    print("center",ic,"generated",atomgrid.size(),"kept",kept,"after Voronoi filter");
+                } else {
+                    grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
                 }
             }
             return grid;
