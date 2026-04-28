@@ -197,7 +197,8 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     constexpr std::size_t NDIM = 2 * LDIM;
     KffKResult out;
     out.algo = "lrf-split-alpha";
-    wall_timer t(world);
+    timer t(world);
+    wall_timer t1(world);
 
     const double thresh = FunctionDefaults<LDIM>::get_thresh();
     const bool symmetric = (phi_i == phi_j);
@@ -212,6 +213,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     const Tensor<double> c_all = fit.coeffs();
     const Tensor<double> a_all = fit.exponents();
     const long M = c_all.size();
+    t.tag("fit operator expansion");
 
     std::vector<double> cs, as;
     for (long mu = 0; mu < M; ++mu) {
@@ -227,92 +229,73 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     auto trunc_op = std::make_shared<SeparatedConvolution<double, LDIM>>(
             world, c_t, a_t, opt.lo, thresh);
 
-    Vector<double, LDIM> origin(0.0);
-    std::vector<Vector<double, LDIM>> origins = { origin };
+    std::vector<Vector<double, LDIM>> origins=info.molecular_coordinates;
 
-    // Accumulators for the two commutator pieces — each stored as a single
-    // CCPairFunction stack, so they compose cleanly into Kf / fK / KffK.
-    //
-    //   Kf_g/Kf_h   : separable pair   g_ρ(1) · (phi_j · A_ρ)(2)
-    //   fK_g/fK_h   : f12-wrapped pair (B_ρ · g_ρ)(1) · f(1,2) · phi_j(2)
-    //
-    // The minus sign of the commutator is applied on the KffK stack only.
-    std::vector<Function<double, LDIM>> Kf_g, Kf_h;
-    std::vector<Function<double, LDIM>> fK_g, fK_h;
+    // The two commutator pieces are each stored as a single CCPairFunction
+    // stack, so they compose cleanly into Kf / fK / KffK.  The Kf piece is a
+    // plain decomposed pair `g_ρ(1) · (phi_j · A_ρ)(2)` (the f12 is already
+    // baked into A_ρ); the fK piece must be wrapped with f12 because its
+    // factors `C_i(1)` and `phi_j(2)` carry no f12 themselves.  The minus
+    // sign of the commutator is applied on the KffK stack only.
 
-    long rank_accum = 0;
-    for (std::size_t k = 0; k < info.mo_ket.size(); ++k) {
-        const auto& k_bra = info.mo_bra[k];   // R²·k in the nemo formulation
-        const auto& k_ket = info.mo_ket[k];   // bare k
+    // The nemo exchange kernel is K(r,r') = Σ_k k(r)·R²(r')·k(r')/|r-r'|,
+    // i.e. the bra-side R²-weighted orbital lives on the *integration*
+    // coordinate.  In the LRF picture (r,r') → (particle 1, particle 2),
+    // particle 2 is the integration coord, so k_bra (= R²·k) must be the
+    // particle-2 multiplier.  When R²=1 the two arguments coincide, which
+    // hid this asymmetry until non-trivial NCFs were tested.
+    LRFunctorF12<double, NDIM> functor(trunc_op, info.mo_ket, info.mo_bra);
+    auto lrf_exchange_op = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
+               .project(functor, FunctionDefaults<6>::get_thresh(), 0);
+    t.tag("construct LRF of exchange kernel");
 
-        // The nemo exchange kernel is K(r,r') = Σ_k k(r)·R²(r')·k(r')/|r-r'|,
-        // i.e. the bra-side R²-weighted orbital lives on the *integration*
-        // coordinate.  In the LRF picture (r,r') → (particle 1, particle 2),
-        // particle 2 is the integration coord, so k_bra (= R²·k) must be the
-        // particle-2 multiplier.  When R²=1 the two arguments coincide, which
-        // hid this asymmetry until non-trivial NCFs were tested.
-        LRFunctorF12<double, NDIM> functor(trunc_op, k_ket, k_bra);
-        auto lrf = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
-                   .project(functor, FunctionDefaults<6>::get_thresh(), 0);
+    auto& gvec = lrf_exchange_op.g;
+    auto& hvec = lrf_exchange_op.h;
+    double tol=FunctionDefaults<LDIM>::get_thresh();
 
-        auto& gvec = lrf.g;
-        auto& hvec = lrf.h;
-        const long R = gvec.size();
-        rank_accum += R;
-
-        // A_ρ(r₂) = f12(h_ρ · phi_i)(r₂)
-        auto A_vec = apply(world, *f12ptr, hvec * phi_i.function);
-        // B_ρ     = ⟨h_ρ | phi_i⟩
-        Tensor<double> B = inner(world, phi_i.function, hvec);
-
-        // piece 1 (K̂₁ f part):  Σ_ρ g_ρ(1) · (phi_j · A_ρ)(2)
-        std::vector<Function<double, LDIM>> h1 = phi_j.function * A_vec;
-        for (long r = 0; r < R; ++r) {
-            Kf_g.push_back(gvec[r]);
-            Kf_h.push_back(h1[r]);
-        }
-
-        // piece 2 (f K̂₁ part):  Σ_ρ B_ρ · g_ρ(1) · f(1,2) · phi_j(2)
-        // (phi_i does NOT appear here — it only enters via B_ρ = ⟨h_ρ | i⟩.)
-        if (opt.assemble_fK) {
-            for (long r = 0; r < R; ++r) {
-                Function<double, LDIM> scaled = B(r) * gvec[r];
-                fK_g.push_back(scaled);
-                fK_h.push_back(phi_j.function);
-            }
-        }
+    // piece 1 (K̂₁ f part):  Σ_ρ g_ρ(1) · (phi_j · A_ρ)(2)
+    // A_ρ(r₂) = f12(h_ρ · phi_i)(r₂)
+    auto j_A_pi = phi_j.function * apply(world, *f12ptr, hvec * phi_i.function);
+    auto Kf=LowRankFunction<double,NDIM>(gvec,j_A_pi,tol);
+    if (symmetric) {
+        Kf+=LowRankFunction<double,NDIM>(j_A_pi,gvec,tol);
+    } else {
+        auto i_A_pj = phi_i.function * apply(world, *f12ptr, hvec * phi_j.function);
+        Kf+=LowRankFunction<double,NDIM>(i_A_pj,gvec,tol);
     }
+    t.tag("construct Kf |ij>");
 
-    // Assemble named pair stacks.  Each piece becomes a single CCPairFunction
-    // with multi-column factors, and KffK bakes in the commutator's sign.
-    if (!Kf_g.empty()) {
-        out.Kf = { CCPairFunction<double, 6>(Kf_g, Kf_h) };
+    // piece 2 (f K̂₁ part):  Σ_ρ B_ρi · g_ρ(1) · f(1,2) · phi_j(2)
+    //                       =  C_i(1) f(1,2) phi_j(2)
+    // B_ρ     = ⟨h_ρ | phi_i⟩
+    // NOTE: for internal consistency the fK term uses the truncated exchange kernel
+    // instead of simply applying the exchange operator on the ket.
+    auto B_pi = inner(world, phi_i.function, hvec);
+    auto C_i=transform(world,gvec,B_pi);
+    MADNESS_CHECK_THROW(C_i.size()==1,"invalid size for Ci");
+    auto fK=LowRankFunction<double,6>(C_i,{phi_j.function},tol);
+    if (symmetric) {
+        fK+=LowRankFunction<double,NDIM>({phi_j.function},C_i,tol);
+    } else {
+        auto B_pj = inner(world, phi_j.function, hvec);
+        auto C_j=transform(world,gvec,B_pj);
+        fK+=LowRankFunction<double,NDIM>({phi_i.function},C_j,tol);
     }
-    if (!fK_g.empty()) {
-        out.fK = { CCPairFunction<double, 6>(f12_cc, fK_g, fK_h) };
-    }
-    if (!out.Kf.empty())  out.KffK.push_back(out.Kf[0]);
-    if (!out.fK.empty())  out.KffK.push_back(-1.0 * out.fK[0]);
+    t.tag("construct fK |ij>");
 
-    // Symmetric case (phi_i == phi_j): particle-2 mirror via swap_particles.
-    if (symmetric && opt.include_symmetry_mirror) {
-        if (!out.Kf.empty()) {
-            auto m = swap_particles(out.Kf);
-            for (auto&& cc : m) out.Kf.push_back(std::move(cc));
-        }
-        if (!out.fK.empty()) {
-            auto m = swap_particles(out.fK);
-            for (auto&& cc : m) out.fK.push_back(std::move(cc));
-        }
-        if (!out.KffK.empty()) {
-            auto m = swap_particles(out.KffK);
-            for (auto&& cc : m) out.KffK.push_back(std::move(cc));
-        }
-    }
+    // Assemble named pair stacks.  Kf has f12 absorbed into the per-ρ factor
+    // `j_A_pi = phi_j · f12(h_ρ · phi_i)`, so it is a plain decomposed pair.
+    // fK's factors `C_i(1)` and `phi_j(2)` are bare orbitals; the pair must
+    // be wrapped with f12_cc to represent C_i(1) · f(1,2) · phi_j(2).
+    out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
+    out.fK = { CCPairFunction<double, 6>(f12_cc,    fK.get_g(), fK.get_h()) };
+
+    out.KffK.push_back(out.Kf[0]);
+    out.KffK.push_back(-1.0 * out.fK[0]);
 
     finalize_sizes(world, out);
-    out.rank   = rank_accum;   // LRF rank of the underlying decomposition
-    out.t_wall = t.elapsed();
+    out.rank   = gvec.size();   // LRF rank of the underlying decomposition
+    out.t_wall = t1.elapsed();
     return out;
 }
 
@@ -332,25 +315,36 @@ ExchangeCommutator::diagnose(
         const std::vector<CCPairFunction<double,6>>& KffK,
         const LowRankFunctionParameters& obs_param,
         bool verbose,
-        bool include_K2)
+        bool include_K2,
+        const std::vector<Vector<double,3>>& centers_in)
 {
     Diagnostics d;
     wall_timer t(world);
 
-    // Harmonic-basis observer functions (solid harmonics on origin).
-    // Use *canonical* orthonormalization with a linear-dependency cutoff:
-    // the iterative Löwdin in plain orthonormalize() diverges to NaN when
-    // the raw Cartesian-Gaussian set has near-zero overlap eigenvalues.
-    auto centers = std::vector<Vector<double,3>>({ Vector<double,3>(0.0) });
+    // Harmonic-basis observer functions (solid harmonics around centers_in).
+    // For phi_i ≠ phi_j on a multi-atom molecule, the caller should pass
+    // info.molecular_coordinates so the basis covers both orbitals' support;
+    // otherwise we fall back to a single basis at the origin.  Use
+    // *canonical* orthonormalization with a linear-dependency cutoff: the
+    // iterative Löwdin in plain orthonormalize() diverges to NaN when the
+    // raw Cartesian-Gaussian set has near-zero overlap eigenvalues (which
+    // happens routinely once multiple centers are stacked).
+    const auto centers = centers_in.empty()
+            ? std::vector<Vector<double,3>>({ Vector<double,3>(0.0) })
+            : centers_in;
     auto phi_a = LowRankFunctionFactory<double,6>::harmonic_basis(
             world, obs_param.tempered(), 2, centers);
     phi_a = orthonormalize_canonical(phi_a);
 
+    const bool symmetric_ij = (&phi_i == &phi_j);  // cheap fast path; full check below
+
     if (verbose) {
         print("[diagnose] orthonormalized harmonic basis: phi_a.size() =", phi_a.size(),
+              " centers =", centers.size(),
               " kvec.size() =", kvec.size(),
               " ||phi_i|| =", phi_i.norm2(),
-              " ||phi_j|| =", phi_j.norm2());
+              " ||phi_j|| =", phi_j.norm2(),
+              " same-object i,j =", symmetric_ij);
         std::vector<double> norms_a(phi_a.size());
         for (std::size_t a = 0; a < phi_a.size(); ++a) norms_a[a] = phi_a[a].norm2();
         print("[diagnose] ||phi_a[a]||:", norms_a);
@@ -373,34 +367,66 @@ ExchangeCommutator::diagnose(
                                        FunctionDefaults<3>::get_thresh()));
     auto& f12 = *f12ptr;
 
+    // some helpful intermediates
+    const auto f12_aj = f12(phi_a * phi_j);
+    const auto f12_ai = f12(phi_a * phi_i);
+
+    auto Kdagger_a = Kdagger(phi_a);
+    auto K_i = K(phi_i);
+    auto K_j = K(phi_j);
+
     if (verbose) {
-        auto Kdphi_a = Kdagger(phi_a);
-        std::vector<double> nKda(Kdphi_a.size());
-        for (std::size_t a = 0; a < Kdphi_a.size(); ++a) nKda[a] = Kdphi_a[a].norm2();
-        auto fphi_aj = f12(phi_a * phi_j);
-        std::vector<double> nfaj(fphi_aj.size());
-        for (std::size_t a = 0; a < fphi_aj.size(); ++a) nfaj[a] = fphi_aj[a].norm2();
+        std::vector<double> nKda(Kdagger_a.size());
+        for (std::size_t a = 0; a < Kdagger_a.size(); ++a) nKda[a] = Kdagger_a[a].norm2();
+        std::vector<double> nfaj(f12_aj.size());
+        for (std::size_t a = 0; a < f12_aj.size(); ++a) nfaj[a] = f12_aj[a].norm2();
         print("[diagnose] ||K_dagger(phi_a)||:", nKda);
         print("[diagnose] ||f12(phi_a*phi_j)||:", nfaj);
         print("[diagnose] ||K(phi_i)|| =", K(phi_i).norm2(),
               " ||K(phi_j)|| =", K(phi_j).norm2());
     }
 
-    // Reference integrals (analytic <ab| [K̂_p, f] |ij>):
-    //   piece1[a,b] = ⟨ab | K̂₁ f | ij⟩ + ⟨ab | K̂₂ f | ij⟩
-    //   piece2[a,b] = ⟨ab | f K̂₁ | ij⟩ + ⟨ab | f K̂₂ | ij⟩
-    // K̂ on the ket gets `K(phi_{i/j})`; moved over to the bra via
-    // Hermiticity of the integral it becomes K̂†(phi_a).
-    d.ref_piece1  = matrix_inner(world, Kdagger(phi_a) * phi_i, f12(phi_a * phi_j));
+    // Reference integrals (analytic ⟨ab | · | ij⟩) — computed per K̂_p so the
+    // four pieces are individually inspectable.
+    //   ref_Kf_K1[a,b] = ⟨ab | K̂₁ f | ij⟩  =  ⟨(K̂†a)·i | f₁₂ | b·j⟩
+    //   ref_Kf_K2[a,b] = ⟨ab | K̂₂ f | ij⟩  =  ⟨a·i        | f₁₂ | (K̂†b)·j⟩
+    //   ref_fK_K1[a,b] = ⟨ab | f K̂₁ | ij⟩  =  ⟨a·(Ki)     | f₁₂ | b·j⟩
+    //   ref_fK_K2[a,b] = ⟨ab | f K̂₂ | ij⟩  =  ⟨a·i        | f₁₂ | b·(Kj)⟩
+    // K̂ on the ket gets K(phi_{i/j}); moved over to the bra via Hermiticity
+    // of the integral it becomes K̂†(phi_a).
+    //
+    // Symmetry note: when phi_i = phi_j the K̂₁ and K̂₂ matrices are
+    // *transposes* of each other (ref_Kf_K2[a,b] = ref_Kf_K1[b,a]), not
+    // identical — the harmonic-basis matrix is not (a,b)-symmetric because
+    // K̂† carries the asymmetric R²-weighted bra.  Their Frobenius norms
+    // coincide, but ‖K1 − K2‖ measures 2·‖antisymmetric part‖, not zero.
+    // Equality K1 = K2 is only expected as a consistency check between
+    // independent algorithm paths, not a property of either reference alone.
+    d.ref_Kf_K1 = matrix_inner(world, Kdagger_a * phi_i, f12_aj);
+    d.ref_Kf_K2 = matrix_inner(world, f12_ai, Kdagger_a * phi_j);
+    d.ref_fK_K1 = matrix_inner(world, phi_a * K_i,      f12_aj);
+    d.ref_fK_K2 = matrix_inner(world, f12_ai,           phi_a * K_j);
+
+    d.ref_piece1 = copy(d.ref_Kf_K1);
+    d.ref_piece2 = copy(d.ref_fK_K1);
     if (include_K2) {
-        d.ref_piece1 += matrix_inner(world, f12(phi_a * phi_i), Kdagger(phi_a) * phi_j);
-    }
-    d.ref_piece2  = matrix_inner(world, phi_a * K(phi_i), f12(phi_a * phi_j));
-    if (include_K2) {
-        d.ref_piece2 += matrix_inner(world, f12(phi_a * phi_i), phi_a * K(phi_j));
+        d.ref_piece1 += d.ref_Kf_K2;
+        d.ref_piece2 += d.ref_fK_K2;
     }
 
     if (verbose) {
+        // K̂₁ vs K̂₂ matrices are transposes when phi_i = phi_j (not equal);
+        // their norms coincide but ‖K1 − K2‖ reports 2·‖antisymmetric part‖.
+        const double sym_Kf = (d.ref_Kf_K1 - transpose(d.ref_Kf_K2)).normf();
+        const double sym_fK = (d.ref_fK_K1 - transpose(d.ref_fK_K2)).normf();
+        print("[diagnose] ||ref_Kf_K1|| =", d.ref_Kf_K1.normf(),
+              " ||ref_Kf_K2|| =", d.ref_Kf_K2.normf(),
+              " ||ref_Kf_K1 - ref_Kf_K2^T|| =", sym_Kf,
+              "   (zero iff phi_i = phi_j)");
+        print("[diagnose] ||ref_fK_K1|| =", d.ref_fK_K1.normf(),
+              " ||ref_fK_K2|| =", d.ref_fK_K2.normf(),
+              " ||ref_fK_K1 - ref_fK_K2^T|| =", sym_fK,
+              "   (zero iff phi_i = phi_j)");
         print("[diagnose] ||ref_piece1|| =", d.ref_piece1.normf(),
               " ||ref_piece2|| =", d.ref_piece2.normf(),
               " ||ref_piece1 - ref_piece2|| =", (d.ref_piece1 - d.ref_piece2).normf());

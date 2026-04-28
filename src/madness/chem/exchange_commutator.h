@@ -35,12 +35,20 @@ struct ExchangeCommutator {
     };
 
     /// Per-piece and combined errors obtained by projecting onto a harmonic basis.
+    /// Reference matrices are indexed [a,b] over the harmonic-basis observer set
+    /// (a on particle 1, b on particle 2).  For phi_i == phi_j the K̂₁/K̂₂
+    /// contributions coincide; the four ref_*_K* fields make the asymmetric
+    /// case (phi_i ≠ phi_j) directly inspectable.
     struct Diagnostics {
         double err_Kf   = -1.0;
         double err_fK   = -1.0;
         double err_KffK = -1.0;
-        Tensor<double> ref_piece1;   ///< Σ <a b | [K̂₁, f] | i j>
-        Tensor<double> ref_piece2;   ///< Σ <a b | [K̂₂, f] | i j>
+        Tensor<double> ref_piece1;   ///< ⟨ab | K̂ f | ij⟩ = ref_Kf_K1 + ref_Kf_K2 (K̂₂ optional)
+        Tensor<double> ref_piece2;   ///< ⟨ab | f K̂ | ij⟩ = ref_fK_K1 + ref_fK_K2 (K̂₂ optional)
+        Tensor<double> ref_Kf_K1;    ///< ⟨ab | K̂₁ f | ij⟩
+        Tensor<double> ref_Kf_K2;    ///< ⟨ab | K̂₂ f | ij⟩
+        Tensor<double> ref_fK_K1;    ///< ⟨ab | f K̂₁ | ij⟩
+        Tensor<double> ref_fK_K2;    ///< ⟨ab | f K̂₂ | ij⟩
         double t_reference = 0.0;    ///< wall time for the reference build (s)
     };
 
@@ -125,6 +133,19 @@ struct ExchangeCommutator {
     /// to dump per-stage norms (harmonic basis, K applications, f12
     /// applications, reference matrices, and per-pair shape/norms) — use
     /// when a piece comes back as NaN to localize the source.
+    ///
+    /// `centers` controls where the harmonic observer basis is placed.
+    /// When empty, a single basis at the origin is used (back-compat,
+    /// adequate when phi_i, phi_j are localized at the origin).  For
+    /// phi_i ≠ phi_j on a multi-atom molecule, pass info.molecular_coordinates
+    /// so the basis spans the support of both orbitals; otherwise
+    /// the projector misses any signal away from origin and the diagnose
+    /// reports a misleadingly small ‖reference‖.
+    ///
+    /// The reference is built as the sum of the K̂₁ and K̂₂ pieces (the
+    /// latter is gated by `include_K2`).  All four ⟨ab|·|ij⟩ contributions
+    /// are also returned individually in Diagnostics so non-symmetric
+    /// regressions in either particle's K̂ application can be localized.
     static Diagnostics diagnose(
             World& world,
             const std::vector<Function<double, 3>>& kvec,
@@ -136,7 +157,8 @@ struct ExchangeCommutator {
             const std::vector<CCPairFunction<double, 6>>& KffK,
             const LowRankFunctionParameters& obs_param,
             bool verbose = false,
-            bool include_K2 = true);
+            bool include_K2 = true,
+            const std::vector<Vector<double, 3>>& centers = {});
 
     /// Convenience: run diagnose() on a KffKResult treated as KffK and
     /// attach errors to stderr in a uniform one-line summary.

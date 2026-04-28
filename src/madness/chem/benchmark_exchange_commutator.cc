@@ -107,9 +107,13 @@ int main(int argc, char **argv) {
               FunctionDefaults<3>::get_thresh(),
               FunctionDefaults<6>::get_thresh());
 
-        const real_function_3d phi = amo[0];
-        CCFunction<double,3> phi_i(phi, 0, HOLE);
-        CCFunction<double,3> phi_j(phi, 0, HOLE);
+        int i=0;
+        int j=0;
+        if (amo.size()>1) i=1;
+        if (amo.size()>2) j=2;
+
+        CCFunction<double,3> phi_i(amo[i], i, HOLE);
+        CCFunction<double,3> phi_j(amo[j], j, HOLE);
 
         // Score lambda: project Kf, fK, and KffK onto the harmonic basis and
         // print errors for whichever pieces are present in the result.  Empty
@@ -117,26 +121,38 @@ int main(int argc, char **argv) {
         auto score_full = [&](const ExchangeCommutator::KffKResult& r,
                               bool include_K2) {
             auto d = ExchangeCommutator::diagnose(
-                    world, amo, R2amo, phi, phi,
+                    world, amo, R2amo, phi_i.function, phi_j.function,
                     r.Kf, r.fK, r.KffK, lrfparam,
                     /*verbose=*/true,
                     include_K2);
             ExchangeCommutator::print_report(r, &d);
         };
 
-        // -------------------- regression: K̂₁/Kf only --------------------
-        // Reproduce the working K̂₁-only configuration before adding fK.
-        // If err_Kf grows away from ~1e-5, the K̂₁ path has regressed.
-        print("\n========== regression: K̂₁ piece only (Kf alone) ==========");
+        // -------------------- 6D reference: full commutator via 6D path ---
+        // Run first: independent algorithm (apply_Kfxy + make_f_xy_macrotask)
+        // gives a baseline error level against which the split-α numbers
+        // below are interpreted.  Pure-6D pair functions, projected onto the
+        // same harmonic basis as the split-α path.
+        print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
         {
-            ExchangeCommutator::SplitAlphaOptions opt;
-            opt.alpha_star               = 1.e4;
-            opt.assemble_fK              = false;
-            opt.include_symmetry_mirror  = false;
-            score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-                    world, phi_i, phi_j, info, lrfparam, opt),
-                       /*include_K2=*/false);
+            score_full(ExchangeCommutator::apply_KffK_6d(
+                    world, phi_i, phi_j, info),
+                       /*include_K2=*/true);
         }
+
+//        // -------------------- regression: K̂₁/Kf only --------------------
+//        // Reproduce the working K̂₁-only configuration before adding fK.
+//        // If err_Kf grows away from ~1e-5, the K̂₁ path has regressed.
+//        print("\n========== regression: K̂₁ piece only (Kf alone) ==========");
+//        {
+//            ExchangeCommutator::SplitAlphaOptions opt;
+//            opt.alpha_star               = 1.e4;
+//            opt.assemble_fK              = false;
+//            opt.include_symmetry_mirror  = false;
+//            score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+//                    world, phi_i, phi_j, info, lrfparam, opt),
+//                       /*include_K2=*/false);
+//        }
 
         // -------------------- full commutator: K̂₁+K̂₂ on Kf, fK, KffK ---
         print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂ ==========");
