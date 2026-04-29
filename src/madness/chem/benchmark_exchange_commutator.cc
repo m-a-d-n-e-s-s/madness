@@ -129,12 +129,12 @@ int main(int argc, char **argv) {
         // gives a baseline error level against which the split-α numbers
         // below are interpreted.  Pure-6D pair functions, projected onto the
         // same harmonic basis as the split-α path.
-        print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
-        {
-            score_full(ExchangeCommutator::apply_KffK_6d(
-                    world, phi_i, phi_j, info),
-                       /*include_K2=*/true);
-        }
+//        print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
+//        {
+//            score_full(ExchangeCommutator::apply_KffK_6d(
+//                    world, phi_i, phi_j, info),
+//                       /*include_K2=*/true);
+//        }
 
 //        // -------------------- regression: K̂₁/Kf only --------------------
 //        // Reproduce the working K̂₁-only configuration before adding fK.
@@ -151,16 +151,17 @@ int main(int argc, char **argv) {
 //        }
 
         // -------------------- full commutator: K̂₁+K̂₂ on Kf, fK, KffK ---
-        print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂ ==========");
-        {
-            ExchangeCommutator::SplitAlphaOptions opt;
-            opt.alpha_star               = 1.e4;
-            opt.assemble_fK              = true;    // assemble the fK piece
-            opt.include_symmetry_mirror  = true;    // K̂₂ via swap_particles
-            score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-                    world, phi_i, phi_j, info, lrfparam, opt),
-                       /*include_K2=*/true);
+        for (double alpha : {1.0, 1.e1, 1.e2, 1.e3, 1.e4}) {
+            print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
+            {
+                ExchangeCommutator::SplitAlphaOptions opt;
+                opt.alpha_star               = alpha;
+                score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+                               world, phi_i, phi_j, info, lrfparam, opt),
+                           /*include_K2=*/true);
+            }
         }
+
         // lrf / lrf-direct paths intentionally disabled for this run.
 
     } catch (std::exception& e) {

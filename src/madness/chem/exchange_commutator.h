@@ -73,8 +73,6 @@ struct ExchangeCommutator {
         double lo         = 1.0e-6;
         double hi         = 10.0;
         double eps_gfit   = 1.0e-6;
-        bool   assemble_fK            = true;  ///< build the fK piece (set false to test Kf alone)
-        bool   include_symmetry_mirror = true; ///< apply swap_particles for K̂₂ (set false to test K̂₁ alone)
     };
 
     // ---------------------------------------------------------------------

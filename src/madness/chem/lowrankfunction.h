@@ -1502,11 +1502,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         std::vector<Vector<double,LDIM>> build_grid(double ve, long max_points = 0) const {
             std::vector<Vector<double,LDIM>> grid;
             if (!origins.empty()) {
-                for (const auto& origin : origins) {
-                    randomgrid<LDIM> rg(ve, parameters.radius(), origin);
-                    auto local = rg.get_grid();
-                    grid.insert(grid.end(), local.begin(), local.end());
-                }
+                molecular_grid mg(origins, parameters);
+                grid = mg.get_grid();
             } else {
                 grid = make_uniform_random_grid_in_cell(ve);
             }
