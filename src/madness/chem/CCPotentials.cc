@@ -2232,6 +2232,55 @@ CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi
 std::vector<CCPairFunction<double,6>>
 CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
                                                   const Info& info, const real_convolution_6d *Gscreen) {
+
+
+
+    auto ao=orthonormalize_canonical(info.ao);
+    print("error computed by projecting on the ao basis size",ao.size());
+    // ExchangeCommutator instance carrying the orthonormal AO basis used
+    // as the observer set inside diagnose().
+    ExchangeCommutator ec(ao);
+
+    LowRankFunctionParameters lrfparam;
+    lrfparam.set_derived_value("radius",         2.0);
+    lrfparam.set_derived_value("volume_element", 0.2);
+    lrfparam.set_derived_value("tol",            1.e-5);
+    lrfparam.set_derived_value("tempered",       std::vector<double>({1.e-1, 1.e1, 9.0}));
+    lrfparam.set_derived_value("lmax",           2);
+    lrfparam.print("lrf_param");
+
+    // Score lambda: project Kf, fK, and KffK onto the AO basis and print
+    // errors for whichever pieces are present in the result.  Empty
+    // entries in the KffKResult are skipped by diagnose().
+    auto score_full = [&](const ExchangeCommutator::KffKResult& r,
+                          bool include_K2) {
+        auto d = ec.diagnose(
+                world, info.mo_ket, info.mo_bra, phi_i.function, phi_j.function,
+                r.Kf, r.fK, r.KffK, lrfparam,
+                /*verbose=*/true,
+                include_K2);
+        ExchangeCommutator::print_report(r, &d);
+    };
+
+    print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
+    {
+        score_full(ExchangeCommutator::apply_KffK_6d(
+                world, phi_i, phi_j, info),
+                   /*include_K2=*/true);
+    }
+    double alpha=1.e1;
+    print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
+    std::vector<CCPairFunction<double,6>> KffK;
+    {
+        ExchangeCommutator::SplitAlphaOptions opt;
+        opt.alpha_star               = alpha;
+        auto result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, lrfparam, opt);
+        KffK=result.KffK;
+        score_full(result, /*include_K2=*/true);
+    }
+    return KffK;
+
+
     real_function_3d x_ket = phi_i.function;
     real_function_3d y_ket = phi_j.function;
     real_function_3d x_bra = (info.R_square*phi_i.function).truncate();
