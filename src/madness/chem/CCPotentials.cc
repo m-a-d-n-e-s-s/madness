@@ -8,6 +8,7 @@
 #include "CCPotentials.h"
 #include <madness/chem/lowrankfunction.h>
 #include "memory_measurement.h"
+#include <madness/chem/exchange_commutator.h>
 
 
 namespace madness {
@@ -1825,6 +1826,18 @@ CCPotentials::compare_KffK_matrix_elements(World& world, const CCFunction<double
         const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij,
         const CCPairFunction<double,6> KffKij, std::string msg)
     {
+
+    LowRankFunctionParameters lrf_param;
+    auto ao=orthonormalize_canonical(info.ao);
+    ExchangeCommutator ec(ao);
+    ExchangeCommutator::KffKResult result;  // dummy
+    result.algo=msg;
+    auto diagnostics=ec.diagnose(world,info.mo_ket,info.mo_bra,phi_i.function,phi_j.function,{Kfij},
+        {fKij},{KffKij},lrf_param,true,true,info.molecular_coordinates);
+    ec.print_report(result,&diagnostics);
+    return;
+
+
 
     // set up exchange operator
     Exchange<double,3> K(world,1.e-6);

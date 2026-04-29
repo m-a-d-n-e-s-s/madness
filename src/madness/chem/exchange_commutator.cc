@@ -316,31 +316,34 @@ ExchangeCommutator::diagnose(
         const LowRankFunctionParameters& obs_param,
         bool verbose,
         bool include_K2,
-        const std::vector<Vector<double,3>>& centers_in)
+        const std::vector<Vector<double,3>>& centers_in) const
 {
     Diagnostics d;
     wall_timer t(world);
 
-    // Harmonic-basis observer functions (solid harmonics around centers_in).
-    // For phi_i ≠ phi_j on a multi-atom molecule, the caller should pass
-    // info.molecular_coordinates so the basis covers both orbitals' support;
-    // otherwise we fall back to a single basis at the origin.  Use
-    // *canonical* orthonormalization with a linear-dependency cutoff: the
-    // iterative Löwdin in plain orthonormalize() diverges to NaN when the
-    // raw Cartesian-Gaussian set has near-zero overlap eigenvalues (which
+    // Observer basis: prefer the AO basis stored on this instance.  When
+    // empty, fall back to a canonical-orthonormalized harmonic basis built
+    // from obs_param at centers_in (origin if empty).  Use *canonical*
+    // orthonormalization with a linear-dependency cutoff: the iterative
+    // Löwdin in plain orthonormalize() diverges to NaN when the raw
+    // Cartesian-Gaussian set has near-zero overlap eigenvalues (which
     // happens routinely once multiple centers are stacked).
-    const auto centers = centers_in.empty()
-            ? std::vector<Vector<double,3>>({ Vector<double,3>(0.0) })
-            : centers_in;
-    auto phi_a = LowRankFunctionFactory<double,6>::harmonic_basis(
-            world, obs_param.tempered(), 2, centers);
-    phi_a = orthonormalize_canonical(phi_a);
+    std::vector<Function<double,3>> phi_a_owned;
+    if (ao_basis.empty()) {
+        const auto centers = centers_in.empty()
+                ? std::vector<Vector<double,3>>({ Vector<double,3>(0.0) })
+                : centers_in;
+        phi_a_owned = LowRankFunctionFactory<double,6>::harmonic_basis(
+                world, obs_param.tempered(), 2, centers);
+        phi_a_owned = orthonormalize_canonical(phi_a_owned);
+    }
+    const auto& phi_a = ao_basis.empty() ? phi_a_owned : ao_basis;
 
     const bool symmetric_ij = (&phi_i == &phi_j);  // cheap fast path; full check below
 
     if (verbose) {
-        print("[diagnose] orthonormalized harmonic basis: phi_a.size() =", phi_a.size(),
-              " centers =", centers.size(),
+        const char* basis_kind = ao_basis.empty() ? "harmonic (fallback)" : "AO";
+        print("[diagnose]", basis_kind, "observer basis: phi_a.size() =", phi_a.size(),
               " kvec.size() =", kvec.size(),
               " ||phi_i|| =", phi_i.norm2(),
               " ||phi_j|| =", phi_j.norm2(),

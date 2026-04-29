@@ -52,6 +52,7 @@ nlohmann::json CC2::solve() {
     Info info;
     info=CCOPS.update_info(parameters,nemo);
     info.intermediate_potentials=CCIntermediatePotentials(parameters);
+    info.ao=nemo->get_calc()->ao;
 
     // early-exit test: run apply_KffK_low_rank_direct on the first active pair and return
     if (parameters.test()) {

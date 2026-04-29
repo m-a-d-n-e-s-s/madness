@@ -926,6 +926,7 @@ struct Info {
     CCIntermediatePotentials intermediate_potentials;
     Function<double,3> R_square, U2, R;;
     std::vector<Function<double,3>> U1;
+    std::vector<Function<double,3>> ao;
 
     vector_real_function_3d get_active_mo_ket() const {
         vector_real_function_3d result;
@@ -942,6 +943,7 @@ struct Info {
     void reconstruct() const {
         madness::reconstruct(mo_bra);
         madness::reconstruct(mo_ket);
+        madness::reconstruct(ao);
         R_square.reconstruct();
         madness::reconstruct(U1);
         U2.reconstruct();
@@ -964,6 +966,7 @@ struct Info {
         records+=cloud.store(world,molecular_coordinates);
         records+=cloud.store(world,U2);
         records+=cloud.store(world,U1);
+        records+=cloud.store(world,ao);
         return records;
     }
 
@@ -983,6 +986,7 @@ struct Info {
         molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
         U2=cloud.forward_load<Function<double,3>>(world,recordlist);
         U1=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        ao=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
     }
 
 };

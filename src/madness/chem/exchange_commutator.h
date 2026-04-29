@@ -21,6 +21,20 @@ namespace madness {
 
 struct ExchangeCommutator {
 
+    /// Orthonormalized AO basis used as the observer set in diagnose().
+    /// The caller is responsible for orthonormalization; near-linear-
+    /// dependent inputs will produce a numerically unreliable diagnostic.
+    std::vector<Function<double, 3>> ao_basis;
+
+    /// Construct with the AO basis used by diagnose() to project the
+    /// commutator onto matrix elements ⟨ab | · | ij⟩.
+    explicit ExchangeCommutator(std::vector<Function<double, 3>> ao_basis_in)
+        : ao_basis(std::move(ao_basis_in)) {}
+
+    /// Default ctor leaves ao_basis empty; only the static apply_KffK_*
+    /// entry points may be used in that state — diagnose() will throw.
+    ExchangeCommutator() = default;
+
     /// Uniform result envelope for every algorithm path.  Each "piece" may
     /// be empty when the algorithm only produces the combined commutator
     /// (e.g. lrf-split-alpha constructs KffK directly).
@@ -134,19 +148,18 @@ struct ExchangeCommutator {
     /// applications, reference matrices, and per-pair shape/norms) — use
     /// when a piece comes back as NaN to localize the source.
     ///
-    /// `centers` controls where the harmonic observer basis is placed.
-    /// When empty, a single basis at the origin is used (back-compat,
-    /// adequate when phi_i, phi_j are localized at the origin).  For
-    /// phi_i ≠ phi_j on a multi-atom molecule, pass info.molecular_coordinates
-    /// so the basis spans the support of both orbitals; otherwise
-    /// the projector misses any signal away from origin and the diagnose
-    /// reports a misleadingly small ‖reference‖.
+    /// The observer basis is the orthonormalized AO basis stored on this
+    /// instance (`ao_basis`).  When `ao_basis` is empty the routine falls
+    /// back to building a Cartesian-Gaussian harmonic basis from
+    /// `obs_param` placed at `centers` (origin if empty), then
+    /// orthonormalizing it canonically — preserving the original
+    /// behaviour for callers that haven't supplied an AO basis.
     ///
     /// The reference is built as the sum of the K̂₁ and K̂₂ pieces (the
     /// latter is gated by `include_K2`).  All four ⟨ab|·|ij⟩ contributions
     /// are also returned individually in Diagnostics so non-symmetric
     /// regressions in either particle's K̂ application can be localized.
-    static Diagnostics diagnose(
+    Diagnostics diagnose(
             World& world,
             const std::vector<Function<double, 3>>& kvec,
             const std::vector<Function<double, 3>>& R2kvec,
@@ -158,7 +171,7 @@ struct ExchangeCommutator {
             const LowRankFunctionParameters& obs_param,
             bool verbose = false,
             bool include_K2 = true,
-            const std::vector<Vector<double, 3>>& centers = {});
+            const std::vector<Vector<double, 3>>& centers = {}) const;
 
     /// Convenience: run diagnose() on a KffKResult treated as KffK and
     /// attach errors to stderr in a uniform one-line summary.

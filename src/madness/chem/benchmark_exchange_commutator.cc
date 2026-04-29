@@ -89,16 +89,6 @@ int main(int argc, char **argv) {
         auto amo = nemo->get_calc()->get_amo();
         auto R2amo = nemo->R_square*(nemo->get_calc()->get_amo());
 
-//        real_function_3d gauss=real_factory_3d(world).functor(
-//            [](const coord_3d& r){ return std::exp(-r.normf()); });
-//        real_function_3d one=real_factory_3d(world).functor([](const coord_3d&){ return 1.0; });
-//        const double gauss_norm = gauss.norm2();
-//        gauss.scale(1.0/gauss_norm);
-//        print("orbital normalized: ||phi||_before =", gauss_norm,
-//              "  ||phi||_after =", gauss.norm2());
-        // amo  =std::vector<real_function_3d>({gauss});
-        // R2amo=std::vector<real_function_3d>({gauss});   // info.R²=one, so R²·k == k
-
         Info info = make_info(world, amo, nemo->R, nemo->R_square, nemo->molecule());
         // Info info = make_info(world, amo, one, one, nemo->molecule());
         info.parameters.print("cc2");
@@ -115,12 +105,18 @@ int main(int argc, char **argv) {
         CCFunction<double,3> phi_i(amo[i], i, HOLE);
         CCFunction<double,3> phi_j(amo[j], j, HOLE);
 
-        // Score lambda: project Kf, fK, and KffK onto the harmonic basis and
-        // print errors for whichever pieces are present in the result.  Empty
+        auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
+        print("error computed by projecting on the ao basis",nemo->get_calc()->aobasis.get_name(), "size",ao.size());
+        // ExchangeCommutator instance carrying the orthonormal AO basis used
+        // as the observer set inside diagnose().
+        ExchangeCommutator ec(ao);
+
+        // Score lambda: project Kf, fK, and KffK onto the AO basis and print
+        // errors for whichever pieces are present in the result.  Empty
         // entries in the KffKResult are skipped by diagnose().
         auto score_full = [&](const ExchangeCommutator::KffKResult& r,
                               bool include_K2) {
-            auto d = ExchangeCommutator::diagnose(
+            auto d = ec.diagnose(
                     world, amo, R2amo, phi_i.function, phi_j.function,
                     r.Kf, r.fK, r.KffK, lrfparam,
                     /*verbose=*/true,
