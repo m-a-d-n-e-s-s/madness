@@ -327,6 +327,7 @@ int test_combined_operators(World& world) {
         if (type==OT_BSH) continue;
         if (type==OT_GAUSS) continue;
         if (type==OT_SLATER) continue;
+        if (type==OT_INVRSQ) continue;
 
         std::stringstream ss;
         ss << type;

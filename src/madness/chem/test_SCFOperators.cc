@@ -369,22 +369,22 @@ int test_coulomb(World& world) {
     Vector<double,3> origin(0.0);
 
     // compute a trial density and the reference potential
-    real_function_3d density=real_factory_3d(world).truncate_on_project()
+    Function<T,3> density=FunctionFactory<T,3>(world).truncate_on_project()
                 .functor(GaussianGuess<double,3>(origin,alpha)).thresh(thresh*0.1);
-    real_function_3d refpot=real_factory_3d(world).truncate_on_project()
+    Function<T,3> refpot=FunctionFactory<T,3>(world).truncate_on_project()
             .functor(refpotfunctor(alpha)).thresh(thresh*0.1);
     double refpotnorm=refpot.norm2();
     print("refpotnorm",refpotnorm);
 
     // compute the potential from the trial density
-    Coulomb<double,3> J(world);
+    Coulomb<T,3> J(world);
     J.reset_poisson_operator_ptr(1.e-5,FunctionDefaults<3>::get_thresh());
     J.potential()=J.compute_potential(density);
     double Jpotnorm=J.potential().norm2();
     print("Jpotnorm  ",Jpotnorm);
 
     // compare potentials
-    real_function_3d diffdensity=J.potential()-refpot;
+    Function<T,3> diffdensity=J.potential()-refpot;
     double err=diffdensity.norm2()/Jpotnorm;
     print("relative error in the densities: ",err);
     if (check_err(err,thresh,"Coulomb density error")) return 1;
@@ -401,10 +401,10 @@ int test_coulomb(World& world) {
 
 
     // test hermiticity of the T operator
-    int success=test_hermiticity<T,Coulomb<double,3>,3>(world, J, thresh);
+    int success=test_hermiticity<T,Coulomb<T,3>,3>(world, J, thresh);
     if (success>0) return 1;
 
-    success=test_asymmetric<T,Coulomb<double,3>,3>(world, J, thresh);
+    success=test_asymmetric<T,Coulomb<T,3>,3>(world, J, thresh);
     if (err>thresh) return 1;
 
     return 0;
@@ -567,7 +567,7 @@ int test_XCOperator(World& world) {
         if (smalltest && xcfunc=="bp") break;
         
         /// custom ctor with information about the XC functional
-        XCOperator<double,3> xc(world,xcfunc,false,arho,arho);
+        XCOperator<T,3> xc(world,xcfunc,false,arho,arho);
         double tol = 1e-6;
         if (xcfunc=="bp") tol = 2e-6;
         print("xc functional ",xcfunc,tol);
