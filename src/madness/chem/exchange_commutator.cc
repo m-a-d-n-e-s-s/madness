@@ -289,6 +289,8 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     // be wrapped with f12_cc to represent C_i(1) · f(1,2) · phi_j(2).
     out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
     out.fK = { CCPairFunction<double, 6>(f12_cc,    fK.get_g(), fK.get_h()) };
+    out.fK[0].convert_to_pure_no_op_inplace();
+    t.tag("convert fK to pure");
 
     out.KffK.push_back(out.Kf[0]);
     out.KffK.push_back(-1.0 * out.fK[0]);

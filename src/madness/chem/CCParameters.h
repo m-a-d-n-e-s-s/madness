@@ -88,6 +88,8 @@ namespace madness {
             // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
             initialize < std::vector<size_t>>
             ("excitations", {}, "vector containing the excitations");
+            initialize<std::string>("KffK_algo", "lrf_split_alpha", "algorithm for KffK commutator", {"lrf_split_alpha", "lrf_direct", "6d"});
+            initialize<double>("KffK_alpha", 100.0,"max exponent in g12");
         }
 
         void set_derived_values();
