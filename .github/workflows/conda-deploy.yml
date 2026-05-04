@@ -1,0 +1,102 @@
+name: Conda Deploy
+
+on:
+  # Run after CI passes on master
+  workflow_run:
+    workflows: ["Linux/MacOS Build"]
+    types: [completed]
+    branches: [master]
+  # Also run on version tags
+  push:
+    tags:
+      - 'v*'
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  conda-build-upload:
+    # Only run if CI succeeded (for workflow_run trigger) or if it's a tag/manual push
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+        mpi: [nompi, openmpi]
+
+    name: "conda ${{ matrix.os }} ${{ matrix.mpi }}"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # full history needed for git describe
+        repository: ${{ github.repository }}
+        ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+
+    - name: Determine version
+      id: version
+      env:
+        SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+        else
+          # Use the most recent version tag, falling back to CMakeLists.txt
+          TAG_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          if [ -z "${TAG_VERSION}" ]; then
+            MAJOR=$(grep -m1 'set(MADNESS_MAJOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MINOR=$(grep -m1 'set(MADNESS_MINOR_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            MICRO=$(grep -m1 'set(MADNESS_MICRO_VERSION' CMakeLists.txt | grep -oE '[0-9]+')
+            TAG_VERSION="${MAJOR}.${MINOR}.${MICRO}"
+          fi
+          SHORT_SHA="${SOURCE_SHA::8}"
+          VERSION="${TAG_VERSION}.dev$(date +%Y%m%d)+${SHORT_SHA}"
+        fi
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "GIT_DESCRIBE_TAG=$VERSION" >> "$GITHUB_ENV"
+        echo "Version: $VERSION"
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-update-conda: true
+        python-version: "3.12"
+        channels: conda-forge,defaults
+        channel-priority: strict
+
+    - name: Install conda-build and anaconda-client
+      run: |
+        conda install -y conda-build anaconda-client
+
+    - name: Build conda package
+      env:
+        MPI_VARIANT: ${{ matrix.mpi }}
+      run: |
+        conda build conda-recipe/ \
+          --no-anaconda-upload \
+          --output-folder "${{ github.workspace }}/conda-dist/"
+
+    - name: Upload conda package as workflow artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: conda-${{ matrix.os }}-${{ matrix.mpi }}-${{ steps.version.outputs.version }}
+        path: ${{ github.workspace }}/conda-dist/**/*.conda
+        if-no-files-found: warn
+
+    - name: Upload to Anaconda.org
+      env:
+        ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        find "${{ github.workspace }}/conda-dist" \( -name '*.tar.bz2' -o -name '*.conda' \) -print0 | \
+          while IFS= read -r -d '' pkg; do
+            anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
+          done

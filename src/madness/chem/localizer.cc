@@ -7,8 +7,6 @@
 #include <madness/mra/function_factory.h>
 #include <madness/tensor/jacobi.h>
 
-using namespace madness;
-
 namespace madness {
 
 Localizer::Localizer(World& world, const AtomicBasisSet& aobasis, const Molecule& molecule,
@@ -816,6 +814,10 @@ MolecularOrbitals<double, 3> Localizer::separate_core_valence(const MolecularOrb
 //                                                              const Tensor<double_complex>& Fock) const;
 
 template
+bool Localizer::check_core_valence_separation(const Tensor<double>& Fock, const std::vector<int>& localized_set,
+                                              const bool silent);
+
+template
 void
 Localizer::undo_degenerate_rotations(Tensor<double>& U, const Tensor<double>& evals, const double thresh_degenerate);
 
@@ -830,4 +832,5 @@ Localizer::undo_reordering(Tensor<double>& U, const Tensor<double>& occ, Tensor<
 template
 void
 Localizer::undo_reordering(Tensor<double_complex>& U, const Tensor<double>& occ, Tensor<double>& eval);
-}
+
+}  // namespace madness
