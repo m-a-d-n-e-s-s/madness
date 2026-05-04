@@ -321,13 +321,6 @@ public:
                               const std::vector<real_function_3d>& U1,
                               const real_function_3d& U2);
 
-    /// Static version of make_constant_part_mp2 to be called from macrotask.
-    static madness::real_function_6d
-    make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
-                                     const std::vector<real_function_3d>& mo_bra,
-                                     const CCParameters& parameters, const real_function_3d& Rsquare,
-                                     const std::vector<real_function_3d>& U1,
-                                     const std::vector<std::string> argument);
 
     /// Compute the constant part of MP2, CC2 or LR-CC2
     ///
@@ -379,17 +372,6 @@ public:
     static apply_Vreg(World& world, const CCFunction<double, 3>& ti, const CCFunction<double, 3>& tj,
                       const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
                       const Info& info, const std::vector<std::string>& argument, const double bsh_eps);
-
-    /// Static version of apply_Vreg to be used from a macrotask. Will eventually replace former.
-    madness::real_function_6d
-    static
-    apply_Vreg_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                         const std::vector<real_function_3d>& mo_bra,
-                         const CCParameters& parameters, const real_function_3d& Rsquare,
-                         const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                         const FuncType& x_type, const FuncType& y_type,
-                         const std::vector<std::string> argument,
-                         const real_convolution_6d* Gscreen = NULL);
 
     /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
     /// singles equation is: (F-ei)|ti> = - V(ti)
@@ -452,21 +434,6 @@ public:
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                const Info& info, const real_convolution_6d* Gscreen);
 
-    /// apply the exchange commutator using a low-rank approximation for f12
-    static std::vector<CCPairFunction<double, 6>>
-    apply_KffK_low_rank_direct(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-                        const Info& info, const real_convolution_6d* Gscreen, LowRankFunctionParameters lrfparameters);
-
-    /// apply the exchange commutator using a low-rank approximation for f12 i(1) j(2)
-    static std::vector<CCPairFunction<double, 6>>
-    apply_KffK_low_rank(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
-                        const Info& info, const real_convolution_6d* Gscreen, LowRankFunctionParameters lrfparameters);
-
-    static void
-    compare_KffK_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
-        const Info& info, const CCPairFunction<double,6> Kfij, const CCPairFunction<double,6> fKij,
-        const CCPairFunction<double,6> KffKij=CCPairFunction<double,6>(), std::string msg="");
-
     static void
     compare_Ue_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
         const Info& info, const CCPairFunction<double,6> Ue);
@@ -496,18 +463,6 @@ public:
     apply_exchange_commutator(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
                               const real_convolution_6d* Gscreen = NULL) const;
 
-    real_function_6d
-    static apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                                               const std::vector<real_function_3d>& mo_bra,
-                                               const real_function_3d& Rsquare,
-                                               const size_t& i, const size_t& j, const CCParameters& parameters,
-                                               const FuncType& x_type, const FuncType& y_type,
-                                               const real_convolution_6d* Gscreen = NULL);
-
-    /// This applies the exchange commutator, see apply_exchange_commutator function for information
-    real_function_6d
-    apply_exchange_commutator1(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
-                               const real_convolution_6d* Gscreen = NULL) const;
 
     /// Helper Function which performs the operation \f$ <xy|g12f12|ab> \f$
     /// @param[in] function x, if nuclear correlation is used make sure this is the correct bra function

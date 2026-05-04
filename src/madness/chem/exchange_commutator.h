@@ -89,27 +89,6 @@ struct ExchangeCommutator {
             const Info& info,
             const real_convolution_6d* Gscreen = nullptr);
 
-    /// LRF algorithm (canonical): LRF-project f₁₂|ij⟩, apply K̂ to each factor.
-    /// Thin wrapper over CCPotentials::apply_KffK_low_rank.
-    static KffKResult apply_KffK_lowrank(
-            World& world,
-            const CCFunction<double, 3>& phi_i,
-            const CCFunction<double, 3>& phi_j,
-            const Info& info,
-            const LowRankFunctionParameters& lrfparam,
-            const real_convolution_6d* Gscreen = nullptr);
-
-    /// LRF algorithm (per-k direct): loops over occupied orbitals, projects
-    /// f₁₂·k_bra(1)·phi_j(2) etc. per k.  Thin wrapper over
-    /// CCPotentials::apply_KffK_low_rank_direct.
-    static KffKResult apply_KffK_lowrank_direct(
-            World& world,
-            const CCFunction<double, 3>& phi_i,
-            const CCFunction<double, 3>& phi_j,
-            const Info& info,
-            const LowRankFunctionParameters& lrfparam,
-            const real_convolution_6d* Gscreen = nullptr);
-
     // ---------------------------------------------------------------------
     // Split-α k-commutator.  Scalar-only variant for Phase A — 6D pair
     // assembly is deferred.

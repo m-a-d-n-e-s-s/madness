@@ -123,61 +123,6 @@ ExchangeCommutator::apply_KffK_6d(
     return out;
 }
 
-// ---------------------------------------------------------------------------
-//  LRF path (canonical) — wraps CCPotentials::apply_KffK_low_rank
-// ---------------------------------------------------------------------------
-
-ExchangeCommutator::KffKResult
-ExchangeCommutator::apply_KffK_lowrank(
-        World& world,
-        const CCFunction<double,3>& phi_i,
-        const CCFunction<double,3>& phi_j,
-        const Info& info,
-        const LowRankFunctionParameters& lrfparam,
-        const real_convolution_6d* Gscreen)
-{
-    KffKResult out;
-    out.algo = "lrf";
-    wall_timer t(world);
-
-    // CCPotentials::apply_KffK_low_rank returns { Kf, -fK }.
-    auto result = CCPotentials::apply_KffK_low_rank(
-            world, phi_i, phi_j, info, Gscreen, lrfparam);
-    if (result.size() >= 1) out.Kf = { result[0] };
-    if (result.size() >= 2) out.fK = { -1.0 * result[1] };   // undo the sign
-    out.KffK = std::move(result);
-
-    finalize_sizes(world, out);
-    out.t_wall = t.elapsed();
-    return out;
-}
-
-// ---------------------------------------------------------------------------
-//  LRF path (per-k direct) — wraps CCPotentials::apply_KffK_low_rank_direct
-// ---------------------------------------------------------------------------
-
-ExchangeCommutator::KffKResult
-ExchangeCommutator::apply_KffK_lowrank_direct(
-        World& world,
-        const CCFunction<double,3>& phi_i,
-        const CCFunction<double,3>& phi_j,
-        const Info& info,
-        const LowRankFunctionParameters& lrfparam,
-        const real_convolution_6d* Gscreen)
-{
-    KffKResult out;
-    out.algo = "lrf-direct";
-    wall_timer t(world);
-
-    // apply_KffK_low_rank_direct builds the commutator as a single combined
-    // CCPairFunction; Kf / fK are not produced separately.
-    out.KffK = CCPotentials::apply_KffK_low_rank_direct(
-            world, phi_i, phi_j, info, Gscreen, lrfparam);
-
-    finalize_sizes(world, out);
-    out.t_wall = t.elapsed();
-    return out;
-}
 
 // ---------------------------------------------------------------------------
 //  Full 6D split-α assembly — loops over mo_ket, produces a KffKResult

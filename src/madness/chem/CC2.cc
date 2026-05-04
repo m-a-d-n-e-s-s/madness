@@ -56,17 +56,6 @@ nlohmann::json CC2::solve() {
 
     // early-exit test: run apply_KffK_low_rank_direct on the first active pair and return
     if (parameters.test()) {
-        const int nfreeze = parameters.freeze();
-        auto phi_i = CCOPS.mo_ket()(nfreeze);
-        auto phi_j = CCOPS.mo_ket()(nfreeze);
-        LowRankFunctionParameters lrfparam(this->lrfparameters);
-        lrfparam.set_derived_value("gridtype", std::string("random"));
-        lrfparam.set_derived_value("volume_element", 2.e-1);
-        lrfparam.set_derived_value("tol", 1.e-6);
-        lrfparam.set_derived_value("canonicalize", false);
-        lrfparam.print("lrf");
-        CCPotentials::apply_KffK_low_rank_direct(world, phi_i, phi_j, info, nullptr, lrfparam);
-        return {};
     }
 
     // check if all pair functions have been loaded or computed
