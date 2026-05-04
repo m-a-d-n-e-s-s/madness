@@ -2276,7 +2276,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         }
     }
     else if (algo=="lrf_split_alpha") {
-        double alpha=info.parameters.get<double>("alpha");
+        double alpha=info.parameters.get<double>("kffk_alpha");
         print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
         {
             ExchangeCommutator::SplitAlphaOptions opt;
