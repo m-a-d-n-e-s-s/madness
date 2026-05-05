@@ -2660,10 +2660,16 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
     g12.destructive()=true;
     std::size_t batchsize=3;
 
+    double thresh_6d=FunctionDefaults<6>::get_thresh();
+    FunctionDefaults<6>::set_thresh(parameters.tight_thresh_6D());
+    std::cout << std::setprecision(6);
+    print("setting thresh in apply_K_macrotask to",parameters.tight_thresh_6D());
 
     for (std::size_t kbatch=0; kbatch < mo_ket.size(); kbatch+=batchsize) {
         for (std::size_t k = kbatch; k < std::min(kbatch+batchsize,mo_ket.size()); k++) {
             real_function_6d copyu = copy(u);
+            copyu.set_thresh(parameters.tight_thresh_6D());
+
             real_function_6d X = (multiply(copyu, copy(mo_bra[k]), particle)).truncate();
             real_function_6d Y = g12(X);     // overwrite X to save space
             auto tmp=(multiply(copy(Y), copy(mo_ket[k]),particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
@@ -2671,6 +2677,8 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
         }
         result.truncate(parameters.tight_thresh_6D()).reduce_rank(parameters.tight_thresh_6D());
     }
+    result.set_thresh(thresh_6d);
+    FunctionDefaults<6>::set_thresh(thresh_6d);
     return result.truncate(parameters.tight_thresh_3D()*3.0).reduce_rank(parameters.tight_thresh_6D()*3.0);
 }
 
