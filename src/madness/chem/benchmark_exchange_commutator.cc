@@ -150,19 +150,73 @@ int main(int argc, char **argv) {
 //                       /*include_K2=*/false);
 //        }
 
-        // -------------------- full commutator: K̂₁+K̂₂ on Kf, fK, KffK ---
-        for (double alpha : {1.0, 1.e1, 1.e2, 1.e3, 1.e4}) {
-            print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
-            {
-                ExchangeCommutator::SplitAlphaOptions opt;
-                opt.alpha_star               = alpha;
-                score_full(ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-                               world, phi_i, phi_j, info, lrfparam, opt),
-                           /*include_K2=*/true);
-            }
+        // -------------------- three-range C: medium=6D at alpha_hi=1e4 ----
+        // 2026-05-05 follow-up #2 (task #13): hybrid path.  Diffuse slab
+        // built as a coarse-grid LRF (rank ~160).  Medium slab handled by
+        // a *pure 6D* apply with a partial-Coulomb operator (only the
+        // medium Gaussians).  Tight slab still discarded.
+        //
+        // Decision criterion (from the prior plan): pure-6D medium piece
+        // ≤ 10 GB at err_KffK ≤ 5e-5 → pursue; ≥ 50 GB → drop.
+        if (0) {
+            LowRankFunctionParameters lrfparam_diffuse;
+            lrfparam_diffuse.set_derived_value("f12type", std::string("slater"));
+            lrfparam_diffuse.set_derived_value("radius",         5.0);
+            lrfparam_diffuse.set_derived_value("volume_element", 2.0);
+            lrfparam_diffuse.set_derived_value("tol",            1.e-5);
+            lrfparam_diffuse.set_derived_value("tempered",
+                    std::vector<double>({1.e-2, 1.e0, 9.0}));
+            lrfparam_diffuse.set_derived_value("lmax",           2);
+
+            ExchangeCommutator::ThreeRangeOptions opt3;
+            opt3.alpha_lo          = 1.0;
+            opt3.alpha_hi          = 1.e4;
+            opt3.lrfparam_diffuse  = lrfparam_diffuse;
+            opt3.lrfparam_medium   = lrfparam;   // unused when medium_use_6d=true
+            opt3.medium_use_taylor = false;
+            opt3.medium_use_6d     = true;
+
+            print("\n========== three-range C: medium=6D, alpha_lo=1, alpha_hi=1e4 ==========");
+            score_full(ExchangeCommutator::apply_KffK_lowrank_three_range(
+                           world, phi_i, phi_j, info, opt3),
+                       /*include_K2=*/true);
         }
 
-        // lrf / lrf-direct paths intentionally disabled for this run.
+        // compute Ue term and its diagnosis
+        if (1) {
+            CorrelationFactor cf(world, 1.0, 1.e-10, nemo->molecule());
+            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
+            op_mod.modified() = true;
+            auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
+            auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
+            auto diag = cf.diagnose(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,nemo->get_calc()->ao);
+            print("diagnosis for Ue term:");
+            print("local part error:", diag.error_local);
+            print("semi-local part error:", diag.error_semilocal);
+            print("time in diagnostics",diag.time_ref);
+
+            // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
+            // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
+            const auto& eps = nemo->get_calc()->aeps;
+            const double energy_ij = eps(i) + eps(j);
+            const double mu_ij = sqrt(-2.0 * energy_ij);
+            real_convolution_6d G6d = BSHOperator<6>(world, mu_ij,
+                                                     info.parameters.lo(),
+                                                     info.parameters.thresh_bsh_6D());
+            auto GUphi_local     = apply(G6d, Uphi_local);
+            auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
+            GUphi_local.print_size("G U_local|ij>");
+            GUphi_semilocal.print_size("G U_semilocal|ij>");
+
+            print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
+            auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
+                                       phi_i.function, phi_j.function,
+                                       nemo->get_calc()->ao, energy_ij);
+            print("G Ue local part error:    ", gue.error_local);
+            print("G Ue semilocal part error:", gue.error_semilocal);
+            print("time in G Ue diagnostics: ", gue.time);
+        }
+
 
     } catch (std::exception& e) {
         print("an error occurred");

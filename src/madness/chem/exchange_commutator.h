@@ -75,6 +75,38 @@ struct ExchangeCommutator {
         double eps_gfit   = 1.0e-6;
     };
 
+    /// Options for the three-range LRF k-commutator variant.
+    /// Partition the Coulomb GFit into:
+    ///   * diffuse  (α_μ < alpha_lo): wide Gaussians, large-ve LRF, low rank
+    ///   * medium   (alpha_lo ≤ α_μ ≤ alpha_hi): tighter LRF
+    ///   * tight    (α_μ > alpha_hi): discard (δ-cancellation in commutator)
+    /// See lrf_three_range_gfit.md for the derivation.
+    struct ThreeRangeOptions {
+        double alpha_lo  = 1.0;      ///< diffuse / medium boundary
+        double alpha_hi  = 1.0e4;    ///< medium / tight boundary  (≡ alpha_star)
+        double lo        = 1.0e-6;
+        double hi        = 10.0;
+        double eps_gfit  = 1.0e-6;
+        /// Per-range LRF construction parameters; both default-constructed.
+        /// Caller is expected to set radius / volume_element / tol / lmax /
+        /// f12type per range before invocation.
+        LowRankFunctionParameters lrfparam_diffuse;
+        LowRankFunctionParameters lrfparam_medium;
+        /// If true, build the medium-range LRF via project_from_operator
+        /// (Taylor / direct construction) instead of random-Y project().
+        /// Mandatory for the medium slab in isolation: random-Y stalls at
+        /// large error without diffuse anchor functions.
+        bool medium_use_taylor = true;
+        /// Max Taylor order for project_from_operator (passed straight
+        /// through; default matches lowrankfunction.h's own default).
+        int  max_taylor_order  = 15;
+        /// If true, the medium slab is treated by a *6D* apply with a
+        /// partial-Coulomb operator (only the medium Gaussians) instead
+        /// of any LRF.  The diffuse slab still uses the LRF path.
+        /// Mutually exclusive with `medium_use_taylor`; takes precedence.
+        bool medium_use_6d     = false;
+    };
+
     // ---------------------------------------------------------------------
     // Top-level entry points — each produces a KffKResult wrapping one of
     // the four existing algorithm paths.
@@ -111,6 +143,19 @@ struct ExchangeCommutator {
             const Info& info,
             const LowRankFunctionParameters& lrfparam,
             const SplitAlphaOptions& opt);
+
+    /// Three-range LRF k-commutator: builds two LRFs (diffuse + medium) with
+    /// independent LowRankFunctionParameters, concatenates their g/h vectors
+    /// and assembles Kf / fK / KffK with the same algebra as
+    /// apply_KffK_lowrank_split_alpha.  Tight terms (α_μ > opt.alpha_hi) are
+    /// discarded.  Returns KffKResult with algo = "lrf-three-range" and rank
+    /// = rank_diffuse + rank_medium (printed individually in t_wall summary).
+    static KffKResult apply_KffK_lowrank_three_range(
+            World& world,
+            const CCFunction<double, 3>& phi_i,
+            const CCFunction<double, 3>& phi_j,
+            const Info& info,
+            const ThreeRangeOptions& opt);
 
     // ---------------------------------------------------------------------
     // Diagnostics — harmonic-basis projection of the 6D result, compared

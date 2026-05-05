@@ -1914,9 +1914,16 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         {
             World& world = functor.world();
             auto f12 = functor.get_f12();
-            GFit<T, LDIM> fit(f12->info);
-            Tensor<T> coeffs = fit.coeffs();
-            Tensor<T> expnts = fit.exponents();
+            // Prefer the SepConv's cached (c, α) — populated by both ctors.
+            // Falling back to GFit(info) requires info.hi > 0, which the
+            // explicit (coeff, expnt, lo, thresh) ctor leaves at zero.
+            Tensor<T>      coeffs = f12->stored_coeffs;
+            Tensor<double> expnts = f12->stored_exponents;
+            if (coeffs.size() == 0) {
+                GFit<T, LDIM> fit(f12->info);
+                coeffs = fit.coeffs();
+                expnts = fit.exponents();
+            }
             const long M = coeffs.dim(0);
 
             auto multi_indices = generate_multi_indices(max_order);

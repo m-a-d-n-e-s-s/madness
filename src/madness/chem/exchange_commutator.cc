@@ -63,6 +63,75 @@ struct wall_timer {
     }
 };
 
+// Apply a partial-Coulomb K̂(phi) = Σ_k k_ket * op_partial(k_bra * phi).
+// op_partial is a 3D SeparatedConvolution holding only a subset of the
+// Coulomb GFit (e.g. just the medium Gaussians).  Mirrors K_macrotask but
+// substitutes op_partial for the full Coulomb.
+real_function_3d K_partial_3d(
+        World& world,
+        const std::vector<real_function_3d>& mo_ket,
+        const std::vector<real_function_3d>& mo_bra,
+        const real_function_3d& f,
+        SeparatedConvolution<double, 3>& op_partial) {
+    op_partial.particle() = 1;
+    real_function_3d result = real_factory_3d(world);
+    for (size_t k = 0; k < mo_ket.size(); ++k) {
+        result += op_partial(mo_bra[k] * f).truncate() * mo_ket[k];
+    }
+    return result;
+}
+
+// Apply Kf|xy⟩ in 6D using a partial-Coulomb operator.  Body cloned from
+// CCPotentials::apply_Kfxy with g12 → op_partial; debug test-lambdas
+// dropped (they returned 0.0 unconditionally upstream).
+real_function_6d apply_Kfxy_partial(
+        World& world,
+        const CCFunction<double, 3>& x,
+        const CCFunction<double, 3>& y,
+        const Info& info,
+        const CCParameters& parameters,
+        SeparatedConvolution<double, 3>& op_partial) {
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    op_partial.destructive() = true;
+
+    real_function_6d result = FunctionFactory<double, 6>(world);
+
+    for (int particle : {1, 2}) {
+        const auto& kbra = info.mo_bra;
+        const auto k_arg = (particle == 1) ? kbra * x.function : kbra * y.function;
+
+        const std::size_t batchsize = 3;
+        for (std::size_t kbatch = 0; kbatch < info.mo_ket.size(); kbatch += batchsize) {
+            for (std::size_t k = kbatch;
+                 k < std::min(kbatch + batchsize, info.mo_ket.size()); ++k) {
+                real_function_3d xx = (particle == 1) ? k_arg[k] : x.function;
+                real_function_3d yy = (particle == 2) ? k_arg[k] : y.function;
+                xx.truncate();
+                yy.truncate();
+                real_function_6d X = CompositeFactory<double, 6, 3>(world)
+                                        .g12(corrfac.f())
+                                        .particle1(copy(xx))
+                                        .particle2(copy(yy));
+                X.fill_cuspy_tree().truncate(parameters.tight_thresh_6D()).reduce_rank();
+
+                op_partial.particle() = particle;
+                real_function_6d Y = op_partial(X);
+                auto tmp = (multiply(copy(Y), copy(info.mo_ket[k]), particle))
+                                .truncate(parameters.tight_thresh_6D() * 3.0);
+                result += tmp;
+            }
+            result.truncate(parameters.tight_thresh_6D())
+                  .reduce_rank(parameters.tight_thresh_6D());
+        }
+
+        if (x.i == y.i) {
+            result += madness::swap_particles(result);
+            break;
+        }
+    }
+    return result;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -242,6 +311,222 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
 
     finalize_sizes(world, out);
     out.rank   = gvec.size();   // LRF rank of the underlying decomposition
+    out.t_wall = t1.elapsed();
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+//  Three-range LRF assembly: diffuse + medium sub-LRFs, tight discarded.
+//  Mirrors apply_KffK_lowrank_split_alpha but builds two LRFs (with separate
+//  LowRankFunctionParameters) and concatenates their g/h vectors before
+//  assembling Kf and fK.  See lrf_three_range_gfit.md.
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::KffKResult
+ExchangeCommutator::apply_KffK_lowrank_three_range(
+        World& world,
+        const CCFunction<double, 3>& phi_i,
+        const CCFunction<double, 3>& phi_j,
+        const Info& info,
+        const ThreeRangeOptions& opt)
+{
+    constexpr std::size_t LDIM = 3;
+    constexpr std::size_t NDIM = 2 * LDIM;
+    KffKResult out;
+    out.algo = "lrf-three-range";
+    timer t(world);
+    wall_timer t1(world);
+
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    const bool symmetric = (phi_i == phi_j);
+
+    auto f12_cc = CCConvolutionOperatorPtr<double, LDIM>(
+            world, OT_F12, info.parameters);
+    auto f12ptr = f12_cc->get_op();
+
+    // GFit of 1/r and partition into three slabs by α.
+    GFit<double, LDIM> fit = GFit<double, LDIM>::CoulombFit(
+            opt.lo, opt.hi, opt.eps_gfit, false);
+    const Tensor<double> c_all = fit.coeffs();
+    const Tensor<double> a_all = fit.exponents();
+    const long M = c_all.size();
+    t.tag("fit operator expansion");
+
+    std::vector<double> cs_diff, as_diff, cs_med, as_med;
+    long n_tight = 0;
+    for (long mu = 0; mu < M; ++mu) {
+        const double a = a_all[mu];
+        const double c = c_all[mu];
+        if (a > opt.alpha_hi) {            // tight: discard
+            ++n_tight;
+            continue;
+        }
+        MADNESS_ASSERT(c > 0.0);
+        if (a < opt.alpha_lo) {            // diffuse
+            cs_diff.push_back(c);
+            as_diff.push_back(a);
+        } else {                           // medium
+            cs_med.push_back(c);
+            as_med.push_back(a);
+        }
+    }
+    const long Md = cs_diff.size();
+    const long Mm = cs_med.size();
+    if (world.rank() == 0) {
+        print("[three-range] GFit partition: M_total =", M,
+              " diffuse =", Md, " medium =", Mm, " tight (discard) =", n_tight,
+              " | alpha_lo =", opt.alpha_lo, " alpha_hi =", opt.alpha_hi);
+    }
+    MADNESS_CHECK_THROW(Md > 0 || Mm > 0,
+                       "three-range: both diffuse and medium are empty");
+
+    auto make_op = [&](const std::vector<double>& cs,
+                       const std::vector<double>& as)
+            -> std::shared_ptr<SeparatedConvolution<double, LDIM>> {
+        const long Mk = cs.size();
+        if (Mk == 0) return {};
+        Tensor<double> c_t(Mk), a_t(Mk);
+        for (long mu = 0; mu < Mk; ++mu) { c_t[mu] = cs[mu]; a_t[mu] = as[mu]; }
+        return std::make_shared<SeparatedConvolution<double, LDIM>>(
+                world, c_t, a_t, opt.lo, thresh);
+    };
+    auto op_diff = make_op(cs_diff, as_diff);
+    auto op_med  = make_op(cs_med,  as_med);
+
+    std::vector<Vector<double, LDIM>> origins = info.molecular_coordinates;
+
+    // Build the two LRFs with their own parameter sets.  Each one represents
+    // its sub-kernel · k(r₁) · k(r₂); the kernel splits linearly so the two
+    // (g, h) sets simply concatenate into the joint decomposition used below.
+    std::vector<Function<double, LDIM>> gvec, hvec;
+    long rank_diff = 0, rank_med = 0;
+
+    if (op_diff) {
+        LRFunctorF12<double, NDIM> functor_diff(op_diff, info.mo_ket, info.mo_bra);
+        auto lrf_diff = LowRankFunctionFactory<double, NDIM>(
+                            opt.lrfparam_diffuse, origins)
+                .project(functor_diff, FunctionDefaults<6>::get_thresh(), 0);
+        rank_diff = lrf_diff.g.size();
+        gvec.insert(gvec.end(), lrf_diff.g.begin(), lrf_diff.g.end());
+        hvec.insert(hvec.end(), lrf_diff.h.begin(), lrf_diff.h.end());
+        t.tag("construct LRF (diffuse)");
+    }
+    if (op_med && !opt.medium_use_6d) {
+        LRFunctorF12<double, NDIM> functor_med(op_med, info.mo_ket, info.mo_bra);
+        auto factory_med = LowRankFunctionFactory<double, NDIM>(
+                                opt.lrfparam_medium, origins);
+        auto lrf_med = opt.medium_use_taylor
+            ? factory_med.project_from_operator(
+                    functor_med,
+                    FunctionDefaults<6>::get_thresh(),
+                    opt.max_taylor_order)
+            : factory_med.project(
+                    functor_med,
+                    FunctionDefaults<6>::get_thresh(), 0);
+        rank_med = lrf_med.g.size();
+        gvec.insert(gvec.end(), lrf_med.g.begin(), lrf_med.g.end());
+        hvec.insert(hvec.end(), lrf_med.h.begin(), lrf_med.h.end());
+        t.tag(opt.medium_use_taylor
+              ? "construct LRF (medium, Taylor)"
+              : "construct LRF (medium, random-Y)");
+    }
+    if (world.rank() == 0) {
+        print("[three-range] LRF ranks: diffuse =", rank_diff,
+              " medium =", rank_med, " total =", rank_diff + rank_med);
+    }
+
+    double tol = FunctionDefaults<LDIM>::get_thresh();
+
+    // piece 1 (K̂₁ f part):  Σ_ρ g_ρ(1) · (phi_j · A_ρ)(2)
+    // A_ρ(r₂) = f12(h_ρ · phi_i)(r₂)
+    auto j_A_pi = phi_j.function * apply(world, *f12ptr, hvec * phi_i.function);
+    auto Kf = LowRankFunction<double, NDIM>(gvec, j_A_pi, tol);
+    if (symmetric) {
+        Kf += LowRankFunction<double, NDIM>(j_A_pi, gvec, tol);
+    } else {
+        auto i_A_pj = phi_i.function * apply(world, *f12ptr, hvec * phi_j.function);
+        Kf += LowRankFunction<double, NDIM>(i_A_pj, gvec, tol);
+    }
+    t.tag("construct Kf |ij>");
+
+    // piece 2 (f K̂₁ part):  Σ_ρ B_ρi · g_ρ(1) · f(1,2) · phi_j(2)
+    auto B_pi = inner(world, phi_i.function, hvec);
+    auto C_i = transform(world, gvec, B_pi);
+    MADNESS_CHECK_THROW(C_i.size() == 1, "invalid size for Ci");
+    auto fK = LowRankFunction<double, 6>(C_i, {phi_j.function}, tol);
+    if (symmetric) {
+        fK += LowRankFunction<double, NDIM>({phi_j.function}, C_i, tol);
+    } else {
+        auto B_pj = inner(world, phi_j.function, hvec);
+        auto C_j  = transform(world, gvec, B_pj);
+        fK += LowRankFunction<double, NDIM>({phi_i.function}, C_j, tol);
+    }
+    t.tag("construct fK |ij>");
+
+    out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
+    out.fK = { CCPairFunction<double, 6>(f12_cc, fK.get_g(), fK.get_h()) };
+    out.fK[0].convert_to_pure_no_op_inplace();
+    t.tag("convert fK to pure");
+
+    out.KffK.push_back(out.Kf[0]);
+    out.KffK.push_back(-1.0 * out.fK[0]);
+
+    // -----------------------------------------------------------------
+    // 6D medium piece: only built when opt.medium_use_6d is set.  Uses
+    // the partial-Coulomb operator op_med (medium Gaussians only) and
+    // the standard 6D apply_Kfxy / K_macrotask machinery.  Result is a
+    // pure 6D pair appended to Kf / fK / KffK.  Tight is still
+    // discarded (handled above by the GFit partition).
+    // -----------------------------------------------------------------
+    if (op_med && opt.medium_use_6d) {
+        // K̂_med f12 |ij⟩  ------------------------------------------------
+        real_function_6d Kfxy_med = apply_Kfxy_partial(
+                world, phi_i, phi_j, info, info.parameters, *op_med);
+        Kfxy_med.truncate().reduce_rank();
+        t.tag("construct Kf medium (6D)");
+
+        // f12 K̂_med |ij⟩  -----------------------------------------------
+        const real_function_3d x_ket = phi_i.function;
+        const real_function_3d y_ket = phi_j.function;
+        const real_function_3d x_bra = (info.R_square * phi_i.function).truncate();
+        const real_function_3d y_bra = (info.R_square * phi_j.function).truncate();
+
+        const real_function_3d Kx_med = K_partial_3d(
+                world, info.mo_ket, info.mo_bra, x_ket, *op_med);
+        const FuncType Kx_type = UNDEFINED;
+        const bool symmetric_fk = (phi_i == phi_j);
+        const real_function_6d fKphi0b = CCPotentials::make_f_xy_macrotask(
+                world, Kx_med, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+                info.parameters, Kx_type, phi_j.type, /*Gscreen=*/nullptr);
+        real_function_6d fKphi0a;
+        if (symmetric_fk) {
+            fKphi0a = madness::swap_particles(fKphi0b);
+        } else {
+            const real_function_3d Ky_med = K_partial_3d(
+                    world, info.mo_ket, info.mo_bra, y_ket, *op_med);
+            const FuncType Ky_type = UNDEFINED;
+            fKphi0a = CCPotentials::make_f_xy_macrotask(
+                    world, x_ket, Ky_med, x_bra, y_bra, phi_i.i, phi_j.i,
+                    info.parameters, phi_i.type, Ky_type, /*Gscreen=*/nullptr);
+        }
+        real_function_6d fKxy_med = (fKphi0a + fKphi0b);
+        fKxy_med.truncate().reduce_rank();
+        t.tag("construct fK medium (6D)");
+
+        out.Kf.push_back(CCPairFunction<double, 6>(Kfxy_med));
+        out.fK.push_back(CCPairFunction<double, 6>(fKxy_med));
+        out.KffK.push_back(CCPairFunction<double, 6>(Kfxy_med));
+        out.KffK.push_back(-1.0 * CCPairFunction<double, 6>(fKxy_med));
+
+        if (world.rank() == 0) {
+            print("[three-range] medium=6D piece appended:",
+                  " Kf size =",  get_size(Kfxy_med), "GB",
+                  " fK size =",  get_size(fKxy_med), "GB");
+        }
+    }
+
+    finalize_sizes(world, out);
+    out.rank   = rank_diff + rank_med;
     out.t_wall = t1.elapsed();
     return out;
 }

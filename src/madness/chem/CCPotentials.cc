@@ -1436,10 +1436,8 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
 
     if (parameters.debug() && symmetric) print("Exploiting Pair Symmetry\n");
 
-    real_function_6d Uxy = real_factory_6d(world);
-    Uxy.set_thresh(tight_thresh);
-    // Apply the untransformed U Potential
-    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+
     t1.tag("finished local part of Ue");
     Uxy.set_thresh(tight_thresh);
     // Apply the double commutator R^{-1}[[T,f,R]
