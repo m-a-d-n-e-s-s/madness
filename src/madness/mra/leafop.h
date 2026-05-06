@@ -88,17 +88,8 @@ public:
         for (size_t i = 0; i < special_points.size(); ++i) {
             Vector<double, NDIM> simpt;
             user_to_sim(special_points[i], simpt);
-            Key<NDIM> specialkey = simpt2key(simpt, key.level());
-            // use adaptive scheme: if we are at a low level refine also neighbours
-            int ll = get_half_of_special_level(f->get_special_level());
-            if (ll < f->get_initial_level()) ll = f->get_initial_level();
-            if (key.level() > ll) {
-                if (specialkey == key) return true;
-                else return false;
-            } else {
-                if (specialkey.is_neighbor_of(key, bperiodic)) return true;
-                else return false;
-            }
+            if (key.is_neighbor_of(simpt, bperiodic)) return true;
+            else return false;
         }
         return false;
     }
@@ -253,23 +244,12 @@ public:
         for (size_t i = 0; i < lowdim_sp.size(); ++i) {
             Vector<double, NDIM / 2> simpt;
             user_to_sim(lowdim_sp[i], simpt);
-            Key<NDIM / 2> specialkey = simpt2key(simpt, key1.level());
-            // use adaptive scheme: if we are at a low level refine also neighbours
-            int ll = this->get_half_of_special_level(f->get_special_level());
-            if (ll < f->get_initial_level()) ll = f->get_initial_level();
-            if (key.level() > ll) {
-                if (particle == 1 and specialkey == key1) return true;
-                else if (particle == 2 and specialkey == key2) return true;
-                else if (particle == 0 and (specialkey == key1 or specialkey == key2)) return true;
-                else return false;
-            } else {
-                if (particle == 1 and specialkey.is_neighbor_of(key1, bperiodic)) return true;
-                else if (particle == 2 and specialkey.is_neighbor_of(key2, bperiodic)) return true;
-                else if (particle == 0 and
-                         (specialkey.is_neighbor_of(key1, bperiodic) or specialkey.is_neighbor_of(key2, bperiodic)))
-                    return true;
-                else return false;
-            }
+            const bool hit1 = key1.is_neighbor_of(simpt, bperiodic);
+            const bool hit2 = key2.is_neighbor_of(simpt, bperiodic);
+            if (particle == 1 and hit1) return true;
+            else if (particle == 2 and hit2) return true;
+            else if (particle == 0 and (hit1 or hit2)) return true;
+            else return false;
         }
         return false;
     }
