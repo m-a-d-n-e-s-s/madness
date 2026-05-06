@@ -22,6 +22,7 @@ namespace madness {
         double _gamma; ///< the correlation factor exp(-gamma r12)
         double dcut; ///< the cutoff for the 1/r potential
         double lo; ///< smallest length scale to be resolved
+        int truncate_mode=1;
 
     public:
         /// ctor, use negative gamma for linear correlation factor r12
@@ -65,6 +66,10 @@ namespace madness {
         /// return the exponent of this correlation factor
         double gamma() const { return _gamma; }
 
+        void set_truncate_mode(int mode) {
+            truncate_mode=mode;
+        }
+
         /// return the value of the correlation factor
         double operator()(const coord_6d& r) const {
             const double rr = r12(r);
@@ -76,10 +81,15 @@ namespace madness {
         real_function_6d apply_U_local(const real_function_3d& phi_i, const real_function_3d& phi_j,
             const real_convolution_6d& op_mod, double thresh) const {
             if (world.rank()==0) print("applying local part of Ue term");
+            double fac=1.0;
+            if (truncate_mode<0) fac = 0.1;
+            print("truncate mode",truncate_mode);
+            print("factor for thresh",fac);
             fg_ func(_gamma, dcut);
             real_function_6d fg3 = real_factory_6d(world).functor(func).is_on_demand();
             real_function_6d mul = CompositeFactory<double, 6, 3>(world)
-                                   .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j)).thresh(thresh);;
+                                   .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j)).thresh(thresh*fac)
+                                    .truncate_mode(truncate_mode);
             mul.fill_cuspy_tree(op_mod).truncate(FunctionDefaults<6>::get_thresh()*0.3);
             mul.print_size("local Ue|ij>");
             return mul;
@@ -90,6 +100,11 @@ namespace madness {
                                         const real_convolution_6d& op_mod, double thresh, const bool symmetric = false) const {
             if (world.rank()==0) print("applying semi-local part of Ue term");
             real_function_6d result = real_factory_6d(world);
+            if (world.rank()==0) print("applying local part of Ue term");
+            double fac=1.0;
+            if (truncate_mode<0) fac = 0.1;
+            print("truncate mode",truncate_mode);
+            print("factor for thresh",fac);
 
             for (int axis = 0; axis < 3; ++axis) {
                 //if (world.rank()==0) print("working on axis",axis);
@@ -101,14 +116,16 @@ namespace madness {
 
                 real_function_6d u = U1(axis);
                 real_function_6d tmp1 = CompositeFactory<double, 6, 3>(world)
-                                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j)).thresh(thresh);
+                                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j)).thresh(thresh*fac)
+                                        .truncate_mode(truncate_mode);
                 tmp1.fill_cuspy_tree(op_mod).truncate();
 
                 real_function_6d tmp2;
                 if (symmetric) tmp2 = -1.0 * swap_particles(tmp1);
                 else {
                     tmp2 = CompositeFactory<double, 6, 3>(world)
-                           .g12(u).particle1(copy(phi_i)).particle2(copy(Dj)).thresh(thresh);
+                           .g12(u).particle1(copy(phi_i)).particle2(copy(Dj)).thresh(thresh*0.1)
+                                        .truncate_mode(-2);
                     tmp2.fill_cuspy_tree(op_mod).truncate();
                 }
 

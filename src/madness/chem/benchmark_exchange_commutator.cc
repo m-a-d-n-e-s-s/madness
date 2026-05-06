@@ -185,36 +185,41 @@ int main(int argc, char **argv) {
         // compute Ue term and its diagnosis
         if (1) {
             CorrelationFactor cf(world, 1.0, 1.e-10, nemo->molecule());
-            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
-            op_mod.modified() = true;
-            auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
-            auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
-            auto diag = cf.diagnose(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,nemo->get_calc()->ao);
-            print("diagnosis for Ue term:");
-            print("local part error:", diag.error_local);
-            print("semi-local part error:", diag.error_semilocal);
-            print("time in diagnostics",diag.time_ref);
+            auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
+            for (int tmode : {-2,1,3}) {
+                print_header2("setting truncate mode to"+std::to_string(tmode));
+                cf.set_truncate_mode(tmode);
+                real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
+                op_mod.modified() = true;
+                auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
+                auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
+                auto diag = cf.diagnose(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,ao);
+                print("diagnosis for Ue term:");
+                print("local part error:", diag.error_local);
+                print("semi-local part error:", diag.error_semilocal);
+                print("time in diagnostics",diag.time_ref);
 
-            // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
-            // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
-            const auto& eps = nemo->get_calc()->aeps;
-            const double energy_ij = eps(i) + eps(j);
-            const double mu_ij = sqrt(-2.0 * energy_ij);
-            real_convolution_6d G6d = BSHOperator<6>(world, mu_ij,
-                                                     info.parameters.lo(),
-                                                     info.parameters.thresh_bsh_6D());
-            auto GUphi_local     = apply(G6d, Uphi_local);
-            auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
-            GUphi_local.print_size("G U_local|ij>");
-            GUphi_semilocal.print_size("G U_semilocal|ij>");
+                // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
+                // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
+                const auto& eps = nemo->get_calc()->aeps;
+                const double energy_ij = eps(i) + eps(j);
+                const double mu_ij = sqrt(-2.0 * energy_ij);
+                real_convolution_6d G6d = BSHOperator<6>(world, mu_ij,
+                                                         info.parameters.lo(),
+                                                         info.parameters.thresh_bsh_6D());
+                auto GUphi_local     = apply(G6d, Uphi_local);
+                auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
+                GUphi_local.print_size("G U_local|ij>");
+                GUphi_semilocal.print_size("G U_semilocal|ij>");
 
-            print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
-            auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
-                                       phi_i.function, phi_j.function,
-                                       nemo->get_calc()->ao, energy_ij);
-            print("G Ue local part error:    ", gue.error_local);
-            print("G Ue semilocal part error:", gue.error_semilocal);
-            print("time in G Ue diagnostics: ", gue.time);
+                print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
+                auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
+                                           phi_i.function, phi_j.function, ao, energy_ij);
+                print("G Ue local part error:    ", gue.error_local);
+                print("G Ue semilocal part error:", gue.error_semilocal);
+                print("time in G Ue diagnostics: ", gue.time);
+            }
+
         }
 
 

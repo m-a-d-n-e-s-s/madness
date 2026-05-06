@@ -2318,8 +2318,10 @@ template<size_t NDIM>
         struct do_truncate_NS_leafs {
             typedef Range<typename dcT::iterator> rangeT;
             const implT* f;     // for calling its member functions
+            double thresh;
 
-            do_truncate_NS_leafs(const implT* f) : f(f) {}
+            do_truncate_NS_leafs(const implT* f) : f(f), thresh(f->get_thresh()) {}
+            do_truncate_NS_leafs(const implT* f, const double thresh) : f(f), thresh(thresh) {}
 
             bool operator()(typename rangeT::iterator& it) const {
 
@@ -2330,7 +2332,7 @@ template<size_t NDIM>
                     coeffT d = copy(node.coeff());
                     d(f->cdata.s0)=0.0;
                     const double error=d.normf();
-                    const double tol=f->truncate_tol(f->get_thresh(),key);
+                    const double tol=f->truncate_tol(thresh,key);
                     if (error<tol) node.coeff()=copy(node.coeff()(f->cdata.s0));
                 }
                 return true;
