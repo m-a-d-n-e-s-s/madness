@@ -492,7 +492,7 @@ public:
     void orthonormalize(World& world, vecfuncT& amo_new, int nocc) const;
 
     // For given protocol, solve the DFT/HF/response equations
-    void solve(World& world);
+    void solve(World& world, int maxiter);
 
     void output_calc_info_schema() const;
 
@@ -612,7 +612,7 @@ public:
                 }
                 calc.ao.clear(); world.gop.fence();
                 calc.ao = calc.project_ao_basis(world, calc.aobasis);
-                calc.solve(world);
+                calc.solve(world, calc.param.maxiter_for_protocol(proto));
 
                 if (calc.param.save())
                     calc.save_mos(world);

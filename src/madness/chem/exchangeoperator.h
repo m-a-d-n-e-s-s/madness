@@ -465,6 +465,7 @@ private:
                                 const Algorithm algorithm = multiworld_efficient)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric), algorithm_(algorithm) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size));
+            name="MacroTaskExchangeSimple";
         }
 
         /// Pre-compute a load-balanced owner assignment for all tasks in the partition.

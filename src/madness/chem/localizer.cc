@@ -75,13 +75,15 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
     // localize using the reconstructed orbitals
     std::vector<Function<T, NDIM>> psi = metric.is_initialized() ? metric * mo_in.get_mos() : mo_in.get_mos();
 
+    const double effective_tolloc = tolloc * tolloc_scale;
+
     DistributedMatrix<T> dUT;
     if (method == "pm") {
-        dUT = localize_PM(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
+        dUT = localize_PM(world, psi, mo_in.get_localize_sets(), effective_tolloc, randomize, true);
     } else if (method == "boys") {
-        dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
+        dUT = localize_boys(world, psi, mo_in.get_localize_sets(), effective_tolloc, randomize, true);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, true);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), effective_tolloc, randomize, true);
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);

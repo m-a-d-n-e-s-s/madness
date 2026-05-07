@@ -2328,7 +2328,7 @@ void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
 
 
 // For given protocol, solve the DFT/HF/response equations
-void SCF::solve(World& world) {
+void SCF::solve(World& world, int maxiter) {
     PROFILE_MEMBER_FUNC(SCF);
     functionT arho_old, brho_old;
     const double dconv = std::max(FunctionDefaults<3>::get_thresh(),
@@ -2350,7 +2350,7 @@ void SCF::solve(World& world) {
     tensorT focka_json(param.nmo_alpha(), param.nmo_alpha());
     tensorT fockb_json(param.nmo_beta(), param.nmo_beta());
 
-    for (int iter = 0; iter < param.maxiter(); ++iter) {
+    for (int iter = 0; iter < maxiter; ++iter) {
         if (world.rank() == 0 and (param.print_level() > 1))
             printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
@@ -2364,6 +2364,24 @@ void SCF::solve(World& world) {
                 START_TIMER(world);
                 Localizer localizer(world, aobasis, molecule, ao);
                 localizer.set_method(param.localize_method());
+                // ---------------------------------------------------------
+                // TEST: loosen localization tolerance on initial-guess iter.
+                //   loose_tolloc_every_protocol_iter0 = true  -> loosen at iter==0 of every protocol (broader test)
+                //   loose_tolloc_every_protocol_iter0 = false -> loosen only at the very first iter==0 ever (narrower test)
+                // Tolloc is multiplied by loose_tolloc_scale (default 100x => 1e-4 vs 1e-6).
+                // ---------------------------------------------------------
+                const bool loose_tolloc_every_protocol_iter0 = false;
+                const double loose_tolloc_scale = 100.0;
+                static bool any_iter0_seen = false;
+                if (iter == 0 && (loose_tolloc_every_protocol_iter0 || !any_iter0_seen)) {
+                    localizer.set_tolloc_scale(loose_tolloc_scale);
+                    if (world.rank() == 0) {
+                        printf("loosening localization tolloc by %.0fx for initial-guess iteration\n",
+                               loose_tolloc_scale);
+                    }
+                }
+                if (iter == 0) any_iter0_seen = true;
+
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
@@ -2403,6 +2421,19 @@ void SCF::solve(World& world) {
                 START_TIMER(world);
                 Localizer localizer(world, aobasis, molecule, ao);
                 localizer.set_method(param.localize_method());
+                // See tile_localize branch above for semantics of these toggles.
+                const bool loose_tolloc_every_protocol_iter0 = true;
+                const double loose_tolloc_scale = 100.0;
+                static bool any_iter0_seen = false;
+                if (iter == 0 && (loose_tolloc_every_protocol_iter0 || !any_iter0_seen)) {
+                    localizer.set_tolloc_scale(loose_tolloc_scale);
+                    if (world.rank() == 0) {
+                        printf("loosening localization tolloc by %.0fx for initial-guess iteration\n",
+                               loose_tolloc_scale);
+                    }
+                }
+                if (iter == 0) any_iter0_seen = true;
+
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
@@ -2578,7 +2609,7 @@ void SCF::solve(World& world) {
             //     && (param.conv_only_dens || bsh_residual < 5.0 * dconv)) converged=true;
 
             // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
-            if (converged || iter == param.maxiter() - 1) {
+            if (converged || iter == maxiter - 1) {
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
                     converged_for_thresh=param.econv();

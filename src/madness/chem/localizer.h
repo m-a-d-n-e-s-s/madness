@@ -45,6 +45,16 @@ public:
         return *this;
     }
 
+    /// Multiplicative factor applied to the internal tolloc (default 1.0).
+    /// Intended for testing looser convergence on initial-guess iterations
+    /// (e.g., set to 100.0 to allow tolloc=1e-4 instead of 1e-6).
+    Localizer& set_tolloc_scale(double scale) {
+        tolloc_scale = scale;
+        return *this;
+    }
+
+    double get_tolloc_scale() const { return tolloc_scale; }
+
     AtomicBasisSet get_aobasis() const {
         return aobasis;
     }
@@ -159,6 +169,7 @@ private:
     Function<double,3> metric;       /// =R for computing matrix elements of operators
     double thetamax=0.1;                /// maximum rotation(?)
     const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
+    double tolloc_scale = 1.0;  // multiplicative factor on tolloc (for testing looser initial-guess convergence)
     double thresh_degenerate;           /// when are orbitals degenerate
     bool enforce_core_valence_separation=false;  /// no rotations between core and valence orbitals (distinguished by 'set')
     std::string method="new";           /// localization method

@@ -79,3 +79,6 @@ bin/hfex_owner_batching.py
 .claude/settings.json
 bin/__pycache__/hfex_owner_profile.cpython-39.pyc
 bin/hfex_owner_profile.py
+tools/parse_localizer.py
+tools/hf_exchange_tail_time.py
+tools/emulate_hfex_smallmem_sym_mt_owner.py

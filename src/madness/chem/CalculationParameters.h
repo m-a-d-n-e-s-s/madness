@@ -85,6 +85,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
 		initialize<int>   ("nopen",0,"number of unpaired electrons = nalpha-nbeta");
 		initialize<int>   ("maxiter",25,"maximum number of iterations");
+		initialize<std::vector<int>>("maxiter_protocol",{},"per-protocol maxiter; falls back to maxiter when entry is missing");
 		initialize<int>   ("nio",1,"no. of io servers to use");
 		initialize<bool>  ("spin_restricted",true,"true if spin restricted");
 		initialize<int>   ("plotlo",0,"range of MOs to print (for both spins if polarized");
@@ -199,6 +200,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	int print_level() const {return get<int>("print_level");}
 
 	int maxiter() const {return get<int>("maxiter");}
+	std::vector<int> maxiter_protocol() const {return get<std::vector<int>>("maxiter_protocol");}
+	int maxiter_for_protocol(std::size_t proto) const {
+		const auto v = maxiter_protocol();
+		return (proto < v.size()) ? v[proto] : maxiter();
+	}
 	double orbitalshift() const {return get<double>("orbitalshift");}
 
 	std::string deriv() const {return get<std::string>("deriv");}

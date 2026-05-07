@@ -1384,7 +1384,10 @@ private:
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo policy) override {
-        	io_redirect io(element,get_name()+"_task",debug);
+        	const auto io_mode = debug ? io_redirect::Mode::File
+        	                           : io_redirect::Mode::Discard;
+        	const double t_entry = wall_time();
+        	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
         	const double t_run_start = wall_time();
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const double t_cloud_load_done = wall_time();
@@ -1485,14 +1488,15 @@ private:
         		    constexpr std::size_t pbuf=512;
         		    char pbuffer[pbuf];
         		    std::snprintf(pbuffer,pbuf,
-        		        "RUN_PHASES task=%3ld subworld=%ld cloud_load=%6.3f fetch=%6.3f compute=%6.3f accumulate=%6.3f prefetch_issue=%6.3f total=%6.3f\n",
+        		        "RUN_PHASES task=%3ld subworld=%ld io_redirect_ctor=%6.3f cloud_load=%6.3f fetch=%6.3f compute=%6.3f accumulate=%6.3f prefetch_issue=%6.3f total=%6.3f\n",
         		        element, subworld.id(),
+        		        t_run_start - t_entry,
         		        t_cloud_load_done - t_run_start,
         		        t_fetch_done - t_cloud_load_done,
         		        t_compute_done - t_fetch_done,
         		        t_accumulate_done - t_accumulate_start,
         		        t_prefetch_issue_done - t_accumulate_done,
-        		        t_prefetch_issue_done - t_run_start);
+        		        t_prefetch_issue_done - t_entry);
         		    print(std::string(pbuffer));
         		}
 

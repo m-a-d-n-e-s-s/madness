@@ -41,6 +41,7 @@
 #include <type_traits>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <complex>
 #include <list>
 #include <vector>
@@ -247,29 +248,58 @@ operator<<(std::ostream &s, const T (&v)[N]) {
     }
 
 
-    /// RAII class to redirect cout to a file
+    /// RAII class to redirect cout: per-task file, /dev/null, or no-op
     struct io_redirect {
-        std::streambuf* stream_buffer_cout;
+        enum class Mode { File, Discard, Passthrough };
+
+        std::streambuf* stream_buffer_cout = nullptr;
         static std::streambuf* stream_buffer_cout_default; ///< default stream buffer for cout, used to restore cout
         std::ofstream ofile;
+        Mode mode = Mode::Passthrough;
         bool debug = false;
 
-        io_redirect(const long task_number, std::string filename, bool debug = false) : debug(debug) {
+        // Mode::File writes to <directory>/<filename>.<NNNNN>; the directory is created if needed.
+        // Mode::Discard silences cout via /dev/null.
+        // Mode::Passthrough leaves cout alone.
+        io_redirect(Mode mode, const long task_number,
+                    std::string directory, std::string filename,
+                    bool debug = false) : mode(mode), debug(debug) {
+            if (mode == Mode::Passthrough) return;
+
             stream_buffer_cout_default = std::cout.rdbuf();
-            constexpr std::size_t bufsize = 256;
-            char cfilename[bufsize];
-            std::snprintf(cfilename, bufsize, "%s.%5.5ld", filename.c_str(), task_number);
-            ofile = std::ofstream(cfilename);
-            if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
+
+            if (mode == Mode::File) {
+                if (!directory.empty()) {
+                    std::error_code ec;
+                    std::filesystem::create_directories(directory, ec); // idempotent, races are benign
+                }
+                constexpr std::size_t bufsize = 512;
+                char cfilename[bufsize];
+                if (directory.empty()) {
+                    std::snprintf(cfilename, bufsize, "%s.%5.5ld", filename.c_str(), task_number);
+                } else {
+                    std::snprintf(cfilename, bufsize, "%s/%s.%5.5ld",
+                                  directory.c_str(), filename.c_str(), task_number);
+                }
+                ofile = std::ofstream(cfilename);
+                if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
+            } else { // Mode::Discard
+                ofile = std::ofstream("/dev/null");
+            }
             stream_buffer_cout = std::cout.rdbuf(ofile.rdbuf());
             std::cout.sync_with_stdio(true);
         }
 
+        // Backwards-compatible constructor: previous behavior was always-File in cwd.
+        io_redirect(const long task_number, std::string filename, bool debug = false)
+            : io_redirect(Mode::File, task_number, std::string(), std::move(filename), debug) {}
+
         ~io_redirect() {
+            if (mode == Mode::Passthrough) return;
             std::cout.rdbuf(stream_buffer_cout);
             ofile.close();
             std::cout.sync_with_stdio(true);
-            if (debug) std::cout << "redirecting back to cout" << std::endl;
+            if (debug && mode == Mode::File) std::cout << "redirecting back to cout" << std::endl;
         }
     };
 
