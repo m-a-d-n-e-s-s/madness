@@ -28,7 +28,13 @@ public:
     void start_iteration_hook(const TaskThreadEnv& env) {
         int id = env.id();
         if (id == 0) {
+            MADNESS_PRAGMA_GCC(diagnostic push)
+            MADNESS_PRAGMA_GCC(diagnostic ignored "-Wvolatile")
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wdeprecated-volatile")
             ++niter;
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+            MADNESS_PRAGMA_GCC(diagnostic pop)
         }
     }
     
