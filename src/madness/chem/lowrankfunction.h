@@ -887,6 +887,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double size=this->size();
             char buf[50];
             snprintf(buf, sizeof(buf), "%s rank, size: %zu, %.2f GB", msg.c_str(), rank,size);
+            print(buf);
         }
 
         /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
@@ -1727,7 +1728,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double current_thresh = FunctionDefaults<LDIM>::get_thresh();
             double ve = parameters.volume_element();
 
-            print("project: eps =", eps, "tol =", tol,
+            if (world.rank()==0) print("project: eps =", eps, "tol =", tol,
                   "ve =", ve, "thresh =", current_thresh);
             t1.tag("project: parameter setup");
 
@@ -1735,13 +1736,16 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             local_params.set_derived_value("volume_element", ve);
             local_params.set_derived_value("tol", tol);
 
-            auto grid = build_grid(ve);
-            print("project: initial grid size", grid.size());
+            std::vector<Vector<double,LDIM>> grid;
+            if (world.rank()==0) grid=build_grid(ve);
+            // broadcast grid from rank0
+            world.gop.broadcast_serializable(grid, 0);
+            if (world.rank()==0) print("project: initial grid size", grid.size());
             t1.tag("project: grid construction");
 
             auto Y = form_Y(lrfunctor, grid, local_params);
             MADNESS_CHECK_THROW(!Y.empty(), "project: no basis functions");
-            print("project: initial Y size", Y.size());
+            if (world.rank()==0) print("project: initial Y size", Y.size());
             t1.tag("project: Yforming");
 
             // initial stable projection

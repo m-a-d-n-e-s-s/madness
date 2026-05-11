@@ -50,6 +50,8 @@ int main(int argc, char **argv) {
 
     const int    k      = parser.key_exists("k")      ? std::atoi(parser.value("k").c_str())   : 6;
     const double thresh = parser.key_exists("thresh") ? std::stod(parser.value("thresh"))       : 3.e-5;
+    const bool do_ue = parser.key_exists("do_ue");
+    const bool do_kffk = parser.key_exists("do_kffk");
 
     FunctionDefaults<6>::set_tensor_type(TT_2D);
     FunctionDefaults<3>::set_truncate_mode(3);
@@ -190,7 +192,7 @@ int main(int argc, char **argv) {
             CorrelationFactor cf(world, 1.0, 1.e-10, nemo->molecule());
             auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
             auto U1nuc = nemo->ncf->U1vec();
-            if (1) {
+            if (do_ue) {
                 for (int tmode : {-2,1,3}) {
                     print_header2("setting truncate mode to"+std::to_string(tmode));
                     cf.set_truncate_mode(tmode);
@@ -257,13 +259,14 @@ int main(int argc, char **argv) {
                 return result;
             };
 
-            // K̂φᵢ and K̂φⱼ — needed by the Schwinger quadrature, computed once.
-            Exchange<double,3> K(world,info.parameters.lo());
-            K.set_bra_and_ket(info.mo_bra,info.mo_ket);
-            const auto Kphi_i = K(phi_i.function);
-            const auto Kphi_j = K(phi_j.function);
 
-            {
+            if (do_kffk) {
+                // K̂φᵢ and K̂φⱼ — needed by the Schwinger quadrature, computed once.
+                Exchange<double,3> K(world,info.parameters.lo());
+                K.set_bra_and_ket(info.mo_bra,info.mo_ket);
+                const auto Kphi_i = K(phi_i.function);
+                const auto Kphi_j = K(phi_j.function);
+
                 const auto& eps    = nemo->get_calc()->aeps;
                 const double energy_ij = eps(i) + eps(j);
                 const double mu_ij     = std::sqrt(-2.0 * energy_ij);
@@ -272,22 +275,24 @@ int main(int argc, char **argv) {
                                                           info.parameters.thresh_bsh_6D());
 
                 // --- variant 1: 6D reference algorithm (pure-6D Kf and fK) ---
-                print("\n========== G [K, f] |ij> diagnostic — 6D reference ==========");
-                auto kffk_6d = ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info);
-                score_full(kffk_6d, /*include_K2=*/true);  // print Kf/fK errors for reference
+                if (0) {
+                    print("\n========== G [K, f] |ij> diagnostic — 6D reference ==========");
+                    auto kffk_6d = ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info);
+                    score_full(kffk_6d, /*include_K2=*/true);  // print Kf/fK errors for reference
 
-                auto GKf_6d_cc = apply_G_to_pairs(kffk_6d.Kf, G6d);
-                auto GfK_6d_cc = apply_G_to_pairs(kffk_6d.fK, G6d);
-                GKf_6d_cc[0].get_function().print_size("G Kf|ij> (6D)");
-                GfK_6d_cc[0].get_function().print_size("G fK|ij> (6D)");
+                    auto GKf_6d_cc = apply_G_to_pairs(kffk_6d.Kf, G6d);
+                    auto GfK_6d_cc = apply_G_to_pairs(kffk_6d.fK, G6d);
+                    GKf_6d_cc[0].get_function().print_size("G Kf|ij> (6D)");
+                    GfK_6d_cc[0].get_function().print_size("G fK|ij> (6D)");
 
-                auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
-                                                    phi_i.function, phi_j.function,
-                                                    Kphi_i, Kphi_j, info, energy_ij);
-                print("6D ref  — G Kf  error:", gkffk_6d.error_GKf);
-                print("6D ref  — G fK  error:", gkffk_6d.error_GfK);
-                print("6D ref  — G[K,f] error:", gkffk_6d.error_GKffK);
-                print("6D ref  — time:", gkffk_6d.time);
+                    auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
+                                                        phi_i.function, phi_j.function,
+                                                        Kphi_i, Kphi_j, info, energy_ij);
+                    print("6D ref  — G Kf  error:", gkffk_6d.error_GKf);
+                    print("6D ref  — G fK  error:", gkffk_6d.error_GfK);
+                    print("6D ref  — G[K,f] error:", gkffk_6d.error_GKffK);
+                    print("6D ref  — time:", gkffk_6d.time);
+                }
 
                 // --- variant 2: split-α LRF algorithm ---
                 print("\n========== G [K, f] |ij> diagnostic — split-alpha LRF ==========");
