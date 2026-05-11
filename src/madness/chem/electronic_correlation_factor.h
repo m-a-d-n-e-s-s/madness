@@ -170,19 +170,19 @@ namespace madness {
 
             real_function_6d local=apply_U_local(phi_i, phi_j,op_mod,thresh);
             real_function_6d semilocal=apply_U_semilocal(phi_i, phi_j,op_mod,thresh);
-            real_function_6d result=local+semilocal;
-            result-=apply_U_mixed_commutator(phi_i, phi_j,op_mod,thresh,U1nuc);
+            real_function_6d mixed=apply_U_mixed_commutator(phi_i, phi_j,op_mod,thresh,U1nuc);
+            real_function_6d result=local+semilocal-mixed;
             result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
 
             // do some diagnostics
             if (ao.size()>0) {
                 auto ao_ortho=orthonormalize_canonical(ao);
-                auto diag = diagnose_Ue(local,semilocal,phi_i,phi_j,ao);
+                auto diag = diagnose_Ue(local,semilocal,phi_i,phi_j,ao,mixed,U1nuc);
                 std::cout << std::scientific << std::setprecision(8);
                 print("diagnosis for Ue term:");
                 print("local part error:      ", diag.error_local);
                 print("semi-local part error: ", diag.error_semilocal);
-                print("mixed-comm part error: ", " -- missing");
+                print("mixed-comm part error: ", diag.error_mixed);
                 print("time in diagnostics:   ", diag.time_ref);
             }
 
@@ -244,45 +244,63 @@ namespace madness {
         }
 
         struct Diagnostics {
-            Tensor<double> ref_local; // matrix elements for local part
-            Tensor<double> ref_semilocal; // matrix elements for semi-local part containing r12 . nabla12
-            Tensor<double> result_local; // matrix elements for local part
-            Tensor<double> result_semilocal; // matrix elements for semi-local part containing r12 . nabla12
+            Tensor<double> ref_local;
+            Tensor<double> ref_semilocal;
+            Tensor<double> ref_mixed;
+            Tensor<double> result_local;
+            Tensor<double> result_semilocal;
+            Tensor<double> result_mixed;
             double error_local=0.0;
             double error_semilocal=0.0;
-            double time_ref; // computation time for this
+            double error_mixed=0.0;
+            double time_ref;
         };
 
         /// matrix elements <ab|(T-E)^{-1} Ue|ij>: 6D reference vs 3D Schwinger quadrature
         struct DiagnosticsGUe {
             Tensor<double> ref_local;         ///< <ab| G U_local    |ij> from 6D projection
             Tensor<double> ref_semilocal;     ///< <ab| G U_semilocal|ij> from 6D projection
+            Tensor<double> ref_mixed;         ///< <ab| G U_mixed    |ij> from 6D projection
             Tensor<double> result_local;      ///< <ab| G U_local    |ij> from 3D quadrature
             Tensor<double> result_semilocal;  ///< <ab| G U_semilocal|ij> from 3D quadrature
+            Tensor<double> result_mixed;      ///< <ab| G U_mixed    |ij> from 3D quadrature
             double error_local = 0.0;
             double error_semilocal = 0.0;
+            double error_mixed = 0.0;
             double time = 0.0;
         };
 
         /// compute the error in Uphi by comparing to reference values: project onto a (small) aobasis
+        /// @param[in]  Uphi_mixed   U_mixed|ij> (optional; pass default-constructed to skip)
+        /// @param[in]  U1nuc        nuclear U1 potentials (required when Uphi_mixed is provided)
         Diagnostics diagnose_Ue(const real_function_6d& Uphi_local,
                              const real_function_6d& Uphi_semilocal,
                              const real_function_3d& phi_i, const real_function_3d& phi_j,
-                             const std::vector<real_function_3d>& aobasis) const {
+                             const std::vector<real_function_3d>& aobasis,
+                             const real_function_6d& Uphi_mixed = real_function_6d(),
+                             const std::vector<real_function_3d>& U1nuc = {}) const {
+            const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
             Diagnostics diag;
             double wall0=wall_time();
             timer t(world);
-            diag.ref_local=Tensor<double>(aobasis.size(), aobasis.size());
-            diag.ref_semilocal=Tensor<double>(aobasis.size(), aobasis.size());
-            diag.result_local=Tensor<double>(aobasis.size(), aobasis.size());
-            diag.result_semilocal=Tensor<double>(aobasis.size(), aobasis.size());
+            const int nbasis = aobasis.size();
+            diag.ref_local=Tensor<double>(nbasis, nbasis);
+            diag.ref_semilocal=Tensor<double>(nbasis, nbasis);
+            diag.result_local=Tensor<double>(nbasis, nbasis);
+            diag.result_semilocal=Tensor<double>(nbasis, nbasis);
+            if (do_mixed) {
+                diag.ref_mixed    = Tensor<double>(nbasis, nbasis);
+                diag.result_mixed = Tensor<double>(nbasis, nbasis);
+            }
 
             // matrix elements for U
-            for (int a = 0; a < aobasis.size(); ++a) {
-                for (int b = 0; b < aobasis.size(); ++b) {
+            for (int a = 0; a < nbasis; ++a) {
+                for (int b = 0; b < nbasis; ++b) {
                     real_function_6d ab=CompositeFactory<double,6,3>(world).particle1(aobasis[a]).particle2(aobasis[b]).is_on_demand();
                     diag.ref_local(a, b) = inner(ab,Uphi_local);
                     diag.ref_semilocal(a, b) = inner(ab,Uphi_semilocal);
+                    if (do_mixed)
+                        diag.ref_mixed(a, b) = inner(ab, Uphi_mixed);
                 }
             }
             t.tag("compute results");
@@ -363,6 +381,37 @@ namespace madness {
             }
             t.tag("compute reference for semi-local Ue");
 
+            // mixed commutator reference: same as semilocal but ∇φ → U1nuc*φ
+            //   U_mixed = Σ_α U1(α) [(U1nuc[α]φᵢ)(r1)φⱼ(r2) - φᵢ(r1)(U1nuc[α]φⱼ)(r2)]
+            //   <ab|U_mixed|ij> = -2π × [+A_nuc - B_nuc - C_nuc + D_nuc]
+            // with Wφᵢ = U1nuc*φᵢ (component vector):
+            //   A_nuc = (r·Wφᵢ)(r1) * φⱼ(r2)
+            //   B_nuc = Σ_α (r_α φᵢ)(r1) * (U1nuc[α]φⱼ)(r2)
+            //   C_nuc = Σ_α (U1nuc[α]φᵢ)(r1) * (r_α φⱼ)(r2)
+            //   D_nuc = φᵢ(r1) * (r·Wφⱼ)(r2)
+            if (do_mixed) {
+                auto Wphii = U1nuc * phi_i;
+                auto Wphij = U1nuc * phi_j;
+                real_function_3d itilde_nuc = dot(world, r, Wphii);
+                real_function_3d jtilde_nuc = dot(world, r, Wphij);
+                for (int a = 0; a < nbasis; ++a) {
+                    auto term1 = bsh(aobasis[a] * itilde_nuc);  // bsh(a*~i_nuc) -> A_nuc
+                    auto term2 = bsh(aobasis[a] * rphi_i);      // bsh(a*r*i)    -> B_nuc
+                    auto term3 = bsh(aobasis[a] * Wphii);       // bsh(a*W*i)    -> C_nuc
+                    auto term4 = bsh(aobasis[a] * phi_i);       // bsh(a*i)      -> D_nuc
+                    for (int b = 0; b < nbasis; ++b) {
+                        double tmp = 0.0;
+                        tmp += inner(aobasis[b] * phi_j,      term1);  // +A_nuc
+                        tmp -= inner(aobasis[b] * Wphij,      term2);  // -B_nuc
+                        tmp -= inner(aobasis[b] * rphi_j,     term3);  // -C_nuc
+                        tmp += inner(aobasis[b] * jtilde_nuc, term4);  // +D_nuc
+                        diag.result_mixed(a, b) = -2.0 * constants::pi * tmp;
+                    }
+                }
+                t.tag("compute reference for mixed commutator Ue");
+                diag.error_mixed = (diag.ref_mixed - diag.result_mixed).normf();
+            }
+
             diag.error_local=(diag.ref_local-diag.result_local).normf();
             diag.error_semilocal=(diag.ref_semilocal-diag.result_semilocal).normf();
             diag.time_ref=wall_time()-wall0;
@@ -389,13 +438,18 @@ namespace madness {
         /// @param[in]  phi_j    orbital j (particle 2)
         /// @param[in]  aobasis  projector basis {a}
         /// @param[in]  energy   two-particle energy E = eps_i + eps_j  (must be < 0)
+        /// @param[in]  GUphi_mixed  G U_mixed|ij> (optional; pass default-constructed to skip)
+        /// @param[in]  U1nuc        nuclear U1 potentials (required when GUphi_mixed is provided)
         DiagnosticsGUe diagnose_GUe(const real_function_6d& GUphi_local,
                                     const real_function_6d& GUphi_semilocal,
                                     const real_function_3d& phi_i,
                                     const real_function_3d& phi_j,
                                     const std::vector<real_function_3d>& aobasis,
-                                    const double energy) const {
+                                    const double energy,
+                                    const real_function_6d& GUphi_mixed = real_function_6d(),
+                                    const std::vector<real_function_3d>& U1nuc = {}) const {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GUe: energy must be negative");
+            const bool do_mixed = GUphi_mixed.is_initialized() && !U1nuc.empty();
             const double thresh = FunctionDefaults<3>::get_thresh();
             const int nbasis = aobasis.size();
 
@@ -404,6 +458,10 @@ namespace madness {
             diag.ref_semilocal    = Tensor<double>(nbasis, nbasis);
             diag.result_local     = Tensor<double>(nbasis, nbasis);
             diag.result_semilocal = Tensor<double>(nbasis, nbasis);
+            if (do_mixed) {
+                diag.ref_mixed    = Tensor<double>(nbasis, nbasis);
+                diag.result_mixed = Tensor<double>(nbasis, nbasis);
+            }
             const double wall0 = wall_time();
 
             // Reference: project G Ue |ij> onto the AO basis pair |ab>
@@ -413,6 +471,8 @@ namespace madness {
                         .particle1(copy(aobasis[a])).particle2(copy(aobasis[b])).is_on_demand();
                     diag.ref_local(a, b)     = inner(ab, GUphi_local);
                     diag.ref_semilocal(a, b) = inner(ab, GUphi_semilocal);
+                    if (do_mixed)
+                        diag.ref_mixed(a, b) = inner(ab, GUphi_mixed);
                 }
             }
 
@@ -440,6 +500,15 @@ namespace madness {
             auto rphi_j = phi_j * rvec;
             real_function_3d itilde = dot(world, rvec, grad(phi_i)); // r.nabla phi_i
             real_function_3d jtilde = dot(world, rvec, grad(phi_j)); // r.nabla phi_j
+
+            std::vector<real_function_3d> Wphii, Wphij;
+            real_function_3d itilde_nuc, jtilde_nuc;
+            if (do_mixed) {
+                Wphii = U1nuc * phi_i;
+                Wphij = U1nuc * phi_j;
+                itilde_nuc = dot(world, rvec, Wphii);
+                jtilde_nuc = dot(world, rvec, Wphij);
+            }
 
             // Ue operators — same normalization conventions as in diagnose():
             //   OT_FG12(gamma):   (1-exp(-gamma r))/(2 gamma r)
@@ -487,10 +556,30 @@ namespace madness {
                         diag.result_semilocal(a, b) += w6d * (-2.0 * constants::pi * tmp);
                     }
                 }
+
+                // Mixed commutator: same structure with ∇φ → U1nuc*φ
+                if (do_mixed) {
+                    for (int a = 0; a < nbasis; ++a) {
+                        auto term1 = bsh_op(conv[a] * itilde_nuc); // bsh(ã * ~i_nuc) -> A_nuc
+                        auto term2 = bsh_op(conv[a] * rphi_i);     // bsh(ã * r*i)    -> B_nuc
+                        auto term3 = bsh_op(conv[a] * Wphii);      // bsh(ã * W*i)    -> C_nuc
+                        auto term4 = bsh_op(conv[a] * phi_i);      // bsh(ã * i)      -> D_nuc
+                        for (int b = 0; b < nbasis; ++b) {
+                            double tmp = 0.0;
+                            tmp += inner(conv[b] * phi_j,      term1);  // +A_nuc
+                            tmp -= inner(conv[b] * Wphij,      term2);  // -B_nuc
+                            tmp -= inner(conv[b] * rphi_j,     term3);  // -C_nuc
+                            tmp += inner(conv[b] * jtilde_nuc, term4);  // +D_nuc
+                            diag.result_mixed(a, b) += w6d * (-2.0 * constants::pi * tmp);
+                        }
+                    }
+                }
             }
 
             diag.error_local     = (diag.ref_local     - diag.result_local).normf();
             diag.error_semilocal = (diag.ref_semilocal - diag.result_semilocal).normf();
+            if (do_mixed)
+                diag.error_mixed = (diag.ref_mixed - diag.result_mixed).normf();
             diag.time = wall_time() - wall0;
             return diag;
         }

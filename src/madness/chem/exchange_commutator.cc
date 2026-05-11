@@ -261,6 +261,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     LRFunctorF12<double, NDIM> functor(trunc_op, info.mo_ket, info.mo_bra);
     auto lrf_exchange_op = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
                .project(functor, FunctionDefaults<6>::get_thresh(), 0);
+    lrf_exchange_op.print_size("LRF of exchange kernel");
     t.tag("construct LRF of exchange kernel");
 
     auto& gvec = lrf_exchange_op.g;
@@ -304,6 +305,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
     out.fK = { CCPairFunction<double, 6>(f12_cc,    fK.get_g(), fK.get_h()) };
     out.fK[0].convert_to_pure_no_op_inplace();
+    out.fK[0].get_function().print_size("fK |ij> after conversion to pure");
     t.tag("convert fK to pure");
 
     out.KffK.push_back(out.Kf[0]);
@@ -580,9 +582,6 @@ ExchangeCommutator::diagnose(
               " ||phi_i|| =", phi_i.norm2(),
               " ||phi_j|| =", phi_j.norm2(),
               " same-object i,j =", symmetric_ij);
-        std::vector<double> norms_a(phi_a.size());
-        for (std::size_t a = 0; a < phi_a.size(); ++a) norms_a[a] = phi_a[a].norm2();
-        print("[diagnose] ||phi_a[a]||:", norms_a);
     }
 
     // K̂ in nemo formalism is non-self-adjoint: bra-side R² makes
@@ -609,17 +608,6 @@ ExchangeCommutator::diagnose(
     auto Kdagger_a = Kdagger(phi_a);
     auto K_i = K(phi_i);
     auto K_j = K(phi_j);
-
-    if (verbose) {
-        std::vector<double> nKda(Kdagger_a.size());
-        for (std::size_t a = 0; a < Kdagger_a.size(); ++a) nKda[a] = Kdagger_a[a].norm2();
-        std::vector<double> nfaj(f12_aj.size());
-        for (std::size_t a = 0; a < f12_aj.size(); ++a) nfaj[a] = f12_aj[a].norm2();
-        print("[diagnose] ||K_dagger(phi_a)||:", nKda);
-        print("[diagnose] ||f12(phi_a*phi_j)||:", nfaj);
-        print("[diagnose] ||K(phi_i)|| =", K(phi_i).norm2(),
-              " ||K(phi_j)|| =", K(phi_j).norm2());
-    }
 
     // Reference integrals (analytic ⟨ab | · | ij⟩) — computed per K̂_p so the
     // four pieces are individually inspectable.
@@ -685,10 +673,11 @@ ExchangeCommutator::diagnose(
             if (f.is_assigned() && (f.is_decomposed_no_op() || f.is_op_decomposed())) {
                 auto a = f.get_a(); auto b = f.get_b();
                 ss << " rank=" << a.size()
-                   << " ||a||=" << get_size(world, a)
-                   << " GB ||b||=" << get_size(world, b) << " GB";
+                   << " ||a||=" << get_size(a)
+                   << " GB ||b||=" << get_size(b) << " GB";
             } else if (f.is_assigned() && f.is_pure()) {
-                ss << " ||f||=" << f.get_function().norm2();
+                ss << " ||f||=" << f.get_function().norm2()
+                   << get_size(f.get_function()) << " GB";
             }
             print(ss.str());
         }

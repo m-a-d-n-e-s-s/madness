@@ -1922,9 +1922,14 @@ namespace madness {
 
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
-    double get_size(World& world, const std::vector< Function<T,NDIM> >& v){
+    double get_size(World& world, const std::vector< Function<T,NDIM> >& v) {
+        return get_size(v);
+    }
 
-    	if (v.empty()) return 0.0;
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(const std::vector< Function<T,NDIM> >& v) {
+        if (v.empty()) return 0.0;
 
     	const double d=sizeof(T);
         const double fac=1024*1024*1024;

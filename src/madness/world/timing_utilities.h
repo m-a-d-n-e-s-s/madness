@@ -36,7 +36,7 @@ struct timer {
     void print(const std::string msg) const {
         if (world.rank() == 0 and do_print) {
             std::stringstream ss;
-            ss << "timer:" << std::setw(30) << msg << std::setw(8) << std::setprecision(2)
+            ss << "timer:" << std::setw(40) << msg << std::setw(12) << std::setprecision(2)
                       << std::fixed << sss << "s " << ttt <<"s";
             std::cout << ss.str() << std::endl;
         }

@@ -325,9 +325,11 @@ nlohmann::json CC2::solve() {
        }
 
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
-    print("results of the CC2 calculation");
-    for (auto& res:results) {
-        print(res.first,": ",res.second.to_json());
+    if (world.rank()==0) {
+        print("results of the CC2 calculation");
+        for (auto& res:results) {
+            print(res.first,": ",res.second.to_json());
+        }
     }
     // turn map into json vector
     nlohmann::json results_json;

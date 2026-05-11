@@ -42,54 +42,6 @@ Info make_info(World& world, const std::vector<real_function_3d>& phivec,
 
 } // namespace
 
-/// the Ue_1 term reads as
-/// [T,f12] = Ue2 + Ue1
-/// Ue_1 = -1/2 exp(-gamma r12)/r12 (\vec r1 - \vec r2) (\vec nabla_1 - \vec nabla_2)
-/// Ue_1 |ij> = -1/2 bsh(r12) [ (\vec r1 \nabla_1 - \vec r2 \nabla_2) |ij> - (\vec r1 \nabla_2 - \vec r2 \nabla_1) |ij> ]
-///   = -1/2 bsh(r12) [ |~i j> + |i ~j> - |ri dj > - |di rj> ]
-real_function_6d apply_semilocal_Ue(World& world, const real_function_3d phi_i, const real_function_3d phi_j) {
-
-    std::vector<real_function_3d> r(3);
-    for (int i=0; i<3; ++i) r[i]=real_factory_3d(world).functor(
-            [&i](const coord_3d& c){ return c[i]; });
-
-    real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), 1.e-7, 1.e-7);
-    op_mod.modified() = true;
-
-    print("starting construction at time",wall_time());
-    // some intermediates
-    std::vector<real_function_3d> dphi_i=grad(phi_i);
-    std::vector<real_function_3d> dphi_j=grad(phi_j);
-    std::vector<real_function_3d> rphi_i=-1.0*r*phi_i;
-    std::vector<real_function_3d> rphi_j=-1.0*r*phi_j;
-    real_function_3d phi_i_tilde = dot(world, r, dphi_i);
-    real_function_3d phi_j_tilde = dot(world, r, dphi_j);
-
-    /// assemble the 3d functions
-    std::vector<real_function_3d> p1, p2;
-    p1.push_back(phi_i_tilde);
-    p1.push_back(phi_i);
-    p1.insert(p1.end(), rphi_i.begin(), rphi_i.end());
-    p1.insert(p1.end(), dphi_i.begin(), dphi_i.end());
-
-    p2.push_back(phi_j);
-    p2.push_back(phi_j_tilde);
-    p2.insert(p2.end(), dphi_j.begin(), dphi_j.end());
-    p2.insert(p2.end(), rphi_j.begin(), rphi_j.end());
-
-    real_function_6d bsh =TwoElectronFactory<double,6>(world).BSH().gamma(1.0);
-
-    double tight_thresh=FunctionDefaults<6>::get_thresh()*0.3;
-
-    real_function_6d U_semilocal = CompositeFactory<double, 6, 3>(world).g12(bsh)
-        .particle1(p1).particle2(p2).thresh(tight_thresh);
-    U_semilocal.fill_cuspy_tree(op_mod).truncate(tight_thresh).reduce_rank(tight_thresh);
-    U_semilocal.scale(-0.5);
-    U_semilocal.print_size("Ue semilocal part");
-
-    return U_semilocal;
-}
-
 
 int main(int argc, char **argv) {
     World& world = madness::initialize(argc, argv);
@@ -237,25 +189,25 @@ int main(int argc, char **argv) {
         if (1) {
             CorrelationFactor cf(world, 1.0, 1.e-10, nemo->molecule());
             auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
+            auto U1nuc = nemo->ncf->U1vec();
             if (1) {
                 for (int tmode : {-2,1,3}) {
                     print_header2("setting truncate mode to"+std::to_string(tmode));
                     cf.set_truncate_mode(tmode);
                     real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
                     op_mod.modified() = true;
-                    auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
-                    auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
-                    auto Uphi_semilocal_new = apply_semilocal_Ue(world, phi_i.function, phi_j.function);
-                    auto diag = cf.diagnose_Ue(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,ao);
+                    const double thresh6 = FunctionDefaults<6>::get_thresh();
+                    auto Uphi_local    = cf.apply_U_local(phi_i.function, phi_j.function, op_mod, thresh6);
+                    auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, thresh6);
+                    auto Uphi_mixed    = cf.apply_U_mixed_commutator(phi_i.function, phi_j.function, op_mod, thresh6, U1nuc);
+                    auto diag = cf.diagnose_Ue(Uphi_local, Uphi_semilocal,
+                                               phi_i.function, phi_j.function, ao,
+                                               Uphi_mixed, U1nuc);
                     print("diagnosis for Ue term:");
-                    print("local part error:", diag.error_local);
-                    print("semi-local part error:", diag.error_semilocal);
-                    print("time in diagnostics",diag.time_ref);
-                    auto diag1 = cf.diagnose_Ue(Uphi_local,Uphi_semilocal_new,phi_i.function,phi_j.function,ao);
-                    print("diagnosis for Ue term:");
-                    print("local part error:", diag1.error_local);
-                    print("new semi-local part error:", diag1.error_semilocal);
-                    print("time in diagnostics",diag1.time_ref);
+                    print("local part error:      ", diag.error_local);
+                    print("semi-local part error: ", diag.error_semilocal);
+                    print("mixed-comm part error: ", diag.error_mixed);
+                    print("time in diagnostics:   ", diag.time_ref);
 
                     // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
                     // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
@@ -267,15 +219,19 @@ int main(int argc, char **argv) {
                                                              info.parameters.thresh_bsh_6D());
                     auto GUphi_local     = apply(G6d, Uphi_local);
                     auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
+                    auto GUphi_mixed     = apply(G6d, Uphi_mixed);
                     GUphi_local.print_size("G U_local|ij>");
                     GUphi_semilocal.print_size("G U_semilocal|ij>");
+                    GUphi_mixed.print_size("G U_mixed|ij>");
 
                     print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
                     auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
-                                               phi_i.function, phi_j.function, ao, energy_ij);
-                    print("G Ue local part error:    ", gue.error_local);
-                    print("G Ue semilocal part error:", gue.error_semilocal);
-                    print("time in G Ue diagnostics: ", gue.time);
+                                               phi_i.function, phi_j.function, ao, energy_ij,
+                                               GUphi_mixed, U1nuc);
+                    print("G Ue local part error:      ", gue.error_local);
+                    print("G Ue semilocal part error:  ", gue.error_semilocal);
+                    print("G Ue mixed-comm part error: ", gue.error_mixed);
+                    print("time in G Ue diagnostics:   ", gue.time);
                 }
             }
 

@@ -881,6 +881,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return sz;
         }
 
+        void print_size(std::string msg="") const {
+            if (msg=="") msg="LRF";
+            std::size_t rank=g.size();
+            double size=this->size();
+            char buf[50];
+            snprintf(buf, sizeof(buf), "%s rank, size: %zu, %.2f GB", msg.c_str(), rank,size);
+        }
+
         /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
         Function<T,NDIM> reconstruct() const {
             std::vector<Function<T,LDIM>> gtilde=g;
