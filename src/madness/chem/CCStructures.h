@@ -1323,7 +1323,7 @@ public:
         bool diagonal=pairs[i].i==pairs[i].j;
         double priority=std::abs(1.0/pairs[i].bsh_eps);
         if (diagonal) priority+=10.0;
-        print("setting priority to 1");
+        // print("setting priority to 1");
         return 1.0;
         return priority;
     }
@@ -1363,7 +1363,7 @@ public:
         const std::vector<CCPair>& pairs = std::get<0>(argtuple);
         const int i=batch.input[0].begin;
         double sz=pairs[i].function().size();
-        print("computing priority for",i,sz);
+        // print("computing priority for",i,sz);
         return sz;
     }
 

@@ -99,39 +99,26 @@ namespace madness {
         real_function_6d apply_U_semilocal(const real_function_3d& phi_i, const real_function_3d& phi_j,
                                         const real_convolution_6d& op_mod, double thresh, const bool symmetric = false) const {
             if (world.rank()==0) print("applying semi-local part of Ue term");
-            real_function_6d result = real_factory_6d(world);
-            if (world.rank()==0) print("applying local part of Ue term");
             double fac=1.0;
             if (truncate_mode<0) fac = 0.1;
             print("truncate mode",truncate_mode);
             print("factor for thresh",fac);
 
+            auto dphi_i=grad(phi_i);
+            auto dphi_j=grad(phi_j);
+
+            real_function_6d result = real_factory_6d(world).truncate_mode(truncate_mode).thresh(thresh*fac);
             for (int axis = 0; axis < 3; ++axis) {
-                //if (world.rank()==0) print("working on axis",axis);
-                real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-                const real_function_3d Di = (D(phi_i)).truncate();
-                real_function_3d Dj;
-                if (symmetric) Dj = madness::copy(Di);
-                else Dj = (D(phi_j)).truncate();
-
                 real_function_6d u = U1(axis);
-                real_function_6d tmp1 = CompositeFactory<double, 6, 3>(world)
-                                        .g12(u).particle1(copy(Di)).particle2(copy(phi_j)).thresh(thresh*fac)
-                                        .truncate_mode(truncate_mode);
-                tmp1.fill_cuspy_tree(op_mod).truncate();
 
-                real_function_6d tmp2;
-                if (symmetric) tmp2 = -1.0 * swap_particles(tmp1);
-                else {
-                    tmp2 = CompositeFactory<double, 6, 3>(world)
-                           .g12(u).particle1(copy(phi_i)).particle2(copy(Dj)).thresh(thresh*0.1)
-                                        .truncate_mode(-2);
-                    tmp2.fill_cuspy_tree(op_mod).truncate();
-                }
+                std::vector<real_function_3d> p1({copy(dphi_i[axis]),copy(phi_i)});
+                std::vector<real_function_3d> p2({copy(phi_j),-1.0*copy(dphi_j[axis])});
 
-                result = result + (tmp1 - tmp2).truncate();
-                tmp1.clear();
-                tmp2.clear();
+                real_function_6d tmp = CompositeFactory<double, 6, 3>(world)
+                       .g12(u).particle1(p1).particle2(p2).thresh(thresh*fac)
+                                    .truncate_mode(truncate_mode);
+                tmp.fill_cuspy_tree(op_mod).truncate();
+                result = result + tmp;
                 world.gop.fence();
             }
             result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
@@ -139,17 +126,66 @@ namespace madness {
             return result;
         }
 
+        /// compute the double commutator electronic/nuclear correlation factor:  R^{-1}[[T,f],R]
+
+        /// @param[in]  U1nuc the U1 potential of the nuclear correlation factor
+        real_function_6d apply_U_mixed_commutator(const real_function_3d& phi_i, const real_function_3d& phi_j,
+                                        const real_convolution_6d& op_mod, double thresh,
+                                        const std::vector<real_function_3d> U1nuc)const {
+            if (world.rank()==0) print("applying mixed double commutator of the Ue term");
+            double fac=1.0;
+            if (truncate_mode<0) fac = 0.1;
+            print("truncate mode",truncate_mode);
+            print("factor for thresh",fac);
+
+            auto dphi_i=U1nuc*phi_i;
+            auto dphi_j=U1nuc*phi_j;
+
+            real_function_6d result = real_factory_6d(world).truncate_mode(truncate_mode).thresh(thresh*fac);
+            for (int axis = 0; axis < 3; ++axis) {
+                real_function_6d u = U1(axis);
+
+                std::vector<real_function_3d> p1({copy(dphi_i[axis]),copy(phi_i)});
+                std::vector<real_function_3d> p2({copy(phi_j),-1.0*copy(dphi_j[axis])});
+
+                real_function_6d tmp = CompositeFactory<double, 6, 3>(world)
+                       .g12(u).particle1(p1).particle2(p2).thresh(thresh*fac)
+                                    .truncate_mode(truncate_mode);
+                tmp.fill_cuspy_tree(op_mod).truncate();
+                result = result + tmp;
+                world.gop.fence();
+            }
+            result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
+            result.print_size("mixed commutator of Ue: R^{-1} [[T,f12],R] |ij>");
+            return result;
+        }
+
+
         /// apply Kutzelnigg's regularized potential to an orbital product
         real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
-                                 const real_convolution_6d& op_mod, const bool symmetric = false) const {
+                                 const real_convolution_6d& op_mod, const std::vector<real_function_3d>& U1nuc,
+                                 const std::vector<real_function_3d> ao=std::vector<real_function_3d>()) const {
             MADNESS_CHECK_THROW(op_mod.modified(), "ElectronicCorrelationFactor::apply_U, op_mod must be in modified_NS form");
             const double thresh = FunctionDefaults<6>::get_thresh();
-            if (symmetric)
-                MADNESS_ASSERT((phi_i-phi_j).norm2() < FunctionDefaults<3>::get_thresh());
 
-            real_function_6d result=apply_U_local(phi_i, phi_j,op_mod,thresh);
-            result+=apply_U_semilocal(phi_i, phi_j,op_mod,thresh);
+            real_function_6d local=apply_U_local(phi_i, phi_j,op_mod,thresh);
+            real_function_6d semilocal=apply_U_semilocal(phi_i, phi_j,op_mod,thresh);
+            real_function_6d result=local+semilocal;
+            result-=apply_U_mixed_commutator(phi_i, phi_j,op_mod,thresh,U1nuc);
             result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
+
+            // do some diagnostics
+            if (ao.size()>0) {
+                auto ao_ortho=orthonormalize_canonical(ao);
+                auto diag = diagnose_Ue(local,semilocal,phi_i,phi_j,ao);
+                std::cout << std::scientific << std::setprecision(8);
+                print("diagnosis for Ue term:");
+                print("local part error:      ", diag.error_local);
+                print("semi-local part error: ", diag.error_semilocal);
+                print("mixed-comm part error: ", " -- missing");
+                print("time in diagnostics:   ", diag.time_ref);
+            }
+
             result.print_size("Ue|ij>");
             return result;
         }
@@ -229,8 +265,8 @@ namespace madness {
         };
 
         /// compute the error in Uphi by comparing to reference values: project onto a (small) aobasis
-        Diagnostics diagnose(const real_function_6d Uphi_local,
-                             const real_function_6d Uphi_semilocal,
+        Diagnostics diagnose_Ue(const real_function_6d& Uphi_local,
+                             const real_function_6d& Uphi_semilocal,
                              const real_function_3d& phi_i, const real_function_3d& phi_j,
                              const std::vector<real_function_3d>& aobasis) const {
             Diagnostics diag;

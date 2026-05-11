@@ -877,9 +877,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     print("finished computing potential for constant part, now applying G");
 
     V=consolidate(V);
-    // MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
     t1.end("finished computing potential for constant part");
-    // save(V[0].get_function(),"V_fullrank_const"+pair.name());
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -892,6 +890,13 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
     save(GV,"GV_const"+pair.name());
+    CC_vecfunction singles_dummy;
+    double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,pair,singles_dummy,info);
+
+    char buf[256];
+    snprintf(buf,sizeof(buf),"corraletion energy of pair %zu %zu: %e", i, j, correlation_energy);
+    print(buf);
+
     return GV;
 }
 
@@ -1345,7 +1350,7 @@ CCPotentials::apply_transformed_Ue(const CCFunction<double,3>& x, const CCFuncti
     real_function_6d Uxy = real_factory_6d(world);
     Uxy.set_thresh(tight_thresh);
     // Apply the untransformed U Potential
-    Uxy = corrfac.apply_U(x.function, y.function, *Gscreen, symmetric);
+    Uxy = corrfac.apply_U(x.function, y.function, *Gscreen, nemo_->ncf->U1vec());
     Uxy.set_thresh(tight_thresh);
     // Apply the double commutator R^{-1}[[T,f,R]
     for (size_t axis = 0; axis < 3; axis++) {
@@ -1423,58 +1428,16 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
 
     real_function_3d x_function=phi_i.function;
     real_function_3d y_function=phi_j.function;
-    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
 
-    const bool symmetric = (phi_i.type == phi_j.type && phi_i.i == phi_j.i);
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    corrfac.set_truncate_mode(-2);
+
     CCTimer time_Ue(world, "Ue|" + x_name + y_name + ">");
-    double tight_thresh = parameters.thresh_6D();     // right now this is the std. thresh
-    // check if screening operator is in modified NS Form
-    if (Gscreen != NULL) {
-        if (!Gscreen->modified()) error("Demanded Screening for Ue but given BSH Operator is not in modified NS form");
-    }
+    MADNESS_CHECK_THROW(Gscreen != NULL, "Demanded Screening for Ue but given BSH Operator is NULL");
     if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
 
-    if (parameters.debug() && symmetric) print("Exploiting Pair Symmetry\n");
+    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1,info.ao);
 
-    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
-
-    t1.tag("finished local part of Ue");
-    Uxy.set_thresh(tight_thresh);
-    // Apply the double commutator R^{-1}[[T,f,R]
-    for (size_t axis = 0; axis < 3; axis++) {
-        // Make the local parts of the Nuclear and electronic U potentials
-        const real_function_3d Un_local = info.U1[axis];
-        const real_function_3d Un_local_x = (Un_local * x_function).truncate();
-        real_function_3d Un_local_y;
-        if (symmetric) Un_local_y = copy(Un_local_x);
-        else Un_local_y = (Un_local * y_function).truncate();
-
-        const real_function_6d Ue_local = corrfac.U1(axis);
-        // Now add the Un_local_x part to the first particle of the Ue_local potential
-        real_function_6d UeUnx = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(Un_local_x).particle2(
-                copy(y_function)).thresh(tight_thresh);
-        // Fill the Tree where it will be necessary
-        UeUnx.fill_cuspy_tree(*Gscreen);
-        // Set back the thresh
-        UeUnx.set_thresh(FunctionDefaults<6>::get_thresh());
-//        print_size(UeUnx, "UeUnx", parameters.debug());
-        // Now add the Un_local_y part to the second particle of the Ue_local potential
-        real_function_6d UeUny;
-        if (symmetric) UeUny = -1.0 * madness::swap_particles(UeUnx);     // Ue_local is antisymmetric
-        else {
-            UeUny = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(copy(x_function)).particle2(
-                    Un_local_y).thresh(tight_thresh);
-            // Fill the Tree were it will be necessary
-            UeUny.fill_cuspy_tree(*Gscreen);
-            // Set back the thresh
-            UeUny.set_thresh(FunctionDefaults<6>::get_thresh());
-        }
-//        print_size(UeUny, "UeUny", parameters.debug());
-        // Construct the double commutator part and add it to the Ue part
-        real_function_6d diff = (UeUnx - UeUny).scale(-1.0);
-        diff.truncate();
-        Uxy = (Uxy + diff).truncate();
-    }
     if (parameters.debug()) time_Ue.info();
     t1.tag("finished semi-local part of Ue");
 
@@ -1536,7 +1499,7 @@ CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<rea
     real_function_6d Uxy = real_factory_6d(world);
     Uxy.set_thresh(tight_thresh);
     // Apply the untransformed U Potential
-    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, U1);
     Uxy.set_thresh(tight_thresh);
     // Apply the double commutator R^{-1}[[T,f,R]
     for (size_t axis = 0; axis < 3; axis++) {

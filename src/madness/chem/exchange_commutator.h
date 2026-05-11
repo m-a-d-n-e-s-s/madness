@@ -200,6 +200,67 @@ struct ExchangeCommutator {
     static void print_report(
             const KffKResult& result,
             const Diagnostics* diag = nullptr);
+
+    // ---------------------------------------------------------------------
+    // G·[K̂,f] diagnostics — Schwinger-quadrature 3D reference vs 6D projection
+    // ---------------------------------------------------------------------
+
+    /// Per-piece errors for ⟨ab | (T−E)⁻¹ [K̂,f₁₂] | ij⟩.
+    struct GKffKDiagnostics {
+        Tensor<double> ref_GKf;       ///< ⟨ab|G Kf|ij⟩  from 6D projection
+        Tensor<double> ref_GfK;       ///< ⟨ab|G fK|ij⟩  from 6D projection
+        Tensor<double> ref_GKffK;     ///< ref_GKf − ref_GfK
+        Tensor<double> result_GKf;    ///< ⟨ab|G Kf|ij⟩  from 3D Schwinger quadrature
+        Tensor<double> result_GfK;    ///< ⟨ab|G fK|ij⟩  from 3D Schwinger quadrature
+        Tensor<double> result_GKffK;  ///< result_GKf − result_GfK
+        double error_GKf   = 0.0;
+        double error_GfK   = 0.0;
+        double error_GKffK = 0.0;
+        double time        = 0.0;
+    };
+
+    /// Diagnose ⟨ab | G [K̂,f₁₂] | ij⟩ by comparing a 6D projection against
+    /// a 3D Schwinger eigentime quadrature.
+    ///
+    /// The 6D references GKf_cc and GfK_cc are the G-applied commutator pieces
+    /// as CCPairFunction vectors.  Accepting CCPairFunction (instead of a bare
+    /// real_function_6d) allows any algorithm variant to be tested:
+    ///
+    ///   * 6D path (apply_KffK_6d): Kf and fK are pure-6D; caller applies G6d
+    ///     via apply(G6d, kffk.Kf[0].get_function()) and wraps in a vector.
+    ///   * LRF path (apply_KffK_lowrank_split_alpha, three_range): Kf may be
+    ///     decomposed.  Caller converts to pure (sum outer products), applies G6d,
+    ///     and passes the result wrapped in a CCPairFunction vector.
+    ///   * Mixed/multi-piece results: sum all pieces (each entry is summed inside).
+    ///
+    /// The 6D reference is projected using the same partial_inner / matrix_inner
+    /// machinery as diagnose(), handling both pure and decomposed CCPairFunctions.
+    ///
+    /// The 3D Schwinger formulas use only K̂, K̂†, and the Slater f₁₂:
+    ///
+    ///   G Kf:  ⟨ã b̃ | K̂₁ f₁₂ | φᵢ φⱼ⟩ = inner((K̂†ã)·φᵢ, f₁₂(b̃·φⱼ))  + K̂₂ swap
+    ///   G fK:  ⟨ã b̃ | f₁₂ K̂₁ | φᵢ φⱼ⟩ = inner(ã·K̂φᵢ,    f₁₂(b̃·φⱼ))  + K̂₂ swap
+    ///
+    /// where ã = g_{αₙ}*a and b̃ = g_{αₙ}*b are Gaussian-smoothed AO basis
+    /// functions and the sum over quadrature nodes n (with 6D weight
+    /// w_n = c_n^{bsh}·(αₙ/π)^{3/2}) approximates G.
+    ///
+    /// @param GKf_cc   G·K̂f₁₂|ij⟩ pieces (caller applies G6d externally)
+    /// @param GfK_cc   G·f₁₂K̂|ij⟩ pieces
+    /// @param Kphi_i   K̂φᵢ (precomputed once by caller)
+    /// @param Kphi_j   K̂φⱼ (precomputed once by caller)
+    /// @param info     molecular/orbital info carrying mo_ket, mo_bra, parameters
+    /// @param energy   ε_i + ε_j  (must be negative)
+    GKffKDiagnostics diagnose_GKffK(
+            World& world,
+            const std::vector<CCPairFunction<double,6>>& GKf_cc,
+            const std::vector<CCPairFunction<double,6>>& GfK_cc,
+            const real_function_3d& phi_i,
+            const real_function_3d& phi_j,
+            const real_function_3d& Kphi_i,
+            const real_function_3d& Kphi_j,
+            const Info& info,
+            double energy) const;
 };
 
 } // namespace madness

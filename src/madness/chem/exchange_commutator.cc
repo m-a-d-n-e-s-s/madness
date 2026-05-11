@@ -755,4 +755,138 @@ void ExchangeCommutator::print_report(
     }
 }
 
+// ---------------------------------------------------------------------------
+//  G·[K̂,f] Schwinger diagnostic
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::GKffKDiagnostics
+ExchangeCommutator::diagnose_GKffK(
+        World& world,
+        const std::vector<CCPairFunction<double,6>>& GKf_cc,
+        const std::vector<CCPairFunction<double,6>>& GfK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double energy) const
+{
+    MADNESS_CHECK_THROW(energy < 0.0,    "diagnose_GKffK: energy must be negative");
+    MADNESS_CHECK_THROW(!ao_basis.empty(),"diagnose_GKffK: ao_basis must be non-empty");
+
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int nbasis = ao_basis.size();
+    const double wall0 = wall_time();
+
+    GKffKDiagnostics diag;
+    diag.ref_GKf      = Tensor<double>(nbasis, nbasis);
+    diag.ref_GfK      = Tensor<double>(nbasis, nbasis);
+    diag.result_GKf   = Tensor<double>(nbasis, nbasis);
+    diag.result_GfK   = Tensor<double>(nbasis, nbasis);
+
+    // --- 6D reference: project G·Kf and G·fK onto ⟨ab| -------------------------
+    // Uses the same partial_inner / matrix_inner machinery as diagnose()::compute_error,
+    // which handles pure, decomposed, and op-decomposed CCPairFunctions uniformly.
+    // Multiple entries in the vector are summed (mirrors the multi-piece KffKResult).
+    auto project_cc = [&](const std::vector<CCPairFunction<double,6>>& v) {
+        auto p1 = particle<3>::particle1();
+        Tensor<double> result(nbasis, nbasis);
+        for (const auto& f : v) {
+            if (!f.is_assigned()) continue;
+
+            // matrix elements for U
+            for (int a = 0; a < ao_basis.size(); ++a) {
+                for (int b = 0; b < ao_basis.size(); ++b) {
+                    CCPairFunction<double,6> ab(ao_basis[a],ao_basis[b]);
+                    result(a,b)+= inner(ab,f);
+                }
+            }
+        }
+        return result;
+    };
+    diag.ref_GKf   = project_cc(GKf_cc);
+    diag.ref_GfK   = project_cc(GfK_cc);
+    diag.ref_GKffK = diag.ref_GKf - diag.ref_GfK;
+
+    // --- Schwinger quadrature ---------------------------------------------------
+    // G = (T−E)⁻¹ ≈ Σₙ w_n^{6d} [g_{αₙ}*·] ⊗ [g_{αₙ}*·]
+    //
+    // 6D weight: w_n^{6d} = c_n^{bsh} · (αₙ/π)^{3/2}
+    //   (6D heat-kernel Jacobian vs 3D BSH fit weight, see lrf_G_Ue_diagnostics.md)
+    //
+    // Kf piece — move K̂ to the bra via its adjoint K̂†:
+    //   ⟨ã b̃ | K̂₁ f₁₂ | φᵢ φⱼ⟩ = inner((K̂†ã)·φᵢ, f₁₂(b̃·φⱼ))    ← particle 1
+    //   ⟨ã b̃ | K̂₂ f₁₂ | φᵢ φⱼ⟩ = inner((K̂†b̃)·φⱼ, f₁₂(ã·φᵢ))    ← particle 2
+    //
+    // fK piece — K̂ acts on the ket orbital before f₁₂:
+    //   ⟨ã b̃ | f₁₂ K̂₁ | φᵢ φⱼ⟩ = inner(ã·K̂φᵢ, f₁₂(b̃·φⱼ))        ← particle 1
+    //   ⟨ã b̃ | f₁₂ K̂₂ | φᵢ φⱼ⟩ = inner(ã·φᵢ,   f₁₂(b̃·K̂φⱼ))      ← particle 2
+
+    const double mu    = std::sqrt(-2.0 * energy);
+    const double lo    = info.parameters.lo();
+    const double hi    = FunctionDefaults<3>::get_cell_width().normf();
+    const double gamma = info.parameters.gamma();
+
+    auto fit   = GFit<double,3>::BSHFit(mu, lo, hi, thresh);
+    auto c3d   = fit.coeffs();
+    auto alpha = fit.exponents();
+    const int nfit = c3d.dim(0);
+
+    // K̂ (acts on ket) and K̂† (acts on bra), matching the nemo convention in diagnose():
+    //   K̂  = set_bra_and_ket(R²·k, k):  K̂φ  = Σ_k k_ket  · Coulomb(k_bra·φ)
+    //   K̂† = set_bra_and_ket(k, R²·k):  K̂†φ = Σ_k k_bra  · Coulomb(k_ket·φ)
+    madness::Exchange<double,3> Kdagger(world, lo);
+    Kdagger.set_bra_and_ket(info.mo_ket, info.mo_bra);
+
+    // Slater f₁₂ operator — same normalization as in diagnose()
+    auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
+            SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
+    auto& f12 = *f12ptr;
+
+    for (int n = 0; n < nfit; ++n) {
+        const double an  = alpha[n];
+        const double w6d = c3d[n] * std::pow(an / constants::pi, 1.5);
+
+        // Convolve each AO with exp(−αₙ r²) to get ã_n / b̃_n
+        auto gauss = SeparatedConvolution<double,3>(world, OperatorInfo(an, lo, thresh, OT_GAUSS));
+        std::vector<real_function_3d> conv(nbasis);
+        for (int a = 0; a < nbasis; ++a)
+            conv[a] = gauss(ao_basis[a]);
+
+        // K̂†(ã_n) for all a — needed for the Kf piece
+        auto Kdagger_conv = Kdagger(conv);
+
+        // Precompute products with fixed orbitals (vectorised * broadcasts the scalar function)
+        auto Kdagger_conv_phi_i = Kdagger_conv * phi_i;  // (K̂†ã)·φᵢ   [size nbasis]
+        auto Kdagger_conv_phi_j = Kdagger_conv * phi_j;  // (K̂†ã)·φⱼ
+        auto conv_Kphi_i        = conv * Kphi_i;         // ã·K̂φᵢ
+        auto conv_phi_i         = conv * phi_i;          // ã·φᵢ
+
+        // Precompute f₁₂ applications indexed by b (the particle-2 basis index)
+        auto f12_conv_phi_j  = f12(conv * phi_j);   // f₁₂(b̃·φⱼ)   used by both pieces
+        auto f12_conv_phi_i  = f12(conv * phi_i);   // f₁₂(b̃·φᵢ)   Kf K̂₂
+        auto f12_conv_Kphi_j = f12(conv * Kphi_j);  // f₁₂(b̃·K̂φⱼ) fK K̂₂
+
+        // Kf accumulation: two matrix_inner calls (K̂₁ and K̂₂)
+        //   Kf K̂₁[a,b] = inner((K̂†ã_a)·φᵢ,   f₁₂(b̃_b·φⱼ))
+        //   Kf K̂₂[a,b] = inner(f₁₂(ã_a·φᵢ),   (K̂†b̃_b)·φⱼ)
+        //             = inner((K̂†b̃_b)·φⱼ, f₁₂(ã_a·φᵢ))  → rows/cols swapped → use transpose
+        diag.result_GKf += w6d * matrix_inner(world, Kdagger_conv_phi_i, f12_conv_phi_j);
+        diag.result_GKf += w6d * transpose(matrix_inner(world, Kdagger_conv_phi_j, f12_conv_phi_i));
+
+        // fK accumulation: two matrix_inner calls (K̂₁ and K̂₂)
+        //   fK K̂₁[a,b] = inner(ã_a·K̂φᵢ, f₁₂(b̃_b·φⱼ))
+        //   fK K̂₂[a,b] = inner(ã_a·φᵢ,   f₁₂(b̃_b·K̂φⱼ))
+        diag.result_GfK += w6d * matrix_inner(world, conv_Kphi_i, f12_conv_phi_j);
+        diag.result_GfK += w6d * matrix_inner(world, conv_phi_i,  f12_conv_Kphi_j);
+    }
+
+    diag.result_GKffK = diag.result_GKf - diag.result_GfK;
+    diag.error_GKf    = (diag.ref_GKf   - diag.result_GKf).normf();
+    diag.error_GfK    = (diag.ref_GfK   - diag.result_GfK).normf();
+    diag.error_GKffK  = (diag.ref_GKffK - diag.result_GKffK).normf();
+    diag.time = wall_time() - wall0;
+    return diag;
+}
+
 } // namespace madness

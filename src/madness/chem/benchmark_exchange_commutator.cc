@@ -17,6 +17,7 @@
 #include <madness/chem/nemo.h>
 #include <madness/chem/CCStructures.h>
 #include <madness/chem/CCParameters.h>
+#include <madness/chem/CCPotentials.h>
 #include <madness/chem/lowrankfunction.h>
 #include <madness/chem/ccpairfunction.h>
 #include <madness/world/test_utilities.h>
@@ -40,6 +41,55 @@ Info make_info(World& world, const std::vector<real_function_3d>& phivec,
 }
 
 } // namespace
+
+/// the Ue_1 term reads as
+/// [T,f12] = Ue2 + Ue1
+/// Ue_1 = -1/2 exp(-gamma r12)/r12 (\vec r1 - \vec r2) (\vec nabla_1 - \vec nabla_2)
+/// Ue_1 |ij> = -1/2 bsh(r12) [ (\vec r1 \nabla_1 - \vec r2 \nabla_2) |ij> - (\vec r1 \nabla_2 - \vec r2 \nabla_1) |ij> ]
+///   = -1/2 bsh(r12) [ |~i j> + |i ~j> - |ri dj > - |di rj> ]
+real_function_6d apply_semilocal_Ue(World& world, const real_function_3d phi_i, const real_function_3d phi_j) {
+
+    std::vector<real_function_3d> r(3);
+    for (int i=0; i<3; ++i) r[i]=real_factory_3d(world).functor(
+            [&i](const coord_3d& c){ return c[i]; });
+
+    real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), 1.e-7, 1.e-7);
+    op_mod.modified() = true;
+
+    print("starting construction at time",wall_time());
+    // some intermediates
+    std::vector<real_function_3d> dphi_i=grad(phi_i);
+    std::vector<real_function_3d> dphi_j=grad(phi_j);
+    std::vector<real_function_3d> rphi_i=-1.0*r*phi_i;
+    std::vector<real_function_3d> rphi_j=-1.0*r*phi_j;
+    real_function_3d phi_i_tilde = dot(world, r, dphi_i);
+    real_function_3d phi_j_tilde = dot(world, r, dphi_j);
+
+    /// assemble the 3d functions
+    std::vector<real_function_3d> p1, p2;
+    p1.push_back(phi_i_tilde);
+    p1.push_back(phi_i);
+    p1.insert(p1.end(), rphi_i.begin(), rphi_i.end());
+    p1.insert(p1.end(), dphi_i.begin(), dphi_i.end());
+
+    p2.push_back(phi_j);
+    p2.push_back(phi_j_tilde);
+    p2.insert(p2.end(), dphi_j.begin(), dphi_j.end());
+    p2.insert(p2.end(), rphi_j.begin(), rphi_j.end());
+
+    real_function_6d bsh =TwoElectronFactory<double,6>(world).BSH().gamma(1.0);
+
+    double tight_thresh=FunctionDefaults<6>::get_thresh()*0.3;
+
+    real_function_6d U_semilocal = CompositeFactory<double, 6, 3>(world).g12(bsh)
+        .particle1(p1).particle2(p2).thresh(tight_thresh);
+    U_semilocal.fill_cuspy_tree(op_mod).truncate(tight_thresh).reduce_rank(tight_thresh);
+    U_semilocal.scale(-0.5);
+    U_semilocal.print_size("Ue semilocal part");
+
+    return U_semilocal;
+}
+
 
 int main(int argc, char **argv) {
     World& world = madness::initialize(argc, argv);
@@ -101,6 +151,7 @@ int main(int argc, char **argv) {
         int j=0;
         if (amo.size()>1) i=1;
         if (amo.size()>2) j=2;
+        print("working on orbitals: ",i,j);
 
         CCFunction<double,3> phi_i(amo[i], i, HOLE);
         CCFunction<double,3> phi_j(amo[j], j, HOLE);
@@ -186,38 +237,120 @@ int main(int argc, char **argv) {
         if (1) {
             CorrelationFactor cf(world, 1.0, 1.e-10, nemo->molecule());
             auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
-            for (int tmode : {-2,1,3}) {
-                print_header2("setting truncate mode to"+std::to_string(tmode));
-                cf.set_truncate_mode(tmode);
-                real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
-                op_mod.modified() = true;
-                auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
-                auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
-                auto diag = cf.diagnose(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,ao);
-                print("diagnosis for Ue term:");
-                print("local part error:", diag.error_local);
-                print("semi-local part error:", diag.error_semilocal);
-                print("time in diagnostics",diag.time_ref);
+            if (1) {
+                for (int tmode : {-2,1,3}) {
+                    print_header2("setting truncate mode to"+std::to_string(tmode));
+                    cf.set_truncate_mode(tmode);
+                    real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(2.0), info.parameters.lo(), info.parameters.thresh_bsh_6D());
+                    op_mod.modified() = true;
+                    auto Uphi_local = cf.apply_U_local(phi_i.function, phi_j.function,op_mod,FunctionDefaults<6>::get_thresh());
+                    auto Uphi_semilocal = cf.apply_U_semilocal(phi_i.function, phi_j.function, op_mod, FunctionDefaults<6>::get_thresh());
+                    auto Uphi_semilocal_new = apply_semilocal_Ue(world, phi_i.function, phi_j.function);
+                    auto diag = cf.diagnose_Ue(Uphi_local,Uphi_semilocal,phi_i.function,phi_j.function,ao);
+                    print("diagnosis for Ue term:");
+                    print("local part error:", diag.error_local);
+                    print("semi-local part error:", diag.error_semilocal);
+                    print("time in diagnostics",diag.time_ref);
+                    auto diag1 = cf.diagnose_Ue(Uphi_local,Uphi_semilocal_new,phi_i.function,phi_j.function,ao);
+                    print("diagnosis for Ue term:");
+                    print("local part error:", diag1.error_local);
+                    print("new semi-local part error:", diag1.error_semilocal);
+                    print("time in diagnostics",diag1.time_ref);
 
-                // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
-                // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
-                const auto& eps = nemo->get_calc()->aeps;
+                    // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
+                    // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
+                    const auto& eps = nemo->get_calc()->aeps;
+                    const double energy_ij = eps(i) + eps(j);
+                    const double mu_ij = sqrt(-2.0 * energy_ij);
+                    real_convolution_6d G6d = BSHOperator<6>(world, mu_ij,
+                                                             info.parameters.lo(),
+                                                             info.parameters.thresh_bsh_6D());
+                    auto GUphi_local     = apply(G6d, Uphi_local);
+                    auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
+                    GUphi_local.print_size("G U_local|ij>");
+                    GUphi_semilocal.print_size("G U_semilocal|ij>");
+
+                    print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
+                    auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
+                                               phi_i.function, phi_j.function, ao, energy_ij);
+                    print("G Ue local part error:    ", gue.error_local);
+                    print("G Ue semilocal part error:", gue.error_semilocal);
+                    print("time in G Ue diagnostics: ", gue.time);
+                }
+            }
+
+            // --- G [K̂, f₁₂] |ij⟩ diagnostic ---
+            // Test two algorithm variants against the 3D Schwinger quadrature.
+            // The caller applies G externally (converting decomposed CCPairFunctions
+            // to pure 6D first where needed) and passes the G-applied pieces as
+            // CCPairFunction vectors to diagnose_GKffK.
+            //
+            // Helper: apply G6d to a CCPairFunction vector, returning CCPairFunction
+            // wrappers around the resulting pure-6D functions.  Decomposed entries
+            // (LRF sum Σ_ρ g_ρ⊗h_ρ) are first collapsed to a single pure-6D
+            // function via CompositeFactory, then G is applied once.
+            auto apply_G_to_pairs = [&](const std::vector<CCPairFunction<double,6>>& v,
+                                        const real_convolution_6d& G6d)
+                    -> std::vector<CCPairFunction<double,6>>
+            {
+                std::vector<CCPairFunction<double,6>> result;
+                for (const auto& f : v) {
+                    if (!f.is_assigned()) continue;
+                    result.emplace_back(apply(G6d, f));
+                }
+                return result;
+            };
+
+            // K̂φᵢ and K̂φⱼ — needed by the Schwinger quadrature, computed once.
+            Exchange<double,3> K(world,info.parameters.lo());
+            K.set_bra_and_ket(info.mo_bra,info.mo_ket);
+            const auto Kphi_i = K(phi_i.function);
+            const auto Kphi_j = K(phi_j.function);
+
+            {
+                const auto& eps    = nemo->get_calc()->aeps;
                 const double energy_ij = eps(i) + eps(j);
-                const double mu_ij = sqrt(-2.0 * energy_ij);
+                const double mu_ij     = std::sqrt(-2.0 * energy_ij);
                 real_convolution_6d G6d = BSHOperator<6>(world, mu_ij,
-                                                         info.parameters.lo(),
-                                                         info.parameters.thresh_bsh_6D());
-                auto GUphi_local     = apply(G6d, Uphi_local);
-                auto GUphi_semilocal = apply(G6d, Uphi_semilocal);
-                GUphi_local.print_size("G U_local|ij>");
-                GUphi_semilocal.print_size("G U_semilocal|ij>");
+                                                          info.parameters.lo(),
+                                                          info.parameters.thresh_bsh_6D());
 
-                print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
-                auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
-                                           phi_i.function, phi_j.function, ao, energy_ij);
-                print("G Ue local part error:    ", gue.error_local);
-                print("G Ue semilocal part error:", gue.error_semilocal);
-                print("time in G Ue diagnostics: ", gue.time);
+                // --- variant 1: 6D reference algorithm (pure-6D Kf and fK) ---
+                print("\n========== G [K, f] |ij> diagnostic — 6D reference ==========");
+                auto kffk_6d = ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info);
+                score_full(kffk_6d, /*include_K2=*/true);  // print Kf/fK errors for reference
+
+                auto GKf_6d_cc = apply_G_to_pairs(kffk_6d.Kf, G6d);
+                auto GfK_6d_cc = apply_G_to_pairs(kffk_6d.fK, G6d);
+                GKf_6d_cc[0].get_function().print_size("G Kf|ij> (6D)");
+                GfK_6d_cc[0].get_function().print_size("G fK|ij> (6D)");
+
+                auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
+                                                    phi_i.function, phi_j.function,
+                                                    Kphi_i, Kphi_j, info, energy_ij);
+                print("6D ref  — G Kf  error:", gkffk_6d.error_GKf);
+                print("6D ref  — G fK  error:", gkffk_6d.error_GfK);
+                print("6D ref  — G[K,f] error:", gkffk_6d.error_GKffK);
+                print("6D ref  — time:", gkffk_6d.time);
+
+                // --- variant 2: split-α LRF algorithm ---
+                print("\n========== G [K, f] |ij> diagnostic — split-alpha LRF ==========");
+                ExchangeCommutator::SplitAlphaOptions sa_opt;
+                sa_opt.alpha_star=100.0;
+                auto kffk_lrf = ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+                        world, phi_i, phi_j, info, lrfparam, sa_opt);
+                score_full(kffk_lrf, /*include_K2=*/true);  // print Kf/fK errors for reference
+
+                auto GKf_lrf_cc = apply_G_to_pairs(kffk_lrf.Kf, G6d);
+                auto GfK_lrf_cc = apply_G_to_pairs(kffk_lrf.fK, G6d);
+
+                auto gkffk_lrf = ec.diagnose_GKffK(world, GKf_lrf_cc, GfK_lrf_cc,
+                                                     phi_i.function, phi_j.function,
+                                                     Kphi_i, Kphi_j, info, energy_ij);
+                print("LRF     — G Kf  error:", gkffk_lrf.error_GKf);
+                print("LRF     — G fK  error:", gkffk_lrf.error_GfK);
+                print("LRF     — G[K,f] error:", gkffk_lrf.error_GKffK);
+                print("LRF     — time:", gkffk_lrf.time);
             }
 
         }
