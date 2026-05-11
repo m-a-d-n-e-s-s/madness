@@ -21,6 +21,7 @@ set(MADCHEM_HEADERS
     distpm.h
     electronic_correlation_factor.h
     ESInterface.h
+    b_matrix.h
     exchange_commutator.h
     exchangeoperator.h
     gaussian.h
@@ -87,6 +88,7 @@ set(MADCHEM_SOURCES
     correlationfactor.cc
     diamagneticpotentialfactor.cc
     distpm.cc
+    b_matrix.cc
     exchange_commutator.cc
     exchangeoperator.cc
     gaussian.cc
