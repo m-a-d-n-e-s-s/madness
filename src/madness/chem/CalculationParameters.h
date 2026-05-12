@@ -72,6 +72,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
+		initialize<bool>  ("hfex_use_mflex",true,"use m-flex peel search to load-balance the smallmem_sym_mt_owner assignment");
+		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -217,6 +219,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
     int hfex_min_batch_size() const {return get<int>("hfex_min_batch_size");}
     int hfex_max_batch_size() const {return get<int>("hfex_max_batch_size");}
     bool hfex_replicate_debug() const {return get<bool>("hfex_replicate_debug");}
+    bool hfex_use_mflex() const {return get<bool>("hfex_use_mflex");}
+    int hfex_mflex_max_exhaustive() const {return get<int>("hfex_mflex_max_exhaustive");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 

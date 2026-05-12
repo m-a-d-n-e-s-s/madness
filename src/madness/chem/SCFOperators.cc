@@ -764,6 +764,18 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_replicate_for_debug(const bool flag) {
     return *this;
 }
 
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_use_mflex(const bool flag) {
+    impl->set_use_mflex(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_mflex_max_exhaustive(const long& n) {
+    impl->set_mflex_max_exhaustive(n);
+    return *this;
+}
+
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();

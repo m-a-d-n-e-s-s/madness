@@ -777,6 +777,10 @@ public:
 					tasktime+=(cpu1-cpu0);
 					if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 				}
+				if (printdebug() and subworld.rank()==0) {
+					printf("rank %3d (subworld %3lu) finished its taskqueue at time %6.1fs (own tasktime %4.1fs)\n",
+					       universe.rank(), static_cast<unsigned long>(subworld.id()), wall_time(), tasktime);
+				}
 			} else {
 				if (printprogress() and universe.rank()==0) std::cout << "progress in percent: " << std::flush;
 				while (true) {
@@ -805,6 +809,10 @@ public:
 					if (printprogress() and is_first_in_percentile(element)) {
 						std::cout << int(in_percentile(element)*10) << " " << std::flush;
 					}
+				}
+				if (printdebug() and subworld.rank()==0) {
+					printf("rank %3d (subworld %3lu) finished its taskqueue at time %6.1fs (own tasktime %4.1fs)\n",
+					       universe.rank(), static_cast<unsigned long>(subworld.id()), wall_time(), tasktime);
 				}
 			}
 	        universe.gop.set_forbid_fence(false);

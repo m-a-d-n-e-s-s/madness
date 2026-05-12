@@ -8,6 +8,9 @@
 #include<unordered_map>
 #include<queue>
 #include<random>
+#include<numeric>
+#include<set>
+#include<limits>
 
 namespace madness {
 
@@ -95,6 +98,8 @@ public:
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
     bool replicate_for_debug_ = false;  ///< if true, use StoreFunction policy to pre-replicate all data (zero communication during tasks)
     bool local_accumulation_ = true;    ///< if true (and using owner-aware algorithm), accumulate task results subworld-locally and do one final subworld->universe gaxpy
+    bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
+    long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -171,6 +176,16 @@ public:
 
     ExchangeImpl& set_replicate_for_debug(const bool flag) {
         replicate_for_debug_ = flag;
+        return *this;
+    }
+
+    ExchangeImpl& set_use_mflex(const bool flag) {
+        use_mflex_ = flag;
+        return *this;
+    }
+
+    ExchangeImpl& set_mflex_max_exhaustive(const long& n) {
+        mflex_max_exhaustive_ = std::max<long>(0, n);
         return *this;
     }
 
@@ -255,6 +270,12 @@ private:
         // this subworld have run. Defaults to true; flip off to contrast against
         // the original per-task universe accumulation path.
         bool local_accumulation_ = true;
+        // When true, run the m-flex peel search before fold_and_assign so the
+        // owner assignment minimizes per-rank load delta. Set from ExchangeImpl
+        // before submitting the macrotask. Default true.
+        bool use_mflex_ = true;
+        // Cap on C(R, m) for the exhaustive arm of the m-flex peel search.
+        long mflex_max_exhaustive_ = 5000;
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
@@ -282,6 +303,10 @@ private:
         /// pre-computed owner map: (col_begin, row_begin) -> owner rank
         /// populated by prepare_owner_assignment() using the fold algorithm
         std::map<std::pair<long,long>, long> owner_map_;
+
+        /// peel indices chosen by m-flex search (empty if not used).
+        /// Stored for diagnostic logging in prepare_owner_assignment().
+        std::vector<long> chosen_peel_;
 
         /// if true, shuffle per-owner task order to reduce synchronized fetch contention
         /// disabled: shuffling destroys row-range locality needed for cache reuse and prefetch hits
@@ -468,48 +493,26 @@ private:
             name="MacroTaskExchangeSimple";
         }
 
-        /// Pre-compute a load-balanced owner assignment for all tasks in the partition.
-        ///
-        /// Uses a fold algorithm inspired by the triangle-to-rectangle transformation:
-        /// row groups from opposite ends of the triangular task matrix are paired so
-        /// that each "rectangle row" has approximately equal task count. Rectangle rows
-        /// are then assigned to ranks via greedy (least-loaded-first) scheduling.
-        ///
-        /// Called automatically by the MacroTask framework (via SFINAE hook) after
-        /// partitioning and before per-task owner_hint queries.
-        void prepare_owner_assignment(const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
-            if (!use_owner_aware_fetch() || nsubworld <= 0 || !symmetric) return;
-            owner_map_ = fold_and_assign(partition, nsubworld);
-        }
+        /// Per-task entry, indexed by (col_begin, row_begin) and weighted
+        /// by partition priority (= nrow * ncol).
+        struct FoldTaskEntry {
+            std::pair<long,long> key;  // (col_begin, row_begin)
+            double priority;
+        };
 
-        /// Fold the triangular task list and assign owners for load balance.
-        ///
-        /// 1. Group tasks by row range (input[1]), giving R row groups ordered by
-        ///    row index. Cost is accumulated from task priority (batch area), not
-        ///    raw task count, so runt batches are weighted correctly.
-        /// 2. Fold: pair row group (half-1-k) with row group (half+k) to form
-        ///    rectangle row k. Each rectangle row has ~uniform cost.
-        ///    For odd R, the middle row group's tasks are distributed round-robin
-        ///    across rectangle rows.
-        /// 3. Greedy (LPT) assignment: rectangle rows to ranks by cost.
-        /// 4. Build a map from (col_begin, row_begin) -> owner rank for each task.
-        static std::map<std::pair<long,long>, long> fold_and_assign(
-                const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
+        /// One row group of the symmetric upper triangle (all tasks sharing
+        /// a row_begin). Cost is the sum of task priorities in this group.
+        struct FoldRowGroup {
+            long row_begin = 0;
+            double cost = 0.0;
+            std::vector<FoldTaskEntry> tasks;
+        };
 
-            // -- Step 1: group tasks by row range --
-            // Use row_begin as the key; accumulate priority-weighted cost.
-            struct TaskEntry {
-                std::pair<long,long> key;  // (col_begin, row_begin)
-                double priority;
-            };
-            struct RowGroup {
-                long row_begin = 0;
-                double cost = 0.0;
-                std::vector<TaskEntry> tasks;
-            };
-
-            // Discover row groups from partition (order by row_begin)
-            std::map<long, RowGroup> row_group_map;
+        /// Build row groups from a partition, ordered by row_begin.
+        /// Shared by fold_and_assign() and the m-flex search.
+        static std::vector<FoldRowGroup> build_row_groups(
+                const MacroTaskPartitioner::partitionT& partition) {
+            std::map<long, FoldRowGroup> row_group_map;
             for (const auto& [batch, prio] : partition) {
                 const Batch_1D& col_range = batch.input[0];
                 const Batch_1D& row_range = (batch.input.size() > 1) ? batch.input[1] : batch.input[0];
@@ -518,86 +521,378 @@ private:
                 rg.cost += prio;
                 rg.tasks.push_back({{col_range.begin, row_range.begin}, prio});
             }
-
-            // Flatten into ordered vector
-            std::vector<RowGroup> row_groups;
+            std::vector<FoldRowGroup> row_groups;
             row_groups.reserve(row_group_map.size());
-            for (auto& [key, rg] : row_group_map) {
-                row_groups.push_back(std::move(rg));
-            }
-            const long R = static_cast<long>(row_groups.size());
+            for (auto& [key, rg] : row_group_map) row_groups.push_back(std::move(rg));
+            return row_groups;
+        }
 
-            // Degenerate case
+        /// Pre-compute a load-balanced owner assignment for all tasks in the partition.
+        ///
+        /// Uses a fold algorithm inspired by the triangle-to-rectangle transformation:
+        /// row groups from opposite ends of the triangular task matrix are paired so
+        /// that each "rectangle row" has approximately equal task count. Rectangle rows
+        /// are then assigned to ranks via greedy (least-loaded-first) scheduling.
+        ///
+        /// When use_mflex_ is true, an m-flex peel search runs first and selects a
+        /// set of m row groups (m = R mod 2*nsubworld) to peel out of the fold and
+        /// distribute round-robin across the remaining rectangle rows. This restores
+        /// load balance when R is not a clean multiple of 2*nsubworld (e.g. when a
+        /// runt batch dilutes one row group's cost).
+        ///
+        /// Called automatically by the MacroTask framework (via SFINAE hook) after
+        /// partitioning and before per-task owner_hint queries.
+        void prepare_owner_assignment(const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
+            if (!use_owner_aware_fetch() || nsubworld <= 0 || !symmetric) return;
+
+            // Small-problem fallback: the fold needs R = #row_groups >= 2*nsubworld
+            // to give every rank at least one rectangle row. When that floor cannot
+            // be reached (typically n_MO < 2*nsubworld, where the partitioner already
+            // produced bs = 1), bypass the fold and LPT-distribute individual tasks
+            // directly across ranks. Result is identical-by-rank because LPT is
+            // deterministic (sort by priority desc, tie-break by (col_begin,
+            // row_begin)).
+            std::vector<FoldRowGroup> row_groups = build_row_groups(partition);
+            const long R = static_cast<long>(row_groups.size());
+            if (R > 0 && R < 2 * nsubworld) {
+                owner_map_.clear();
+                chosen_peel_.clear();
+                struct TaskRef {
+                    std::pair<long,long> key;
+                    double priority;
+                };
+                std::vector<TaskRef> all_tasks;
+                all_tasks.reserve(partition.size());
+                for (const auto& rg : row_groups) {
+                    for (const auto& te : rg.tasks) {
+                        all_tasks.push_back({te.key, te.priority});
+                    }
+                }
+                std::sort(all_tasks.begin(), all_tasks.end(),
+                          [](const TaskRef& a, const TaskRef& b) {
+                              if (a.priority != b.priority) return a.priority > b.priority;
+                              return a.key < b.key;
+                          });
+                using heap_entry = std::pair<double, long>;
+                std::priority_queue<heap_entry, std::vector<heap_entry>,
+                                    std::greater<heap_entry>> heap;
+                for (long p = 0; p < nsubworld; ++p) heap.push({0.0, p});
+                for (const auto& t : all_tasks) {
+                    auto [load, rank] = heap.top();
+                    heap.pop();
+                    owner_map_[t.key] = rank;
+                    heap.push({load + t.priority, rank});
+                }
+                return;
+            }
+
+            std::vector<long> peel;
+            if (use_mflex_) {
+                peel = find_best_peel(partition, nsubworld);
+            }
+            chosen_peel_ = peel;
+            owner_map_ = fold_and_assign(partition, nsubworld, peel);
+        }
+
+        /// Fold the triangular task list and assign owners for load balance.
+        ///
+        /// 1. Group tasks by row range (input[1]), giving R row groups ordered by
+        ///    row index. Cost is accumulated from task priority (batch area), not
+        ///    raw task count, so runt batches are weighted correctly.
+        /// 2. Determine the peel set:
+        ///    - If peel_indices is non-empty, use it directly. Constraint:
+        ///      (R - |peel|) must be even.
+        ///    - Else, use defaults: {R/2} when R is odd, {} when R is even.
+        /// 3. Fold the non-peeled row groups symmetrically by index:
+        ///    pair non_peeled[k] with non_peeled[N-1-k] to form rectangle rows.
+        /// 4. Distribute peeled row groups' tasks round-robin across the
+        ///    rectangle rows.
+        /// 5. Greedy (LPT) assignment: rectangle rows to ranks by cost.
+        /// 6. Build a map from (col_begin, row_begin) -> owner rank for each task.
+        static std::map<std::pair<long,long>, long> fold_and_assign(
+                const MacroTaskPartitioner::partitionT& partition, long nsubworld,
+                const std::vector<long>& peel_indices = {}) {
+
+            std::vector<FoldRowGroup> row_groups = build_row_groups(partition);
+            const long R = static_cast<long>(row_groups.size());
             if (R == 0) return {};
 
-            // -- Step 2: fold --
-            // Pair row group (half-1-k) with row group (half+k) to form rectangle rows.
-            // For even R: half = R/2, R/2 rectangle rows.
-            // For odd R:  half = R/2, R/2 rectangle rows; the middle row group's
-            //             tasks are distributed round-robin across the rectangle rows
-            //             to avoid dumping ~50% extra load onto a single rank.
-            const long half = R / 2;
-            const bool odd = (R % 2 != 0);
+            // Resolve peel set. Empty input means "use default":
+            //   even R -> no peel; odd R -> peel = {R/2}
+            std::vector<long> peel = peel_indices;
+            if (peel.empty() && (R % 2 != 0)) peel.push_back(R / 2);
+            std::sort(peel.begin(), peel.end());
+            peel.erase(std::unique(peel.begin(), peel.end()), peel.end());
+            for (long p : peel) {
+                MADNESS_CHECK_THROW(p >= 0 && p < R, "peel index out of range");
+            }
+            MADNESS_CHECK_THROW((R - static_cast<long>(peel.size())) % 2 == 0,
+                                "R - |peel| must be even for clean fold");
 
+            // Non-peeled indices, sorted (input is sorted, peel is sorted -> use set_difference).
+            std::vector<long> non_peeled;
+            non_peeled.reserve(R);
+            {
+                std::vector<long> all(R);
+                std::iota(all.begin(), all.end(), 0L);
+                std::set_difference(all.begin(), all.end(),
+                                    peel.begin(), peel.end(),
+                                    std::back_inserter(non_peeled));
+            }
+            const long N = static_cast<long>(non_peeled.size());
+            const long half = N / 2;
+
+            // -- Step 3: fold non-peeled row groups symmetrically by index --
             struct RectRow {
                 double cost = 0.0;
                 std::vector<std::pair<long,long>> task_keys;
             };
             std::vector<RectRow> rect_rows(half);
-
             for (long k = 0; k < half; ++k) {
-                auto& rr = rect_rows[k];
-                const long bottom_idx = half + (odd ? 1 : 0) + k;
-                const long top_idx = half - 1 - k;
-
-                const auto& bottom = row_groups[bottom_idx];
+                const long top_idx = non_peeled[k];
+                const long bottom_idx = non_peeled[N - 1 - k];
                 const auto& top = row_groups[top_idx];
-                rr.cost = bottom.cost + top.cost;
-                for (const auto& te : bottom.tasks) rr.task_keys.push_back(te.key);
+                const auto& bottom = row_groups[bottom_idx];
+                auto& rr = rect_rows[k];
+                rr.cost = top.cost + bottom.cost;
                 for (const auto& te : top.tasks) rr.task_keys.push_back(te.key);
+                for (const auto& te : bottom.tasks) rr.task_keys.push_back(te.key);
             }
 
-            // Distribute middle row group's tasks round-robin across rectangle rows
-            if (odd && half > 0) {
-                const auto& mid = row_groups[half];
-                for (long t = 0; t < static_cast<long>(mid.tasks.size()); ++t) {
-                    auto& rr = rect_rows[t % half];
-                    rr.task_keys.push_back(mid.tasks[t].key);
-                    rr.cost += mid.tasks[t].priority;
+            // -- Step 4: distribute peeled row groups round-robin across rect rows --
+            // Concatenate peeled tasks in (sorted) row-group order, then assign
+            // task t to rect_rows[t % half].
+            std::map<std::pair<long,long>, long> owner_map;
+            if (half > 0) {
+                long t_idx = 0;
+                for (long p : peel) {
+                    const auto& rg = row_groups[p];
+                    for (const auto& te : rg.tasks) {
+                        auto& rr = rect_rows[t_idx % half];
+                        rr.task_keys.push_back(te.key);
+                        rr.cost += te.priority;
+                        ++t_idx;
+                    }
                 }
+            } else {
+                // half == 0: every row group is peeled (or R == 1). Assign all
+                // tasks to rank 0. (Reachable only on extreme small inputs.)
+                for (long p : peel) {
+                    for (const auto& te : row_groups[p].tasks) owner_map[te.key] = 0;
+                }
+                return owner_map;
             }
 
-            // -- Step 3: greedy assignment of rectangle rows to ranks --
-            // Min-heap: (load, rank_id)
+            // -- Step 5: greedy (LPT) assignment of rectangle rows to ranks --
             using heap_entry = std::pair<double, long>;
             std::priority_queue<heap_entry, std::vector<heap_entry>, std::greater<heap_entry>> heap;
-            for (long p = 0; p < nsubworld; ++p) {
-                heap.push({0.0, p});
-            }
+            for (long p = 0; p < nsubworld; ++p) heap.push({0.0, p});
 
-            // Assign rectangle rows (sorted by cost descending for LPT scheduling)
             std::sort(rect_rows.begin(), rect_rows.end(),
                       [](const RectRow& a, const RectRow& b) { return a.cost > b.cost; });
 
-            std::map<std::pair<long,long>, long> owner_map;
             for (const auto& rr : rect_rows) {
                 auto [load, rank] = heap.top();
                 heap.pop();
-                for (const auto& key : rr.task_keys) {
-                    owner_map[key] = rank;
-                }
+                for (const auto& key : rr.task_keys) owner_map[key] = rank;
                 heap.push({load + rr.cost, rank});
             }
+            return owner_map;
+        }
 
-            // Edge case: odd R with half==0 means R==1, single row group, assign directly
-            if (odd && half == 0) {
-                const auto& mid = row_groups[0];
-                for (const auto& te : mid.tasks) {
-                    owner_map[te.key] = 0;
+        /// Compute the max-min rank load delta resulting from running
+        /// fold_and_assign with the given peel set. Used as the scoring
+        /// function for the m-flex peel search. Recomputes the rect-row
+        /// costs and runs LPT (without populating an owner_map -- cheaper
+        /// than fold_and_assign for inner-loop scoring).
+        static double load_delta_for_peel(
+                const std::vector<FoldRowGroup>& row_groups, long nsubworld,
+                const std::vector<long>& peel_sorted) {
+            const long R = static_cast<long>(row_groups.size());
+            const long M = static_cast<long>(peel_sorted.size());
+            const long N = R - M;
+            if (N % 2 != 0 || nsubworld <= 0) return std::numeric_limits<double>::infinity();
+            const long half = N / 2;
+            if (half == 0) return std::numeric_limits<double>::infinity();
+
+            // Build non_peeled (set_difference)
+            std::vector<long> non_peeled;
+            non_peeled.reserve(N);
+            std::vector<long> all(R);
+            std::iota(all.begin(), all.end(), 0L);
+            std::set_difference(all.begin(), all.end(),
+                                peel_sorted.begin(), peel_sorted.end(),
+                                std::back_inserter(non_peeled));
+
+            // Rect-row costs from symmetric pair fold
+            std::vector<double> rr_cost(half, 0.0);
+            for (long k = 0; k < half; ++k) {
+                rr_cost[k] = row_groups[non_peeled[k]].cost
+                           + row_groups[non_peeled[N - 1 - k]].cost;
+            }
+
+            // Round-robin peeled task priorities across rect rows
+            long t_idx = 0;
+            for (long p : peel_sorted) {
+                for (const auto& te : row_groups[p].tasks) {
+                    rr_cost[t_idx % half] += te.priority;
+                    ++t_idx;
                 }
             }
 
-            return owner_map;
+            // LPT to nsubworld ranks
+            using heap_entry = std::pair<double, long>;
+            std::priority_queue<heap_entry, std::vector<heap_entry>, std::greater<heap_entry>> heap;
+            for (long p = 0; p < nsubworld; ++p) heap.push({0.0, p});
+            std::sort(rr_cost.begin(), rr_cost.end(), std::greater<double>());
+
+            std::vector<double> rank_load(nsubworld, 0.0);
+            for (double c : rr_cost) {
+                auto [load, rank] = heap.top();
+                heap.pop();
+                rank_load[rank] = load + c;
+                heap.push({load + c, rank});
+            }
+
+            const double mx = *std::max_element(rank_load.begin(), rank_load.end());
+            const double mn = *std::min_element(rank_load.begin(), rank_load.end());
+            return mx - mn;
+        }
+
+        /// Generate candidate peel sets of size m for R row groups.
+        /// Heuristics target peels that keep the remaining row groups'
+        /// fold pair-sums balanced; exhaustive enumeration is added when
+        /// C(R, m) <= max_exhaustive.
+        static std::vector<std::vector<long>> generate_peel_candidates(
+                long R, long m, const std::vector<FoldRowGroup>& row_groups,
+                long max_exhaustive) {
+            std::set<std::vector<long>> cands;
+            if (m == 0) { cands.insert({}); }
+            else if (m >= R) {
+                std::vector<long> all(R);
+                std::iota(all.begin(), all.end(), 0L);
+                cands.insert(all);
+            } else {
+                auto add_sorted = [&](std::vector<long> v) {
+                    std::sort(v.begin(), v.end());
+                    v.erase(std::unique(v.begin(), v.end()), v.end());
+                    if (static_cast<long>(v.size()) == m) cands.insert(std::move(v));
+                };
+
+                // 1. Symmetric balanced: head [0, head_n) + tail [R-tail_n, R)
+                {
+                    const long head_n = m / 2;
+                    const long tail_n = m - head_n;
+                    std::vector<long> v;
+                    for (long i = 0; i < head_n; ++i) v.push_back(i);
+                    for (long i = R - tail_n; i < R; ++i) v.push_back(i);
+                    add_sorted(std::move(v));
+                }
+                // 2. Reverse split (other parity)
+                {
+                    const long head_n = m - m / 2;
+                    const long tail_n = m - head_n;
+                    std::vector<long> v;
+                    for (long i = 0; i < head_n; ++i) v.push_back(i);
+                    for (long i = R - tail_n; i < R; ++i) v.push_back(i);
+                    add_sorted(std::move(v));
+                }
+                // 3. Contiguous start
+                {
+                    std::vector<long> v(m);
+                    std::iota(v.begin(), v.end(), 0L);
+                    add_sorted(std::move(v));
+                }
+                // 4. Contiguous end
+                {
+                    std::vector<long> v(m);
+                    std::iota(v.begin(), v.end(), R - m);
+                    add_sorted(std::move(v));
+                }
+                // 5. Outlier-anchored: top-m residuals from least-squares linear fit
+                if (R >= 2) {
+                    double sx = 0, sy = 0, sxy = 0, sx2 = 0;
+                    const double n = static_cast<double>(R);
+                    for (long i = 0; i < R; ++i) {
+                        const double x = static_cast<double>(i);
+                        const double y = row_groups[i].cost;
+                        sx += x; sy += y; sxy += x*y; sx2 += x*x;
+                    }
+                    const double denom = n * sx2 - sx * sx;
+                    if (std::abs(denom) > 0.0) {
+                        const double a = (n * sxy - sx * sy) / denom;
+                        const double b = (sy - a * sx) / n;
+                        std::vector<std::pair<long, double>> res(R);
+                        for (long i = 0; i < R; ++i) {
+                            res[i] = {i, std::abs(row_groups[i].cost - (a * i + b))};
+                        }
+                        std::sort(res.begin(), res.end(),
+                                  [](const auto& p, const auto& q) { return p.second > q.second; });
+                        std::vector<long> v;
+                        for (long i = 0; i < m; ++i) v.push_back(res[i].first);
+                        add_sorted(std::move(v));
+                    }
+                }
+                // 6. Exhaustive if feasible: enumerate combinations of m from R
+                {
+                    // C(R, m) <= max_exhaustive: bounded multiplication that
+                    // short-circuits if it exceeds the cap.
+                    long count = 1;
+                    bool fits = true;
+                    for (long i = 0; i < m && fits; ++i) {
+                        count *= (R - i);
+                        count /= (i + 1);
+                        if (count > max_exhaustive) fits = false;
+                    }
+                    if (fits) {
+                        std::vector<long> v(m);
+                        std::iota(v.begin(), v.end(), 0L);
+                        // Generate all combinations via index advancement.
+                        while (true) {
+                            cands.insert(v);
+                            // advance: find rightmost that can be incremented
+                            long i = m - 1;
+                            while (i >= 0 && v[i] == R - m + i) --i;
+                            if (i < 0) break;
+                            ++v[i];
+                            for (long j = i + 1; j < m; ++j) v[j] = v[j-1] + 1;
+                        }
+                    }
+                }
+            }
+
+            std::vector<std::vector<long>> out;
+            out.reserve(cands.size());
+            for (const auto& c : cands) out.push_back(c);
+            return out;
+        }
+
+        /// Run the m-flex peel search: pick the peel set of size
+        /// m_min = R mod (2*nsubworld) that minimizes per-rank load delta.
+        /// Returns an empty peel when no improvement is possible (R < 2*nsubworld
+        /// or partition empty).
+        std::vector<long> find_best_peel(
+                const MacroTaskPartitioner::partitionT& partition, long nsubworld) const {
+            if (nsubworld <= 0) return {};
+            std::vector<FoldRowGroup> row_groups = build_row_groups(partition);
+            const long R = static_cast<long>(row_groups.size());
+            const long two_np = 2 * nsubworld;
+            if (R < two_np) return {};
+
+            const long m_min = R % two_np;
+            auto cands = generate_peel_candidates(R, m_min, row_groups, mflex_max_exhaustive_);
+            if (cands.empty()) return {};
+
+            std::vector<long> best;
+            double best_delta = std::numeric_limits<double>::infinity();
+            for (auto& c : cands) {
+                const double d = load_delta_for_peel(row_groups, nsubworld, c);
+                if (d < best_delta) {
+                    best_delta = d;
+                    best = c;
+                }
+            }
+            return best;
         }
 
         /// Shuffle the partition list so that each owner's tasks appear in random

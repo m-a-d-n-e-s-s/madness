@@ -1373,14 +1373,20 @@ functionT SCF::make_lda_potential(World& world, const functionT& arho) {
 }
 
 /// Compute resolved {min, max} batch sizes for HF exchange macrotask partitioning.
-/// User-supplied values <= 0 are replaced by a heuristic that:
-///  1. Picks an initial batch count from threshold and rank count.
-///  2. Searches a window of batch sizes around the initial estimate for the one
-///     that best satisfies two constraints (in priority order):
-///     a) half (= R/2, the number of rectangle rows after folding) should be a
-///        multiple of nproc so rectangle rows divide evenly across ranks.
-///     b) The runt batch (norb mod bs) should be as small as possible — ideally
-///        zero (no runt) or close to bs (nearly full-size).
+///
+/// Used by the smallmem_sym_mt_owner algorithm (and its variants). When the
+/// user does not pin a batch size, pick the LARGEST bs for which
+/// R = ceil(norb / bs) is at least 2*nproc. That is the structural lower bound
+/// on R for the fold partitioner — with fewer row groups, half = R/2 < nproc
+/// and the fold leaves some ranks idle. m-flex (see
+/// MacroTaskExchangeSimple::find_best_peel in exchangeoperator.h) handles the
+/// load-balance objective on top of any such bs, so the old alignment-and-
+/// runt-scoring search in a window around an inverse-triangular initial
+/// estimate is now redundant and has been removed.
+///
+/// When norb < 2*nproc no bs can satisfy R >= 2*nproc; bs = 1 is returned and
+/// prepare_owner_assignment() falls back to a direct round-robin distribution
+/// for the resulting small task list.
 static std::pair<long,long> resolve_hfex_batch_sizes(
         long norb, long nproc,
         long user_min, long user_max)
@@ -1389,59 +1395,10 @@ static std::pair<long,long> resolve_hfex_batch_sizes(
     long resolved_max = user_max;
 
     if (resolved_min <= 0 || resolved_max <= 0) {
-        // Threshold-aware: coarser threshold -> fewer, larger batches.
-        const double thresh = FunctionDefaults<3>::get_thresh();
-        const long tasks_per_rank =
-                (thresh >= 1.e-5) ? 2 :   // low  (1e-4 neighbourhood)
-                (thresh >= 1.e-7) ? 4 :   // mid  (1e-6 neighbourhood)
-                                    8;    // high (1e-8 neighbourhood)
-        const long target_tasks = std::max<long>(1, tasks_per_rank * nproc);
-        // Invert triangular number formula nbatch*(nbatch+1)/2 = target_tasks.
-        long nbatch = std::max<long>(1,
-                long((std::sqrt(1.0 + 8.0 * double(target_tasks)) - 1.0) / 2.0));
-        // Need at least 2*nproc row batches so the fold gives every rank work.
-        nbatch = std::max(nbatch, std::min(2 * nproc, norb));
-        long initial_size = std::max<long>(1, (norb + nbatch - 1) / nbatch);
-
-        // Search a window around initial_size for the batch size that best
-        // satisfies the two constraints.
-        const long lo = std::max<long>(1, initial_size * 7 / 10);
-        const long hi = std::max<long>(lo, initial_size * 13 / 10);
-
-        long best_bs = initial_size;
-        double best_score = 1e18;
-
-        for (long bs = lo; bs <= hi; ++bs) {
-            const long R = (norb + bs - 1) / bs;
-            const long half = R / 2;
-
-            // Primary constraint: half should be a multiple of nproc so rect rows
-            // divide evenly across ranks.  Penalty is the remainder half % nproc,
-            // normalized by nproc, so 0.0 = perfect, ~1.0 = worst.
-            const double alignment_penalty = (nproc > 0)
-                    ? static_cast<double>(half % nproc) / static_cast<double>(nproc)
-                    : 0.0;
-
-            // Secondary: runt penalty.  remainder==0 means no runt (penalty 0).
-            // Otherwise (bs - remainder) / bs, scaled down so it never outweighs
-            // the alignment constraint.
-            const long remainder = norb % bs;
-            const double runt_penalty = (remainder == 0) ? 0.0
-                    : 0.1 * static_cast<double>(bs - remainder) / static_cast<double>(bs);
-
-            const double score = alignment_penalty + runt_penalty;
-
-            if (score < best_score) {
-                best_score = score;
-                best_bs = bs;
-            }
-        }
-
-        long auto_size = best_bs;
-        // Final check: ensure enough row batches for all ranks.
-        const long min_row_batches = std::min(2 * nproc, norb);
-        while (auto_size > 1 && (norb + auto_size - 1) / auto_size < min_row_batches)
-            --auto_size;
+        // Pick the largest bs with R = ceil(norb/bs) >= 2*nproc. Equivalent:
+        // bs = floor(norb / (2*nproc)). Clamp to >= 1 (when norb < 2*nproc,
+        // bs = 1 and prepare_owner_assignment falls back to round-robin).
+        const long auto_size = std::max<long>(1, norb / (2 * nproc));
 
         if (resolved_min <= 0) resolved_min = auto_size;
         if (resolved_max <= 0) resolved_max = auto_size;
@@ -1547,6 +1504,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	        }
 	        K.set_macro_task_info(MacroTaskInfo::preset(cloud_policy));
 	        K.set_replicate_for_debug(param.hfex_replicate_debug());
+	        K.set_use_mflex(param.hfex_use_mflex());
+	        K.set_mflex_max_exhaustive(param.hfex_mflex_max_exhaustive());
 
         // Temporary serialization diagnostics — set to true to enable, to be removed soon.
         const bool run_hfex_serialization_probe = false;
@@ -2371,7 +2330,7 @@ void SCF::solve(World& world, int maxiter) {
                 // Tolloc is multiplied by loose_tolloc_scale (default 100x => 1e-4 vs 1e-6).
                 // ---------------------------------------------------------
                 const bool loose_tolloc_every_protocol_iter0 = false;
-                const double loose_tolloc_scale = 100.0;
+                const double loose_tolloc_scale = 1.0;
                 static bool any_iter0_seen = false;
                 if (iter == 0 && (loose_tolloc_every_protocol_iter0 || !any_iter0_seen)) {
                     localizer.set_tolloc_scale(loose_tolloc_scale);

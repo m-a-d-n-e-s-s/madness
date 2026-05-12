@@ -204,6 +204,8 @@ public:
     Exchange& set_min_batch_size(const long& n);
     Exchange& set_max_batch_size(const long& n);
     Exchange& set_replicate_for_debug(const bool flag);
+    Exchange& set_use_mflex(const bool flag);
+    Exchange& set_mflex_max_exhaustive(const long& n);
 
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;
