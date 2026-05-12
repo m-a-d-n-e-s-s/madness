@@ -11,7 +11,7 @@
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details.
+  GNU Genera1l Public License for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
@@ -42,6 +42,7 @@
 #include <vector>
 #include <stack>
 #include <new>
+#include <madness/world/atomic_shared_ptr.h>
 #include <madness/world/nodefaults.h>
 #include <madness/world/dependency_interface.h>
 #include <madness/world/stack.h>
@@ -120,7 +121,7 @@ namespace madness {
   		    T value;
                     input_arch & value;
                     MADNESS_PRAGMA_CLANG(diagnostic pop)
-	
+
 
                     // Copy world and owner from remote_ref since sending remote_ref
                     // will invalidate it.
@@ -373,7 +374,7 @@ namespace madness {
     private:
 
         /// Pointer to the implementation object.
-        std::shared_ptr< FutureImpl<T> > f;
+        atomic_shared_ptr< FutureImpl<T> > f;
         char buffer[sizeof(T)]; ///< Buffer to hold a single \c T object.
         T* const value; ///< Pointer to buffer when it holds a \c T object.
 
@@ -395,7 +396,7 @@ namespace madness {
 
         /// Makes an unassigned future.
         Future() :
-            f(new FutureImpl<T>()), value(nullptr)
+            f(std::make_shared<FutureImpl<T>>()), value(nullptr)
         {
         }
 
@@ -611,14 +612,7 @@ namespace madness {
                 // if the task setting f is gone *and* this is the only ref, move out
                 // to prevent a race with another thread that will make a copy of this Future while we are moving the data
                 // atomically swap f with nullptr, then check use count of f's copy
-                MADNESS_PRAGMA_GCC(diagnostic push)
-                MADNESS_PRAGMA_GCC(diagnostic ignored "-Wdeprecated-declarations")
-                MADNESS_PRAGMA_CLANG(diagnostic push)
-                MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wdeprecated-declarations")
-                // FIXME: deprecated in C++20! need to convert f to std::atomic<std::shared_ptr<FutureImpl>>
-                auto fcopy = std::atomic_exchange(&f, {});
-                MADNESS_PRAGMA_CLANG(diagnostic pop)
-                MADNESS_PRAGMA_GCC(diagnostic pop)
+                auto fcopy = f.exchange({});
                 // f is now null and no new ref to the value can be created
                 if (fcopy.use_count() == 1)
                     return std::move(value_ref);
