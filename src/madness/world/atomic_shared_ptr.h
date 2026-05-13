@@ -23,14 +23,16 @@ namespace madness {
 /// \c use_count, equality comparison) plus a single extension, \c exchange(),
 /// needed for the move-optimisation in \c Future::get()&&.
 ///
-/// \note User-declared copy constructor and copy-assignment operator suppress
-/// the implicit move constructor and move-assignment operator (and
-/// \c std::atomic is itself non-movable in the C++20 backend), so move
-/// operations silently fall back to copy.
+/// \note Move operations are explicitly provided: they atomically take the
+/// value from the source (leaving it empty) via a relaxed-order \c exchange.
+/// This is necessary because (a) user-declared copy operations would otherwise
+/// suppress the implicit move operations, and (b) \c std::atomic is non-movable
+/// in the C++20 backend, so the implicit move would silently fall back to copy.
 ///
-/// \note All loads are \c memory_order_relaxed, relying on the caller to provide necessary
-/// ordering guarantees. The exception is \c exchange(), which defaults to \c memory_order_seq_cst to match the pre-C++20
-/// \c std::atomic_exchange behaviour it replaces.
+/// \note All loads/stores and move operations use \c memory_order_relaxed,
+/// relying on the caller to provide necessary ordering guarantees. The exception
+/// is \c exchange(), which defaults to \c memory_order_seq_cst to match the
+/// pre-C++20 \c std::atomic_exchange behaviour it replaces.
 template<typename T>
 class atomic_shared_ptr {
 #if defined(__cpp_lib_atomic_shared_ptr)
@@ -77,9 +79,22 @@ public:
     /// Copy-constructs by atomically loading the other pointer.
     atomic_shared_ptr(const atomic_shared_ptr& other) noexcept : ptr_(other.do_load()) {}
 
+    /// Move-constructs by atomically taking the value from \p other, which
+    /// is left empty. Uses \c memory_order_relaxed (consistent with
+    /// \c do_load / \c do_store); caller is responsible for any synchronization.
+    atomic_shared_ptr(atomic_shared_ptr&& other) noexcept
+        : ptr_(other.exchange({}, std::memory_order_relaxed)) {}
+
     /// Copy-assigns by atomically loading from \p other and storing.
     atomic_shared_ptr& operator=(const atomic_shared_ptr& other) noexcept {
         if (this != &other) do_store(other.do_load());
+        return *this;
+    }
+
+    /// Move-assigns by atomically taking the value from \p other, which
+    /// is left empty. Self-assignment is a no-op.
+    atomic_shared_ptr& operator=(atomic_shared_ptr&& other) noexcept {
+        if (this != &other) do_store(other.exchange({}, std::memory_order_relaxed));
         return *this;
     }
 
