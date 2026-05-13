@@ -67,7 +67,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","smallmem_sym","smallmem_sym_mt","smallmem_sym_mt_owner","largemem"});
+		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","smallmem_sym","smallmem_sym_mt","smallmem_sym_mt_owner","smallmem_mt_owner","largemem"});
 		initialize<std::string> ("hfex_cloud_policy","default","HF exchange macrotask cloud policy",{"default","small_memory","small_memory_owner","large_memory","node_replicated_target"});
 		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");

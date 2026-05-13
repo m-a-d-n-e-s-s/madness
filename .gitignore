@@ -84,3 +84,4 @@ tools/hf_exchange_tail_time.py
 tools/emulate_hfex_smallmem_sym_mt_owner.py
 src/madness/chem/HF_EXCHANGE_MFLEX.md
 tools/__pycache__/emulate_hfex_smallmem_sym_mt_owner.cpython-39.pyc
+src/madness/chem/smallmem_mt_owner.md

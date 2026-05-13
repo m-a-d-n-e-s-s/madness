@@ -67,6 +67,13 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         world.gop.fence();
         norm_tree(world, vket);
     } else {
+        // Algorithms here drive multiplication via the redundant-tree mw-screening
+        // kernel (mul_sparse + vmulXX). Pre-stage the inputs once here so subworld
+        // kernels can skip make_redundant/fence around every mul_sparse call.
+        // make_redundant routes through compress(redundant, ...), which populates
+        // the per-node sum-coefficient + tree-norm structure that mw-screening uses
+        // — no separate norm_tree pass is needed (the reconstructed branch above
+        // does norm_tree only because reconstruct doesn't compute it).
         make_redundant(world, mo_bra, false);
         make_redundant(world, mo_ket, false);
         world.gop.fence();
@@ -85,7 +92,9 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
-    } else if (algorithm_ == small_memory_symmetric_mt or algorithm_ == small_memory_symmetric_mt_owner) {
+    } else if (algorithm_ == small_memory_symmetric_mt
+            or algorithm_ == small_memory_symmetric_mt_owner
+            or algorithm_ == small_memory_mt_owner) {
         Kf = K_macrotask_efficient(vket, mul_tol);
     } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute
                ) {
@@ -149,9 +158,13 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
         if (world.rank()==0) print("DEBUG: using StoreFunction policy to pre-replicate all data (zero communication during tasks)");
     }
     auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(effective_policy);
-    if (algorithm_ == small_memory_symmetric_mt_owner) {
+    if (algorithm_ == small_memory_symmetric_mt_owner
+     or algorithm_ == small_memory_mt_owner) {
         taskq_factory.set_nworld(world.size());
     }
+    // TODO(option-ii): once small_memory_mt_owner is validated, evaluate setting
+    //   effective_policy.ptr_target_distribution_policy = DistributionType::NodeReplicated;
+    // for this algorithm so cross-rank ket fetches become single-owner reads via is_replicated.
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)

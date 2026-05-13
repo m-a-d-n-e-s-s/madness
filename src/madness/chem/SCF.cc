@@ -1498,7 +1498,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_min_batch_size(min_batch_size);
         K.set_max_batch_size(max_batch_size);
 	        std::string cloud_policy = param.hfex_cloud_policy();
-	        if (exchange_alg == Exchange<double,3>::small_memory_symmetric_mt_owner
+	        if ((exchange_alg == Exchange<double,3>::small_memory_symmetric_mt_owner
+	          or exchange_alg == Exchange<double,3>::small_memory_mt_owner)
 	            and not param.is_user_defined("hfex_cloud_policy")) {
 	            cloud_policy = "small_memory_owner";
 	        }

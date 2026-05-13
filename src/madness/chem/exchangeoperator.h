@@ -30,7 +30,8 @@ class Exchange<T,NDIM>::ExchangeImpl {
     static inline std::atomic<long> mul1_truncate_timer;
     static inline std::atomic<long> mul1_timer; ///< timing
     static inline std::atomic<long> owner_fetch_timer;
-    static inline std::atomic<long> owner_compute_timer;
+    static inline std::atomic<long> owner_compute_timer;       ///< CPU time inside compute kernels (process_cpu_time)
+    static inline std::atomic<long> owner_compute_wall_timer;  ///< wall time wrapping the compute kernel call in operator() — measures "mere compute" including any in-compute communication/fences; subtract owner_compute_timer to attribute wait/communication overhead
     static inline double elapsed_time;
     static inline double elapsed_process_cpu_time;
 
@@ -42,6 +43,7 @@ class Exchange<T,NDIM>::ExchangeImpl {
         apply_timer = 0l;
         owner_fetch_timer = 0l;
         owner_compute_timer = 0l;
+        owner_compute_wall_timer = 0l;
         elapsed_time = 0.0;
         elapsed_process_cpu_time = 0.0;
     }
@@ -55,6 +57,7 @@ public:
         double t5 = double(mul2_truncate_timer) * 0.001;
         double t_fetch_owner = double(owner_fetch_timer) * 0.001;
         double t_compute_owner = double(owner_compute_timer) * 0.001;
+        double t_compute_owner_wall = double(owner_compute_wall_timer) * 0.001;
         world.gop.sum(t1);
         world.gop.sum(t2);
         world.gop.sum(t3);
@@ -62,6 +65,7 @@ public:
         world.gop.sum(t5);
         world.gop.sum(t_fetch_owner);
         world.gop.sum(t_compute_owner);
+        world.gop.sum(t_compute_owner_wall);
         nlohmann::json j;
         j["multiply1"] = t1;
         j["truncate1"] = t4;
@@ -70,6 +74,7 @@ public:
         j["truncate2"] = t5;
         j["owner_fetch"] = t_fetch_owner;
         j["owner_compute"] = t_compute_owner;
+        j["owner_compute_wall"] = t_compute_owner_wall;
         double total_cpu = elapsed_process_cpu_time;
         world.gop.sum(total_cpu);
         j["total_cpu"] = total_cpu;
@@ -87,6 +92,7 @@ public:
             printf(" cpu time spent in truncate2   %8.2fs\n", timings["truncate2"].template get<double>());
             printf(" cpu time owner fetch          %8.2fs\n", timings["owner_fetch"].template get<double>());
             printf(" cpu time owner compute        %8.2fs\n", timings["owner_compute"].template get<double>());
+            printf(" wall time owner compute       %8.2fs\n", timings["owner_compute_wall"].template get<double>());
             printf(" total process cpu time        %8.2fs\n", timings["total_cpu"].template get<double>());
             printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
         }
@@ -279,6 +285,11 @@ private:
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
+        // Dedicated cache for the held i-batch (vf) in small_memory_mt_owner.
+        // Keyed by global vf index. Separate from bra_cache_/ket_cache_ to avoid
+        // conceptual collision with the symmetric algorithm, which already uses
+        // those caches for the bra/ket dimensions.
+        static inline std::unordered_map<long, functionT> held_vf_cache_;
         // Subworld-local accumulator for own-output accumulation.
         // Populated task-by-task via accumulate_locally(); drained once per
         // subworld via finalize_into() into the universe-resident result.
@@ -298,7 +309,41 @@ private:
             bool has_hint = false;
         };
         static inline VfPrefetchState vf_prefetch_;
+
+        /// Self-contained prefetch state for the rotating k-batch (mo_bra + mo_ket
+        /// paired by the inner-sum index) used by small_memory_mt_owner. Independent
+        /// of vf_prefetch_ so the row-owner algorithm can rotate this dimension
+        /// while the existing symmetric path keeps rotating its own (column / vf).
+        struct KBatchPrefetchState {
+            Batch_1D current_range;
+            vecfuncT current_bra;
+            vecfuncT current_ket;
+            bool has_current = false;
+
+            Batch_1D next_range;
+            vecfuncT next_bra;
+            vecfuncT next_ket;
+            bool has_next = false;
+
+            Batch_1D next_hint;
+            bool has_hint = false;
+        };
+        static inline KBatchPrefetchState kbatch_prefetch_;
+
         static inline long cache_world_id_ = -1;
+
+        static void clear_kbatch_prefetch() {
+            kbatch_prefetch_.current_bra.clear();
+            kbatch_prefetch_.current_ket.clear();
+            kbatch_prefetch_.next_bra.clear();
+            kbatch_prefetch_.next_ket.clear();
+            kbatch_prefetch_.has_current = false;
+            kbatch_prefetch_.has_next = false;
+            kbatch_prefetch_.has_hint = false;
+            kbatch_prefetch_.current_range = Batch_1D();
+            kbatch_prefetch_.next_range = Batch_1D();
+            kbatch_prefetch_.next_hint = Batch_1D();
+        }
 
         /// pre-computed owner map: (col_begin, row_begin) -> owner rank
         /// populated by prepare_owner_assignment() using the fold algorithm
@@ -312,7 +357,20 @@ private:
         /// disabled: shuffling destroys row-range locality needed for cache reuse and prefetch hits
         bool shuffle_task_order_ = false;
 
-        bool use_owner_aware_fetch() const { return algorithm_==small_memory_symmetric_mt_owner and not replicate_for_debug_; }
+        bool use_owner_aware_fetch() const {
+            return (algorithm_==small_memory_symmetric_mt_owner or algorithm_==small_memory_mt_owner)
+                   and not replicate_for_debug_;
+        }
+
+        /// true iff the new row-owner algorithm is active. The full-grid partition
+        /// produced by row_owner_partition is INCOMPATIBLE with the upper-triangle
+        /// symmetric kernels (compute_*_batch_in_symmetric_matrix), so this branch
+        /// must fire unconditionally for the algorithm — including when
+        /// replicate_for_debug_ is on. The owner-aware fetch path (cache + prefetch)
+        /// is still gated separately by use_owner_aware_fetch().
+        bool use_row_owner_algorithm() const {
+            return algorithm_==small_memory_mt_owner;
+        }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
             return (a.begin == b.begin) and (a.end == b.end);
@@ -344,7 +402,9 @@ private:
         static void clear_local_caches() {
             bra_cache_.clear();
             ket_cache_.clear();
+            held_vf_cache_.clear();
             clear_vf_prefetch();
+            clear_kbatch_prefetch();
         }
 
         void add_owner_fetch_time(const double cpu0, const double cpu1) const {
@@ -353,6 +413,14 @@ private:
 
         void add_owner_compute_time(const double cpu0, const double cpu1) const {
             if (use_owner_aware_fetch()) owner_compute_timer += long((cpu1 - cpu0) * 1000l);
+        }
+
+        /// wall-time companion to add_owner_compute_time. Called from operator() to
+        /// accumulate wall time wrapping the compute kernel call. Combined with the
+        /// CPU-time owner_compute_timer, lets the user attribute the gap to
+        /// communication/fences that happened during the compute phase.
+        void add_owner_compute_wall_time(const double wall0, const double wall1) const {
+            if (use_owner_aware_fetch()) owner_compute_wall_timer += long((wall1 - wall0) * 1000l);
         }
 
         void ensure_cache_world(World& world) const {
@@ -438,8 +506,9 @@ private:
         class MacroTaskPartitionerExchange : public MacroTaskPartitioner {
         public:
             MacroTaskPartitionerExchange(const bool symmetric, const long min_batch_size_input,
-                                         const long max_batch_size_input)
-                    : symmetric(symmetric) {
+                                         const long max_batch_size_input,
+                                         const bool row_owner = false)
+                    : symmetric(symmetric), row_owner_(row_owner) {
                 const long min_bs = std::max<long>(1, min_batch_size_input);
                 const long max_bs = std::max<long>(min_bs, std::max<long>(1, max_batch_size_input));
                 min_batch_size=min_bs;
@@ -447,9 +516,48 @@ private:
             }
 
             bool symmetric = false;
+            /// when true, ignore min/max batch size and produce exactly nsubworld
+            /// (or fewer, if n < nsubworld) batches per dimension via even-remainder
+            /// spread. Used by small_memory_mt_owner.
+            bool row_owner_ = false;
+
+            /// Split a vector of length n into exactly nbatch = min(nsubworld, n)
+            /// contiguous batches with sizes differing by at most 1. The first
+            /// (n mod nbatch) batches get size ceil(n/nbatch); the rest get
+            /// floor(n/nbatch). Eliminates the runt-of-1 case.
+            std::vector<Batch_1D> row_owner_split(std::size_t n) const {
+                std::vector<Batch_1D> out;
+                if (n == 0) return out;
+                const long nbatch = std::min<long>(std::max<long>(1, long(nsubworld)), long(n));
+                const long bs_floor = long(n) / nbatch;
+                const long rem = long(n) - bs_floor * nbatch;
+                long begin = 0;
+                for (long b = 0; b < nbatch; ++b) {
+                    const long sz = bs_floor + (b < rem ? 1 : 0);
+                    out.emplace_back(begin, begin + sz);
+                    begin += sz;
+                }
+                return out;
+            }
 
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
+
+                if (row_owner_) {
+                    // Strict bs = ceil(n/nsubworld), even remainder spread, full grid.
+                    // For asymmetric exchange only; no symmetry exploitation here.
+                    std::vector<Batch_1D> col_batches = row_owner_split(vsize1); // input[0]: held / vf / i-batch
+                    std::vector<Batch_1D> row_batches = row_owner_split(vsize2); // input[1]: rotating / bra / k-batch
+                    partitionT result;
+                    for (const auto& c : col_batches) {
+                        for (const auto& r : row_batches) {
+                            Batch batch(c, r, _);
+                            double priority = compute_priority(batch);
+                            result.push_back(std::make_pair(batch, priority));
+                        }
+                    }
+                    return result;
+                }
 
                 partitionT partition1 = do_1d_partition(vsize1, policy);
                 partitionT partition2 = do_1d_partition(vsize2, policy);
@@ -489,7 +597,8 @@ private:
                                 const long max_batch_size,
                                 const Algorithm algorithm = multiworld_efficient)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric), algorithm_(algorithm) {
-            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size));
+            const bool row_owner = (algorithm == small_memory_mt_owner);
+            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size, row_owner));
             name="MacroTaskExchangeSimple";
         }
 
@@ -543,7 +652,37 @@ private:
         /// Called automatically by the MacroTask framework (via SFINAE hook) after
         /// partitioning and before per-task owner_hint queries.
         void prepare_owner_assignment(const MacroTaskPartitioner::partitionT& partition, long nsubworld) {
-            if (!use_owner_aware_fetch() || nsubworld <= 0 || !symmetric) return;
+            if (!use_owner_aware_fetch() || nsubworld <= 0) return;
+
+            // Row-owner (asymmetric, held i-batch): owner depends only on input[0]
+            // (= col / vf / i-batch). All tasks sharing a col.begin go to the same
+            // rank, in col-begin order. With nbatch = min(nsubworld, n_orb)
+            // batches per dimension (see MacroTaskPartitionerExchange::row_owner_split),
+            // this gives an injective rank assignment up to nsubworld ranks.
+            if (algorithm_ == small_memory_mt_owner) {
+                owner_map_.clear();
+                chosen_peel_.clear();
+                std::map<long, long> col_to_rank;
+                long next_rank = 0;
+                for (const auto& [batch, prio] : partition) {
+                    MADNESS_CHECK_THROW(batch.input.size() >= 2,
+                                        "small_memory_mt_owner expects 2D batches (col, row)");
+                    const Batch_1D& col = batch.input[0];
+                    const Batch_1D& row = batch.input[1];
+                    auto it = col_to_rank.find(col.begin);
+                    if (it == col_to_rank.end()) {
+                        const long rank = next_rank % nsubworld;
+                        ++next_rank;
+                        it = col_to_rank.emplace(col.begin, rank).first;
+                    }
+                    owner_map_[{col.begin, row.begin}] = it->second;
+                }
+                return;
+            }
+
+            // Existing path (symmetric folded fold + LPT + m-flex peel) is
+            // only valid for the symmetric algorithm.
+            if (!symmetric) return;
 
             // Small-problem fallback: the fold needs R = #row_groups >= 2*nsubworld
             // to give every rank at least one rectangle row. When that floor cannot
@@ -993,9 +1132,20 @@ private:
         /// single subworld->universe gaxpy, draining Kf_local_ into the
         /// universe-resident result. No-op if the subworld ran zero owned
         /// tasks (accumulator never initialized) or was already finalized.
-        void finalize_into(World& /*subworld*/, vecfuncT& universe_result) {
+        ///
+        /// For small_memory_mt_owner the local accumulator is truncated before
+        /// the universe gaxpy: each rank's Kf_local_ contains the full sum over
+        /// its row contribution (sum over all k-batches), and truncation here
+        /// is consistent with that being the per-row "final" result. Truncation
+        /// is skipped for small_memory_symmetric_mt_owner because individual
+        /// row contributions are spread across multiple ranks there and the
+        /// final truncate happens once in K_macrotask_efficient on the universe Kf.
+        void finalize_into(World& subworld, vecfuncT& universe_result) {
             if (not Kf_local_initialized_) return;
             change_tree_state(Kf_local_, compressed);
+            if (algorithm_ == small_memory_mt_owner) {
+                truncate(subworld, Kf_local_);
+            }
             gaxpy(1.0, universe_result, 1.0, Kf_local_, false);
             Kf_local_.clear();
             Kf_local_initialized_ = false;
@@ -1004,6 +1154,9 @@ private:
 
         void set_next_vf_hint(const Batch_1D& next_hint, const bool has_hint) {
             if (not use_owner_aware_fetch()) return;
+            // In small_memory_mt_owner the vf dimension is held, not rotated, so
+            // skip the vf-side prefetch state entirely (k-batch state is rotated instead).
+            if (use_row_owner_algorithm()) return;
             vf_prefetch_.has_hint = has_hint;
             if (has_hint) {
                 vf_prefetch_.next_hint = next_hint;
@@ -1022,6 +1175,7 @@ private:
 
         void prefetch_next_vf_async(World& world, const vecfuncT& vf_full) const {
             if (not use_owner_aware_fetch()) return;
+            if (use_row_owner_algorithm()) return;     // vf is held in this algorithm
             const double cpu0 = process_cpu_time();
             ensure_cache_world(world);
             if (not vf_prefetch_.has_hint) return;
@@ -1093,6 +1247,156 @@ private:
             }
         }
 
+        // ---- small_memory_mt_owner: rotating k-batch (bra+ket) prefetch ----
+        // Mirror of the vf-side hint/prefetch/acquire/release machinery, but for the
+        // k-batch dimension (mo_bra + mo_ket paired by inner-sum index). The framework
+        // calls set_next_bra_hint() with the next owned task's input[1] (= bra_range),
+        // then prefetch_next_bra_async() with args<1>/<2> (= mo_bra / mo_ket) so the
+        // next k-batch is staged while the current task computes.
+
+        void set_next_bra_hint(const Batch_1D& next_hint, const bool has_hint) {
+            if (not use_row_owner_algorithm()) return;
+            kbatch_prefetch_.has_hint = has_hint;
+            if (has_hint) {
+                kbatch_prefetch_.next_hint = next_hint;
+                if (kbatch_prefetch_.has_next
+                    and not hint_matches_range(next_hint, kbatch_prefetch_.next_range)) {
+                    kbatch_prefetch_.next_bra.clear();
+                    kbatch_prefetch_.next_ket.clear();
+                    kbatch_prefetch_.has_next = false;
+                    kbatch_prefetch_.next_range = Batch_1D();
+                }
+            } else {
+                kbatch_prefetch_.next_hint = Batch_1D();
+                kbatch_prefetch_.next_bra.clear();
+                kbatch_prefetch_.next_ket.clear();
+                kbatch_prefetch_.has_next = false;
+                kbatch_prefetch_.next_range = Batch_1D();
+            }
+        }
+
+        void prefetch_next_bra_async(World& world,
+                                     const vecfuncT& mo_bra_full,
+                                     const vecfuncT& mo_ket_full) const {
+            if (not use_row_owner_algorithm()) return;
+            const double cpu0 = process_cpu_time();
+            ensure_cache_world(world);
+            if (not kbatch_prefetch_.has_hint) return;
+
+            MADNESS_CHECK_THROW(mo_bra_full.size() == mo_ket_full.size(),
+                                "prefetch_next_bra_async: bra/ket size mismatch");
+            const Batch_1D hint = normalize_range(kbatch_prefetch_.next_hint, long(mo_bra_full.size()));
+            MADNESS_CHECK_THROW(hint.begin >= 0 and hint.end >= hint.begin
+                                and hint.end <= long(mo_bra_full.size()),
+                                "prefetch_next_bra_async: invalid next k-batch hint range");
+
+            if (kbatch_prefetch_.has_current and same_range(kbatch_prefetch_.current_range, hint)) return;
+            if (kbatch_prefetch_.has_next    and same_range(kbatch_prefetch_.next_range,    hint)) return;
+
+            vecfuncT pb, pk;
+            pb.reserve(hint.size());
+            pk.reserve(hint.size());
+            for (long g = hint.begin; g < hint.end; ++g) {
+                pb.push_back(copy(world, mo_bra_full[g], false));
+                pk.push_back(copy(world, mo_ket_full[g], false));
+            }
+            // no fence: overlap with current task compute
+            kbatch_prefetch_.next_range = hint;
+            kbatch_prefetch_.next_bra   = std::move(pb);
+            kbatch_prefetch_.next_ket   = std::move(pk);
+            kbatch_prefetch_.has_next   = true;
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+        }
+
+        /// Return pointers to the current k-batch's bra and ket vectors.
+        ///
+        /// Tries prefetch hit / next-promote first; falls back to a synchronous
+        /// cold-path fetch. Mirrors acquire_current_vf in shape but is asymmetric
+        /// in its sync-path inputs: when called from operator(), `bra_batch_local`
+        /// is the BATCHED mo_bra slice (size == k_range.size(), local indices)
+        /// while `mo_ket_full` is the UNBATCHED universe-resident mo_ket vector
+        /// (size == nresult, global indices). The prefetch path is fed by the
+        /// SFINAE hook with both args as unbatched (see prefetch_next_bra_async),
+        /// so a prefetch hit short-circuits before the cold path reads either
+        /// argument.
+        std::pair<const vecfuncT*, const vecfuncT*>
+        acquire_current_kbatch(World& world,
+                               const vecfuncT& bra_batch_local,
+                               const vecfuncT& mo_ket_full,
+                               const Batch_1D& k_range) const {
+            ensure_cache_world(world);
+            // For the prefetch lookup we need a normalized range; we don't yet know
+            // whether the cold path will run, so don't dereference inputs to size them.
+            // k_range is already a partition-produced range with end > 0.
+            const Batch_1D r = normalize_range(k_range, long(mo_ket_full.size()));
+
+            if (kbatch_prefetch_.has_current and same_range(kbatch_prefetch_.current_range, r)) {
+                return {&kbatch_prefetch_.current_bra, &kbatch_prefetch_.current_ket};
+            }
+            if (kbatch_prefetch_.has_next and same_range(kbatch_prefetch_.next_range, r)) {
+                // promote next -> current. Do not fence here; let downstream
+                // function-kernel calls synchronize as needed.
+                kbatch_prefetch_.current_range = kbatch_prefetch_.next_range;
+                kbatch_prefetch_.current_bra   = std::move(kbatch_prefetch_.next_bra);
+                kbatch_prefetch_.current_ket   = std::move(kbatch_prefetch_.next_ket);
+                kbatch_prefetch_.has_current = true;
+                kbatch_prefetch_.next_bra.clear();
+                kbatch_prefetch_.next_ket.clear();
+                kbatch_prefetch_.has_next = false;
+                kbatch_prefetch_.next_range = Batch_1D();
+                return {&kbatch_prefetch_.current_bra, &kbatch_prefetch_.current_ket};
+            }
+
+            // Cold path: synchronous fetch.
+            // bra side: range-for over the batched local vector (size matches r.size()).
+            // ket side: index into the full vector by global index.
+            const double cpu0 = process_cpu_time();
+            MADNESS_CHECK_THROW(long(bra_batch_local.size()) == r.size(),
+                                "acquire_current_kbatch cold path: bra batch size mismatch with k-range");
+            MADNESS_CHECK_THROW(r.begin >= 0 and r.end <= long(mo_ket_full.size()),
+                                "acquire_current_kbatch cold path: k-range out of mo_ket bounds");
+            vecfuncT pb, pk;
+            pb.reserve(r.size());
+            pk.reserve(r.size());
+            for (long local = 0; local < r.size(); ++local) {
+                pb.push_back(copy(world, bra_batch_local[local], false));
+                pk.push_back(copy(world, mo_ket_full[r.begin + local], false));
+            }
+            world.gop.fence();
+            const double cpu1 = process_cpu_time();
+            add_owner_fetch_time(cpu0, cpu1);
+            kbatch_prefetch_.current_range = r;
+            kbatch_prefetch_.current_bra   = std::move(pb);
+            kbatch_prefetch_.current_ket   = std::move(pk);
+            kbatch_prefetch_.has_current   = true;
+            return {&kbatch_prefetch_.current_bra, &kbatch_prefetch_.current_ket};
+        }
+
+        void release_finished_kbatch(const Batch_1D& k_range) const {
+            if (not use_row_owner_algorithm()) return;
+            if (kbatch_prefetch_.has_current and same_range(kbatch_prefetch_.current_range, k_range)) {
+                const bool keep_current_for_next = kbatch_prefetch_.has_hint
+                        and hint_matches_range(kbatch_prefetch_.next_hint, k_range);
+                if (not keep_current_for_next) {
+                    kbatch_prefetch_.current_bra.clear();
+                    kbatch_prefetch_.current_ket.clear();
+                    kbatch_prefetch_.has_current = false;
+                    kbatch_prefetch_.current_range = Batch_1D();
+                }
+            }
+            if (kbatch_prefetch_.has_next) {
+                const bool keep_next = kbatch_prefetch_.has_hint
+                        and hint_matches_range(kbatch_prefetch_.next_hint, kbatch_prefetch_.next_range);
+                if (not keep_next) {
+                    kbatch_prefetch_.next_bra.clear();
+                    kbatch_prefetch_.next_ket.clear();
+                    kbatch_prefetch_.has_next = false;
+                    kbatch_prefetch_.next_range = Batch_1D();
+                }
+            }
+        }
+
         void cleanup() override {
             clear_local_caches();
             Kf_local_.clear();
@@ -1137,6 +1441,48 @@ private:
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
             const double t_op_start = wall_time();
+
+            // -------- small_memory_mt_owner: row-owner asymmetric branch --------
+            // For this algorithm each rank exclusively owns one i-batch (= vf_range).
+            // The held i-batch is fetched once per subworld into held_vf_cache_ and
+            // reused across all tasks. The k-batch (= mo_bra + mo_ket paired by inner
+            // index = bra_range) rotates task-by-task and is prefetched by the
+            // framework's set_next_bra_hint / prefetch_next_bra_async hooks.
+            if (use_row_owner_algorithm()) {
+                const bool kbatch_prefetch_hit = kbatch_prefetch_.has_next
+                    and same_range(kbatch_prefetch_.next_range, normalize_range(bra_range, long(bra_batch.size())));
+
+                // Held i-batch (vf): one-shot fetch into held_vf_cache_; cached by global vf index.
+                vecfuncT vf_local = fetch_batch_with_cache(world, vf_batch, vf_range, held_vf_cache_);
+                const double t_vf_done = wall_time();
+
+                // Rotating k-batch: try prefetch state, else synchronous fetch from universe.
+                auto [bra_k_ptr, ket_k_ptr] = acquire_current_kbatch(world, bra_batch, vket, bra_range);
+                const double t_k_done = wall_time();
+
+                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix_smallmem(
+                        world, *ket_k_ptr, *bra_k_ptr, vf_local);
+                const double t_compute_end = wall_time();
+                add_owner_compute_wall_time(t_k_done, t_compute_end);
+
+                for (int i = vf_range.begin; i < vf_range.end; ++i) {
+                    Kf[i] += resultcolumn[i - vf_range.begin];
+                }
+
+                release_finished_kbatch(bra_range);
+
+                if (world.rank() == 0) {
+                    print("OVERLAP_OP row_owner kbatch_prefetch_hit=", int(kbatch_prefetch_hit),
+                          " col=[", vf_range.begin, ",", vf_range.end,
+                          ") row=[", bra_range.begin, ",", bra_range.end,
+                          ") vf_fetch=", t_vf_done - t_op_start,
+                          " k_fetch=", t_k_done - t_vf_done,
+                          " compute=", t_compute_end - t_k_done);
+                }
+                return Kf;
+            }
+            // -------- end row-owner branch --------
+
             // detect prefetch hit: vf_prefetch_.has_next matching this vf_range means
             // the previous task's run() pre-fetched our column batch
             const bool prefetch_hit = use_owner_aware_fetch()
@@ -1166,6 +1512,7 @@ private:
                     resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, *bra_work, *vf_work);
                 }
                 const double t_compute_end = wall_time();
+                add_owner_compute_wall_time(t_ket_done, t_compute_end);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultcolumn[i - vf_range.begin];}
@@ -1189,6 +1536,7 @@ private:
                     resultpair = compute_offdiagonal_batch_in_symmetric_matrix(world, vket, *bra_work, *vf_work);
                 }
                 const double t_compute_end = wall_time();
+                add_owner_compute_wall_time(t_ket_done, t_compute_end);
                 auto& resultcolumn = resultpair.first;
                 auto& resultrow = resultpair.second;
 
@@ -1213,6 +1561,7 @@ private:
                 const double t_ket_done = wall_time();
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, *bra_work, *vf_work);
                 const double t_compute_end = wall_time();
+                add_owner_compute_wall_time(t_ket_done, t_compute_end);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
 
@@ -1323,6 +1672,77 @@ private:
             const double cpu1 = process_cpu_time();
             add_owner_compute_time(cpu0, cpu1);
             return result;
+        }
+
+        /// Small-memory asymmetric tile kernel for small_memory_mt_owner.
+        ///
+        /// Computes the contribution of one k-batch (size n, the rotating inner-sum
+        /// dimension) into the held i-batch (size m, the result/row dimension):
+        ///
+        ///     resultcolumn[i] = \sum_{k in k-batch} mo_ket[k] \cdot P( mo_bra[k] * vf[i] )
+        ///
+        /// Memory: holds m psif functions at a time (vs m*n for compute_K_tile).
+        /// Iteration is over the k dimension so each psif vector spans only the held m.
+        ///
+        /// State contract: bra_batch / ket_batch / vf_batch are pre-staged in redundant
+        /// state with tree norms by ExchangeImpl::operator() (see make_redundant in the
+        /// redundant branch there). We therefore pass do_make_redundant=false to both
+        /// mul_sparse calls and skip the per-iteration make_redundant + fence pair that
+        /// the default would otherwise issue. psif is reset to redundant after apply +
+        /// truncate so it's valid input for the second mul_sparse. mul_tol*0.1 matches
+        /// the tighter screening used by K_small_memory; important for larger systems.
+        vecfuncT compute_batch_in_asymmetric_matrix_smallmem(
+                World& subworld,
+                const vecfuncT& ket_batch,       // size n (paired with bra by inner-sum index)
+                const vecfuncT& bra_batch,       // size n
+                const vecfuncT& vf_batch) const  // size m (held i-batch)
+        {
+            const double cpu0 = process_cpu_time();
+            const long n = static_cast<long>(bra_batch.size());
+            const long m = static_cast<long>(vf_batch.size());
+            MADNESS_CHECK_THROW(ket_batch.size() == bra_batch.size(),
+                                "smallmem_mt_owner: ket/bra batch size mismatch");
+
+            vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, m);
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+
+            for (long k = 0; k < n; ++k) {
+                // psif[i] = bra[k] * vf[i]. Inputs are already redundant (universe-side).
+                double cpu_phase0 = process_cpu_time();
+                vecfuncT psif = mul_sparse(subworld, bra_batch[k], vf_batch, mul_tol*0.1, true, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_mt_owner asym k=", k, " psif.size()=", psif.size());
+                }
+                truncate(subworld, psif);
+                double cpu_phase1 = process_cpu_time();
+                mul1_timer += long((cpu_phase1 - cpu_phase0) * 1000l);
+
+                cpu_phase0 = process_cpu_time();
+                psif = apply(subworld, *poisson.get(), psif);
+                truncate(subworld, psif);
+                cpu_phase1 = process_cpu_time();
+                apply_timer += long((cpu_phase1 - cpu_phase0) * 1000l);
+
+                // apply + truncate leave psif in compressed state; convert to redundant
+                // (compress(redundant, ...) computes the tree norms as part of the
+                // conversion) so it's a valid input for the second mul_sparse.
+                cpu_phase0 = process_cpu_time();
+                make_redundant(subworld, psif, true);
+
+                // update[i] = ket[k] * psif[i]; accumulate into resultcolumn.
+                vecfuncT update = mul_sparse(subworld, ket_batch[k], psif, mul_tol*0.1, true, false);
+                if (subworld.rank() == 0) {
+                    print("smallmem_mt_owner asym k=", k, " vpsi.size()=", update.size());
+                }
+                compress(subworld, update);
+                gaxpy(subworld, 1.0, resultcolumn, 1.0, update);
+                cpu_phase1 = process_cpu_time();
+                mul2_timer += long((cpu_phase1 - cpu_phase0) * 1000l);
+            }
+
+            const double cpu1 = process_cpu_time();
+            add_owner_compute_time(cpu0, cpu1);
+            return resultcolumn;
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges

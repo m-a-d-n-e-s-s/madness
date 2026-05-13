@@ -1098,6 +1098,40 @@ class MacroTask {
     template<typename Q, typename ArgTuple>
     static void prefetch_next_vf_async_or_noop(Q&, World&, const ArgTuple&, ...) {}
 
+    // Parallel hooks for the rotating "bra" dimension (input[1] / argtuple<1,2>).
+    // Used by Exchange's small_memory_mt_owner where the bra/ket k-batch rotates
+    // task-by-task while vf is held. Tasks that don't implement these methods
+    // get the noop fallback.
+    template<typename Q>
+    static auto set_next_bra_hint_or_noop(Q& task, const Batch_1D& next_hint, const bool has_hint, int)
+        -> decltype(task.set_next_bra_hint(next_hint, has_hint), void()) {
+        task.set_next_bra_hint(next_hint, has_hint);
+    }
+
+    template<typename Q>
+    static void set_next_bra_hint_or_noop(Q&, const Batch_1D&, const bool, ...) {}
+
+    // The SFINAE check for prefetch_next_bra_async cannot reference std::get<1>
+    // and std::get<2> directly: when ArgTuple has fewer than 3 elements (e.g.
+    // MacroTaskCoulomb's 2-tuple), std::get<2> is a HARD error (static_assert
+    // inside std::tuple_element), not SFINAE. So we first guard on the tuple
+    // size with `if constexpr`, and only then do the per-method SFINAE pick.
+    template<typename Q, typename ArgTuple>
+    static auto prefetch_next_bra_async_dispatch(Q& task, World& subworld, const ArgTuple& argtuple, int)
+        -> decltype(task.prefetch_next_bra_async(subworld, std::get<1>(argtuple), std::get<2>(argtuple)), void()) {
+        task.prefetch_next_bra_async(subworld, std::get<1>(argtuple), std::get<2>(argtuple));
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void prefetch_next_bra_async_dispatch(Q&, World&, const ArgTuple&, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static void prefetch_next_bra_async_or_noop(Q& task, World& subworld, const ArgTuple& argtuple, int) {
+        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
+            prefetch_next_bra_async_dispatch(task, subworld, argtuple, 0);
+        }
+    }
+
     template<typename Q, typename ResT>
     static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
         -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
@@ -1476,18 +1510,33 @@ private:
         		}
         		const double t_accumulate_done = wall_time();
 
-        		// after compute + accumulate: issue vf prefetch for the next owned task.
+        		// after compute + accumulate: issue prefetch for the next owned task.
         		// Placed AFTER operator() (not before) so the current task can consume the
         		// prefetch issued by the PREVIOUS task's run() before this task's hooks
         		// overwrite the static prefetch state.
+        		//
+        		// Two parallel hook families:
+        		//   - vf-side  (input[0] / argtuple<0>): used by small_memory_symmetric_mt_owner
+        		//                                       which rotates the column / vf dimension.
+        		//   - bra-side (input[1] / argtuple<1,2>): used by small_memory_mt_owner which
+        		//                                          rotates the row / bra+ket dimension.
+        		// Tasks that don't define a given pair get the SFINAE noop fallback, so
+        		// algorithms that only need one family pay nothing for the other.
         		{
         		    auto [next_elem, next_ptr] = find_next_owned_task(taskq, element);
         		    if (next_ptr and not next_ptr->task.batch.input.empty()) {
         		        set_next_vf_hint_or_noop(task, next_ptr->task.batch.input[0], true, 0);
+        		        if (next_ptr->task.batch.input.size() > 1) {
+        		            set_next_bra_hint_or_noop(task, next_ptr->task.batch.input[1], true, 0);
+        		        } else {
+        		            set_next_bra_hint_or_noop(task, Batch_1D(), false, 0);
+        		        }
         		    } else {
         		        set_next_vf_hint_or_noop(task, Batch_1D(), false, 0);
+        		        set_next_bra_hint_or_noop(task, Batch_1D(), false, 0);
         		    }
         		    prefetch_next_vf_async_or_noop(task, subworld, argtuple, 0);
+        		    prefetch_next_bra_async_or_noop(task, subworld, argtuple, 0);
         		}
         		const double t_prefetch_issue_done = wall_time();
 
