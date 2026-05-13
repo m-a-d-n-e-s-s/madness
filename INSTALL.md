@@ -107,6 +107,11 @@ The following CMake cache variables turn features on and off.
 * MADNESS_BUILD_LIBRARIES_ONLY --- whether to build the MADNESS libraries only; if `ON`,
       building of numerical components and applications will be disabled and
       the value of `MADNESS_BUILD_MADWORLD_ONLY` ignored [default=`OFF`]
+* MADNESS_WERROR --- treat compiler warnings as errors when compiling MADNESS's
+      own translation units. The flag is applied PRIVATE-ly to MADNESS sources
+      only and does not propagate to consumers of an installed MADNESS package.
+      Supported with GNU, Clang, AppleClang, and IntelLLVM compilers; ignored
+      with a warning on others. Enabled in CI. [default=`OFF`]
 
 ## External libraries
 

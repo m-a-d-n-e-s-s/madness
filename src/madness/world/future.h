@@ -611,7 +611,14 @@ namespace madness {
                 // if the task setting f is gone *and* this is the only ref, move out
                 // to prevent a race with another thread that will make a copy of this Future while we are moving the data
                 // atomically swap f with nullptr, then check use count of f's copy
-                auto fcopy = std::atomic_exchange(&f, {});  // N.B. deprecated in C++20! need to convert f to std::atomic<std::shared_ptr<FutureImpl>>
+                MADNESS_PRAGMA_GCC(diagnostic push)
+                MADNESS_PRAGMA_GCC(diagnostic ignored "-Wdeprecated-declarations")
+                MADNESS_PRAGMA_CLANG(diagnostic push)
+                MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wdeprecated-declarations")
+                // FIXME: deprecated in C++20! need to convert f to std::atomic<std::shared_ptr<FutureImpl>>
+                auto fcopy = std::atomic_exchange(&f, {});
+                MADNESS_PRAGMA_CLANG(diagnostic pop)
+                MADNESS_PRAGMA_GCC(diagnostic pop)
                 // f is now null and no new ref to the value can be created
                 if (fcopy.use_count() == 1)
                     return std::move(value_ref);
