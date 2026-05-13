@@ -14,9 +14,13 @@ static real_convolution_6d make_gscreen(World& world, const Info& info, size_t k
     return Gscreen;
 }
 
-/// Precompute Q12 f12|ij> for every active bra pair (i,j).
-/// Returned flat vector is indexed as bras[(i-freeze)*nact + (j-freeze)].
-/// mo_bra already carries the nemo R² factor.
+/// Precompute Q12† f12|ij_bra> for every active bra pair (i,j), where ij_bra
+/// uses mo_bra (R²·φ).  Using Q12† (mo_ket/mo_bra swapped relative to the ket-
+/// side Q12) is required because Q12 acts here from the right on the bra:
+///   <ij|f12 Q12|V> = inner(Q12† f12|ij_bra>, V)
+/// With Q12† the subtracted overlap <φₘφₙ|f12|R²φᵢR²φⱼ> correctly matches
+/// the R²-weighted projectors without double-counting R² factors.
+/// Indexed as bras[(i-freeze)*nact + (j-freeze)].
 using BraPairs = std::vector<std::vector<CCPairFunction<double,6>>>;
 
 static BraPairs precompute_bras(
@@ -69,10 +73,10 @@ static Tensor<double> compute_BXX(
 
     auto f12_op = CCConvolutionOperatorPtr<double,3>(world, OT_F12, info.parameters);
 
-    StrongOrthogonalityProjector<double,3> Q12(world);
-    Q12.set_spaces(info.mo_bra, info.mo_ket, info.mo_bra, info.mo_ket);
+    StrongOrthogonalityProjector<double,3> Q12_dagger(world);
+    Q12_dagger.set_spaces(info.mo_ket, info.mo_bra, info.mo_ket, info.mo_bra);
 
-    auto bras = precompute_bras(freeze, nocc, Q12, f12_op, info.mo_bra);
+    auto bras = precompute_bras(freeze, nocc, Q12_dagger, f12_op, info.mo_bra);
 
     Tensor<double> B(nact, nact, nact, nact);
     B = 0.0;
@@ -190,6 +194,53 @@ Tensor<double> BMatrix::compute(World& world, const Info& info) {
                        i, j, i, j, B(i-freeze, j-freeze, i-freeze, j-freeze));
     }
     return B;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+double BMatrix::compute_hylleraas_pair(World& world, const Info& info,
+                                        int i, int j,
+                                        const real_function_6d& u_ij) {
+    auto g12_op = CCConvolutionOperatorPtr<double,3>(world, OT_G12, info.parameters);
+    auto f12_op = CCConvolutionOperatorPtr<double,3>(world, OT_F12, info.parameters);
+    auto Gscreen = make_gscreen(world, info, i, j);
+
+    // c_ij = Ue|ij> − [K,f12]|ij>  (stored in two separate pieces for sign control)
+    auto phi_i   = CCFunction<double,3>(info.mo_ket[i], i, HOLE);
+    auto phi_j   = CCFunction<double,3>(info.mo_ket[j], j, HOLE);
+    auto Ue_ij   = CCPotentials::apply_Ue  (world, phi_i, phi_j, info, &Gscreen);
+    auto KffK_ij = CCPotentials::apply_KffK(world, phi_i, phi_j, info, &Gscreen);
+
+    // Precompute Q12† f12|ij_bra>  — reused by Terms 2 and 4
+    StrongOrthogonalityProjector<double,3> Q12d(world);
+    Q12d.set_spaces(info.mo_ket, info.mo_bra, info.mo_ket, info.mo_bra);
+    CCPairFunction<double,6> f12_bra(f12_op, info.mo_bra[i], info.mo_bra[j]);
+    auto Qf12_bra = madness::apply(Q12d, f12_bra);   // vector<CCPairFunction>
+
+    using vCCPF = std::vector<CCPairFunction<double,6>>;
+    vCCPF u_vec  {CCPairFunction<double,6>(u_ij)};
+    vCCPF Ue_vec {CCPairFunction<double,6>(Ue_ij)};
+
+    // Term 1 + hc:  2 * <ij|g12|u_ij>  (real orbitals, hc = forward term)
+    vCCPF g12_bra{CCPairFunction<double,6>(g12_op, info.mo_bra[i], info.mo_bra[j])};
+    double term1 = 2.0 * inner(g12_bra, u_vec);
+
+    // Term 2:  <ij|g12 Q f12|ij>  = <ij|f12 Q g12|ij>  (real orbitals)
+    //          = inner(Q12† f12|ij_bra>, g12|ij_ket>)
+    vCCPF g12_ket{CCPairFunction<double,6>(g12_op, info.mo_ket[i], info.mo_ket[j])};
+    double term2 = inner(Qf12_bra, g12_ket);
+
+    // Term 3:  −<u_ij|c_ij> = −<u|Ue|ij> + <u|[K,f12]|ij>
+    double term3 = -inner(u_vec, Ue_vec) + inner(u_vec, KffK_ij);
+
+    // Term 4:  −<ij|f12 Q|c_ij> = −inner(Q12† f12|ij_bra>, Ue|ij>) + inner(..., KffK|ij>)
+    double term4 = -inner(Qf12_bra, Ue_vec) + inner(Qf12_bra, KffK_ij);
+
+    if (world.rank() == 0)
+        printf("  Hylleraas(%d,%d): V+hc=%+.8f  gQf=%+.8f  uc=%+.8f  fQc=%+.8f  total=%+.8f\n",
+               i, j, term1, term2, term3, term4, term1+term2+term3+term4);
+
+    return term1 + term2 + term3 + term4;
 }
 
 } // namespace madness

@@ -183,7 +183,7 @@ if(BUILD_TESTING)
 
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
-    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator test_bmatrix)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()

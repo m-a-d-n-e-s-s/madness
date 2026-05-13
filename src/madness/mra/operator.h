@@ -1698,7 +1698,7 @@ namespace madness {
                 // (f12)^2 = (1- slater12)^2  = 1/(4 gamma) (1 - 2 exp(-gamma) + exp(-2 gamma))
                 MADNESS_CHECK(right.info.mu == left.info.mu);
             } else {
-                MADNESS_EXCEPTION("unknown combination of SeparatedConvolutions: feel free to extend in operator.h",1);
+                info.type=OT_UNDEFINED;
             }
             return info;
         }

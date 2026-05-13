@@ -46,6 +46,15 @@ struct BMatrix {
 
     /// X_{ij,kl} = <ij| f12 Q12 f12 |kl>  (pure 3D, no 6D materialization)
     static Tensor<double> compute_X_matrix(World& world, const Info& info);
+
+    /// Hylleraas pair correlation energy for pair (i,j) at convergence:
+    ///   e^{ij} = <ij|g12|u_ij> + hc  +  <ij|g12 Q f12|ij>  -  <u_ij|c_ij>  -  <ij|f12 Q|c_ij>
+    /// where  c_ij = (Ue - [K,f12])|ij>  and hc = <u_ij|g12|ij> (= forward term for real orbitals).
+    /// i,j are absolute orbital indices (freeze offset NOT subtracted).
+    /// u_ij is the converged 6D MP2 pair correction function.
+    static double compute_hylleraas_pair(World& world, const Info& info,
+                                          int i, int j,
+                                          const real_function_6d& u_ij);
 };
 
 } // namespace madness

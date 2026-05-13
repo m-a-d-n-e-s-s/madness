@@ -602,9 +602,9 @@ public:
         // the generic outer-product construction for SepConvs built from
         // raw (c, α) tensors whose OperatorInfo type is UNDEFINED.
         auto build_f12sq = [&]() -> SeparatedConvolution<T,LDIM> {
-            try {
+            if (SeparatedConvolution<T,LDIM>::can_combine(f12a, f12a)) {
                 return SeparatedConvolution<T,LDIM>::combine(f12a, f12a);
-            } catch (const madness::MadnessException&) {
+            } else {
                 MADNESS_CHECK_THROW(f12a.stored_coeffs.size() > 0,
                     "LRFunctorF12::norm2: cannot combine f12 with itself and no "
                     "stored (c, α) available for generic fallback");
