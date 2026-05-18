@@ -51,6 +51,8 @@ namespace madness {
 
     // get the memory usage of the current process in byte
     long get_memory_usage();
+
+    bool nearlyEqual(double a, double b, double epsilon = 1e-9);
 }
 
 #endif // MADNESS_MISC_MISC_H__INCLUDED

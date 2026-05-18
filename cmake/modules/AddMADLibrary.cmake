@@ -21,8 +21,10 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       $<TARGET_PROPERTY:MAD${_name},COMPILE_DEFINITIONS>)
   target_include_directories(MAD${_name}-obj PRIVATE 
       $<TARGET_PROPERTY:MAD${_name},INCLUDE_DIRECTORIES>)
-  target_compile_options(MAD${_name}-obj PRIVATE 
+  target_compile_options(MAD${_name}-obj PRIVATE
       $<TARGET_PROPERTY:MAD${_name},COMPILE_OPTIONS>)
+  # PRIVATE: warning flags must not propagate to consumers of the installed MAD${_name}.
+  target_link_libraries(MAD${_name}-obj PRIVATE madness_internal_warnings)
 
   # target-common setup
   add_custom_target(install-madness-${_name}

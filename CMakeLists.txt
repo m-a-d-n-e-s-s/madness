@@ -93,6 +93,8 @@ if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
   redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
 endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
+redefaultable_option(MADNESS_WERROR "Treat compiler warnings as errors when compiling MADNESS's own translation units (does not propagate to consumers of installed MADNESS targets)" OFF)
+include(MADNESSWarnings)
 
 # Enable optional libraries ====================================================
 
@@ -116,6 +118,7 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
+option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
 
 set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
 check_cxx_source_compiles(
@@ -675,6 +678,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/pcm.cmake)
   include(external/integratorxx.cmake)
 endif ()
+include(external/pybind11.cmake)
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)

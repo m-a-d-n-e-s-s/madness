@@ -153,6 +153,7 @@ int test_opdir(World& world) {
     cell(2,0)=-40; cell(2,1)=40;
     //FunctionDefaults<3>::set_cubic_cell(-20,20);
     FunctionDefaults<3>::set_cell(cell);
+	Displacements<3>::set_width(FunctionDefaults<3>::get_cell_width());
     FunctionDefaults<3>::set_k(8);
     FunctionDefaults<3>::set_thresh(1e-6);
     //FunctionDefaults<3>::set_k(10);
@@ -265,6 +266,7 @@ int testgradG(World& world) {
     const double thresh = 1e-8;
 
     FunctionDefaults<3>::set_cell(cell);
+	Displacements<3>::set_width(FunctionDefaults<3>::get_cell_width());
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_initial_level(3);

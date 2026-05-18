@@ -538,7 +538,7 @@ protected:
 			const double_complex z(xyz[0],xyz[1]);			// z = x + iy
 			const double_complex zbar(xyz[0],-xyz[1]);
 
-			double z_confinement=exp(-0.01*xyz[2]);		// make wf decay in z-direction
+			double z_confinement=exp(-0.01*xyz[2]*xyz[2]);		// make wf decay in z-direction
 			return std::pow(zbar/l,double(m)) * exp(-0.25*zbar*z/(l*l)) * z_confinement;
 		}
 	};
