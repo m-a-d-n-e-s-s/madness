@@ -751,6 +751,7 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
 madness::real_function_6d
 CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+            const LowRankFunction<double,6>& exchange_op,
             const Info& info) {
     const CalcType targetstate=pair.ctype;
     const auto& parameters=info.parameters;
@@ -819,11 +820,11 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     std::vector<CCPairFunction<double,6>> V;
     if (targetstate==CT_MP2) {
         std::vector<std::string> argument={"Ue","KffK"};
-        auto Vreg=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        auto Vreg=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,argument,pair.bsh_eps);
         V=consolidate(apply_in_separated_form(Q12,Vreg));
     } else if (targetstate==CT_CC2) {       // Eq. (42) of Kottmann, JCTC 13, 5945 (2017)
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
-        auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
         V=consolidate(Q12t(Vreg));
     } else if (targetstate==CT_LRCC2) {
         // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
@@ -833,8 +834,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         {
             print_header3("Q12t g~ |x_i t_j + t_i x_j>");
             std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
-            auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
+            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
             V=consolidate(apply_in_separated_form(Q12t,Vreg));
             // apply_G_and_print(V,"functional response");
         }
@@ -842,8 +843,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         if (0) {
             print_header3("[F12,Qt] f12 |x_i t_j + t_i x_j>");
             std::vector<std::string> argument={"comm_F_Qt_f12"};
-            auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
+            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
             // auto Q12V=Q12t(Vreg);
             // apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
         }
@@ -853,7 +854,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             print_header3("dQt g~ |t_i t_j> ");
             const std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
             // const std::vector<std::string> argument={"Ue","KffK","reduced_Fock"};
-            auto Vreg1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            auto Vreg1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
 
             auto tmp=consolidate(dQt_1(Vreg1) + dQt_2(Vreg1));
             V-=tmp;
@@ -868,7 +869,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         if (1) {
             print_header3("[F12, dQt] f12 |t_i t_j>");
             const std::vector<std::string> argument={"comm_F_dQt_f12"};
-            auto tmp=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            auto tmp=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
             tmp=consolidate(tmp);
             V+=tmp;
             // apply_G_and_print(tmp,"commutator projector response");
@@ -1248,11 +1249,12 @@ CCPotentials::apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double
 /// @param[in] gs_singles the converged ground state singles: with   (F - e_i ) |t_i t_j> = | Vtau >
 /// @param[in] ex_singles the converged excited state singles: with (F - e_i - omega) |x_i> = | Vx >
 /// @param[in] info Info structure holding the applied singles potentials Vtau and Vx and reference orbitals
+/// @param exchange_op
 /// @param[out] the regularization potential (unprojected), see equation above
 std::vector<CCPairFunction<double,6>>
     CCPotentials::apply_Vreg(World& world, const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
-                          const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
-                          const Info& info, const std::vector<std::string>& argument, const double bsh_eps) {
+                             const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                             const Info& info, const LowRankFunction<double, 6> exchange_op, const std::vector<std::string>& argument, const double bsh_eps) {
 
     const auto parameters=info.parameters;
     if (parameters.debug() and (world.rank()==0)) {
@@ -1270,7 +1272,7 @@ std::vector<CCPairFunction<double,6>>
     // calculate the regularized potential
     real_function_6d V=real_factory_6d(world);
     std::vector<CCPairFunction<double,6>> V_lowrank;
-    if (exists("KffK")) V_lowrank -= apply_KffK(world,ti,tj,info,&Gscreen);
+    if (exists("KffK")) V_lowrank -= apply_KffK(world,ti,tj,exchange_op,info,&Gscreen);
     if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
     if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
     if (exists("comm_F_Qt_f12")) {
@@ -1649,7 +1651,9 @@ CCPotentials::compare_Ue_matrix_elements(World& world, const CCFunction<double, 
 
 std::vector<CCPairFunction<double,6>>
 CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
-                                                  const Info& info, const real_convolution_6d *Gscreen) {
+                                                  const LowRankFunction<double,6>& exchange_op,
+                                                  const Info& info,
+                                                  const real_convolution_6d *Gscreen) {
 
 
     auto ao=orthonormalize_canonical(info.ao);
@@ -1659,14 +1663,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     ExchangeCommutator ec(ao);
 
     LowRankFunctionParameters lrfparam;
-    lrfparam.set_derived_value("radius",         2.0);
-    lrfparam.set_derived_value("volume_element", 0.2);
-    lrfparam.set_derived_value("tol",            1.e-5);
-    lrfparam.set_derived_value("tempered",       std::vector<double>({1.e-1, 1.e1, 9.0}));
-    lrfparam.set_derived_value("lmax",           2);
-    lrfparam.print("lrf_param");
-
-    std::string algo=info.parameters.get<std::string>("kffk_algo");
+    std::string algo=info.parameters.get<std::string>("kffk_algorithm");
 
     // Score lambda: project Kf, fK, and KffK onto the AO basis and print
     // errors for whichever pieces are present in the result.  Empty
@@ -1696,9 +1693,10 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         double alpha=info.parameters.get<double>("kffk_alpha");
         print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
         {
+            LowRankFunctionParameters lrfparam;
             ExchangeCommutator::SplitAlphaOptions opt;
             opt.alpha_star               = alpha;
-            auto result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, lrfparam, opt);
+            auto result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
             KffK=result.KffK;
             score_full(result, /*include_K2=*/true);
         }

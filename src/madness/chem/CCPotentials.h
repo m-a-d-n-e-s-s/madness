@@ -333,6 +333,7 @@ public:
     static madness::real_function_6d
     make_constant_part_macrotask(World& world, const CCPair& pair,
                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                                 const LowRankFunction<double,6>& exchange_op,
                                  const Info& info);
 
     /// iterate a pair for MP2, CC2, LRCC2 on constant singles
@@ -366,12 +367,13 @@ public:
     /// \f$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> \f$
     /// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
     /// @param[in] tj, second function in the ket ...
+    /// @param exchange_op
     /// @param[in] pointer to bsh operator (in order to screen)
     /// @param[out] the regularization potential (unprojected), see equation above
     std::vector<CCPairFunction<double, 6>>
     static apply_Vreg(World& world, const CCFunction<double, 3>& ti, const CCFunction<double, 3>& tj,
                       const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
-                      const Info& info, const std::vector<std::string>& argument, const double bsh_eps);
+                      const Info& info, LowRankFunction<double, 6> exchange_op, const std::vector<std::string>& argument, const double bsh_eps);
 
     /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
     /// singles equation is: (F-ei)|ti> = - V(ti)
@@ -432,6 +434,7 @@ public:
 
     static std::vector<CCPairFunction<double, 6>>
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+               const LowRankFunction<double,6>& exchange_op,
                const Info& info, const real_convolution_6d* Gscreen);
 
     static void

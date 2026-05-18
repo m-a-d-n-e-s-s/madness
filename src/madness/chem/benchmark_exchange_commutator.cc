@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
           FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
 
-    LowRankFunctionParameters lrfparam;
+    LowRankFunctionParameters lrfparam(world,parser);
     lrfparam.set_derived_value("f12type", std::string("slater"));
     lrfparam.read_and_set_derived_values(world, parser, "grid");
     lrfparam.set_derived_value("radius",         2.5);
@@ -298,8 +298,9 @@ int main(int argc, char **argv) {
                 print("\n========== G [K, f] |ij> diagnostic — split-alpha LRF ==========");
                 ExchangeCommutator::SplitAlphaOptions sa_opt;
                 sa_opt.alpha_star=100.0;
+                LowRankFunction<double,6> exchange_op=ExchangeCommutator::compute_lrf_exchange_operator(world, info, sa_opt, lrfparam);
                 auto kffk_lrf = ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-                        world, phi_i, phi_j, info, lrfparam, sa_opt);
+                        world, phi_i, phi_j, info, exchange_op, lrfparam, sa_opt);
                 score_full(kffk_lrf, /*include_K2=*/true);  // print Kf/fK errors for reference
 
                 auto GKf_lrf_cc = apply_G_to_pairs(kffk_lrf.Kf, G6d);

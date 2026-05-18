@@ -140,7 +140,8 @@ Tensor<double> BMatrix::compute_B_KffK(World& world, const Info& info) {
         auto phi_k   = CCFunction<double,3>(info.mo_ket[k], k, HOLE);
         auto phi_l   = CCFunction<double,3>(info.mo_ket[l], l, HOLE);
         auto Gscreen = make_gscreen(world, info, k, l);
-        return CCPotentials::apply_KffK(world, phi_k, phi_l, info, &Gscreen);
+        LowRankFunction<double,6> exchange_op;
+        return CCPotentials::apply_KffK(world, phi_k, phi_l, exchange_op, info, &Gscreen);
     }, -1.0);
 }
 
@@ -253,7 +254,8 @@ double BMatrix::compute_hylleraas_pair(World& world, const Info& info,
     auto phi_i   = CCFunction<double,3>(info.mo_ket[i], i, HOLE);
     auto phi_j   = CCFunction<double,3>(info.mo_ket[j], j, HOLE);
     auto Ue_ij   = CCPotentials::apply_Ue  (world, phi_i, phi_j, info, &Gscreen);
-    auto KffK_ij = CCPotentials::apply_KffK(world, phi_i, phi_j, info, &Gscreen);
+    LowRankFunction<double,6> exchange_op;
+    auto KffK_ij = CCPotentials::apply_KffK(world, phi_i, phi_j, exchange_op, info, &Gscreen);
 
     // Precompute Q12† f12|ij_bra>  — reused by Terms 2 and 4
     StrongOrthogonalityProjector<double,3> Q12d(world);

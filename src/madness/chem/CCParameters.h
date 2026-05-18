@@ -88,8 +88,9 @@ namespace madness {
             // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
             initialize < std::vector<size_t>>
             ("excitations", {}, "vector containing the excitations");
-            initialize<std::string>("KffK_algo", "lrf_split_alpha", "algorithm for KffK commutator", {"lrf_split_alpha", "lrf_direct", "6d"});
+            initialize<std::string>("KffK_algorithm", "lrf_split_alpha", "algorithm for KffK commutator", {"lrf_split_alpha", "lrf_direct", "6d"});
             initialize<double>("KffK_alpha", 100.0,"max exponent in g12");
+            initialize<double>("KffK_volume_element", 0.2,"volume element for exchange commutator");
         }
 
         void set_derived_values();
@@ -185,6 +186,11 @@ namespace madness {
         std::vector<std::size_t> excitations() const { return get<std::vector<std::size_t>>("excitations"); }
 
         double gamma() const {return get<double>("corrfac_gamma");}
+
+        double kffk_alpha() const { return get<double>("kffk_alpha");}
+        double kffk_volume_element() const { return get<double>("kffk_volume_element");}
+
+        std::string kffk_algorithm() const { return get<std::string>("kffk_algorithm"); }
 
         /// print out the parameters
         void information(World& world) const;

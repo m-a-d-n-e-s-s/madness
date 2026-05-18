@@ -192,35 +192,17 @@ ExchangeCommutator::apply_KffK_6d(
     return out;
 }
 
+LowRankFunction<double,6>
+ExchangeCommutator::compute_lrf_exchange_operator(
+    World& world,
+    const Info& info,
+    const SplitAlphaOptions& opt,
+    const LowRankFunctionParameters& lrfparam) {
 
-// ---------------------------------------------------------------------------
-//  Full 6D split-α assembly — loops over mo_ket, produces a KffKResult
-//  that diagnose/print_report can consume.
-// ---------------------------------------------------------------------------
+    constexpr std::size_t LDIM=3;
+    constexpr std::size_t NDIM=6;
 
-ExchangeCommutator::KffKResult
-ExchangeCommutator::apply_KffK_lowrank_split_alpha(
-        World& world,
-        const CCFunction<double, 3>& phi_i,
-        const CCFunction<double, 3>& phi_j,
-        const Info& info,
-        const LowRankFunctionParameters& lrfparam,
-        const SplitAlphaOptions& opt)
-{
-    constexpr std::size_t LDIM = 3;
-    constexpr std::size_t NDIM = 2 * LDIM;
-    KffKResult out;
-    out.algo = "lrf-split-alpha";
     timer t(world);
-    wall_timer t1(world);
-
-    const double thresh = FunctionDefaults<LDIM>::get_thresh();
-    const bool symmetric = (phi_i == phi_j);
-
-    auto f12_cc = CCConvolutionOperatorPtr<double, LDIM>(
-            world, OT_F12, info.parameters);
-    auto f12ptr = f12_cc->get_op();
-
     // K̂ kernel (Coulomb 1/r) via OperatorInfo; small-α subset built below.
     GFit<double, LDIM> fit = GFit<double, LDIM>::CoulombFit(
             opt.lo, opt.hi, opt.eps_gfit, false);
@@ -237,6 +219,7 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
             as.push_back(a_all[mu]);
         }
     }
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
     const long Mk = cs.size();
     Tensor<double> c_t(Mk), a_t(Mk);
     for (long mu = 0; mu < Mk; ++mu) { c_t[mu] = cs[mu]; a_t[mu] = as[mu]; }
@@ -263,7 +246,40 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
                .project(functor, FunctionDefaults<6>::get_thresh(), 0);
     lrf_exchange_op.print_size("LRF of exchange kernel");
     t.tag("construct LRF of exchange kernel");
+    return lrf_exchange_op;
+}
 
+// ---------------------------------------------------------------------------
+//  Full 6D split-α assembly — loops over mo_ket, produces a KffKResult
+//  that diagnose/print_report can consume.
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::KffKResult
+ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+        World& world,
+        const CCFunction<double, 3>& phi_i,
+        const CCFunction<double, 3>& phi_j,
+        const Info& info,
+        const LowRankFunction<double,6>& exchange_op,
+        const LowRankFunctionParameters& lrfparam,
+        const SplitAlphaOptions& opt)
+{
+    constexpr std::size_t LDIM = 3;
+    constexpr std::size_t NDIM = 2 * LDIM;
+    KffKResult out;
+    out.algo = "lrf-split-alpha";
+    timer t(world);
+    wall_timer t1(world);
+
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    const bool symmetric = (phi_i == phi_j);
+
+    auto f12_cc = CCConvolutionOperatorPtr<double, LDIM>(
+            world, OT_F12, info.parameters);
+    auto f12ptr = f12_cc->get_op();
+
+    auto lrf_exchange_op = exchange_op;
+    if (lrf_exchange_op.get_g().size()==0) lrf_exchange_op=compute_lrf_exchange_operator(world, info, opt, lrfparam);
     auto& gvec = lrf_exchange_op.g;
     auto& hvec = lrf_exchange_op.h;
     double tol=FunctionDefaults<LDIM>::get_thresh();

@@ -1309,6 +1309,7 @@ public:
 
     typedef std::tuple<const std::vector<CCPair>&,
                        const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       const LowRankFunction<double,6>&,
                        const madness::Info&> argtupleT;
 
     using resultT = std::vector<real_function_6d>;
@@ -1336,6 +1337,7 @@ public:
     resultT operator() (const std::vector<CCPair>& pair,
         const std::vector<Function<double,3>>& gs_singles,
         const std::vector<Function<double,3>>& ex_singles,
+        const LowRankFunction<double,6>& exchange_op,
         const Info& info) const;
 };
 

@@ -107,6 +107,17 @@ struct ExchangeCommutator {
         bool medium_use_6d     = false;
     };
 
+
+    /// compute the LRF of the exchange operator: K(r,r') = \sum_k k(r)g(r,r') R2(r') k(r')
+    ///
+    /// apply K to a function f via: Kf(r) = inner(K,f,p2,p1);
+    /// note K is not self-adjoint due to the ncf factor
+    static LowRankFunction<double,6> compute_lrf_exchange_operator(
+            World& world,
+            const Info& info,
+            const SplitAlphaOptions& opt,
+            const LowRankFunctionParameters& lrfparam);
+
     // ---------------------------------------------------------------------
     // Top-level entry points — each produces a KffKResult wrapping one of
     // the four existing algorithm paths.
@@ -141,6 +152,7 @@ struct ExchangeCommutator {
             const CCFunction<double, 3>& phi_i,
             const CCFunction<double, 3>& phi_j,
             const Info& info,
+            const LowRankFunction<double,6>& exchange_op,
             const LowRankFunctionParameters& lrfparam,
             const SplitAlphaOptions& opt);
 

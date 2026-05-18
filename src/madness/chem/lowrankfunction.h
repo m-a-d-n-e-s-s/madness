@@ -8,6 +8,7 @@
 
 #include<madness/mra/mra.h>
 #include<madness/mra/vmra.h>
+#include<madness/mra/macrotaskq.h>
 #include<madness/world/timing_utilities.h>
 #include<madness/chem/electronic_correlation_factor.h>
 #include<madness/chem/IntegratorXX.h>
@@ -536,7 +537,7 @@ private:
     std::vector<Function<T,LDIM>> a,b;   ///< the lo-dim functions
 public:
 
-    World& world() const override {return f12->get_world();}
+    [[nodiscard]] World& world() const override {return f12->get_world();}
 
     /// access the F12 operator
     const std::shared_ptr<SeparatedConvolution<T,LDIM>>& get_f12() const { return f12; }
@@ -549,39 +550,81 @@ public:
         for (auto& f : a) if (f.is_initialized()) f.set_thresh(thresh);
         for (auto& f : b) if (f.is_initialized()) f.set_thresh(thresh);
     }
+
+    /// macrotask for \sum_ia premultiply_ia * f12 * postmultiply_ia * rhs, batched over rhs
+    class MacroTaskLRFInner : public MacroTaskOperationBase {
+    public:
+        MacroTaskLRFInner() {
+            name = "MacroTaskLRFInner";
+            partitioner->set_max_batch_size(30);
+        }
+
+        // rhs is batched (first vector); a, b are passed whole; f12 is passed via its tensors
+        typedef std::tuple<
+            const std::vector<Function<T,LDIM>>&,  // rhs  – batched
+            const std::vector<Function<T,LDIM>>&,  // a    – whole
+            const std::vector<Function<T,LDIM>>&,  // b    – whole
+            const Tensor<T>&,                       // f12 stored_coeffs
+            const Tensor<double>&,                  // f12 stored_exponents
+            const double&,                          // f12 info.lo
+            const double&,                          // f12 info.thresh
+            const double&,                          // f12 info.mu
+            const bool&                             // p1.is_first()
+        > argtupleT;
+
+        using resultT = std::vector<Function<T,LDIM>>;
+
+        resultT allocator(World& world, const argtupleT& argtuple) const {
+            std::size_t n = std::get<0>(argtuple).size();
+            return zero_functions_compressed<T,LDIM>(world, n);
+        }
+
+        resultT operator()(
+                const std::vector<Function<T,LDIM>>& rhs_batch,
+                const std::vector<Function<T,LDIM>>& a,
+                const std::vector<Function<T,LDIM>>& b,
+                const Tensor<T>& coeff,
+                const Tensor<double>& expnt,
+                const double lo,
+                const double thresh,
+                const double mu,
+                const bool p1_is_first) const {
+            World& world = rhs_batch.front().world();
+            // reconstruct operator from tensors so every task has identical numerics
+            auto f12_local = SeparatedConvolution<T,LDIM>(world, coeff, expnt, lo, thresh,
+                    FunctionDefaults<LDIM>::get_bc().lattice_range(),
+                    FunctionDefaults<LDIM>::get_k(), false, mu);
+
+            auto tmp2 = zero_functions_compressed<T,LDIM>(world, rhs_batch.size());
+            if (a.empty()) {
+                tmp2 = apply(world, f12_local, rhs_batch);
+            } else {
+                for (std::size_t ia = 0; ia < a.size(); ++ia) {
+                    const auto& premultiply  = p1_is_first ? a[ia] : b[ia];
+                    const auto& postmultiply = p1_is_first ? b[ia] : a[ia];
+                    auto tmp = copy(world, rhs_batch);
+                    if (premultiply.is_initialized())  tmp  = rhs_batch * premultiply;
+                    auto tmp1 = apply(world, f12_local, tmp);
+                    if (postmultiply.is_initialized()) tmp1 = tmp1 * postmultiply;
+                    tmp2 += tmp1;
+                }
+            }
+            return truncate(tmp2,thresh*0.3);
+        }
+    };
+
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
                                         const particle<LDIM> p1, const particle<LDIM> p2) const override {
-
-        std::vector<Function<T,LDIM>> result;
         // functor is now \sum_i a_i(1) b_i(2) f12
         // result(1) = \sum_i \int a_i(1) f(1,2) b_i(2) rhs(2) d2
         //            = \sum_i a_i(1) \int f(1,2) b_i(2) rhs(2) d2
-        World& world=rhs.front().world();
-
-        const int nbatch=30;
-        for (size_t i=0; i<rhs.size(); i+=nbatch) {
-            std::vector<Function<T,LDIM>> rhs_batch;
-            auto begin= rhs.begin()+i;
-            auto end= size_t(i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
-            std::copy(begin,end, std::back_inserter(rhs_batch));
-            auto tmp2= zero_functions_compressed<T,LDIM>(world,rhs_batch.size());
-
-            if (a.size()==0) tmp2=apply(world,*(f12),rhs_batch);
-
-            for (size_t ia=0; ia<a.size(); ia++) {
-                auto premultiply= p1.is_first() ? a[ia] : b[ia];
-                auto postmultiply= p1.is_first() ? b[ia] : a[ia];
-
-                auto tmp=copy(world,rhs_batch);
-                if (premultiply.is_initialized()) tmp=rhs_batch*premultiply;
-                auto tmp1=apply(world,*(f12),tmp);
-                if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
-                tmp2+=tmp1;
-            }
-
-            for (auto& t : tmp2) result.push_back(t);
-        }
-        return result;
+        World& world = rhs.front().world();
+        MacroTaskLRFInner task_op;
+        MacroTask mt(world, task_op);
+        return mt(rhs, a, b,
+                  f12->stored_coeffs, f12->stored_exponents,
+                  f12->info.lo, f12->info.thresh, f12->info.mu,
+                  p1.is_first());
     }
 
     typename Tensor<T>::scalar_type norm2() const override {
@@ -666,8 +709,8 @@ public:
 template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
 struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     LRFunctorPure() = default;
-    LRFunctorPure(const Function<T,NDIM>& f) : f(f) {}
-    World& world() const override {return f.world();}
+    explicit LRFunctorPure(const Function<T,NDIM>& f) : f(f) {}
+    [[nodiscard]] World& world() const override {return f.world();}
 
     void set_thresh(double thresh) override {
         if (f.is_initialized()) f.set_thresh(thresh);
@@ -702,10 +745,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     ///  general:       f(1,2) = \sum_{ij} g_i(1) M_{ij} h_j(2)
     /// for the time being we don't require g or h to be orthogonal or normalized
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
-    class LowRankFunction {
+    class LowRankFunction : public archive::ParallelSerializableObject {
     public:
 
-        World& world;
         double rank_revealing_tol=1.e-8;     // rrcd tol
         bool do_print=false;
         std::vector<Function<T,LDIM>> g,h;
@@ -713,23 +755,49 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
 
-        LowRankFunction(World& world) : world(world) {}
+        LowRankFunction() = default;
 
         LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
-                        double tol, const Tensor<T> metric=Tensor<T>()) : world(g.front().world()),
+                        double tol, const Tensor<T> metric=Tensor<T>()) :
                         rank_revealing_tol(tol), g(g), h(h), metric(metric) {
         }
 
         /// shallow copy ctor
-        LowRankFunction(const LowRankFunction& other) : world(other.world),
+        LowRankFunction(const LowRankFunction& other) :
             rank_revealing_tol(other.rank_revealing_tol),
             g(other.g), h(other.h), metric(other.metric) {
+        }
+
+        World& world() const {
+            if (g.size()>0) return g.front().world();
         }
 
         /// deep copy
         friend LowRankFunction copy(const LowRankFunction& other) {
             return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),
                 other.rank_revealing_tol, madness::copy(other.metric));
+        }
+
+        /// serialize to an archive (e.g. cloud or file)
+        template<typename Archive>
+        void serialize(const Archive& ar) {
+            std::size_t gsize=g.size();
+            std::size_t hsize=g.size();
+            ar & gsize & hsize & rank_revealing_tol & metric;
+            g.resize(gsize);        // noop for saving
+            h.resize(hsize);        // noop for saving
+            for (int i=0; i<gsize; ++i) ar & g[i];
+            for (int i=0; i<hsize; ++i) ar & h[i];
+        }
+
+        friend hashT hash_value(const LowRankFunction<T,NDIM>& f) {
+            hashT h1=0;
+            for (const auto& aa : f.g) hash_combine(h1,hash_value(aa.get_impl()));
+            for (const auto& bb : f.h) hash_combine(h1,hash_value(bb.get_impl()));
+            double normf=f.metric.normf();
+            hash_combine(h1,hash_value(f.metric.normf()));
+            hash_combine(h1,hash_value(f.rank_revealing_tol));
+            return h1;
         }
 
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
@@ -839,8 +907,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// l2 norm
         typename TensorTypeData<T>::scalar_type norm2() const {
-            auto g_ij=matrix_inner(world,g,g);
-            auto h_ij=matrix_inner(world,h,h);
+            auto g_ij=matrix_inner(world(),g,g);
+            auto h_ij=matrix_inner(world(),h,h);
             // ||this||^2 = <g_i| g_k> M_ij <h_j| h_l> M_kl
             // in the canonical case, M_ij = delta_ij, so we just need to contract g_ij and h_ij
             if (is_canonical()) return sqrt(g_ij.trace(h_ij));
@@ -876,8 +944,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// return the size in GByte
         double size() const {
-            double sz=get_size(world,g);
-            sz+=get_size(world,h);
+            if (g.size()==0) return 0.0;
+            double sz=get_size(g.front().world(),g);
+            sz+=get_size(world(),h);
             return sz;
         }
 
@@ -892,8 +961,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
         Function<T,NDIM> reconstruct() const {
+            if (g.size()==0) return Function<T,NDIM>();
             std::vector<Function<T,LDIM>> gtilde=g;
-            if (not is_canonical()) gtilde=transform(world,g,metric);        // gtilde_p(1) = \sum_q g_q(1) M_{qp}
+            if (not is_canonical()) gtilde=transform(g.front().world(),g,metric);        // gtilde_p(1) = \sum_q g_q(1) M_{qp}
             MADNESS_ASSERT(gtilde.size()==h.size());
             auto fapprox=hartree_product(gtilde[0],h[0]);
             for (int i=1; i<gtilde.size(); ++i) fapprox+=hartree_product(gtilde[i],h[i]);
@@ -906,6 +976,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// the coupling matrix M is not necessarily quadratic
         void remove_linear_dependencies(double tol=-1.0) {
             if (tol<0.0) tol=rank_revealing_tol;
+            if (g.size()==0) return;
+            World& world=g.front().world();
 
             Tensor<T> ovlp_g=matrix_inner(world,g,g);
             Tensor<T> ovlp_h=matrix_inner(world,h,h);
@@ -998,7 +1070,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// orthonormalize the argument vector via rank-revealing Cholesky
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
             MADNESS_CHECK_THROW(is_canonical(),"no orthonormalization unless canonicalized");
-            auto ovlp=matrix_inner(world,g,g);
+            if (g.size()==0) return g;
+            auto ovlp=matrix_inner(g.front().world(),g,g);
             auto g2=orthonormalize_rrcd(g,ovlp,rank_revealing_tol);
             double tight_thresh=FunctionDefaults<LDIM>::get_thresh()*0.1;
             return truncate(g2,tight_thresh);
@@ -1010,7 +1083,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize(const LRFunctorBase<T,NDIM>& lrfunctor1, const long nopt=1) {
-            timer t(world);
+            timer t(world());
             MADNESS_CHECK_THROW(is_canonical(),"currently only optimization of canonical LRFs supported");
             t.do_print=do_print;
             for (int i=0; i<nopt; ++i) {
@@ -1027,7 +1100,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
         void canonicalize() {
             if (is_canonical()) return;
-            g=transform(world,g,metric);
+            g=transform(world(),g,metric);
             metric=Tensor<T>();
         }
 
@@ -1037,7 +1110,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// since we are subtracting large numbers the numerics are sensitive, and NaN may be returned..
         double l2error(const LRFunctorBase<T,NDIM>& lrfunctor1) const {
 
-            timer t(world);
+            timer t(world());
             t.do_print=do_print;
 
             // \int f(1,2)^2 d1d2
@@ -1052,22 +1125,22 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
             } else {
                 std::vector<Function<T,LDIM>> fh=inner(lrfunctor1,h,p2,p1);
-                Tensor<T> fgh=matrix_inner(world,g,fh);
+                Tensor<T> fgh=matrix_inner(world(),g,fh);
                 term2=fgh.trace(metric);
             }
             t.tag("computing term2");
 
             double term3=0.0;
             if (is_canonical()) {
-                auto tmp1=matrix_inner(world,h,h);
-                auto tmp2=matrix_inner(world,g,g);
+                auto tmp1=matrix_inner(world(),h,h);
+                auto tmp2=matrix_inner(world(),g,g);
                 term3=tmp1.trace(tmp2);
             } else {
                 // general case: no orthogonality, so we have to contract with the coupling matrix metric
                 // \int gh(1,2)^2 d1d2 = \int \sum_{ijkl} g_i(1) m_{ij} g_k(1) m_{kl} h_j(2) h_l(2) d1d2
                 //   = \sum_{ijkl} m_{ij} m_{kl} <g_i | g_k> <h_j | h_l>
-                auto gmat=matrix_inner(world,g,g);
-                auto hmat=matrix_inner(world,h,h);
+                auto gmat=matrix_inner(world(),g,g);
+                auto hmat=matrix_inner(world(),h,h);
                 auto SM1 = inner(gmat,metric);          // gmat_ik m_kl = SM1_il
                 auto SM2 = inner(metric, hmat);         // m_ij hmat_jl = SM2_il
                 term3=SM1.trace(SM2);
@@ -1082,7 +1155,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 //                throw std::runtime_error("negative argument in l2error");
             }
             double error=sqrt(arg)/sqrt(term1);
-            if (world.rank()==0 and do_print) {
+            if (world().rank()==0 and do_print) {
                 print("term1,2,3, error",term1, term2, term3, "  --",error);
             }
 
@@ -1104,7 +1177,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 "l2error_pythagoras requires canonical form (h orthonormal)");
             MADNESS_CHECK_THROW(f_norm_sq > 0.0,
                 "l2error_pythagoras requires a positive ||f||^2");
-            auto gnorms = norm2s(world, g);
+            if (g.size()==0) return 0.0;
+            auto gnorms = norm2s(g.front().world(), g);
             double sum_gk_sq = 0.0;
             for (double n : gnorms) sum_gk_sq += n * n;
             double arg = f_norm_sq - sum_gk_sq;
@@ -1118,7 +1192,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     /// compute the inner product to 2 LowRankFunctions
     template<typename T, std::size_t NDIM>
     T inner(const LowRankFunction<T,NDIM>& a, const LowRankFunction<T,NDIM>& b) {
-        World& world=a.world;
+        World& world=a.world();
 
         // result = <a.g_i| b.g_k> a.M_ij <a.h_j| b.h_l> b.M_kl
         auto g_ik=matrix_inner(world,a.g,b.g);
@@ -1165,7 +1239,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,NDIM>& f2,
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
         static_assert(TensorTypeData<T>::iscomplex==false, "complex inner in LowRankFunction not implemented");
-        World& world=f1.world;
+        World& world=f1.world();
         static_assert(2*PDIM==NDIM);
         // int f(1,2) k(2,3) d2 = \sum \int g_i(1) M_ij h_j(2) k(2,3) d2
         //                      = \sum g_i(1) M_ij \int h_j(2) k(2,3) d2
@@ -1197,7 +1271,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM, std::size_t PDIM>
     LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const LowRankFunction<T,NDIM>& f2,
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
-        World& world=f1.world;
+        World& world=f1.world();
         static_assert(2*PDIM==NDIM);
 
         // integrate over 2: result(1,3) =
@@ -1224,7 +1298,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM, std::size_t PDIM>
     std::vector<Function<T,NDIM-PDIM>> inner(const LowRankFunction<T,NDIM>& f1, const std::vector<Function<T,PDIM>>& vf,
                                   const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
-        World& world=f1.world;
+        World& world=f1.world();
         static_assert(2*PDIM==NDIM);
         MADNESS_CHECK(p2.is_first());
 
@@ -2020,7 +2094,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             if (Y.empty()) {
                 print("WARNING project_from_operator: no significant Y terms");
-                return LowRankFunction<T,NDIM>(world);
+                return LowRankFunction<T,NDIM>();
             }
 
             // 4. Use project_stable with the Taylor-constructed Y basis
