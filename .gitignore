@@ -85,3 +85,5 @@ tools/emulate_hfex_smallmem_sym_mt_owner.py
 src/madness/chem/HF_EXCHANGE_MFLEX.md
 tools/__pycache__/emulate_hfex_smallmem_sym_mt_owner.cpython-39.pyc
 src/madness/chem/smallmem_mt_owner.md
+src/madness/tensor/tensor_spec.h
+src/madness/tensor/tensoriter_spec.h
