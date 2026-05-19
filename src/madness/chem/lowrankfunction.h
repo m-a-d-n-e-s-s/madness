@@ -781,13 +781,18 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// serialize to an archive (e.g. cloud or file)
         template<typename Archive>
         void serialize(const Archive& ar) {
-            std::size_t gsize=g.size();
-            std::size_t hsize=g.size();
-            ar & gsize & hsize & rank_revealing_tol & metric;
-            g.resize(gsize);        // noop for saving
-            h.resize(hsize);        // noop for saving
-            for (int i=0; i<gsize; ++i) ar & g[i];
-            for (int i=0; i<hsize; ++i) ar & h[i];
+            try {
+                std::size_t gsize=g.size();
+                std::size_t hsize=g.size();
+                ar & gsize & hsize & rank_revealing_tol & metric;
+                g.resize(gsize);        // noop for saving
+                h.resize(hsize);        // noop for saving
+                for (int i=0; i<gsize; ++i) ar & g[i];
+                for (int i=0; i<hsize; ++i) ar & h[i];
+            } catch (const std::exception& e) {
+                std::string msg ="serialization error in LowRankFunction: "+ std::string(e.what());
+                MADNESS_EXCEPTION(msg.c_str(),1);
+            }
         }
 
         friend hashT hash_value(const LowRankFunction<T,NDIM>& f) {

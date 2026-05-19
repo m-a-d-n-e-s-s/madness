@@ -774,41 +774,58 @@ private:
     recordlistT store_other(madness::World &world, const T &source) {
         auto record = Recordlist<keyT>::compute_record(source);
         bool is_already_present= is_in_container(record);
-        if (debug and world.rank()==0) {
-            if (is_already_present) std::cout << "skipping ";
-            if constexpr (Recordlist<keyT>::has_member_id<T>::value) {
-                std::cout << "storing world object of " << type_name<T>::value() << "id " << source.id()
-                << " to record " << record << std::endl;
-            }
-            std::cout << "storing object of " << type_name<T>::value() << " to record " << record << std::endl;
-        }
-        if constexpr (is_madness_function<T>::value) {
-            if (source.is_compressed() and T::dimT>3) print("WARNING: storing compressed hi-dim `function");
-        }
+        auto print_debug = [&]() {
+             if (is_already_present) std::cout << "skipping ";
+             if constexpr (Recordlist<keyT>::has_member_id<T>::value) {
+                 std::cout << "storing world object of " << type_name<T>::value() << "id " << source.id()
+                 << " to record " << record << std::endl;
+             }
+             std::cout << "storing object of " << type_name<T>::value() << " to record " << record << std::endl;
+        };
+        if (debug and world.rank()==0) print_debug();
 
-        // scope is important because of destruction ordering of world objects and fence
-        if (is_already_present) {
-            if (world.rank()==0) cache_stores++;
-        } else {
-            cloudtimer t(world,writing_time1);
-            madness::archive::ContainerRecordOutputArchive ar(world, container, record);
-            madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
-            if (storage_policy==StoreFunctionPointer) {
-                if constexpr (is_madness_function<T>::value) {
-                    // store the pointer to the function, not the function itself
-                    par & source.get_impl();
-                    // store the pointer to the WorldObject in a list for later reference (replication/redistribution)
-                    WorldObjectBase* wobj=source.get_impl().get();
-                    world_object_base_list.push_back(wobj);
+        try {
+            if constexpr (is_madness_function<T>::value) {
+                if (source.is_compressed() and T::dimT>3) print("WARNING: storing compressed hi-dim `function");
+            }
+
+            // scope is important because of destruction ordering of world objects and fence
+            if (is_already_present) {
+                if (world.rank()==0) cache_stores++;
+            } else {
+                cloudtimer t(world,writing_time1);
+                madness::archive::ContainerRecordOutputArchive ar(world, container, record);
+                madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+                if (storage_policy==StoreFunctionPointer) {
+                    if constexpr (is_madness_function<T>::value) {
+                        // store the pointer to the function, not the function itself
+                        par & source.get_impl();
+                        // store the pointer to the WorldObject in a list for later reference (replication/redistribution)
+                        WorldObjectBase* wobj=source.get_impl().get();
+                        world_object_base_list.push_back(wobj);
+                    } else {
+                        // store everything else
+                        par & source;
+                    }
                 } else {
                     // store everything else
                     par & source;
                 }
-            } else {
-                // store everything else
-                par & source;
+                local_list_of_container_keys+=record;
             }
-            local_list_of_container_keys+=record;
+        } catch (...) {
+            {
+                print("failed to store object in cloud, maybe the object is not serializable or out of scope?");
+                print("record:", record, "world:", world.id());
+                print("object type:", type_name<T>::value());
+                print("\n");
+                io_redirect_cout redirect;
+                print("failed to store object in cloud, maybe the object is not serializable or out of scope?");
+                print("record:", record, "world:", world.id());
+                print("object type:", type_name<T>::value());
+                print("\n");
+            }
+            MADNESS_EXCEPTION("load/store error in cloud", 1);
         }
         if (dofence) world.gop.fence();
         return recordlistT{record};
