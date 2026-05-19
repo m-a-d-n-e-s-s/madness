@@ -805,6 +805,30 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return h1;
         }
 
+
+        /// customized function to store this to the cloud
+
+        /// will store g and h elements individually
+        Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+            Recordlist<Cloud::keyT> records;
+            records+=cloud.store(world,g);
+            records+=cloud.store(world,h);
+            records+=cloud.store(world,metric);
+            records+=cloud.store(world,rank_revealing_tol);
+            return records;
+        }
+
+        /// customized function to load this from the cloud
+
+        /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+        void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+            // load bookkeeping stuff in a vector
+            g=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+            h=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+            metric=cloud.forward_load<Tensor<double>>(world,recordlist);
+            rank_revealing_tol=cloud.forward_load<double>(world,recordlist);
+        }
+
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
             if (this == &f) return *this;
             rank_revealing_tol = f.rank_revealing_tol;

@@ -813,6 +813,7 @@ private:
                 }
                 local_list_of_container_keys+=record;
             }
+            if (dofence) world.gop.fence();
         } catch (...) {
             {
                 print("failed to store object in cloud, maybe the object is not serializable or out of scope?");
@@ -827,7 +828,6 @@ private:
             }
             MADNESS_EXCEPTION("load/store error in cloud", 1);
         }
-        if (dofence) world.gop.fence();
         return recordlistT{record};
     }
 
