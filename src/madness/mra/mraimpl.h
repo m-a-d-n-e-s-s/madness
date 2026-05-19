@@ -1457,7 +1457,7 @@ namespace madness {
 
         // go through reconstructed state -- requires fence!
         change_tree_state(reconstructed,true);
-        print("could not respect  no-fence  parameter in change_tree_state");
+        //print("could not respect  no-fence  parameter in change_tree_state");
         change_tree_state(finalstate,fence);
 
     }
