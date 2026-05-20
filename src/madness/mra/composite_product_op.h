@@ -416,6 +416,16 @@ void make_term_inputs_redundant(composite_term<T, NDIM>& term) {
     // extra is on-demand → no state change
 }
 
+/// Restore every input of a composite_term to reconstructed state.
+template <typename T, std::size_t NDIM>
+void make_term_inputs_reconstructed(composite_term<T, NDIM>& term) {
+    if (term.ket.is_initialized())     term.ket.change_tree_state(reconstructed, false);
+    for (auto& p : term.p1)            p.change_tree_state(reconstructed, false);
+    for (auto& p : term.p2)            p.change_tree_state(reconstructed, false);
+    if (term.factor1.is_initialized()) term.factor1.change_tree_state(reconstructed, false);
+    if (term.factor2.is_initialized()) term.factor2.change_tree_state(reconstructed, false);
+}
+
 /// Translate a composite_term<T,NDIM> into the op's CoeffTracker-based TermImpl.
 template <typename T, std::size_t NDIM, typename OP>
 typename OP::TermImpl make_term_impl(const composite_term<T, NDIM>& term) {
@@ -484,6 +494,12 @@ void composite_product_apply(FunctionImpl<T, NDIM>* result,
             true);
         result->sum_down(true);
         result->set_tree_state(reconstructed);
+
+        // Restore input tree state so callers can keep using the same Function handles
+        // (e.g., to compare against the old multiply / make_Vphi paths that expect
+        // reconstructed inputs).
+        for (auto& t : terms) detail::make_term_inputs_reconstructed(t);
+        world.gop.fence();
     }
 }
 
@@ -542,6 +558,11 @@ T composite_inner_apply(World& world,
             scalar = a->second.coeff().full_tensor_copy().flat()(0L);
     }
     world.gop.sum(scalar);
+
+    // Restore input tree state for the caller.
+    for (auto& t : terms) detail::make_term_inputs_reconstructed(t);
+    world.gop.fence();
+
     return scalar;
 }
 

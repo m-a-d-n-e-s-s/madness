@@ -148,46 +148,112 @@ int run_tests(World& world, const long k, const double thresh) {
     const double tol_fn    = thresh * 10.0;   // function-mode checkpoint tolerance
     const double tol_inner = thresh;          // inner-mode checkpoint tolerance
 
-    // --- A: u * c(1) ------------------------------------------------------
+    // Per-case (new, old) timing + error table; printed at the end.
+    struct Row { std::string name; double t_new, e_new, t_old, e_old; };
+    std::vector<Row> rows;
+    auto wt = []() { return wall_time(); };
+
+    // Old reference implementations (multiply, CompositeFactory.fill_tree, inner_ij_u_eri)
+    // rely on TT_2D — degenerate for NDIM=2 where LDIM=NDIM/2, so skip the side-by-side
+    // there and only show the new column.
+    constexpr bool compare_old = (NDIM > 2);
+
+    // --- A: u * c(1)  vs  multiply(u, c, 1) -------------------------------
     {
-        std::vector<composite_term<T,NDIM>> terms{make_term(u)};
-        terms[0].factor1 = c;
-        auto r = composite_product(world, terms);
-        t1.checkpoint(r.err(exact_uc<NDIM>), tol_fn, "A: u * c(1)");
+        double t0 = wt();
+        std::vector<composite_term<T,NDIM>> terms{make_term(u)}; terms[0].factor1 = c;
+        auto r_new = composite_product(world, terms);
+        const double t_new = wt() - t0;
+        const double e_new = r_new.err(exact_uc<NDIM>);
+
+        double t_old = -1.0, e_old = -1.0;
+        if constexpr (compare_old) {
+            t0 = wt();
+            auto r_old = multiply(copy(u), c, 1);
+            t_old = wt() - t0;
+            e_old = r_old.err(exact_uc<NDIM>);
+        }
+        rows.push_back({"A: u * c(1)", t_new, e_new, t_old, e_old});
+        t1.checkpoint(e_new, tol_fn, "A: u * c(1)");
     }
-    // --- B: u * d(2) ------------------------------------------------------
+    // --- B: u * d(2)  vs  multiply(u, d, 2) -------------------------------
     {
-        std::vector<composite_term<T,NDIM>> terms{make_term(u)};
-        terms[0].factor2 = d;
-        auto r = composite_product(world, terms);
-        t1.checkpoint(r.err(exact_ud<NDIM>), tol_fn, "B: u * d(2)");
+        double t0 = wt();
+        std::vector<composite_term<T,NDIM>> terms{make_term(u)}; terms[0].factor2 = d;
+        auto r_new = composite_product(world, terms);
+        const double t_new = wt() - t0;
+        const double e_new = r_new.err(exact_ud<NDIM>);
+
+        double t_old = -1.0, e_old = -1.0;
+        if constexpr (compare_old) {
+            t0 = wt();
+            auto r_old = multiply(copy(u), d, 2);
+            t_old = wt() - t0;
+            e_old = r_old.err(exact_ud<NDIM>);
+        }
+        rows.push_back({"B: u * d(2)", t_new, e_new, t_old, e_old});
+        t1.checkpoint(e_new, tol_fn, "B: u * d(2)");
     }
-    // --- C: u * c(1) * d(2) ----------------------------------------------
+    // --- C: u * c(1) * d(2)  vs  multiply(multiply(u,c,1), d, 2) ----------
     {
+        double t0 = wt();
         std::vector<composite_term<T,NDIM>> terms{make_term(u)};
         terms[0].factor1 = c;  terms[0].factor2 = d;
-        auto r = composite_product(world, terms);
-        t1.checkpoint(r.err(exact_ucd<NDIM>), tol_fn, "C: u * c(1) * d(2)");
-    }
-    // --- D: sum (v1·u + v2·u + eri·u) ------------------------------------
-    {
-        std::vector<composite_term<T,NDIM>> terms;
-        auto t_v1 = make_term(u); t_v1.factor1 = v1; terms.push_back(t_v1);
-        auto t_v2 = make_term(u); t_v2.factor2 = v2; terms.push_back(t_v2);
-        auto t_er = make_term(u); t_er.extra   = eri; terms.push_back(t_er);
+        auto r_new = composite_product(world, terms);
+        const double t_new = wt() - t0;
+        const double e_new = r_new.err(exact_ucd<NDIM>);
 
-        auto r = composite_product(world, terms);
-        t1.checkpoint(r.err(exact_Vphi<NDIM>), tol_fn, "D: v1·u + v2·u + eri·u");
+        double t_old = -1.0, e_old = -1.0;
+        if constexpr (compare_old) {
+            t0 = wt();
+            auto r_old = multiply(multiply(copy(u), c, 1), d, 2);
+            t_old = wt() - t0;
+            e_old = r_old.err(exact_ucd<NDIM>);
+        }
+        rows.push_back({"C: u * c(1) * d(2)", t_new, e_new, t_old, e_old});
+        t1.checkpoint(e_new, tol_fn, "C: u * c(1) * d(2)");
     }
-    // --- E: u * c(1) * eri(1,2) ------------------------------------------
+    // --- D: v1·u + v2·u + eri·u  vs  CompositeFactory.fill_tree() ---------
+    //       The old path lives in FunctionImpl::make_Vphi, invoked through fill_tree
+    //       on an on-demand CompositeFunctorInterface.
     {
+        double t0 = wt();
+        std::vector<composite_term<T,NDIM>> terms;
+        auto t_v1c = make_term(u); t_v1c.factor1 = v1; terms.push_back(t_v1c);
+        auto t_v2c = make_term(u); t_v2c.factor2 = v2; terms.push_back(t_v2c);
+        auto t_erc = make_term(u); t_erc.extra   = eri; terms.push_back(t_erc);
+        auto r_new = composite_product(world, terms);
+        const double t_new = wt() - t0;
+        const double e_new = r_new.err(exact_Vphi<NDIM>);
+
+        double t_old = -1.0, e_old = -1.0;
+        if constexpr (compare_old) {
+            t0 = wt();
+            Function<T,NDIM> r_old = CompositeFactory<T,NDIM,LDIM>(world)
+                .ket(copy(u))
+                .V_for_particle1(copy(v1))
+                .V_for_particle2(copy(v2))
+                .g12(eri);
+            r_old.fill_tree();
+            t_old = wt() - t0;
+            e_old = r_old.err(exact_Vphi<NDIM>);
+        }
+        rows.push_back({"D: v1·u + v2·u + eri·u", t_new, e_new, t_old, e_old});
+        t1.checkpoint(e_new, tol_fn, "D: v1·u + v2·u + eri·u");
+    }
+    // --- E: u * c(1) * eri(1,2)  (no direct old equivalent) ---------------
+    {
+        double t0 = wt();
         std::vector<composite_term<T,NDIM>> terms{make_term(u)};
         terms[0].factor1 = c;  terms[0].extra = eri;
-        auto r = composite_product(world, terms);
-        t1.checkpoint(r.err(exact_extra<NDIM>), tol_fn, "E: u * c(1) * eri(1,2)");
+        auto r_new = composite_product(world, terms);
+        const double t_new = wt() - t0;
+        const double e_new = r_new.err(exact_extra<NDIM>);
+
+        rows.push_back({"E: u * c(1) * eri(1,2)", t_new, e_new, -1.0, -1.0});
+        t1.checkpoint(e_new, tol_fn, "E: u * c(1) * eri(1,2)");
     }
-    // --- F: <eri | u * c(1) * d(2)> --------------------------------------
-    //       Reference via lo-dim convolution: <a·c | conv(β) | b·d>.
+    // --- F: <eri | u·c·d>  vs  inner_ij_u_eri (existing single-term op) ---
     {
         const double beta = 0.5;
         auto conv = GaussOperator<LDIM>(world, beta);
@@ -196,12 +262,34 @@ int run_tests(World& world, const long k, const double thresh) {
         Function<T,LDIM> conv_bd = apply(conv, bd);
         const double ref = inner(ac, conv_bd);
 
+        double t0 = wt();
         std::vector<composite_term<T,NDIM>> terms{make_term(u)};
         terms[0].factor1 = c; terms[0].factor2 = d;
-        const double val = composite_inner(world, terms, eri);
-        t1.checkpoint(std::abs(val - ref), tol_inner, "F: <eri | u*c*d>");
+        const double v_new = composite_inner(world, terms, eri);
+        const double t_new = wt() - t0;
+        const double e_new = std::abs(v_new - ref);
+
+        double t_old = -1.0, e_old = -1.0;
+        if constexpr (compare_old) {
+            Function<T,NDIM> u_r = copy(u);   u_r.change_tree_state(redundant);
+            Function<T,LDIM> c_r = copy(c);   c_r.change_tree_state(redundant);
+            Function<T,LDIM> d_r = copy(d);   d_r.change_tree_state(redundant);
+
+            using leaf_opT = Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM>>;
+            leaf_opT lop(u_r.get_impl().get());
+
+            t0 = wt();
+            const double v_old = u_r.get_impl()->template inner_ij_u_eri<leaf_opT,LDIM>(
+                lop, u_r.get_impl().get(),
+                c_r.get_impl().get(), d_r.get_impl().get(),
+                eri.get_impl().get());
+            t_old = wt() - t0;
+            e_old = std::abs(v_old - ref);
+        }
+        rows.push_back({"F: <eri | u*c*d>", t_new, e_new, t_old, e_old});
+        t1.checkpoint(e_new, tol_inner, "F: <eri | u*c*d>");
     }
-    // --- G: <eri | u*c*d + u*c> ------------------------------------------
+    // --- G: <eri | u·c·d + u·c>  (no direct old equivalent; new capability) -
     {
         const double beta = 0.5;
         auto conv = GaussOperator<LDIM>(world, beta);
@@ -211,14 +299,16 @@ int run_tests(World& world, const long k, const double thresh) {
         Function<T,LDIM> conv_b  = apply(conv, b);
         const double ref = inner(ac, conv_bd) + inner(ac, conv_b);
 
+        double t0 = wt();
         std::vector<composite_term<T,NDIM>> terms;
-        auto t1term = make_term(u); t1term.factor1 = c; t1term.factor2 = d;
-        terms.push_back(t1term);
-        auto t2term = make_term(u); t2term.factor1 = c;
-        terms.push_back(t2term);
+        auto t_one = make_term(u); t_one.factor1 = c; t_one.factor2 = d; terms.push_back(t_one);
+        auto t_two = make_term(u); t_two.factor1 = c;                    terms.push_back(t_two);
+        const double v_new = composite_inner(world, terms, eri);
+        const double t_new = wt() - t0;
+        const double e_new = std::abs(v_new - ref);
 
-        const double val = composite_inner(world, terms, eri);
-        t1.checkpoint(std::abs(val - ref), tol_inner, "G: <eri | u*c*d + u*c>");
+        rows.push_back({"G: <eri | u*c*d + u*c>", t_new, e_new, -1.0, -1.0});
+        t1.checkpoint(e_new, tol_inner, "G: <eri | u*c*d + u*c>");
     }
     // --- H: (a⊗b + c⊗d) * v1(1)  — pair-sum ket, no explicit NDIM ket -----
     {
@@ -231,6 +321,28 @@ int run_tests(World& world, const long k, const double thresh) {
 
         auto r = composite_product(world, terms);
         t1.checkpoint(r.err(exact_pair_sum<NDIM>), tol_fn, "H: (a⊗b + c⊗d) * v1(1)");
+    }
+
+    // ---- comparison table ----
+    if (world.rank() == 0) {
+        std::cout << "\n  NDIM=" << NDIM << "  new (composite_product/inner) vs old\n"
+                  << "  " << std::string(80, '-') << "\n"
+                  << "    case                          t_new[s]   err_new      t_old[s]   err_old\n"
+                  << "  " << std::string(80, '-') << "\n";
+        for (const auto& r : rows) {
+            char buf[256];
+            if (r.t_old < 0) {
+                std::snprintf(buf, sizeof(buf),
+                              "    %-28s  %7.3f   %.2e       —          —",
+                              r.name.c_str(), r.t_new, r.e_new);
+            } else {
+                std::snprintf(buf, sizeof(buf),
+                              "    %-28s  %7.3f   %.2e   %7.3f   %.2e",
+                              r.name.c_str(), r.t_new, r.e_new, r.t_old, r.e_old);
+            }
+            std::cout << buf << "\n";
+        }
+        std::cout << "  " << std::string(80, '-') << "\n";
     }
 
     return t1.end();
