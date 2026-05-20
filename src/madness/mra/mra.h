@@ -89,6 +89,7 @@ namespace madness {
 #include <madness/mra/function_factory.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/mra/funcimpl.h>
+#include <madness/mra/composite_product_op.h>
 
 // some forward declarations
 namespace madness {
@@ -2524,6 +2525,78 @@ namespace madness {
         f.change_tree_state(reconstructed,false);
         g.change_tree_state(reconstructed);
         return result;
+    }
+
+
+    /// build result = Σ_t (ket_t · factor1_t(1) · factor2_t(2) · extra_t(1,2)) adaptively
+    ///
+    /// Each term's ket is either an explicit NDIM Function (`term.ket`) or a sum of
+    /// hartree products  ket_t(1,2) = Σ_k p1[k](1) ⊗ p2[k](2).  factor1 / factor2 are
+    /// optional single LDIM factors; extra is an optional NDIM factor (typically an
+    /// on-demand ERI).
+    ///
+    /// Subsumes:
+    ///   - multiply(f,g,particle)   : one term, factor1 or factor2
+    ///   - make_Vphi(...)           : sum of three terms with shared ket
+    ///   - make_Vphi_ij_u(...)      : one term, factor1=i, factor2=j
+    ///
+    /// Inputs are brought into redundant state internally; the result is reconstructed.
+    /// `target_precision`: error threshold; 0 → use the result's thresh.
+    /// `oversampling`:     additional quadrature points for pointwise_multiplier.
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> composite_product(World& world,
+                                       std::vector<composite_term<T,NDIM>> terms,
+                                       double target_precision = 0.0,
+                                       int oversampling = 1,
+                                       bool fence = true) {
+        MADNESS_ASSERT(!terms.empty());
+
+        // model the result tree shape on the first available NDIM impl, or fall back
+        // to constructing an empty Function from defaults when only hartree pairs are given.
+        Function<T,NDIM> result;
+        if (terms.front().ket.is_initialized()) {
+            result.set_impl(terms.front().ket, false);
+        } else {
+            MADNESS_ASSERT(!terms.front().p1.empty());
+            result = FunctionFactory<T,NDIM>(world).empty();
+        }
+
+        using Leaf = Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM>>;
+        Leaf leaf_op(result.get_impl().get());
+
+        composite_product_apply<T,NDIM,Leaf>(result.get_impl().get(), leaf_op, terms,
+                                              target_precision, oversampling, fence);
+        return result;
+    }
+
+    /// compute <bra | Σ_t (ket_t · factor1_t · factor2_t)> adaptively
+    ///
+    /// `bra` is typically an on-demand NDIM function (e.g., an ERI).  Subsumes
+    /// `inner_ij_u_eri(...)` as the single-term case.  Per-term `extra` is not allowed
+    /// in inner mode (use the global `bra` instead).
+    template <typename T, std::size_t NDIM>
+    T composite_inner(World& world,
+                      std::vector<composite_term<T,NDIM>> terms,
+                      const Function<T,NDIM>& bra,
+                      double target_precision = 0.0,
+                      int oversampling = 1) {
+        MADNESS_ASSERT(!terms.empty());
+        MADNESS_ASSERT(bra.is_on_demand());
+
+        // pick a sibling impl to model the accumulator's pmap / thresh / k
+        const FunctionImpl<T,NDIM>* like = nullptr;
+        if (terms.front().ket.is_initialized()) {
+            like = terms.front().ket.get_impl().get();
+        }
+        MADNESS_CHECK_THROW(like, "composite_inner: first term must carry an NDIM ket "
+                                  "so the accumulator's pmap/k/thresh can be modelled");
+
+        using Leaf = Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM>>;
+        Leaf leaf_op(const_cast<FunctionImpl<T,NDIM>*>(like));
+
+        return composite_inner_apply<T,NDIM,Leaf>(world, like, leaf_op, terms,
+                                                   bra.get_impl().get(),
+                                                   target_precision, oversampling);
     }
 
 
