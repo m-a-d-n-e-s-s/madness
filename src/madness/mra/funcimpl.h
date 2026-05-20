@@ -4421,6 +4421,221 @@ template<size_t NDIM>
             }
         };
 
+        /// adaptive multiplication of u(1,2) by optional orbitals i(1) and/or j(2),
+        /// with optional contraction against an exact ERI g(1,2)
+
+        /// Modes (controlled by which pointers are non-null):
+        ///   - function mode (eri==null):  builds result = u * [i(1)] * [j(2)] into *result
+        ///   - inner mode    (eri!=null):  computes <eri | u * [i(1)] * [j(2)]>,
+        ///                                accumulates scalar at result->cdata.key0
+        ///
+        /// Error control: d-norm cross terms (inaccurate refinement, from CoeffTracker::dnorm)
+        ///   plus tnorm error from each pointwise_multiplier application.
+        /// Replaces multiply_op<LDIM> (adds d-norm error) and do_inner_local_on_demand
+        ///   (adds inaccurate-refinement error and adaptive NS-form traversal).
+        template<typename opT, size_t LDIM>
+        struct Vphi_ij_u_op_NS {
+
+            bool randomize() const {return true;}
+            typedef Vphi_ij_u_op_NS<opT,LDIM> this_type;
+            typedef CoeffTracker<T,NDIM> ctT;
+            typedef CoeffTracker<T,LDIM> ctL;
+
+            implT* result;       ///< output function (function mode) or accumulation handle (inner mode)
+            opT leaf_op;
+            ctT iau;             ///< u(1,2), NS form, required
+            ctL iai;             ///< i(1),   NS form, optional (null impl → skip particle-1 multiply)
+            ctL iaj;             ///< j(2),   NS form, optional (null impl → skip particle-2 multiply)
+            const implT* eri;    ///< exact ERI g(1,2), on-demand, optional (null → function mode)
+            double target_precision;  ///< leaf threshold used for the post-screening truncation
+            int oversampling;    ///< pointwise_multiplier oversampling (k+oversampling grid)
+
+            bool have_i()   const {return iai.get_impl();}
+            bool have_j()   const {return iaj.get_impl();}
+            bool have_eri() const {return eri;}
+
+            void accumulate_into_result(const keyT& key, const coeffT& coeff) const {
+                result->get_coeffs().task(key, &nodeT::accumulate, coeff,
+                                          result->get_coeffs(), key, result->targs);
+            }
+
+            Vphi_ij_u_op_NS() : result(), eri(), target_precision(0.0), oversampling(1) {}
+
+            Vphi_ij_u_op_NS(implT* result, const opT& leaf_op, const ctT& iau,
+                             const ctL& iai, const ctL& iaj, const implT* eri,
+                             double target_precision, int oversampling=1)
+                    : result(result), leaf_op(leaf_op), iau(iau), iai(iai), iaj(iaj), eri(eri),
+                      target_precision(target_precision), oversampling(oversampling) {
+                if (eri) MADNESS_ASSERT(eri->is_on_demand());
+            }
+
+            /// error from inaccurate refinement: cross terms of (snorm,dnorm) for u*[i]*[j]
+            double compute_error_from_inaccurate_refinement(const keyT& key,
+                                                             const Key<LDIM>& key1,
+                                                             const Key<LDIM>& key2) const {
+                const double sn_u = iau.coeff(key).normf();
+                const double dn_u = iau.dnorm(key);
+                const double sn_i = have_i() ? iai.coeff(key1).normf() : 1.0;
+                const double dn_i = have_i() ? iai.dnorm(key1)         : 0.0;
+                const double sn_j = have_j() ? iaj.coeff(key2).normf() : 1.0;
+                const double dn_j = have_j() ? iaj.dnorm(key2)         : 0.0;
+
+                // all cross-terms with at least one d-norm factor
+                return sn_u*sn_i*dn_j + sn_u*dn_i*sn_j + dn_u*sn_i*sn_j
+                     + sn_u*dn_i*dn_j + dn_u*sn_i*dn_j + dn_u*dn_i*sn_j
+                     + dn_u*dn_i*dn_j;
+            }
+
+            /// get ERI coefficients at key (same logic as Vphi_op_NS::eri_coeffs)
+            tensorT eri_coeffs(const keyT& key) const {
+                MADNESS_ASSERT(have_eri());
+                if (eri->get_functor()->provides_coeff()) {
+                    return eri->get_functor()->coeff(key).full_tensor();
+                } else {
+                    tensorT val_eri(eri->cdata.vk);
+                    eri->fcube(key, *(eri->get_functor()), eri->cdata.quad_x, val_eri);
+                    return eri->values2coeffs(key, val_eri);
+                }
+            }
+
+            /// multiplicative chain: current = u → u·i(1) → u·i(1)·j(2)
+            ///
+            /// Inputs are expected in *redundant* tree state (cheap to construct from reconstructed,
+            /// avoids the expensive compress/nonstandard round-trip). In that state
+            /// CoeffTracker::coeff(key) calls parent_to_child and returns scaling-function
+            /// coefficients of shape [k]^NDIM, exactly what pointwise_multiplier consumes.
+            ///
+            /// Past a leaf the CoeffTracker pins key_ to the leaf, so coeff(key) interpolates
+            /// the leaf's [k]^NDIM s-coeffs to the requested level — equivalent to embedding
+            /// them in a [2k]^NDIM NS tensor (s-part filled, d-part zero) and unfiltering.
+            /// d-norms past the leaf are zero, which falls out of CoeffTracker::dnorm.
+            std::pair<coeffT,double> make_sum_coeffs(const keyT& key) const {
+                Key<LDIM> key1, key2;
+                key.break_apart(key1, key2);
+
+                coeffT current = iau.coeff(key);
+                double error = compute_error_from_inaccurate_refinement(key, key1, key2);
+
+                if (have_i()) {
+                    const coeffT coeff_i = iai.coeff(key1);
+                    pointwise_multiplier<LDIM> pm(key, current);
+                    pm.oversampling = oversampling;
+                    current = pm(key, coeff_i.full_tensor(), 1);
+                    error += pm.error;
+                }
+                if (have_j()) {
+                    const coeffT coeff_j = iaj.coeff(key2);
+                    pointwise_multiplier<LDIM> pm(key, current);
+                    pm.oversampling = oversampling;
+                    current = pm(key, coeff_j.full_tensor(), 2);
+                    error += pm.error;
+                }
+                return {current, error};
+            }
+
+            /// leaf action: insert into result (function mode) or contract with ERI and
+            /// accumulate scalar as the first element of a vk-shaped tensor at key0 (inner mode)
+            void leaf_action(const keyT& key, const coeffT& coeff) const {
+                if (have_eri()) {
+                    const tensorT ceri = eri_coeffs(key);
+                    const T contribution = ceri.trace(coeff.full_tensor_copy());
+                    tensorT scalar(result->cdata.vk);
+                    scalar.flat()(0L) = contribution;
+                    accumulate_into_result(result->cdata.key0,
+                                          coeffT(scalar, TensorArgs(TT_FULL, -1.0)));
+                } else {
+                    accumulate_into_result(key, coeff);
+                }
+            }
+
+            std::pair<bool,coeffT> operator()(const keyT& key) const {
+                MADNESS_ASSERT(result->get_coeffs().is_local(key));
+
+                if (leaf_op.do_pre_screening()) {
+                    if (leaf_op.pre_screening(key)) {
+                        auto [coeff, error] = make_sum_coeffs(key);
+                        leaf_action(key, coeff);
+                        return {true, coeffT()};
+                    } else {
+                        return continue_recursion(std::vector<bool>(1<<NDIM, false), tensorT(), key);
+                    }
+                }
+
+                const size_t il = result->get_initial_level();
+                if (key.level() < int(FunctionDefaults<NDIM>::get_refine() ? il+1 : il))
+                    return continue_recursion(std::vector<bool>(1<<NDIM, false), tensorT(), key);
+
+                if (key.level() < result->get_special_level() &&
+                    leaf_op.special_refinement_needed(key))
+                    return continue_recursion(std::vector<bool>(1<<NDIM, false), tensorT(), key);
+
+                auto [coeff, error] = make_sum_coeffs(key);
+
+                if (leaf_op.post_screening(key, coeff) ||
+                    error < result->truncate_tol(target_precision, key)) {
+                    leaf_action(key, coeff);
+                    return {true, coeffT()};
+                }
+
+                return continue_recursion(std::vector<bool>(1<<NDIM, false), tensorT(), key);
+            }
+
+            std::pair<bool,coeffT> continue_recursion(const std::vector<bool> child_is_leaf,
+                                                       const tensorT& coeffs,
+                                                       const keyT& key) const {
+                std::size_t i = 0;
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit, ++i) {
+                    const keyT child = kit.key();
+                    if (child_is_leaf[i]) {
+                        insert_op<T,NDIM> iop(result);
+                        iop(child, coeffT(copy(coeffs(result->child_patch(child))),
+                                          result->get_tensor_args()), true);
+                    } else {
+                        this_type child_op = this->make_child(child);
+                        noop<T,NDIM> no;
+                        const ProcessID p = result->get_coeffs().owner(child);
+                        void (implT::*ft)(const this_type&, const noop<T,NDIM>&, const keyT&) const
+                            = &implT::template forward_traverse<this_type, noop<T,NDIM>>;
+                        result->task(p, ft, child_op, no, child);
+                    }
+                }
+                return {true, coeffT()};
+            }
+
+            this_type make_child(const keyT& child) const {
+                Key<LDIM> key1, key2;
+                child.break_apart(key1, key2);
+                return this_type(result, leaf_op,
+                                 iau.make_child(child),
+                                 iai.make_child(key1),
+                                 iaj.make_child(key2),
+                                 eri, target_precision, oversampling);
+            }
+
+            Future<this_type> activate() const {
+                Future<ctT> iau1 = iau.activate();
+                Future<ctL> iai1 = iai.activate();
+                Future<ctL> iaj1 = iaj.activate();
+                return result->world.taskq.add(
+                    detail::wrap_mem_fn(*const_cast<this_type*>(this),
+                                       &this_type::forward_ctor),
+                    result, leaf_op, iau1, iai1, iaj1, eri,
+                    target_precision, oversampling);
+            }
+
+            this_type forward_ctor(implT* result1, const opT& leaf_op1,
+                                   const ctT& iau1, const ctL& iai1, const ctL& iaj1,
+                                   const implT* eri1, double target_precision1,
+                                   int oversampling1) {
+                return this_type(result1, leaf_op1, iau1, iai1, iaj1, eri1,
+                                 target_precision1, oversampling1);
+            }
+
+            template<typename Archive> void serialize(const Archive& ar) {
+                ar & result & leaf_op & iau & iai & iaj & eri & target_precision & oversampling;
+            }
+        };
+
         /// assemble the function V*phi using V and phi given from the functor
 
         /// this function must have been constructed using the CompositeFunctorInterface.
@@ -4519,6 +4734,110 @@ template<size_t NDIM>
             set_tree_state(redundant_after_merge);
             if (fence) world.gop.fence();
 
+        }
+
+        /// build this = u * [i(1)] * [j(2)] adaptively using Vphi_ij_u_op_NS
+
+        /// All of u, i_func, j_func must be in redundant form.
+        /// i_func and j_func must be replicated to all ranks (make_redundant).
+        /// On return (after fence) this is in redundant_after_merge state;
+        /// caller must call flo_unary_op_node_inplace(do_consolidate_buffer(...))
+        /// then sum_down(true) and set_tree_state(reconstructed) to finalise.
+        /// @param[in]  leaf_op   operator deciding leaf status (e.g. Leaf_op_other mirroring u)
+        /// @param[in]  u         pair function u(1,2), NS form
+        /// @param[in]  i_func    orbital i(1), NS form, replicated; may be null
+        /// @param[in]  j_func    orbital j(2), NS form, replicated; may be null
+        /// @param[in]  fence     global fence after completion
+        template<typename opT, size_t LDIM>
+        void make_Vphi_ij_u(const opT& leaf_op,
+                             const FunctionImpl<T,NDIM>* u,
+                             const FunctionImpl<T,LDIM>* i_func = nullptr,
+                             const FunctionImpl<T,LDIM>* j_func = nullptr,
+                             bool fence = true,
+                             double target_precision = 0.0,
+                             int oversampling = 1) {
+            MADNESS_CHECK_THROW(NDIM == LDIM*2, "make_Vphi_ij_u requires NDIM==2*LDIM");
+
+            CoeffTracker<T,NDIM> iau(u);
+            CoeffTracker<T,LDIM> iai(i_func);
+            CoeffTracker<T,LDIM> iaj(j_func);
+            if (target_precision == 0.0) target_precision = u->get_thresh();
+
+            typedef Vphi_ij_u_op_NS<opT,LDIM> coeff_opT;
+            coeff_opT coeff_op(this, leaf_op, iau, iai, iaj, nullptr,
+                               target_precision, oversampling);
+
+            typedef noop<T,NDIM> apply_opT;
+            apply_opT apply_op;
+
+            if (world.rank() == coeffs.owner(cdata.key0)) {
+                woT::task(world.rank(),
+                          &implT::template forward_traverse<coeff_opT,apply_opT>,
+                          coeff_op, apply_op, cdata.key0);
+            }
+
+            set_tree_state(redundant_after_merge);
+            if (fence) world.gop.fence();
+        }
+
+        /// compute <eri(1,2) | u(1,2) * [i(1)] * [j(2)]> adaptively using Vphi_ij_u_op_NS
+
+        /// Must be called collectively on all MPI ranks.
+        /// All of u, i_func, j_func must be in NS form; i_func, j_func must be replicated.
+        /// eri must be on-demand (provides_coeff() or evaluatable via fcube).
+        /// @param[in]  leaf_op   operator deciding leaf status
+        /// @param[in]  u         pair function u(1,2), NS form
+        /// @param[in]  i_func    orbital i(1), NS form, replicated; may be null
+        /// @param[in]  j_func    orbital j(2), NS form, replicated; may be null
+        /// @param[in]  eri       exact on-demand 2-particle operator g(1,2)
+        /// @return     scalar inner product <eri | u * [i] * [j]>
+        template<typename opT, size_t LDIM>
+        T inner_ij_u_eri(const opT& leaf_op,
+                         const FunctionImpl<T,NDIM>* u,
+                         const FunctionImpl<T,LDIM>* i_func,
+                         const FunctionImpl<T,LDIM>* j_func,
+                         const FunctionImpl<T,NDIM>* eri,
+                         double target_precision=0.0,
+                         int oversampling=1) const {
+            MADNESS_CHECK_THROW(NDIM == LDIM*2, "inner_ij_u_eri requires NDIM==2*LDIM");
+            MADNESS_ASSERT(eri && eri->is_on_demand());
+
+            // All ranks create the accumulator collectively so its WorldObject ID is
+            // consistent across ranks (MADNESS SPMD programming model requirement).
+            implT acc(*u, u->get_pmap(), false);   // empty copy of u: same k, thresh, pmap
+            if (target_precision==0.0) target_precision=acc.get_thresh()*0.01;
+
+
+            CoeffTracker<T,NDIM> iau(u);
+            CoeffTracker<T,LDIM> iai(i_func);
+            CoeffTracker<T,LDIM> iaj(j_func);
+
+            typedef Vphi_ij_u_op_NS<opT,LDIM> coeff_opT;
+            coeff_opT coeff_op(&acc, leaf_op, iau, iai, iaj, eri, target_precision, oversampling);
+
+            typedef noop<T,NDIM> apply_opT;
+            apply_opT apply_op;
+
+            if (world.rank() == acc.get_coeffs().owner(cdata.key0)) {
+                woT::task(world.rank(),
+                          &implT::template forward_traverse<coeff_opT,apply_opT>,
+                          coeff_op, apply_op, cdata.key0);
+            }
+
+            world.gop.fence();
+
+            // consolidate accumulated buffer at key0 into actual coefficients
+            acc.flo_unary_op_node_inplace(do_consolidate_buffer(acc.get_tensor_args()), true);
+
+            // read scalar from first element of the vk-shaped tensor at key0 (inner mode convention)
+            T inner_val = T(0);
+            if (world.rank() == acc.get_coeffs().owner(cdata.key0)) {
+                typename dcT::const_accessor a;
+                if (acc.get_coeffs().find(a, cdata.key0))
+                    inner_val = a->second.coeff().full_tensor_copy().flat()(0L);
+            }
+            world.gop.sum(inner_val);
+            return inner_val;
         }
 
         /// Permute the dimensions of f according to map, result on this
