@@ -1817,6 +1817,8 @@ template<size_t NDIM>
 
         int get_truncate_mode() const { return truncate_mode; };
 
+        void set_truncate_mode(int value) { truncate_mode = value; }
+
 
         /// Returns patch referring to coeffs of child in parent box
         /// @param[in] child the key to the child function node (box)

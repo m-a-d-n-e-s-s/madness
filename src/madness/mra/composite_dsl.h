@@ -233,6 +233,9 @@ struct Expr {
 //             Implicitly constructible from Function, LdimRef, NdimRef.
 // =====================================================================================
 
+// Forward decl so Term can return EvalBuilder.
+template <typename T, std::size_t NDIM> struct EvalBuilder;
+
 template <typename T, std::size_t NDIM>
 struct Term {
     static constexpr std::size_t LDIM = NDIM / 2;
@@ -251,9 +254,121 @@ struct Term {
     /// Construct from a tagged LDIM proxy: `v(p1)`.
     Term(const LdimRef<T, LDIM>& r) : node(E::make_ldim(r.f, r.particle)) {}
 
-    /// Evaluate the expression into an NDIM Function.
+    /// Evaluate the expression into an NDIM Function (no custom options).
+    Function<T, NDIM> eval() const;
+
+    /// Switch into the builder phase to attach a custom leaf_op.  Returns an
+    /// EvalBuilder; subsequent `.thresh(...)`, `.truncate_mode(...)`,
+    /// `.refine_with(...)` calls chain, and `.eval()` finalises.
+    ///
+    /// Ordering is enforced by the type system: builder methods are absent
+    /// from Function<T,NDIM>, so writing `expr.eval().refine_with(...)` is a
+    /// compile error.  Likewise, EvalBuilder has no `*`/`+`/`-` operators, so
+    /// `expr.refine_with(L) * other` won't compile — options must come AFTER
+    /// expression building and BEFORE eval.
+    EvalBuilder<T, NDIM> refine_with(const LeafOpBase<T, NDIM>& leaf_op) const;
+
+    /// Override the result Function's truncation threshold.  In composite_product
+    /// this also becomes the `target_precision` used by the per-key error model.
+    EvalBuilder<T, NDIM> thresh(double th) const;
+
+    /// Override the result Function's truncate_mode (0,1,2,3); affects
+    /// `truncate_tol` scaling per level.
+    EvalBuilder<T, NDIM> truncate_mode(int mode) const;
+};
+
+
+// =====================================================================================
+// Section C2. EvalOptions / EvalBuilder — chainable options before .eval()
+// =====================================================================================
+
+template <typename T, std::size_t NDIM>
+struct EvalOptions {
+    /// Optional: caller-provided leaf_op driving per-key refinement decisions
+    /// (e.g., ElectronCuspyBox_op, NuclearCuspyBox_op).
+    /// Lifetime: must outlive the .eval() / inner() call.
+    const LeafOpBase<T, NDIM>* leaf_op = nullptr;
+
+    /// Optional target precision / result thresh.  0 means "use default".
+    double thresh = 0.0;
+
+    /// Optional truncate_mode (0,1,2,3) for the result Function.  -1 means
+    /// "use default".
+    int truncate_mode = -1;
+
+    bool has_thresh() const { return thresh > 0.0; }
+    bool has_truncate_mode() const { return truncate_mode >= 0; }
+    bool has_leaf_op() const { return leaf_op != nullptr; }
+};
+
+/// Builder returned by Term::refine_with / .thresh / .truncate_mode.
+///
+/// Provides chained option-setting and a terminal `.eval()`.  EvalBuilder has
+/// no binary operators by design — once you switch into the builder phase you
+/// cannot add to the expression.  This forces options to come after the full
+/// expression is built and before evaluation.
+template <typename T, std::size_t NDIM>
+struct EvalBuilder {
+    Term<T, NDIM>       term;
+    EvalOptions<T, NDIM> opts;
+
+    EvalBuilder() = default;
+    explicit EvalBuilder(Term<T, NDIM> t) : term(std::move(t)) {}
+    EvalBuilder(Term<T, NDIM> t, EvalOptions<T, NDIM> o)
+        : term(std::move(t)), opts(o) {}
+
+    /// Attach a polymorphic leaf_op (e.g., an ElectronCuspyBox_op-driven
+    /// Leaf_op).  Lifetime: caller-owned, must outlive .eval().
+    EvalBuilder& refine_with(const LeafOpBase<T, NDIM>& leaf_op) {
+        opts.leaf_op = &leaf_op;
+        return *this;
+    }
+
+    /// Override target precision / result thresh.
+    EvalBuilder& thresh(double th) {
+        MADNESS_CHECK_THROW(th > 0.0,
+            "EvalBuilder::thresh: value must be positive");
+        opts.thresh = th;
+        return *this;
+    }
+
+    /// Override truncate_mode (0,1,2,3).
+    EvalBuilder& truncate_mode(int mode) {
+        MADNESS_CHECK_THROW(mode >= 0 && mode <= 3,
+            "EvalBuilder::truncate_mode: value must be in [0,3]");
+        opts.truncate_mode = mode;
+        return *this;
+    }
+
+    /// Terminal: evaluate the expression with the accumulated options.
     Function<T, NDIM> eval() const;
 };
+
+
+// Term -> EvalBuilder forwarders (defined out-of-line to avoid the forward decl).
+template <typename T, std::size_t NDIM>
+inline EvalBuilder<T, NDIM>
+Term<T, NDIM>::refine_with(const LeafOpBase<T, NDIM>& leaf_op) const {
+    EvalBuilder<T, NDIM> b{*this};
+    b.refine_with(leaf_op);
+    return b;
+}
+
+template <typename T, std::size_t NDIM>
+inline EvalBuilder<T, NDIM>
+Term<T, NDIM>::thresh(double th) const {
+    EvalBuilder<T, NDIM> b{*this};
+    b.thresh(th);
+    return b;
+}
+
+template <typename T, std::size_t NDIM>
+inline EvalBuilder<T, NDIM>
+Term<T, NDIM>::truncate_mode(int mode) const {
+    EvalBuilder<T, NDIM> b{*this};
+    b.truncate_mode(mode);
+    return b;
+}
 
 
 // =====================================================================================
@@ -458,7 +573,8 @@ World& expr_world(const Expr<T,NDIM>& e);  // fwd
 /// when a sub-expression needs to be expressed as a single NDIM Function (e.g.
 /// to be used as a bra in inner mode).
 template <typename T, std::size_t NDIM>
-Function<T,NDIM> evaluate(const std::shared_ptr<Expr<T,NDIM>>& e);
+Function<T,NDIM> evaluate(const std::shared_ptr<Expr<T,NDIM>>& e,
+                          const EvalOptions<T,NDIM>& opts = {});
 
 /// The actual recursive normaliser.
 template <typename T, std::size_t NDIM>
@@ -521,15 +637,26 @@ std::vector<composite_term<T,NDIM>> normalise(const std::shared_ptr<Expr<T,NDIM>
 /// LDIM factors, and exactly one hartree pair, dispatch directly to
 /// `hartree_product` — this avoids the composite_product code path's reliance on
 /// a ket-supplied result-tree model when only LDIM inputs are present.
+///
+/// `opts` (optional) carries a polymorphic leaf_op, target precision, and
+/// truncate_mode forwarded to composite_product / applied to the result.
 template <typename T, std::size_t NDIM>
-Function<T,NDIM> evaluate(const std::shared_ptr<Expr<T,NDIM>>& e)
+Function<T,NDIM> evaluate(const std::shared_ptr<Expr<T,NDIM>>& e,
+                          const EvalOptions<T,NDIM>& opts)
 {
     auto terms = normalise<T,NDIM>(e);
     MADNESS_CHECK_THROW(!terms.empty(),
         "composite_dsl::evaluate: expression normalised to no terms");
     World& w = expr_world<T,NDIM>(*e);
 
-    // Fast path: single pure hartree-pair term.
+    auto apply_post_opts = [&](Function<T,NDIM>& r) {
+        if (opts.has_thresh())          r.set_thresh(opts.thresh, /*fence*/ false);
+        if (opts.has_truncate_mode())   r.set_truncate_mode(opts.truncate_mode);
+    };
+
+    // Fast path: single pure hartree-pair term.  leaf_op cannot be applied here
+    // (hartree_product has its own leaf-op concept); we error out rather than
+    // silently ignore the option.
     if (terms.size() == 1) {
         const auto& t = terms[0];
         const bool pure_hartree = (!t.ket.is_initialized()) &&
@@ -538,12 +665,25 @@ Function<T,NDIM> evaluate(const std::shared_ptr<Expr<T,NDIM>>& e)
                                    !t.factor2.is_initialized() &&
                                    !t.extra.is_initialized();
         if (pure_hartree) {
+            MADNESS_CHECK_THROW(!opts.has_leaf_op(),
+                "composite_dsl: refine_with(leaf_op) is not supported for a pure "
+                "hartree-product expression (a(p1)*b(p2)); this path does not go "
+                "through composite_product.  Add at least one NDIM factor to engage "
+                "the composite path, or apply the leaf_op via hartree_product directly.");
             Function<T,NDIM> h = hartree_product(t.p1[0], t.p2[0]);
             if (t.coeff != 1.0) h.scale(t.coeff);
+            apply_post_opts(h);
             return h;
         }
     }
-    return composite_product<T,NDIM>(w, terms);
+
+    const double tp = opts.has_thresh() ? opts.thresh : 0.0;
+    Function<T,NDIM> r =
+        opts.has_leaf_op()
+        ? composite_product<T,NDIM>(w, terms, *opts.leaf_op, tp)
+        : composite_product<T,NDIM>(w, terms, tp);
+    apply_post_opts(r);
+    return r;
 }
 
 /// Find a World& by descending until we hit any initialised Function.
@@ -579,6 +719,13 @@ Function<T,NDIM> Term<T,NDIM>::eval() const {
     return dsl_detail::evaluate<T,NDIM>(node);
 }
 
+template <typename T, std::size_t NDIM>
+Function<T,NDIM> EvalBuilder<T,NDIM>::eval() const {
+    MADNESS_CHECK_THROW(term.node != nullptr,
+        "EvalBuilder::eval(): default-constructed Term cannot be evaluated");
+    return dsl_detail::evaluate<T,NDIM>(term.node, opts);
+}
+
 
 // =====================================================================================
 // Section G. inner(lhs, rhs) — inner-mode entry point
@@ -592,8 +739,13 @@ Function<T,NDIM> Term<T,NDIM>::eval() const {
 /// `composite_inner` against the RHS term list `{r_t}`.  The bra can be
 /// either a hartree pair (built via hartree_product), a single NDIM
 /// literal, or a more complex sub-expression (eagerly evaluated).
+///
+/// `opts` carries refinement controls (leaf_op, thresh, truncate_mode) for
+/// the per-RHS-term composite_inner calls; defaults to "use the system
+/// default leaf_op and thresh".
 template <typename T, std::size_t NDIM>
-T inner(Term<T,NDIM> lhs, Term<T,NDIM> rhs)
+T inner(Term<T,NDIM> lhs, Term<T,NDIM> rhs,
+        const EvalOptions<T,NDIM>& opts = {})
 {
     MADNESS_CHECK_THROW(lhs.node != nullptr && rhs.node != nullptr,
         "composite_dsl::inner: default-constructed Term cannot be inner-producted");
@@ -636,15 +788,42 @@ T inner(Term<T,NDIM> lhs, Term<T,NDIM> rhs)
         return composite_product<T,NDIM>(w, single);
     };
 
+    const double tp = opts.has_thresh() ? opts.thresh : 0.0;
+
     T total = T(0);
     for (const auto& b : bra_terms) {
         Function<T,NDIM> bra_fn = is_pure_ket(b) ? b.ket : materialise_bra(b);
         // composite_inner handles both on-demand and tree-resident bras transparently.
-        T partial = composite_inner<T,NDIM>(w, ket_terms, bra_fn);
+        T partial = opts.has_leaf_op()
+            ? composite_inner<T,NDIM>(w, ket_terms, bra_fn, *opts.leaf_op, tp)
+            : composite_inner<T,NDIM>(w, ket_terms, bra_fn, tp);
         total += b.coeff * partial;
     }
     return total;
 }
+
+// Overloads accepting an EvalBuilder on either side, forwarding its opts.
+// If both sides have options, the RHS wins (typical use case: leaf_op on the ket).
+template <typename T, std::size_t NDIM>
+T inner(EvalBuilder<T,NDIM> lhs, EvalBuilder<T,NDIM> rhs) {
+    EvalOptions<T,NDIM> merged = lhs.opts;
+    if (rhs.opts.has_leaf_op())        merged.leaf_op = rhs.opts.leaf_op;
+    if (rhs.opts.has_thresh())         merged.thresh = rhs.opts.thresh;
+    if (rhs.opts.has_truncate_mode())  merged.truncate_mode = rhs.opts.truncate_mode;
+    return inner(lhs.term, rhs.term, merged);
+}
+template <typename T, std::size_t NDIM>
+T inner(Term<T,NDIM> lhs, EvalBuilder<T,NDIM> rhs)
+{ return inner(lhs, rhs.term, rhs.opts); }
+template <typename T, std::size_t NDIM>
+T inner(EvalBuilder<T,NDIM> lhs, Term<T,NDIM> rhs)
+{ return inner(lhs.term, rhs, lhs.opts); }
+template <typename T, std::size_t NDIM>
+T inner(NdimRef<T,NDIM> lhs, EvalBuilder<T,NDIM> rhs)
+{ return inner(Term<T,NDIM>(lhs), rhs.term, rhs.opts); }
+template <typename T, std::size_t NDIM>
+T inner(EvalBuilder<T,NDIM> lhs, NdimRef<T,NDIM> rhs)
+{ return inner(lhs.term, Term<T,NDIM>(rhs), lhs.opts); }
 
 // Overloads for raw Refs on either side (so users don't have to wrap in Term first)
 template <typename T, std::size_t NDIM>

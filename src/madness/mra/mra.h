@@ -682,6 +682,15 @@ namespace madness {
         }
 
 
+        /// Sets the truncate_mode (0,1,2,3) on this Function's impl.  No fence is
+        /// issued — truncate_mode is a local per-impl integer with no global state.
+        void set_truncate_mode(int value) {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            impl->set_truncate_mode(value);
+        }
+
+
         /// Returns the number of multiwavelets (k).  No communication.
         int k() const {
             PROFILE_MEMBER_FUNC(Function);
@@ -2623,6 +2632,37 @@ namespace madness {
         return result;
     }
 
+    /// Overload taking a polymorphic LeafOpBase for fine-grained tree-structure control.
+    ///
+    /// The caller-provided `leaf_op` lets you drive a cuspy box (ElectronCuspyBox_op,
+    /// NuclearCuspyBox_op), a custom Specialbox_op, or a screening operator through
+    /// the composite product's per-key refinement decisions.
+    ///
+    /// Lifetime: `leaf_op` must outlive this call.
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> composite_product(World& world,
+                                       std::vector<composite_term<T,NDIM>> terms,
+                                       const LeafOpBase<T,NDIM>& leaf_op,
+                                       double target_precision = 0.0,
+                                       int oversampling = 1,
+                                       bool fence = true) {
+        MADNESS_ASSERT(!terms.empty());
+
+        Function<T,NDIM> result;
+        if (terms.front().ket.is_initialized()) {
+            result.set_impl(terms.front().ket, false);
+        } else {
+            MADNESS_ASSERT(!terms.front().p1.empty());
+            result = FunctionFactory<T,NDIM>(world).empty();
+        }
+
+        LeafOpRef<T,NDIM> leaf_ref(leaf_op);
+        composite_product_apply<T,NDIM,LeafOpRef<T,NDIM>>(
+            result.get_impl().get(), leaf_ref, terms,
+            target_precision, oversampling, fence);
+        return result;
+    }
+
     /// compute <bra | Σ_t (ket_t · factor1_t · factor2_t)> adaptively
     ///
     /// `bra` may be on-demand (e.g., an ERI functor) or a regular tree-resident NDIM
@@ -2656,6 +2696,35 @@ namespace madness {
         return composite_inner_apply<T,NDIM,Leaf>(world, like, leaf_op, terms,
                                                    bra,
                                                    target_precision, oversampling);
+    }
+
+    /// Overload taking a polymorphic LeafOpBase for fine-grained refinement control.
+    template <typename T, std::size_t NDIM>
+    T composite_inner(World& world,
+                      std::vector<composite_term<T,NDIM>> terms,
+                      Function<T,NDIM> bra,
+                      const LeafOpBase<T,NDIM>& leaf_op,
+                      double target_precision = 0.0,
+                      int oversampling = 1) {
+        MADNESS_CHECK_THROW(!terms.empty(),
+            "composite_inner: terms list must not be empty");
+        MADNESS_CHECK_THROW(bra.is_initialized(),
+            "composite_inner: bra Function must be initialised");
+
+        const FunctionImpl<T,NDIM>* like = nullptr;
+        if (terms.front().ket.is_initialized()) {
+            like = terms.front().ket.get_impl().get();
+        } else if (bra.is_initialized() && !bra.is_on_demand()) {
+            like = bra.get_impl().get();
+        }
+        MADNESS_CHECK_THROW(like,
+            "composite_inner: cannot model accumulator — provide a ket in the first term, "
+            "or a non-on-demand bra");
+
+        LeafOpRef<T,NDIM> leaf_ref(leaf_op);
+        return composite_inner_apply<T,NDIM,LeafOpRef<T,NDIM>>(
+            world, like, leaf_ref, terms, bra,
+            target_precision, oversampling);
     }
 
 
