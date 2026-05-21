@@ -55,7 +55,7 @@ if(BUILD_TESTING)
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-        testdiff1D testdiff2D testdiff3D test_composite_product)
+        testdiff1D testdiff2D testdiff3D test_composite_product test_composite_dsl)
   
     foreach(_test ${MRA_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADmra")

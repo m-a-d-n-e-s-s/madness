@@ -45,6 +45,9 @@ struct composite_term {
     /// optional single NDIM extra factor (e.g. an on-demand ERI).  Multiplied into the
     /// chain in function mode; ignored in inner mode (use the global `bra` instead).
     FN extra;
+    /// scalar prefactor applied to the entire product.  Used by the DSL to fold scaled
+    /// subtrees (`α * f`) into a single term without an explicit scalar Function literal.
+    double coeff = 1.0;
 };
 
 /// Adaptive sum-of-products operator over a vector of composite_terms.
@@ -71,6 +74,7 @@ struct composite_product_op_NS {
         std::vector<ctL> iap1, iap2;     ///< sum-of-hartree-products ket if iaket is null
         ctL ifactor1, ifactor2;          ///< single per-particle LDIM factor (each optional)
         const implT* extra = nullptr;    ///< NDIM extra factor (function mode only)
+        double coeff = 1.0;              ///< scalar prefactor (DSL)
 
         bool have_ket()     const { return iaket.get_impl(); }
         bool have_factor1() const { return ifactor1.get_impl(); }
@@ -78,7 +82,7 @@ struct composite_product_op_NS {
         bool have_extra()   const { return extra; }
 
         template <typename Archive> void serialize(Archive& ar) {
-            ar & iaket & iap1 & iap2 & ifactor1 & ifactor2 & extra;
+            ar & iaket & iap1 & iap2 & ifactor1 & ifactor2 & extra & coeff;
         }
     };
 
@@ -88,9 +92,13 @@ struct composite_product_op_NS {
     opT                  leaf_op;
     std::vector<TermImpl> terms;
     Mode                 mode = Mode::function;
-    const implT*         bra  = nullptr;    ///< inner-mode bra (e.g., on-demand ERI)
+    const implT*         bra  = nullptr;    ///< inner-mode on-demand bra (e.g., ERI)
+    ctT                  cbra;              ///< inner-mode explicit-NDIM bra (tracked).
+                                            ///  At most one of {bra, cbra} is active.
     double               target_precision = 0.0;
     int                  oversampling = 1;
+
+    bool have_explicit_bra() const { return cbra.get_impl(); }
 
     composite_product_op_NS() : result(nullptr) {}
 
@@ -99,13 +107,18 @@ struct composite_product_op_NS {
                             Mode mode,
                             const implT* bra,
                             double target_precision,
-                            int oversampling)
+                            int oversampling,
+                            const ctT& cbra = ctT{})
         : result(result), leaf_op(leaf_op), terms(terms),
-          mode(mode), bra(bra),
+          mode(mode), bra(bra), cbra(cbra),
           target_precision(target_precision), oversampling(oversampling) {
-        for (const auto& t : terms)
-            if (t.extra) MADNESS_ASSERT(t.extra->is_on_demand() || not t.extra->is_on_demand());
-        if (mode == Mode::inner) MADNESS_ASSERT(bra && bra->is_on_demand());
+        if (mode == Mode::inner) {
+            MADNESS_CHECK_THROW(bool(bra) ^ bool(cbra.get_impl()),
+                "inner mode requires exactly one bra: either on-demand (bra) "
+                "or explicit-NDIM (cbra)");
+            if (bra) MADNESS_CHECK_THROW(bra->is_on_demand(),
+                "inner mode: on-demand bra pointer must point to an on-demand FunctionImpl");
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -156,7 +169,7 @@ struct composite_product_op_NS {
         return {s, d};
     }
 
-    /// full inaccurate-refinement error for one term
+    /// full inaccurate-refinement error for one term, scaled by the term's coeff.
     double term_refinement_error(const TermImpl& t, const keyT& key,
                                  const keyL& k1, const keyL& k2) const {
         std::vector<std::pair<double, double>> sd;
@@ -165,7 +178,7 @@ struct composite_product_op_NS {
         if (t.have_factor1()) sd.push_back(sd_norm(t.ifactor1, k1));
         if (t.have_factor2()) sd.push_back(sd_norm(t.ifactor2, k2));
         if (t.have_extra())   sd.push_back(sd_norm_extra(t.extra, key));
-        return cross_term_error(sd);
+        return std::abs(t.coeff) * cross_term_error(sd);
     }
 
     // ---------------------------------------------------------------------
@@ -227,6 +240,11 @@ struct composite_product_op_NS {
             current = coeffT(v, result->get_tensor_args());
             err += pm.error;
         }
+        // DSL scalar prefactor: scale coeffs and error
+        if (t.coeff != 1.0) {
+            current.scale(t.coeff);
+            err *= std::abs(t.coeff);
+        }
         return {current, err};
     }
 
@@ -249,13 +267,18 @@ struct composite_product_op_NS {
             if (terms.size() > 1) cresult.reduce_rank(result->get_tensor_args().thresh);
             return {cresult, error};
         } else {  // inner mode
-            const tensorT cbra = eri_coeffs(bra, key);
+            // Fetch the bra coefficients at this key.  Two paths:
+            //   - on-demand bra: evaluate the functor / use provided coeffs
+            //   - explicit-NDIM bra: read from the CoeffTracker (parent-to-child)
+            const tensorT cbra_t = have_explicit_bra()
+                ? cbra.coeff(key).full_tensor_copy()
+                : eri_coeffs(bra, key);
             T sum = T(0);
             for (const auto& t : terms) {
                 error += term_refinement_error(t, key, k1, k2);
                 auto [c, e] = make_term_coeffs(t, key);
                 error += e;
-                sum += cbra.trace(c.full_tensor_copy());
+                sum += cbra_t.trace(c.full_tensor_copy());
             }
             // wrap scalar in a vk tensor at key0 convention
             tensorT scalar(result->get_cdata().vk);
@@ -354,10 +377,12 @@ struct composite_product_op_NS {
             ct.ifactor1 = t.have_factor1() ? t.ifactor1.make_child(k1) : ctL();
             ct.ifactor2 = t.have_factor2() ? t.ifactor2.make_child(k2) : ctL();
             ct.extra = t.extra;
+            ct.coeff = t.coeff;
             child_terms.push_back(std::move(ct));
         }
+        ctT child_cbra = have_explicit_bra() ? cbra.make_child(child) : ctT{};
         return this_type(result, leaf_op, child_terms, mode, bra,
-                         target_precision, oversampling);
+                         target_precision, oversampling, child_cbra);
     }
 
     Future<this_type> activate() const {
@@ -380,22 +405,27 @@ struct composite_product_op_NS {
             if (t.have_factor1()) at.ifactor1 = t.ifactor1.activate().get();
             if (t.have_factor2()) at.ifactor2 = t.ifactor2.activate().get();
             at.extra = t.extra;
+            at.coeff = t.coeff;
             activated.push_back(std::move(at));
         }
+        ctT cbra_activated = have_explicit_bra() ? cbra.activate().get() : ctT{};
         return result->world.taskq.add(
             detail::wrap_mem_fn(*const_cast<this_type*>(this), &this_type::forward_ctor),
-            result, leaf_op, activated, mode, bra, target_precision, oversampling);
+            result, leaf_op, activated, mode, bra, target_precision, oversampling,
+            cbra_activated);
     }
 
     this_type forward_ctor(implT* result1, const opT& leaf_op1,
                            const std::vector<TermImpl>& terms1, Mode mode1,
-                           const implT* bra1, double target_precision1, int oversampling1) {
+                           const implT* bra1, double target_precision1, int oversampling1,
+                           const ctT& cbra1) {
         return this_type(result1, leaf_op1, terms1, mode1, bra1,
-                         target_precision1, oversampling1);
+                         target_precision1, oversampling1, cbra1);
     }
 
     template <typename Archive> void serialize(Archive& ar) {
-        ar & result & leaf_op & terms & mode & bra & target_precision & oversampling;
+        ar & result & leaf_op & terms & mode & bra & cbra
+           & target_precision & oversampling;
     }
 };
 
@@ -445,6 +475,7 @@ typename OP::TermImpl make_term_impl(const composite_term<T, NDIM>& term) {
     if (term.factor2.is_initialized())
         x.ifactor2 = CoeffTracker<T, LDIM>(term.factor2.get_impl().get());
     if (term.extra.is_initialized()) x.extra = term.extra.get_impl().get();
+    x.coeff = term.coeff;
     return x;
 }
 
@@ -505,24 +536,38 @@ void composite_product_apply(FunctionImpl<T, NDIM>* result,
 
 /// compute <bra | Σ_t product_t> adaptively.
 ///
-/// `bra` must be on-demand (e.g. an on-demand ERI).  Returns the scalar.
+/// `bra` may be on-demand (e.g. an ERI functor) — the operator evaluates its coeffs
+/// per box via fcube — or a regular tree-resident NDIM function, in which case the
+/// bra is brought into `redundant` state and a CoeffTracker walks it.  Returns the
+/// accumulated scalar.
 template <typename T, std::size_t NDIM, typename leaf_opT>
 T composite_inner_apply(World& world,
                         const FunctionImpl<T, NDIM>* like,
                         const leaf_opT& leaf_op,
                         std::vector<composite_term<T, NDIM>>& terms,
-                        const FunctionImpl<T, NDIM>* bra,
+                        Function<T, NDIM>& bra_function,
                         double target_precision,
                         int oversampling) {
     constexpr std::size_t LDIM = NDIM / 2;
     using OP = composite_product_op_NS<T, NDIM, leaf_opT, LDIM>;
 
-    MADNESS_ASSERT(bra && bra->is_on_demand());
+    MADNESS_CHECK_THROW(bra_function.is_initialized(),
+        "composite_inner: bra Function must be initialised");
 
+    // Per-term `extra` factors *are* allowed in inner mode: the trace becomes the triple
+    // integral ⟨bra | ket·factor1·factor2·extra⟩.  `make_term_coeffs` already multiplies
+    // the extra into the term coefficients before the contraction.
     for (auto& t : terms) {
-        MADNESS_ASSERT(!t.extra.is_initialized() &&
-                       "inner mode cannot mix per-term extra factor with global bra");
         detail::make_term_inputs_redundant(t);
+    }
+
+    // Decide bra dispatch path
+    const FunctionImpl<T,NDIM>* bra_impl = bra_function.get_impl().get();
+    const bool on_demand_bra = bra_impl->is_on_demand();
+    typename OP::ctT cbra_tracker;
+    if (!on_demand_bra) {
+        bra_function.change_tree_state(redundant, false);
+        cbra_tracker = typename OP::ctT(bra_impl);
     }
     world.gop.fence();
 
@@ -537,7 +582,9 @@ T composite_inner_apply(World& world,
     }
 
     OP coeff_op(&acc, leaf_op, impl_terms, OP::Mode::inner,
-                bra, target_precision, oversampling);
+                /*bra ptr*/ on_demand_bra ? bra_impl : nullptr,
+                target_precision, oversampling,
+                cbra_tracker);
     noop<T, NDIM> apply_op;
 
     if (world.rank() == acc.get_coeffs().owner(acc.get_cdata().key0)) {
@@ -561,6 +608,7 @@ T composite_inner_apply(World& world,
 
     // Restore input tree state for the caller.
     for (auto& t : terms) detail::make_term_inputs_reconstructed(t);
+    if (!on_demand_bra) bra_function.change_tree_state(reconstructed, false);
     world.gop.fence();
 
     return scalar;
