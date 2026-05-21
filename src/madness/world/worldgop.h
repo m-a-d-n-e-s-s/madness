@@ -151,6 +151,7 @@ namespace madness {
         bool debug_; ///< Debug mode
         bool forbid_fence_=false; ///< forbid calling fence() in case of several active worlds
         int max_reducebcast_msg_size_ = std::numeric_limits<int>::max();  ///< maximum size of messages (in bytes) sent by reduce and broadcast
+        bool in_do_cleanup_ = false; ///< set while this gop's deferred_->do_cleanup() is running inside fence_impl, so that destructors invoked during cleanup can skip cross-rank handshakes safely (see is_in_do_cleanup)
 
         friend class detail::DeferredCleanup;
 
@@ -696,6 +697,23 @@ namespace madness {
         /// \return the maximum size of messages (in bytes) sent by reduce and broadcast
         int max_reducebcast_msg_size() const {
           return max_reducebcast_msg_size_;
+        }
+
+        /// Reports whether this gop is currently inside its deferred-cleanup
+        /// phase (invoked from fence_impl after the global-termination loop).
+
+        /// \return true iff `deferred_->do_cleanup()` is being run from within
+        /// this gop's `fence_impl`.
+        /// \note Intended for destructors of objects stored in the deferred
+        /// list to specialize their teardown when they can rely on the fence
+        /// having already established global quiescence -- in particular, to
+        /// skip cross-rank handshakes (e.g. \c lazy_sync) that would otherwise
+        /// schedule \c lazy_sync_children tasks the fence cannot drain.
+        /// Symmetric, collective use of the deferred list is assumed: every
+        /// rank must add the same set of objects to its deferred list, so
+        /// every rank performs the matching cleanup in lockstep.
+        bool is_in_do_cleanup() const {
+          return in_do_cleanup_;
         }
 
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
