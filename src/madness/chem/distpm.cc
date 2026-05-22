@@ -120,7 +120,15 @@ public:
         if (snew > sold) {
             nswitched++;
             //print("rotation", i, j, sold, snew);
+            MADNESS_PRAGMA_GCC(diagnostic push)
+            MADNESS_PRAGMA_GCC(diagnostic ignored "-Wvla")
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wunknown-warning-option")
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wvla-extension")
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wvla-cxx-extension")
             double tmp[m];
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+            MADNESS_PRAGMA_GCC(diagnostic pop)
             memcpy(tmp, Ui, m*sizeof(double));
             memcpy(Ui, Uj, m*sizeof(double));
             memcpy(Uj, tmp, m*sizeof(double));

@@ -4121,6 +4121,7 @@ namespace madness {
 MADNESS_PRAGMA_GCC(diagnostic push)
 MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
 MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wunknown-warning-option")
 MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wmaybe-uninitialized")
     bool test_rnlij_rangelimited(const bool log_errors) {
       double maxerr = 0.0;

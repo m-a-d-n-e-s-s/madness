@@ -179,10 +179,10 @@ int main(int argc, char * argv[]) {
 
     SafeMPI::Init_thread(argc, argv, MPI_THREAD_SINGLE);
 
-    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
-    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
-    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
-    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double));
+    if (posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double)) != 0) return 1;
+    if (posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double)) != 0) return 1;
+    if (posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double)) != 0) return 1;
+    if (posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double)) != 0) return 1;
 
     ran_fill(nkmax*nimax, a);
     ran_fill(nkmax*njmax, b);

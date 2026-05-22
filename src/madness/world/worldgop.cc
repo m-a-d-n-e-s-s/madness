@@ -149,7 +149,22 @@ namespace madness {
         MADNESS_ASSERT(pause_during_epilogue == false);
         epilogue();
         world_.am.free_managed_buffers(); // free up communication buffers
-        deferred_->do_cleanup();
+        // Run deferred cleanup with the in_do_cleanup_ flag set so that any
+        // destructor invoked here can detect that it runs from inside the
+        // fence's synchronization boundary and skip cross-rank handshakes
+        // (e.g. TA's DistArray::lazy_deleter checks this and bypasses
+        // lazy_sync, which would otherwise schedule lazy_sync_children tasks
+        // that the fence cannot drain and that survive into the global
+        // ThreadPool past this world's lifetime). The flag is reset on every
+        // exit path, including exceptions.
+        {
+          struct InDoCleanupScope {
+            bool& flag;
+            ~InDoCleanupScope() { flag = false; }
+          } scope{in_do_cleanup_};
+          in_do_cleanup_ = true;
+          deferred_->do_cleanup();
+        }
 #ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
         MallocExtension::instance()->ReleaseFreeMemory();
 //        print("clearing memory");

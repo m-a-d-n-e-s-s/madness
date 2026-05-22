@@ -2556,6 +2556,9 @@ namespace madness {
                     if (specialkey.is_neighbor_of(key,bperiodic)) {
                         newspecialpts.push_back(specialpts[i]);
                     }
+                    if (key.is_neighbor_of(simpt, bperiodic)) {
+                        newspecialpts.push_back(specialpts[i]);
+                    }
                 }
             }
 

@@ -334,6 +334,49 @@ namespace madness {
         	return (dist <= 1);
         }
 
+        /// True iff this box is a neighbor of a point in simulation coordinates
+
+        /// Geometrically: this box's closure overlaps the closed box of
+        /// half-width 1 (one box-width at this level) centered on `simpt`.
+        /// Equivalently, the Chebyshev distance from this box to `simpt`
+        /// (measured in box-widths) is at most 1.
+        ///
+        /// This is the point-argument analogue of the key-vs-key overload
+        /// `is_neighbor_of(Key, bperiodic)`; both express "within one
+        /// box-width" adjacency. It supersedes the legacy idiom
+        /// `simpt2key(simpt, n).is_neighbor_of(*this, ...)`, which was
+        /// asymmetric for points lying on box boundaries because
+        /// `simpt2key` truncates to a single key. The new test reports
+        /// face-, edge-, and corner-coincident points as contained in
+        /// *every* box that shares the face/edge/corner — and therefore
+        /// every neighbor of those boxes is correctly flagged too.
+        ///
+        /// @param[in] simpt point in simulation coordinates
+        ///                  (in [0,1]^NDIM, modulo 1 in periodic dimensions)
+        /// @param[in] bperiodic per-dimension periodic-boundary flags
+        template <typename T>
+        bool
+        is_neighbor_of(const Vector<T, NDIM>& simpt,
+                       const array_of_bools<NDIM>& bperiodic) const {
+            const double twon = std::ldexp(1.0, n);  // 2^n
+            const double period = twon;              // sim domain has unit length
+            // round-off in d = twon*simpt - l is ~ period * eps; pad by a few
+            // ULPs so points within machine noise of an edge deterministically
+            // count as on it.
+            const double tol = 8.0 * period * std::numeric_limits<double>::epsilon();
+            for (std::size_t i = 0; i < NDIM; ++i) {
+                // signed distance from this box's lower edge, in box-widths
+                double d = twon * static_cast<double>(simpt[i]) - static_cast<double>(l[i]);
+                if (bperiodic[i]) {
+                    // fold to the nearest periodic image: d ∈ [-period/2, period/2)
+                    d -= period * std::floor((d + 0.5 * period) / period);
+                }
+                if (d < -1.0 - tol || d > 2.0 + tol)
+                    return false;
+            }
+            return true;
+        }
+
         /// given a displacement, generate a neighbor key; ignore boundary conditions and disp's level
 
         /// @param[in]  disp    the displacement

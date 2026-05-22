@@ -93,6 +93,8 @@ if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
   redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
 endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
+redefaultable_option(MADNESS_WERROR "Treat compiler warnings as errors when compiling MADNESS's own translation units (does not propagate to consumers of installed MADNESS targets)" OFF)
+include(MADNESSWarnings)
 
 # Enable optional libraries ====================================================
 

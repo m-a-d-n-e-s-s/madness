@@ -174,10 +174,10 @@ int main(int argc, char * argv[]) {
 
     SafeMPI::Init_thread(argc, argv, MPI_THREAD_SINGLE);
 
-    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double_complex));
-    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double_complex));
-    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex));
-    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double_complex));
+    if (posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double_complex)) != 0) return 1;
+    if (posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double_complex)) != 0) return 1;
+    if (posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex)) != 0) return 1;
+    if (posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double_complex)) != 0) return 1;
 
 
     bool smalltest = false;

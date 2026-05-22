@@ -243,6 +243,15 @@ from TiledArray and MPQC). Maintain both invariants when editing CMake.
   tests during iteration.
 - **`CMAKE_FIND_NO_INSTALL_PREFIX=ON`** is set as a safety net so
   `find_package` doesn't pick up a stale installed copy during development.
+- **Internal warning policy lives on the `madness_internal_warnings` INTERFACE
+  target** (`cmake/modules/MADNESSWarnings.cmake`), linked PRIVATE-ly to
+  `MAD*-obj` object libraries by `add_mad_library` and to in-tree executables
+  by `add_mad_executable`. The PRIVATE scope is load-bearing: it keeps
+  warning flags out of `INTERFACE_COMPILE_OPTIONS` on the exported MAD*
+  targets so downstream consumers don't inherit them, and the target itself
+  is not installed/exported. Add new warning-related flags here, not to
+  individual targets. `-DMADNESS_WERROR=ON` (default OFF, on in CI) attaches
+  `-Werror` to this target.
 
 ### Commit messages
 
