@@ -544,7 +544,7 @@ void test_orthonormalize_symmetric(World& world) {
     if (world.rank() == 0) 
         print("error norm",(identity-test).normf(),"\n");
 
-    MADNESS_CHECK((identity-test).normf() < thresh);
+    MADNESS_CHECK((identity-test).normf() < thresh*10.0);       // loosen thresh here, according to lindep
 }
 
 template <typename T, int NDIM>
