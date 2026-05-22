@@ -682,7 +682,7 @@ namespace madness {
         }
 
 
-        /// Sets the truncate_mode (0,1,2,3) on this Function's impl.  No fence is
+        /// Sets the truncate_mode (-2,-1,0,1,2,3,4) on this Function's impl.  No fence is
         /// issued — truncate_mode is a local per-impl integer with no global state.
         void set_truncate_mode(int value) {
             PROFILE_MEMBER_FUNC(Function);
