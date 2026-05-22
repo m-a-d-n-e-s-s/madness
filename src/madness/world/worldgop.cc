@@ -70,8 +70,14 @@ namespace madness {
             if (child0 != -1) req0 = world_.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI_BYTE, child0, gfence_tag);
             if (child1 != -1) req1 = world_.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI_BYTE, child1, gfence_tag);
             world_.taskq.fence();
-            if (child0 != -1) World::await(req0);
-            if (child1 != -1) World::await(req1);
+            // Use dowork=false: the gfence tree-collect messages are tiny and
+            // arrive quickly.  dowork=true creates a circular dependency when
+            // children have already sent their collect message and entered the
+            // broadcast phase (where they stop draining tasks): the parent
+            // keeps spawning AM traffic toward those children, neither side
+            // makes MPI progress on the gfence recv, and the fence deadlocks.
+            if (child0 != -1) World::await(req0, false);
+            if (child1 != -1) World::await(req1, false);
 
             if (debug && (child0 != -1 || child1 != -1))
               madness::print(world_.rank(), ": WORLD.GOP.FENCE: npass=", npass, " received messages from children={", child0, ",", child1, "} gfence_tag=", gfence_tag);
