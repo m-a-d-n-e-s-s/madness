@@ -784,7 +784,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
         World& world() const {
-            if (g.size()>0) return g.front().world();
+            MADNESS_CHECK_THROW(g.size()>0, "cannot get world from empty LowRankFunction");
+            return g.front().world();
         }
 
         /// deep copy
