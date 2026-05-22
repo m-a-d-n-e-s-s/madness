@@ -619,9 +619,24 @@ public:
         // result(1) = \sum_i \int a_i(1) f(1,2) b_i(2) rhs(2) d2
         //            = \sum_i a_i(1) \int f(1,2) b_i(2) rhs(2) d2
         World& world = rhs.front().world();
+        // MacroTask cannot serialize uninitialized Function objects. Replace any
+        // uninitialized entries (representing an implicit factor of 1) with an
+        // explicit constant-1 Function so the cloud transfer is well-defined.
+        auto sanitize = [&world](const std::vector<Function<T,LDIM>>& v) {
+            bool any_uninit=false;
+            for (const auto& f : v) if (not f.is_initialized()) { any_uninit=true; break; }
+            if (not any_uninit) return v;
+            Function<T,LDIM> one = FunctionFactory<T,LDIM>(world)
+                .functor([](const Vector<double,LDIM>& r){return T(1);});
+            std::vector<Function<T,LDIM>> out=v;
+            for (auto& f : out) if (not f.is_initialized()) f=one;
+            return out;
+        };
+        auto a_safe = sanitize(a);
+        auto b_safe = sanitize(b);
         MacroTaskLRFInner task_op;
         MacroTask mt(world, task_op);
-        return mt(rhs, a, b,
+        return mt(rhs, a_safe, b_safe,
                   f12->stored_coeffs, f12->stored_exponents,
                   f12->info.lo, f12->info.thresh, f12->info.mu,
                   p1.is_first());
@@ -1273,7 +1288,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         // int f(1,2) k(2,3) d2 = \sum \int g_i(1) M_ij h_j(2) k(2,3) d2
         //                      = \sum g_i(1) M_ij \int h_j(2) k(2,3) d2
         //                      = \sum g_i(1) M_ij k_j(3)
-        LowRankFunction<T, NDIM> result(world);
+        LowRankFunction<T, NDIM> result;
         if (p1.is_last()) { // integrate over 2: result(1,3) = lrf(1,2) f(2,3)
             result.g = f1.g;
             change_tree_state(f1.h,reconstructed);
