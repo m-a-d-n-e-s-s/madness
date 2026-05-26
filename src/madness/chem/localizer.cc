@@ -3,6 +3,7 @@
 //
 
 #include<madness/chem/localizer.h>
+#include <tbb/parallel_for.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/function_factory.h>
 #include <madness/tensor/jacobi.h>
@@ -422,15 +423,19 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
         };
 
         auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
-            W = 0.0;
-            for (int i = 0; i < nmo; ++i) {
-                for (int a = 0; a < natom; ++a) {
-                    Q(i, a) = QQ(C, i, i, a);
-                    W += Q(i, a) * Q(i, a);
+            W = tbb::parallel_reduce(tbb::blocked_range(0,nmo), 0.0, [&](tbb::blocked_range<int> r, double W){
+                for (int i = r.begin(); i < r.end(); ++i) {
+                    for (int a = 0; a < natom; ++a) {
+                        Q(i, a) = QQ(C, i, i, a);
+                        W += Q(i, a) * Q(i, a);
+                    }
                 }
-            }
+                return W;
+            },std::plus<double>());
 
-            for (int i = 0; i < nmo; ++i) {
+
+            // for (int i = 0; i < nmo; ++i) {
+            tbb::parallel_for(0,nmo,[&](int i){
                 for (int j = 0; j < i; ++j) {
                     double Qiiij = 0.0, Qijjj = 0.0;
                     for (int a = 0; a < natom; ++a) {
@@ -438,10 +443,16 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                         Qijjj += Qija * Q(j, a);
                         Qiiij += Qija * Q(i, a);
                     }
-                    g(j, i) = Qiiij - Qijjj;
-                    g(i, j) = -g(j, i);
+                    g(i, j) = -(Qiiij - Qijjj);
+                }}
+            );
+
+            for (int i = 0; i < nmo ; ++i) {
+                for (int j = 0; j < i; ++j) {
+                    g(j, i) = -g(i, j);
                 }
             }
+           // }
         };
 
         tensorT xprev; // previous search direction

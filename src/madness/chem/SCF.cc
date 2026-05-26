@@ -44,6 +44,7 @@
 #include <madness/chem/SCF.h>
 #include <madchem.h>
 #include <numeric>
+#include <random>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -1507,12 +1508,38 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	        K.set_replicate_for_debug(param.hfex_replicate_debug());
 	        K.set_use_mflex(param.hfex_use_mflex());
 	        K.set_mflex_max_exhaustive(param.hfex_mflex_max_exhaustive());
+	        // TEMP debug knob — see hfex_smallmem_mul_tol in CalculationParameters.h.
+	        // Only affects the smallmem_*_mt_owner kernels (no-op otherwise).
+	        K.set_smallmem_mul_tol(param.hfex_smallmem_mul_tol());
 
         // Temporary serialization diagnostics — set to true to enable, to be removed soon.
         const bool run_hfex_serialization_probe = false;
         if (run_hfex_serialization_probe) probe_hfex_serialization(world, amo);
 
-        vecfuncT Kamo = K(amo);
+        vecfuncT Kamo;
+        if (param.hfex_shuffle_mos() && amo.size() > 1) {
+            // Permute MO order before exchange to vary load balance / batching.
+            // Fixed seed → deterministic and identical across ranks (no broadcast needed).
+            std::vector<size_t> perm(amo.size());
+            std::iota(perm.begin(), perm.end(), 0);
+            std::mt19937 rng(42);
+            std::shuffle(perm.begin(), perm.end(), rng);
+
+            vecfuncT amo_shuf(amo.size());
+            for (size_t i = 0; i < amo.size(); ++i) amo_shuf[i] = amo[perm[i]];
+
+            // Keep symmetric=true honest: stored bra/ket must match the vket passed.
+            // set_bra_and_ket deep-copies, so in-place tree-state changes inside K
+            // do not affect amo / amo_shuf.
+            K.set_bra_and_ket(amo_shuf, amo_shuf);
+
+            vecfuncT Kamo_shuf = K(amo_shuf);
+
+            Kamo.resize(amo.size());
+            for (size_t i = 0; i < amo.size(); ++i) Kamo[perm[i]] = Kamo_shuf[i];
+        } else {
+            Kamo = K(amo);
+        }
         tensorT excv = inner(world, Kamo, amo);
         double exchf = 0.0;
         for (unsigned long i = 0; i < amo.size(); ++i) {

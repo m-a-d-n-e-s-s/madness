@@ -776,6 +776,13 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_mflex_max_exhaustive(const long& n) {
     return *this;
 }
 
+// TEMP debug knob.
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_smallmem_mul_tol(const double tol) {
+    impl->set_smallmem_mul_tol(tol);
+    return *this;
+}
+
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();

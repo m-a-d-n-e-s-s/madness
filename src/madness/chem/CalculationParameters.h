@@ -74,6 +74,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
 		initialize<bool>  ("hfex_use_mflex",true,"use m-flex peel search to load-balance the smallmem_sym_mt_owner assignment");
 		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
+		initialize<bool>  ("hfex_shuffle_mos",false,"randomly permute the MO order passed to the HF exchange operator (fixed seed); result is unshuffled before returning");
+		initialize<double>("hfex_smallmem_mul_tol",-1.0,"TEMP debug knob: tolerance passed to every mul_sparse/dot inside the smallmem_*_mt_owner kernels; negative = legacy (mul_tol*0.1)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -221,6 +223,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
     bool hfex_replicate_debug() const {return get<bool>("hfex_replicate_debug");}
     bool hfex_use_mflex() const {return get<bool>("hfex_use_mflex");}
     int hfex_mflex_max_exhaustive() const {return get<int>("hfex_mflex_max_exhaustive");}
+    bool hfex_shuffle_mos() const {return get<bool>("hfex_shuffle_mos");}
+    double hfex_smallmem_mul_tol() const {return get<double>("hfex_smallmem_mul_tol");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 

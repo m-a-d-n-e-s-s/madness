@@ -200,6 +200,12 @@ public:
         return *this;
     }
 
+    /// TEMP debug knob. See declaration of smallmem_mul_tol_ above.
+    ExchangeImpl& set_smallmem_mul_tol(const double tol) {
+        smallmem_mul_tol_ = tol;
+        return *this;
+    }
+
     std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
 
     World& get_world() const {return world;}
@@ -258,6 +264,10 @@ private:
     long min_batch_size_ = 5;
     long max_batch_size_ = 30;
     double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
+    /// TEMP debug knob: if >= 0, used directly as the screening tol at every mul_sparse/dot
+    /// call site inside the smallmem_*_mt_owner kernels (no *0.1 factor applied).
+    /// Negative => legacy behavior (mul_tol*0.1). Remove after the sensitivity test.
+    double smallmem_mul_tol_ = -1.0;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
@@ -282,6 +292,9 @@ private:
         bool use_mflex_ = true;
         // Cap on C(R, m) for the exhaustive arm of the m-flex peel search.
         long mflex_max_exhaustive_ = 5000;
+        // TEMP debug knob; mirrors ExchangeImpl::smallmem_mul_tol_. Set from
+        // ExchangeImpl before submitting the macrotask. Negative => legacy mul_tol*0.1.
+        double smallmem_mul_tol_ = -1.0;
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
@@ -1612,10 +1625,13 @@ private:
             vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, n);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
 
+            // TEMP debug knob.
+            const double eff_tol = (smallmem_mul_tol_ >= 0.0) ? smallmem_mul_tol_ : mul_tol*0.1;
+
             for (long i = 0; i < n; ++i) {
                 // Build N_ij for the upper-triangle of this diagonal tile row.
                 vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
-                vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, mul_tol*0.1, true, false);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt diagonal i=", i, " psif.size()=", psif.size());
                 }
@@ -1628,7 +1644,7 @@ private:
                 vecfuncT update_i = zero_functions_compressed<T, NDIM>(subworld, n);
                 compress(subworld, update_i);
 
-                vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, mul_tol*0.1, true, false);
+                vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt diagonal i=", i, " vpsi.size()=", row_contrib.size());
                 }
@@ -1639,7 +1655,7 @@ private:
 
                 for (long j = 0; j < i; ++j) {
                     vecfuncT psif_single(1, psif[j]);
-                    vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], psif_single, mul_tol*0.1, true, false);
+                    vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], psif_single, eff_tol, true, false);
                     compress(subworld, mirrored);
                     update_i[i] += mirrored[0];
                 }
@@ -1706,10 +1722,13 @@ private:
             vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, m);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
 
+            // TEMP debug knob.
+            const double eff_tol = (smallmem_mul_tol_ >= 0.0) ? smallmem_mul_tol_ : mul_tol*0.1;
+
             for (long k = 0; k < n; ++k) {
                 // psif[i] = bra[k] * vf[i]. Inputs are already redundant (universe-side).
                 double cpu_phase0 = process_cpu_time();
-                vecfuncT psif = mul_sparse(subworld, bra_batch[k], vf_batch, mul_tol*0.1, true, false);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[k], vf_batch, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_mt_owner asym k=", k, " psif.size()=", psif.size());
                 }
@@ -1730,7 +1749,7 @@ private:
                 make_redundant(subworld, psif, true);
 
                 // update[i] = ket[k] * psif[i]; accumulate into resultcolumn.
-                vecfuncT update = mul_sparse(subworld, ket_batch[k], psif, mul_tol*0.1, true, false);
+                vecfuncT update = mul_sparse(subworld, ket_batch[k], psif, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_mt_owner asym k=", k, " vpsi.size()=", update.size());
                 }
@@ -1790,9 +1809,12 @@ private:
             vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to vf_range
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
 
+            // TEMP debug knob.
+            const double eff_tol = (smallmem_mul_tol_ >= 0.0) ? smallmem_mul_tol_ : mul_tol*0.1;
+
             for (long irow = 0; irow < nrow; ++irow) {
                 // Build N_ij for this offdiagonal tile row, all tile columns.
-                vecfuncT psif = mul_sparse(subworld, bra_batch[irow], vf_batch, mul_tol*0.1, true, false);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[irow], vf_batch, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt offdiag irow=", irow, " psif.size()=", psif.size());
                 }
@@ -1802,7 +1824,7 @@ private:
                 make_redundant(subworld, psif, true);
 
                 // Row accumulation for vf-range: resultrow[j] += ket_row[irow] * N_ij.
-                vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], psif, mul_tol*0.1, true, false);
+                vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], psif, eff_tol, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt offdiag irow=", irow, " vpsi.size()=", row_update.size());
                 }
@@ -1810,7 +1832,7 @@ private:
                 gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
 
                 // Mirror accumulation for bra-range: resultcolumn[irow] += sum_j ket_column[j] * N_ij.
-                auto column_update = dot(subworld, ket_columns, psif, true, false, mul_tol*0.1);
+                auto column_update = dot(subworld, ket_columns, psif, true, false, eff_tol);
                 vecfuncT single_column_update = zero_functions_compressed<T, NDIM>(subworld, nrow);
                 single_column_update[irow] = copy(column_update);
                 gaxpy(subworld, 1.0, resultcolumn, 1.0, single_column_update);

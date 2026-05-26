@@ -151,6 +151,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     xtask.local_accumulation_ = local_accumulation_;
     xtask.use_mflex_ = use_mflex_;
     xtask.mflex_max_exhaustive_ = mflex_max_exhaustive_;
+    xtask.smallmem_mul_tol_ = smallmem_mul_tol_;  // TEMP debug knob
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {
