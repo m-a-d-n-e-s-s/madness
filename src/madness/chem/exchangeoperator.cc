@@ -152,11 +152,20 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     xtask.use_mflex_ = use_mflex_;
     xtask.mflex_max_exhaustive_ = mflex_max_exhaustive_;
     xtask.smallmem_mul_tol_ = smallmem_mul_tol_;  // TEMP debug knob
+    xtask.use_cloud_batch_fetch_ = use_cloud_batch_fetch_;
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {
         effective_policy.storage_policy = MacroTaskInfo::StoreFunction;
         if (world.rank()==0) print("DEBUG: using StoreFunction policy to pre-replicate all data (zero communication during tasks)");
+    }
+    // cloud-batch fetch path (small_memory_mt_owner only): input batches live as
+    // owner-pinned serialized records in the cloud's batch container. The argtuple
+    // is still stored as pointers (shape); batches are stored/fetched separately.
+    if (use_cloud_batch_fetch_ and algorithm_ == small_memory_mt_owner and not replicate_for_debug_) {
+        effective_policy.storage_policy = MacroTaskInfo::StoreFunctionBatched;
+        effective_policy.ptr_target_distribution_policy = DistributionType::Distributed;
+        if (world.rank()==0) print("using StoreFunctionBatched policy: input batches fetched owner-to-owner from the cloud");
     }
     auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(effective_policy);
     if (algorithm_ == small_memory_symmetric_mt_owner

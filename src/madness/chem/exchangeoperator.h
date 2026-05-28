@@ -18,6 +18,30 @@ namespace madness {
 class SCF;
 class Nemo;
 
+/// Split a vector of length n into exactly nbatch = min(nsubworld, n)
+/// contiguous batches with sizes differing by at most 1. The first
+/// (n mod nbatch) batches get size ceil(n/nbatch); the rest get
+/// floor(n/nbatch). Eliminates the runt-of-1 case.
+///
+/// Single source of truth for the row-owner batch boundaries: used both by
+/// MacroTaskPartitionerExchange (to build the task grid) and by the cloud
+/// batch-storage side, so stored batches align with the partition by
+/// construction. Depends only on (n, nsubworld).
+inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const long nsubworld) {
+    std::vector<Batch_1D> out;
+    if (n == 0) return out;
+    const long nbatch = std::min<long>(std::max<long>(1, nsubworld), long(n));
+    const long bs_floor = long(n) / nbatch;
+    const long rem = long(n) - bs_floor * nbatch;
+    long begin = 0;
+    for (long b = 0; b < nbatch; ++b) {
+        const long sz = bs_floor + (b < rem ? 1 : 0);
+        out.emplace_back(begin, begin + sz);
+        begin += sz;
+    }
+    return out;
+}
+
 
 template<typename T, std::size_t NDIM>
 class Exchange<T,NDIM>::ExchangeImpl {
@@ -106,6 +130,7 @@ public:
     bool local_accumulation_ = true;    ///< if true (and using owner-aware algorithm), accumulate task results subworld-locally and do one final subworld->universe gaxpy
     bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
     long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
+    bool use_cloud_batch_fetch_ = true; ///< if true (and algorithm==small_memory_mt_owner), fetch input batches from the cloud's owner-pinned batch container instead of copy()ing from the universe. Default off (A/B baseline).
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -169,7 +194,15 @@ public:
         printlevel=level;
         return *this;
     }
-    
+
+    /// Enable fetching input batches from the cloud's owner-pinned batch container
+    /// (only effective for small_memory_mt_owner). Default off keeps the existing
+    /// copy()-from-universe path so the two backends can be A/B compared.
+    ExchangeImpl& set_use_cloud_batch_fetch(const bool flag) {
+        use_cloud_batch_fetch_ = flag;
+        return *this;
+    }
+
     ExchangeImpl& set_max_batch_size(const long& n) {
         max_batch_size_ = std::max<long>(1, n);
         return *this;
@@ -295,6 +328,12 @@ private:
         // TEMP debug knob; mirrors ExchangeImpl::smallmem_mul_tol_. Set from
         // ExchangeImpl before submitting the macrotask. Negative => legacy mul_tol*0.1.
         double smallmem_mul_tol_ = -1.0;
+        // When true (and the algorithm is small_memory_mt_owner), fetch input
+        // batches from the cloud's owner-pinned batch container (store_batch /
+        // fetch_batch) instead of copy()ing from the universe functions. Set from
+        // ExchangeImpl::use_cloud_batch_fetch_ before submitting. Default off so
+        // the existing copy()-from-universe path stays the A/B baseline.
+        bool use_cloud_batch_fetch_ = true;
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
@@ -343,6 +382,20 @@ private:
         };
         static inline KBatchPrefetchState kbatch_prefetch_;
 
+        /// Cloud-batch k-batch prefetch state (Step 5b). Holds the in-flight find
+        /// futures for the NEXT task's bra/ket records so the round-trip overlaps
+        /// the current task's compute; consumed (deserialized) at the next task's
+        /// operator(). Parallel to kbatch_prefetch_ but for the cloud fetch path.
+        struct CloudKBatchPrefetch {
+            bool has_next = false;
+            Batch_1D next_range;
+            typename Cloud::keyT bra_key = 0;
+            typename Cloud::keyT ket_key = 0;
+            Future<typename Cloud::batch_iterator> bra_fut;
+            Future<typename Cloud::batch_iterator> ket_fut;
+        };
+        static inline CloudKBatchPrefetch cloud_kb_;
+
         static inline long cache_world_id_ = -1;
 
         static void clear_kbatch_prefetch() {
@@ -356,6 +409,13 @@ private:
             kbatch_prefetch_.current_range = Batch_1D();
             kbatch_prefetch_.next_range = Batch_1D();
             kbatch_prefetch_.next_hint = Batch_1D();
+            // drop any in-flight cloud prefetch (futures reset to unset)
+            cloud_kb_.has_next = false;
+            cloud_kb_.next_range = Batch_1D();
+            cloud_kb_.bra_key = 0;
+            cloud_kb_.ket_key = 0;
+            cloud_kb_.bra_fut = Future<typename Cloud::batch_iterator>();
+            cloud_kb_.ket_fut = Future<typename Cloud::batch_iterator>();
         }
 
         /// pre-computed owner map: (col_begin, row_begin) -> owner rank
@@ -383,6 +443,13 @@ private:
         /// is still gated separately by use_owner_aware_fetch().
         bool use_row_owner_algorithm() const {
             return algorithm_==small_memory_mt_owner;
+        }
+
+        /// true iff input batches should be fetched from the cloud's owner-pinned
+        /// batch container instead of copy()ing from the universe functions.
+        /// Only honored for the row-owner algorithm; default off (A/B baseline).
+        bool use_cloud_batch_fetch() const {
+            return use_cloud_batch_fetch_ and use_row_owner_algorithm();
         }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
@@ -534,23 +601,12 @@ private:
             /// spread. Used by small_memory_mt_owner.
             bool row_owner_ = false;
 
-            /// Split a vector of length n into exactly nbatch = min(nsubworld, n)
-            /// contiguous batches with sizes differing by at most 1. The first
-            /// (n mod nbatch) batches get size ceil(n/nbatch); the rest get
-            /// floor(n/nbatch). Eliminates the runt-of-1 case.
+            /// Row-owner batch boundaries for this partitioner's nsubworld.
+            /// Thin wrapper over the shared free helper exchange_row_owner_split,
+            /// which is the single source of truth shared with the cloud
+            /// batch-storage side (see exchangeoperator.h).
             std::vector<Batch_1D> row_owner_split(std::size_t n) const {
-                std::vector<Batch_1D> out;
-                if (n == 0) return out;
-                const long nbatch = std::min<long>(std::max<long>(1, long(nsubworld)), long(n));
-                const long bs_floor = long(n) / nbatch;
-                const long rem = long(n) - bs_floor * nbatch;
-                long begin = 0;
-                for (long b = 0; b < nbatch; ++b) {
-                    const long sz = bs_floor + (b < rem ? 1 : 0);
-                    out.emplace_back(begin, begin + sz);
-                    begin += sz;
-                }
-                return out;
+                return exchange_row_owner_split(n, long(nsubworld));
             }
 
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
@@ -1292,6 +1348,27 @@ private:
                                      const vecfuncT& mo_bra_full,
                                      const vecfuncT& mo_ket_full) const {
             if (not use_row_owner_algorithm()) return;
+
+            // ---- cloud-batch prefetch (Step 5b): issue async finds for the next
+            // k-batch's bra/ket records so the round-trip overlaps this task's
+            // compute. Consumed (deserialized) at the next task's operator(). ----
+            if (use_cloud_batch_fetch()) {
+                cloud_kb_.has_next = false;
+                if (not kbatch_prefetch_.has_hint) return;
+                if (cloud_ptr == nullptr) return;
+                MADNESS_CHECK_THROW(mo_bra_full.size() == mo_ket_full.size(),
+                                    "prefetch_next_bra_async: bra/ket size mismatch");
+                const Batch_1D hint = normalize_range(kbatch_prefetch_.next_hint, long(mo_bra_full.size()));
+                const typename Cloud::keyT salt = batch_salt(mo_ket_full);  // full ket
+                cloud_kb_.next_range = hint;
+                cloud_kb_.bra_key = batch_record_key(salt, DIM_BRA, hint);
+                cloud_kb_.ket_key = batch_record_key(salt, DIM_KET, hint);
+                cloud_kb_.bra_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.bra_key);
+                cloud_kb_.ket_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.ket_key);
+                cloud_kb_.has_next = true;
+                return;
+            }
+
             const double cpu0 = process_cpu_time();
             ensure_cache_world(world);
             if (not kbatch_prefetch_.has_hint) return;
@@ -1434,6 +1511,69 @@ private:
             return result;
         }
 
+        // ---- StoreFunctionBatched: owner-pinned cloud batches (small_memory_mt_owner) ----
+        // The input vectors are serialized into the cloud's batch container as
+        // owner-pinned batches whose ranges match the row-owner partition
+        // (exchange_row_owner_split), so each task fetches exactly the batch it
+        // needs owner-to-owner. Records are keyed by (salt, dimension, range) so the
+        // store side (store_batches) and the fetch side (operator(), Step 5) derive
+        // identical record keys without a separately stored manifest; owner = split
+        // position (the rank<->batch bijection), recorded in the cloud's
+        // CloudOwnerPmap by store_batch.
+        enum BatchDim { DIM_VF = 0, DIM_BRA = 1, DIM_KET = 2 };
+
+        /// per-invocation salt from the ket identities; identical on every rank.
+        /// Uses the ket vector because it is available in full both here (store
+        /// side, mo_ket) and in operator() (the un-batched 3rd argument vket), so
+        /// both sides derive the same record keys.
+        static typename Cloud::keyT batch_salt(const vecfuncT& ket) {
+            std::size_t k = 0x5a17ull;
+            for (const auto& f : ket) hash_combine(k, hash_value(f.get_impl()->id()));
+            return typename Cloud::keyT(k);
+        }
+
+        /// deterministic record key for a batch: (salt, dimension, range).
+        /// range-keyed so store and fetch agree without communicating a manifest.
+        static typename Cloud::keyT batch_record_key(const typename Cloud::keyT salt,
+                                                     const int dim, const Batch_1D& r) {
+            std::size_t k = std::size_t(salt);
+            hash_combine(k, std::size_t(dim));
+            hash_combine(k, std::size_t(r.begin));
+            hash_combine(k, std::size_t(r.end));
+            return typename Cloud::keyT(k);
+        }
+
+        /// store the inputs as owner-pinned batches aligned with the row-owner
+        /// partition. Collective on `world` (the universe); no-op unless the
+        /// cloud-batch fetch path is active. Called by the framework via the
+        /// store_batches_or_noop hook right after the pointer argtuple is stored.
+        void store_batches(World& world, Cloud& cloud, const argtupleT& argtuple,
+                           const long nsubworld) {
+            if (not use_cloud_batch_fetch()) return;
+            const vecfuncT& vf = std::get<0>(argtuple);      // input[0]: held col / vf
+            const vecfuncT& mo_bra = std::get<1>(argtuple);  // input[1]: rotating row / bra
+            const vecfuncT& mo_ket = std::get<2>(argtuple);  // paired with bra by inner index
+            const typename Cloud::keyT salt = batch_salt(mo_ket);  // ket: full in both store and operator()
+
+            const std::vector<Batch_1D> col_split = exchange_row_owner_split(vf.size(), nsubworld);
+            const std::vector<Batch_1D> row_split = exchange_row_owner_split(mo_bra.size(), nsubworld);
+
+            // vf col-batches: owner == split index (held locally by that rank)
+            for (long i = 0; i < long(col_split.size()); ++i) {
+                const Batch_1D& r = col_split[i];
+                vecfuncT slice(vf.begin() + r.begin, vf.begin() + r.end);
+                cloud.store_batch(world, slice, ProcessID(i), batch_record_key(salt, DIM_VF, r));
+            }
+            // bra/ket row-batches: separate records, owner == split index
+            for (long j = 0; j < long(row_split.size()); ++j) {
+                const Batch_1D& r = row_split[j];
+                vecfuncT bra_slice(mo_bra.begin() + r.begin, mo_bra.begin() + r.end);
+                vecfuncT ket_slice(mo_ket.begin() + r.begin, mo_ket.begin() + r.end);
+                cloud.store_batch(world, bra_slice, ProcessID(j), batch_record_key(salt, DIM_BRA, r));
+                cloud.store_batch(world, ket_slice, ProcessID(j), batch_record_key(salt, DIM_KET, r));
+            }
+        }
+
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vf_batch,     // will be batched (column)
                    const std::vector<Function<T, NDIM>>& bra_batch,    // will be batched (row)
@@ -1462,6 +1602,78 @@ private:
             // index = bra_range) rotates task-by-task and is prefetched by the
             // framework's set_next_bra_hint / prefetch_next_bra_async hooks.
             if (use_row_owner_algorithm()) {
+
+                // ---- cloud-batch fetch path ----
+                // Fetch the input batches from the cloud's owner-pinned batch
+                // container instead of copy()ing from the universe. vf is owned by
+                // this rank (local read); the bra/ket k-batch is owned by another
+                // rank (remote read). Records are keyed by (salt, dim, range),
+                // matching store_batches; owner routing is in the CloudOwnerPmap.
+                // The k-batch is consumed from the prefetch futures issued by the
+                // previous task (Step 5b) when available; else fetched synchronously.
+                if (use_cloud_batch_fetch()) {
+                    MADNESS_CHECK_THROW(cloud_ptr != nullptr, "cloud_ptr is null in cloud-batch fetch");
+                    // reset stale static prefetch state if the subworld changed
+                    // (clears cloud_kb_ futures from a previous application/cloud)
+                    ensure_cache_world(world);
+                    Cloud& cloud = *cloud_ptr;
+                    const typename Cloud::keyT salt = batch_salt(vket);  // full ket
+                    const double cf0 = process_cpu_time();
+
+                    // vf is held: dedup across this rank's whole task sequence (one
+                    // fetch + many reuses), so we keep it in the cloud cache.
+                    vecfuncT vf_local = cloud.fetch_batch<T, NDIM>(
+                            world, batch_record_key(salt, DIM_VF, vf_range),
+                            /*cache_result=*/true);                              // local (owner==self)
+                    const double t_vf_done_c = wall_time();
+
+                    // The k-batch rotates: each row-batch is fetched exactly once
+                    // per rank in pure rotation, so caching has no dedup benefit
+                    // and only grows memory. cache_result=false releases it once
+                    // operator() returns and the local vecfuncTs go out of scope,
+                    // matching the copy() path's release_finished_kbatch behavior.
+                    const typename Cloud::keyT bra_key = batch_record_key(salt, DIM_BRA, bra_range);
+                    const typename Cloud::keyT ket_key = batch_record_key(salt, DIM_KET, bra_range);
+                    const bool cloud_prefetch_hit = cloud_kb_.has_next
+                        and same_range(cloud_kb_.next_range, normalize_range(bra_range, long(bra_batch.size())))
+                        and cloud_kb_.bra_key == bra_key and cloud_kb_.ket_key == ket_key;
+                    vecfuncT bra_k, ket_k;
+                    if (cloud_prefetch_hit) {
+                        // consume the in-flight finds issued during the previous compute
+                        bra_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.bra_fut, bra_key,
+                                                                 /*cache_result=*/false);
+                        ket_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.ket_fut, ket_key,
+                                                                 /*cache_result=*/false);
+                        cloud_kb_.has_next = false;
+                    } else {
+                        bra_k = cloud.fetch_batch<T, NDIM>(world, bra_key,
+                                                           /*cache_result=*/false);   // remote, synchronous
+                        ket_k = cloud.fetch_batch<T, NDIM>(world, ket_key,
+                                                           /*cache_result=*/false);   // remote, synchronous
+                    }
+                    const double t_k_done_c = wall_time();
+                    add_owner_fetch_time(cf0, process_cpu_time());
+
+                    vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix_smallmem(
+                            world, ket_k, bra_k, vf_local);
+                    const double t_compute_end_c = wall_time();
+                    add_owner_compute_wall_time(t_k_done_c, t_compute_end_c);
+
+                    for (int i = vf_range.begin; i < vf_range.end; ++i) {
+                        Kf[i] += resultcolumn[i - vf_range.begin];
+                    }
+                    if (world.rank() == 0) {
+                        print("OVERLAP_OP row_owner cloud_batch prefetch_hit=", int(cloud_prefetch_hit),
+                              " col=[", vf_range.begin, ",", vf_range.end,
+                              ") row=[", bra_range.begin, ",", bra_range.end,
+                              ") vf_fetch=", t_vf_done_c - t_op_start,
+                              " k_fetch=", t_k_done_c - t_vf_done_c,
+                              " compute=", t_compute_end_c - t_k_done_c);
+                    }
+                    return Kf;
+                }
+                // ---- end cloud-batch fetch path ----
+
                 const bool kbatch_prefetch_hit = kbatch_prefetch_.has_next
                     and same_range(kbatch_prefetch_.next_range, normalize_range(bra_range, long(bra_batch.size())));
 

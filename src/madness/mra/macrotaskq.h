@@ -284,14 +284,19 @@ struct MacroTaskInfo {
 		StorePointerToFunction,   ///< store the pointer to the function in the cloud, the actual function lives in the universe and
 		///< its coefficients can be copied to the subworlds (e.g. by macrotaskq) when needed.
 		///< The task itself is responsible for handling data movement
-		StoreFunctionViaPointer   ///< store a pointer to the function in the cloud, but macrotaskq will move the
+		StoreFunctionViaPointer,  ///< store a pointer to the function in the cloud, but macrotaskq will move the
 		///< coefficients to the subworlds when the task is started. This is the default policy.
+		StoreFunctionBatched      ///< store the input functions as owner-pinned serialized batches in the cloud's
+		///< dedicated batch container (see Cloud::store_batch/fetch_batch). The task fetches the batches it
+		///< needs owner-to-owner; it handles its own data movement. Used by the exchange owner algorithm.
+		///< Phase A: the argtuple itself is still stored as pointers (shape), batches stored alongside.
 	};
 
 	friend std::ostream& operator<<(std::ostream& os, const StoragePolicy sp) {
 		if (sp==StoreFunction) os << "StoreFunction";
 		if (sp==StorePointerToFunction) os << "StorePointerToFunction";
 		if (sp==StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+		if (sp==StoreFunctionBatched) os << "StoreFunctionBatched";
 		return os;
 	}
 
@@ -301,6 +306,9 @@ struct MacroTaskInfo {
 		case MacroTaskInfo::StoreFunction: return Cloud::StoreFunction;
 		case MacroTaskInfo::StorePointerToFunction: return Cloud::StoreFunctionPointer;
 		case MacroTaskInfo::StoreFunctionViaPointer: return Cloud::StoreFunctionPointer;
+		// Phase A: the argtuple is still stored as pointers; batches go through
+		// Cloud::store_batch separately, so the generic cloud policy is pointer.
+		case MacroTaskInfo::StoreFunctionBatched: return Cloud::StoreFunctionPointer;
 		default: MADNESS_EXCEPTION("unknown storage policy",0);
 		}
 	}
@@ -369,6 +377,12 @@ struct MacroTaskInfo {
 			// the cloud should be rank-replicated
 			good=(cloud_distribution_policy==DistributionType::RankReplicated);
 
+		} else if (storage_policy==MacroTaskInfo::StoreFunctionBatched) {
+			// owner-pinned batches live in the dedicated batch container (owner-routed,
+			// not subject to cloud_distribution_policy); the universe functions are not
+			// target-replicated, so they must be distributed (Phase A stores the argtuple
+			// as pointers but never replicates their targets).
+			good=(ptr_target_distribution_policy==DistributionType::Distributed);
 		}
 		if (not good) std::cout << *this ;
 
@@ -393,6 +407,7 @@ struct MacroTaskInfo {
 		if (sstorage=="storefunction") storage_policy=MacroTaskInfo::StoreFunction;
 		else if (sstorage=="storepointertofunction") storage_policy=MacroTaskInfo::StorePointerToFunction;
 		else if (sstorage=="storefunctionviapointer") storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
+		else if (sstorage=="storefunctionbatched") storage_policy=MacroTaskInfo::StoreFunctionBatched;
 		else {
 			std::string msg="unknown storage policy: "+sstorage;
 			print("msg",msg);
@@ -446,6 +461,7 @@ struct MacroTaskInfo {
 		if (policy=="function") return MacroTaskInfo::StoreFunction;
 		if (policy=="pointer") return MacroTaskInfo::StorePointerToFunction;
 		if (policy=="functionviapointer") return MacroTaskInfo::StoreFunctionViaPointer;
+		if (policy=="batched") return MacroTaskInfo::StoreFunctionBatched;
 		std::string msg="unknown policy: "+policy;
 		MADNESS_EXCEPTION(msg.c_str(),1);
 		return MacroTaskInfo::StorePointerToFunction;
@@ -467,6 +483,7 @@ std::ostream& operator<<(std::ostream& os, const typename MacroTaskInfo::Storage
 	if (sp==MacroTaskInfo::StoreFunction) os << "Function";
 	if (sp==MacroTaskInfo::StorePointerToFunction) os << "PointerToFunction";
 	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "FunctionViaPointer";
+	if (sp==MacroTaskInfo::StoreFunctionBatched) os << "FunctionBatched";
 	return os;
 }
 
@@ -1080,6 +1097,22 @@ class MacroTask {
     template<typename Q>
     static void shuffle_partition_or_noop(Q&, MacroTaskPartitioner::partitionT&, const long, ...) {}
 
+    // Hook for tasks that store their inputs as owner-pinned cloud batches
+    // (StoreFunctionBatched). Called from the universe right after the argtuple
+    // is stored as pointers, so a task can additionally serialize owner-routed
+    // batches via Cloud::store_batch. Tasks that don't implement store_batches
+    // get the noop fallback; the implementing task is responsible for gating on
+    // its own policy flag.
+    template<typename Q, typename ArgTuple>
+    static auto store_batches_or_noop(Q& task, World& world, Cloud& cloud,
+            const ArgTuple& argtuple, const long nsubworld, int)
+        -> decltype(task.store_batches(world, cloud, argtuple, nsubworld), void()) {
+        task.store_batches(world, cloud, argtuple, nsubworld);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void store_batches_or_noop(Q&, World&, Cloud&, const ArgTuple&, const long, ...) {}
+
     template<typename Q>
     static auto set_next_vf_hint_or_noop(Q& task, const Batch_1D& next_hint, const bool has_hint, int)
         -> decltype(task.set_next_vf_hint(next_hint, has_hint), void()) {
@@ -1229,6 +1262,9 @@ public:
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
+        // StoreFunctionBatched: additionally serialize the inputs as owner-pinned
+        // batches in the cloud's batch container (no-op for other tasks/policies).
+        store_batches_or_noop(task, world, taskq_ptr->cloud, argtuple, taskq_ptr->get_nsubworld(), 0);
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
@@ -1474,6 +1510,7 @@ private:
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
     			task.subworld_ptr=&subworld;	// give the task access to the subworld
+    			task.cloud_ptr=&cloud;	// give the task access to the cloud (owner-pinned batch fetch)
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
         	    const double t_compute_done = wall_time();
@@ -1687,6 +1724,7 @@ class MacroTaskOperationBase {
 public:
     Batch batch;
 	World* subworld_ptr=0;
+	Cloud* cloud_ptr=0;   ///< set by MacroTaskInternal::run so a task can fetch owner-pinned batches (StoreFunctionBatched)
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}

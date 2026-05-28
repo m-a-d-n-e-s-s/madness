@@ -153,6 +153,37 @@ struct Recordlist {
 
 };
 
+/// Process map for the cloud's dedicated batch container.
+
+/// Routes a record to an explicitly assigned owner rank, falling back to a
+/// hash for any record that was never registered. The owner table is
+/// populated collectively by Cloud::store_batch (every rank registers the
+/// same record->owner pair), so all ranks agree on routing without extra
+/// communication. Unlike the default cloud container, this map is never
+/// reset to local (no replication), which keeps owner pinning stable.
+template <typename keyT, typename hashfunT = Hash<keyT>>
+class CloudOwnerPmap : public WorldDCPmapInterface<keyT> {
+private:
+    const int nproc;
+    hashfunT hashfun;
+    std::shared_ptr<std::map<keyT, ProcessID>> table;
+
+public:
+    CloudOwnerPmap(World& world, const hashfunT& hf = hashfunT())
+        : nproc(world.mpi.nproc()), hashfun(hf), table(new std::map<keyT, ProcessID>()) {}
+
+    /// Register the owner of a record. Collective: must be called with
+    /// identical (key, owner) on every rank so all ranks route consistently.
+    void set_owner(const keyT& key, const ProcessID owner) { (*table)[key] = owner; }
+
+    ProcessID owner(const keyT& key) const override {
+        auto it = table->find(key);
+        if (it != table->end()) return it->second;
+        if (nproc == 1) return 0;
+        return hashfun(key) % nproc;
+    }
+};
+
 /// cloud class
 
 /// store and load data to/from the cloud into arbitrary worlds
@@ -223,6 +254,10 @@ private:
     DistributionType cloud_replication_policy = Distributed;
 
     mutable madness::WorldContainer<keyT, valueT> container;
+    /// dedicated container for owner-pinned function batches; see store_batch / fetch_batch.
+    /// uses CloudOwnerPmap so each batch record lives on an explicitly chosen rank.
+    std::shared_ptr<CloudOwnerPmap<keyT>> batch_pmap;
+    mutable madness::WorldContainer<keyT, valueT> batch_container;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -238,7 +273,10 @@ public:
 public:
 
     /// @param[in]	universe	the universe world
-    Cloud(madness::World &universe) : container(universe), reading_time(0l), copy_time(0l), writing_time(0l),
+    Cloud(madness::World &universe) : container(universe),
+        batch_pmap(new CloudOwnerPmap<keyT>(universe)),
+        batch_container(universe, batch_pmap),
+        reading_time(0l), copy_time(0l), writing_time(0l),
         cache_reads(0l), cache_stores(0l) {
     }
 
@@ -475,6 +513,7 @@ public:
 
     void clear() {
         container.clear();
+        batch_container.clear();
     }
 
     void clear_timings() {
@@ -592,6 +631,123 @@ public:
         }
         if (dofence) world.gop.fence();
         return recordlist;
+    }
+
+    /// Store a batch of functions as a single owner-pinned record.
+
+    /// The whole vector (size + each function) is serialized into one record
+    /// in the dedicated batch container, routed to `owner` via CloudOwnerPmap.
+    /// Mirrors the save_function / load_function idiom (vmra.h) so a batch is
+    /// exactly one cloud record: one record -> one owner.
+    ///
+    /// Collective and must be called with identical (owner, record) on every
+    /// rank of `world` (typically the universe), like the existing store():
+    /// every rank registers the same record->owner so all ranks route finds
+    /// consistently, while only rank 0 writes the bytes.
+    ///
+    /// @param[in] world   the world the batch currently lives in (universe)
+    /// @param[in] batch   the functions to store
+    /// @param[in] owner   the rank that should physically hold the record
+    /// @param[in] record  the (caller-chosen, globally consistent) record key
+    /// @return the record key (for manifest bookkeeping)
+    template<typename T, std::size_t NDIM>
+    keyT store_batch(madness::World& world, const std::vector<Function<T, NDIM>>& batch,
+                     const ProcessID owner, const keyT record) {
+        if (is_replicated) {
+            print("Cloud contents are replicated and read-only!");
+            MADNESS_EXCEPTION("cloud error", 1);
+        }
+        // collective: every rank registers the routing so owner(record) agrees everywhere
+        batch_pmap->set_owner(record, owner);
+        cloudtimer t(world, writing_time1);
+        {
+            madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record);
+            madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            std::size_t fsize = batch.size();
+            par & fsize;
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        if (dofence) world.gop.fence();
+        return record;
+    }
+
+    /// Load a batch of functions stored by store_batch (synchronous).
+
+    /// Blocks on the find round-trip to the record's owner; resolves locally
+    /// when the calling rank owns the record (the held-vf case). Caches the
+    /// deserialized batch by record (per-world), like do_load. The batch is
+    /// reconstructed into `subworld`.
+    ///
+    /// NOTE (Phase A): synchronous. The overlapped (async / Future) variant
+    /// that hides the find latency behind the previous task's compute is
+    /// added together with its caller (the exchange prefetch hooks).
+    ///
+    /// @param[in] subworld      destination world (size 1 for the owner algorithm)
+    /// @param[in] record        the record key returned by store_batch
+    /// @param[in] cache_result  if true (default), cache the deserialized batch
+    ///                          for subsequent same-record lookups (dedup). Pass
+    ///                          false for transient batches that are used once
+    ///                          and released, to avoid unbounded cache growth.
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> fetch_batch(madness::World& subworld, const keyT record,
+                                               const bool cache_result = true) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        cloudtimer t(subworld, reading_time);
+        vecfuncT batch;
+        {
+            madness::archive::ContainerRecordInputArchive ar(subworld, batch_container, record);
+            madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(subworld, ar);
+            std::size_t fsize = 0;
+            par & fsize;
+            batch.resize(fsize);
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        if (use_cache and cache_result) cache(subworld, batch, record);
+        return batch;
+    }
+
+    /// iterator type of the batch container (for prefetch futures)
+    typedef typename madness::WorldContainer<keyT, valueT>::iterator batch_iterator;
+
+    /// Issue the non-blocking find for a batch record on its owner (Step 2b).
+
+    /// Returns a future to the container iterator; the find AM is in flight on
+    /// return, so this can be issued during the previous task's compute to hide
+    /// the round-trip. Resolves immediately when this rank owns the record.
+    /// Pair with deserialize_batch to obtain the vecfunc once the future is set.
+    Future<batch_iterator> fetch_batch_record_async(const keyT record) const {
+        return batch_container.find(record);
+    }
+
+    /// Deserialize a batch from a prefetched find future (Step 2b).
+
+    /// Blocks on `fut` only if the find round-trip has not completed yet, then
+    /// deserializes the fetched bytes locally. The stored bytes are a plain
+    /// vector-archive stream (see store_batch), so a ParallelInputArchive over a
+    /// VectorInputArchive reproduces the functions exactly as fetch_batch's
+    /// ContainerRecordInputArchive would. Caches by record like fetch_batch.
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> deserialize_batch(madness::World& subworld,
+            Future<batch_iterator> fut, const keyT record,
+            const bool cache_result = true) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        cloudtimer t(subworld, reading_time);
+        batch_iterator it = fut.get();   // ready already if prefetch overlapped the previous compute
+        MADNESS_CHECK_THROW(it != batch_container.end(), "deserialize_batch: record not found");
+        valueT bytes = it->second;       // copy out the serialized stream
+        vecfuncT batch;
+        {
+            madness::archive::VectorInputArchive var(bytes);
+            madness::archive::ParallelInputArchive<madness::archive::VectorInputArchive> par(subworld, var);
+            std::size_t fsize = 0;
+            par & fsize;
+            batch.resize(fsize);
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        if (use_cache and cache_result) cache(subworld, batch, record);
+        return batch;
     }
 
     void replicate_according_to_policy(const std::size_t chunk_size=INT_MAX) {

@@ -88,3 +88,4 @@ src/madness/chem/smallmem_mt_owner.md
 src/madness/tensor/tensor_spec.h
 src/madness/tensor/tensoriter_spec.h
 doc/cloud_and_worldcontainer.md
+doc/cloud_batch_exchange_plan.md
