@@ -334,6 +334,11 @@ private:
         // ExchangeImpl::use_cloud_batch_fetch_ before submitting. Default off so
         // the existing copy()-from-universe path stays the A/B baseline.
         bool use_cloud_batch_fetch_ = true;
+        // When true, dump owner_map_ and (for cloud-batch) the cloud's batch
+        // record routing at universe rank 0, once per K-application, right
+        // after the partition + owner assignment is built. Set from
+        // ExchangeImpl::printdebug() in K_macrotask_efficient.
+        bool log_diagnostics_ = false;
     private:
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
@@ -1366,6 +1371,16 @@ private:
                 cloud_kb_.bra_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.bra_key);
                 cloud_kb_.ket_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.ket_key);
                 cloud_kb_.has_next = true;
+                if (cloud_ptr->is_batch_debug()) {
+                    const double t = wall_time();
+                    const ProcessID bo = cloud_ptr->batch_owner(cloud_kb_.bra_key);
+                    const ProcessID ko = cloud_ptr->batch_owner(cloud_kb_.ket_key);
+                    print("BATCH_PREFETCH rank=", world.rank(),
+                          " sw=", world.id(),
+                          " t=", t,
+                          " next_row=[", hint.begin, ",", hint.end, ")",
+                          " bra_owner=", bo, " ket_owner=", ko);
+                }
                 return;
             }
 
@@ -1574,6 +1589,31 @@ private:
             }
         }
 
+        /// Dump owner_map_ and (for cloud-batch) the CloudOwnerPmap batch
+        /// routing at universe rank 0. Called by the framework via the
+        /// log_owner_layout_or_noop hook right after store_batches; no-op
+        /// unless log_diagnostics_ is set (by K_macrotask_efficient when
+        /// printdebug() is on).
+        void log_owner_layout(World& universe, Cloud& cloud, const long nsubworld) const {
+            if (not log_diagnostics_) return;
+            if (universe.rank() != 0) return;
+            print("===== owner layout for", name, "=====");
+            print("  algorithm=", int(algorithm_), " nsubworld=", nsubworld,
+                  " use_cloud_batch_fetch=", int(use_cloud_batch_fetch()),
+                  " local_accumulation=", int(local_accumulation_),
+                  " ntasks=", owner_map_.size());
+            print("  ---- task -> rank (owner_map_) ----");
+            for (const auto& kv : owner_map_) {
+                print("    (col_begin=", kv.first.first,
+                      ", row_begin=", kv.first.second, ") -> rank", kv.second);
+            }
+            if (use_cloud_batch_fetch()) {
+                print("  ---- batch record routing (CloudOwnerPmap) ----");
+                cloud.print_batch_owner_map(universe, name);
+            }
+            print("===== end owner layout =====");
+        }
+
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vf_batch,     // will be batched (column)
                    const std::vector<Function<T, NDIM>>& bra_batch,    // will be batched (row)
@@ -1640,12 +1680,14 @@ private:
                     vecfuncT bra_k, ket_k;
                     if (cloud_prefetch_hit) {
                         // consume the in-flight finds issued during the previous compute
+                        cloud.tally_batch_prefetch_hit();
                         bra_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.bra_fut, bra_key,
                                                                  /*cache_result=*/false);
                         ket_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.ket_fut, ket_key,
                                                                  /*cache_result=*/false);
                         cloud_kb_.has_next = false;
                     } else {
+                        cloud.tally_batch_prefetch_miss();
                         bra_k = cloud.fetch_batch<T, NDIM>(world, bra_key,
                                                            /*cache_result=*/false);   // remote, synchronous
                         ket_k = cloud.fetch_batch<T, NDIM>(world, ket_key,

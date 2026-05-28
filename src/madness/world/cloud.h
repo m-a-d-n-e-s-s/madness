@@ -182,6 +182,17 @@ public:
         if (nproc == 1) return 0;
         return hashfun(key) % nproc;
     }
+
+    /// dump the (key -> owner) registrations to stdout in a stable order.
+    /// Intended for diagnostic printing on universe rank 0 at high print levels.
+    void print_table(const std::string& tag = "") const {
+        print("CloudOwnerPmap::table", tag, "size=", table->size(), "(nproc=", nproc, ")");
+        for (const auto& kv : *table) {
+            std::ostringstream os;
+            os << "  key=0x" << std::hex << kv.first << std::dec << "  owner=" << kv.second;
+            print(os.str());
+        }
+    }
 };
 
 /// cloud class
@@ -209,6 +220,7 @@ public:
 class Cloud {
 
     bool debug = false;       ///< prints debug output
+    bool batch_debug = false; ///< per-call diagnostics on store_batch / fetch_batch / deserialize_batch (narrower than debug)
     bool is_replicated=false;   ///< if contents of the container are replicated
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
@@ -292,6 +304,26 @@ public:
 
     void set_debug(bool value) {
         debug = value;
+    }
+
+    /// per-call diagnostics on store_batch / fetch_batch / deserialize_batch /
+    /// fetch_batch_record_async (BATCH_REQ / BATCH_DESER lines). Narrower than
+    /// set_debug, so the existing chatty store-prints don't fire too.
+    void set_batch_debug(bool value) {
+        batch_debug = value;
+    }
+
+    /// counters exposed so external code (the exchange task) can tally
+    /// algorithm-specific prefetch outcomes into the cloud diagnostics bucket.
+    void tally_batch_prefetch_hit()  const { ++batch_prefetch_hits;  }
+    void tally_batch_prefetch_miss() const { ++batch_prefetch_misses; }
+
+    /// dump the CloudOwnerPmap's record->owner table (rank 0 only).
+    /// Diagnostic — pair with the task's owner_map_ print to verify the
+    /// algorithm's task-to-rank assignment aligns with the cloud's batch routing.
+    void print_batch_owner_map(World& universe, const std::string& tag = "") const {
+        if (universe.rank() != 0) return;
+        batch_pmap->print_table(tag);
     }
 
     void set_fence(bool value) {
@@ -405,6 +437,26 @@ public:
         auto local_size=container.size();
         auto global_size=local_size;
         universe.gop.sum(global_size);
+
+        // batch_container (StoreFunctionBatched payloads). Zero unless any
+        // task called store_batch this invocation.
+        std::size_t b_memsize = 0;
+        std::size_t b_max_record_size = 0;
+        for (auto& item : batch_container) {
+            b_memsize += item.second.size();
+            b_max_record_size = std::max(b_max_record_size, item.second.size());
+        }
+        std::size_t b_global_memsize = b_memsize;
+        std::size_t b_max_memsize = b_memsize;
+        std::size_t b_min_memsize = b_memsize;
+        universe.gop.sum(b_global_memsize);
+        universe.gop.max(b_max_memsize);
+        universe.gop.max(b_max_record_size);
+        universe.gop.min(b_min_memsize);
+        auto b_local_size = batch_container.size();
+        auto b_global_size = b_local_size;
+        universe.gop.sum(b_global_size);
+
         nlohmann::json j;
         j["container_size_global"] = global_size;
         j["memory_global_GB"] = global_memsize*uchar2gbyte;
@@ -413,6 +465,11 @@ public:
         j["memory_rss_GB_max"] = rss;
         j["memory_rss_GB_av"] = rss_av/universe.size();
         j["max_record_size"] = max_record_size;
+        j["batch_container_size_global"] = b_global_size;
+        j["batch_memory_global_GB"] = b_global_memsize*uchar2gbyte;
+        j["batch_memory_min_GB"]    = b_min_memsize*uchar2gbyte;
+        j["batch_memory_max_GB"]    = b_max_memsize*uchar2gbyte;
+        j["batch_max_record_size"]  = b_max_record_size;
         return j;
     }
 
@@ -439,6 +496,28 @@ public:
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
         universe.gop.sum(cstores);
+
+        // writing_time1 is the per-record inner write (now also covers store_batch);
+        // surface it so the cost of serializing each record is visible.
+        double wtime1_max = double(writing_time1)*1.e-6;
+        universe.gop.max(wtime1_max);
+
+        // StoreFunctionBatched-specific timers (zero for non-batched runs).
+        double bstime_max = double(batch_store_time)*1.e-6;
+        double bftime_max = double(batch_find_time)*1.e-6;
+        double bftime_acc = double(batch_find_time)*1.e-6;
+        double bdtime_max = double(batch_deserialize_time)*1.e-6;
+        double bdtime_acc = double(batch_deserialize_time)*1.e-6;
+        universe.gop.max(bstime_max);
+        universe.gop.max(bftime_max);
+        universe.gop.sum(bftime_acc);
+        universe.gop.max(bdtime_max);
+        universe.gop.sum(bdtime_acc);
+        long bphits  = long(batch_prefetch_hits);
+        long bpmiss  = long(batch_prefetch_misses);
+        universe.gop.sum(bphits);
+        universe.gop.sum(bpmiss);
+
         nlohmann::json j;
         j["reading_time_max_s"] = rtime_max;
         j["reading_time_acc_s"] = rtime_acc;
@@ -447,10 +526,18 @@ public:
         j["copy_time_acc_s"] = ctime_acc;
         j["copy_time_av_s"] = ctime_av;
         j["writing_time_s"] = wtime;
+        j["writing_time1_max_s"] = wtime1_max;
         j["replication_time_s"] = ptime;
         j["target_replication_time_s"] = tptime;
         j["cache_reads"] = creads;
         j["cache_stores"] = cstores;
+        j["batch_store_time_max_s"]       = bstime_max;
+        j["batch_find_time_max_s"]        = bftime_max;
+        j["batch_find_time_acc_s"]        = bftime_acc;
+        j["batch_deserialize_time_max_s"] = bdtime_max;
+        j["batch_deserialize_time_acc_s"] = bdtime_acc;
+        j["batch_prefetch_hits"]   = bphits;
+        j["batch_prefetch_misses"] = bpmiss;
         return j;
     }
 
@@ -475,6 +562,7 @@ public:
         auto precision = std::cout.precision();
         std::cout << std::fixed << std::setprecision(1);
         print("cloud storing wall time                        ", wtime);
+        print("cloud per-record storing wall time max         ", timings.value("writing_time1_max_s", 0.0));
         print("cloud replication wall time                    ", ptime);
         print("target replication wall time                   ", tptime);
         print("cloud max reading time (all procs)             ", rtime_max, std::defaultfloat);
@@ -483,6 +571,18 @@ public:
         std::cout << std::setprecision(precision) << std::scientific;
         print("cloud cache stores                             ", long(cstores));
         print("cloud cache loads                              ", long(creads));
+
+        // StoreFunctionBatched-specific block. Zero for non-batched runs;
+        // prints to keep both backends comparable.
+        std::cout << std::fixed << std::setprecision(3);
+        print("batch store wall time max (all procs)          ", timings.value("batch_store_time_max_s", 0.0));
+        print("batch find wall time max (all procs)           ", timings.value("batch_find_time_max_s", 0.0));
+        print("batch find wall time acc (all procs)           ", timings.value("batch_find_time_acc_s", 0.0));
+        print("batch deserialize wall time max (all procs)    ", timings.value("batch_deserialize_time_max_s", 0.0));
+        print("batch deserialize wall time acc (all procs)    ", timings.value("batch_deserialize_time_acc_s", 0.0));
+        std::cout << std::setprecision(precision) << std::scientific;
+        print("batch prefetch hits                            ", long(timings.value("batch_prefetch_hits", 0l)));
+        print("batch prefetch misses                          ", long(timings.value("batch_prefetch_misses", 0l)));
     }
 
     static void print_memory_statistics(const nlohmann::json stats) {
@@ -503,6 +603,22 @@ public:
         print("  min/max of node");
         print("    memory in GBytes:         ",min_memsize,max_memsize);
         print("    max record size in GBytes:",max_record_size*byte2gbyte);
+        // batch_container (StoreFunctionBatched payloads). Zero unless any
+        // task stored owner-pinned batches this invocation.
+        const double b_global_size   = stats.value("batch_container_size_global", 0.0);
+        if (b_global_size > 0.0) {
+            const double b_global_memsize    = stats.value("batch_memory_global_GB", 0.0);
+            const double b_min_memsize       = stats.value("batch_memory_min_GB", 0.0);
+            const double b_max_memsize       = stats.value("batch_memory_max_GB", 0.0);
+            const double b_max_record_size   = stats.value("batch_max_record_size", 0.0);
+            print("Cloud batch_container memory (StoreFunctionBatched):");
+            print("  size of batch container (total)");
+            print("    number of records:        ", b_global_size);
+            print("    memory in GBytes:         ", b_global_memsize);
+            print("  min/max of node");
+            print("    memory in GBytes:         ", b_min_memsize, b_max_memsize);
+            print("    max record size in GBytes:", b_max_record_size*byte2gbyte);
+        }
     }
 
     void clear_cache(World &subworld) {
@@ -525,6 +641,11 @@ public:
         target_replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
+        batch_store_time=0l;
+        batch_find_time=0l;
+        batch_deserialize_time=0l;
+        batch_prefetch_hits=0l;
+        batch_prefetch_misses=0l;
     }
 
     /// functor to distribute/rank/node-replicate a function, passed in as a pointer to WorldObjectBase
@@ -659,7 +780,8 @@ public:
         }
         // collective: every rank registers the routing so owner(record) agrees everywhere
         batch_pmap->set_owner(record, owner);
-        cloudtimer t(world, writing_time1);
+        const double wall0 = wall_time();
+        cloudtimer t_batch(world, batch_store_time);   // dedicated bucket for batch payload writes (separate from writing_time1)
         {
             madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
@@ -668,6 +790,16 @@ public:
             for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
         }
         if (dofence) world.gop.fence();
+        if (batch_debug and world.rank() == 0) {
+            std::ostringstream os;
+            os << "BATCH_STORE rank=" << world.rank()
+               << " t=" << std::fixed << std::setprecision(3) << wall_time()
+               << " key=0x" << std::hex << record << std::dec
+               << " owner=" << owner
+               << " nfuncs=" << batch.size()
+               << " wall=" << std::fixed << std::setprecision(3) << (wall_time() - wall0);
+            print(os.str());
+        }
         return record;
     }
 
@@ -693,17 +825,45 @@ public:
                                                const bool cache_result = true) const {
         typedef std::vector<Function<T, NDIM>> vecfuncT;
         if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        const double wall0 = wall_time();
         cloudtimer t(subworld, reading_time);
+        const ProcessID owner = batch_pmap->owner(record);
+        const bool local = (owner == subworld.rank());  // strictly: subworld is size 1 so this is "owner == this rank"
         vecfuncT batch;
+        double find_dt = 0.0, deser_dt = 0.0;
         {
+            // The find round-trip lives inside ContainerRecordInputArchive's ctor
+            // (it does dc.find(record).get()). Time it separately from the
+            // byte-fed deserialize loop so we can see the cost of the AM
+            // independently from the local CPU work.
+            const double w0 = wall_time();
             madness::archive::ContainerRecordInputArchive ar(subworld, batch_container, record);
+            const double w1 = wall_time();
+            find_dt = w1 - w0;
+            batch_find_time += long(find_dt * 1e6);
             madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(subworld, ar);
             std::size_t fsize = 0;
             par & fsize;
             batch.resize(fsize);
             for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+            deser_dt = wall_time() - w1;
+            batch_deserialize_time += long(deser_dt * 1e6);
         }
         if (use_cache and cache_result) cache(subworld, batch, record);
+        if (batch_debug) {
+            std::ostringstream os;
+            os << "BATCH_REQ rank=" << subworld.rank()
+               << " sw=" << subworld.id()
+               << " t=" << std::fixed << std::setprecision(3) << wall_time()
+               << " key=0x" << std::hex << record << std::dec
+               << " owner=" << owner
+               << " kind=" << (local ? "sync_local" : "sync_remote")
+               << " nfuncs=" << batch.size()
+               << " find_ms=" << std::fixed << std::setprecision(3) << (find_dt*1e3)
+               << " deser_ms=" << std::fixed << std::setprecision(3) << (deser_dt*1e3)
+               << " wall_ms=" << std::fixed << std::setprecision(3) << ((wall_time()-wall0)*1e3);
+            print(os.str());
+        }
         return batch;
     }
 
@@ -720,6 +880,17 @@ public:
         return batch_container.find(record);
     }
 
+    /// Whether per-call BATCH_* diagnostic prints are enabled. Exposed so the
+    /// caller (e.g., exchange's prefetch hook) can emit its own log lines that
+    /// include subworld/rank context not visible inside the cloud.
+    bool is_batch_debug() const { return batch_debug; }
+
+    /// Look up the owner of a batch record (no AM). Used by the exchange's
+    /// prefetch hook so its BATCH_PREFETCH log line can include the target rank.
+    ProcessID batch_owner(const keyT record) const {
+        return batch_pmap->owner(record);
+    }
+
     /// Deserialize a batch from a prefetched find future (Step 2b).
 
     /// Blocks on `fut` only if the find round-trip has not completed yet, then
@@ -733,8 +904,16 @@ public:
             const bool cache_result = true) const {
         typedef std::vector<Function<T, NDIM>> vecfuncT;
         if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        const double wall0 = wall_time();
         cloudtimer t(subworld, reading_time);
-        batch_iterator it = fut.get();   // ready already if prefetch overlapped the previous compute
+        const ProcessID owner = batch_pmap->owner(record);
+        // fut.get() blocks only if the find round-trip is still outstanding;
+        // with proper prefetch overlap this should be ~0 for remote records.
+        const double w0 = wall_time();
+        batch_iterator it = fut.get();
+        const double w1 = wall_time();
+        const double find_dt = w1 - w0;
+        batch_find_time += long(find_dt * 1e6);
         MADNESS_CHECK_THROW(it != batch_container.end(), "deserialize_batch: record not found");
         valueT bytes = it->second;       // copy out the serialized stream
         vecfuncT batch;
@@ -746,7 +925,23 @@ public:
             batch.resize(fsize);
             for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
         }
+        const double deser_dt = wall_time() - w1;
+        batch_deserialize_time += long(deser_dt * 1e6);
         if (use_cache and cache_result) cache(subworld, batch, record);
+        if (batch_debug) {
+            std::ostringstream os;
+            os << "BATCH_DESER rank=" << subworld.rank()
+               << " sw=" << subworld.id()
+               << " t=" << std::fixed << std::setprecision(3) << wall_time()
+               << " key=0x" << std::hex << record << std::dec
+               << " owner=" << owner
+               << " kind=prefetched"
+               << " nfuncs=" << batch.size()
+               << " find_ms=" << std::fixed << std::setprecision(3) << (find_dt*1e3)
+               << " deser_ms=" << std::fixed << std::setprecision(3) << (deser_dt*1e3)
+               << " wall_ms=" << std::fixed << std::setprecision(3) << ((wall_time()-wall0)*1e3);
+            print(os.str());
+        }
         return batch;
     }
 
@@ -861,6 +1056,12 @@ private:
     mutable std::atomic<long> replication_time=0l;    // in microseconds
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
+    // ---- StoreFunctionBatched diagnostics (the cloud-batch fetch path) ----
+    mutable std::atomic<long> batch_store_time=0l;       ///< store_batch wall time (microseconds; subset of writing_time1)
+    mutable std::atomic<long> batch_find_time=0l;        ///< wall time inside fetch_batch / deserialize_batch waiting on the find round-trip (microseconds)
+    mutable std::atomic<long> batch_deserialize_time=0l; ///< wall time deserializing the bytes (microseconds; the CPU half of reading)
+    mutable std::atomic<long> batch_prefetch_hits=0l;    ///< exchange's row-owner k-batch prefetch hits (set by tally_batch_prefetch_hit)
+    mutable std::atomic<long> batch_prefetch_misses=0l;  ///< exchange's row-owner k-batch prefetch misses (set by tally_batch_prefetch_miss)
 
     template<typename> struct is_tuple : std::false_type { };
     template<typename ...T> struct is_tuple<std::tuple<T...>> : std::true_type { };

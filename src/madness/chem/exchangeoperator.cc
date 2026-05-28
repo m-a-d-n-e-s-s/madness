@@ -153,6 +153,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     xtask.mflex_max_exhaustive_ = mflex_max_exhaustive_;
     xtask.smallmem_mul_tol_ = smallmem_mul_tol_;  // TEMP debug knob
     xtask.use_cloud_batch_fetch_ = use_cloud_batch_fetch_;
+    xtask.log_diagnostics_ = printdebug();          // owner_map + batch record dump on universe rank 0
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {
@@ -179,6 +180,10 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
                  : MacroTask(world, xtask, taskq_factory);
+
+    // wire per-call cloud-batch debug logging (BATCH_REQ / BATCH_DESER / ...)
+    // through to the cloud held by the taskq. Narrower than cloud.set_debug.
+    if (mtask.get_taskq()) mtask.get_taskq()->cloud.set_batch_debug(printdebug());
 
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);

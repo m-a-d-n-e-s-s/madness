@@ -1113,6 +1113,20 @@ class MacroTask {
     template<typename Q, typename ArgTuple>
     static void store_batches_or_noop(Q&, World&, Cloud&, const ArgTuple&, const long, ...) {}
 
+    // Hook for tasks that want to dump diagnostic info (owner_map, batch record
+    // routing, etc.) after the partition + owner assignment + batch store is
+    // complete. The task is responsible for its own debug gating. No-op for
+    // tasks that don't implement log_owner_layout.
+    template<typename Q>
+    static auto log_owner_layout_or_noop(Q& task, World& world, Cloud& cloud,
+            const long nsubworld, int)
+        -> decltype(task.log_owner_layout(world, cloud, nsubworld), void()) {
+        task.log_owner_layout(world, cloud, nsubworld);
+    }
+
+    template<typename Q>
+    static void log_owner_layout_or_noop(Q&, World&, Cloud&, const long, ...) {}
+
     template<typename Q>
     static auto set_next_vf_hint_or_noop(Q& task, const Batch_1D& next_hint, const bool has_hint, int)
         -> decltype(task.set_next_vf_hint(next_hint, has_hint), void()) {
@@ -1265,6 +1279,8 @@ public:
         // StoreFunctionBatched: additionally serialize the inputs as owner-pinned
         // batches in the cloud's batch container (no-op for other tasks/policies).
         store_batches_or_noop(task, world, taskq_ptr->cloud, argtuple, taskq_ptr->get_nsubworld(), 0);
+        // Optional diagnostic dump (owner_map_ + batch record routing) on rank 0.
+        log_owner_layout_or_noop(task, world, taskq_ptr->cloud, taskq_ptr->get_nsubworld(), 0);
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
