@@ -814,17 +814,20 @@ private:
                 local_list_of_container_keys+=record;
             }
             if (dofence) world.gop.fence();
-        } catch (...) {
+        } catch (std::exception& e) {
             {
+                print("exception during storing object in cloud: ", e.what());
                 print("failed to store object in cloud, maybe the object is not serializable or out of scope?");
                 print("record:", record, "world:", world.id());
                 print("object type:", type_name<T>::value());
                 print("\n");
                 io_redirect_cout redirect;
+                print("exception during storing object in cloud: ", e.what());
                 print("failed to store object in cloud, maybe the object is not serializable or out of scope?");
                 print("record:", record, "world:", world.id());
                 print("object type:", type_name<T>::value());
                 print("\n");
+                std::rethrow_exception(std::current_exception());
             }
             MADNESS_EXCEPTION("load/store error in cloud", 1);
         }

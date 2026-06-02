@@ -514,6 +514,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
         t_iter.tag("compute coupling");
 
+        MemoryMeasurer::measure_and_print(world);
+
         MacroTaskIteratePair t;
         MacroTask task1(world, t);
         CC_vecfunction dummy_singles1(PARTICLE);

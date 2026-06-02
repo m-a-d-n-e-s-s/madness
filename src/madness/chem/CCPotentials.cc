@@ -2632,9 +2632,7 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
             real_function_6d copyu = copy(u);
             copyu.set_thresh(parameters.tight_thresh_6D());
 
-            // real_function_6d X = (multiply(copyu, copy(mo_bra[k]), particle)).truncate();
-            // use composite functor
-            auto X= (copyu(p1,p2)*mo_bra[k](p1)).eval();
+            auto X= (copyu(p1,p2)*mo_bra[k](p)).eval();
             real_function_6d Y = g12(X);     // overwrite X to save space
             real_function_6d tmp=(Y(p1,p2)*mo_ket[k](p)).eval();
             // auto tmp=(multiply(copy(Y), copy(mo_ket[k]),particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
