@@ -98,6 +98,10 @@ if(BUILD_TESTING)
 
   add_unittests(world "${WORLD_TEST_SOURCES}" ";MADworld;MADgtest" "unittests;short")
 
+  # >INT_MAX record chunking in parallel_dc_archive.h: allocates >2 GiB, so keep it
+  # out of the short/medium suites (run manually or via the "large" label).
+  add_unittests(world "test_dc_archive_chunk.cc" ";MADworld;MADgtest" "unittests;large")
+
   if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
