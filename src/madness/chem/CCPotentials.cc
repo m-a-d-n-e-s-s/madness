@@ -880,6 +880,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
     V=consolidate(V);
     t1.end("finished computing potential for constant part");
+    MemoryMeasurer::measure_and_print(world);
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -1257,6 +1258,7 @@ std::vector<CCPairFunction<double,6>>
                              const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
                              const Info& info, const LowRankFunction<double, 6> exchange_op, const std::vector<std::string>& argument, const double bsh_eps) {
 
+    timer t(world);
     const auto parameters=info.parameters;
     if (parameters.debug() and (world.rank()==0)) {
         print("computing the following terms in constant_part for pair: (",ti.name(),",", tj.name(),"):" , argument);
@@ -1291,6 +1293,8 @@ std::vector<CCPairFunction<double,6>>
     std::vector<CCPairFunction<double, 6>> result;
     if (V.tree_size()>0) result+=CCPairFunction<double,6>(V);
     result+=V_lowrank;
+    t.tag("computing V");
+    MemoryMeasurer::measure_and_print(world);
     return result;
 
 }

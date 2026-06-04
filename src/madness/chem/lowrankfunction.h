@@ -43,16 +43,11 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             // orthomethod removed — always use cholesky (rr_cholesky) orthonormalization
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","adaptive","twostage","harmonics"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","twostage","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
             initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity (non-canon. sensitive to thresh!)");
             initialize<std::vector<double>>("tempered",{0.05,2.0,3.0},"zeta_min,zeta_max,factor");
-            initialize<double>("adaptive_coarse_factor",8.0,"coarse grid uses volume_element*factor");
-            initialize<double>("adaptive_refine_radius",0.5,"local refinement radius as fraction of radius");
-            initialize<double>("adaptive_significance_ratio",0.2,"relative threshold for significant coarse Y norms");
-            initialize<int>("adaptive_max_centers",16,"max number of significant coarse centers to refine");
-            initialize<int>("adaptive_min_centers",2,"minimum number of coarse centers to keep");
         }
         [[nodiscard]] std::string get_tag() const override {
             return {"lrf"};
@@ -74,11 +69,6 @@ namespace madness {
         // orthomethod removed — always cholesky
         [[nodiscard]] std::string f12type() const {return get<std::string>("f12type");}
         [[nodiscard]] std::vector<double> tempered() const {return get<std::vector<double>>("tempered");}
-        [[nodiscard]] double adaptive_coarse_factor() const {return get<double>("adaptive_coarse_factor");}
-        [[nodiscard]] double adaptive_refine_radius() const {return get<double>("adaptive_refine_radius");}
-        [[nodiscard]] double adaptive_significance_ratio() const {return get<double>("adaptive_significance_ratio");}
-        [[nodiscard]] int adaptive_max_centers() const {return get<int>("adaptive_max_centers");}
-        [[nodiscard]] int adaptive_min_centers() const {return get<int>("adaptive_min_centers");}
     };
 
 
@@ -1001,7 +991,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double size=this->size();
             char buf[50];
             snprintf(buf, sizeof(buf), "%s rank, size: %zu, %.2f GB", msg.c_str(), rank,size);
-            print(buf);
+            if (world().rank()==0) print(buf);
         }
 
         /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
@@ -1228,7 +1218,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             for (double n : gnorms) sum_gk_sq += n * n;
             double arg = f_norm_sq - sum_gk_sq;
             if (arg < 0.0) arg = -arg;  // numerical noise near convergence
-            print("l2 error via Pythagoras: (abs., rel.)", sqrt(arg),sqrt(arg) / sqrt(f_norm_sq));
+            // print("l2 error via Pythagoras: (abs., rel.)", sqrt(arg),sqrt(arg) / sqrt(f_norm_sq));
             return sqrt(arg) / sqrt(f_norm_sq);
         }
 
@@ -1516,32 +1506,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 grid.push_back(r);
             }
             return grid;
-        }
-
-        std::vector<std::size_t> pick_significant_indices(const std::vector<double>& norms) const {
-            if (norms.empty()) return {};
-            std::vector<std::size_t> idx(norms.size());
-            for (std::size_t i = 0; i < idx.size(); ++i) idx[i] = i;
-            std::sort(idx.begin(), idx.end(), [&](const std::size_t a, const std::size_t b) {
-                return norms[a] > norms[b];
-            });
-
-            const double maxnorm = norms[idx.front()];
-            const double cutoff = std::max(parameters.tol(), maxnorm * parameters.adaptive_significance_ratio());
-            const std::size_t max_keep = std::max(1, parameters.adaptive_max_centers());
-            const std::size_t min_keep = std::max(1, parameters.adaptive_min_centers());
-
-            std::vector<std::size_t> keep;
-            for (auto i : idx) {
-                if (norms[i] >= cutoff) keep.push_back(i);
-                if (keep.size() >= max_keep) break;
-            }
-            if (keep.size() < min_keep) {
-                keep.clear();
-                const std::size_t n = std::min<std::size_t>(max_keep, idx.size());
-                for (std::size_t i = 0; i < n; ++i) keep.push_back(idx[i]);
-            }
-            return keep;
         }
 
     public:
@@ -1876,12 +1840,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             double current_error = lrf.l2error_pythagoras(state.f_norm_sq);
             long current_rank = state.rank();
-            print("project: iter 0, l2error =", current_error,
+            if (world.rank()==0) print("project: iter 0, l2error =", current_error,
                   "rank =", current_rank, "target =", eps);
             t1.tag("project: l2error");
 
             if (current_error <= eps) {
-                print("project: converged at iteration 0");
+                if (world.rank()==0) print("project: converged at iteration 0");
                 return lrf;
             }
 
@@ -1999,7 +1963,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                         break;
                     }
                     current_thresh *= 0.1;
-                    print("project: tightening thresh to", current_thresh);
+                    if (world.rank() == 0) print("project: tightening thresh to", current_thresh);
                     thresh_guard = std::make_unique<ThreshGuard>(current_thresh,
                         const_cast<LRFunctorBase<T,NDIM>&>(lrfunctor));
                     t1.tag("project: thresh tightening");
@@ -2017,15 +1981,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
                     current_error = lrf.l2error_pythagoras(state.f_norm_sq);
                     current_rank = state.rank();
-                    print("project: iter", iter, "(thresh), l2error =",
+                    if (world.rank()==0) print("project: iter", iter, "(thresh), l2error =",
                           current_error, "rank =", current_rank);
                     t1.tag("project: l2error iter " + std::to_string(iter));
                     if (current_error <= eps) return lrf;
                 }
             }
 
-            print("WARNING project: did NOT converge to target", eps,
-                  "; achieved", best_error);
+            if (world.rank()==0) print("WARNING project: did NOT converge to target", eps, "; achieved", best_error);
             return best_lrf;
         }
 

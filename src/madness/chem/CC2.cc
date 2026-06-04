@@ -457,17 +457,20 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             std::cout << std::scientific << std::setprecision(8);
         }
 
+        if (world.rank()==0) print_header3("Starting computing LRF of the exchange commutator");
         // compute the exchange commutator -- exchange operator without high-frequency components
         LowRankFunctionParameters lrfparam;
         lrfparam.set_derived_value("radius",         2.0);
         lrfparam.set_user_defined_value("volume_element", parameters.kffk_volume_element());
         lrfparam.set_derived_value("tol",            FunctionDefaults<3>::get_thresh());
-        lrfparam.print("lrf_param");
+        if (world.rank()==0) lrfparam.print("lrf_param");
         ExchangeCommutator::SplitAlphaOptions opt;
         opt.alpha_star               = parameters.kffk_alpha();
         auto lrf_exchange_op = ExchangeCommutator::compute_lrf_exchange_operator(
                 world, info, opt, lrfparam);
+        MemoryMeasurer::measure_and_print(world);
 
+        if (world.rank()==0) print_header3("Starting computing constant part");
         MacroTaskConstantPart t;
         MacroTask task(world, t);
         std::vector<Function<double,3>> gs_singles, ex_singles;         // dummy vectors

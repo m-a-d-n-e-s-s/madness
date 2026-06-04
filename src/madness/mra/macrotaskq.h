@@ -722,7 +722,7 @@ public:
 			double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
-			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time(), "no node", get_hostname());
 
 			task->run(subworld,cloud, taskq, element, printdebug(), policy);
 
