@@ -89,3 +89,4 @@ src/madness/tensor/tensor_spec.h
 src/madness/tensor/tensoriter_spec.h
 doc/cloud_and_worldcontainer.md
 doc/cloud_batch_exchange_plan.md
+doc/session_notes_overlap_experiment.md

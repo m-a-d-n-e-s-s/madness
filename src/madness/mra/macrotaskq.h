@@ -1483,8 +1483,20 @@ private:
         	const double t_entry = wall_time();
         	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
         	const double t_run_start = wall_time();
+        	// FIXB_DBG: stderr+flush phase trace so any hang locates to a specific phase.
+        	// Gated on the `debug` parameter (= upstream printdebug()).
+        	auto fixb_dbg_phase = [&](const char* tag) {
+        	    if (debug) {
+        	        fprintf(stderr, "FIXB_DBG run sw_id=%lu task=%ld %-22s t=%.6f inflight=%ld\n",
+        	                static_cast<unsigned long>(subworld.id()), element, tag,
+        	                wall_time(), cloud.inflight_finds());
+        	        fflush(stderr);
+        	    }
+        	};
+        	fixb_dbg_phase("A_run_start");
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const double t_cloud_load_done = wall_time();
+        	fixb_dbg_phase("B_after_cloud_load");
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
     		std::string msg="";
@@ -1528,6 +1540,7 @@ private:
     			task.subworld_ptr=&subworld;	// give the task access to the subworld
     			task.cloud_ptr=&cloud;	// give the task access to the cloud (owner-pinned batch fetch)
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
+    			fixb_dbg_phase("E_after_apply");
         	    double cpu1=cpu_time();
         	    const double t_compute_done = wall_time();
 			    constexpr std::size_t bufsize=256;
@@ -1591,6 +1604,7 @@ private:
         		    prefetch_next_vf_async_or_noop(task, subworld, argtuple, 0);
         		    prefetch_next_bra_async_or_noop(task, subworld, argtuple, 0);
         		}
+        		fixb_dbg_phase("H_run_return");
         		const double t_prefetch_issue_done = wall_time();
 
         		// per-task phase timing diagnostic

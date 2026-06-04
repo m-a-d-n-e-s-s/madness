@@ -770,10 +770,14 @@ public:
     /// @param[in] batch   the functions to store
     /// @param[in] owner   the rank that should physically hold the record
     /// @param[in] record  the (caller-chosen, globally consistent) record key
+    /// @param[in] fence   if true (default), fence on `world` before returning.
+    ///                    Pass false when emitting many batches back-to-back so
+    ///                    one outer fence at the end of the batching loop
+    ///                    suffices; cuts setup from O(nsubworld) fences to one.
     /// @return the record key (for manifest bookkeeping)
     template<typename T, std::size_t NDIM>
     keyT store_batch(madness::World& world, const std::vector<Function<T, NDIM>>& batch,
-                     const ProcessID owner, const keyT record) {
+                     const ProcessID owner, const keyT record, const bool fence = true) {
         if (is_replicated) {
             print("Cloud contents are replicated and read-only!");
             MADNESS_EXCEPTION("cloud error", 1);
@@ -789,7 +793,7 @@ public:
             par & fsize;
             for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
         }
-        if (dofence) world.gop.fence();
+        if (dofence and fence) world.gop.fence();
         if (batch_debug and world.rank() == 0) {
             std::ostringstream os;
             os << "BATCH_STORE rank=" << world.rank()
@@ -832,6 +836,12 @@ public:
         vecfuncT batch;
         double find_dt = 0.0, deser_dt = 0.0;
         {
+            if (batch_debug) {
+                fprintf(stderr, "FIXB_DBG cloud.fetch_batch BEFORE_FIND key=0x%lx owner=%d local=%d sw_rank=%d sw_id=%lu t=%.6f\n",
+                        static_cast<unsigned long>(record), owner, int(local),
+                        subworld.rank(), static_cast<unsigned long>(subworld.id()), wall_time());
+                fflush(stderr);
+            }
             // The find round-trip lives inside ContainerRecordInputArchive's ctor
             // (it does dc.find(record).get()). Time it separately from the
             // byte-fed deserialize loop so we can see the cost of the AM
@@ -839,6 +849,11 @@ public:
             const double w0 = wall_time();
             madness::archive::ContainerRecordInputArchive ar(subworld, batch_container, record);
             const double w1 = wall_time();
+            if (batch_debug) {
+                fprintf(stderr, "FIXB_DBG cloud.fetch_batch AFTER_FIND  key=0x%lx find_ms=%.3f t=%.6f\n",
+                        static_cast<unsigned long>(record), (w1-w0)*1e3, wall_time());
+                fflush(stderr);
+            }
             find_dt = w1 - w0;
             batch_find_time += long(find_dt * 1e6);
             madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(subworld, ar);
@@ -877,7 +892,20 @@ public:
     /// the round-trip. Resolves immediately when this rank owns the record.
     /// Pair with deserialize_batch to obtain the vecfunc once the future is set.
     Future<batch_iterator> fetch_batch_record_async(const keyT record) const {
-        return batch_container.find(record);
+        if (batch_debug) {
+            const ProcessID owner = batch_pmap->owner(record);
+            fprintf(stderr, "FIXB_DBG cloud.fetch_batch_record_async ENTER key=0x%lx owner=%d inflight_pre=%ld t=%.6f\n",
+                    static_cast<unsigned long>(record), owner, inflight_finds_.load(), wall_time());
+            fflush(stderr);
+        }
+        ++inflight_finds_;
+        Future<batch_iterator> f = batch_container.find(record);
+        if (batch_debug) {
+            fprintf(stderr, "FIXB_DBG cloud.fetch_batch_record_async EXIT key=0x%lx inflight_now=%ld t=%.6f\n",
+                    static_cast<unsigned long>(record), inflight_finds_.load(), wall_time());
+            fflush(stderr);
+        }
+        return f;
     }
 
     /// Whether per-call BATCH_* diagnostic prints are enabled. Exposed so the
@@ -890,6 +918,10 @@ public:
     ProcessID batch_owner(const keyT record) const {
         return batch_pmap->owner(record);
     }
+
+    /// Snapshot of in-flight async finds (issued by fetch_batch_record_async,
+    /// not yet consumed by deserialize_batch). Diagnostic only.
+    long inflight_finds() const { return inflight_finds_.load(); }
 
     /// Deserialize a batch from a prefetched find future (Step 2b).
 
@@ -907,11 +939,24 @@ public:
         const double wall0 = wall_time();
         cloudtimer t(subworld, reading_time);
         const ProcessID owner = batch_pmap->owner(record);
+        if (batch_debug) {
+            fprintf(stderr, "FIXB_DBG cloud.deserialize_batch BEFORE_GET key=0x%lx owner=%d sw_rank=%d sw_id=%lu inflight=%ld t=%.6f\n",
+                    static_cast<unsigned long>(record), owner, subworld.rank(),
+                    static_cast<unsigned long>(subworld.id()), inflight_finds_.load(), wall_time());
+            fflush(stderr);
+        }
         // fut.get() blocks only if the find round-trip is still outstanding;
         // with proper prefetch overlap this should be ~0 for remote records.
         const double w0 = wall_time();
         batch_iterator it = fut.get();
         const double w1 = wall_time();
+        --inflight_finds_;
+        if (batch_debug) {
+            fprintf(stderr, "FIXB_DBG cloud.deserialize_batch AFTER_GET key=0x%lx owner=%d find_ms=%.3f inflight_after=%ld t=%.6f\n",
+                    static_cast<unsigned long>(record), owner, (w1-w0)*1e3,
+                    inflight_finds_.load(), wall_time());
+            fflush(stderr);
+        }
         const double find_dt = w1 - w0;
         batch_find_time += long(find_dt * 1e6);
         MADNESS_CHECK_THROW(it != batch_container.end(), "deserialize_batch: record not found");
@@ -1062,6 +1107,7 @@ private:
     mutable std::atomic<long> batch_deserialize_time=0l; ///< wall time deserializing the bytes (microseconds; the CPU half of reading)
     mutable std::atomic<long> batch_prefetch_hits=0l;    ///< exchange's row-owner k-batch prefetch hits (set by tally_batch_prefetch_hit)
     mutable std::atomic<long> batch_prefetch_misses=0l;  ///< exchange's row-owner k-batch prefetch misses (set by tally_batch_prefetch_miss)
+    mutable std::atomic<long> inflight_finds_=0l;        ///< async finds issued by fetch_batch_record_async but not yet consumed
 
     template<typename> struct is_tuple : std::false_type { };
     template<typename ...T> struct is_tuple<std::tuple<T...>> : std::true_type { };

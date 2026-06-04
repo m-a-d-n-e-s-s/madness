@@ -387,10 +387,16 @@ private:
         };
         static inline KBatchPrefetchState kbatch_prefetch_;
 
-        /// Cloud-batch k-batch prefetch state (Step 5b). Holds the in-flight find
-        /// futures for the NEXT task's bra/ket records so the round-trip overlaps
-        /// the current task's compute; consumed (deserialized) at the next task's
-        /// operator(). Parallel to kbatch_prefetch_ but for the cloud fetch path.
+        /// Cloud-batch k-batch prefetch state (Step 5b).
+        /// Single-slot: prefetch_next_bra_async (called at run() TAIL) issues
+        /// async finds for the NEXT task's bra/ket records and stores the
+        /// futures here; operator() at the next task's start consumes them
+        /// via deserialize_batch. ensure_cache_world resets the slot on
+        /// subworld change (same lifecycle as the copy-path caches).
+        /// (A two-slot run-head/run-tail variant was tried and reverted: the
+        /// synchronized cross-rank issuance burst it produced triggered
+        /// 2-sided MPI deadlocks on large batch replies — see Fix B in the
+        /// plan's deferred items.)
         struct CloudKBatchPrefetch {
             bool has_next = false;
             Batch_1D next_range;
@@ -1573,20 +1579,27 @@ private:
             const std::vector<Batch_1D> col_split = exchange_row_owner_split(vf.size(), nsubworld);
             const std::vector<Batch_1D> row_split = exchange_row_owner_split(mo_bra.size(), nsubworld);
 
-            // vf col-batches: owner == split index (held locally by that rank)
+            // vf col-batches: owner == split index (held locally by that rank).
+            // Suppress per-call fences inside store_batch; emit one collective
+            // fence after all three loops to amortize the ~3*nsubworld fences
+            // that would otherwise dominate setup time.
             for (long i = 0; i < long(col_split.size()); ++i) {
                 const Batch_1D& r = col_split[i];
                 vecfuncT slice(vf.begin() + r.begin, vf.begin() + r.end);
-                cloud.store_batch(world, slice, ProcessID(i), batch_record_key(salt, DIM_VF, r));
+                cloud.store_batch(world, slice, ProcessID(i), batch_record_key(salt, DIM_VF, r),
+                                  /*fence=*/false);
             }
             // bra/ket row-batches: separate records, owner == split index
             for (long j = 0; j < long(row_split.size()); ++j) {
                 const Batch_1D& r = row_split[j];
                 vecfuncT bra_slice(mo_bra.begin() + r.begin, mo_bra.begin() + r.end);
                 vecfuncT ket_slice(mo_ket.begin() + r.begin, mo_ket.begin() + r.end);
-                cloud.store_batch(world, bra_slice, ProcessID(j), batch_record_key(salt, DIM_BRA, r));
-                cloud.store_batch(world, ket_slice, ProcessID(j), batch_record_key(salt, DIM_KET, r));
+                cloud.store_batch(world, bra_slice, ProcessID(j), batch_record_key(salt, DIM_BRA, r),
+                                  /*fence=*/false);
+                cloud.store_batch(world, ket_slice, ProcessID(j), batch_record_key(salt, DIM_KET, r),
+                                  /*fence=*/false);
             }
+            world.gop.fence();  // single collective fence covering all batch writes above
         }
 
         /// Dump owner_map_ and (for cloud-batch) the CloudOwnerPmap batch
@@ -1657,15 +1670,25 @@ private:
                     // (clears cloud_kb_ futures from a previous application/cloud)
                     ensure_cache_world(world);
                     Cloud& cloud = *cloud_ptr;
+                    const bool op_dbg = cloud.is_batch_debug();
+                    if (op_dbg) {
+                        fprintf(stderr, "FIXB_DBG op() ENTER sw_id=%lu col=[%ld,%ld) row=[%ld,%ld) has_next=%d t=%.6f\n",
+                                static_cast<unsigned long>(world.id()),
+                                vf_range.begin, vf_range.end, bra_range.begin, bra_range.end,
+                                int(cloud_kb_.has_next), wall_time());
+                        fflush(stderr);
+                    }
                     const typename Cloud::keyT salt = batch_salt(vket);  // full ket
                     const double cf0 = process_cpu_time();
 
                     // vf is held: dedup across this rank's whole task sequence (one
                     // fetch + many reuses), so we keep it in the cloud cache.
+                    if (op_dbg) { fprintf(stderr, "FIXB_DBG op() vf_fetch BEGIN t=%.6f\n", wall_time()); fflush(stderr); }
                     vecfuncT vf_local = cloud.fetch_batch<T, NDIM>(
                             world, batch_record_key(salt, DIM_VF, vf_range),
                             /*cache_result=*/true);                              // local (owner==self)
                     const double t_vf_done_c = wall_time();
+                    if (op_dbg) { fprintf(stderr, "FIXB_DBG op() vf_fetch DONE t=%.6f\n", wall_time()); fflush(stderr); }
 
                     // The k-batch rotates: each row-batch is fetched exactly once
                     // per rank in pure rotation, so caching has no dedup benefit
@@ -1674,36 +1697,49 @@ private:
                     // matching the copy() path's release_finished_kbatch behavior.
                     const typename Cloud::keyT bra_key = batch_record_key(salt, DIM_BRA, bra_range);
                     const typename Cloud::keyT ket_key = batch_record_key(salt, DIM_KET, bra_range);
+                    // next_* was filled by the previous task's TAIL prefetch_next_bra_async
+                    // (5b path): the AMs went on the wire at the end of the prior task and
+                    // had the inter-task gap to complete before we consume them here.
                     const bool cloud_prefetch_hit = cloud_kb_.has_next
                         and same_range(cloud_kb_.next_range, normalize_range(bra_range, long(bra_batch.size())))
-                        and cloud_kb_.bra_key == bra_key and cloud_kb_.ket_key == ket_key;
+                        and cloud_kb_.bra_key == bra_key
+                        and cloud_kb_.ket_key == ket_key;
                     vecfuncT bra_k, ket_k;
                     if (cloud_prefetch_hit) {
-                        // consume the in-flight finds issued during the previous compute
+                        // consume the in-flight finds issued at the previous task's tail
                         cloud.tally_batch_prefetch_hit();
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit BEFORE_BRA t=%.6f\n", wall_time()); fflush(stderr); }
                         bra_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.bra_fut, bra_key,
                                                                  /*cache_result=*/false);
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit AFTER_BRA  t=%.6f\n", wall_time()); fflush(stderr); }
                         ket_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.ket_fut, ket_key,
                                                                  /*cache_result=*/false);
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit AFTER_KET  t=%.6f\n", wall_time()); fflush(stderr); }
                         cloud_kb_.has_next = false;
                     } else {
                         cloud.tally_batch_prefetch_miss();
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss BEFORE_BRA t=%.6f\n", wall_time()); fflush(stderr); }
                         bra_k = cloud.fetch_batch<T, NDIM>(world, bra_key,
                                                            /*cache_result=*/false);   // remote, synchronous
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss AFTER_BRA  t=%.6f\n", wall_time()); fflush(stderr); }
                         ket_k = cloud.fetch_batch<T, NDIM>(world, ket_key,
                                                            /*cache_result=*/false);   // remote, synchronous
+                        if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss AFTER_KET  t=%.6f\n", wall_time()); fflush(stderr); }
                     }
                     const double t_k_done_c = wall_time();
                     add_owner_fetch_time(cf0, process_cpu_time());
 
+                    if (op_dbg) { fprintf(stderr, "FIXB_DBG op() compute BEGIN t=%.6f\n", wall_time()); fflush(stderr); }
                     vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix_smallmem(
                             world, ket_k, bra_k, vf_local);
                     const double t_compute_end_c = wall_time();
+                    if (op_dbg) { fprintf(stderr, "FIXB_DBG op() compute DONE  t=%.6f\n", wall_time()); fflush(stderr); }
                     add_owner_compute_wall_time(t_k_done_c, t_compute_end_c);
 
                     for (int i = vf_range.begin; i < vf_range.end; ++i) {
                         Kf[i] += resultcolumn[i - vf_range.begin];
                     }
+                    if (op_dbg) { fprintf(stderr, "FIXB_DBG op() RETURN t=%.6f\n", wall_time()); fflush(stderr); }
                     if (world.rank() == 0) {
                         print("OVERLAP_OP row_owner cloud_batch prefetch_hit=", int(cloud_prefetch_hit),
                               " col=[", vf_range.begin, ",", vf_range.end,
