@@ -386,41 +386,80 @@ struct composite_product_op_NS {
     }
 
     Future<this_type> activate() const {
-        // Activate every CoeffTracker in every Term.  Existing ops bind a fixed
-        // number of `Future<ct*>` to the forward_ctor task; we instead synchronously
-        // materialise the activated trackers via Future::get() since the per-term
-        // tracker count is variable.  CoeffTracker::activate() returns a ready future
-        // for null / on-demand impls, so the .get() is free in the common case.
-        std::vector<TermImpl> activated;
-        activated.reserve(terms.size());
-        for (const auto& t : terms) {
-            TermImpl at;
-            if (t.have_ket()) at.iaket = t.iaket.activate().get();
-            else {
-                at.iap1.reserve(t.iap1.size());
-                at.iap2.reserve(t.iap2.size());
-                for (const auto& p : t.iap1) at.iap1.push_back(p.activate().get());
-                for (const auto& p : t.iap2) at.iap2.push_back(p.activate().get());
+        // Collect all CoeffTracker activations into two flat future vectors without
+        // calling .get().  The forward_ctor task fires only once every future in
+        // these vectors is resolved, so .get() inside it is non-blocking.
+        // The old approach called .get() here, which entered the MADNESS work-
+        // stealing loop, picked up more forward_traverse tasks, and caused
+        // unbounded stack growth (stack overflow -> segfault).
+        //
+        // TaskFn supports at most 9 args, so we pack into two flat vectors:
+        //   t_futs: [0..N-1] = ket futures (placeholder ctT{} if !have_ket), [N] = cbra
+        //   l_futs: [0..p_total-1] = flat p1/p2 per term (p1[0..n-1], p2[0..n-1]),
+        //           [p_total..p_total+N-1] = f1 futures,
+        //           [p_total+N..p_total+2N-1] = f2 futures
+        const size_t N = terms.size();
+        std::vector<Future<ctT>> t_futs(N + 1);
+        std::vector<Future<ctL>> l_futs;
+        for (size_t i = 0; i < N; ++i) {
+            const auto& t = terms[i];
+            if (t.have_ket()) {
+                t_futs[i] = t.iaket.activate();
+            } else {
+                t_futs[i] = Future<ctT>(ctT{});
+                for (const auto& p : t.iap1) l_futs.push_back(p.activate());
+                for (const auto& p : t.iap2) l_futs.push_back(p.activate());
             }
-            if (t.have_factor1()) at.ifactor1 = t.ifactor1.activate().get();
-            if (t.have_factor2()) at.ifactor2 = t.ifactor2.activate().get();
-            at.extra = t.extra;
-            at.coeff = t.coeff;
-            activated.push_back(std::move(at));
         }
-        ctT cbra_activated = have_explicit_bra() ? cbra.activate().get() : ctT{};
+        for (size_t i = 0; i < N; ++i) {
+            const auto& t = terms[i];
+            l_futs.push_back(t.have_factor1() ? t.ifactor1.activate() : Future<ctL>(ctL{}));
+        }
+        for (size_t i = 0; i < N; ++i) {
+            const auto& t = terms[i];
+            l_futs.push_back(t.have_factor2() ? t.ifactor2.activate() : Future<ctL>(ctL{}));
+        }
+        t_futs[N] = have_explicit_bra() ? cbra.activate() : Future<ctT>(ctT{});
         return result->world.taskq.add(
             detail::wrap_mem_fn(*const_cast<this_type*>(this), &this_type::forward_ctor),
-            result, leaf_op, activated, mode, bra, target_precision, oversampling,
-            cbra_activated);
+            result, leaf_op, terms, mode, bra, target_precision, oversampling,
+            t_futs, l_futs);
     }
 
     this_type forward_ctor(implT* result1, const opT& leaf_op1,
-                           const std::vector<TermImpl>& terms1, Mode mode1,
+                           const std::vector<TermImpl>& orig_terms, Mode mode1,
                            const implT* bra1, double target_precision1, int oversampling1,
-                           const ctT& cbra1) {
-        return this_type(result1, leaf_op1, terms1, mode1, bra1,
-                         target_precision1, oversampling1, cbra1);
+                           const std::vector<Future<ctT>>& t_futs,
+                           const std::vector<Future<ctL>>& l_futs) {
+        // All futures are resolved when this task fires — .get() is non-blocking.
+        auto& tf = const_cast<std::vector<Future<ctT>>&>(t_futs);
+        auto& lf = const_cast<std::vector<Future<ctL>>&>(l_futs);
+        const size_t N = orig_terms.size();
+        // p_total: offset where f1/f2 futures begin in l_futs
+        size_t p_total = 0;
+        for (size_t i = 0; i < N; ++i)
+            if (!orig_terms[i].have_ket()) p_total += 2 * orig_terms[i].iap1.size();
+        std::vector<TermImpl> activated(N);
+        size_t p_idx = 0;
+        for (size_t i = 0; i < N; ++i) {
+            const auto& t = orig_terms[i];
+            activated[i].extra = t.extra;
+            activated[i].coeff = t.coeff;
+            if (t.have_ket()) {
+                activated[i].iaket = tf[i].get();
+            } else {
+                const size_t np = t.iap1.size();
+                for (size_t k = 0; k < np; ++k)
+                    activated[i].iap1.push_back(lf[p_idx + k].get());
+                for (size_t k = 0; k < np; ++k)
+                    activated[i].iap2.push_back(lf[p_idx + np + k].get());
+                p_idx += 2 * np;
+            }
+            if (t.have_factor1()) activated[i].ifactor1 = lf[p_total + i].get();
+            if (t.have_factor2()) activated[i].ifactor2 = lf[p_total + N + i].get();
+        }
+        return this_type(result1, leaf_op1, activated, mode1, bra1,
+                         target_precision1, oversampling1, tf[N].get());
     }
 
     template <typename Archive> void serialize(Archive& ar) {
