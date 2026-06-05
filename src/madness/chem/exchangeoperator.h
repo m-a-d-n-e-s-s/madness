@@ -397,13 +397,22 @@ private:
         /// synchronized cross-rank issuance burst it produced triggered
         /// 2-sided MPI deadlocks on large batch replies — see Fix B in the
         /// plan's deferred items.)
-        struct CloudKBatchPrefetch {
-            bool has_next = false;
-            Batch_1D next_range;
+        // One in-flight (or completed) cloud prefetch of a bra+ket k-batch.
+        struct CloudKBatchSlot {
+            bool valid = false;
+            Batch_1D range;
             typename Cloud::keyT bra_key = 0;
             typename Cloud::keyT ket_key = 0;
-            Future<typename Cloud::batch_iterator> bra_fut;
-            Future<typename Cloud::batch_iterator> ket_fut;
+            Future<typename Cloud::batch_bytesT> bra_fut;
+            Future<typename Cloud::batch_bytesT> ket_fut;
+        };
+        // Double buffer for the row-owner cloud pipeline (Design B): `next` is
+        // issued one task ahead (overlapping the current task's compute) and
+        // promoted to `current` at the head of the next task, where it is
+        // consumed. See cloud_kbatch_pipeline_advance.
+        struct CloudKBatchPrefetch {
+            CloudKBatchSlot current;   // promoted from the previous task's `next`; consumed by this task
+            CloudKBatchSlot next;      // issued ahead during this task's compute; for the next task
         };
         static inline CloudKBatchPrefetch cloud_kb_;
 
@@ -420,13 +429,9 @@ private:
             kbatch_prefetch_.current_range = Batch_1D();
             kbatch_prefetch_.next_range = Batch_1D();
             kbatch_prefetch_.next_hint = Batch_1D();
-            // drop any in-flight cloud prefetch (futures reset to unset)
-            cloud_kb_.has_next = false;
-            cloud_kb_.next_range = Batch_1D();
-            cloud_kb_.bra_key = 0;
-            cloud_kb_.ket_key = 0;
-            cloud_kb_.bra_fut = Future<typename Cloud::batch_iterator>();
-            cloud_kb_.ket_fut = Future<typename Cloud::batch_iterator>();
+            // drop any in-flight cloud prefetch (both slots reset to unset)
+            cloud_kb_.current = CloudKBatchSlot();
+            cloud_kb_.next = CloudKBatchSlot();
         }
 
         /// pre-computed owner map: (col_begin, row_begin) -> owner rank
@@ -1355,40 +1360,60 @@ private:
             }
         }
 
+        /// Row-owner cloud pipeline (Design B), called PRE-compute by the framework
+        /// (after the argtuple load, before operator()). Two responsibilities:
+        ///   1. promote: the prefetch issued during the previous task (`next`)
+        ///      becomes `current`, ready to be consumed by this task's operator().
+        ///   2. issue ahead: launch the async byte fetch for the *next* owned
+        ///      task's bra/ket records into `next`, so the round-trip overlaps
+        ///      THIS task's compute. Consumed (promoted+deserialized) one task later.
+        /// Only the trigger AMs go on the wire here; the heavy transfer lands on
+        /// the owner's worker task (BatchTransport). No-op unless this is the
+        /// row-owner cloud path.
+        void cloud_kbatch_pipeline_advance(World& world,
+                                           const vecfuncT& mo_bra_full,
+                                           const vecfuncT& mo_ket_full,
+                                           const Batch_1D& next_hint,
+                                           const bool has_next_task) const {
+            if (not use_cloud_batch_fetch()) return;
+            // Establish the cache world FIRST. Each SCF iteration uses a fresh
+            // subworld id, so the first task triggers clear_local_caches (which
+            // clears cloud_kb_). Doing it here, before we issue, means the
+            // operator()'s later ensure_cache_world is a no-op and won't wipe the
+            // prefetch we are about to launch (otherwise the next task misses).
+            ensure_cache_world(world);
+            // promote previous `next` -> `current` (the slot this task consumes)
+            cloud_kb_.current = std::move(cloud_kb_.next);
+            cloud_kb_.next = CloudKBatchSlot();
+            if (not has_next_task) return;        // last owned task: nothing to prefetch
+            if (cloud_ptr == nullptr) return;
+            MADNESS_CHECK_THROW(mo_bra_full.size() == mo_ket_full.size(),
+                                "cloud_kbatch_pipeline_advance: bra/ket size mismatch");
+            const Batch_1D hint = normalize_range(next_hint, long(mo_bra_full.size()));
+            const typename Cloud::keyT salt = batch_salt(mo_ket_full);  // full ket
+            CloudKBatchSlot& s = cloud_kb_.next;
+            s.range   = hint;
+            s.bra_key = batch_record_key(salt, DIM_BRA, hint);
+            s.ket_key = batch_record_key(salt, DIM_KET, hint);
+            s.bra_fut = cloud_ptr->request_batch_bytes_async(s.bra_key);
+            s.ket_fut = cloud_ptr->request_batch_bytes_async(s.ket_key);
+            s.valid   = true;
+            if (cloud_ptr->is_batch_debug()) {
+                const ProcessID bo = cloud_ptr->batch_owner(s.bra_key);
+                const ProcessID ko = cloud_ptr->batch_owner(s.ket_key);
+                print("BATCH_PREFETCH rank=", world.rank(), " sw=", world.id(),
+                      " t=", wall_time(), " next_row=[", hint.begin, ",", hint.end, ")",
+                      " bra_owner=", bo, " ket_owner=", ko);
+            }
+        }
+
         void prefetch_next_bra_async(World& world,
                                      const vecfuncT& mo_bra_full,
                                      const vecfuncT& mo_ket_full) const {
             if (not use_row_owner_algorithm()) return;
-
-            // ---- cloud-batch prefetch (Step 5b): issue async finds for the next
-            // k-batch's bra/ket records so the round-trip overlaps this task's
-            // compute. Consumed (deserialized) at the next task's operator(). ----
-            if (use_cloud_batch_fetch()) {
-                cloud_kb_.has_next = false;
-                if (not kbatch_prefetch_.has_hint) return;
-                if (cloud_ptr == nullptr) return;
-                MADNESS_CHECK_THROW(mo_bra_full.size() == mo_ket_full.size(),
-                                    "prefetch_next_bra_async: bra/ket size mismatch");
-                const Batch_1D hint = normalize_range(kbatch_prefetch_.next_hint, long(mo_bra_full.size()));
-                const typename Cloud::keyT salt = batch_salt(mo_ket_full);  // full ket
-                cloud_kb_.next_range = hint;
-                cloud_kb_.bra_key = batch_record_key(salt, DIM_BRA, hint);
-                cloud_kb_.ket_key = batch_record_key(salt, DIM_KET, hint);
-                cloud_kb_.bra_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.bra_key);
-                cloud_kb_.ket_fut = cloud_ptr->fetch_batch_record_async(cloud_kb_.ket_key);
-                cloud_kb_.has_next = true;
-                if (cloud_ptr->is_batch_debug()) {
-                    const double t = wall_time();
-                    const ProcessID bo = cloud_ptr->batch_owner(cloud_kb_.bra_key);
-                    const ProcessID ko = cloud_ptr->batch_owner(cloud_kb_.ket_key);
-                    print("BATCH_PREFETCH rank=", world.rank(),
-                          " sw=", world.id(),
-                          " t=", t,
-                          " next_row=[", hint.begin, ",", hint.end, ")",
-                          " bra_owner=", bo, " ket_owner=", ko);
-                }
-                return;
-            }
+            // The cloud path prefetches pre-compute via cloud_kbatch_pipeline_advance
+            // (Design B double buffer); the tail call is a no-op for it.
+            if (use_cloud_batch_fetch()) return;
 
             const double cpu0 = process_cpu_time();
             ensure_cache_world(world);
@@ -1672,10 +1697,10 @@ private:
                     Cloud& cloud = *cloud_ptr;
                     const bool op_dbg = cloud.is_batch_debug();
                     if (op_dbg) {
-                        fprintf(stderr, "FIXB_DBG op() ENTER sw_id=%lu col=[%ld,%ld) row=[%ld,%ld) has_next=%d t=%.6f\n",
+                        fprintf(stderr, "FIXB_DBG op() ENTER sw_id=%lu col=[%ld,%ld) row=[%ld,%ld) cur_valid=%d t=%.6f\n",
                                 static_cast<unsigned long>(world.id()),
                                 vf_range.begin, vf_range.end, bra_range.begin, bra_range.end,
-                                int(cloud_kb_.has_next), wall_time());
+                                int(cloud_kb_.current.valid), wall_time());
                         fflush(stderr);
                     }
                     const typename Cloud::keyT salt = batch_salt(vket);  // full ket
@@ -1684,7 +1709,7 @@ private:
                     // vf is held: dedup across this rank's whole task sequence (one
                     // fetch + many reuses), so we keep it in the cloud cache.
                     if (op_dbg) { fprintf(stderr, "FIXB_DBG op() vf_fetch BEGIN t=%.6f\n", wall_time()); fflush(stderr); }
-                    vecfuncT vf_local = cloud.fetch_batch<T, NDIM>(
+                    vecfuncT vf_local = cloud.fetch_batch_p2p<T, NDIM>(
                             world, batch_record_key(salt, DIM_VF, vf_range),
                             /*cache_result=*/true);                              // local (owner==self)
                     const double t_vf_done_c = wall_time();
@@ -1697,33 +1722,34 @@ private:
                     // matching the copy() path's release_finished_kbatch behavior.
                     const typename Cloud::keyT bra_key = batch_record_key(salt, DIM_BRA, bra_range);
                     const typename Cloud::keyT ket_key = batch_record_key(salt, DIM_KET, bra_range);
-                    // next_* was filled by the previous task's TAIL prefetch_next_bra_async
-                    // (5b path): the AMs went on the wire at the end of the prior task and
-                    // had the inter-task gap to complete before we consume them here.
-                    const bool cloud_prefetch_hit = cloud_kb_.has_next
-                        and same_range(cloud_kb_.next_range, normalize_range(bra_range, long(bra_batch.size())))
-                        and cloud_kb_.bra_key == bra_key
-                        and cloud_kb_.ket_key == ket_key;
+                    // `current` was filled by the previous task's PRE-compute
+                    // cloud_kbatch_pipeline_advance (Design B): the trigger AMs went
+                    // on the wire one task earlier and the transfer overlapped the
+                    // previous task's compute, so it should be ready here.
+                    const bool cloud_prefetch_hit = cloud_kb_.current.valid
+                        and same_range(cloud_kb_.current.range, normalize_range(bra_range, long(bra_batch.size())))
+                        and cloud_kb_.current.bra_key == bra_key
+                        and cloud_kb_.current.ket_key == ket_key;
                     vecfuncT bra_k, ket_k;
                     if (cloud_prefetch_hit) {
-                        // consume the in-flight finds issued at the previous task's tail
+                        // consume the prefetch issued (and overlapped) one task ago
                         cloud.tally_batch_prefetch_hit();
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit BEFORE_BRA t=%.6f\n", wall_time()); fflush(stderr); }
-                        bra_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.bra_fut, bra_key,
+                        bra_k = cloud.deserialize_batch_p2p<T, NDIM>(world, cloud_kb_.current.bra_fut, bra_key,
                                                                  /*cache_result=*/false);
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit AFTER_BRA  t=%.6f\n", wall_time()); fflush(stderr); }
-                        ket_k = cloud.deserialize_batch<T, NDIM>(world, cloud_kb_.ket_fut, ket_key,
+                        ket_k = cloud.deserialize_batch_p2p<T, NDIM>(world, cloud_kb_.current.ket_fut, ket_key,
                                                                  /*cache_result=*/false);
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() consume_hit AFTER_KET  t=%.6f\n", wall_time()); fflush(stderr); }
-                        cloud_kb_.has_next = false;
+                        cloud_kb_.current.valid = false;
                     } else {
                         cloud.tally_batch_prefetch_miss();
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss BEFORE_BRA t=%.6f\n", wall_time()); fflush(stderr); }
-                        bra_k = cloud.fetch_batch<T, NDIM>(world, bra_key,
-                                                           /*cache_result=*/false);   // remote, synchronous
+                        bra_k = cloud.fetch_batch_p2p<T, NDIM>(world, bra_key,
+                                                           /*cache_result=*/false);   // remote, synchronous (p2p)
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss AFTER_BRA  t=%.6f\n", wall_time()); fflush(stderr); }
-                        ket_k = cloud.fetch_batch<T, NDIM>(world, ket_key,
-                                                           /*cache_result=*/false);   // remote, synchronous
+                        ket_k = cloud.fetch_batch_p2p<T, NDIM>(world, ket_key,
+                                                           /*cache_result=*/false);   // remote, synchronous (p2p)
                         if (op_dbg) { fprintf(stderr, "FIXB_DBG op() sync_miss AFTER_KET  t=%.6f\n", wall_time()); fflush(stderr); }
                     }
                     const double t_k_done_c = wall_time();

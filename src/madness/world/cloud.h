@@ -16,7 +16,9 @@
 
 #include <madness/world/parallel_dc_archive.h>
 #include<any>
+#include<atomic>
 #include<iomanip>
+#include<memory>
 
 
 /*!
@@ -195,6 +197,79 @@ public:
     }
 };
 
+// forward declaration; BatchTransport holds a back-reference to its Cloud and
+// its method bodies (which touch Cloud members) are defined after the Cloud class.
+class Cloud;
+
+/// types used by the owner-pinned batch point-to-point transfer (see BatchTransport)
+using batch_keyT     = madness::archive::ContainerRecordOutputArchive::keyT;   // == long
+/// the serialized batch travels by value through a Future; a plain
+/// std::vector<unsigned char> is archive-serializable (shared_ptr is not, and
+/// Future<T> instantiates the serialization path unconditionally).
+using batch_bytesT   = std::vector<unsigned char>;
+
+/// Point-to-point transfer of serialized function batches between universe ranks.
+///
+/// Replaces the WorldContainer::find round-trip used by the row-owner exchange
+/// fetch path. A requester sends a small trigger message to the record's owner;
+/// the owner serves it as a *task* (off its comm thread) by streaming the raw
+/// serialized bytes straight from its local batch store to the requester via
+/// MPI point-to-point. The blob never rides inside an active-message payload, so
+/// there is no eager-buffer limit and no extra serialize/deserialize copy on the
+/// wire (pure memcpy over wire).
+///
+/// Wire protocol (only the trigger touches a comm thread):
+///   1. requester  -- this->task(owner, &do_send, record, requester, tag) -->  owner
+///        (the AM enqueues do_send as a task on the owner; comm thread untouched)
+///   2. owner (do_send, worker task):  Isend(size) ; Isend(bytes)   on `tag`
+///   3. requester (receive_task, worker task):  Irecv(size) ; Irecv(bytes) ; await
+///
+/// Two Isends on the same tag are non-overtaking for a fixed (src,dest,tag,comm),
+/// so the size always lands before the bytes (no separate size channel needed).
+///
+/// This first cut uses an await-based receive task (no background poller), which
+/// is sufficient for the single-slot prefetch of the row-owner algorithm; a
+/// poller can be added later if many transfers are ever outstanding at once.
+class BatchTransport : public WorldObject<BatchTransport> {
+public:
+    /// tags live in [8192, MPI_TAG_UB], the range MADNESS does not manage
+    /// (see safempi.h); 32767 is the conservative MPI_TAG_UB floor.
+    static constexpr int BATCH_TAG_BASE = 8192;
+    static constexpr int BATCH_TAG_CAP  = 32767;
+
+    /// @param[in] universe  the world the cloud lives in (collective construction)
+    /// @param[in] cloud     back-reference used to read owner-local batch bytes
+    BatchTransport(World& universe, Cloud* cloud)
+        : WorldObject<BatchTransport>(universe), cloud_(cloud), next_tag_(0) {
+        this->process_pending();
+    }
+
+    /// Requester entry point: returns a future to the serialized bytes of
+    /// `record`, fetched from its owner. Resolves locally (no MPI) when this
+    /// rank owns the record. The trigger message is in flight on return, so the
+    /// round-trip overlaps subsequent work until the future is consumed.
+    Future<batch_bytesT> request(batch_keyT record);
+
+private:
+    Cloud* cloud_;                 ///< back-reference (not owned)
+    std::atomic<int> next_tag_;    ///< per-rank round-robin tag counter
+
+    /// allocate the next point-to-point tag in [BATCH_TAG_BASE, BATCH_TAG_CAP]
+    int alloc_tag() {
+        const int span = BATCH_TAG_CAP - BATCH_TAG_BASE + 1;
+        const int t = next_tag_.fetch_add(1);
+        return BATCH_TAG_BASE + ((t % span) + span) % span;
+    }
+
+    /// owner side: stream the record's bytes to `requester` on `tag`. Runs as a
+    /// task (spawned by request via this->task), so the comm thread is free.
+    void do_send(batch_keyT record, ProcessID requester, int tag);
+
+    /// requester side: receive size then bytes from `owner` on `tag`. Runs as a
+    /// task; await keeps the worker doing other work while the transfer lands.
+    batch_bytesT receive_task(ProcessID owner, int tag);
+};
+
 /// cloud class
 
 /// store and load data to/from the cloud into arbitrary worlds
@@ -270,6 +345,10 @@ private:
     /// uses CloudOwnerPmap so each batch record lives on an explicitly chosen rank.
     std::shared_ptr<CloudOwnerPmap<keyT>> batch_pmap;
     mutable madness::WorldContainer<keyT, valueT> batch_container;
+    /// point-to-point fetch of owner-pinned batches (see BatchTransport).
+    /// Constructed after batch_container so it is destroyed before it (reverse
+    /// of construction, as WorldObject lifetimes require).
+    std::unique_ptr<BatchTransport> batch_transport_;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -288,6 +367,7 @@ public:
     Cloud(madness::World &universe) : container(universe),
         batch_pmap(new CloudOwnerPmap<keyT>(universe)),
         batch_container(universe, batch_pmap),
+        batch_transport_(new BatchTransport(universe, this)),
         reading_time(0l), copy_time(0l), writing_time(0l),
         cache_reads(0l), cache_stores(0l) {
     }
@@ -885,6 +965,10 @@ public:
     /// iterator type of the batch container (for prefetch futures)
     typedef typename madness::WorldContainer<keyT, valueT>::iterator batch_iterator;
 
+    /// serialized-bytes payload type for the p2p batch fetch (see BatchTransport).
+    /// Re-exported so callers can spell prefetch futures as Future<Cloud::batch_bytesT>.
+    using batch_bytesT = madness::batch_bytesT;
+
     /// Issue the non-blocking find for a batch record on its owner (Step 2b).
 
     /// Returns a future to the container iterator; the find AM is in flight on
@@ -988,6 +1072,70 @@ public:
             print(os.str());
         }
         return batch;
+    }
+
+    // ---- owner-pinned batch point-to-point fetch (BatchTransport) ----
+    // New fetch path that replaces the WorldContainer::find round-trip
+    // (fetch_batch_record_async + deserialize_batch). Not yet wired into the
+    // exchange; the old path is retained until the swap.
+
+    /// Read a batch record's serialized bytes from this rank's local batch store.
+    /// Precondition: this rank owns `record` (batch_pmap->owner(record)==rank).
+    /// Used by BatchTransport::do_send on the owner side.
+    valueT get_local_batch_bytes(const keyT record) const {
+        typename madness::WorldContainer<keyT, valueT>::const_accessor acc;
+        if (batch_container.find(acc, record)) return acc->second;   // copy out of the local map
+        MADNESS_EXCEPTION("get_local_batch_bytes: record not held locally", int(record));
+    }
+
+    /// Issue the point-to-point fetch of `record` from its owner (Step 2b, p2p).
+    /// Returns a future to the serialized bytes; the trigger is in flight on
+    /// return so the round-trip overlaps the caller's compute. Pair with
+    /// deserialize_batch_p2p to obtain the vecfunc. Mirror of
+    /// fetch_batch_record_async, but transports raw bytes instead of an iterator.
+    Future<batch_bytesT> request_batch_bytes_async(const keyT record) const {
+        return batch_transport_->request(record);
+    }
+
+    /// Deserialize a batch from a p2p byte future (Step 2b, p2p).
+    /// Blocks on `fut` only if the transfer has not landed yet, then deserializes
+    /// the received bytes locally. Mirror of deserialize_batch, fed by raw bytes.
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> deserialize_batch_p2p(madness::World& subworld,
+            Future<batch_bytesT> fut, const keyT record,
+            const bool cache_result = true) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        cloudtimer t(subworld, reading_time);
+        const double w0 = wall_time();
+        batch_bytesT bytes = fut.get();                     // await the transfer
+        const double w1 = wall_time();
+        batch_find_time += long((w1 - w0) * 1e6);
+        vecfuncT batch;
+        {
+            madness::archive::VectorInputArchive var(bytes);
+            madness::archive::ParallelInputArchive<madness::archive::VectorInputArchive> par(subworld, var);
+            std::size_t fsize = 0;
+            par & fsize;
+            batch.resize(fsize);
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        batch_deserialize_time += long((wall_time() - w1) * 1e6);
+        if (use_cache and cache_result) cache(subworld, batch, record);
+        return batch;
+    }
+
+    /// Synchronous p2p batch fetch (Step 2b, p2p). Drop-in for fetch_batch: cache
+    /// hit short-circuits; otherwise request the bytes from the owner and
+    /// deserialize (the request is skipped entirely on a cache hit). Resolves
+    /// locally without MPI when this rank owns the record.
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> fetch_batch_p2p(madness::World& subworld,
+            const keyT record, const bool cache_result = true) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        return deserialize_batch_p2p<T, NDIM>(subworld, request_batch_bytes_async(record),
+                                              record, cache_result);
     }
 
     void replicate_according_to_policy(const std::size_t chunk_size=INT_MAX) {
@@ -1328,6 +1476,46 @@ public:
         return target;
     }
 };
+
+// ---- BatchTransport out-of-line definitions (need the complete Cloud) ----
+
+inline Future<batch_bytesT> BatchTransport::request(batch_keyT record) {
+    World& u = this->get_world();
+    const ProcessID owner = cloud_->batch_owner(record);
+    if (owner == u.rank()) {
+        // local: no MPI, just hand back a copy of the local bytes
+        return Future<batch_bytesT>(cloud_->get_local_batch_bytes(record));
+    }
+    const int tag = alloc_tag();
+    // trigger: enqueue do_send as a task on the owner (comm thread untouched)
+    this->task(owner, &BatchTransport::do_send, record, u.rank(), tag);
+    // receive locally in a task; the returned future is set when the bytes land
+    return u.taskq.add(this, &BatchTransport::receive_task, owner, tag);
+}
+
+inline void BatchTransport::do_send(batch_keyT record, ProcessID requester, int tag) {
+    World& u = this->get_world();
+    // copy out of the local store so the buffer stays valid for the whole send
+    // (the concurrent-hashmap accessor lock is not held across MPI). A later
+    // owner_store_ (stable-address plain map) lets this become zero-copy.
+    batch_bytesT bytes = cloud_->get_local_batch_bytes(record);
+    const std::size_t n = bytes.size();
+    SafeMPI::Request rs = u.mpi.Isend(n, requester, tag);                       // size header
+    SafeMPI::Request rd = u.mpi.Isend(bytes.data(), int(n), MPI_BYTE, requester, tag);  // raw bytes
+    World::await(rs, true);
+    World::await(rd, true);
+}
+
+inline batch_bytesT BatchTransport::receive_task(ProcessID owner, int tag) {
+    World& u = this->get_world();
+    std::size_t n = 0;
+    SafeMPI::Request rs = u.mpi.Irecv(n, owner, tag);          // size header (same tag, arrives first)
+    World::await(rs, true);
+    batch_bytesT buf(n);
+    SafeMPI::Request rd = u.mpi.Irecv(buf.data(), int(n), owner, tag);  // raw bytes into final buffer
+    World::await(rd, true);
+    return buf;
+}
 
 } /* namespace madness */
 

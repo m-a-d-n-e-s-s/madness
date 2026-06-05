@@ -1179,6 +1179,28 @@ class MacroTask {
         }
     }
 
+    // Row-owner cloud pipeline (Design B): called PRE-compute. Promotes the
+    // previous task's prefetch to `current` and issues the next owned task's
+    // prefetch so its transfer overlaps this task's compute. Same std::get<1,2>
+    // guard pattern as prefetch_next_bra_async (hard error for <3-tuples).
+    template<typename Q, typename ArgTuple>
+    static auto cloud_kbatch_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_hint, const bool has_next, int)
+        -> decltype(task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next), void()) {
+        task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void cloud_kbatch_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const bool, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static void cloud_kbatch_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_hint, const bool has_next, int) {
+        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
+            cloud_kbatch_pipeline_advance_dispatch(task, subworld, argtuple, next_hint, has_next, 0);
+        }
+    }
+
     template<typename Q, typename ResT>
     static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
         -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
@@ -1498,6 +1520,23 @@ private:
             const double t_cloud_load_done = wall_time();
         	fixb_dbg_phase("B_after_cloud_load");
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
+
+            // Row-owner cloud pipeline (Design B), PRE-compute: promote the
+            // previous task's prefetch to `current` (consumed by operator() below)
+            // and issue the NEXT owned task's prefetch so its transfer overlaps
+            // THIS task's compute. No-op unless the task implements the cloud
+            // pipeline (small_memory_mt_owner with cloud batch fetch).
+            // cloud_ptr/subworld_ptr must be set before the hook (it fetches via
+            // cloud_ptr); they are set again below for clarity, harmlessly.
+            task.subworld_ptr=&subworld;
+            task.cloud_ptr=&cloud;
+            {
+                auto [next_elem, next_ptr] = find_next_owned_task(taskq, element);
+                const bool has_next = (next_ptr != nullptr) and (not next_ptr->task.batch.input.empty())
+                                      and (next_ptr->task.batch.input.size() > 1);
+                const Batch_1D next_hint = has_next ? next_ptr->task.batch.input[1] : Batch_1D();
+                cloud_kbatch_pipeline_advance_or_noop(task, subworld, argtuple, next_hint, has_next, 0);
+            }
 
     		std::string msg="";
 			// maybe move this block to the cloud?
