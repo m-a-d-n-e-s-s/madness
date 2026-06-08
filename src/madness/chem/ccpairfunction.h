@@ -415,7 +415,7 @@ public:
 
     /// takes a deep copy of the argument functions
     explicit CCPairFunction(const std::shared_ptr<SeparatedConvolution<T,LDIM>> op_, const CCFunction<T,LDIM>& f1, const CCFunction<T,LDIM>& f2) :
-            CCPairFunction(CCConvolutionOperator<T,LDIM>(world,op_->info.type,typename CCConvolutionOperator<T,LDIM>::Parameters()),std::vector<Function<T,LDIM>>({f1.function}),std::vector<Function<T,LDIM>>({f2.function})) {
+            CCPairFunction(std::make_shared<CCConvolutionOperator<T,LDIM>>(f1.function.world(),op_->info.type,typename CCConvolutionOperator<T,LDIM>::Parameters()),std::vector<Function<T,LDIM>>({f1.function}),std::vector<Function<T,LDIM>>({f2.function})) {
     }
 
     /// takes a deep copy of the argument functions

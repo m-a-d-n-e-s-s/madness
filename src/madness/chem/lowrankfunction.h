@@ -10,7 +10,7 @@
 #include<madness/mra/vmra.h>
 #include<madness/mra/macrotaskq.h>
 #include<madness/world/timing_utilities.h>
-#include<madness/chem/electronic_correlation_factor.h>
+#include<madness/chem/molecule.h>
 #include<madness/chem/IntegratorXX.h>
 #include <random>
 #include <algorithm>
