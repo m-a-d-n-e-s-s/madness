@@ -553,7 +553,7 @@ ExchangeCommutator::apply_KffK_lowrank_three_range(
 //  Diagnostics (extracted from benchmark's test_kcomm_accuracy)
 // ---------------------------------------------------------------------------
 
-ExchangeCommutator::Diagnostics
+DiagnosticMatrix
 ExchangeCommutator::diagnose(
         World& world,
         const std::vector<Function<double,3>>& kvec,
@@ -566,9 +566,9 @@ ExchangeCommutator::diagnose(
         const LowRankFunctionParameters& obs_param,
         bool verbose,
         bool include_K2,
-        const std::vector<Vector<double,3>>& centers_in) const
+        const std::vector<Vector<double,3>>& centers_in,
+        KRefPieces* kpieces_out) const
 {
-    Diagnostics d;
     wall_timer t(world);
 
     // Observer basis: prefer the AO basis stored on this instance.  When
@@ -625,50 +625,44 @@ ExchangeCommutator::diagnose(
     auto K_i = K(phi_i);
     auto K_j = K(phi_j);
 
+    // Build DiagnosticMatrix over the resolved observer basis.
+    DiagnosticMatrix dm(world, phi_a);
+    dm.init("Kf");
+    dm.init("fK");
+    dm.init("KffK");
+
     // Reference integrals (analytic ⟨ab | · | ij⟩) — computed per K̂_p so the
     // four pieces are individually inspectable.
-    //   ref_Kf_K1[a,b] = ⟨ab | K̂₁ f | ij⟩  =  ⟨(K̂†a)·i | f₁₂ | b·j⟩
-    //   ref_Kf_K2[a,b] = ⟨ab | K̂₂ f | ij⟩  =  ⟨a·i        | f₁₂ | (K̂†b)·j⟩
-    //   ref_fK_K1[a,b] = ⟨ab | f K̂₁ | ij⟩  =  ⟨a·(Ki)     | f₁₂ | b·j⟩
-    //   ref_fK_K2[a,b] = ⟨ab | f K̂₂ | ij⟩  =  ⟨a·i        | f₁₂ | b·(Kj)⟩
-    // K̂ on the ket gets K(phi_{i/j}); moved over to the bra via Hermiticity
-    // of the integral it becomes K̂†(phi_a).
-    //
-    // Symmetry note: when phi_i = phi_j the K̂₁ and K̂₂ matrices are
-    // *transposes* of each other (ref_Kf_K2[a,b] = ref_Kf_K1[b,a]), not
-    // identical — the harmonic-basis matrix is not (a,b)-symmetric because
-    // K̂† carries the asymmetric R²-weighted bra.  Their Frobenius norms
-    // coincide, but ‖K1 − K2‖ measures 2·‖antisymmetric part‖, not zero.
-    // Equality K1 = K2 is only expected as a consistency check between
-    // independent algorithm paths, not a property of either reference alone.
-    d.ref_Kf_K1 = matrix_inner(world, Kdagger_a * phi_i, f12_aj);
-    d.ref_Kf_K2 = matrix_inner(world, f12_ai, Kdagger_a * phi_j);
-    d.ref_fK_K1 = matrix_inner(world, phi_a * K_i,      f12_aj);
-    d.ref_fK_K2 = matrix_inner(world, f12_ai,           phi_a * K_j);
+    //   Kf_K1[a,b] = ⟨ab | K̂₁ f | ij⟩  =  ⟨(K̂†a)·i | f₁₂ | b·j⟩
+    //   Kf_K2[a,b] = ⟨ab | K̂₂ f | ij⟩  =  ⟨a·i      | f₁₂ | (K̂†b)·j⟩
+    //   fK_K1[a,b] = ⟨ab | f K̂₁ | ij⟩  =  ⟨a·(Ki)   | f₁₂ | b·j⟩
+    //   fK_K2[a,b] = ⟨ab | f K̂₂ | ij⟩  =  ⟨a·i      | f₁₂ | b·(Kj)⟩
+    const Tensor<double> ref_Kf_K1 = matrix_inner(world, Kdagger_a * phi_i, f12_aj);
+    const Tensor<double> ref_Kf_K2 = matrix_inner(world, f12_ai, Kdagger_a * phi_j);
+    const Tensor<double> ref_fK_K1 = matrix_inner(world, phi_a * K_i,      f12_aj);
+    const Tensor<double> ref_fK_K2 = matrix_inner(world, f12_ai,           phi_a * K_j);
 
-    d.ref_piece1 = copy(d.ref_Kf_K1);
-    d.ref_piece2 = copy(d.ref_fK_K1);
+    dm.entries["Kf"].ref  = copy(ref_Kf_K1);
+    dm.entries["fK"].ref  = copy(ref_fK_K1);
     if (include_K2) {
-        d.ref_piece1 += d.ref_Kf_K2;
-        d.ref_piece2 += d.ref_fK_K2;
+        dm.entries["Kf"].ref += ref_Kf_K2;
+        dm.entries["fK"].ref += ref_fK_K2;
     }
+    dm.entries["KffK"].ref = dm.entries["Kf"].ref - dm.entries["fK"].ref;
 
     if (verbose) {
-        // K̂₁ vs K̂₂ matrices are transposes when phi_i = phi_j (not equal);
-        // their norms coincide but ‖K1 − K2‖ reports 2·‖antisymmetric part‖.
-        const double sym_Kf = (d.ref_Kf_K1 - transpose(d.ref_Kf_K2)).normf();
-        const double sym_fK = (d.ref_fK_K1 - transpose(d.ref_fK_K2)).normf();
-        print("[diagnose] ||ref_Kf_K1|| =", d.ref_Kf_K1.normf(),
-              " ||ref_Kf_K2|| =", d.ref_Kf_K2.normf(),
+        const double sym_Kf = (ref_Kf_K1 - transpose(ref_Kf_K2)).normf();
+        const double sym_fK = (ref_fK_K1 - transpose(ref_fK_K2)).normf();
+        print("[diagnose] ||ref_Kf_K1|| =", ref_Kf_K1.normf(),
+              " ||ref_Kf_K2|| =", ref_Kf_K2.normf(),
               " ||ref_Kf_K1 - ref_Kf_K2^T|| =", sym_Kf,
               "   (zero iff phi_i = phi_j)");
-        print("[diagnose] ||ref_fK_K1|| =", d.ref_fK_K1.normf(),
-              " ||ref_fK_K2|| =", d.ref_fK_K2.normf(),
+        print("[diagnose] ||ref_fK_K1|| =", ref_fK_K1.normf(),
+              " ||ref_fK_K2|| =", ref_fK_K2.normf(),
               " ||ref_fK_K1 - ref_fK_K2^T|| =", sym_fK,
               "   (zero iff phi_i = phi_j)");
-        print("[diagnose] ||ref_piece1|| =", d.ref_piece1.normf(),
-              " ||ref_piece2|| =", d.ref_piece2.normf(),
-              " ||ref_piece1 - ref_piece2|| =", (d.ref_piece1 - d.ref_piece2).normf());
+        print("[diagnose] ||ref_Kf|| =", dm.entries["Kf"].ref.normf(),
+              " ||ref_fK|| =", dm.entries["fK"].ref.normf());
     }
 
     // Describe one pair entry: kind, rank/size, factor norms.
@@ -705,66 +699,43 @@ ExchangeCommutator::diagnose(
         dump_pair("KffK", KffK);
     }
 
-    // Project each pair entry onto the harmonic-basis bras via partial_inner
-    // (integrate particle 1 against phi_a[a], then matrix_inner with phi_a
-    // over particle 2).  Sum contributions from all entries in v.
-    auto compute_error = [&phi_a, &world, verbose](
-            const std::vector<CCPairFunction<double,6>>& v,
-            const Tensor<double>& reference,
-            const std::string& tag) {
-        if (v.empty()) return -1.0;
-        auto p1 = particle<3>::particle1();
-        Tensor<double> result(phi_a.size(), phi_a.size());
-        for (const auto& f : v) {
-            if (!f.is_assigned()) continue;
-            std::vector<Function<double,3>> tmp(phi_a.size());
-            for (std::size_t a = 0; a < phi_a.size(); ++a) {
-                tmp[a] = inner(f, phi_a[a], p1.get_tuple(), p1.get_tuple());
-            }
-            result += matrix_inner(world, tmp, phi_a);
-        }
-        if (verbose) {
-            print("[diagnose]", tag, "||computed||=", result.normf(),
-                  " ||reference||=", reference.normf(),
-                  " ||diff||=", (reference - result).normf());
-        }
-        return (reference - result).normf();
-    };
+    // Fill result tensors — caller assigns the returned tensor to the entry.
+    if (!Kf.empty())   dm.entries["Kf"].result   = dm.project_ab(Kf);
+    if (!fK.empty())   dm.entries["fK"].result   = dm.project_ab(fK);
+    if (!KffK.empty()) dm.entries["KffK"].result = dm.project_ab(KffK);
 
-    if (!Kf.empty())   d.err_Kf   = compute_error(Kf,   d.ref_piece1,                     "Kf");
-    if (!fK.empty())   d.err_fK   = compute_error(fK,   d.ref_piece2,                     "fK");
-    if (!KffK.empty()) d.err_KffK = compute_error(KffK, d.ref_piece1 - d.ref_piece2,      "KffK");
+    dm.compute_errors();
 
-    d.t_reference = t.elapsed();
-    return d;
-}
+    if (verbose && !Kf.empty())
+        print("[diagnose] Kf   ||computed||=", dm.entries["Kf"].result.normf(),
+              " ||ref||=", dm.entries["Kf"].ref.normf(),
+              " error=", dm.entries["Kf"].error);
+    if (verbose && !fK.empty())
+        print("[diagnose] fK   ||computed||=", dm.entries["fK"].result.normf(),
+              " ||ref||=", dm.entries["fK"].ref.normf(),
+              " error=", dm.entries["fK"].error);
+    if (verbose && !KffK.empty())
+        print("[diagnose] KffK ||computed||=", dm.entries["KffK"].result.normf(),
+              " ||ref||=", dm.entries["KffK"].ref.normf(),
+              " error=", dm.entries["KffK"].error);
 
-// ---------------------------------------------------------------------------
-//  Uniform one-line reporting
-// ---------------------------------------------------------------------------
-
-void ExchangeCommutator::print_report(
-        const KffKResult& result,
-        const Diagnostics* diag)
-{
-    char buf[256];
-    std::snprintf(buf, sizeof(buf),
-                  "[Kcomm] algo=%-18s rank=%5ld  mem=%7.3f GB  wall=%8.2f s",
-                  result.algo.c_str(), result.rank, result.mem_gb, result.t_wall);
-    print(buf);
-    if (diag) {
-        std::snprintf(buf, sizeof(buf),
-                      "[Kcomm]   err_Kf=%10.3e  err_fK=%10.3e  err_KffK=%10.3e  t_ref=%7.2f s",
-                      diag->err_Kf, diag->err_fK, diag->err_KffK, diag->t_reference);
-        print(buf);
+    // Expose K1/K2 decomposition if caller requested it.
+    if (kpieces_out) {
+        kpieces_out->ref_Kf_K1 = ref_Kf_K1;
+        kpieces_out->ref_Kf_K2 = ref_Kf_K2;
+        kpieces_out->ref_fK_K1 = ref_fK_K1;
+        kpieces_out->ref_fK_K2 = ref_fK_K2;
     }
+
+    dm.time = t.elapsed();
+    return dm;
 }
 
 // ---------------------------------------------------------------------------
 //  G·[K̂,f] Schwinger diagnostic
 // ---------------------------------------------------------------------------
 
-ExchangeCommutator::GKffKDiagnostics
+DiagnosticMatrix
 ExchangeCommutator::diagnose_GKffK(
         World& world,
         const std::vector<CCPairFunction<double,6>>& GKf_cc,
@@ -776,57 +747,31 @@ ExchangeCommutator::diagnose_GKffK(
         const Info& info,
         double energy) const
 {
-    MADNESS_CHECK_THROW(energy < 0.0,    "diagnose_GKffK: energy must be negative");
-    MADNESS_CHECK_THROW(!ao_basis.empty(),"diagnose_GKffK: ao_basis must be non-empty");
+    MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GKffK: energy must be negative");
+    MADNESS_CHECK_THROW(!ao_basis.empty(), "diagnose_GKffK: ao_basis must be non-empty");
 
     const double thresh = FunctionDefaults<3>::get_thresh();
     const int nbasis = ao_basis.size();
     const double wall0 = wall_time();
 
-    GKffKDiagnostics diag;
-    diag.ref_GKf      = Tensor<double>(nbasis, nbasis);
-    diag.ref_GfK      = Tensor<double>(nbasis, nbasis);
-    diag.result_GKf   = Tensor<double>(nbasis, nbasis);
-    diag.result_GfK   = Tensor<double>(nbasis, nbasis);
+    DiagnosticMatrix dm(world, ao_basis);
+    dm.init("GKf");
+    dm.init("GfK");
+    dm.init("GKffK");
 
-    // --- 6D reference: project G·Kf and G·fK onto ⟨ab| -------------------------
-    // Uses the same partial_inner / matrix_inner machinery as diagnose()::compute_error,
-    // which handles pure, decomposed, and op-decomposed CCPairFunctions uniformly.
-    // Multiple entries in the vector are summed (mirrors the multi-piece KffKResult).
-    auto project_cc = [&](const std::vector<CCPairFunction<double,6>>& v) {
-        auto p1 = particle<3>::particle1();
-        Tensor<double> result(nbasis, nbasis);
-        for (const auto& f : v) {
-            if (!f.is_assigned()) continue;
+    // Fill result: project G·Kf and G·fK onto ⟨ab|  (G already applied by caller)
+    dm.entries["GKf"].result   = dm.project_ab(GKf_cc);
+    dm.entries["GfK"].result   = dm.project_ab(GfK_cc);
+    dm.entries["GKffK"].result = dm.entries["GKf"].result - dm.entries["GfK"].result;
 
-            // matrix elements for U
-            for (int a = 0; a < ao_basis.size(); ++a) {
-                for (int b = 0; b < ao_basis.size(); ++b) {
-                    CCPairFunction<double,6> ab(ao_basis[a],ao_basis[b]);
-                    result(a,b)+= inner(ab,f);
-                }
-            }
-        }
-        return result;
-    };
-    diag.ref_GKf   = project_cc(GKf_cc);
-    diag.ref_GfK   = project_cc(GfK_cc);
-    diag.ref_GKffK = diag.ref_GKf - diag.ref_GfK;
-
-    // --- Schwinger quadrature ---------------------------------------------------
-    // G = (T−E)⁻¹ ≈ Σₙ w_n^{6d} [g_{αₙ}*·] ⊗ [g_{αₙ}*·]
-    //
-    // 6D weight: w_n^{6d} = c_n^{bsh} · (αₙ/π)^{3/2}
-    //   (6D heat-kernel Jacobian vs 3D BSH fit weight, see lrf_G_Ue_diagnostics.md)
+    // Fill ref: 3D Schwinger quadrature  ⟨ab|G·Kf|ij⟩ ≈ Σₙ w_n ⟨ã_n b̃_n|Kf|ij⟩
     //
     // Kf piece — move K̂ to the bra via its adjoint K̂†:
-    //   ⟨ã b̃ | K̂₁ f₁₂ | φᵢ φⱼ⟩ = inner((K̂†ã)·φᵢ, f₁₂(b̃·φⱼ))    ← particle 1
-    //   ⟨ã b̃ | K̂₂ f₁₂ | φᵢ φⱼ⟩ = inner((K̂†b̃)·φⱼ, f₁₂(ã·φᵢ))    ← particle 2
-    //
-    // fK piece — K̂ acts on the ket orbital before f₁₂:
-    //   ⟨ã b̃ | f₁₂ K̂₁ | φᵢ φⱼ⟩ = inner(ã·K̂φᵢ, f₁₂(b̃·φⱼ))        ← particle 1
-    //   ⟨ã b̃ | f₁₂ K̂₂ | φᵢ φⱼ⟩ = inner(ã·φᵢ,   f₁₂(b̃·K̂φⱼ))      ← particle 2
-
+    //   ⟨ã b̃|K̂₁ f₁₂|φᵢ φⱼ⟩ = inner((K̂†ã)·φᵢ, f₁₂(b̃·φⱼ))    ← particle 1
+    //   ⟨ã b̃|K̂₂ f₁₂|φᵢ φⱼ⟩ = inner((K̂†b̃)·φⱼ, f₁₂(ã·φᵢ))    ← particle 2
+    // fK piece:
+    //   ⟨ã b̃|f₁₂ K̂₁|φᵢ φⱼ⟩ = inner(ã·K̂φᵢ, f₁₂(b̃·φⱼ))        ← particle 1
+    //   ⟨ã b̃|f₁₂ K̂₂|φᵢ φⱼ⟩ = inner(ã·φᵢ,   f₁₂(b̃·K̂φⱼ))      ← particle 2
     const double mu    = std::sqrt(-2.0 * energy);
     const double lo    = info.parameters.lo();
     const double hi    = FunctionDefaults<3>::get_cell_width().normf();
@@ -837,61 +782,46 @@ ExchangeCommutator::diagnose_GKffK(
     auto alpha = fit.exponents();
     const int nfit = c3d.dim(0);
 
-    // K̂ (acts on ket) and K̂† (acts on bra), matching the nemo convention in diagnose():
-    //   K̂  = set_bra_and_ket(R²·k, k):  K̂φ  = Σ_k k_ket  · Coulomb(k_bra·φ)
-    //   K̂† = set_bra_and_ket(k, R²·k):  K̂†φ = Σ_k k_bra  · Coulomb(k_ket·φ)
     madness::Exchange<double,3> Kdagger(world, lo);
     Kdagger.set_bra_and_ket(info.mo_ket, info.mo_bra);
 
-    // Slater f₁₂ operator — same normalization as in diagnose()
     auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
             SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
     auto& f12 = *f12ptr;
+
+    auto& ref_GKf = dm.entries["GKf"].ref;
+    auto& ref_GfK = dm.entries["GfK"].ref;
 
     for (int n = 0; n < nfit; ++n) {
         const double an  = alpha[n];
         const double w6d = c3d[n] * std::pow(an / constants::pi, 1.5);
 
-        // Convolve each AO with exp(−αₙ r²) to get ã_n / b̃_n
         auto gauss = SeparatedConvolution<double,3>(world, OperatorInfo(an, lo, thresh, OT_GAUSS));
         std::vector<real_function_3d> conv(nbasis);
         for (int a = 0; a < nbasis; ++a)
             conv[a] = gauss(ao_basis[a]);
 
-        // K̂†(ã_n) for all a — needed for the Kf piece
         auto Kdagger_conv = Kdagger(conv);
+        auto Kdagger_conv_phi_i = Kdagger_conv * phi_i;
+        auto Kdagger_conv_phi_j = Kdagger_conv * phi_j;
+        auto conv_Kphi_i        = conv * Kphi_i;
+        auto conv_phi_i         = conv * phi_i;
 
-        // Precompute products with fixed orbitals (vectorised * broadcasts the scalar function)
-        auto Kdagger_conv_phi_i = Kdagger_conv * phi_i;  // (K̂†ã)·φᵢ   [size nbasis]
-        auto Kdagger_conv_phi_j = Kdagger_conv * phi_j;  // (K̂†ã)·φⱼ
-        auto conv_Kphi_i        = conv * Kphi_i;         // ã·K̂φᵢ
-        auto conv_phi_i         = conv * phi_i;          // ã·φᵢ
+        auto f12_conv_phi_j  = f12(conv * phi_j);
+        auto f12_conv_phi_i  = f12(conv * phi_i);
+        auto f12_conv_Kphi_j = f12(conv * Kphi_j);
 
-        // Precompute f₁₂ applications indexed by b (the particle-2 basis index)
-        auto f12_conv_phi_j  = f12(conv * phi_j);   // f₁₂(b̃·φⱼ)   used by both pieces
-        auto f12_conv_phi_i  = f12(conv * phi_i);   // f₁₂(b̃·φᵢ)   Kf K̂₂
-        auto f12_conv_Kphi_j = f12(conv * Kphi_j);  // f₁₂(b̃·K̂φⱼ) fK K̂₂
+        ref_GKf += w6d * matrix_inner(world, Kdagger_conv_phi_i, f12_conv_phi_j);
+        ref_GKf += w6d * transpose(matrix_inner(world, Kdagger_conv_phi_j, f12_conv_phi_i));
 
-        // Kf accumulation: two matrix_inner calls (K̂₁ and K̂₂)
-        //   Kf K̂₁[a,b] = inner((K̂†ã_a)·φᵢ,   f₁₂(b̃_b·φⱼ))
-        //   Kf K̂₂[a,b] = inner(f₁₂(ã_a·φᵢ),   (K̂†b̃_b)·φⱼ)
-        //             = inner((K̂†b̃_b)·φⱼ, f₁₂(ã_a·φᵢ))  → rows/cols swapped → use transpose
-        diag.result_GKf += w6d * matrix_inner(world, Kdagger_conv_phi_i, f12_conv_phi_j);
-        diag.result_GKf += w6d * transpose(matrix_inner(world, Kdagger_conv_phi_j, f12_conv_phi_i));
-
-        // fK accumulation: two matrix_inner calls (K̂₁ and K̂₂)
-        //   fK K̂₁[a,b] = inner(ã_a·K̂φᵢ, f₁₂(b̃_b·φⱼ))
-        //   fK K̂₂[a,b] = inner(ã_a·φᵢ,   f₁₂(b̃_b·K̂φⱼ))
-        diag.result_GfK += w6d * matrix_inner(world, conv_Kphi_i, f12_conv_phi_j);
-        diag.result_GfK += w6d * matrix_inner(world, conv_phi_i,  f12_conv_Kphi_j);
+        ref_GfK += w6d * matrix_inner(world, conv_Kphi_i, f12_conv_phi_j);
+        ref_GfK += w6d * matrix_inner(world, conv_phi_i,  f12_conv_Kphi_j);
     }
 
-    diag.result_GKffK = diag.result_GKf - diag.result_GfK;
-    diag.error_GKf    = (diag.ref_GKf   - diag.result_GKf).normf();
-    diag.error_GfK    = (diag.ref_GfK   - diag.result_GfK).normf();
-    diag.error_GKffK  = (diag.ref_GKffK - diag.result_GKffK).normf();
-    diag.time = wall_time() - wall0;
-    return diag;
+    dm.entries["GKffK"].ref = ref_GKf - ref_GfK;
+    dm.compute_errors();
+    dm.time = wall_time() - wall0;
+    return dm;
 }
 
 } // namespace madness

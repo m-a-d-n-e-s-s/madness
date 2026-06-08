@@ -23,6 +23,7 @@ set(MADCHEM_HEADERS
     ESInterface.h
     b_matrix.h
     exchange_commutator.h
+    operator_diagnostics.h
     exchangeoperator.h
     gaussian.h
     gth_pseudopotential.h
@@ -90,6 +91,7 @@ set(MADCHEM_SOURCES
     distpm.cc
     b_matrix.cc
     exchange_commutator.cc
+    operator_diagnostics.cc
     exchangeoperator.cc
     gaussian.cc
     gth_pseudopotential.cc

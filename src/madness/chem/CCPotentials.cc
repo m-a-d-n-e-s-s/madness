@@ -881,6 +881,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     V=consolidate(V);
     t1.end("finished computing potential for constant part");
     MemoryMeasurer::measure_and_print(world);
+    MemoryMeasurer::release_free_memory();
+    MemoryMeasurer::measure_and_print(world);
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -1680,7 +1682,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
                 r.Kf, r.fK, r.KffK, lrfparam,
                 /*verbose=*/true,
                 include_K2);
-        ExchangeCommutator::print_report(r, &d);
+        d.print_report(r.algo);
     };
 
     std::vector<CCPairFunction<double,6>> KffK;

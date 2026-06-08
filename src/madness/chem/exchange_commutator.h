@@ -16,6 +16,7 @@
 #include <madness/chem/ccpairfunction.h>
 #include <madness/chem/lowrankfunction.h>
 #include <madness/chem/CCParameters.h>
+#include <madness/chem/operator_diagnostics.h>
 
 namespace madness {
 
@@ -48,22 +49,13 @@ struct ExchangeCommutator {
         std::string algo;                              ///< "6d" / "lrf" / "lrf-direct" / "lrf-split-alpha"
     };
 
-    /// Per-piece and combined errors obtained by projecting onto a harmonic basis.
-    /// Reference matrices are indexed [a,b] over the harmonic-basis observer set
-    /// (a on particle 1, b on particle 2).  For phi_i == phi_j the K̂₁/K̂₂
-    /// contributions coincide; the four ref_*_K* fields make the asymmetric
-    /// case (phi_i ≠ phi_j) directly inspectable.
-    struct Diagnostics {
-        double err_Kf   = -1.0;
-        double err_fK   = -1.0;
-        double err_KffK = -1.0;
-        Tensor<double> ref_piece1;   ///< ⟨ab | K̂ f | ij⟩ = ref_Kf_K1 + ref_Kf_K2 (K̂₂ optional)
-        Tensor<double> ref_piece2;   ///< ⟨ab | f K̂ | ij⟩ = ref_fK_K1 + ref_fK_K2 (K̂₂ optional)
+    /// Auxiliary tensors kept alongside the DiagnosticMatrix for the K̂₁/K̂₂ decomposition.
+    /// These are filled by diagnose() and carried in its returned DiagnosticMatrix extras field.
+    struct KRefPieces {
         Tensor<double> ref_Kf_K1;    ///< ⟨ab | K̂₁ f | ij⟩
         Tensor<double> ref_Kf_K2;    ///< ⟨ab | K̂₂ f | ij⟩
         Tensor<double> ref_fK_K1;    ///< ⟨ab | f K̂₁ | ij⟩
         Tensor<double> ref_fK_K2;    ///< ⟨ab | f K̂₂ | ij⟩
-        double t_reference = 0.0;    ///< wall time for the reference build (s)
     };
 
     /// Options for the split-α LRF k-commutator variant
@@ -193,7 +185,11 @@ struct ExchangeCommutator {
     /// latter is gated by `include_K2`).  All four ⟨ab|·|ij⟩ contributions
     /// are also returned individually in Diagnostics so non-symmetric
     /// regressions in either particle's K̂ application can be localized.
-    Diagnostics diagnose(
+    /// Returns a DiagnosticMatrix with entries "Kf", "fK", "KffK".
+    /// ref=3D Exchange+f12 analytic formula, result=6D projection, error=||ref-result||.
+    /// The K1/K2 decomposition tensors are placed in the returned dm.entries["Kf"].ref etc.
+    /// as the sum K1+K2, with the individual pieces available in the returned KRefPieces.
+    DiagnosticMatrix diagnose(
             World& world,
             const std::vector<Function<double, 3>>& kvec,
             const std::vector<Function<double, 3>>& R2kvec,
@@ -205,34 +201,17 @@ struct ExchangeCommutator {
             const LowRankFunctionParameters& obs_param,
             bool verbose = false,
             bool include_K2 = true,
-            const std::vector<Vector<double, 3>>& centers = {}) const;
-
-    /// Convenience: run diagnose() on a KffKResult treated as KffK and
-    /// attach errors to stderr in a uniform one-line summary.
-    static void print_report(
-            const KffKResult& result,
-            const Diagnostics* diag = nullptr);
+            const std::vector<Vector<double, 3>>& centers = {},
+            KRefPieces* kpieces_out = nullptr) const;
 
     // ---------------------------------------------------------------------
     // G·[K̂,f] diagnostics — Schwinger-quadrature 3D reference vs 6D projection
     // ---------------------------------------------------------------------
 
-    /// Per-piece errors for ⟨ab | (T−E)⁻¹ [K̂,f₁₂] | ij⟩.
-    struct GKffKDiagnostics {
-        Tensor<double> ref_GKf;       ///< ⟨ab|G Kf|ij⟩  from 6D projection
-        Tensor<double> ref_GfK;       ///< ⟨ab|G fK|ij⟩  from 6D projection
-        Tensor<double> ref_GKffK;     ///< ref_GKf − ref_GfK
-        Tensor<double> result_GKf;    ///< ⟨ab|G Kf|ij⟩  from 3D Schwinger quadrature
-        Tensor<double> result_GfK;    ///< ⟨ab|G fK|ij⟩  from 3D Schwinger quadrature
-        Tensor<double> result_GKffK;  ///< result_GKf − result_GfK
-        double error_GKf   = 0.0;
-        double error_GfK   = 0.0;
-        double error_GKffK = 0.0;
-        double time        = 0.0;
-    };
-
     /// Diagnose ⟨ab | G [K̂,f₁₂] | ij⟩ by comparing a 6D projection against
     /// a 3D Schwinger eigentime quadrature.
+    /// Returns a DiagnosticMatrix with entries "GKf", "GfK", "GKffK".
+    /// ref=3D Schwinger quadrature, result=6D projection <ab|G·piece|ij>, error=||ref-result||.
     ///
     /// The 6D references GKf_cc and GfK_cc are the G-applied commutator pieces
     /// as CCPairFunction vectors.  Accepting CCPairFunction (instead of a bare
@@ -263,7 +242,7 @@ struct ExchangeCommutator {
     /// @param Kphi_j   K̂φⱼ (precomputed once by caller)
     /// @param info     molecular/orbital info carrying mo_ket, mo_bra, parameters
     /// @param energy   ε_i + ε_j  (must be negative)
-    GKffKDiagnostics diagnose_GKffK(
+    DiagnosticMatrix diagnose_GKffK(
             World& world,
             const std::vector<CCPairFunction<double,6>>& GKf_cc,
             const std::vector<CCPairFunction<double,6>>& GfK_cc,

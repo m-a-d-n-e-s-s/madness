@@ -9,6 +9,14 @@
 #include<madness/world/ranks_and_hosts.h>
 #include<madness/mra/mra.h>
 
+#if defined(__APPLE__)
+#  include <malloc/malloc.h>
+#elif defined(__linux__) && defined(__GLIBC__)
+#   include <malloc.h>
+#endif
+
+
+
 namespace madness {
     /// measure the memory usage of all FunctionImpl objects of all worlds
 
@@ -31,6 +39,16 @@ namespace madness {
             // mm.clear_map();
             return mm.world_memory_map;     // on rank0 only!
         }
+
+        static void release_free_memory() {
+#if defined(__linux__) && defined(__GLIBC__)
+            malloc_trim(0);
+#elif defined(__APPLE__)
+            malloc_zone_pressure_relief(nullptr, 0);
+#endif
+        }
+
+
 
     private:
         /// get the hostname of this machine, rank-local

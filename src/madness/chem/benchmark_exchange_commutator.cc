@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
                     r.Kf, r.fK, r.KffK, lrfparam,
                     /*verbose=*/true,
                     include_K2);
-            ExchangeCommutator::print_report(r, &d);
+            d.print_report(r.algo);
         };
 
         // -------------------- 6D reference: full commutator via 6D path ---
@@ -206,10 +206,7 @@ int main(int argc, char **argv) {
                                                phi_i.function, phi_j.function, ao,
                                                Uphi_mixed, U1nuc);
                     print("diagnosis for Ue term:");
-                    print("local part error:      ", diag.error_local);
-                    print("semi-local part error: ", diag.error_semilocal);
-                    print("mixed-comm part error: ", diag.error_mixed);
-                    print("time in diagnostics:   ", diag.time_ref);
+                    diag.print_report("Ue");
 
                     // G Ue diagnostics: apply G = (T - E)^{-1} to Ue|ij>, then compare
                     // the 6D projection <ab|G Ue|ij> against the 3D Schwinger quadrature.
@@ -230,10 +227,7 @@ int main(int argc, char **argv) {
                     auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
                                                phi_i.function, phi_j.function, ao, energy_ij,
                                                GUphi_mixed, U1nuc);
-                    print("G Ue local part error:      ", gue.error_local);
-                    print("G Ue semilocal part error:  ", gue.error_semilocal);
-                    print("G Ue mixed-comm part error: ", gue.error_mixed);
-                    print("time in G Ue diagnostics:   ", gue.time);
+                    gue.print_report("GUe");
                 }
             }
 
@@ -288,9 +282,7 @@ int main(int argc, char **argv) {
                     auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
                                                         phi_i.function, phi_j.function,
                                                         Kphi_i, Kphi_j, info, energy_ij);
-                    print("6D ref  — G Kf  error:", gkffk_6d.error_GKf);
-                    print("6D ref  — G fK  error:", gkffk_6d.error_GfK);
-                    print("6D ref  — G[K,f] error:", gkffk_6d.error_GKffK);
+                    gkffk_6d.print_report("GKffK-6d");
                     print("6D ref  — time:", gkffk_6d.time);
                 }
 
@@ -309,9 +301,7 @@ int main(int argc, char **argv) {
                 auto gkffk_lrf = ec.diagnose_GKffK(world, GKf_lrf_cc, GfK_lrf_cc,
                                                      phi_i.function, phi_j.function,
                                                      Kphi_i, Kphi_j, info, energy_ij);
-                print("LRF     — G Kf  error:", gkffk_lrf.error_GKf);
-                print("LRF     — G fK  error:", gkffk_lrf.error_GfK);
-                print("LRF     — G[K,f] error:", gkffk_lrf.error_GKffK);
+                gkffk_lrf.print_report("GKffK-lrf");
                 print("LRF     — time:", gkffk_lrf.time);
             }
 
