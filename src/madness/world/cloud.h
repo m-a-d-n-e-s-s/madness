@@ -19,6 +19,10 @@
 #include<atomic>
 #include<iomanip>
 #include<memory>
+#include<map>
+#include<mutex>
+#include<list>
+#include<utility>
 
 
 /*!
@@ -211,25 +215,37 @@ using batch_bytesT   = std::vector<unsigned char>;
 /// Point-to-point transfer of serialized function batches between universe ranks.
 ///
 /// Replaces the WorldContainer::find round-trip used by the row-owner exchange
-/// fetch path. A requester sends a small trigger message to the record's owner;
-/// the owner serves it as a *task* (off its comm thread) by streaming the raw
-/// serialized bytes straight from its local batch store to the requester via
-/// MPI point-to-point. The blob never rides inside an active-message payload, so
-/// there is no eager-buffer limit and no extra serialize/deserialize copy on the
-/// wire (pure memcpy over wire).
+/// fetch path. The raw serialized bytes stream straight from the owner's local
+/// batch store to the requester via MPI point-to-point; the blob never rides
+/// inside an active-message payload, so there is no eager-buffer limit and no
+/// extra serialize/deserialize copy on the wire (pure memcpy over wire).
 ///
-/// Wire protocol (only the trigger touches a comm thread):
-///   1. requester  -- this->task(owner, &do_send, record, requester, tag) -->  owner
-///        (the AM enqueues do_send as a task on the owner; comm thread untouched)
-///   2. owner (do_send, worker task):  Isend(size) ; Isend(bytes)   on `tag`
-///   3. requester (receive_task, worker task):  Irecv(size) ; Irecv(bytes) ; await
+/// Both transfer endpoints are posted from **comm-thread AM handlers** (via
+/// WorldObject::send, whose handler runs the member inline on the RMI receiver
+/// thread — see world_object.h), never from worker tasks. This is the key to
+/// overlap under worker saturation: at high protocol every worker runs the
+/// exchange kernel for ~10^3 s, so a transfer endpoint posted as a *task* (the
+/// previous do_send/receive_task design) would queue behind the kernel and the
+/// MPI op would not even be posted until compute ends — zero overlap. Posting on
+/// the comm thread sidesteps the worker queue entirely, and the RMI loop's
+/// continuous Testsome (worldrmi.cc) then drives the rendezvous to completion in
+/// the background *during* compute. The only worker-side step is the final await
+/// at consume, which returns immediately when the transfer already landed.
 ///
-/// Two Isends on the same tag are non-overtaking for a fixed (src,dest,tag,comm),
-/// so the size always lands before the bytes (no separate size channel needed).
+/// Wire protocol (no MPI op ever touches a worker task):
+///   1. requester (worker, pre-compute): record pending slot keyed by `tag`,
+///      send(owner, &on_trigger, record, requester, tag).  Returns a Future.
+///   2. owner on_trigger (comm thread): look up the local bytes (stable pointer,
+///      no copy), Isend(bytes) on `tag`, send(requester, &on_reply, tag, size).
+///   3. requester on_reply (comm thread): allocate the receive buffer, post
+///      Irecv(bytes) on `tag`, enqueue finish_recv.
+///   4. requester finish_recv (worker, post-compute): await the Irecv (already
+///      progressed in the background) and set the Future.
 ///
-/// This first cut uses an await-based receive task (no background poller), which
-/// is sufficient for the single-slot prefetch of the row-owner algorithm; a
-/// poller can be added later if many transfers are ever outstanding at once.
+/// The size travels in the reply AM (step 2) rather than a separate Isend so the
+/// requester can post the bytes Irecv *during* compute (step 3) — posting it only
+/// at consume would defer the rendezvous data movement to post-compute and lose
+/// the overlap on the large payload.
 class BatchTransport : public WorldObject<BatchTransport> {
 public:
     /// tags live in [8192, MPI_TAG_UB], the range MADNESS does not manage
@@ -254,6 +270,26 @@ private:
     Cloud* cloud_;                 ///< back-reference (not owned)
     std::atomic<int> next_tag_;    ///< per-rank round-robin tag counter
 
+    /// requester-side state for one outstanding receive, created in request()
+    /// and completed in finish_recv. Held by shared_ptr so the buffer address is
+    /// stable for the Irecv and the entry can be erased from pending_ while
+    /// finish_recv still owns its reference.
+    struct PendingRecv {
+        ProcessID owner = -1;
+        int tag = -1;
+        batch_bytesT buf;              ///< receive buffer (sized in on_reply)
+        SafeMPI::Request req;          ///< the Irecv request (posted in on_reply)
+        Future<batch_bytesT> fut;      ///< set by finish_recv at completion
+    };
+    std::mutex pending_mtx_;
+    std::map<int, std::shared_ptr<PendingRecv>> pending_;   ///< keyed by tag
+
+    /// owner-side in-flight Isend requests, reaped lazily on the comm thread.
+    /// The send buffers live in the cloud's batch_container (stable for the
+    /// duration of the exchange), so an un-reaped Isend is harmless.
+    std::mutex sends_mtx_;
+    std::list<SafeMPI::Request> sends_;
+
     /// allocate the next point-to-point tag in [BATCH_TAG_BASE, BATCH_TAG_CAP]
     int alloc_tag() {
         const int span = BATCH_TAG_CAP - BATCH_TAG_BASE + 1;
@@ -261,13 +297,20 @@ private:
         return BATCH_TAG_BASE + ((t % span) + span) % span;
     }
 
-    /// owner side: stream the record's bytes to `requester` on `tag`. Runs as a
-    /// task (spawned by request via this->task), so the comm thread is free.
-    void do_send(batch_keyT record, ProcessID requester, int tag);
+    /// drop completed Isend requests from sends_ (comm thread, amortized)
+    void reap_sends();
 
-    /// requester side: receive size then bytes from `owner` on `tag`. Runs as a
-    /// task; await keeps the worker doing other work while the transfer lands.
-    batch_bytesT receive_task(ProcessID owner, int tag);
+    /// owner side, comm-thread handler: Isend the record's local bytes to
+    /// `requester` on `tag`, then reply with the byte count. Non-blocking.
+    void on_trigger(batch_keyT record, ProcessID requester, int tag);
+
+    /// requester side, comm-thread handler: allocate the buffer for `size` bytes,
+    /// post the Irecv on `tag`, and enqueue finish_recv. Non-blocking.
+    void on_reply(int tag, std::size_t size);
+
+    /// requester side, worker task: await the (background-progressed) Irecv and
+    /// set the future. Runs post-compute, so its await returns promptly.
+    void finish_recv(int tag);
 };
 
 /// cloud class
@@ -869,6 +912,11 @@ public:
         {
             madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            // Phase 4a-i: skip the per-function internal gop.fences inside the gather.
+            // The inputs are complete (read-only) and the collective MPI_Gatherv
+            // self-synchronizes; store_batches() emits a single fence after all
+            // batches. Removes the per-function fence0/fence1 (~45% of store cost).
+            par.set_dofence(false);
             std::size_t fsize = batch.size();
             par & fsize;
             for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
@@ -1086,6 +1134,21 @@ public:
         typename madness::WorldContainer<keyT, valueT>::const_accessor acc;
         if (batch_container.find(acc, record)) return acc->second;   // copy out of the local map
         MADNESS_EXCEPTION("get_local_batch_bytes: record not held locally", int(record));
+    }
+
+    /// Stable pointer + size of a local batch record's bytes, for a zero-copy
+    /// Isend from BatchTransport::on_trigger on the comm thread (copying 0.6 GB
+    /// on the comm thread would stall RMI). The accessor lock is released on
+    /// return, but the pointer stays valid because batch_container entries are
+    /// not erased or mutated between store_batches and the end of the exchange.
+    /// Precondition: this rank owns `record`.
+    /// (Confirmation-prototype shortcut for the not-yet-built owner_store_, which
+    /// will formalize this stable-address guarantee.)
+    std::pair<const unsigned char*, std::size_t> get_local_batch_ptr(const keyT record) const {
+        typename madness::WorldContainer<keyT, valueT>::const_accessor acc;
+        if (batch_container.find(acc, record))
+            return {acc->second.data(), acc->second.size()};
+        MADNESS_EXCEPTION("get_local_batch_ptr: record not held locally", int(record));
     }
 
     /// Issue the point-to-point fetch of `record` from its owner (Step 2b, p2p).
@@ -1487,34 +1550,73 @@ inline Future<batch_bytesT> BatchTransport::request(batch_keyT record) {
         return Future<batch_bytesT>(cloud_->get_local_batch_bytes(record));
     }
     const int tag = alloc_tag();
-    // trigger: enqueue do_send as a task on the owner (comm thread untouched)
-    this->task(owner, &BatchTransport::do_send, record, u.rank(), tag);
-    // receive locally in a task; the returned future is set when the bytes land
-    return u.taskq.add(this, &BatchTransport::receive_task, owner, tag);
+    auto p = std::make_shared<PendingRecv>();
+    p->owner = owner;
+    p->tag = tag;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        pending_[tag] = p;
+    }
+    // trigger runs inline on the owner's comm thread (send, not task), so the
+    // owner posts its Isend without queueing behind its saturated workers.
+    this->send(owner, &BatchTransport::on_trigger, record, u.rank(), tag);
+    return p->fut;
 }
 
-inline void BatchTransport::do_send(batch_keyT record, ProcessID requester, int tag) {
-    World& u = this->get_world();
-    // copy out of the local store so the buffer stays valid for the whole send
-    // (the concurrent-hashmap accessor lock is not held across MPI). A later
-    // owner_store_ (stable-address plain map) lets this become zero-copy.
-    batch_bytesT bytes = cloud_->get_local_batch_bytes(record);
-    const std::size_t n = bytes.size();
-    SafeMPI::Request rs = u.mpi.Isend(n, requester, tag);                       // size header
-    SafeMPI::Request rd = u.mpi.Isend(bytes.data(), int(n), MPI_BYTE, requester, tag);  // raw bytes
-    World::await(rs, true);
-    World::await(rd, true);
+inline void BatchTransport::reap_sends() {
+    std::lock_guard<std::mutex> g(sends_mtx_);
+    for (auto it = sends_.begin(); it != sends_.end(); ) {
+        if (it->Test()) it = sends_.erase(it);
+        else ++it;
+    }
 }
 
-inline batch_bytesT BatchTransport::receive_task(ProcessID owner, int tag) {
+inline void BatchTransport::on_trigger(batch_keyT record, ProcessID requester, int tag) {
+    // comm-thread handler: post the bytes Isend straight from the stable local
+    // buffer (no copy), then reply with the size. Must not block.
     World& u = this->get_world();
-    std::size_t n = 0;
-    SafeMPI::Request rs = u.mpi.Irecv(n, owner, tag);          // size header (same tag, arrives first)
-    World::await(rs, true);
-    batch_bytesT buf(n);
-    SafeMPI::Request rd = u.mpi.Irecv(buf.data(), int(n), owner, tag);  // raw bytes into final buffer
-    World::await(rd, true);
-    return buf;
+    reap_sends();
+    auto ptr_size = cloud_->get_local_batch_ptr(record);
+    const std::size_t n = ptr_size.second;
+    SafeMPI::Request rd = u.mpi.Isend(ptr_size.first, int(n), MPI_BYTE, requester, tag);
+    {
+        std::lock_guard<std::mutex> g(sends_mtx_);
+        sends_.push_back(rd);
+    }
+    // reply carries the size so the requester can post its Irecv now (during the
+    // requester's compute), enabling the rendezvous to complete in the background.
+    this->send(requester, &BatchTransport::on_reply, tag, n);
+}
+
+inline void BatchTransport::on_reply(int tag, std::size_t size) {
+    // comm-thread handler: allocate the buffer and post the Irecv, then enqueue
+    // the worker-side completion. Must not block.
+    World& u = this->get_world();
+    std::shared_ptr<PendingRecv> p;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        auto it = pending_.find(tag);
+        MADNESS_CHECK(it != pending_.end());
+        p = it->second;
+    }
+    p->buf.resize(size);
+    p->req = u.mpi.Irecv(p->buf.data(), int(size), MPI_BYTE, p->owner, tag);
+    u.taskq.add(this, &BatchTransport::finish_recv, tag);
+}
+
+inline void BatchTransport::finish_recv(int tag) {
+    // worker task (post-compute): the Irecv has progressed in the background on
+    // the comm thread, so this await returns promptly; then set the future.
+    std::shared_ptr<PendingRecv> p;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        auto it = pending_.find(tag);
+        MADNESS_CHECK(it != pending_.end());
+        p = it->second;
+        pending_.erase(it);
+    }
+    World::await(p->req, true);
+    p->fut.set(std::move(p->buf));
 }
 
 } /* namespace madness */

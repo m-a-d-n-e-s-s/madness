@@ -146,6 +146,7 @@ namespace madness {
 
                 // Need to pass local archive by reference
                 ParallelOutputArchive<VectorOutputArchive> par(*(ar.get_world()), (me==0) ? ar.local_archive().get_archive() : dummyar);
+                par.set_dofence(ar.dofence());   // propagate fence policy (batch store sets dofence=false)
                 par & t;
 
             }

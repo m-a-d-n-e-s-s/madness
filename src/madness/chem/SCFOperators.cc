@@ -765,6 +765,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_replicate_for_debug(const bool flag) {
 }
 
 template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_use_cloud_batch_fetch(const bool flag) {
+    impl->set_use_cloud_batch_fetch(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_use_mflex(const bool flag) {
     impl->set_use_mflex(flag);
     return *this;

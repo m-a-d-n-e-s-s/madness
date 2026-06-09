@@ -1596,6 +1596,10 @@ private:
         void store_batches(World& world, Cloud& cloud, const argtupleT& argtuple,
                            const long nsubworld) {
             if (not use_cloud_batch_fetch()) return;
+            // Phase 4a-i: store_batch now skips the per-function internal gop.fences,
+            // so guarantee the input functions are complete with ONE fence up front
+            // (replaces the ~480 per-function fences the gather used to do).
+            world.gop.fence();
             const vecfuncT& vf = std::get<0>(argtuple);      // input[0]: held col / vf
             const vecfuncT& mo_bra = std::get<1>(argtuple);  // input[1]: rotating row / bra
             const vecfuncT& mo_ket = std::get<2>(argtuple);  // paired with bra by inner index

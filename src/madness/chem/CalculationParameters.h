@@ -72,6 +72,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
+		initialize<bool>  ("hfex_use_cloud_batch_fetch",true,"smallmem_mt_owner: fetch input batches via the cloud owner-pinned p2p path (true) or copy-via-universe (false); A/B transport comparison");
 		initialize<bool>  ("hfex_use_mflex",true,"use m-flex peel search to load-balance the smallmem_sym_mt_owner assignment");
 		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
 		initialize<bool>  ("hfex_shuffle_mos",false,"randomly permute the MO order passed to the HF exchange operator (fixed seed); result is unshuffled before returning");
@@ -221,6 +222,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
     int hfex_min_batch_size() const {return get<int>("hfex_min_batch_size");}
     int hfex_max_batch_size() const {return get<int>("hfex_max_batch_size");}
     bool hfex_replicate_debug() const {return get<bool>("hfex_replicate_debug");}
+    bool hfex_use_cloud_batch_fetch() const {return get<bool>("hfex_use_cloud_batch_fetch");}
     bool hfex_use_mflex() const {return get<bool>("hfex_use_mflex");}
     int hfex_mflex_max_exhaustive() const {return get<int>("hfex_mflex_max_exhaustive");}
     bool hfex_shuffle_mos() const {return get<bool>("hfex_shuffle_mos");}

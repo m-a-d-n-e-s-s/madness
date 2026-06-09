@@ -209,6 +209,7 @@ public:
     Exchange& set_min_batch_size(const long& n);
     Exchange& set_max_batch_size(const long& n);
     Exchange& set_replicate_for_debug(const bool flag);
+    Exchange& set_use_cloud_batch_fetch(const bool flag);
     Exchange& set_use_mflex(const bool flag);
     Exchange& set_mflex_max_exhaustive(const long& n);
     Exchange& set_smallmem_mul_tol(const double tol);  // TEMP debug knob

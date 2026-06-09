@@ -2082,7 +2082,12 @@ namespace madness
                 // 2. Gather all buffers to process 0
 
                 World *world = ar.get_world();
-                world->gop.fence(); // Global fence here
+                // measurement instrumentation (Phase 4 store breakdown); env-gated, off by default
+                static const bool dc_store_timing = (std::getenv("MAD_DC_STORE_TIMING") != nullptr);
+                double tmg_t=0, tmg_f0=0, tmg_ser=0, tmg_gat=0, tmg_cpy=0, tmg_f1=0;
+                if (dc_store_timing) tmg_t = wall_time();
+                if (ar.dofence()) world->gop.fence(); // Global fence here (skipped when dofence==false; the collective Gatherv self-synchronizes)
+                if (dc_store_timing) { tmg_f0 = wall_time()-tmg_t; tmg_t = wall_time(); }
 
                 class op_inspector : public TaskInterface
                 {
@@ -2183,6 +2188,7 @@ namespace madness
                         // printf("time in op_executor: %8.4fs\n", wall1 - wall0);
                     wall0 = wall1;
                 }
+                if (dc_store_timing) { tmg_ser = wall_time()-tmg_t; tmg_t = wall_time(); }
                 // VERify that the serialization worked!!
                 // {
                 //     BufferInputArchive bi(buf, local_size);
@@ -2223,6 +2229,7 @@ namespace madness
                 // if (world->rank() == 0)
                     // printf("time in gather+gatherv: %8.4fs\n", wall1 - wall0);
                 wall0 = wall1;
+                if (dc_store_timing) { tmg_gat = wall_time()-tmg_t; tmg_t = wall_time(); }
 
                 delete[] buf;
 
@@ -2242,7 +2249,14 @@ namespace madness
 
                     delete[] all_data;
                 }
-                world->gop.fence();
+                if (dc_store_timing) { tmg_cpy = wall_time()-tmg_t; tmg_t = wall_time(); }
+                if (ar.dofence()) world->gop.fence();
+                if (dc_store_timing) {
+                    tmg_f1 = wall_time()-tmg_t;
+                    if (world->rank()==0)
+                        printf("DC_STORE_TIMING nnodes=%d total_bytes=%ld fence0=%.4f serialize=%.4f gather=%.4f rank0copy=%.4f fence1=%.4f\n",
+                               count, (long)total_size, tmg_f0, tmg_ser, tmg_gat, tmg_cpy, tmg_f1);
+                }
                 // print("time 6",wall_time());
             }
         };
