@@ -2,18 +2,22 @@
 //
 // Provides a map-based container (DiagnosticMatrix) and projection utilities:
 //   project_xy   — core primitive: result(a,b) += sum_k <bra[k].g[a](1) bra[k].h[b](2)|ket>
+//                  signature: project_xy(bra, ket)
 //   project_ab   — thin wrapper: bra = {CCPairFunction(ao_basis, ao_basis)}
 //   project_Gab  — thin wrapper: builds nfit Schwinger bra slots, calls project_xy
 //
-// Convention: `ref`    = 3D analytic reference, set by the caller.
-//             `result` = 6D projection, set by the methods below.
+// Convention: `ref`    = LDIM-D analytic reference, set by the caller.
+//             `result` = NDIM-D projection, set by the methods below.
 //             `error`  = ||ref - result||_F, computed by compute_errors().
 //
+// Template parameters:
+//   T    — scalar type (default double)
+//   NDIM — pair-space dimension (default 6); one-particle space is LDIM = NDIM/2.
+//
 // Bra representation: each element of the bra vector is a decomposed
-// CCPairFunction<double,6> where get_a()[a] is the particle-1 factor for basis
+// CCPairFunction<T,NDIM> where get_a()[a] is the particle-1 factor for basis
 // index a and get_b()[b] is the particle-2 factor for basis index b.  Weights
-// are absorbed into the get_a() functions by the bra builder.  The bra type is
-// the same as the ket type, so apply(ProjectorBase, bra) works directly.
+// are absorbed into the get_a() functions by the bra builder.
 
 #ifndef MADNESS_CHEM_OPERATOR_DIAGNOSTICS_H
 #define MADNESS_CHEM_OPERATOR_DIAGNOSTICS_H
@@ -29,9 +33,10 @@
 
 namespace madness {
 
+template<typename T = double>
 struct DiagnosticEntry {
-    Tensor<double> ref;      ///< 3D analytic reference (set by caller)
-    Tensor<double> result;   ///< 6D projection result (set by DiagnosticMatrix methods)
+    Tensor<T> ref;      ///< LDIM-D analytic reference (set by caller)
+    Tensor<T> result;   ///< NDIM-D projection result (set by DiagnosticMatrix methods)
     double error = -1.0;
 
     void compute_error() {
@@ -43,27 +48,34 @@ struct DiagnosticEntry {
 /// Container for named <ab|op|ij> diagnostic matrix elements.
 ///
 /// Each named entry holds a pair (ref, result) of nbasis×nbasis tensors and
-/// their Frobenius-norm difference.  The caller fills `ref` from 3D analytic
+/// their Frobenius-norm difference.  The caller fills `ref` from LDIM-D analytic
 /// formulas; the project_ab / project_Gab methods fill `result` by projecting
-/// 6D functions onto the AO observer basis pairs |ab>.
+/// NDIM-D functions onto the AO observer basis pairs |ab>.
+///
+/// @tparam T    scalar type (default double)
+/// @tparam NDIM pair-space dimension (default 6); LDIM = NDIM/2 is the one-particle space
+template<typename T = double, std::size_t NDIM = 6>
 class DiagnosticMatrix {
 public:
-    std::map<std::string, DiagnosticEntry> entries;
-    std::vector<Function<double,3>> ao_basis;  ///< orthonormalized observer basis
+    static constexpr std::size_t LDIM = NDIM / 2;  ///< one-particle space dimension
+
+    std::map<std::string, DiagnosticEntry<T>> entries;
+    std::vector<Function<T,LDIM>> ao_basis;  ///< orthonormalized observer basis
     double time = 0.0;
 
-    /// Construct with a World reference and an orthonormalized AO basis.
-    DiagnosticMatrix(World& world, std::vector<Function<double,3>> ao_basis_in)
-        : ao_basis(std::move(ao_basis_in)), world_(world) {}
+    /// Construct with a World reference and an AO basis.
+    /// If the basis is not orthonormal (||S - I||_F > 1e-10) it is
+    /// orthonormalized in-place via symmetric (Löwdin) orthonormalization.
+    DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in);
 
     int nbasis() const { return static_cast<int>(ao_basis.size()); }
 
     /// Allocate zero tensors for a new named quantity.
     /// Returns the ref tensor by reference so the caller can fill it in-place.
-    Tensor<double>& init(const std::string& name) {
+    Tensor<T>& init(const std::string& name) {
         auto& e = entries[name];
-        e.ref    = Tensor<double>(nbasis(), nbasis());
-        e.result = Tensor<double>(nbasis(), nbasis());
+        e.ref    = Tensor<T>(nbasis(), nbasis());
+        e.result = Tensor<T>(nbasis(), nbasis());
         e.error  = -1.0;
         return e.ref;
     }
@@ -77,23 +89,23 @@ public:
     /// Weight is absorbed into bra[k].get_a() by the bra builder (project_Gab etc.).
     /// Loop order: ket-pieces outer, (a,b) middle, bra-slots k innermost.
     /// Caller assigns the returned tensor to entries[name].result.
-    Tensor<double> project_xy(const real_function_6d& ket,
-                               const std::vector<CCPairFunction<double,6>>& bra) const;
-    Tensor<double> project_xy(const std::vector<CCPairFunction<double,6>>& ket,
-                               const std::vector<CCPairFunction<double,6>>& bra) const;
+    Tensor<T> project_xy(const std::vector<CCPairFunction<T,NDIM>>& bra,
+                          const Function<T,NDIM>& ket) const;
+    Tensor<T> project_xy(const std::vector<CCPairFunction<T,NDIM>>& bra,
+                          const std::vector<CCPairFunction<T,NDIM>>& ket) const;
 
     // -------------------------------------------------------------------------
     // Convenience wrappers
     // -------------------------------------------------------------------------
 
     /// Returns T(a,b) = <ao_basis[a] ao_basis[b] | ket>.
-    Tensor<double> project_ab(const real_function_6d& ket) const;
-    Tensor<double> project_ab(const std::vector<CCPairFunction<double,6>>& ket) const;
+    Tensor<T> project_ab(const Function<T,NDIM>& ket) const;
+    Tensor<T> project_ab(const std::vector<CCPairFunction<T,NDIM>>& ket) const;
 
     /// Returns T(a,b) ≈ <ao_basis[a] ao_basis[b] | G · ket> via Schwinger BSH quadrature.
-    Tensor<double> project_Gab(const real_function_6d& ket, double energy, double lo) const;
-    Tensor<double> project_Gab(const std::vector<CCPairFunction<double,6>>& ket,
-                                double energy, double lo) const;
+    Tensor<T> project_Gab(const Function<T,NDIM>& ket, double energy, double lo) const;
+    Tensor<T> project_Gab(const std::vector<CCPairFunction<T,NDIM>>& ket,
+                           double energy, double lo) const;
 
     // -------------------------------------------------------------------------
     // Post-projection utilities
@@ -105,14 +117,27 @@ public:
     /// Print a compact report: name, ||ref||, ||result||, error.
     void print_report(const std::string& tag = "") const;
 
+    // -------------------------------------------------------------------------
+    // Bra builders — return bra vectors for use with project_xy
+    // -------------------------------------------------------------------------
+
+    /// Single-slot bra for plain <ab| projection: {CCPairFunction(ao_basis, ao_basis)}.
+    std::vector<CCPairFunction<T,NDIM>> build_simple_bra() const {
+        return { CCPairFunction<T,NDIM>(ao_basis, ao_basis) };
+    }
+
+    /// Multi-slot Schwinger bra for <ab|G| projection (BSH fit for energy).
+    /// bra[n].get_a()[a] = w_n * (g_n * ao_basis[a])  (weight absorbed into particle 1)
+    /// bra[n].get_b()[b] =        g_n * ao_basis[b]
+    std::vector<CCPairFunction<T,NDIM>> build_Gab_bra(double energy, double lo) const;
+
 private:
     World& world_;
-
-    /// Build nfit bra CCPairFunctions for the Schwinger approximation of G (BSH fit for energy).
-    /// bra[n].get_a()[a] = w_n^{6d} * (g_n * ao_basis[a])  (weight absorbed)
-    /// bra[n].get_b()[b] =             g_n * ao_basis[b]
-    std::vector<CCPairFunction<double,6>> build_Gab_bra(double energy, double lo) const;
 };
+
+// Deduction guide: infer NDIM=2*LDIM from the element type of the ao_basis vector.
+template<typename T, std::size_t LDIM>
+DiagnosticMatrix(World&, std::vector<Function<T,LDIM>>) -> DiagnosticMatrix<T,2*LDIM>;
 
 } // namespace madness
 

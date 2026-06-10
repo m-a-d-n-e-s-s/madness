@@ -553,7 +553,7 @@ ExchangeCommutator::apply_KffK_lowrank_three_range(
 //  Diagnostics (extracted from benchmark's test_kcomm_accuracy)
 // ---------------------------------------------------------------------------
 
-DiagnosticMatrix
+DiagnosticMatrix<>
 ExchangeCommutator::diagnose(
         World& world,
         const std::vector<Function<double,3>>& kvec,
@@ -626,7 +626,7 @@ ExchangeCommutator::diagnose(
     auto K_j = K(phi_j);
 
     // Build DiagnosticMatrix over the resolved observer basis.
-    DiagnosticMatrix dm(world, phi_a);
+    DiagnosticMatrix<> dm(world, phi_a);
     dm.init("Kf");
     dm.init("fK");
     dm.init("KffK");
@@ -735,7 +735,7 @@ ExchangeCommutator::diagnose(
 //  G·[K̂,f] Schwinger diagnostic
 // ---------------------------------------------------------------------------
 
-DiagnosticMatrix
+DiagnosticMatrix<>
 ExchangeCommutator::diagnose_GKffK(
         World& world,
         const std::vector<CCPairFunction<double,6>>& GKf_cc,
@@ -754,7 +754,7 @@ ExchangeCommutator::diagnose_GKffK(
     const int nbasis = ao_basis.size();
     const double wall0 = wall_time();
 
-    DiagnosticMatrix dm(world, ao_basis);
+    DiagnosticMatrix<> dm(world, ao_basis);
     dm.init("GKf");
     dm.init("GfK");
     dm.init("GKffK");

@@ -1,9 +1,12 @@
-// operator_diagnostics.cc — implementation of DiagnosticMatrix.
+// operator_diagnostics.cc — implementation of DiagnosticMatrix<T,NDIM>.
 //
 // Include order matters: CCStructures.h → lowrankfunction.h → electronic_correlation_factor.h
 // → operator_diagnostics.h defines DiagnosticMatrix, then CCStructures.h defines
 // CCConvolutionOperator.  CCPairFunction instantiation in this TU therefore has
 // CCConvolutionOperator fully defined.
+//
+// All member function templates are defined here and explicitly instantiated at
+// the bottom.  NDIM is the pair-space dimension; LDIM = NDIM/2 is the one-particle space.
 
 #include <madness/chem/CCStructures.h>   // defines CCConvolutionOperator before CCPairFunction is instantiated
 #include <madness/chem/operator_diagnostics.h>
@@ -15,19 +18,48 @@
 namespace madness {
 
 // ---------------------------------------------------------------------------
+//  DiagnosticMatrix constructor
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+DiagnosticMatrix<T,NDIM>::DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in)
+    : world_(world)
+{
+    if (ao_basis_in.empty()) return;
+
+    const int nb = static_cast<int>(ao_basis_in.size());
+    Tensor<T> S = matrix_inner(world, ao_basis_in, ao_basis_in, /*sym=*/true);
+
+    // measure deviation from identity
+    Tensor<T> diff = copy(S);
+    for (int i = 0; i < nb; ++i) diff(i, i) -= 1.0;
+    const double dev = diff.normf();
+
+    if (dev > 1e-10) {
+        if (world.rank() == 0)
+            print("DiagnosticMatrix: ao_basis not orthonormal (||S-I||_F =", dev,
+                  "), applying Löwdin orthonormalization");
+        ao_basis = orthonormalize_symmetric(ao_basis_in, S);
+    } else {
+        ao_basis = std::move(ao_basis_in);
+    }
+}
+
+// ---------------------------------------------------------------------------
 //  project_xy — core primitive
 // ---------------------------------------------------------------------------
 
-Tensor<double> DiagnosticMatrix::project_xy(const real_function_6d& ket,
-                                              const std::vector<CCPairFunction<double,6>>& bra) const
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_xy(const std::vector<CCPairFunction<T,NDIM>>& bra,
+                                                 const Function<T,NDIM>& ket) const
 {
     const int nb = nbasis();
     const int nk = static_cast<int>(bra.size());
-    Tensor<double> result(nb, nb);
+    Tensor<T> result(nb, nb);
 
     // Step 1: partial inner products via Function::project_out (particle 0 = particle 1).
-    std::vector<std::vector<Function<double,3>>> ptmp(
-        nk, std::vector<Function<double,3>>(nb));
+    std::vector<std::vector<Function<T,LDIM>>> ptmp(
+        nk, std::vector<Function<T,LDIM>>(nb));
     for (int k = 0; k < nk; ++k) {
         const auto& gk = bra[k].get_a();
         for (int a = 0; a < nb; ++a)
@@ -43,24 +75,25 @@ Tensor<double> DiagnosticMatrix::project_xy(const real_function_6d& ket,
     return result;
 }
 
-Tensor<double> DiagnosticMatrix::project_xy(const std::vector<CCPairFunction<double,6>>& ket,
-                                              const std::vector<CCPairFunction<double,6>>& bra) const
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_xy(const std::vector<CCPairFunction<T,NDIM>>& bra,
+                                                 const std::vector<CCPairFunction<T,NDIM>>& ket) const
 {
     const int nb = nbasis();
     const int nk = static_cast<int>(bra.size());
-    Tensor<double> result(nb, nb);
-    auto p1 = particle<3>::particle1();
+    Tensor<T> result(nb, nb);
+    auto p1 = particle<LDIM>::particle1();
 
     for (const auto& f : ket) {
         if (!f.is_assigned()) continue;
 
         // Step 1: partial inner products for all (bra-slot k, basis index a)
-        std::vector<std::vector<Function<double,3>>> ptmp(
-            nk, std::vector<Function<double,3>>(nb));
+        std::vector<std::vector<Function<T,LDIM>>> ptmp(
+            nk, std::vector<Function<T,LDIM>>(nb));
         for (int k = 0; k < nk; ++k) {
             const auto& gk = bra[k].get_a();
             for (int a = 0; a < nb; ++a)
-                ptmp[k][a] = inner(f, gk[a], p1.get_tuple(), p1.get_tuple());
+                ptmp[k][a] = inner(f, gk[a], p1.get_array(), p1.get_array());
         }
 
         // Step 2: accumulate — bra-slots k innermost
@@ -76,54 +109,60 @@ Tensor<double> DiagnosticMatrix::project_xy(const std::vector<CCPairFunction<dou
 //  project_ab — thin wrappers
 // ---------------------------------------------------------------------------
 
-Tensor<double> DiagnosticMatrix::project_ab(const real_function_6d& ket) const
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_ab(const Function<T,NDIM>& ket) const
 {
-    CCPairFunction<double,6> bra_cc(ao_basis, ao_basis);
-    return project_xy(ket, {bra_cc});
+    CCPairFunction<T,NDIM> bra_cc(ao_basis, ao_basis);
+    return project_xy({bra_cc}, ket);
 }
 
-Tensor<double> DiagnosticMatrix::project_ab(
-        const std::vector<CCPairFunction<double,6>>& ket) const
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_ab(
+        const std::vector<CCPairFunction<T,NDIM>>& ket) const
 {
-    return project_xy(ket, {CCPairFunction<double,6>(ao_basis, ao_basis)});
+    return project_xy({CCPairFunction<T,NDIM>(ao_basis, ao_basis)}, ket);
 }
 
 // ---------------------------------------------------------------------------
 //  build_Gab_bra — Schwinger BSH bra builder
 // ---------------------------------------------------------------------------
 
-std::vector<CCPairFunction<double,6>>
-DiagnosticMatrix::build_Gab_bra(double energy, double lo) const
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>>
+DiagnosticMatrix<T,NDIM>::build_Gab_bra(double energy, double lo) const
 {
     MADNESS_CHECK_THROW(energy < 0.0, "build_Gab_bra: energy must be negative");
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
     const double mu     = std::sqrt(-2.0 * energy);
-    const double hi     = FunctionDefaults<3>::get_cell_width().normf();
+    const double hi     = FunctionDefaults<LDIM>::get_cell_width().normf();
 
-    auto fit   = GFit<double,3>::BSHFit(mu, lo, hi, thresh);
+    // Schwinger BSH quadrature: G^NDIM(R) ≈ Σ_n c_n exp(-α_n R²)
+    // with c_n = c3d_n * (α_n/π)^{LDIM/2}, where c3d_n is from the LDIM-D BSH Gaussian fit.
+    auto fit   = GFit<T,LDIM>::BSHFit(mu, lo, hi, thresh);
     auto c3d   = fit.coeffs();
     auto alpha = fit.exponents();
     const int nfit = c3d.dim(0);
-    const int nb   = nbasis();
 
-    std::vector<CCPairFunction<double,6>> bra;
+    std::vector<CCPairFunction<T,NDIM>> bra;
     bra.reserve(nfit);
 
     for (int n = 0; n < nfit; ++n) {
         const double an  = alpha[n];
-        const double w6d = c3d[n] * std::pow(an / constants::pi, 1.5);
+        const double wNd = c3d[n] * std::pow(an / constants::pi, static_cast<double>(LDIM) / 2.0);
 
-        auto gauss = SeparatedConvolution<double,3>(
+        auto gauss = SeparatedConvolution<T,LDIM>(
                 world_, OperatorInfo(an, lo, thresh, OT_GAUSS));
 
         // conv[a] = g_n * ao_basis[a]  (Gaussian-convolved basis)
         auto conv = gauss(ao_basis);
 
-        // wconv = w6d * conv  (weight absorbed into particle-1 factors)
-        auto wconv = conv;
-        scale(world_, wconv, w6d);
+        // wconv = wNd * conv  (weight absorbed into particle-1 factors)
+        // Deep copy before scaling: MADNESS Function uses shallow-copy semantics,
+        // so auto wconv = conv; scale(wconv) would also scale conv via the shared impl.
+        auto wconv = copy(world_, conv);
+        scale(world_, wconv, wNd);
 
-        bra.emplace_back(wconv, conv);  // decomposed CCPairFunction: g=wconv, h=conv
+        bra.emplace_back(wconv, conv);  // g=wconv (weighted), h=conv (unweighted)
     }
     return bra;
 }
@@ -132,24 +171,27 @@ DiagnosticMatrix::build_Gab_bra(double energy, double lo) const
 //  project_Gab — thin wrappers
 // ---------------------------------------------------------------------------
 
-Tensor<double> DiagnosticMatrix::project_Gab(const real_function_6d& ket,
-                                               double energy, double lo) const
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_Gab(const Function<T,NDIM>& ket,
+                                                   double energy, double lo) const
 {
-    return project_xy(ket, build_Gab_bra(energy, lo));
+    return project_xy(build_Gab_bra(energy, lo), ket);
 }
 
-Tensor<double> DiagnosticMatrix::project_Gab(
-        const std::vector<CCPairFunction<double,6>>& ket,
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::project_Gab(
+        const std::vector<CCPairFunction<T,NDIM>>& ket,
         double energy, double lo) const
 {
-    return project_xy(ket, build_Gab_bra(energy, lo));
+    return project_xy(build_Gab_bra(energy, lo), ket);
 }
 
 // ---------------------------------------------------------------------------
 //  compute_errors
 // ---------------------------------------------------------------------------
 
-void DiagnosticMatrix::compute_errors()
+template<typename T, std::size_t NDIM>
+void DiagnosticMatrix<T,NDIM>::compute_errors()
 {
     for (auto& [name, e] : entries)
         e.compute_error();
@@ -159,7 +201,8 @@ void DiagnosticMatrix::compute_errors()
 //  print_report
 // ---------------------------------------------------------------------------
 
-void DiagnosticMatrix::print_report(const std::string& tag) const
+template<typename T, std::size_t NDIM>
+void DiagnosticMatrix<T,NDIM>::print_report(const std::string& tag) const
 {
     const std::string prefix = tag.empty() ? "[diag]" : "[diag/" + tag + "]";
     for (const auto& [name, e] : entries) {
@@ -172,5 +215,13 @@ void DiagnosticMatrix::print_report(const std::string& tag) const
     }
     if (time > 0.0) print(prefix, "  time =", time, "s");
 }
+
+// ---------------------------------------------------------------------------
+//  Explicit instantiations — NDIM is the pair-space dimension
+// ---------------------------------------------------------------------------
+
+template class DiagnosticMatrix<double, 2>;  // LDIM=1 one-particle
+template class DiagnosticMatrix<double, 4>;  // LDIM=2 one-particle
+template class DiagnosticMatrix<double, 6>;  // LDIM=3 one-particle (standard 3D chemistry)
 
 } // namespace madness

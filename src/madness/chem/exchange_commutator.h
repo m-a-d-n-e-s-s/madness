@@ -189,7 +189,7 @@ struct ExchangeCommutator {
     /// ref=3D Exchange+f12 analytic formula, result=6D projection, error=||ref-result||.
     /// The K1/K2 decomposition tensors are placed in the returned dm.entries["Kf"].ref etc.
     /// as the sum K1+K2, with the individual pieces available in the returned KRefPieces.
-    DiagnosticMatrix diagnose(
+    DiagnosticMatrix<> diagnose(
             World& world,
             const std::vector<Function<double, 3>>& kvec,
             const std::vector<Function<double, 3>>& R2kvec,
@@ -242,7 +242,7 @@ struct ExchangeCommutator {
     /// @param Kphi_j   K̂φⱼ (precomputed once by caller)
     /// @param info     molecular/orbital info carrying mo_ket, mo_bra, parameters
     /// @param energy   ε_i + ε_j  (must be negative)
-    DiagnosticMatrix diagnose_GKffK(
+    DiagnosticMatrix<> diagnose_GKffK(
             World& world,
             const std::vector<CCPairFunction<double,6>>& GKf_cc,
             const std::vector<CCPairFunction<double,6>>& GfK_cc,

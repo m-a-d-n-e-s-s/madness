@@ -889,7 +889,12 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     G.destructive() = true;
 
     real_function_6d GV=real_factory_6d(world).empty();
-    for (const auto& vv : V) GV+= (G(vv)).get_function();      // note V is destroyed here
+    for (const auto& vv : V) {
+        GV+= (G(vv)).get_function();      // note V is destroyed here
+        MemoryMeasurer::measure_and_print(world);
+        MemoryMeasurer::release_free_memory();
+        MemoryMeasurer::measure_and_print(world);
+    }
     GV=-2.0*Q12(GV).truncate().reduce_rank();
 
     GV.print_size("GVreg");

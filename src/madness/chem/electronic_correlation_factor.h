@@ -248,120 +248,17 @@ namespace madness {
         /// @param[in]  U1nuc        nuclear U1 potentials (required when Uphi_mixed is provided)
         /// @return DiagnosticMatrix with entries "local", "semilocal" (and "mixed" if applicable).
         ///         ref=3D analytic formula, result=6D projection <ab|U|ij>, error=||ref-result||.
-        DiagnosticMatrix diagnose_Ue(const real_function_6d& Uphi_local,
+        DiagnosticMatrix<> diagnose_Ue(const real_function_6d& Uphi_local,
                              const real_function_6d& Uphi_semilocal,
                              const real_function_3d& phi_i, const real_function_3d& phi_j,
                              const std::vector<real_function_3d>& aobasis,
                              const real_function_6d& Uphi_mixed = real_function_6d(),
                              const std::vector<real_function_3d>& U1nuc = {}) const {
-            const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
-            double wall0=wall_time();
-            timer t(world);
-
-            DiagnosticMatrix dm(world, aobasis);
-            dm.init("local");
-            dm.init("semilocal");
-            if (do_mixed) dm.init("mixed");
-
-            // Fill result: 6D projections <ab|U|ij>
-            dm.entries["local"].result     = dm.project_ab(Uphi_local);
-            dm.entries["semilocal"].result = dm.project_ab(Uphi_semilocal);
-            if (do_mixed) dm.entries["mixed"].result = dm.project_ab(Uphi_mixed);
-            t.tag("compute 6D projections");
-
-
-            // reference for the local part: <ab|U_local|ij>
-
-            // Fill ref: 3D analytic formulas for each piece.
-            //
-            // correlation factor f12 = 1/(2 gamma) (1 - exp(-gamma r12))
-            // local part (see fg_ functor): U_local = (1-exp(-gamma r12))/r12 + (gamma/2) exp(-gamma r12)
-            // MADNESS operator conventions (see operator.h):
-            //   OT_FG12(gamma) kernel = (1 - exp(-gamma r))/(2 gamma * r)
-            //   OT_SLATER(gamma) kernel = exp(-gamma r)
-            //   OT_BSH(gamma) kernel = exp(-gamma r)/(4 pi r)
-            // therefore:
-            //   <ab | U_local | ij> = 2 gamma * inner(b*j, fg(a*i)) + (gamma/2) * inner(b*j, slater(a*i))
-            // auto fg = SeparatedConvolution<double, 3>(
-                // world, OperatorInfo(_gamma, dcut, FunctionDefaults<3>::get_thresh(), OT_FG12));
-            auto fg=std::shared_ptr<SeparatedConvolution<double,3>>(FGOperatorPtr(world, 1.0, 1.e-6, FunctionDefaults<3>::get_thresh()));
-            auto slater = SeparatedConvolution<double, 3>(
-                world, OperatorInfo(_gamma, dcut, FunctionDefaults<3>::get_thresh(), OT_SLATER));
-            auto bsh = SeparatedConvolution<double, 3>(
-                world, OperatorInfo(_gamma, dcut, FunctionDefaults<3>::get_thresh(), OT_BSH));
-
-            // set up local part as CCPairFunction
-            std::vector<CCPairFunction<double,6>> U_local;
-            U_local.push_back(CCPairFunction<double,6>(fg,phi_i,phi_j));
-
-//            auto& ref_local = dm.entries["local"].ref;
-//            for (int a = 0; a < (int)aobasis.size(); ++a) {
-//                real_function_3d ket = 2.0 * _gamma * fg(aobasis[a] * phi_i)
-//                                     + 0.5 * _gamma * slater(aobasis[a] * phi_i);
-//                for (int b = 0; b < (int)aobasis.size(); ++b)
-//                    ref_local(a, b) = inner(phi_j * aobasis[b], ket);
-//            }
-            t.tag("3D ref for local Ue");
-
-            // semi-local part: <ab|U_sl|ij> = -1/2 <ab|bsh|r12.nabla_12|ij>
-            //   r12.nabla_12 |ij> = +A - B - C + D  (see comments in old diagnose_Ue)
-            std::vector<real_function_3d> r(3);
-            for (int axis = 0; axis < 3; ++axis)
-                r[axis] = real_factory_3d(world).functor([&axis](const coord_3d& xyz) {
-                    return xyz[axis];
-                });
-
-            auto dphi_i = grad(phi_i);
-            auto dphi_j = grad(phi_j);
-            auto rphi_i = phi_i * r;
-            auto rphi_j = phi_j * r;
-            real_function_3d itilde = dot(world, r, grad(phi_i));
-            real_function_3d jtilde = dot(world, r, grad(phi_j));
-
-            auto& ref_sl = dm.entries["semilocal"].ref;
-            for (int a = 0; a < (int)aobasis.size(); ++a) {
-                auto term1 = bsh(aobasis[a] * itilde);   // bsh(a*~i)  -> A
-                auto term2 = bsh(aobasis[a] * rphi_i);   // bsh(a*r*i) -> B
-                auto term3 = bsh(aobasis[a] * dphi_i);   // bsh(a*Di)  -> C
-                auto term4 = bsh(aobasis[a] * phi_i);    // bsh(a*i)   -> D
-                for (int b = 0; b < (int)aobasis.size(); ++b) {
-                    double tmp = 0.0;
-                    tmp += inner(aobasis[b] * phi_j,  term1);  // +A
-                    tmp -= inner(aobasis[b] * dphi_j, term2);  // -B
-                    tmp -= inner(aobasis[b] * rphi_j, term3);  // -C
-                    tmp += inner(aobasis[b] * jtilde, term4);  // +D
-                    ref_sl(a, b) = -2.0 * constants::pi * tmp;
-                }
-            }
-            t.tag("3D ref for semilocal Ue");
-
-            // mixed commutator: same as semilocal with ∇φ → U1nuc*φ
-            if (do_mixed) {
-                auto Wphii = U1nuc * phi_i;
-                auto Wphij = U1nuc * phi_j;
-                real_function_3d itilde_nuc = dot(world, r, Wphii);
-                real_function_3d jtilde_nuc = dot(world, r, Wphij);
-                auto& ref_mx = dm.entries["mixed"].ref;
-                for (int a = 0; a < dm.nbasis(); ++a) {
-                    auto term1 = bsh(aobasis[a] * itilde_nuc);
-                    auto term2 = bsh(aobasis[a] * rphi_i);
-                    auto term3 = bsh(aobasis[a] * Wphii);
-                    auto term4 = bsh(aobasis[a] * phi_i);
-                    for (int b = 0; b < dm.nbasis(); ++b) {
-                        double tmp = 0.0;
-                        tmp += inner(aobasis[b] * phi_j,      term1);
-                        tmp -= inner(aobasis[b] * Wphij,      term2);
-                        tmp -= inner(aobasis[b] * rphi_j,     term3);
-                        tmp += inner(aobasis[b] * jtilde_nuc, term4);
-                        ref_mx(a, b) = -2.0 * constants::pi * tmp;
-                    }
-                }
-                t.tag("3D ref for mixed Ue");
-            }
-
-            dm.compute_errors();
-            dm.time = wall_time() - wall0;
-            return dm;
+            DiagnosticMatrix<> dm(world, aobasis);
+            return diagnose_Ue_impl(dm.build_simple_bra(),
+                                    Uphi_local, Uphi_semilocal, phi_i, phi_j, aobasis,
+                                    "local", "semilocal",
+                                    Uphi_mixed, U1nuc, "mixed");
         }
 
         /// compute <ab|(T-E)^{-1} Ue|ij> via 3D Gaussian quadrature of the Schwinger representation
@@ -388,7 +285,7 @@ namespace madness {
         /// @param[in]  U1nuc        nuclear U1 potentials (required when GUphi_mixed is provided)
         /// @return DiagnosticMatrix with entries "Glocal", "Gsemilocal" (and "Gmixed" if applicable).
         ///         ref=3D Schwinger quadrature, result=6D projection <ab|G Ue|ij>, error=||ref-result||.
-        DiagnosticMatrix diagnose_GUe(const real_function_6d& GUphi_local,
+        DiagnosticMatrix<> diagnose_GUe(const real_function_6d& GUphi_local,
                                     const real_function_6d& GUphi_semilocal,
                                     const real_function_3d& phi_i,
                                     const real_function_3d& phi_j,
@@ -397,108 +294,133 @@ namespace madness {
                                     const real_function_6d& GUphi_mixed = real_function_6d(),
                                     const std::vector<real_function_3d>& U1nuc = {}) const {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GUe: energy must be negative");
-            const bool do_mixed = GUphi_mixed.is_initialized() && !U1nuc.empty();
+            DiagnosticMatrix<> dm(world, aobasis);
+            return diagnose_Ue_impl(dm.build_Gab_bra(energy, lo),
+                                    GUphi_local, GUphi_semilocal, phi_i, phi_j, aobasis,
+                                    "Glocal", "Gsemilocal",
+                                    GUphi_mixed, U1nuc, "Gmixed");
+        }
+
+    private:
+        /// Unified core for diagnose_Ue and diagnose_GUe.
+        ///
+        /// @param bra        Observer bra: simple (build_simple_bra) or Schwinger (build_Gab_bra).
+        ///                   Controls the 3D ref computation only.
+        ///                   bra[k].get_a()[a] = particle-1 function for basis index a (weight absorbed)
+        ///                   bra[k].get_b()[b] = particle-2 function for basis index b
+        /// @param Uphi_local      B·U_local|ij>    (6D MRA, B already applied)
+        /// @param Uphi_semilocal  B·U_semilocal|ij> (6D MRA, B already applied)
+        /// @param name_local / name_semilocal / name_mixed  entry keys in the returned DiagnosticMatrix
+        DiagnosticMatrix<> diagnose_Ue_impl(
+                const std::vector<CCPairFunction<double,6>>& bra,
+                const real_function_6d& Uphi_local,
+                const real_function_6d& Uphi_semilocal,
+                const real_function_3d& phi_i, const real_function_3d& phi_j,
+                const std::vector<real_function_3d>& aobasis,
+                const std::string& name_local, const std::string& name_semilocal,
+                const real_function_6d& Uphi_mixed = real_function_6d(),
+                const std::vector<real_function_3d>& U1nuc = {},
+                const std::string& name_mixed = "") const {
+            const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
             const double thresh = FunctionDefaults<3>::get_thresh();
-            const int nbasis = aobasis.size();
-            const double wall0 = wall_time();
+            const double wall0  = wall_time();
+            timer t(world);
 
-            DiagnosticMatrix dm(world, aobasis);
-            dm.init("Glocal");
-            dm.init("Gsemilocal");
-            if (do_mixed) dm.init("Gmixed");
+            DiagnosticMatrix<> dm(world, aobasis);
+            dm.init(name_local);
+            dm.init(name_semilocal);
+            if (do_mixed) dm.init(name_mixed);
 
-            // Fill result: project 6D functions G Ue |ij> onto <ab|
-            dm.entries["Glocal"].result     = dm.project_ab(GUphi_local);
-            dm.entries["Gsemilocal"].result = dm.project_ab(GUphi_semilocal);
-            if (do_mixed) dm.entries["Gmixed"].result = dm.project_ab(GUphi_mixed);
+            // Result: project B-applied 6D kets with simple bra <ab|
+            dm.entries[name_local].result     = dm.project_ab(Uphi_local);
+            dm.entries[name_semilocal].result = dm.project_ab(Uphi_semilocal);
+            if (do_mixed) dm.entries[name_mixed].result = dm.project_ab(Uphi_mixed);
+            t.tag("compute 6D projections");
 
-            // Fill ref: 3D Schwinger quadrature  <ab|G Ue|ij> ≈ Σ_n w_n <ã_n b̃_n|Ue|ij>
-            const double mu = sqrt(-2.0 * energy);
-            const double hi = FunctionDefaults<3>::get_cell_width().normf();
-            auto fit   = GFit<double,3>::BSHFit(mu, lo, hi, thresh);
-            auto c3d   = fit.coeffs();
-            auto alpha = fit.exponents();
-            const int nfit = c3d.dim(0);
-
-            std::vector<real_function_3d> rvec(3);
-            for (int ax = 0; ax < 3; ++ax)
-                rvec[ax] = real_factory_3d(world).functor(
-                    [ax](const coord_3d& xyz){ return xyz[ax]; });
-
-            auto dphi_i = grad(phi_i);
-            auto dphi_j = grad(phi_j);
-            auto rphi_i = phi_i * rvec;
-            auto rphi_j = phi_j * rvec;
-            real_function_3d itilde = dot(world, rvec, grad(phi_i));
-            real_function_3d jtilde = dot(world, rvec, grad(phi_j));
-
-            std::vector<real_function_3d> Wphii, Wphij;
-            real_function_3d itilde_nuc, jtilde_nuc;
-            if (do_mixed) {
-                Wphii = U1nuc * phi_i;
-                Wphij = U1nuc * phi_j;
-                itilde_nuc = dot(world, rvec, Wphii);
-                jtilde_nuc = dot(world, rvec, Wphij);
-            }
-
+            // Operators for ref computation
+            // OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER
             auto fg_op     = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_FG12));
             auto slater_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_SLATER));
             auto bsh_op    = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
 
-            auto& ref_local = dm.entries["Glocal"].ref;
-            auto& ref_sl    = dm.entries["Gsemilocal"].ref;
-
-            for (int n = 0; n < nfit; ++n) {
-                const double an  = alpha[n];
-                const double w6d = c3d[n] * std::pow(an / constants::pi, 1.5);
-
-                auto gauss = SeparatedConvolution<double,3>(world, OperatorInfo(an, lo, thresh, OT_GAUSS));
-                std::vector<real_function_3d> conv(nbasis);
-                for (int a = 0; a < nbasis; ++a)
-                    conv[a] = gauss(aobasis[a]);
-
-                // Local: <ã b̃|U_local|ij> = inner(b̃*j, 2γ*fg(ã*i) + γ/2*slater(ã*i))
-                for (int a = 0; a < nbasis; ++a) {
-                    real_function_3d ket = 2.0 * _gamma * fg_op(conv[a] * phi_i)
-                                         + 0.5 * _gamma * slater_op(conv[a] * phi_i);
-                    for (int b = 0; b < nbasis; ++b)
-                        ref_local(a, b) += w6d * inner(phi_j * conv[b], ket);
-                }
-
-                // Semi-local: <ã b̃|U_sl|ij> = -2π × (+A -B -C +D)
-                for (int a = 0; a < nbasis; ++a) {
-                    auto term1 = bsh_op(conv[a] * itilde);
-                    auto term2 = bsh_op(conv[a] * rphi_i);
-                    auto term3 = bsh_op(conv[a] * dphi_i);
-                    auto term4 = bsh_op(conv[a] * phi_i);
-                    for (int b = 0; b < nbasis; ++b) {
-                        double tmp = 0.0;
-                        tmp += inner(conv[b] * phi_j,  term1);
-                        tmp -= inner(conv[b] * dphi_j, term2);
-                        tmp -= inner(conv[b] * rphi_j, term3);
-                        tmp += inner(conv[b] * jtilde, term4);
-                        ref_sl(a, b) += w6d * (-2.0 * constants::pi * tmp);
+            // Local ref: sum_k Σ_ab inner(p2[b]·φ_j, 2γ·fg(p1[a]·φ_i) + γ/2·slater(p1[a]·φ_i))
+            {
+                auto& ref = dm.entries[name_local].ref;
+                for (const auto& bk : bra) {
+                    const auto& p1 = bk.get_a();
+                    const auto& p2 = bk.get_b();
+                    for (int a = 0; a < dm.nbasis(); ++a) {
+                        real_function_3d ket_a = 2.0*_gamma*fg_op(p1[a]*phi_i)
+                                               + 0.5*_gamma*slater_op(p1[a]*phi_i);
+                        for (int b = 0; b < dm.nbasis(); ++b)
+                            ref(a,b) += inner(phi_j * p2[b], ket_a);
                     }
                 }
+            }
+            t.tag("3D ref for local");
 
-                // Mixed commutator
-                if (do_mixed) {
-                    auto& ref_mx = dm.entries["Gmixed"].ref;
-                    for (int a = 0; a < nbasis; ++a) {
-                        auto term1 = bsh_op(conv[a] * itilde_nuc);
-                        auto term2 = bsh_op(conv[a] * rphi_i);
-                        auto term3 = bsh_op(conv[a] * Wphii);
-                        auto term4 = bsh_op(conv[a] * phi_i);
-                        for (int b = 0; b < nbasis; ++b) {
+            // Orbital derivative functions for semilocal ref: r12·∇12|ij> = +A -B -C +D
+            std::vector<real_function_3d> r(3);
+            for (int ax = 0; ax < 3; ++ax)
+                r[ax] = real_factory_3d(world).functor(
+                    [ax](const coord_3d& xyz){ return xyz[ax]; });
+            auto dphi_i = grad(phi_i);
+            auto dphi_j = grad(phi_j);
+            auto rphi_i = phi_i * r;
+            auto rphi_j = phi_j * r;
+            real_function_3d itilde = dot(world, r, grad(phi_i));
+            real_function_3d jtilde = dot(world, r, grad(phi_j));
+
+            // Semilocal ref: sum_k (-2π)·Σ_ab (+A -B -C +D)
+            {
+                auto& ref = dm.entries[name_semilocal].ref;
+                for (const auto& bk : bra) {
+                    const auto& p1 = bk.get_a();
+                    const auto& p2 = bk.get_b();
+                    for (int a = 0; a < dm.nbasis(); ++a) {
+                        auto term1 = bsh_op(p1[a] * itilde);    // A
+                        auto term2 = bsh_op(p1[a] * rphi_i);   // B
+                        auto term3 = bsh_op(p1[a] * dphi_i);   // C
+                        auto term4 = bsh_op(p1[a] * phi_i);    // D
+                        for (int b = 0; b < dm.nbasis(); ++b) {
                             double tmp = 0.0;
-                            tmp += inner(conv[b] * phi_j,      term1);
-                            tmp -= inner(conv[b] * Wphij,      term2);
-                            tmp -= inner(conv[b] * rphi_j,     term3);
-                            tmp += inner(conv[b] * jtilde_nuc, term4);
-                            ref_mx(a, b) += w6d * (-2.0 * constants::pi * tmp);
+                            tmp += inner(p2[b] * phi_j,  term1);   // +A
+                            tmp -= inner(p2[b] * dphi_j, term2);   // -B
+                            tmp -= inner(p2[b] * rphi_j, term3);   // -C
+                            tmp += inner(p2[b] * jtilde, term4);   // +D
+                            ref(a,b) += -2.0 * constants::pi * tmp;
                         }
                     }
                 }
+            }
+            t.tag("3D ref for semilocal");
+
+            // Mixed commutator: same as semilocal with ∇φ → U1nuc·φ
+            if (do_mixed) {
+                auto Wphii     = U1nuc * phi_i;
+                auto Wphij     = U1nuc * phi_j;
+                real_function_3d itilde_nuc = dot(world, r, Wphii);
+                real_function_3d jtilde_nuc = dot(world, r, Wphij);
+                auto& ref = dm.entries[name_mixed].ref;
+                for (const auto& bk : bra) {
+                    const auto& p1 = bk.get_a();
+                    const auto& p2 = bk.get_b();
+                    for (int a = 0; a < dm.nbasis(); ++a) {
+                        auto term1 = bsh_op(p1[a] * itilde_nuc);
+                        auto term2 = bsh_op(p1[a] * rphi_i);
+                        auto term3 = bsh_op(p1[a] * Wphii);
+                        auto term4 = bsh_op(p1[a] * phi_i);
+                        for (int b = 0; b < dm.nbasis(); ++b) {
+                            double tmp = 0.0;
+                            tmp += inner(p2[b] * phi_j,      term1);
+                            tmp -= inner(p2[b] * Wphij,      term2);
+                            tmp -= inner(p2[b] * rphi_j,     term3);
+                            tmp += inner(p2[b] * jtilde_nuc, term4);
+                            ref(a,b) += -2.0 * constants::pi * tmp;
+                        }
+                    }
+                }
+                t.tag("3D ref for mixed");
             }
 
             dm.compute_errors();
@@ -506,7 +428,6 @@ namespace madness {
             return dm;
         }
 
-    private:
         /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
 
         /// TODO: turn this into coeffs directly
