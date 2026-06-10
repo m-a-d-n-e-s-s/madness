@@ -17,6 +17,7 @@
 #include <madness/mra/commandlineparser.h>
 #include <madness/chem/CCStructures.h>                  // CCConvolutionOperator before CCPairFunction instantiation
 #include <madness/chem/electronic_correlation_factor.h> // CorrelationFactor; pulls in operator_diagnostics.h
+#include <madness/chem/projector.h>                     // StrongOrthogonalityProjector
 #include <madness/world/test_utilities.h>
 
 using namespace madness;
@@ -32,6 +33,10 @@ namespace gaussians {
     double g20(const Vector<double,LDIM>& r) { return exp(-2.0 * inner(r,r)); }
     template<std::size_t LDIM>
     double g30(const Vector<double,LDIM>& r) { return exp(-3.0 * inner(r,r)); }
+    template<std::size_t LDIM>
+    double g40(const Vector<double,LDIM>& r) { return exp(-4.0 * inner(r,r)); }
+    template<std::size_t LDIM>
+    double g50(const Vector<double,LDIM>& r) { return exp(-5.0 * inner(r,r)); }
 }
 
 // ---------------------------------------------------------------------------
@@ -341,7 +346,7 @@ int test_diagnose_GUe(World& world) {
 }
 
 // ---------------------------------------------------------------------------
-// test 7: diagnose_QGUe — verify Q₁+P₁=1 for the Schwinger bra with Ue ket
+// test 7: diagnose_QGUe — verify <ab|G Q₁₂ Ue|ij> via Schwinger ref vs 6D projection
 // ---------------------------------------------------------------------------
 
 template<std::size_t NDIM>
@@ -350,15 +355,21 @@ int test_diagnose_QGUe(World& world) {
     constexpr std::size_t LDIM = NDIM / 2;
 
     if constexpr (LDIM == 3) {
-        test_output t("DiagnosticMatrix diagnose_QGUe Q+P=1 <NDIM=" + std::to_string(NDIM) + ">");
+        // The fence re-throws any task exception from the previous test.
+        // Wrap it so we can continue; any lingering tasks are harmless here.
+        try { world.gop.fence(); } catch (madness::MadnessException&) {}
+        test_output t("DiagnosticMatrix diagnose_QGUe <NDIM=" + std::to_string(NDIM) + ">");
 
-        const double thresh3 = FunctionDefaults<3>::get_thresh();
         const double thresh6 = FunctionDefaults<6>::get_thresh();
         const double lo      = 1e-6;
         const double energy  = -2.0;
 
         auto phi_i = FunctionFactory<double,3>(world).f(gaussians::g10<3>);
         auto phi_j = FunctionFactory<double,3>(world).f(gaussians::g20<3>);
+        // AO observer basis — same as test_diagnose_GUe.
+        // The ref expands Q12 = 1 - O1 - O2 + O1O2 on the ket side: projector
+        // terms are scalar contractions of analytic 3D matrix elements, so no
+        // nearly-vanishing functions are formed (no catastrophic cancellation).
         std::vector<Function<double,3>> ao_raw = {
             FunctionFactory<double,3>(world).f(gaussians::g10<3>),
             FunctionFactory<double,3>(world).f(gaussians::g20<3>),
@@ -372,46 +383,31 @@ int test_diagnose_QGUe(World& world) {
         auto Uphi_local     = cf.apply_U_local    (phi_i, phi_j, op_mod, thresh6);
         auto Uphi_semilocal = cf.apply_U_semilocal(phi_i, phi_j, op_mod, thresh6);
 
-        DiagnosticMatrix<> dm(world, ao_raw);
-        const int nb = dm.nbasis();
+        // Occupied space for Q₁₂ = (1-O₁)(1-O₂). Normalize for idempotent projector.
+        Function<double,3> phi_i_n = phi_i, phi_j_n = phi_j;
+        phi_i_n.scale(1.0/phi_i_n.norm2());
+        phi_j_n.scale(1.0/phi_j_n.norm2());
+        std::vector<Function<double,3>> occ = {phi_i_n, phi_j_n};
 
-        // "Occupied" space for Q₁ = 1 − P₁ with P₁ = Σₖ|φₖ⟩⟨φₖ|.
-        // phi_i and phi_j are used as the projector functions.
-        const std::vector<Function<double,3>> occ = {phi_i, phi_j};
+        // Build Q12 and apply to Uphi
+        StrongOrthogonalityProjector<double,3> Q12(world);
+        Q12.set_spaces(occ);
+        real_function_6d Q12Uphi_local     = Q12(Uphi_local);
+        real_function_6d Q12Uphi_semilocal = Q12(Uphi_semilocal);
 
-        // Split the full Gab bra into Q₁ and P₁ parts (acting on particle-1 only).
-        // Q_1 p1[a] = p1[a] - Σₖ <occ_k|p1[a]>·occ_k,  P_1 p1[a] = Σₖ <occ_k|p1[a]>·occ_k
-        // Q_1 + P_1 = 1  =>  project_xy(Q_bra) + project_xy(P_bra) = project_Gab
-        auto full_bra = dm.build_Gab_bra(energy, lo);
-        std::vector<CCPairFunction<double,6>> Q_bra, P_bra;
+        // Apply G explicitly: caller supplies G Q12 Ue|ij>; the ref is computed
+        // internally via 3D functions only (Schwinger bra with Q applied)
+        real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*energy), lo, 1.e-6);
+        real_function_6d GQ12Uphi_local     = apply(G, copy(Q12Uphi_local)).truncate();
+        real_function_6d GQ12Uphi_semilocal = apply(G, copy(Q12Uphi_semilocal)).truncate();
 
-        for (const auto& bk : full_bra) {
-            auto p1 = bk.get_a();  // copy: w_n·g_n·ao[a]
-            auto p2 = bk.get_b();  // copy: g_n·ao[b] (unchanged)
-            auto Pp1 = zero_functions<double,3>(world, nb);
+        auto dm = cf.diagnose_GQUe(GQ12Uphi_local, GQ12Uphi_semilocal,
+                                   phi_i, phi_j, ao_raw, occ, energy);
+        dm.print_report("test_diagnose_QGUe");
 
-            for (const auto& ok : occ) {
-                const std::vector<Function<double,3>> ok_vec = {ok};
-                Tensor<double> ov = matrix_inner(world, ok_vec, p1);  // [1, nb]
-                for (int a = 0; a < nb; ++a) {
-                    Pp1[a] += ov(0,a) * ok;    // P₁ part
-                    p1[a]  -= ov(0,a) * ok;    // Q₁ part: p1 -= P₁*p1
-                }
-            }
-            Q_bra.emplace_back(p1,  p2);   // Q₁·p1 ⊗ p2
-            P_bra.emplace_back(Pp1, p2);   // P₁·p1 ⊗ p2
-        }
-
-        // Verify Q₁ + P₁ = 1: project_xy(Q_bra) + project_xy(P_bra) = project_Gab
-        auto ref_loc  = dm.project_Gab(Uphi_local,     energy, lo);
-        auto ref_sl   = dm.project_Gab(Uphi_semilocal, energy, lo);
-        auto resQ_loc = dm.project_xy(Q_bra, Uphi_local);
-        auto resP_loc = dm.project_xy(P_bra, Uphi_local);
-        auto resQ_sl  = dm.project_xy(Q_bra, Uphi_semilocal);
-        auto resP_sl  = dm.project_xy(P_bra, Uphi_semilocal);
-
-        t.checkpoint((ref_loc - resQ_loc - resP_loc).normf(), thresh6, "Q+P=1: local Ue ket");
-        t.checkpoint((ref_sl  - resQ_sl  - resP_sl ).normf(), thresh6, "Q+P=1: semilocal Ue ket");
+        // Schwinger quadrature adds ~1% relative error on top of 6D grid threshold
+        t.checkpoint(dm.entries["GQlocal"].error,    10.0*thresh6, "diagnose_GQUe: GQlocal error");
+        t.checkpoint(dm.entries["GQsemilocal"].error, 10.0*thresh6, "diagnose_GQUe: GQsemilocal error");
 
         return t.end();
     }

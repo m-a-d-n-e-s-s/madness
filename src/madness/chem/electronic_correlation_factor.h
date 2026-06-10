@@ -301,6 +301,100 @@ namespace madness {
                                     GUphi_mixed, U1nuc, "Gmixed");
         }
 
+        /// Diagnose <ab|G Q₁₂ Ue|ij> where Q₁₂ = (1-O₁)(1-O₂).
+        ///
+        /// Caller supplies G·Q₁₂ Ue|ij> (the 6D result, e.g. reused from the
+        /// production pair update — neither G nor Q is applied internally).
+        /// The reference is computed via 3D functions only: G is moved to the bra
+        /// via the Schwinger/BSH Gaussian fit (ã_n = w_n g_n*a, b̃_n = g_n*b), and
+        /// Q₁₂ = 1 − O₁ − O₂ + O₁O₂ is expanded on the ket side:
+        ///   <ã b̃|Q₁₂ Ue|ij> = <ã b̃|Ue|ij> − Σ_k <ã|k><k b̃|Ue|ij>
+        ///                     − Σ_l <b̃|l><ã l|Ue|ij> + Σ_kl <ã|k><b̃|l><k l|Ue|ij>
+        /// with O = Σ_k |k><k| (plain sum, matching StrongOrthogonalityProjector).
+        /// All matrix elements are evaluated analytically via 3D convolutions; the
+        /// projector terms enter as scalar contractions, so — unlike applying Q to
+        /// the bra functions — no nearly-vanishing functions are ever formed and
+        /// there is no catastrophic cancellation.
+        ///
+        /// @param GQ12Uphi_local     G Q₁₂ Ue_local |ij>    (G, Q applied by the caller)
+        /// @param GQ12Uphi_semilocal G Q₁₂ Ue_semilocal|ij> (idem)
+        /// @param occ                occupied orbitals defining O = Σₖ|k⟩⟨k|
+        /// @param GQ12Uphi_mixed     G Q₁₂ Ue_mixed|ij> (optional; pass default-constructed to skip)
+        /// @param U1nuc              nuclear U1 potentials (required when GQ12Uphi_mixed is provided)
+        /// @return DiagnosticMatrix with entries "GQlocal", "GQsemilocal" (and "GQmixed" if applicable).
+        ///         ref=3D Schwinger quadrature with Q12 expanded on the ket,
+        ///         result=6D projection <ab|G Q₁₂ Ue|ij>.
+        DiagnosticMatrix<> diagnose_GQUe(
+                const real_function_6d& GQ12Uphi_local,
+                const real_function_6d& GQ12Uphi_semilocal,
+                const real_function_3d& phi_i,
+                const real_function_3d& phi_j,
+                const std::vector<real_function_3d>& aobasis,
+                const std::vector<real_function_3d>& occ,
+                const double energy,
+                const real_function_6d& GQ12Uphi_mixed = real_function_6d(),
+                const std::vector<real_function_3d>& U1nuc = {}) const {
+            MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GQUe: energy must be negative");
+            MADNESS_CHECK_THROW(!occ.empty(), "diagnose_GQUe: occ space must not be empty");
+            const bool do_mixed = GQ12Uphi_mixed.is_initialized() && !U1nuc.empty();
+            const double wall0 = wall_time();
+            timer t(world);
+
+            DiagnosticMatrix<> dm(world, aobasis);
+            dm.init("GQlocal");
+            dm.init("GQsemilocal");
+            if (do_mixed) dm.init("GQmixed");
+
+            // Result: project simple <ab| onto the caller-supplied G Q12 Ue|ij>
+            dm.entries["GQlocal"].result     = dm.project_ab(GQ12Uphi_local);
+            dm.entries["GQsemilocal"].result = dm.project_ab(GQ12Uphi_semilocal);
+            if (do_mixed) dm.entries["GQmixed"].result = dm.project_ab(GQ12Uphi_mixed);
+            t.tag("compute 6D projections");
+
+            // Ref: Schwinger bra slots for G; Q12 expanded on the ket per slot.
+            // Element matrices are computed over the concatenated lists
+            // p1 = {ã_a} ∪ {occ_k}, p2 = {b̃_b} ∪ {occ_l}, then the four blocks
+            //   A = <ã b̃|X|ij>, B = <k b̃|X|ij>, C = <ã l|X|ij>, D = <k l|X|ij>
+            // are combined as  A − S1·B − C·S2ᵀ + S1·D·S2ᵀ
+            // with S1(a,k) = <ã_a|k> (w_n absorbed in ã) and S2(b,l) = <b̃_b|l>.
+            auto bra = dm.build_Gab_bra(energy, lo);
+            const long nb   = dm.nbasis();
+            const long nocc = static_cast<long>(occ.size());
+            const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
+
+            std::vector<std::string> names = {"GQlocal", "GQsemilocal"};
+            if (do_mixed) names.push_back("GQmixed");
+
+            for (const auto& bk : bra) {
+                std::vector<real_function_3d> p1 = bk.get_a();   // weighted ã_a
+                p1.insert(p1.end(), occ.begin(), occ.end());
+                std::vector<real_function_3d> p2 = bk.get_b();   // b̃_b
+                p2.insert(p2.end(), occ.begin(), occ.end());
+
+                Tensor<double> S1  = matrix_inner(world, bk.get_a(), occ);  // (nb,nocc)
+                Tensor<double> S2t = transpose(matrix_inner(world, bk.get_b(), occ));  // (nocc,nb)
+
+                for (const auto& name : names) {
+                    Tensor<double> M;
+                    if      (name == "GQlocal")     M = ue_local_elements(p1, p2, phi_i, phi_j);
+                    else if (name == "GQsemilocal") M = ue_semilocal_elements(p1, p2, phi_i, phi_j);
+                    else                            M = ue_mixed_elements(p1, p2, phi_i, phi_j, U1nuc);
+
+                    Tensor<double> A = copy(M(s_ab,  s_ab));
+                    Tensor<double> B = copy(M(s_occ, s_ab));
+                    Tensor<double> C = copy(M(s_ab,  s_occ));
+                    Tensor<double> D = copy(M(s_occ, s_occ));
+                    dm.entries[name].ref += A - inner(S1, B) - inner(C, S2t)
+                                          + inner(S1, inner(D, S2t));
+                }
+            }
+            t.tag("3D ref with Q12 ket expansion");
+
+            dm.compute_errors();
+            dm.time = wall_time() - wall0;
+            return dm;
+        }
+
     private:
         /// Unified core for diagnose_Ue and diagnose_GUe.
         ///
@@ -322,7 +416,6 @@ namespace madness {
                 const std::vector<real_function_3d>& U1nuc = {},
                 const std::string& name_mixed = "") const {
             const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
-            const double thresh = FunctionDefaults<3>::get_thresh();
             const double wall0  = wall_time();
             timer t(world);
 
@@ -337,29 +430,56 @@ namespace madness {
             if (do_mixed) dm.entries[name_mixed].result = dm.project_ab(Uphi_mixed);
             t.tag("compute 6D projections");
 
-            // Operators for ref computation
-            // OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER
-            auto fg_op     = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_FG12));
-            auto slater_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_SLATER));
-            auto bsh_op    = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
-
-            // Local ref: sum_k Σ_ab inner(p2[b]·φ_j, 2γ·fg(p1[a]·φ_i) + γ/2·slater(p1[a]·φ_i))
-            {
-                auto& ref = dm.entries[name_local].ref;
-                for (const auto& bk : bra) {
-                    const auto& p1 = bk.get_a();
-                    const auto& p2 = bk.get_b();
-                    for (int a = 0; a < dm.nbasis(); ++a) {
-                        real_function_3d ket_a = 2.0*_gamma*fg_op(p1[a]*phi_i)
-                                               + 0.5*_gamma*slater_op(p1[a]*phi_i);
-                        for (int b = 0; b < dm.nbasis(); ++b)
-                            ref(a,b) += inner(phi_j * p2[b], ket_a);
-                    }
-                }
-            }
+            for (const auto& bk : bra)
+                dm.entries[name_local].ref += ue_local_elements(bk.get_a(), bk.get_b(), phi_i, phi_j);
             t.tag("3D ref for local");
 
-            // Orbital derivative functions for semilocal ref: r12·∇12|ij> = +A -B -C +D
+            for (const auto& bk : bra)
+                dm.entries[name_semilocal].ref += ue_semilocal_elements(bk.get_a(), bk.get_b(), phi_i, phi_j);
+            t.tag("3D ref for semilocal");
+
+            if (do_mixed) {
+                for (const auto& bk : bra)
+                    dm.entries[name_mixed].ref += ue_mixed_elements(bk.get_a(), bk.get_b(), phi_i, phi_j, U1nuc);
+                t.tag("3D ref for mixed");
+            }
+
+            dm.compute_errors();
+            dm.time = wall_time() - wall0;
+            return dm;
+        }
+
+        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_local | ij>
+
+        /// OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER
+        Tensor<double> ue_local_elements(
+                const std::vector<real_function_3d>& p1,
+                const std::vector<real_function_3d>& p2,
+                const real_function_3d& phi_i, const real_function_3d& phi_j) const {
+            const double thresh = FunctionDefaults<3>::get_thresh();
+            auto fg_op     = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_FG12));
+            auto slater_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_SLATER));
+
+            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
+            for (size_t x = 0; x < p1.size(); ++x) {
+                real_function_3d ket_x = 2.0*_gamma*fg_op(p1[x]*phi_i)
+                                       + 0.5*_gamma*slater_op(p1[x]*phi_i);
+                for (size_t y = 0; y < p2.size(); ++y)
+                    M(x,y) = inner(phi_j * p2[y], ket_x);
+            }
+            return M;
+        }
+
+        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_semilocal | ij>
+
+        /// r12·∇12|ij> decomposes into the four convolution terms +A -B -C +D
+        Tensor<double> ue_semilocal_elements(
+                const std::vector<real_function_3d>& p1,
+                const std::vector<real_function_3d>& p2,
+                const real_function_3d& phi_i, const real_function_3d& phi_j) const {
+            const double thresh = FunctionDefaults<3>::get_thresh();
+            auto bsh_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
+
             std::vector<real_function_3d> r(3);
             for (int ax = 0; ax < 3; ++ax)
                 r[ax] = real_factory_3d(world).functor(
@@ -368,64 +488,65 @@ namespace madness {
             auto dphi_j = grad(phi_j);
             auto rphi_i = phi_i * r;
             auto rphi_j = phi_j * r;
-            real_function_3d itilde = dot(world, r, grad(phi_i));
-            real_function_3d jtilde = dot(world, r, grad(phi_j));
+            real_function_3d itilde = dot(world, r, dphi_i);
+            real_function_3d jtilde = dot(world, r, dphi_j);
 
-            // Semilocal ref: sum_k (-2π)·Σ_ab (+A -B -C +D)
-            {
-                auto& ref = dm.entries[name_semilocal].ref;
-                for (const auto& bk : bra) {
-                    const auto& p1 = bk.get_a();
-                    const auto& p2 = bk.get_b();
-                    for (int a = 0; a < dm.nbasis(); ++a) {
-                        auto term1 = bsh_op(p1[a] * itilde);    // A
-                        auto term2 = bsh_op(p1[a] * rphi_i);   // B
-                        auto term3 = bsh_op(p1[a] * dphi_i);   // C
-                        auto term4 = bsh_op(p1[a] * phi_i);    // D
-                        for (int b = 0; b < dm.nbasis(); ++b) {
-                            double tmp = 0.0;
-                            tmp += inner(p2[b] * phi_j,  term1);   // +A
-                            tmp -= inner(p2[b] * dphi_j, term2);   // -B
-                            tmp -= inner(p2[b] * rphi_j, term3);   // -C
-                            tmp += inner(p2[b] * jtilde, term4);   // +D
-                            ref(a,b) += -2.0 * constants::pi * tmp;
-                        }
-                    }
+            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
+            for (size_t x = 0; x < p1.size(); ++x) {
+                auto term1 = bsh_op(p1[x] * itilde);   // A
+                auto term2 = bsh_op(p1[x] * rphi_i);   // B
+                auto term3 = bsh_op(p1[x] * dphi_i);   // C
+                auto term4 = bsh_op(p1[x] * phi_i);    // D
+                for (size_t y = 0; y < p2.size(); ++y) {
+                    double tmp = 0.0;
+                    tmp += inner(p2[y] * phi_j,  term1);   // +A
+                    tmp -= inner(p2[y] * dphi_j, term2);   // -B
+                    tmp -= inner(p2[y] * rphi_j, term3);   // -C
+                    tmp += inner(p2[y] * jtilde, term4);   // +D
+                    M(x,y) = -2.0 * constants::pi * tmp;
                 }
             }
-            t.tag("3D ref for semilocal");
+            return M;
+        }
 
-            // Mixed commutator: same as semilocal with ∇φ → U1nuc·φ
-            if (do_mixed) {
-                auto Wphii     = U1nuc * phi_i;
-                auto Wphij     = U1nuc * phi_j;
-                real_function_3d itilde_nuc = dot(world, r, Wphii);
-                real_function_3d jtilde_nuc = dot(world, r, Wphij);
-                auto& ref = dm.entries[name_mixed].ref;
-                for (const auto& bk : bra) {
-                    const auto& p1 = bk.get_a();
-                    const auto& p2 = bk.get_b();
-                    for (int a = 0; a < dm.nbasis(); ++a) {
-                        auto term1 = bsh_op(p1[a] * itilde_nuc);
-                        auto term2 = bsh_op(p1[a] * rphi_i);
-                        auto term3 = bsh_op(p1[a] * Wphii);
-                        auto term4 = bsh_op(p1[a] * phi_i);
-                        for (int b = 0; b < dm.nbasis(); ++b) {
-                            double tmp = 0.0;
-                            tmp += inner(p2[b] * phi_j,      term1);
-                            tmp -= inner(p2[b] * Wphij,      term2);
-                            tmp -= inner(p2[b] * rphi_j,     term3);
-                            tmp += inner(p2[b] * jtilde_nuc, term4);
-                            ref(a,b) += -2.0 * constants::pi * tmp;
-                        }
-                    }
+        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_mixed | ij>
+
+        /// mixed commutator: same structure as semilocal with ∇φ → U1nuc·φ
+        Tensor<double> ue_mixed_elements(
+                const std::vector<real_function_3d>& p1,
+                const std::vector<real_function_3d>& p2,
+                const real_function_3d& phi_i, const real_function_3d& phi_j,
+                const std::vector<real_function_3d>& U1nuc) const {
+            const double thresh = FunctionDefaults<3>::get_thresh();
+            auto bsh_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
+
+            std::vector<real_function_3d> r(3);
+            for (int ax = 0; ax < 3; ++ax)
+                r[ax] = real_factory_3d(world).functor(
+                    [ax](const coord_3d& xyz){ return xyz[ax]; });
+            auto Wphii  = U1nuc * phi_i;
+            auto Wphij  = U1nuc * phi_j;
+            auto rphi_i = phi_i * r;
+            auto rphi_j = phi_j * r;
+            real_function_3d itilde_nuc = dot(world, r, Wphii);
+            real_function_3d jtilde_nuc = dot(world, r, Wphij);
+
+            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
+            for (size_t x = 0; x < p1.size(); ++x) {
+                auto term1 = bsh_op(p1[x] * itilde_nuc);
+                auto term2 = bsh_op(p1[x] * rphi_i);
+                auto term3 = bsh_op(p1[x] * Wphii);
+                auto term4 = bsh_op(p1[x] * phi_i);
+                for (size_t y = 0; y < p2.size(); ++y) {
+                    double tmp = 0.0;
+                    tmp += inner(p2[y] * phi_j,      term1);
+                    tmp -= inner(p2[y] * Wphij,      term2);
+                    tmp -= inner(p2[y] * rphi_j,     term3);
+                    tmp += inner(p2[y] * jtilde_nuc, term4);
+                    M(x,y) = -2.0 * constants::pi * tmp;
                 }
-                t.tag("3D ref for mixed");
             }
-
-            dm.compute_errors();
-            dm.time = wall_time() - wall0;
-            return dm;
+            return M;
         }
 
         /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
