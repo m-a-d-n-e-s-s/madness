@@ -66,8 +66,10 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(const SeparatedConvolution<T,KDIM>& op, const std::vector< Function<R,NDIM> > f);
 
+    // NOTE the return type: applying the NDIM-dim operator collapses the vector
+    // to a single (pure) CCPairFunction; matches the definition in ccpairfunction.h.
     template<typename T, std::size_t NDIM>
-    std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction<T,NDIM>>& argument);
+    CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction<T,NDIM>>& argument);
 
     template<typename T, std::size_t NDIM>
     std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& op, const std::vector<CCPairFunction<T,NDIM>>& argument);

@@ -195,63 +195,10 @@ namespace madness {
             real_function_6d result=local+semilocal-mixed;
             result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
 
-            // do some diagnostics
-            if (ao.size()>0) {
-                std::cout << std::scientific << std::setprecision(8);
-                auto dm = diagnose_Ue(local,semilocal,phi_i,phi_j,ao,mixed,U1nuc);
-                print("diagnosis for Ue term:");
-                dm.print_report("Ue");
-
-                // GQUe diagnostics: Q12 from occ_bra/occ_ket, G from op_mod's mu
-                if (occ_ket.size()>0) {
-                    const std::vector<real_function_3d>& obra = occ_bra.empty() ? occ_ket : occ_bra;
-                    const double mu     = op_mod.mu();
-                    const double energy = -0.5 * mu * mu;
-
-                    StrongOrthogonalityProjector<double,3> Q12(world);
-                    Q12.set_spaces(obra, occ_ket, obra, occ_ket);
-                    real_convolution_6d G = BSHOperator<6>(world, mu, lo, 1.e-6);
-
-                    real_function_6d GQlocal     = apply(G, Q12(local)).truncate();
-                    real_function_6d GQsemilocal = apply(G, Q12(semilocal)).truncate();
-                    real_function_6d GQmixed     = apply(G, Q12(mixed)).truncate();
-
-                    auto dm2 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, ao, occ_ket,
-                                             energy, GQmixed, U1nuc, obra);
-                    print("diagnosis for GQUe term:");
-                    dm2.print_report("GQUe");
-
-                    // MP2 pair-energy diagnostics: raw pair-bra basis {i_bra, j_bra};
-                    // the (0,1) element is <i_bra j_bra|G Q12 Ue_X|ij>
-                    if (phi_i_bra.is_initialized() && phi_j_bra.is_initialized()) {
-                        std::vector<real_function_3d> pair_bra = {phi_i_bra, phi_j_bra};
-                        auto dm3 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, pair_bra, occ_ket,
-                                                 energy, GQmixed, U1nuc, obra,
-                                                 /*orthonormalize_basis=*/false);
-                        print("diagnosis for GQUe term in the raw pair-bra basis:");
-                        dm3.print_report("GQUe-pair");
-
-                        const double e_loc  = dm3.entries["GQlocal"].result(0,1);
-                        const double e_semi = dm3.entries["GQsemilocal"].result(0,1);
-                        const double e_mix  = dm3.entries["GQmixed"].result(0,1);
-                        const double r_loc  = dm3.entries["GQlocal"].ref(0,1);
-                        const double r_semi = dm3.entries["GQsemilocal"].ref(0,1);
-                        const double r_mix  = dm3.entries["GQmixed"].ref(0,1);
-                        print("MP2 energy contribution <i_bra j_bra|G Q12 Ue|ij> (Ue = local + semilocal - mixed):");
-                        constexpr std::size_t nbuf = 256;
-                        char buf[nbuf];
-                        auto print_line = [&buf](const char* name, double e6d, double r3d) {
-                            std::snprintf(buf, nbuf, "  %-10s 6d %15.8e   3d-ref %15.8e   diff %15.8e",
-                                          name, e6d, r3d, e6d - r3d);
-                            print(buf);
-                        };
-                        print_line("local",     e_loc,  r_loc);
-                        print_line("semilocal", e_semi, r_semi);
-                        print_line("mixed",     e_mix,  r_mix);
-                        print_line("total",     e_loc + e_semi - e_mix, r_loc + r_semi - r_mix);
-                    }
-                }
-            }
+            // do some diagnostics (defined in electronic_correlation_factor.cc)
+            if (ao.size()>0)
+                run_apply_U_diagnostics(local, semilocal, mixed, phi_i, phi_j, op_mod,
+                                        U1nuc, ao, occ_ket, occ_bra, phi_i_bra, phi_j_bra);
 
             result.print_size("Ue|ij>");
             return result;
@@ -372,26 +319,19 @@ namespace madness {
         ///
         /// Caller supplies G·Q₁₂ Ue|ij> (the 6D result, e.g. reused from the
         /// production pair update — neither G nor Q is applied internally).
-        /// The reference is computed via 3D functions only: G is moved to the bra
-        /// via the Schwinger/BSH Gaussian fit (ã_n = w_n g_n*a, b̃_n = g_n*b), and
-        /// Q₁₂ = 1 − O₁ − O₂ + O₁O₂ is expanded on the ket side:
-        ///   <ã b̃|Q₁₂ Ue|ij> = <ã b̃|Ue|ij> − Σ_k <ã|k_ket><k_bra b̃|Ue|ij>
-        ///                     − Σ_l <b̃|l_ket><ã l_bra|Ue|ij>
-        ///                     + Σ_kl <ã|k_ket><b̃|l_ket><k_bra l_bra|Ue|ij>
-        /// with O = Σ_k |k_ket><k_bra| (plain sum, matching the convention of
-        /// StrongOrthogonalityProjector::set_spaces(bra,ket,bra,ket); for nemo-style
-        /// calculations k_bra = R²·k_ket).  All matrix elements are evaluated
-        /// analytically via 3D convolutions; the projector terms enter as scalar
-        /// contractions, so — unlike applying Q to the bra functions — no
-        /// nearly-vanishing functions are ever formed and there is no catastrophic
-        /// cancellation.
+        /// The reference is computed via 3D functions only by
+        /// DiagnosticMatrix::ref_GQab: G is moved to the bra via the Schwinger/BSH
+        /// fit and Q₁₂ = 1 − O₁ − O₂ + O₁O₂, O = Σ_k |k_ket><k_bra|, is expanded
+        /// on the ket side as scalar contractions of the analytic Ue matrix
+        /// elements (no catastrophic cancellation) — see operator_diagnostics.md.
         ///
         /// @param GQ12Uphi_local     G Q₁₂ Ue_local |ij>    (G, Q applied by the caller)
         /// @param GQ12Uphi_semilocal G Q₁₂ Ue_semilocal|ij> (idem)
         /// @param occ_ket            occupied ket orbitals |k⟩ of O = Σₖ|k_ket⟩⟨k_bra|
+        /// @param occ_bra            occupied bra orbitals ⟨k| (= R²·k_ket for nemo;
+        ///                           pass occ_ket again when bra and ket coincide)
         /// @param GQ12Uphi_mixed     G Q₁₂ Ue_mixed|ij> (optional; pass default-constructed to skip)
         /// @param U1nuc              nuclear U1 potentials (required when GQ12Uphi_mixed is provided)
-        /// @param occ_bra            occupied bra orbitals ⟨k| (defaults to occ_ket if empty)
         /// @param orthonormalize_basis  Löwdin-orthonormalize aobasis (pass false to
         ///                              keep raw, e.g. when elements carry physical meaning)
         /// @return DiagnosticMatrix with entries "GQlocal", "GQsemilocal" (and "GQmixed" if applicable).
@@ -404,76 +344,27 @@ namespace madness {
                 const real_function_3d& phi_j,
                 const std::vector<real_function_3d>& aobasis,
                 const std::vector<real_function_3d>& occ_ket,
+                const std::vector<real_function_3d>& occ_bra,
                 const double energy,
                 const real_function_6d& GQ12Uphi_mixed = real_function_6d(),
                 const std::vector<real_function_3d>& U1nuc = {},
-                const std::vector<real_function_3d>& occ_bra_in = {},
-                const bool orthonormalize_basis = true) const {
-            MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GQUe: energy must be negative");
-            MADNESS_CHECK_THROW(!occ_ket.empty(), "diagnose_GQUe: occ space must not be empty");
-            const std::vector<real_function_3d>& occ_bra = occ_bra_in.empty() ? occ_ket : occ_bra_in;
-            MADNESS_CHECK_THROW(occ_bra.size() == occ_ket.size(),
-                                "diagnose_GQUe: occ_bra and occ_ket must have the same size");
-            const bool do_mixed = GQ12Uphi_mixed.is_initialized() && !U1nuc.empty();
-            const double wall0 = wall_time();
-            timer t(world);
-
-            DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
-            dm.init("GQlocal");
-            dm.init("GQsemilocal");
-            if (do_mixed) dm.init("GQmixed");
-
-            // Result: project simple <ab| onto the caller-supplied G Q12 Ue|ij>
-            dm.entries["GQlocal"].result     = dm.project_ab(GQ12Uphi_local);
-            dm.entries["GQsemilocal"].result = dm.project_ab(GQ12Uphi_semilocal);
-            if (do_mixed) dm.entries["GQmixed"].result = dm.project_ab(GQ12Uphi_mixed);
-            t.tag("compute 6D projections");
-
-            // Ref: Schwinger bra slots for G; Q12 expanded on the ket per slot.
-            // Element matrices are computed over the concatenated lists
-            // p1 = {ã_a} ∪ {occ_bra_k}, p2 = {b̃_b} ∪ {occ_bra_l}, then the four blocks
-            //   A = <ã b̃|X|ij>, B = <k_bra b̃|X|ij>, C = <ã l_bra|X|ij>, D = <k_bra l_bra|X|ij>
-            // are combined as  A − S1·B − C·S2ᵀ + S1·D·S2ᵀ
-            // with S1(a,k) = <ã_a|k_ket> (w_n absorbed in ã) and S2(b,l) = <b̃_b|l_ket>.
-            auto bra = dm.build_Gab_bra(energy, lo);
-            const long nb   = dm.nbasis();
-            const long nocc = static_cast<long>(occ_ket.size());
-            const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
-
-            std::vector<std::string> names = {"GQlocal", "GQsemilocal"};
-            if (do_mixed) names.push_back("GQmixed");
-
-            for (const auto& bk : bra) {
-                std::vector<real_function_3d> p1 = bk.get_a();   // weighted ã_a
-                p1.insert(p1.end(), occ_bra.begin(), occ_bra.end());
-                std::vector<real_function_3d> p2 = bk.get_b();   // b̃_b
-                p2.insert(p2.end(), occ_bra.begin(), occ_bra.end());
-
-                Tensor<double> S1  = matrix_inner(world, bk.get_a(), occ_ket);  // (nb,nocc)
-                Tensor<double> S2t = transpose(matrix_inner(world, bk.get_b(), occ_ket));  // (nocc,nb)
-
-                for (const auto& name : names) {
-                    Tensor<double> M;
-                    if      (name == "GQlocal")     M = ue_local_elements(p1, p2, phi_i, phi_j);
-                    else if (name == "GQsemilocal") M = ue_semilocal_elements(p1, p2, phi_i, phi_j);
-                    else                            M = ue_mixed_elements(p1, p2, phi_i, phi_j, U1nuc);
-
-                    Tensor<double> A = copy(M(s_ab,  s_ab));
-                    Tensor<double> B = copy(M(s_occ, s_ab));
-                    Tensor<double> C = copy(M(s_ab,  s_occ));
-                    Tensor<double> D = copy(M(s_occ, s_occ));
-                    dm.entries[name].ref += A - inner(S1, B) - inner(C, S2t)
-                                          + inner(S1, inner(D, S2t));
-                }
-            }
-            t.tag("3D ref with Q12 ket expansion");
-
-            dm.compute_errors();
-            dm.time = wall_time() - wall0;
-            return dm;
-        }
+                const bool orthonormalize_basis = true) const;
 
     private:
+        /// the diagnostics block of apply_U: Ue, GQUe, and the MP2 pair-energy
+        /// report in the raw pair-bra basis (defined in electronic_correlation_factor.cc)
+        void run_apply_U_diagnostics(
+                const real_function_6d& local,
+                const real_function_6d& semilocal,
+                const real_function_6d& mixed,
+                const real_function_3d& phi_i, const real_function_3d& phi_j,
+                const real_convolution_6d& op_mod,
+                const std::vector<real_function_3d>& U1nuc,
+                const std::vector<real_function_3d>& ao,
+                const std::vector<real_function_3d>& occ_ket,
+                const std::vector<real_function_3d>& occ_bra,
+                const real_function_3d& phi_i_bra,
+                const real_function_3d& phi_j_bra) const;
         /// Unified core for diagnose_Ue and diagnose_GUe.
         ///
         /// @param bra        Observer bra: simple (build_simple_bra) or Schwinger (build_Gab_bra).
@@ -492,140 +383,30 @@ namespace madness {
                 const std::string& name_local, const std::string& name_semilocal,
                 const real_function_6d& Uphi_mixed = real_function_6d(),
                 const std::vector<real_function_3d>& U1nuc = {},
-                const std::string& name_mixed = "") const {
-            const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
-            const double wall0  = wall_time();
-            timer t(world);
+                const std::string& name_mixed = "") const;
 
-            DiagnosticMatrix<> dm(world, aobasis);
-            dm.init(name_local);
-            dm.init(name_semilocal);
-            if (do_mixed) dm.init(name_mixed);
+        /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_local | ij>
 
-            // Result: project B-applied 6D kets with simple bra <ab|
-            dm.entries[name_local].result     = dm.project_ab(Uphi_local);
-            dm.entries[name_semilocal].result = dm.project_ab(Uphi_semilocal);
-            if (do_mixed) dm.entries[name_mixed].result = dm.project_ab(Uphi_mixed);
-            t.tag("compute 6D projections");
+        /// OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER.
+        /// The convolution operators are built once and captured in the closure.
+        DiagnosticMatrix<>::ElementProvider ue_local_provider(
+                const real_function_3d& phi_i, const real_function_3d& phi_j) const;
 
-            for (const auto& bk : bra)
-                dm.entries[name_local].ref += ue_local_elements(bk.get_a(), bk.get_b(), phi_i, phi_j);
-            t.tag("3D ref for local");
+        /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_semilocal | ij>
 
-            for (const auto& bk : bra)
-                dm.entries[name_semilocal].ref += ue_semilocal_elements(bk.get_a(), bk.get_b(), phi_i, phi_j);
-            t.tag("3D ref for semilocal");
+        /// r12·∇12|ij> decomposes into the four convolution terms +A -B -C +D.
+        /// The BSH operator and the orbital intermediates (r, ∇φ, rφ, ĩ, j̃) are
+        /// built once and captured in the closure.
+        DiagnosticMatrix<>::ElementProvider ue_semilocal_provider(
+                const real_function_3d& phi_i, const real_function_3d& phi_j) const;
 
-            if (do_mixed) {
-                for (const auto& bk : bra)
-                    dm.entries[name_mixed].ref += ue_mixed_elements(bk.get_a(), bk.get_b(), phi_i, phi_j, U1nuc);
-                t.tag("3D ref for mixed");
-            }
+        /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_mixed | ij>
 
-            dm.compute_errors();
-            dm.time = wall_time() - wall0;
-            return dm;
-        }
-
-        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_local | ij>
-
-        /// OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER
-        Tensor<double> ue_local_elements(
-                const std::vector<real_function_3d>& p1,
-                const std::vector<real_function_3d>& p2,
-                const real_function_3d& phi_i, const real_function_3d& phi_j) const {
-            const double thresh = FunctionDefaults<3>::get_thresh();
-            auto fg_op     = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_FG12));
-            auto slater_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_SLATER));
-
-            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
-            for (size_t x = 0; x < p1.size(); ++x) {
-                real_function_3d ket_x = 2.0*_gamma*fg_op(p1[x]*phi_i)
-                                       + 0.5*_gamma*slater_op(p1[x]*phi_i);
-                for (size_t y = 0; y < p2.size(); ++y)
-                    M(x,y) = inner(phi_j * p2[y], ket_x);
-            }
-            return M;
-        }
-
-        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_semilocal | ij>
-
-        /// r12·∇12|ij> decomposes into the four convolution terms +A -B -C +D
-        Tensor<double> ue_semilocal_elements(
-                const std::vector<real_function_3d>& p1,
-                const std::vector<real_function_3d>& p2,
-                const real_function_3d& phi_i, const real_function_3d& phi_j) const {
-            const double thresh = FunctionDefaults<3>::get_thresh();
-            auto bsh_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
-
-            std::vector<real_function_3d> r(3);
-            for (int ax = 0; ax < 3; ++ax)
-                r[ax] = real_factory_3d(world).functor(
-                    [ax](const coord_3d& xyz){ return xyz[ax]; });
-            auto dphi_i = grad(phi_i);
-            auto dphi_j = grad(phi_j);
-            auto rphi_i = phi_i * r;
-            auto rphi_j = phi_j * r;
-            real_function_3d itilde = dot(world, r, dphi_i);
-            real_function_3d jtilde = dot(world, r, dphi_j);
-
-            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
-            for (size_t x = 0; x < p1.size(); ++x) {
-                auto term1 = bsh_op(p1[x] * itilde);   // A
-                auto term2 = bsh_op(p1[x] * rphi_i);   // B
-                auto term3 = bsh_op(p1[x] * dphi_i);   // C
-                auto term4 = bsh_op(p1[x] * phi_i);    // D
-                for (size_t y = 0; y < p2.size(); ++y) {
-                    double tmp = 0.0;
-                    tmp += inner(p2[y] * phi_j,  term1);   // +A
-                    tmp -= inner(p2[y] * dphi_j, term2);   // -B
-                    tmp -= inner(p2[y] * rphi_j, term3);   // -C
-                    tmp += inner(p2[y] * jtilde, term4);   // +D
-                    M(x,y) = -2.0 * constants::pi * tmp;
-                }
-            }
-            return M;
-        }
-
-        /// analytic matrix elements M(x,y) = <p1[x](1) p2[y](2) | Ue_mixed | ij>
-
-        /// mixed commutator: same structure as semilocal with ∇φ → U1nuc·φ
-        Tensor<double> ue_mixed_elements(
-                const std::vector<real_function_3d>& p1,
-                const std::vector<real_function_3d>& p2,
+        /// mixed commutator: same structure as semilocal with ∇φ → U1nuc·φ.
+        /// Operator and intermediates are built once and captured in the closure.
+        DiagnosticMatrix<>::ElementProvider ue_mixed_provider(
                 const real_function_3d& phi_i, const real_function_3d& phi_j,
-                const std::vector<real_function_3d>& U1nuc) const {
-            const double thresh = FunctionDefaults<3>::get_thresh();
-            auto bsh_op = SeparatedConvolution<double,3>(world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
-
-            std::vector<real_function_3d> r(3);
-            for (int ax = 0; ax < 3; ++ax)
-                r[ax] = real_factory_3d(world).functor(
-                    [ax](const coord_3d& xyz){ return xyz[ax]; });
-            auto Wphii  = U1nuc * phi_i;
-            auto Wphij  = U1nuc * phi_j;
-            auto rphi_i = phi_i * r;
-            auto rphi_j = phi_j * r;
-            real_function_3d itilde_nuc = dot(world, r, Wphii);
-            real_function_3d jtilde_nuc = dot(world, r, Wphij);
-
-            Tensor<double> M(static_cast<long>(p1.size()), static_cast<long>(p2.size()));
-            for (size_t x = 0; x < p1.size(); ++x) {
-                auto term1 = bsh_op(p1[x] * itilde_nuc);
-                auto term2 = bsh_op(p1[x] * rphi_i);
-                auto term3 = bsh_op(p1[x] * Wphii);
-                auto term4 = bsh_op(p1[x] * phi_i);
-                for (size_t y = 0; y < p2.size(); ++y) {
-                    double tmp = 0.0;
-                    tmp += inner(p2[y] * phi_j,      term1);
-                    tmp -= inner(p2[y] * Wphij,      term2);
-                    tmp -= inner(p2[y] * rphi_j,     term3);
-                    tmp += inner(p2[y] * jtilde_nuc, term4);
-                    M(x,y) = -2.0 * constants::pi * tmp;
-                }
-            }
-            return M;
-        }
+                const std::vector<real_function_3d>& U1nuc) const;
 
         /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
 

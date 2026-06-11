@@ -943,9 +943,18 @@ std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& 
 
 template<typename T, std::size_t NDIM>
 CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const std::vector<CCPairFunction<T,NDIM>>& argument) {
-    CCPairFunction result;
-    for (const auto& a : argument) result+=G(a);
-    return result;
+    // apply G to each piece and collapse the results into a single pure function
+    Function<T,NDIM> sum;
+    for (const auto& a : argument) {
+        if (!a.is_assigned()) continue;
+        CCPairFunction<T,NDIM> Ga = madness::apply(G, a);   // pure result
+        if (sum.is_initialized()) sum += Ga.get_function();
+        else                      sum  = Ga.get_function();
+    }
+    MADNESS_CHECK_THROW(sum.is_initialized(),
+                        "apply(G, vector<CCPairFunction>): no assigned arguments");
+    sum.truncate();
+    return CCPairFunction<T,NDIM>(sum);
 }
 
 /// apply the operator on a CCPairfunction, both with the same dimension

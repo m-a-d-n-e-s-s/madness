@@ -90,6 +90,7 @@ set(MADCHEM_SOURCES
     diamagneticpotentialfactor.cc
     distpm.cc
     b_matrix.cc
+    electronic_correlation_factor.cc
     exchange_commutator.cc
     operator_diagnostics.cc
     exchangeoperator.cc

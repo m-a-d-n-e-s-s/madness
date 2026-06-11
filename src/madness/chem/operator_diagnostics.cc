@@ -193,6 +193,83 @@ Tensor<T> DiagnosticMatrix<T,NDIM>::project_Gab(
 }
 
 // ---------------------------------------------------------------------------
+//  ref_Gab / ref_GQab — 3D-only reference builders
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::ref_Gab(const ElementProvider& elements,
+                                            double energy, double lo) const
+{
+    Tensor<T> ref(nbasis(), nbasis());
+    for (const auto& bk : build_Gab_bra(energy, lo))
+        ref += elements(bk.get_a(), bk.get_b());
+    return ref;
+}
+
+template<typename T, std::size_t NDIM>
+Tensor<T> DiagnosticMatrix<T,NDIM>::ref_GQab(const ElementProvider& elements,
+        const std::vector<Function<T,LDIM>>& occ_ket,
+        const std::vector<Function<T,LDIM>>& occ_bra,
+        double energy, double lo) const
+{
+    MADNESS_CHECK_THROW(!occ_ket.empty() && occ_ket.size() == occ_bra.size(),
+                        "ref_GQab: invalid occupied spaces");
+    const long nb   = nbasis();
+    const long nocc = static_cast<long>(occ_ket.size());
+    const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
+
+    Tensor<T> ref(nb, nb);
+    for (const auto& bk : build_Gab_bra(energy, lo)) {
+        std::vector<Function<T,LDIM>> p1 = bk.get_a();   // weighted ã_a
+        p1.insert(p1.end(), occ_bra.begin(), occ_bra.end());
+        std::vector<Function<T,LDIM>> p2 = bk.get_b();   // b̃_b
+        p2.insert(p2.end(), occ_bra.begin(), occ_bra.end());
+
+        const Tensor<T> S1  = matrix_inner(world_, bk.get_a(), occ_ket);             // (nb,nocc)
+        const Tensor<T> S2t = transpose(matrix_inner(world_, bk.get_b(), occ_ket));  // (nocc,nb)
+
+        Tensor<T> M = elements(p1, p2);
+        const Tensor<T> A = copy(M(s_ab,  s_ab));
+        const Tensor<T> B = copy(M(s_occ, s_ab));
+        const Tensor<T> C = copy(M(s_ab,  s_occ));
+        const Tensor<T> D = copy(M(s_occ, s_occ));
+        ref += A - inner(S1, B) - inner(C, S2t) + inner(S1, inner(D, S2t));
+    }
+    return ref;
+}
+
+// ---------------------------------------------------------------------------
+//  print_pair_energy_report
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+void print_pair_energy_report(const DiagnosticMatrix<T,NDIM>& dm,
+                              const std::vector<std::string>& pieces,
+                              const std::vector<double>& signs,
+                              const std::string& title)
+{
+    MADNESS_CHECK_THROW(pieces.size() == signs.size(),
+                        "print_pair_energy_report: pieces/signs size mismatch");
+    constexpr std::size_t nbuf = 256;
+    char buf[nbuf];
+    auto print_line = [&buf](const std::string& name, double e6d, double r3d) {
+        std::snprintf(buf, nbuf, "  %-12s 6d %15.8e   3d-ref %15.8e   diff %15.8e",
+                      name.c_str(), e6d, r3d, e6d - r3d);
+        print(std::string(buf));
+    };
+
+    print(title);
+    double tot6d = 0.0, tot3d = 0.0;
+    for (std::size_t p = 0; p < pieces.size(); ++p) {
+        const auto& e = dm.entries.at(pieces[p]);
+        print_line(pieces[p], e.result(0,1), e.ref(0,1));
+        tot6d += signs[p] * e.result(0,1);
+        tot3d += signs[p] * e.ref(0,1);
+    }
+    print_line("total", tot6d, tot3d);
+}
+
+// ---------------------------------------------------------------------------
 //  compute_errors
 // ---------------------------------------------------------------------------
 
@@ -229,5 +306,9 @@ void DiagnosticMatrix<T,NDIM>::print_report(const std::string& tag) const
 template class DiagnosticMatrix<double, 2>;  // LDIM=1 one-particle
 template class DiagnosticMatrix<double, 4>;  // LDIM=2 one-particle
 template class DiagnosticMatrix<double, 6>;  // LDIM=3 one-particle (standard 3D chemistry)
+
+template void print_pair_energy_report<double, 6>(
+        const DiagnosticMatrix<double,6>&, const std::vector<std::string>&,
+        const std::vector<double>&, const std::string&);
 
 } // namespace madness

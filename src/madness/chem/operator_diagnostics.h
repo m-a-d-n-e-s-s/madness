@@ -59,6 +59,15 @@ class DiagnosticMatrix {
 public:
     static constexpr std::size_t LDIM = NDIM / 2;  ///< one-particle space dimension
 
+    /// element provider: M(x,y) = <p1[x](1) p2[y](2) | X | ij> for arbitrary
+    /// LDIM-D bra lists p1, p2 — the operator-specific unit plugged into
+    /// ref_Gab / ref_GQab.  Build via the provider factories of the operator
+    /// classes (CorrelationFactor::ue_*_provider, ExchangeCommutator::*_provider),
+    /// which hoist convolution operators and intermediates into the closure.
+    using ElementProvider = std::function<Tensor<T>(
+            const std::vector<Function<T,LDIM>>&,
+            const std::vector<Function<T,LDIM>>&)>;
+
     std::map<std::string, DiagnosticEntry<T>> entries;
     std::vector<Function<T,LDIM>> ao_basis;  ///< orthonormalized observer basis
     double time = 0.0;
@@ -111,6 +120,28 @@ public:
                            double energy, double lo) const;
 
     // -------------------------------------------------------------------------
+    // 3D-only reference builders — Schwinger fit of G on the bra
+    // -------------------------------------------------------------------------
+
+    /// ref(a,b) = Σ_n w_n <ã_n b̃_n | X | ij>  with ã_n = w_n g_{α_n}⋆a, b̃_n = g_{α_n}⋆b
+    /// (Schwinger/BSH fit of G moved onto the bra; X supplied as an element provider).
+    Tensor<T> ref_Gab(const ElementProvider& elements, double energy, double lo) const;
+
+    /// ref(a,b) = Σ_n w_n <ã_n b̃_n | Q₁₂ X | ij>  with Q₁₂ = (1-O₁)(1-O₂),
+    /// O = Σ_k |k_ket><k_bra| (plain sum, matching StrongOrthogonalityProjector).
+    /// Q₁₂ is expanded on the ket side as scalar contractions: per slot
+    ///   A − S1·B − C·S2ᵀ + S1·D·S2ᵀ
+    /// with element blocks over p1 = {ã_a} ∪ {occ_bra_k}, p2 = {b̃_b} ∪ {occ_bra_l}
+    /// and overlaps S1(a,k) = <ã_a|occ_ket_k>, S2(b,l) = <b̃_b|occ_ket_l>.
+    /// No nearly-vanishing functions like Q(g_n⋆a) are ever formed — applying Q
+    /// to the bra functions suffers catastrophic cancellation when the convolved
+    /// observers lie nearly in the occupied space (see operator_diagnostics.md).
+    Tensor<T> ref_GQab(const ElementProvider& elements,
+                       const std::vector<Function<T,LDIM>>& occ_ket,
+                       const std::vector<Function<T,LDIM>>& occ_bra,
+                       double energy, double lo) const;
+
+    // -------------------------------------------------------------------------
     // Post-projection utilities
     // -------------------------------------------------------------------------
 
@@ -143,6 +174,20 @@ template<typename T, std::size_t LDIM>
 DiagnosticMatrix(World&, std::vector<Function<T,LDIM>>) -> DiagnosticMatrix<T,2*LDIM>;
 template<typename T, std::size_t LDIM>
 DiagnosticMatrix(World&, std::vector<Function<T,LDIM>>, bool) -> DiagnosticMatrix<T,2*LDIM>;
+
+/// Print the (0,1) elements of the named pieces as "6d / 3d-ref / diff" lines
+/// plus the signed total, via snprintf + print.
+///
+/// Intended for a DiagnosticMatrix built over a raw (non-orthonormalized)
+/// pair-bra basis {bra_i, bra_j}, where entry(0,1) = <bra_i bra_j|G Q₁₂ X|ij>
+/// is the contribution of piece X to the MP2 pair energy.
+///
+/// @param pieces entry names; @param signs per-piece sign in the total
+template<typename T, std::size_t NDIM>
+void print_pair_energy_report(const DiagnosticMatrix<T,NDIM>& dm,
+                              const std::vector<std::string>& pieces,
+                              const std::vector<double>& signs,
+                              const std::string& title);
 
 } // namespace madness
 

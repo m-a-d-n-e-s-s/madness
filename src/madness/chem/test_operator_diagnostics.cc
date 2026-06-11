@@ -243,7 +243,7 @@ int test_GUe(World& world) {
 // ---------------------------------------------------------------------------
 
 template<std::size_t NDIM>
-int test_QGUe(World& world) {
+int test_GQUe(World& world) {
     static_assert(NDIM % 2 == 0, "NDIM must be even");
     constexpr std::size_t LDIM = NDIM / 2;
     test_output t("DiagnosticMatrix project_xy Q_Gab <NDIM=" + std::to_string(NDIM) + ">");
@@ -348,11 +348,11 @@ int test_diagnose_GUe(World& world) {
 }
 
 // ---------------------------------------------------------------------------
-// test 7: diagnose_QGUe — verify <ab|G Q₁₂ Ue|ij> via Schwinger ref vs 6D projection
+// test 7: diagnose_GQUe — verify <ab|G Q₁₂ Ue|ij> via Schwinger ref vs 6D projection
 // ---------------------------------------------------------------------------
 
 template<std::size_t NDIM>
-int test_diagnose_QGUe(World& world) {
+int test_diagnose_GQUe(World& world) {
     static_assert(NDIM % 2 == 0, "NDIM must be even");
     constexpr std::size_t LDIM = NDIM / 2;
 
@@ -360,7 +360,7 @@ int test_diagnose_QGUe(World& world) {
         // The fence re-throws any task exception from the previous test.
         // Wrap it so we can continue; any lingering tasks are harmless here.
         try { world.gop.fence(); } catch (madness::MadnessException&) {}
-        test_output t("DiagnosticMatrix diagnose_QGUe <NDIM=" + std::to_string(NDIM) + ">");
+        test_output t("DiagnosticMatrix diagnose_GQUe <NDIM=" + std::to_string(NDIM) + ">");
 
         const double thresh6 = FunctionDefaults<6>::get_thresh();
         const double lo      = 1e-6;
@@ -404,8 +404,8 @@ int test_diagnose_QGUe(World& world) {
         real_function_6d GQ12Uphi_semilocal = apply(G, copy(Q12Uphi_semilocal)).truncate();
 
         auto dm = cf.diagnose_GQUe(GQ12Uphi_local, GQ12Uphi_semilocal,
-                                   phi_i, phi_j, ao_raw, occ, energy);
-        dm.print_report("test_diagnose_QGUe");
+                                   phi_i, phi_j, ao_raw, occ, occ, energy);
+        dm.print_report("test_diagnose_GQUe");
 
         // Schwinger quadrature adds ~1% relative error on top of 6D grid threshold
         t.checkpoint(dm.entries["GQlocal"].error,    10.0*thresh6, "diagnose_GQUe: GQlocal error");
@@ -510,6 +510,18 @@ int test_diagnose_GQKffK(World& world) {
         t.checkpoint(dm.entries["GQfK"].error,   10.0*thresh6, "diagnose_GQKffK: GQfK error");
         t.checkpoint(dm.entries["GQKffK"].error, 10.0*thresh6, "diagnose_GQKffK: GQKffK error");
 
+        // Also exercise diagnose_GKffK (no Q12): ref via ref_Gab + element providers
+        real_function_6d GKf = apply(G, copy(Kfxy)).truncate();
+        real_function_6d GfK = apply(G, copy(fKxy)).truncate();
+        std::vector<CCPairFunction<double,6>> GKf_cc = {CCPairFunction<double,6>(GKf)};
+        std::vector<CCPairFunction<double,6>> GfK_cc = {CCPairFunction<double,6>(GfK)};
+        auto dm2 = ec.diagnose_GKffK(world, GKf_cc, GfK_cc, phi_i, phi_j,
+                                     Kphi_i, Kphi_j, info, energy);
+        dm2.print_report("test_diagnose_GKffK");
+        t.checkpoint(dm2.entries["GKf"].error,   10.0*thresh6, "diagnose_GKffK: GKf error");
+        t.checkpoint(dm2.entries["GfK"].error,   10.0*thresh6, "diagnose_GKffK: GfK error");
+        t.checkpoint(dm2.entries["GKffK"].error, 10.0*thresh6, "diagnose_GKffK: GKffK error");
+
         return t.end();
     }
     return 0;
@@ -554,8 +566,8 @@ int main(int argc, char** argv) {
 //        // result += test_project_ab<6>(world);  // slow: constructs 6D grid function
 //        result += test_GUe<4>(world);
 //        result += test_GUe<6>(world);
-//        result += test_QGUe<4>(world);
-//        result += test_QGUe<6>(world);
+//        result += test_GQUe<4>(world);
+//        result += test_GQUe<6>(world);
     } catch (std::exception& e) {
         print("test_operator_diagnostics: exception:", e.what());
         result = 1;
@@ -579,12 +591,12 @@ int main(int argc, char** argv) {
         result = 1;
     }
     try {
-        result += test_diagnose_QGUe<6>(world);
+        result += test_diagnose_GQUe<6>(world);
     } catch (madness::MadnessException& e) {
-        print("test_diagnose_QGUe: MadnessException:", e.what());
+        print("test_diagnose_GQUe: MadnessException:", e.what());
         result = 1;
     } catch (std::exception& e) {
-        print("test_diagnose_QGUe: exception:", e.what());
+        print("test_diagnose_GQUe: exception:", e.what());
         result = 1;
     }
     try {

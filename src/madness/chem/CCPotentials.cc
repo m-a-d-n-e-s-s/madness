@@ -1722,7 +1722,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     }
 
     // ---------------------------------------------------------------
-    // G·Q12·[K̂,f] diagnostics with 3D-only reference (see diagnose_GQKffK.md)
+    // G·Q12·[K̂,f] diagnostics with 3D-only reference (see operator_diagnostics.md)
     // ---------------------------------------------------------------
     if (Gscreen != nullptr && !info.ao.empty()) {
         const double mu     = Gscreen->mu();
@@ -1739,15 +1739,11 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         Q12.set_spaces(info.mo_bra, info.mo_ket, info.mo_bra, info.mo_ket);
         real_convolution_6d G = BSHOperator<6>(world, mu, lo, info.parameters.thresh_bsh_6D());
 
-        // apply Q12 then G, piece by piece (each result is pure 6D)
+        // apply Q12 then G; apply(G, vector) collapses to one pure 6D function
         auto apply_GQ12 = [&](const std::vector<CCPairFunction<double,6>>& v)
                 -> std::vector<CCPairFunction<double,6>> {
-            std::vector<CCPairFunction<double,6>> out;
-            for (const auto& q : Q12(v)) {
-                if (!q.is_assigned()) continue;
-                out.emplace_back(madness::apply(G, q));
-            }
-            return out;
+            auto Qv = Q12(v);
+            return {madness::apply(G, Qv)};
         };
         const auto GQKf = apply_GQ12(result.Kf);
         const auto GQfK = apply_GQ12(result.fK);
@@ -1768,17 +1764,9 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
             print("diagnosis for G Q12 [K,f] term in the raw pair-bra basis:");
             dme.print_report("GQKffK-pair");
 
-            constexpr std::size_t nbuf = 256;
-            char buf[nbuf];
-            auto print_line = [&buf](const char* name, double e6d, double r3d) {
-                std::snprintf(buf, nbuf, "  %-10s 6d %15.8e   3d-ref %15.8e   diff %15.8e",
-                              name, e6d, r3d, e6d - r3d);
-                print(buf);
-            };
-            print("MP2 energy contribution <i_bra j_bra|G Q12 [K,f]|ij>:");
-            print_line("Kf",   dme.entries["GQKf"].result(0,1),   dme.entries["GQKf"].ref(0,1));
-            print_line("fK",   dme.entries["GQfK"].result(0,1),   dme.entries["GQfK"].ref(0,1));
-            print_line("KffK", dme.entries["GQKffK"].result(0,1), dme.entries["GQKffK"].ref(0,1));
+            print_pair_energy_report(dme, {"GQKf", "GQfK"}, {1.0, -1.0},
+                                     "MP2 energy contribution <i_bra j_bra|G Q12 [K,f]|ij>"
+                                     " ([K,f] = Kf - fK):");
         }
     }
     return KffK;

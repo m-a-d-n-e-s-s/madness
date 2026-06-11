@@ -19,11 +19,6 @@
 #include <madness/chem/operator_diagnostics.h>
 
 namespace madness {
-// fwd decl (SCFOperators.h is included only in exchange_commutator.cc)
-template<typename T, std::size_t NDIM> class Exchange;
-}
-
-namespace madness {
 
 struct ExchangeCommutator {
 
@@ -268,7 +263,7 @@ struct ExchangeCommutator {
     /// applied internally).  The reference is computed via 3D functions only:
     /// G is moved to the bra via the Schwinger/BSH fit and Q₁₂ is expanded on
     /// the ket side as scalar contractions of analytic Kf/fK matrix elements —
-    /// see diagnose_GQKffK.md for the full derivation.  Entries: "GQKf",
+    /// see operator_diagnostics.md for the full derivation.  Entries: "GQKf",
     /// "GQfK", "GQKffK" (= GQKf − GQfK).
     ///
     /// The observer basis is an explicit parameter (unlike diagnose_GKffK):
@@ -298,28 +293,26 @@ struct ExchangeCommutator {
             const std::vector<real_function_3d>& aobasis,
             bool orthonormalize_basis = true) const;
 
-    /// analytic matrix elements M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|K̂_p f₁₂|φᵢφⱼ⟩
+    /// element provider: M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|K̂_p f₁₂|φᵢφⱼ⟩
     ///   K̂₁: ⟨(K̂†x)·φᵢ | f₁₂⋆(y·φⱼ)⟩      K̂₂: ⟨f₁₂⋆(x·φᵢ) | (K̂†y)·φⱼ⟩
-    static Tensor<double> kf_elements(
+    /// K̂† (Exchange with bra=mo_ket, ket=mo_bra) and the f₁₂ convolution are
+    /// built once from `info` and captured in the closure.
+    static DiagnosticMatrix<>::ElementProvider kf_provider(
             World& world,
-            const std::vector<real_function_3d>& p1,
-            const std::vector<real_function_3d>& p2,
             const real_function_3d& phi_i,
             const real_function_3d& phi_j,
-            const Exchange<double,3>& Kdagger,
-            const SeparatedConvolution<double,3>& f12);
+            const Info& info);
 
-    /// analytic matrix elements M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|f₁₂ K̂_p|φᵢφⱼ⟩
+    /// element provider: M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|f₁₂ K̂_p|φᵢφⱼ⟩
     ///   K̂₁: ⟨x·(K̂φᵢ) | f₁₂⋆(y·φⱼ)⟩       K̂₂: ⟨x·φᵢ | f₁₂⋆(y·(K̂φⱼ))⟩
-    static Tensor<double> fk_elements(
+    /// The f₁₂ convolution is built once from `info` and captured in the closure.
+    static DiagnosticMatrix<>::ElementProvider fk_provider(
             World& world,
-            const std::vector<real_function_3d>& p1,
-            const std::vector<real_function_3d>& p2,
             const real_function_3d& phi_i,
             const real_function_3d& phi_j,
             const real_function_3d& Kphi_i,
             const real_function_3d& Kphi_j,
-            const SeparatedConvolution<double,3>& f12);
+            const Info& info);
 };
 
 } // namespace madness
