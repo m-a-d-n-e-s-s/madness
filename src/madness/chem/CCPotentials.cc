@@ -1450,7 +1450,12 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     MADNESS_CHECK_THROW(Gscreen != NULL, "Demanded Screening for Ue but given BSH Operator is NULL");
     if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
 
-    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1,info.ao);
+    // bra counterparts of the pair orbitals (<i|R²) for the MP2 pair-energy diagnostic
+    const bool have_bra_pair = (phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size());
+    const real_function_3d xbra = have_bra_pair ? info.mo_bra[phi_i.i] : real_function_3d();
+    const real_function_3d ybra = have_bra_pair ? info.mo_bra[phi_j.i] : real_function_3d();
+    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1, info.ao,
+                                           info.mo_ket, info.mo_bra, xbra, ybra);
 
     if (parameters.debug()) time_Ue.info();
     t1.tag("finished semi-local part of Ue");
@@ -1691,12 +1696,11 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     };
 
     std::vector<CCPairFunction<double,6>> KffK;
+    ExchangeCommutator::KffKResult result;
     if (algo=="6d") {
         print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
         {
-            // score_full(ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info),
-            // /*include_K2=*/true);
-            auto result=ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info);
+            result=ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info);
             KffK=result.KffK;
             score_full(result, /*include_K2=*/true);
         }
@@ -1708,13 +1712,74 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
             LowRankFunctionParameters lrfparam;
             ExchangeCommutator::SplitAlphaOptions opt;
             opt.alpha_star               = alpha;
-            auto result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
+            result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
             KffK=result.KffK;
             score_full(result, /*include_K2=*/true);
         }
     } else {
         std::string msg="unknown KffK algorithm: " + algo;
         MADNESS_EXCEPTION(msg.c_str(),1);
+    }
+
+    // ---------------------------------------------------------------
+    // G·Q12·[K̂,f] diagnostics with 3D-only reference (see diagnose_GQKffK.md)
+    // ---------------------------------------------------------------
+    if (Gscreen != nullptr && !info.ao.empty()) {
+        const double mu     = Gscreen->mu();
+        const double energy = -0.5 * mu * mu;
+        const double lo     = info.parameters.lo();
+
+        // K̂φᵢ, K̂φⱼ — needed by the Schwinger reference
+        Exchange<double,3> K(world, lo);
+        K.set_bra_and_ket(info.mo_bra, info.mo_ket);
+        const real_function_3d Kphi_i = K(phi_i.function);
+        const real_function_3d Kphi_j = K(phi_j.function);
+
+        StrongOrthogonalityProjector<double,3> Q12(world);
+        Q12.set_spaces(info.mo_bra, info.mo_ket, info.mo_bra, info.mo_ket);
+        real_convolution_6d G = BSHOperator<6>(world, mu, lo, info.parameters.thresh_bsh_6D());
+
+        // apply Q12 then G, piece by piece (each result is pure 6D)
+        auto apply_GQ12 = [&](const std::vector<CCPairFunction<double,6>>& v)
+                -> std::vector<CCPairFunction<double,6>> {
+            std::vector<CCPairFunction<double,6>> out;
+            for (const auto& q : Q12(v)) {
+                if (!q.is_assigned()) continue;
+                out.emplace_back(madness::apply(G, q));
+            }
+            return out;
+        };
+        const auto GQKf = apply_GQ12(result.Kf);
+        const auto GQfK = apply_GQ12(result.fK);
+
+        // accuracy check in the orthonormalized AO observer basis
+        auto dmq = ec.diagnose_GQKffK(world, GQKf, GQfK, phi_i.function, phi_j.function,
+                                      Kphi_i, Kphi_j, info, energy, ao);
+        print("diagnosis for G Q12 [K,f] term:");
+        dmq.print_report("GQKffK");
+
+        // MP2 pair-energy contribution in the raw pair-bra basis {i_bra, j_bra}
+        const bool have_bra_pair = (phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size());
+        if (have_bra_pair) {
+            std::vector<real_function_3d> pair_bra = {info.mo_bra[phi_i.i], info.mo_bra[phi_j.i]};
+            auto dme = ec.diagnose_GQKffK(world, GQKf, GQfK, phi_i.function, phi_j.function,
+                                          Kphi_i, Kphi_j, info, energy, pair_bra,
+                                          /*orthonormalize_basis=*/false);
+            print("diagnosis for G Q12 [K,f] term in the raw pair-bra basis:");
+            dme.print_report("GQKffK-pair");
+
+            constexpr std::size_t nbuf = 256;
+            char buf[nbuf];
+            auto print_line = [&buf](const char* name, double e6d, double r3d) {
+                std::snprintf(buf, nbuf, "  %-10s 6d %15.8e   3d-ref %15.8e   diff %15.8e",
+                              name, e6d, r3d, e6d - r3d);
+                print(buf);
+            };
+            print("MP2 energy contribution <i_bra j_bra|G Q12 [K,f]|ij>:");
+            print_line("Kf",   dme.entries["GQKf"].result(0,1),   dme.entries["GQKf"].ref(0,1));
+            print_line("fK",   dme.entries["GQfK"].result(0,1),   dme.entries["GQfK"].ref(0,1));
+            print_line("KffK", dme.entries["GQKffK"].result(0,1), dme.entries["GQKffK"].ref(0,1));
+        }
     }
     return KffK;
 

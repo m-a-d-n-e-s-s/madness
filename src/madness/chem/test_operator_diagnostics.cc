@@ -18,6 +18,8 @@
 #include <madness/chem/CCStructures.h>                  // CCConvolutionOperator before CCPairFunction instantiation
 #include <madness/chem/electronic_correlation_factor.h> // CorrelationFactor; pulls in operator_diagnostics.h
 #include <madness/chem/projector.h>                     // StrongOrthogonalityProjector
+#include <madness/chem/exchange_commutator.h>           // ExchangeCommutator::diagnose_GQKffK
+#include <madness/chem/SCFOperators.h>                  // Exchange
 #include <madness/world/test_utilities.h>
 
 using namespace madness;
@@ -415,6 +417,105 @@ int test_diagnose_QGUe(World& world) {
 }
 
 // ---------------------------------------------------------------------------
+// test 8: diagnose_GQKffK — <ab|G Q12 [K,f]|ij> via 3D-only ref vs 6D projection
+// ---------------------------------------------------------------------------
+
+template<std::size_t NDIM>
+int test_diagnose_GQKffK(World& world) {
+    static_assert(NDIM % 2 == 0, "NDIM must be even");
+    constexpr std::size_t LDIM = NDIM / 2;
+
+    if constexpr (LDIM == 3) {
+        // The fence re-throws any task exception from the previous test.
+        try { world.gop.fence(); } catch (madness::MadnessException&) {}
+        test_output t("ExchangeCommutator diagnose_GQKffK <NDIM=" + std::to_string(NDIM) + ">");
+
+        const double thresh6 = FunctionDefaults<6>::get_thresh();
+        const double lo      = 1e-6;
+        const double energy  = -2.0;
+        const double gamma   = 1.0;   // matches CCParameters default corrfac_gamma
+
+        Function<double,3> phi_i = FunctionFactory<double,3>(world).f(gaussians::g10<3>);
+        Function<double,3> phi_j = FunctionFactory<double,3>(world).f(gaussians::g20<3>);
+        std::vector<Function<double,3>> ao_raw = {
+            FunctionFactory<double,3>(world).f(gaussians::g10<3>),
+            FunctionFactory<double,3>(world).f(gaussians::g20<3>),
+            FunctionFactory<double,3>(world).f(gaussians::g05<3>),
+        };
+
+        // Occupied space; free-space test => mo_bra = mo_ket (R = 1).
+        Function<double,3> phi_i_n = copy(phi_i), phi_j_n = copy(phi_j);
+        phi_i_n.scale(1.0/phi_i_n.norm2());
+        phi_j_n.scale(1.0/phi_j_n.norm2());
+        std::vector<Function<double,3>> occ = {phi_i_n, phi_j_n};
+
+        // Minimal Info: occupied spaces + default CCParameters (gamma=1, lo=1e-7)
+        Info info;
+        info.mo_ket = occ;
+        info.mo_bra = occ;
+
+        // f12|ij> as 6D function
+        CorrelationFactor corrfac(world, gamma, 1.e-7, lo);
+        real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2.0*energy), lo, 1.e-6);
+        op_mod.modified() = true;
+        real_function_6d fxy = CompositeFactory<double,6,3>(world)
+                .g12(corrfac.f()).particle1(copy(phi_i)).particle2(copy(phi_j));
+        fxy.fill_cuspy_tree(op_mod);
+        fxy.truncate();
+
+        // Kf|ij> = (K1+K2) f12|ij> — same loop as CCPotentials::apply_K
+        auto apply_K_6d = [&](const real_function_6d& u, const int particle) {
+            real_function_6d res = real_factory_6d(world).compressed();
+            real_convolution_3d gop = CoulombOperator(world, lo, FunctionDefaults<3>::get_thresh());
+            gop.particle() = particle;
+            for (size_t k = 0; k < occ.size(); ++k) {
+                real_function_6d X = multiply(copy(u), copy(occ[k]), particle).truncate(); // mo_bra
+                real_function_6d Y = gop(X);
+                res += multiply(copy(Y), copy(occ[k]), particle).truncate();               // mo_ket
+            }
+            return res;
+        };
+        real_function_6d Kfxy = (apply_K_6d(fxy, 1) + apply_K_6d(fxy, 2)).truncate();
+
+        // fK|ij> = f12 (K1+K2)|ij> = f12|Ki j> + f12|i Kj>
+        Exchange<double,3> K(world, lo);
+        K.set_bra_and_ket(occ, occ);
+        real_function_3d Kphi_i = K(phi_i);
+        real_function_3d Kphi_j = K(phi_j);
+        real_function_6d fKxy1 = CompositeFactory<double,6,3>(world)
+                .g12(corrfac.f()).particle1(copy(Kphi_i)).particle2(copy(phi_j));
+        fKxy1.fill_cuspy_tree(op_mod);
+        real_function_6d fKxy2 = CompositeFactory<double,6,3>(world)
+                .g12(corrfac.f()).particle1(copy(phi_i)).particle2(copy(Kphi_j));
+        fKxy2.fill_cuspy_tree(op_mod);
+        real_function_6d fKxy = (fKxy1 + fKxy2).truncate();
+
+        // Apply Q12 and G — caller-side, as in production
+        StrongOrthogonalityProjector<double,3> Q12(world);
+        Q12.set_spaces(occ);
+        real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0*energy), lo, 1.e-6);
+        real_function_6d GQKf = apply(G, Q12(Kfxy)).truncate();
+        real_function_6d GQfK = apply(G, Q12(fKxy)).truncate();
+
+        std::vector<CCPairFunction<double,6>> GQKf_cc = {CCPairFunction<double,6>(GQKf)};
+        std::vector<CCPairFunction<double,6>> GQfK_cc = {CCPairFunction<double,6>(GQfK)};
+
+        ExchangeCommutator ec(ao_raw);
+        auto dm = ec.diagnose_GQKffK(world, GQKf_cc, GQfK_cc, phi_i, phi_j,
+                                     Kphi_i, Kphi_j, info, energy, ao_raw);
+        dm.print_report("test_diagnose_GQKffK");
+
+        // Schwinger quadrature adds ~1% relative error on top of 6D grid threshold
+        t.checkpoint(dm.entries["GQKf"].error,   10.0*thresh6, "diagnose_GQKffK: GQKf error");
+        t.checkpoint(dm.entries["GQfK"].error,   10.0*thresh6, "diagnose_GQKffK: GQfK error");
+        t.checkpoint(dm.entries["GQKffK"].error, 10.0*thresh6, "diagnose_GQKffK: GQKffK error");
+
+        return t.end();
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
@@ -484,6 +585,15 @@ int main(int argc, char** argv) {
         result = 1;
     } catch (std::exception& e) {
         print("test_diagnose_QGUe: exception:", e.what());
+        result = 1;
+    }
+    try {
+        result += test_diagnose_GQKffK<6>(world);
+    } catch (madness::MadnessException& e) {
+        print("test_diagnose_GQKffK: MadnessException:", e.what());
+        result = 1;
+    } catch (std::exception& e) {
+        print("test_diagnose_GQKffK: exception:", e.what());
         result = 1;
     }
     world.gop.fence();

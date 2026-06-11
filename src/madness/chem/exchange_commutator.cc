@@ -824,4 +824,134 @@ ExchangeCommutator::diagnose_GKffK(
     return dm;
 }
 
+// ---------------------------------------------------------------------------
+//  G·Q₁₂·[K̂,f] diagnostic — 3D-only reference, Q₁₂ expanded on the ket
+//  (see diagnose_GQKffK.md for the derivation)
+// ---------------------------------------------------------------------------
+
+Tensor<double>
+ExchangeCommutator::kf_elements(
+        World& world,
+        const std::vector<real_function_3d>& p1,
+        const std::vector<real_function_3d>& p2,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const Exchange<double,3>& Kdagger,
+        const SeparatedConvolution<double,3>& f12)
+{
+    // K̂₁: ⟨(K̂†x)·φᵢ | f₁₂⋆(y·φⱼ)⟩      K̂₂: ⟨f₁₂⋆(x·φᵢ) | (K̂†y)·φⱼ⟩
+    const auto Kdag_p1_phii = Kdagger(p1) * phi_i;
+    const auto Kdag_p2_phij = Kdagger(p2) * phi_j;
+    const auto f12_p2_phij  = f12(p2 * phi_j);
+    const auto f12_p1_phii  = f12(p1 * phi_i);
+
+    Tensor<double> M = matrix_inner(world, Kdag_p1_phii, f12_p2_phij);  // K̂₁
+    M += matrix_inner(world, f12_p1_phii, Kdag_p2_phij);                // K̂₂
+    return M;
+}
+
+Tensor<double>
+ExchangeCommutator::fk_elements(
+        World& world,
+        const std::vector<real_function_3d>& p1,
+        const std::vector<real_function_3d>& p2,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const SeparatedConvolution<double,3>& f12)
+{
+    // K̂₁: ⟨x·(K̂φᵢ) | f₁₂⋆(y·φⱼ)⟩       K̂₂: ⟨x·φᵢ | f₁₂⋆(y·(K̂φⱼ))⟩
+    const auto p1_Kphii     = p1 * Kphi_i;
+    const auto p1_phii      = p1 * phi_i;
+    const auto f12_p2_phij  = f12(p2 * phi_j);
+    const auto f12_p2_Kphij = f12(p2 * Kphi_j);
+
+    Tensor<double> M = matrix_inner(world, p1_Kphii, f12_p2_phij);      // K̂₁
+    M += matrix_inner(world, p1_phii, f12_p2_Kphij);                    // K̂₂
+    return M;
+}
+
+DiagnosticMatrix<>
+ExchangeCommutator::diagnose_GQKffK(
+        World& world,
+        const std::vector<CCPairFunction<double,6>>& GQKf_cc,
+        const std::vector<CCPairFunction<double,6>>& GQfK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double energy,
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
+{
+    MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GQKffK: energy must be negative");
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_GQKffK: aobasis must be non-empty");
+    MADNESS_CHECK_THROW(!info.mo_ket.empty() && info.mo_ket.size() == info.mo_bra.size(),
+                        "diagnose_GQKffK: invalid occupied spaces in info");
+
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double lo     = info.parameters.lo();
+    const double gamma  = info.parameters.gamma();
+    const double wall0  = wall_time();
+
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+    dm.init("GQKf");
+    dm.init("GQfK");
+    dm.init("GQKffK");
+
+    // Result: project the caller-supplied G Q12 pieces onto ⟨ab|
+    dm.entries["GQKf"].result   = dm.project_ab(GQKf_cc);
+    dm.entries["GQfK"].result   = dm.project_ab(GQfK_cc);
+    dm.entries["GQKffK"].result = dm.entries["GQKf"].result - dm.entries["GQfK"].result;
+
+    // 3D machinery: K̂† (for K̂ moved onto the bra) and the f₁₂ convolution
+    madness::Exchange<double,3> Kdagger(world, lo);
+    Kdagger.set_bra_and_ket(info.mo_ket, info.mo_bra);
+    auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
+            SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
+    const auto& f12 = *f12ptr;
+
+    // Ref: Schwinger bra slots for G (w_n absorbed in get_a); Q₁₂ expanded on
+    // the ket per slot:
+    //   ref += A − S1·B − C·S2ᵀ + S1·D·S2ᵀ
+    // with element blocks over p1 = {ã_a} ∪ {mo_bra_k}, p2 = {b̃_b} ∪ {mo_bra_l}
+    // and overlaps S1(a,k) = ⟨ã_a|mo_ket_k⟩, S2(b,l) = ⟨b̃_b|mo_ket_l⟩.
+    auto bra = dm.build_Gab_bra(energy, lo);
+    const long nb   = dm.nbasis();
+    const long nocc = static_cast<long>(info.mo_ket.size());
+    const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
+
+    auto& ref_GQKf = dm.entries["GQKf"].ref;
+    auto& ref_GQfK = dm.entries["GQfK"].ref;
+
+    for (const auto& bk : bra) {
+        std::vector<real_function_3d> p1 = bk.get_a();   // weighted ã_a
+        p1.insert(p1.end(), info.mo_bra.begin(), info.mo_bra.end());
+        std::vector<real_function_3d> p2 = bk.get_b();   // b̃_b
+        p2.insert(p2.end(), info.mo_bra.begin(), info.mo_bra.end());
+
+        const Tensor<double> S1  = matrix_inner(world, bk.get_a(), info.mo_ket);
+        const Tensor<double> S2t = transpose(matrix_inner(world, bk.get_b(), info.mo_ket));
+
+        for (int piece = 0; piece < 2; ++piece) {
+            Tensor<double> M = (piece == 0)
+                ? kf_elements(world, p1, p2, phi_i, phi_j, Kdagger, f12)
+                : fk_elements(world, p1, p2, phi_i, phi_j, Kphi_i, Kphi_j, f12);
+            const Tensor<double> A = copy(M(s_ab,  s_ab));
+            const Tensor<double> B = copy(M(s_occ, s_ab));
+            const Tensor<double> C = copy(M(s_ab,  s_occ));
+            const Tensor<double> D = copy(M(s_occ, s_occ));
+            auto& ref = (piece == 0) ? ref_GQKf : ref_GQfK;
+            ref += A - inner(S1, B) - inner(C, S2t) + inner(S1, inner(D, S2t));
+        }
+    }
+    dm.entries["GQKffK"].ref = ref_GQKf - ref_GQfK;
+
+    dm.compute_errors();
+    dm.time = wall_time() - wall0;
+    return dm;
+}
+
 } // namespace madness

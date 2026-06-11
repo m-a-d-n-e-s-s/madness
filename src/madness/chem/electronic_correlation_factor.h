@@ -14,6 +14,7 @@
 #include<madness/chem/molecule.h>
 #include<madness/world/timing_utilities.h>
 #include <madness/chem/operator_diagnostics.h>
+#include <madness/chem/projector.h>
 #include <iomanip>
 
 #include "CCStructures.h"
@@ -165,9 +166,26 @@ namespace madness {
 
 
         /// apply Kutzelnigg's regularized potential to an orbital product
+
+        /// If an observer basis `ao` is given, run the Ue diagnostics (local,
+        /// semilocal, mixed).  If additionally an occupied ket space `occ_ket` is
+        /// given, run the GQUe diagnostics: apply Q12 and G = BSH(mu) to each Ue
+        /// piece and compare against the 3D-only Schwinger reference; the pair
+        /// energy E = -mu^2/2 is taken from op_mod.
+        ///
+        /// Bra and ket spaces may differ (nemo-style |k> <-> <k|R²): pass occ_bra
+        /// (e.g. info.mo_bra); Q12 is then built as O = Σ|k_ket><k_bra|.  If the
+        /// bra counterparts phi_i_bra/phi_j_bra of the pair orbitals are given,
+        /// an additional diagnostic in the raw pair-bra basis {phi_i_bra, phi_j_bra}
+        /// is run, whose (0,1) element <i_bra j_bra|G Q12 Ue|ij> is the contribution
+        /// of each Ue piece to the MP2 energy of pair (ij).
         real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
                                  const real_convolution_6d& op_mod, const std::vector<real_function_3d>& U1nuc,
-                                 const std::vector<real_function_3d> ao=std::vector<real_function_3d>()) const {
+                                 const std::vector<real_function_3d> ao=std::vector<real_function_3d>(),
+                                 const std::vector<real_function_3d> occ_ket=std::vector<real_function_3d>(),
+                                 const std::vector<real_function_3d> occ_bra=std::vector<real_function_3d>(),
+                                 const real_function_3d phi_i_bra=real_function_3d(),
+                                 const real_function_3d phi_j_bra=real_function_3d()) const {
             MADNESS_CHECK_THROW(op_mod.modified(), "ElectronicCorrelationFactor::apply_U, op_mod must be in modified_NS form");
             const double thresh = FunctionDefaults<6>::get_thresh();
 
@@ -179,11 +197,60 @@ namespace madness {
 
             // do some diagnostics
             if (ao.size()>0) {
-                auto ao_ortho=orthonormalize_canonical(ao);
-                auto dm = diagnose_Ue(local,semilocal,phi_i,phi_j,ao,mixed,U1nuc);
                 std::cout << std::scientific << std::setprecision(8);
+                auto dm = diagnose_Ue(local,semilocal,phi_i,phi_j,ao,mixed,U1nuc);
                 print("diagnosis for Ue term:");
                 dm.print_report("Ue");
+
+                // GQUe diagnostics: Q12 from occ_bra/occ_ket, G from op_mod's mu
+                if (occ_ket.size()>0) {
+                    const std::vector<real_function_3d>& obra = occ_bra.empty() ? occ_ket : occ_bra;
+                    const double mu     = op_mod.mu();
+                    const double energy = -0.5 * mu * mu;
+
+                    StrongOrthogonalityProjector<double,3> Q12(world);
+                    Q12.set_spaces(obra, occ_ket, obra, occ_ket);
+                    real_convolution_6d G = BSHOperator<6>(world, mu, lo, 1.e-6);
+
+                    real_function_6d GQlocal     = apply(G, Q12(local)).truncate();
+                    real_function_6d GQsemilocal = apply(G, Q12(semilocal)).truncate();
+                    real_function_6d GQmixed     = apply(G, Q12(mixed)).truncate();
+
+                    auto dm2 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, ao, occ_ket,
+                                             energy, GQmixed, U1nuc, obra);
+                    print("diagnosis for GQUe term:");
+                    dm2.print_report("GQUe");
+
+                    // MP2 pair-energy diagnostics: raw pair-bra basis {i_bra, j_bra};
+                    // the (0,1) element is <i_bra j_bra|G Q12 Ue_X|ij>
+                    if (phi_i_bra.is_initialized() && phi_j_bra.is_initialized()) {
+                        std::vector<real_function_3d> pair_bra = {phi_i_bra, phi_j_bra};
+                        auto dm3 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, pair_bra, occ_ket,
+                                                 energy, GQmixed, U1nuc, obra,
+                                                 /*orthonormalize_basis=*/false);
+                        print("diagnosis for GQUe term in the raw pair-bra basis:");
+                        dm3.print_report("GQUe-pair");
+
+                        const double e_loc  = dm3.entries["GQlocal"].result(0,1);
+                        const double e_semi = dm3.entries["GQsemilocal"].result(0,1);
+                        const double e_mix  = dm3.entries["GQmixed"].result(0,1);
+                        const double r_loc  = dm3.entries["GQlocal"].ref(0,1);
+                        const double r_semi = dm3.entries["GQsemilocal"].ref(0,1);
+                        const double r_mix  = dm3.entries["GQmixed"].ref(0,1);
+                        print("MP2 energy contribution <i_bra j_bra|G Q12 Ue|ij> (Ue = local + semilocal - mixed):");
+                        constexpr std::size_t nbuf = 256;
+                        char buf[nbuf];
+                        auto print_line = [&buf](const char* name, double e6d, double r3d) {
+                            std::snprintf(buf, nbuf, "  %-10s 6d %15.8e   3d-ref %15.8e   diff %15.8e",
+                                          name, e6d, r3d, e6d - r3d);
+                            print(buf);
+                        };
+                        print_line("local",     e_loc,  r_loc);
+                        print_line("semilocal", e_semi, r_semi);
+                        print_line("mixed",     e_mix,  r_mix);
+                        print_line("total",     e_loc + e_semi - e_mix, r_loc + r_semi - r_mix);
+                    }
+                }
             }
 
             result.print_size("Ue|ij>");
@@ -308,19 +375,25 @@ namespace madness {
         /// The reference is computed via 3D functions only: G is moved to the bra
         /// via the Schwinger/BSH Gaussian fit (ã_n = w_n g_n*a, b̃_n = g_n*b), and
         /// Q₁₂ = 1 − O₁ − O₂ + O₁O₂ is expanded on the ket side:
-        ///   <ã b̃|Q₁₂ Ue|ij> = <ã b̃|Ue|ij> − Σ_k <ã|k><k b̃|Ue|ij>
-        ///                     − Σ_l <b̃|l><ã l|Ue|ij> + Σ_kl <ã|k><b̃|l><k l|Ue|ij>
-        /// with O = Σ_k |k><k| (plain sum, matching StrongOrthogonalityProjector).
-        /// All matrix elements are evaluated analytically via 3D convolutions; the
-        /// projector terms enter as scalar contractions, so — unlike applying Q to
-        /// the bra functions — no nearly-vanishing functions are ever formed and
-        /// there is no catastrophic cancellation.
+        ///   <ã b̃|Q₁₂ Ue|ij> = <ã b̃|Ue|ij> − Σ_k <ã|k_ket><k_bra b̃|Ue|ij>
+        ///                     − Σ_l <b̃|l_ket><ã l_bra|Ue|ij>
+        ///                     + Σ_kl <ã|k_ket><b̃|l_ket><k_bra l_bra|Ue|ij>
+        /// with O = Σ_k |k_ket><k_bra| (plain sum, matching the convention of
+        /// StrongOrthogonalityProjector::set_spaces(bra,ket,bra,ket); for nemo-style
+        /// calculations k_bra = R²·k_ket).  All matrix elements are evaluated
+        /// analytically via 3D convolutions; the projector terms enter as scalar
+        /// contractions, so — unlike applying Q to the bra functions — no
+        /// nearly-vanishing functions are ever formed and there is no catastrophic
+        /// cancellation.
         ///
         /// @param GQ12Uphi_local     G Q₁₂ Ue_local |ij>    (G, Q applied by the caller)
         /// @param GQ12Uphi_semilocal G Q₁₂ Ue_semilocal|ij> (idem)
-        /// @param occ                occupied orbitals defining O = Σₖ|k⟩⟨k|
+        /// @param occ_ket            occupied ket orbitals |k⟩ of O = Σₖ|k_ket⟩⟨k_bra|
         /// @param GQ12Uphi_mixed     G Q₁₂ Ue_mixed|ij> (optional; pass default-constructed to skip)
         /// @param U1nuc              nuclear U1 potentials (required when GQ12Uphi_mixed is provided)
+        /// @param occ_bra            occupied bra orbitals ⟨k| (defaults to occ_ket if empty)
+        /// @param orthonormalize_basis  Löwdin-orthonormalize aobasis (pass false to
+        ///                              keep raw, e.g. when elements carry physical meaning)
         /// @return DiagnosticMatrix with entries "GQlocal", "GQsemilocal" (and "GQmixed" if applicable).
         ///         ref=3D Schwinger quadrature with Q12 expanded on the ket,
         ///         result=6D projection <ab|G Q₁₂ Ue|ij>.
@@ -330,17 +403,22 @@ namespace madness {
                 const real_function_3d& phi_i,
                 const real_function_3d& phi_j,
                 const std::vector<real_function_3d>& aobasis,
-                const std::vector<real_function_3d>& occ,
+                const std::vector<real_function_3d>& occ_ket,
                 const double energy,
                 const real_function_6d& GQ12Uphi_mixed = real_function_6d(),
-                const std::vector<real_function_3d>& U1nuc = {}) const {
+                const std::vector<real_function_3d>& U1nuc = {},
+                const std::vector<real_function_3d>& occ_bra_in = {},
+                const bool orthonormalize_basis = true) const {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GQUe: energy must be negative");
-            MADNESS_CHECK_THROW(!occ.empty(), "diagnose_GQUe: occ space must not be empty");
+            MADNESS_CHECK_THROW(!occ_ket.empty(), "diagnose_GQUe: occ space must not be empty");
+            const std::vector<real_function_3d>& occ_bra = occ_bra_in.empty() ? occ_ket : occ_bra_in;
+            MADNESS_CHECK_THROW(occ_bra.size() == occ_ket.size(),
+                                "diagnose_GQUe: occ_bra and occ_ket must have the same size");
             const bool do_mixed = GQ12Uphi_mixed.is_initialized() && !U1nuc.empty();
             const double wall0 = wall_time();
             timer t(world);
 
-            DiagnosticMatrix<> dm(world, aobasis);
+            DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
             dm.init("GQlocal");
             dm.init("GQsemilocal");
             if (do_mixed) dm.init("GQmixed");
@@ -353,13 +431,13 @@ namespace madness {
 
             // Ref: Schwinger bra slots for G; Q12 expanded on the ket per slot.
             // Element matrices are computed over the concatenated lists
-            // p1 = {ã_a} ∪ {occ_k}, p2 = {b̃_b} ∪ {occ_l}, then the four blocks
-            //   A = <ã b̃|X|ij>, B = <k b̃|X|ij>, C = <ã l|X|ij>, D = <k l|X|ij>
+            // p1 = {ã_a} ∪ {occ_bra_k}, p2 = {b̃_b} ∪ {occ_bra_l}, then the four blocks
+            //   A = <ã b̃|X|ij>, B = <k_bra b̃|X|ij>, C = <ã l_bra|X|ij>, D = <k_bra l_bra|X|ij>
             // are combined as  A − S1·B − C·S2ᵀ + S1·D·S2ᵀ
-            // with S1(a,k) = <ã_a|k> (w_n absorbed in ã) and S2(b,l) = <b̃_b|l>.
+            // with S1(a,k) = <ã_a|k_ket> (w_n absorbed in ã) and S2(b,l) = <b̃_b|l_ket>.
             auto bra = dm.build_Gab_bra(energy, lo);
             const long nb   = dm.nbasis();
-            const long nocc = static_cast<long>(occ.size());
+            const long nocc = static_cast<long>(occ_ket.size());
             const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
 
             std::vector<std::string> names = {"GQlocal", "GQsemilocal"};
@@ -367,12 +445,12 @@ namespace madness {
 
             for (const auto& bk : bra) {
                 std::vector<real_function_3d> p1 = bk.get_a();   // weighted ã_a
-                p1.insert(p1.end(), occ.begin(), occ.end());
+                p1.insert(p1.end(), occ_bra.begin(), occ_bra.end());
                 std::vector<real_function_3d> p2 = bk.get_b();   // b̃_b
-                p2.insert(p2.end(), occ.begin(), occ.end());
+                p2.insert(p2.end(), occ_bra.begin(), occ_bra.end());
 
-                Tensor<double> S1  = matrix_inner(world, bk.get_a(), occ);  // (nb,nocc)
-                Tensor<double> S2t = transpose(matrix_inner(world, bk.get_b(), occ));  // (nocc,nb)
+                Tensor<double> S1  = matrix_inner(world, bk.get_a(), occ_ket);  // (nb,nocc)
+                Tensor<double> S2t = transpose(matrix_inner(world, bk.get_b(), occ_ket));  // (nocc,nb)
 
                 for (const auto& name : names) {
                     Tensor<double> M;

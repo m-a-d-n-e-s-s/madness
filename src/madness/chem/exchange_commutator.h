@@ -19,6 +19,11 @@
 #include <madness/chem/operator_diagnostics.h>
 
 namespace madness {
+// fwd decl (SCFOperators.h is included only in exchange_commutator.cc)
+template<typename T, std::size_t NDIM> class Exchange;
+}
+
+namespace madness {
 
 struct ExchangeCommutator {
 
@@ -252,6 +257,69 @@ struct ExchangeCommutator {
             const real_function_3d& Kphi_j,
             const Info& info,
             double energy) const;
+
+    // ---------------------------------------------------------------------
+    // G·Q₁₂·[K̂,f] diagnostic — 3D-only reference, Q₁₂ expanded on the ket
+    // ---------------------------------------------------------------------
+
+    /// Diagnose ⟨ab | G Q₁₂ [K̂,f₁₂] | ij⟩, Q₁₂ = (1-O₁)(1-O₂), O = Σ|k_ket⟩⟨k_bra|.
+    ///
+    /// Caller supplies G·Q₁₂·K̂f₁₂|ij⟩ and G·Q₁₂·f₁₂K̂|ij⟩ (neither G nor Q is
+    /// applied internally).  The reference is computed via 3D functions only:
+    /// G is moved to the bra via the Schwinger/BSH fit and Q₁₂ is expanded on
+    /// the ket side as scalar contractions of analytic Kf/fK matrix elements —
+    /// see diagnose_GQKffK.md for the full derivation.  Entries: "GQKf",
+    /// "GQfK", "GQKffK" (= GQKf − GQfK).
+    ///
+    /// The observer basis is an explicit parameter (unlike diagnose_GKffK):
+    /// pass info.ao for the accuracy check, or the raw pair-bra functions
+    /// {mo_bra[i], mo_bra[j]} with orthonormalize_basis=false so that the
+    /// (0,1) element ⟨ī j̄|G Q₁₂ [K̂,f]|ij⟩ is the exchange-commutator
+    /// contribution to the MP2 pair energy.
+    ///
+    /// @param GQKf_cc  G Q₁₂ K̂f₁₂|ij⟩ pieces (caller applies Q12 and G externally)
+    /// @param GQfK_cc  G Q₁₂ f₁₂K̂|ij⟩ pieces
+    /// @param Kphi_i   K̂φᵢ (precomputed once by caller)
+    /// @param Kphi_j   K̂φⱼ (precomputed once by caller)
+    /// @param info     carries mo_ket, mo_bra (Q₁₂ and K̂ spaces) and parameters
+    /// @param energy   ε_i + ε_j  (must be negative)
+    /// @param aobasis  observer basis
+    /// @param orthonormalize_basis  Löwdin-orthonormalize aobasis (false: keep raw)
+    DiagnosticMatrix<> diagnose_GQKffK(
+            World& world,
+            const std::vector<CCPairFunction<double,6>>& GQKf_cc,
+            const std::vector<CCPairFunction<double,6>>& GQfK_cc,
+            const real_function_3d& phi_i,
+            const real_function_3d& phi_j,
+            const real_function_3d& Kphi_i,
+            const real_function_3d& Kphi_j,
+            const Info& info,
+            double energy,
+            const std::vector<real_function_3d>& aobasis,
+            bool orthonormalize_basis = true) const;
+
+    /// analytic matrix elements M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|K̂_p f₁₂|φᵢφⱼ⟩
+    ///   K̂₁: ⟨(K̂†x)·φᵢ | f₁₂⋆(y·φⱼ)⟩      K̂₂: ⟨f₁₂⋆(x·φᵢ) | (K̂†y)·φⱼ⟩
+    static Tensor<double> kf_elements(
+            World& world,
+            const std::vector<real_function_3d>& p1,
+            const std::vector<real_function_3d>& p2,
+            const real_function_3d& phi_i,
+            const real_function_3d& phi_j,
+            const Exchange<double,3>& Kdagger,
+            const SeparatedConvolution<double,3>& f12);
+
+    /// analytic matrix elements M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|f₁₂ K̂_p|φᵢφⱼ⟩
+    ///   K̂₁: ⟨x·(K̂φᵢ) | f₁₂⋆(y·φⱼ)⟩       K̂₂: ⟨x·φᵢ | f₁₂⋆(y·(K̂φⱼ))⟩
+    static Tensor<double> fk_elements(
+            World& world,
+            const std::vector<real_function_3d>& p1,
+            const std::vector<real_function_3d>& p2,
+            const real_function_3d& phi_i,
+            const real_function_3d& phi_j,
+            const real_function_3d& Kphi_i,
+            const real_function_3d& Kphi_j,
+            const SeparatedConvolution<double,3>& f12);
 };
 
 } // namespace madness

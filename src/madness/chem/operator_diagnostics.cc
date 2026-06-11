@@ -22,10 +22,16 @@ namespace madness {
 // ---------------------------------------------------------------------------
 
 template<typename T, std::size_t NDIM>
-DiagnosticMatrix<T,NDIM>::DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in)
+DiagnosticMatrix<T,NDIM>::DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in,
+                                           bool orthonormalize)
     : world_(world)
 {
     if (ao_basis_in.empty()) return;
+
+    if (!orthonormalize) {
+        ao_basis = std::move(ao_basis_in);
+        return;
+    }
 
     const int nb = static_cast<int>(ao_basis_in.size());
     Tensor<T> S = matrix_inner(world, ao_basis_in, ao_basis_in, /*sym=*/true);

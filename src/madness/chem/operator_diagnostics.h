@@ -66,7 +66,10 @@ public:
     /// Construct with a World reference and an AO basis.
     /// If the basis is not orthonormal (||S - I||_F > 1e-10) it is
     /// orthonormalized in-place via symmetric (Löwdin) orthonormalization.
-    DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in);
+    /// Pass orthonormalize=false to keep the basis as given (e.g. when matrix
+    /// elements in the raw basis carry physical meaning, like pair energies).
+    DiagnosticMatrix(World& world, std::vector<Function<T,LDIM>> ao_basis_in,
+                     bool orthonormalize = true);
 
     int nbasis() const { return static_cast<int>(ao_basis.size()); }
 
@@ -135,9 +138,11 @@ private:
     World& world_;
 };
 
-// Deduction guide: infer NDIM=2*LDIM from the element type of the ao_basis vector.
+// Deduction guides: infer NDIM=2*LDIM from the element type of the ao_basis vector.
 template<typename T, std::size_t LDIM>
 DiagnosticMatrix(World&, std::vector<Function<T,LDIM>>) -> DiagnosticMatrix<T,2*LDIM>;
+template<typename T, std::size_t LDIM>
+DiagnosticMatrix(World&, std::vector<Function<T,LDIM>>, bool) -> DiagnosticMatrix<T,2*LDIM>;
 
 } // namespace madness
 
