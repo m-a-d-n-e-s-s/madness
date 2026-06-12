@@ -152,7 +152,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   min_batch_size_, max_batch_size_, algorithm_, batch_granularity_);
     xtask.replicate_for_debug_ = replicate_for_debug_;
-    xtask.local_accumulation_ = local_accumulation_;
+    xtask.accumulation_mode_ = accumulation_mode_;
     xtask.use_mflex_ = use_mflex_;
     xtask.mflex_max_exhaustive_ = mflex_max_exhaustive_;
     xtask.smallmem_mul_tol_ = smallmem_mul_tol_;  // TEMP debug knob

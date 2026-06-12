@@ -511,7 +511,13 @@ public:
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element,
 		const bool debug, const MacroTaskInfo policy) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
-	virtual void finalize(World& /*subworld*/, Cloud& /*cloud*/) {}	// default no-op; see accumulates_own_output()
+	// own-output finalize, split into two stages so the framework can insert a
+	// node sub-World reduction between them (accumulation_mode 2). For modes 0/1
+	// the framework passes nodeworld==nullptr: stage1 is a no-op and stage2 does
+	// the direct subworld->universe gaxpy. See accumulates_own_output().
+	virtual bool wants_node_local_reduction() const { return false; }
+	virtual void finalize_stage1(World& /*subworld*/, World* /*nodeworld*/, Cloud& /*cloud*/) {}	// default no-op
+	virtual void finalize_stage2(World& /*subworld*/, World* /*nodeworld*/, Cloud& /*cloud*/) {}	// default no-op
 	virtual bool has_batch_info() const { return false; }
 	virtual Batch get_batch() const { return Batch(); }
 
@@ -609,6 +615,10 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 
     World& universe;
     std::shared_ptr<World> subworld_ptr;
+	// node-local sub-World (Split_type SHARED), created lazily in run_all the first
+	// time a task requests node-local reduction. Nests inside universe; destroyed
+	// with the taskq (before universe). nullptr unless/until needed.
+	std::shared_ptr<World> nodeworld_ptr;
 	MacroTaskBase::taskqT taskq;
 	std::mutex taskq_mutex;
 	long printlevel=0;
@@ -683,6 +693,17 @@ public:
 
 		universe.gop.fence();
 		return all_worlds;
+	}
+
+	/// create one sub-World per shared-memory node (MPI_COMM_TYPE_SHARED), so the
+	/// finalize step can reduce results intra-node before the inter-node gaxpy.
+	/// Collective over universe; must be called by every rank.
+	static std::shared_ptr<World> create_node_world(World& universe) {
+		SafeMPI::Intracomm comm = universe.mpi.comm().Split_type(
+			SafeMPI::Intracomm::SHARED_SPLIT_TYPE, universe.rank());
+		std::shared_ptr<World> node_world(new World(comm));
+		universe.gop.fence();
+		return node_world;
 	}
 
 	/// run all tasks
@@ -836,26 +857,52 @@ public:
 			universe.gop.fence();
 
 			// give tasks that opted into own-output accumulation a chance to
-			// flush their subworld-local buffer into the universe result
-			// exactly once per subworld. finalize() is guarded per task so
-			// iterating is cheap (O(ntasks) virtual calls + bool checks).
-			// The fence above aligns all ranks (absorbing the straggler wait),
-			// so the span below isolates the finalize() + subworld->universe gaxpy
-			// (the fenceless gaxpy in finalize_into is actually executed by the
-			// fence that closes this span). Exposed and grows with k / on multinode.
+			// flush their subworld-local buffer into the universe result exactly
+			// once per subworld. Done in two stages so a node sub-World reduction
+			// can be inserted between them (accumulation_mode 2):
+			//   stage1: subworld-local accumulator -> node-shared accumulator
+			//   <node fence>  (intra-node, completes stage1's fenceless gaxpies)
+			//   stage2: node-shared accumulator -> universe   (only nnode inter-node
+			//           scatterers per result key instead of nrank)
+			// For modes 0/1 (or any task that does not opt in) nodeworld==nullptr:
+			// stage1 is a no-op, the node fence is skipped, and stage2 does the
+			// original direct subworld->universe gaxpy — byte-identical to before.
+			// The per-task hooks are guarded/idempotent so iterating the replicated
+			// taskq is cheap (O(ntasks) virtual calls + bool checks).
 			//
-			// LIFETIME CONTRACT (load-bearing): finalize() may submit FENCELESS ops
-			// (e.g. ExchangeImpl::finalize_into's subworld->universe gaxpy) that only
-			// complete at the universe.gop.fence() below. A task's accumulator buffer
-			// therefore MUST outlive this fence — do NOT release/clear it inside
-			// finalize(). (ExchangeImpl learned this the hard way: clearing Kf_local_
-			// in finalize_into freed impls mid-gaxpy → remote do_gaxpy_inplace looked
+			// COLLECTIVE-ORDERING (load-bearing): the node fence and the collective
+			// node-accumulator construction are driven HERE, uniformly across the
+			// identical replicated taskq, so every node rank participates regardless
+			// of whether its own stage1 had content. Never move the node fence into
+			// the per-task hook: a rank that ran zero owned tasks would early-return
+			// before it and deadlock the rest of its node.
+			//
+			// LIFETIME CONTRACT (load-bearing): the stage gaxpies are FENCELESS. A
+			// stage1 gaxpy (local->node) completes at the node fence; a stage2 gaxpy
+			// (node/local->universe) completes at the universe fence below. The
+			// corresponding accumulator buffers MUST outlive those fences — do NOT
+			// release/clear them inside the hooks. (ExchangeImpl learned this the
+			// hard way: clearing Kf_local_ mid-gaxpy → remote do_gaxpy_inplace looked
 			// up a released-but-registered impl → intermittent std::bad_weak_ptr,
-			// worse at high k. The fix defers the release to cleanup(), after this
-			// fence.) If this loop is ever changed to fence per-subworld, re-audit
-			// every accumulates_own_output task for this hazard.
+			// worse at high k. Both Kf_local_ and Kf_node_ are released in cleanup(),
+			// after the universe fence.) If this loop is ever changed to fence
+			// per-subworld, re-audit every accumulates_own_output task for this hazard.
+			const bool want_node_reduction = (not taskq.empty())
+				and taskq.front()->wants_node_local_reduction();
+			if (want_node_reduction and not nodeworld_ptr)
+				nodeworld_ptr = create_node_world(universe);	// collective, once
+			World* nodeworld = want_node_reduction ? nodeworld_ptr.get() : nullptr;
+			// auto-degrade single-node: if the whole universe is one shared-memory node
+			// the node sub-World == universe, so the two-stage reduction has nothing to
+			// dedup and stage1 would be pure overhead. Fall back to the direct
+			// subworld->universe gaxpy (mode-1 path) by passing nodeworld==nullptr.
+			if (nodeworld and nodeworld->size() == universe.size()) nodeworld = nullptr;
+
 			const double finalize_t0 = wall_time();
-			for (auto& t : taskq) t->finalize(subworld, cloud);
+			for (auto& t : taskq) t->finalize_stage1(subworld, nodeworld, cloud);
+			if (nodeworld) nodeworld->gop.fence();
+			const double finalize_stage1_elapsed = wall_time() - finalize_t0;
+			for (auto& t : taskq) t->finalize_stage2(subworld, nodeworld, cloud);
 			universe.gop.fence();
 			const double finalize_elapsed = wall_time() - finalize_t0;
 
@@ -874,6 +921,9 @@ public:
 	        if (printtimings_detail()) {
 	            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
 	            printf(" finalize gaxpy (sw->universe)%5.2fs\n", finalize_elapsed);
+	            if (nodeworld)
+	                printf("   of which stage1 (->node)   %5.2fs / stage2 (node->univ)%5.2fs\n",
+	                       finalize_stage1_elapsed, finalize_elapsed - finalize_stage1_elapsed);
 	            printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
 	        }
 			taskq_statistics["elapsed_time"]=cpu11-cpu00;
@@ -1253,14 +1303,32 @@ class MacroTask {
     template<typename Q, typename ResT>
     static void accumulate_locally_or_noop(Q&, World&, const ResT&, ...) {}
 
+    template<typename Q>
+    static auto wants_node_local_reduction_or_default(const Q& task, int)
+        -> decltype(task.wants_node_local_reduction()) {
+        return task.wants_node_local_reduction();
+    }
+
+    template<typename Q>
+    static bool wants_node_local_reduction_or_default(const Q&, ...) { return false; }
+
+    template<typename Q>
+    static auto finalize_stage1_or_noop(Q& task, World& subworld, World* nodeworld, int)
+        -> decltype(task.finalize_stage1(subworld, nodeworld), void()) {
+        task.finalize_stage1(subworld, nodeworld);
+    }
+
+    template<typename Q>
+    static void finalize_stage1_or_noop(Q&, World&, World*, ...) {}
+
     template<typename Q, typename ResT>
-    static auto finalize_into_or_noop(Q& task, World& subworld, ResT& universe_result, int)
-        -> decltype(task.finalize_into(subworld, universe_result), void()) {
-        task.finalize_into(subworld, universe_result);
+    static auto finalize_stage2_or_noop(Q& task, World& subworld, World* nodeworld, ResT& universe_result, int)
+        -> decltype(task.finalize_stage2(subworld, nodeworld, universe_result), void()) {
+        task.finalize_stage2(subworld, nodeworld, universe_result);
     }
 
     template<typename Q, typename ResT>
-    static void finalize_into_or_noop(Q&, World&, ResT&, ...) {}
+    static void finalize_stage2_or_noop(Q&, World&, World*, ResT&, ...) {}
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
@@ -1732,14 +1800,30 @@ private:
 	    		task.cleanup();
 	    	}
 
+	    	// does this task want the framework to insert a node sub-World reduction
+	    	// between the two finalize stages (accumulation_mode 2)? Uniform across the
+	    	// replicated taskq.
+	    	bool wants_node_local_reduction() const override {
+	    		return wants_node_local_reduction_or_default(task, 0);
+	    	}
+
 	    	// called once per subworld after the task loop, before cleanup().
-	    	// For tasks that opt into own-output accumulation, load the universe
-	    	// result pointers and let the task perform a single subworld->universe gaxpy.
-	    	// Idempotent: guarded inside the task so repeated calls are no-ops.
-	    	void finalize(World& subworld, Cloud& cloud) override {
+	    	// Stage 1 (own-output tasks only): reduce the subworld-local accumulator
+	    	// into the node-shared accumulator. No-op unless nodeworld!=nullptr (mode 2).
+	    	// Idempotent / guarded inside the task. The collective node-accumulator
+	    	// setup inside the task runs on every node rank (uniform replicated taskq).
+	    	void finalize_stage1(World& subworld, World* nodeworld, Cloud& cloud) override {
+	    		if (not task.accumulates_own_output()) return;
+	    		finalize_stage1_or_noop(task, subworld, nodeworld, 0);
+	    	}
+
+	    	// stage 2 (own-output tasks only): load the universe result pointers and
+	    	// drain the accumulator into the universe. nodeworld==nullptr => direct
+	    	// subworld->universe gaxpy (mode 0/1); else node-sum -> universe (mode 2).
+	    	void finalize_stage2(World& subworld, World* nodeworld, Cloud& cloud) override {
 	    		if (not task.accumulates_own_output()) return;
 	    		resultT result_universe = get_output(subworld, cloud);
-	    		finalize_into_or_noop(task, subworld, result_universe, 0);
+	    		finalize_stage2_or_noop(task, subworld, nodeworld, result_universe, 0);
 	    	}
 
     	template<typename T, std::size_t NDIM>

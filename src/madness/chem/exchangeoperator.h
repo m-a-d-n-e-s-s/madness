@@ -282,7 +282,7 @@ public:
     Algorithm algorithm_ = multiworld_efficient_row;
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
     bool replicate_for_debug_ = false;  ///< if true, use StoreFunction policy to pre-replicate all data (zero communication during tasks)
-    bool local_accumulation_ = true;    ///< if true (and using owner-aware algorithm), accumulate task results subworld-locally and do one final subworld->universe gaxpy
+    int accumulation_mode_ = 2;         ///< owner-aware result-finalize mode: 0=per-task gaxpy into universe; 1=subworld-local accumulate + one bulk subworld->universe gaxpy; 2=node-local hierarchical reduction (default; intra-node reduce then one inter-node node-sum gaxpy, auto-degrades to mode 1 single-node)
     bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
     long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
     bool use_cloud_batch_fetch_ = true; ///< if true (and algorithm==small_memory_mt_owner), fetch input batches from the cloud's owner-pinned batch container instead of copy()ing from the universe. Default off (A/B baseline).
@@ -405,8 +405,8 @@ public:
         return *this;
     }
 
-    ExchangeImpl& set_local_accumulation(const bool flag) {
-        local_accumulation_ = flag;
+    ExchangeImpl& set_accumulation_mode(const int mode) {
+        accumulation_mode_ = mode;
         return *this;
     }
 
@@ -490,12 +490,16 @@ private:
         Algorithm algorithm_ = multiworld_efficient;
     public:
         bool replicate_for_debug_ = false;
-        // When true (and use_owner_aware_fetch() is true), the task accumulates
-        // each tile's contribution into a subworld-local buffer and performs a
-        // single subworld->universe gaxpy in finalize_into() after all tasks on
-        // this subworld have run. Defaults to true; flip off to contrast against
-        // the original per-task universe accumulation path.
-        bool local_accumulation_ = true;
+        // Result-finalize mode (active when use_owner_aware_fetch() is true).
+        // 0: original per-task subworld->universe gaxpy (no buffering).
+        // 1: accumulate each tile into the subworld-local buffer Kf_local_ and
+        //    do a single subworld->universe gaxpy in finalize_stage2() (default).
+        // 2: node-local hierarchical reduction -- stage1 reduces every node rank's
+        //    Kf_local_ into a node-shared Kf_node_ (intra-node, cheap), stage2 does
+        //    one inter-node gaxpy of the node-sums into the universe result, cutting
+        //    simultaneous cross-node scatterers from nranks to nnodes.
+        // Set from ExchangeImpl::accumulation_mode_ before submitting the macrotask.
+        int accumulation_mode_ = 2;
         // When true, run the m-flex peel search before fold_and_assign so the
         // owner assignment minimizes per-rank load delta. Set from ExchangeImpl
         // before submitting the macrotask. Default true.
@@ -535,6 +539,15 @@ private:
         static inline vecfuncT Kf_local_;
         static inline bool Kf_local_initialized_ = false;
         static inline long Kf_local_world_id_ = -1;
+        // Node-shared accumulator for accumulation_mode_==2 (node-local reduction).
+        // Lives in the node sub-World (Split_type(SHARED)); collectively constructed
+        // by every node rank in finalize_stage1() via ensure_node_accumulator().
+        // Each node rank's Kf_node_ handle references the same node-distributed
+        // functions. Stage1 reduces Kf_local_ -> Kf_node_ (intra-node); stage2 does
+        // one Kf_node_ -> universe gaxpy (only nnode inter-node scatterers per key).
+        static inline vecfuncT Kf_node_;
+        static inline bool Kf_node_initialized_ = false;
+        static inline long Kf_node_world_id_ = -1;
         struct VfPrefetchState {
             Batch_1D current_range;
             vecfuncT current_data;
@@ -1603,7 +1616,15 @@ private:
         /// subworld-local buffer; a single subworld->universe gaxpy happens in
         /// finalize_into(). Only active for the owner-aware algorithm.
         bool accumulates_own_output() const override {
-            return use_owner_aware_fetch() and local_accumulation_;
+            return use_owner_aware_fetch() and accumulation_mode_ >= 1;
+        }
+
+        /// opt into the framework's node-local hierarchical finalize (mode 2):
+        /// stage1 reduces Kf_local_ -> node-shared Kf_node_ (intra-node), stage2
+        /// does one node-sum -> universe gaxpy. Only meaningful when the task also
+        /// accumulates_own_output(). The framework provides the node sub-World.
+        bool wants_node_local_reduction() const {
+            return use_owner_aware_fetch() and accumulation_mode_ == 2;
         }
 
         /// fold a task's subworld-local result vector into the subworld-local
@@ -1653,6 +1674,71 @@ private:
             // both of which happen after the protective universe fence.
             Kf_local_initialized_ = false;
             Kf_local_world_id_ = -1;
+        }
+
+        /// Collectively (re)build the node-shared accumulator Kf_node_ in the node
+        /// sub-World. MUST be called by every rank in `nodeworld` (collective
+        /// Function construction) -- the framework guarantees this by driving
+        /// finalize_stage1 uniformly across the identical replicated taskq, and the
+        /// Kf_node_initialized_ guard flips in lockstep on all node ranks. Built with
+        /// an explicit node pmap because the global FunctionDefaults pmap is the
+        /// 1-rank subworld pmap during finalize -- letting zero_functions() inherit
+        /// it would map keys to subworld rank indices while living in nodeworld.
+        void ensure_node_accumulator(World& nodeworld) const {
+            const long wid = long(nodeworld.id());
+            if (Kf_node_initialized_ and Kf_node_world_id_ == wid) return;
+            auto node_pmap = FunctionDefaults<NDIM>::make_default_pmap(nodeworld);
+            Kf_node_.resize(nresult);
+            for (long i = 0; i < nresult; ++i)
+                Kf_node_[i] = functionT(FunctionFactory<T, NDIM>(nodeworld)
+                                            .pmap(node_pmap)
+                                            .compressed(true)
+                                            .initial_level(1)
+                                            .fence(false));
+            // make Kf_node_ exist on every node rank before any stage1 send targets
+            // it (intra-node, once per node sub-World).
+            nodeworld.gop.fence();
+            Kf_node_initialized_ = true;
+            Kf_node_world_id_ = wid;
+        }
+
+        /// Mode-2 stage 1: reduce this rank's Kf_local_ into the node-shared Kf_node_
+        /// (subworld(1-rank) -> nodeworld gaxpy; all sends intra-node). The gaxpy is
+        /// fenceless and completes at the framework's node fence between the two
+        /// stages, so Kf_local_ must outlive that fence (released at cleanup()).
+        /// nodeworld==nullptr => mode 0/1, nothing to do here.
+        void finalize_stage1(World& subworld, World* nodeworld) {
+            if (nodeworld == nullptr) return;
+            ensure_node_accumulator(*nodeworld);   // collective on all node ranks
+            if (not Kf_local_initialized_) return; // this rank ran no owned tasks
+            change_tree_state(Kf_local_, compressed);
+            gaxpy(1.0, Kf_node_, 1.0, Kf_local_, false);
+            // Kf_local_ drained; do NOT clear (see finalize_into lifetime note).
+            Kf_local_initialized_ = false;
+            Kf_local_world_id_ = -1;
+        }
+
+        /// Mode-2 stage 2: drain the node-shared Kf_node_ into the universe result
+        /// (nodeworld -> universe gaxpy; each result key has one inter-node sender
+        /// per node). Falls back to the mode-0/1 direct Kf_local_ -> universe gaxpy
+        /// when nodeworld==nullptr. The gaxpy is fenceless and completes at the
+        /// framework's universe fence, so Kf_node_ must outlive it (released at
+        /// cleanup()). Truncation matches finalize_into: applied for the asymmetric
+        /// row owner (per-row-final node-sums), skipped for the symmetric algos
+        /// (per-row partials that the universe-level truncate handles).
+        void finalize_stage2(World& subworld, World* nodeworld, vecfuncT& universe_result) {
+            if (nodeworld == nullptr) {
+                finalize_into(subworld, universe_result);
+                return;
+            }
+            if (not Kf_node_initialized_) return;
+            change_tree_state(Kf_node_, compressed);
+            if (algorithm_ == small_memory_mt_owner) {
+                truncate(*nodeworld, Kf_node_);
+            }
+            gaxpy(1.0, universe_result, 1.0, Kf_node_, false);
+            Kf_node_initialized_ = false;
+            Kf_node_world_id_ = -1;
         }
 
         void set_next_vf_hint(const Batch_1D& next_hint, const bool has_hint) {
@@ -2007,6 +2093,11 @@ private:
             Kf_local_.clear();
             Kf_local_initialized_ = false;
             Kf_local_world_id_ = -1;
+            // Kf_node_ released here (after the protective universe fence), same
+            // lifetime contract as Kf_local_: its stage2 gaxpy is fenceless.
+            Kf_node_.clear();
+            Kf_node_initialized_ = false;
+            Kf_node_world_id_ = -1;
             cache_world_id_ = -1;
         }
 
@@ -2129,7 +2220,7 @@ private:
             print("===== owner layout for", name, "=====");
             print("  algorithm=", int(algorithm_), " nsubworld=", nsubworld,
                   " use_cloud_batch_fetch=", int(use_cloud_batch_fetch()),
-                  " local_accumulation=", int(local_accumulation_),
+                  " accumulation_mode=", accumulation_mode_,
                   " ntasks=", owner_map_.size());
             print("  ---- task -> rank (owner_map_) ----");
             for (const auto& kv : owner_map_) {
