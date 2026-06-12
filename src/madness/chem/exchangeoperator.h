@@ -42,6 +42,138 @@ inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const
     return out;
 }
 
+/// Number of batches M for the symmetric round-robin (p2p) owner algorithm.
+///
+/// M = (base + level - 1) * nsubworld, with base = 2 if nsubworld is even
+/// else 1 (the parity device that keeps tasks-per-rank an even integer at the
+/// lowest granularity). `level` (>= 1) is the granularity knob:
+///   odd  nsubworld: level 1 -> nsubworld,    level 2 -> 2*nsubworld, ...
+///   even nsubworld: level 1 -> 2*nsubworld,  level 2 -> 3*nsubworld, ...
+/// The result is clamped to [1, n] (cannot have more batches than orbitals);
+/// when n is below the formula value the caller is in the small-problem regime
+/// and should fall back to small_memory_symmetric_mt_owner.
+///
+/// Each batch k is owned by rank (k mod nsubworld), so with the unclamped
+/// formula every rank owns exactly (base + level - 1) batches.
+inline long exchange_sym_owner_nbatch(const std::size_t n, const long nsubworld,
+                                      const long granularity_level) {
+    if (n == 0) return 0;
+    const long nsw = std::max<long>(1, nsubworld);
+    const long level = std::max<long>(1, granularity_level);
+    const long base = (nsw % 2 == 0) ? 2 : 1;
+    const long M = (base + level - 1) * nsw;
+    return std::min<long>(M, long(n));
+}
+
+/// Split a vector of length n into M = exchange_sym_owner_nbatch(...) contiguous
+/// batches with sizes differing by at most 1 (same even-remainder spread as
+/// exchange_row_owner_split). Single source of truth for the symmetric p2p-owner
+/// batch boundaries: shared by the triangular partitioner, the cloud
+/// batch-storage side, and the round-robin owner distribution, so the stored
+/// batches, the task grid, and the ownership all align by construction.
+/// Batch k is owned by rank (k mod nsubworld). Depends only on
+/// (n, nsubworld, granularity_level).
+inline std::vector<Batch_1D> exchange_sym_owner_split(const std::size_t n, const long nsubworld,
+                                                      const long granularity_level) {
+    std::vector<Batch_1D> out;
+    if (n == 0) return out;
+    const long nbatch = std::max<long>(1, exchange_sym_owner_nbatch(n, nsubworld, granularity_level));
+    const long bs_floor = long(n) / nbatch;
+    const long rem = long(n) - bs_floor * nbatch;
+    long begin = 0;
+    for (long b = 0; b < nbatch; ++b) {
+        const long sz = bs_floor + (b < rem ? 1 : 0);
+        out.emplace_back(begin, begin + sz);
+        begin += sz;
+    }
+    return out;
+}
+
+/// Round-robin owner assignment for the lower-triangular batch-pair task matrix
+/// of the symmetric p2p-owner algorithm. Pure function of (n, M):
+///   - n = number of workers (= nsubworld = nproc); batch k owned by (k mod n).
+///   - M = number of batches (= exchange_sym_owner_split(...).size()).
+/// Task (i,j) with 0 <= j <= i < M is eligible for worker t iff
+///   i==j: (i mod n)==t   (diagonal pinned to its single owner)
+///   i!=j: (i mod n)==t or (j mod n)==t   (owns at least one operand)
+/// Phase 1 round-robins eligible tasks across workers; Phase 2 rebalances
+/// off-diagonal tasks (diagonals never move) until max-min load <= 1.
+/// Returns a map (i,j) -> owner worker. Deterministic, identical on every rank.
+inline std::map<std::pair<long,long>,long>
+exchange_sym_round_robin_assign(const long n, const long M) {
+    std::map<std::pair<long,long>,long> owner;
+    if (n <= 0 or M <= 0) return owner;
+    auto eligible = [n](long i, long j, long t) -> bool {
+        if (i == j) return (i % n) == t;
+        return ((i % n) == t) or ((j % n) == t);
+    };
+    // all tasks, ascending by (i,j)
+    std::vector<std::pair<long,long>> remaining;
+    remaining.reserve(std::size_t(M) * std::size_t(M + 1) / 2);
+    for (long i = 0; i < M; ++i)
+        for (long j = 0; j <= i; ++j)
+            remaining.emplace_back(i, j);
+
+    std::vector<std::vector<std::pair<long,long>>> T(n);
+
+    // Phase 1 — round-robin placement
+    long t = 0, misses = 0;
+    while (not remaining.empty() and misses < n) {
+        long picked = -1;
+        for (long idx = 0; idx < long(remaining.size()); ++idx) {
+            if (eligible(remaining[idx].first, remaining[idx].second, t)) { picked = idx; break; }
+        }
+        if (picked >= 0) {
+            T[t].push_back(remaining[picked]);
+            remaining.erase(remaining.begin() + picked);
+            misses = 0;
+        } else {
+            ++misses;
+        }
+        t = (t + 1) % n;
+    }
+    // any leftovers (should be none — every task is eligible for someone): assign by i%n
+    for (const auto& task : remaining) T[task.first % n].push_back(task);
+
+    // Phase 2 — rebalance until max-min <= 1 (cap iterations defensively)
+    for (long iter = 0; iter < 10000; ++iter) {
+        long big = 0, small = 0;
+        for (long p = 1; p < n; ++p) {
+            if (long(T[p].size()) > long(T[big].size())) big = p;
+            if (long(T[p].size()) < long(T[small].size())) small = p;
+        }
+        if (long(T[big].size()) - long(T[small].size()) <= 1) break;
+        // move the first non-diagonal task in T[big] eligible for `small`
+        bool moved = false;
+        // re-derive sorted big/small pairs greedily: scan all (big,small) by load
+        std::vector<long> order(n);
+        for (long p = 0; p < n; ++p) order[p] = p;
+        std::sort(order.begin(), order.end(),
+                  [&T](long a, long b){ return T[a].size() > T[b].size(); });
+        for (long bi = 0; bi < n and not moved; ++bi) {
+            for (long si = n - 1; si > bi and not moved; --si) {
+                const long bt = order[bi], st = order[si];
+                if (long(T[bt].size()) - long(T[st].size()) <= 1) continue;
+                for (long idx = 0; idx < long(T[bt].size()); ++idx) {
+                    const auto& tk = T[bt][idx];
+                    if (tk.first == tk.second) continue;           // never move diagonals
+                    if (not eligible(tk.first, tk.second, st)) continue;
+                    T[st].push_back(tk);
+                    T[bt].erase(T[bt].begin() + idx);
+                    moved = true;
+                    break;
+                }
+            }
+        }
+        if (not moved) break;   // accept residual imbalance
+    }
+
+    for (long p = 0; p < n; ++p)
+        for (const auto& tk : T[p])
+            owner[tk] = p;
+    return owner;
+}
+
 
 template<typename T, std::size_t NDIM>
 class Exchange<T,NDIM>::ExchangeImpl {
@@ -56,6 +188,9 @@ class Exchange<T,NDIM>::ExchangeImpl {
     static inline std::atomic<long> owner_fetch_timer;
     static inline std::atomic<long> owner_compute_timer;       ///< CPU time inside compute kernels (process_cpu_time)
     static inline std::atomic<long> owner_compute_wall_timer;  ///< wall time wrapping the compute kernel call in operator() — measures "mere compute" including any in-compute communication/fences; subtract owner_compute_timer to attribute wait/communication overhead
+    static inline std::atomic<long> sym_cache_hits_;           ///< sym_p2p: bounded-LRU hits on cloud-fetched batches (cache-aware sort payoff)
+    static inline std::atomic<long> sym_cache_misses_;         ///< sym_p2p: bounded-LRU misses (a synchronous p2p fetch happened)
+    static inline std::atomic<long> sym_prefetch_hits_;        ///< sym_p2p: Design-B prefetch consumes (transient requested one task ahead, overlapped with compute)
     static inline double elapsed_time;
     static inline double elapsed_process_cpu_time;
 
@@ -68,6 +203,9 @@ class Exchange<T,NDIM>::ExchangeImpl {
         owner_fetch_timer = 0l;
         owner_compute_timer = 0l;
         owner_compute_wall_timer = 0l;
+        sym_cache_hits_ = 0l;
+        sym_cache_misses_ = 0l;
+        sym_prefetch_hits_ = 0l;
         elapsed_time = 0.0;
         elapsed_process_cpu_time = 0.0;
     }
@@ -99,6 +237,15 @@ public:
         j["owner_fetch"] = t_fetch_owner;
         j["owner_compute"] = t_compute_owner;
         j["owner_compute_wall"] = t_compute_owner_wall;
+        double sym_hits = double(sym_cache_hits_);
+        double sym_misses = double(sym_cache_misses_);
+        double sym_prefetch = double(sym_prefetch_hits_);
+        world.gop.sum(sym_hits);
+        world.gop.sum(sym_misses);
+        world.gop.sum(sym_prefetch);
+        j["sym_cache_hits"] = sym_hits;
+        j["sym_cache_misses"] = sym_misses;
+        j["sym_prefetch_hits"] = sym_prefetch;
         double total_cpu = elapsed_process_cpu_time;
         world.gop.sum(total_cpu);
         j["total_cpu"] = total_cpu;
@@ -117,6 +264,14 @@ public:
             printf(" cpu time owner fetch          %8.2fs\n", timings["owner_fetch"].template get<double>());
             printf(" cpu time owner compute        %8.2fs\n", timings["owner_compute"].template get<double>());
             printf(" wall time owner compute       %8.2fs\n", timings["owner_compute_wall"].template get<double>());
+            {
+                const double h = timings["sym_cache_hits"].template get<double>();
+                const double m = timings["sym_cache_misses"].template get<double>();
+                const double pf = timings["sym_prefetch_hits"].template get<double>();
+                if (h + m + pf > 0.0)
+                    printf(" sym_p2p batch cache           %.0f LRU-hit / %.0f prefetch / %.0f sync (of %.0f lookups, %.1f%% non-sync)\n",
+                           h, pf, m, h + m + pf, 100.0 * (h + pf) / (h + m + pf));
+            }
             printf(" total process cpu time        %8.2fs\n", timings["total_cpu"].template get<double>());
             printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
         }
@@ -131,6 +286,8 @@ public:
     bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
     long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
     bool use_cloud_batch_fetch_ = true; ///< if true (and algorithm==small_memory_mt_owner), fetch input batches from the cloud's owner-pinned batch container instead of copy()ing from the universe. Default off (A/B baseline).
+    long batch_granularity_ = 1;        ///< granularity level (>=1) for small_memory_symmetric_p2p_owner: M = (base+level-1)*nproc batches, base=2 if nproc even else 1. Level 1 = lowest granularity (~1 batch/rank). Runtime tunable.
+    bool bra_equals_ket_ = false;       ///< true iff set_bra_and_ket received the same vector for bra and ket (moldft / plain HF). Set in set_bra_and_ket. Gates the one-set small_memory_symmetric_p2p_owner path (nemo has bra=R^2*ket != ket).
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -146,6 +303,20 @@ public:
     /// @param[in]	bra		bra space, must be provided as complex conjugate
     /// @param[in]	ket		ket space
     void set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
+        // Detect bra==ket (moldft passes the SAME vector for both; nemo passes
+        // R^2*ket as bra). Compare impl handles BEFORE the deep copy. Cheap, no
+        // collective. Gates the one-set small_memory_symmetric_p2p_owner path.
+        // NOTE: this is a STRUCTURAL test (same impl handle), distinct from the
+        // SEMANTIC value set in the ctors (real SCF -> true, complex/nemo -> false).
+        // The moldft K(amo) path never calls this (bra/ket come from the ctor), so
+        // the two rules don't collide there. But a caller passing semantically-equal
+        // but structurally-distinct vectors (e.g. set_bra_and_ket(conj(amo), amo) for
+        // real amo -> conj is a fresh-impl copy) would get false here and trip the
+        // hard sym_p2p guard in K_macrotask_efficient. Fail-safe (rejects a valid
+        // case, never silently wrong); revisit if a real symmetric caller hits it.
+        bra_equals_ket_ = (bra.size() == ket.size());
+        for (std::size_t i = 0; bra_equals_ket_ and i < bra.size(); ++i)
+            bra_equals_ket_ = (bra[i].get_impl().get() == ket[i].get_impl().get());
         mo_bra = copy(world, bra);
         mo_ket = copy(world, ket);
     }
@@ -200,6 +371,12 @@ public:
     /// copy()-from-universe path so the two backends can be A/B compared.
     ExchangeImpl& set_use_cloud_batch_fetch(const bool flag) {
         use_cloud_batch_fetch_ = flag;
+        return *this;
+    }
+
+    /// granularity level (>=1) for small_memory_symmetric_p2p_owner; clamped to >=1.
+    ExchangeImpl& set_batch_granularity(const long& level) {
+        batch_granularity_ = std::max<long>(1, level);
         return *this;
     }
 
@@ -334,6 +511,11 @@ private:
         // ExchangeImpl::use_cloud_batch_fetch_ before submitting. Default off so
         // the existing copy()-from-universe path stays the A/B baseline.
         bool use_cloud_batch_fetch_ = true;
+        // Granularity level (>=1) for small_memory_symmetric_p2p_owner. Drives
+        // M = (base+level-1)*nproc batches via exchange_sym_owner_split, shared
+        // by the partitioner, store_batches, and the round-robin owner
+        // assignment. Set from ExchangeImpl::batch_granularity_ before submitting.
+        long batch_granularity_ = 1;
         // When true, dump owner_map_ and (for cloud-batch) the cloud's batch
         // record routing at universe rank 0, once per K-application, right
         // after the partition + owner assignment is built. Set from
@@ -416,6 +598,40 @@ private:
         };
         static inline CloudKBatchPrefetch cloud_kb_;
 
+        /// Bounded LRU for the one-set sym_p2p algorithm's cloud-fetched ψ batches.
+        /// Keyed by the cloud RECORD key (encodes salt+dim+range -> globally unique
+        /// per K-application, so a stale entry from a previous application can never
+        /// false-hit). The cache-aware task ordering (shuffle_partition_by_owner)
+        /// keeps an owner's local batch and the current transient adjacent, so a
+        /// small capacity captures the reuse while bounding the footprint (smallmem).
+        /// Capacity is set in prepare_owner_assignment to (owned-per-rank + 1).
+        /// Cleared subworld-scoped via clear_local_caches / ensure_cache_world,
+        /// exactly like bra_cache_ — NOT the cloud-side cache_result path (that one
+        /// segfaults across protocol transitions; see the plan's deferred items).
+        struct SymBatchLRU {
+            std::vector<std::pair<typename Cloud::keyT, vecfuncT>> slots;  // front = most-recently-used
+            std::size_t capacity = 2;
+        };
+        static inline SymBatchLRU sym_lru_;
+
+        /// Design-B prefetch (Option A) for sym_p2p: a STRICT single-slot double
+        /// buffer mirroring the asymmetric cloud_kb_ discipline (NOT a flat map — an
+        /// earlier flat cap-4 map with drop-oldest allowed too many concurrent /
+        /// orphaned in-flight byte requests and corrupted the 2-sided transport on
+        /// LARGE batch replies → MPI_ERR_TRUNCATE / wrong-sized deserialize; see the
+        /// plan's "Fix B" precedent). At most ONE request is issued per task (the next
+        /// owned task's transient), and every pre-compute promotes `next`→`current`
+        /// (retiring the old current), so at most TWO are ever in flight — the same
+        /// bound the proven asymmetric path uses. Cleared subworld-scoped in
+        /// clear_local_caches (same lifecycle as cloud_kb_).
+        struct SymPrefetchSlot {
+            bool valid = false;
+            typename Cloud::keyT key = 0;
+            Future<typename Cloud::batch_bytesT> fut;
+        };
+        static inline SymPrefetchSlot sym_pf_current_;   // promoted from prev task's `next`; consumed this task
+        static inline SymPrefetchSlot sym_pf_next_;       // issued ahead during this task's compute
+
         static inline long cache_world_id_ = -1;
 
         static void clear_kbatch_prefetch() {
@@ -447,8 +663,16 @@ private:
         bool shuffle_task_order_ = false;
 
         bool use_owner_aware_fetch() const {
-            return (algorithm_==small_memory_symmetric_mt_owner or algorithm_==small_memory_mt_owner)
+            return (algorithm_==small_memory_symmetric_mt_owner or algorithm_==small_memory_mt_owner
+                    or algorithm_==small_memory_symmetric_p2p_owner)
                    and not replicate_for_debug_;
+        }
+
+        /// true iff the new symmetric round-robin p2p-owner algorithm is active.
+        /// Triangular grid over the exchange_sym_owner_split batches, owner assigned
+        /// by exchange_sym_round_robin_assign, one-set cloud fetch (bra==ket).
+        bool use_sym_p2p_owner_algorithm() const {
+            return algorithm_==small_memory_symmetric_p2p_owner;
         }
 
         /// true iff the new row-owner algorithm is active. The full-grid partition
@@ -465,7 +689,7 @@ private:
         /// batch container instead of copy()ing from the universe functions.
         /// Only honored for the row-owner algorithm; default off (A/B baseline).
         bool use_cloud_batch_fetch() const {
-            return use_cloud_batch_fetch_ and use_row_owner_algorithm();
+            return use_cloud_batch_fetch_ and (use_row_owner_algorithm() or use_sym_p2p_owner_algorithm());
         }
 
         static bool same_range(const Batch_1D& a, const Batch_1D& b) {
@@ -499,6 +723,9 @@ private:
             bra_cache_.clear();
             ket_cache_.clear();
             held_vf_cache_.clear();
+            sym_lru_.slots.clear();   // capacity (set in prepare_owner_assignment) survives
+            sym_pf_current_ = SymPrefetchSlot();   // drop any in-flight prefetch from the old subworld
+            sym_pf_next_ = SymPrefetchSlot();
             clear_vf_prefetch();
             clear_kbatch_prefetch();
         }
@@ -595,6 +822,68 @@ private:
             return result;
         }
 
+        /// True iff `key` is currently resident in the sym_p2p LRU.
+        bool sym_lru_contains(const typename Cloud::keyT& key) const {
+            for (const auto& s : sym_lru_.slots) if (s.first == key) return true;
+            return false;
+        }
+
+        /// Insert a freshly fetched/deserialized batch at the LRU front, evicting the
+        /// tail past capacity, and return a ref to it.
+        const vecfuncT& sym_lru_insert(const typename Cloud::keyT& key, vecfuncT&& data) const {
+            sym_lru_.slots.insert(sym_lru_.slots.begin(), std::make_pair(key, std::move(data)));
+            if (sym_lru_.slots.size() > std::max<std::size_t>(1, sym_lru_.capacity))
+                sym_lru_.slots.pop_back();
+            return sym_lru_.slots.front().second;
+        }
+
+        /// Bounded-LRU fetch for the one-set sym_p2p path, keyed by cloud record key.
+        /// Three tiers: (1) LRU hit — already-deserialized batch reused (no p2p);
+        /// (2) Design-B prefetch consume — bytes were requested one task ahead by
+        /// sym_pipeline_advance, so we deserialize the (likely already-landed) future
+        /// instead of stalling; (3) synchronous miss — a cold fetch_batch_p2p. Every
+        /// fetched batch is inserted at the LRU front (evicting the tail past capacity).
+        /// The cache-aware task ordering keeps an owner's local batch and the rotating
+        /// transient adjacent, so a small capacity (owned-per-rank + 1) captures the
+        /// reuse while bounding the footprint. Returns a const ref into the cache; the
+        /// caller must copy the (shallow) handles out before the next fetch (a later
+        /// insert may relocate the slot). World-scoped via ensure_cache_world.
+        const vecfuncT& sym_batch_lru_fetch(World& world, Cloud& cloud,
+                                            const typename Cloud::keyT& key) const {
+            const double cpu0 = process_cpu_time();
+            ensure_cache_world(world);
+            // (1) LRU hit
+            for (std::size_t s = 0; s < sym_lru_.slots.size(); ++s) {
+                if (sym_lru_.slots[s].first == key) {
+                    if (s != 0)
+                        std::rotate(sym_lru_.slots.begin(),
+                                    sym_lru_.slots.begin() + s,
+                                    sym_lru_.slots.begin() + s + 1);
+                    ++sym_cache_hits_;
+                    add_owner_fetch_time(cpu0, process_cpu_time());
+                    return sym_lru_.slots.front().second;
+                }
+            }
+            // (2) Design-B prefetch consume: the bytes for this key were requested one
+            //     task ahead; await + deserialize (overlapped with the prior compute).
+            //     Check `current` (the promoted slot) first, then `next`.
+            for (SymPrefetchSlot* slot : {&sym_pf_current_, &sym_pf_next_}) {
+                if (slot->valid and slot->key == key) {
+                    vecfuncT data = cloud.deserialize_batch_p2p<T, NDIM>(
+                            world, slot->fut, key, /*cache_result=*/false);
+                    *slot = SymPrefetchSlot();   // retire the consumed slot
+                    ++sym_prefetch_hits_;
+                    add_owner_fetch_time(cpu0, process_cpu_time());
+                    return sym_lru_insert(key, std::move(data));
+                }
+            }
+            // (3) synchronous miss
+            ++sym_cache_misses_;
+            vecfuncT data = cloud.fetch_batch_p2p<T, NDIM>(world, key, /*cache_result=*/false);
+            add_owner_fetch_time(cpu0, process_cpu_time());
+            return sym_lru_insert(key, std::move(data));
+        }
+
         /// custom partitioning for the exchange operator in exchangeoperator.h
 
         /// arguments are: result[i] += sum_k vket[k] \int 1/r vbra[k] f[i]
@@ -603,8 +892,12 @@ private:
         public:
             MacroTaskPartitionerExchange(const bool symmetric, const long min_batch_size_input,
                                          const long max_batch_size_input,
-                                         const bool row_owner = false)
-                    : symmetric(symmetric), row_owner_(row_owner) {
+                                         const bool row_owner = false,
+                                         const bool sym_p2p_owner = false,
+                                         const long granularity_level = 1)
+                    : symmetric(symmetric), row_owner_(row_owner),
+                      sym_p2p_owner_(sym_p2p_owner),
+                      granularity_level_(std::max<long>(1, granularity_level)) {
                 const long min_bs = std::max<long>(1, min_batch_size_input);
                 const long max_bs = std::max<long>(min_bs, std::max<long>(1, max_batch_size_input));
                 min_batch_size=min_bs;
@@ -616,6 +909,12 @@ private:
             /// (or fewer, if n < nsubworld) batches per dimension via even-remainder
             /// spread. Used by small_memory_mt_owner.
             bool row_owner_ = false;
+            /// when true, produce a lower-triangular grid over M=(base+level-1)*nsubworld
+            /// batches (single split, both dims) via exchange_sym_owner_split. Used by
+            /// small_memory_symmetric_p2p_owner.
+            bool sym_p2p_owner_ = false;
+            /// granularity level for the sym-p2p split (>=1).
+            long granularity_level_ = 1;
 
             /// Row-owner batch boundaries for this partitioner's nsubworld.
             /// Thin wrapper over the shared free helper exchange_row_owner_split,
@@ -625,8 +924,30 @@ private:
                 return exchange_row_owner_split(n, long(nsubworld));
             }
 
+            /// Symmetric p2p-owner batch boundaries (single split, granularity-aware).
+            /// Shared source of truth with store_batches and prepare_owner_assignment.
+            std::vector<Batch_1D> sym_owner_split(std::size_t n) const {
+                return exchange_sym_owner_split(n, long(nsubworld), granularity_level_);
+            }
+
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
+
+                if (sym_p2p_owner_) {
+                    // Lower-triangular grid over a single granularity-aware split.
+                    // col = input[0] = batch i, row = input[1] = batch j, with j <= i.
+                    // owner assigned later by prepare_owner_assignment (round-robin).
+                    std::vector<Batch_1D> batches = sym_owner_split(vsize1);
+                    partitionT result;
+                    for (long i = 0; i < long(batches.size()); ++i) {
+                        for (long j = 0; j <= i; ++j) {
+                            Batch batch(batches[i], batches[j], _);
+                            double priority = compute_priority(batch);
+                            result.push_back(std::make_pair(batch, priority));
+                        }
+                    }
+                    return result;
+                }
 
                 if (row_owner_) {
                     // Strict bs = ceil(n/nsubworld), even remainder spread, full grid.
@@ -680,10 +1001,14 @@ private:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol, const bool symmetric,
                                 const long min_batch_size,
                                 const long max_batch_size,
-                                const Algorithm algorithm = multiworld_efficient)
+                                const Algorithm algorithm = multiworld_efficient,
+                                const long batch_granularity = 1)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric), algorithm_(algorithm) {
+            batch_granularity_ = std::max<long>(1, batch_granularity);
             const bool row_owner = (algorithm == small_memory_mt_owner);
-            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size, row_owner));
+            const bool sym_p2p = (algorithm == small_memory_symmetric_p2p_owner);
+            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, min_batch_size, max_batch_size,
+                                                               row_owner, sym_p2p, batch_granularity_));
             name="MacroTaskExchangeSimple";
         }
 
@@ -761,6 +1086,44 @@ private:
                         it = col_to_rank.emplace(col.begin, rank).first;
                     }
                     owner_map_[{col.begin, row.begin}] = it->second;
+                }
+                return;
+            }
+
+            // Symmetric round-robin p2p-owner: triangular grid over the single
+            // granularity-aware split. Owner per (i,j) batch-index pair comes from
+            // exchange_sym_round_robin_assign (balanced + locality: owner holds one
+            // operand). Map batch-begin offsets -> indices to key the rr assignment.
+            if (algorithm_ == small_memory_symmetric_p2p_owner) {
+                owner_map_.clear();
+                chosen_peel_.clear();
+                const std::vector<Batch_1D> split =
+                        exchange_sym_owner_split(nresult, nsubworld, batch_granularity_);
+                const long M = long(split.size());
+                // Size the reuse LRU to hold an owner's local batch(es) plus one
+                // rotating transient: owned-per-rank = ceil(M/nsubworld), +1 for the
+                // transient. With the cache-aware ordering this captures the reuse
+                // while keeping the footprint bounded (the smallmem invariant).
+                const long owned_per_rank = (M + nsubworld - 1) / nsubworld;
+                sym_lru_.capacity = std::size_t(std::max<long>(2, owned_per_rank + 1));
+                std::map<long,long> begin_to_idx;
+                for (long k = 0; k < M; ++k) begin_to_idx[split[k].begin] = k;
+                const std::map<std::pair<long,long>,long> rr =
+                        exchange_sym_round_robin_assign(nsubworld, M);
+                for (const auto& [batch, prio] : partition) {
+                    MADNESS_CHECK_THROW(batch.input.size() >= 2,
+                                        "small_memory_symmetric_p2p_owner expects 2D batches (col, row)");
+                    const Batch_1D& col = batch.input[0];
+                    const Batch_1D& row = batch.input[1];
+                    auto ic = begin_to_idx.find(col.begin);
+                    auto jr = begin_to_idx.find(row.begin);
+                    MADNESS_CHECK_THROW(ic != begin_to_idx.end() and jr != begin_to_idx.end(),
+                                        "sym_p2p: task batch offset not found in split");
+                    const long a = std::max(ic->second, jr->second);   // rr keyed by (i>=j)
+                    const long b = std::min(ic->second, jr->second);
+                    auto it = rr.find({a, b});
+                    owner_map_[{col.begin, row.begin}] =
+                            (it != rr.end()) ? it->second : (a % nsubworld);
                 }
                 return;
             }
@@ -1125,7 +1488,13 @@ private:
         /// Tasks from different owners are interleaved round-robin so the queue
         /// keeps all ranks fed from the start.
         void shuffle_partition_by_owner(MacroTaskPartitioner::partitionT& partition, long nsubworld) const {
-            if (!use_owner_aware_fetch() || !shuffle_task_order_ || owner_map_.empty() || nsubworld <= 0) return;
+            if (!use_owner_aware_fetch() || owner_map_.empty() || nsubworld <= 0) return;
+
+            // sym_p2p uses a cache-aware ORDER (locality-preserving, runs even with the
+            // random de-sync shuffle disabled); the other owner-aware algorithms use the
+            // optional random shuffle. Bail if neither applies.
+            const bool cache_sort = use_sym_p2p_owner_algorithm();
+            if (!cache_sort && !shuffle_task_order_) return;
 
             // Group partition entries by owner
             std::map<long, std::vector<std::pair<Batch,double>>> per_owner;
@@ -1139,10 +1508,52 @@ private:
                 per_owner[owner].push_back(std::move(entry));
             }
 
-            // Shuffle each owner's task list independently
-            for (auto& [owner, tasks] : per_owner) {
-                std::mt19937 rng(static_cast<unsigned>(owner * 31 + nsubworld));
-                std::shuffle(tasks.begin(), tasks.end(), rng);
+            if (cache_sort) {
+                // Cache-aware ordering (sort_for_caching). Per owner: no-fetch tasks
+                // (diagonal i==j, or both operands owned) first, then group by the
+                // transient (non-owned) batch index so the bounded LRU hits on
+                // consecutive same-transient tasks and a future prefetch can stage
+                // the next transient. begin->index from the owner_map_ keys (the split
+                // is contiguous ascending, so sorted-unique begins map 1:1 to indices).
+                std::set<long> begins;
+                for (const auto& kv : owner_map_) {
+                    begins.insert(kv.first.first);
+                    begins.insert(kv.first.second);
+                }
+                std::map<long,long> begin_to_idx;
+                { long idx = 0; for (long b : begins) begin_to_idx[b] = idx++; }
+                const long n = nsubworld;
+                auto idx_of = [&](const Batch& bt, int dim) -> long {
+                    const Batch_1D& r = (dim == 1 && bt.input.size() > 1) ? bt.input[1] : bt.input[0];
+                    auto it = begin_to_idx.find(r.begin);
+                    return (it != begin_to_idx.end()) ? it->second : -1;
+                };
+                auto transient_of = [&](const Batch& bt, long owner) -> long {
+                    const long i = idx_of(bt, 0);   // col
+                    const long j = idx_of(bt, 1);   // row
+                    if (i == j) return -1;                       // diagonal: zero fetch
+                    const bool ci = (i % n) == owner;
+                    const bool cj = (j % n) == owner;
+                    if (ci && cj) return -1;                     // both-owned: zero fetch
+                    return ci ? j : i;                           // the rotating transient batch
+                };
+                for (auto& [owner, tasks] : per_owner) {
+                    std::stable_sort(tasks.begin(), tasks.end(),
+                        [&](const std::pair<Batch,double>& a, const std::pair<Batch,double>& b) {
+                            const long ta = transient_of(a.first, owner);
+                            const long tb = transient_of(b.first, owner);
+                            if (ta != tb) return ta < tb;        // -1 (no-fetch) first, then grouped
+                            // deterministic tie-break within a transient group
+                            return std::make_pair(idx_of(a.first,0), idx_of(a.first,1))
+                                 < std::make_pair(idx_of(b.first,0), idx_of(b.first,1));
+                        });
+                }
+            } else {
+                // Shuffle each owner's task list independently (random de-sync)
+                for (auto& [owner, tasks] : per_owner) {
+                    std::mt19937 rng(static_cast<unsigned>(owner * 31 + nsubworld));
+                    std::shuffle(tasks.begin(), tasks.end(), rng);
+                }
             }
 
             // Rebuild partition by round-robin interleaving across owners
@@ -1232,7 +1643,14 @@ private:
                 truncate(subworld, Kf_local_);
             }
             gaxpy(1.0, universe_result, 1.0, Kf_local_, false);
-            Kf_local_.clear();
+            // Do NOT clear Kf_local_ here: the gaxpy above is fenceless (false) and
+            // completes only at the framework's universe fence AFTER all subworlds
+            // finalize. Releasing Kf_local_'s impls now (clear) frees them mid-gaxpy
+            // → the gaxpy's remote do_gaxpy_inplace looks up a released-but-still-
+            // registered impl via shared_from_this() → std::bad_weak_ptr (intermittent,
+            // worse at high k where the gaxpy runs longer). Defer the release: the old
+            // impls live until the next accumulate_locally reinit or xtask destruction,
+            // both of which happen after the protective universe fence.
             Kf_local_initialized_ = false;
             Kf_local_world_id_ = -1;
         }
@@ -1241,7 +1659,9 @@ private:
             if (not use_owner_aware_fetch()) return;
             // In small_memory_mt_owner the vf dimension is held, not rotated, so
             // skip the vf-side prefetch state entirely (k-batch state is rotated instead).
-            if (use_row_owner_algorithm()) return;
+            // sym_p2p with cloud fetches vf from the cloud in operator(), so skip the
+            // copy-from-universe vf prefetch too (it would be unused + wasteful).
+            if (use_row_owner_algorithm() or use_cloud_batch_fetch()) return;
             vf_prefetch_.has_hint = has_hint;
             if (has_hint) {
                 vf_prefetch_.next_hint = next_hint;
@@ -1260,7 +1680,7 @@ private:
 
         void prefetch_next_vf_async(World& world, const vecfuncT& vf_full) const {
             if (not use_owner_aware_fetch()) return;
-            if (use_row_owner_algorithm()) return;     // vf is held in this algorithm
+            if (use_row_owner_algorithm() or use_cloud_batch_fetch()) return;     // vf held (row-owner) or cloud-fetched (sym_p2p)
             const double cpu0 = process_cpu_time();
             ensure_cache_world(world);
             if (not vf_prefetch_.has_hint) return;
@@ -1375,7 +1795,9 @@ private:
                                            const vecfuncT& mo_ket_full,
                                            const Batch_1D& next_hint,
                                            const bool has_next_task) const {
-            if (not use_cloud_batch_fetch()) return;
+            // Design-B prefetch is asymmetric-only for now; the sym_p2p path runs
+            // with prefetch OFF (synchronous fetch in operator()) in the first cut.
+            if (not use_cloud_batch_fetch() or not use_row_owner_algorithm()) return;
             // Establish the cache world FIRST. Each SCF iteration uses a fresh
             // subworld id, so the first task triggers clear_local_caches (which
             // clears cloud_kb_). Doing it here, before we issue, means the
@@ -1405,6 +1827,53 @@ private:
                       " t=", wall_time(), " next_row=[", hint.begin, ",", hint.end, ")",
                       " bra_owner=", bo, " ket_owner=", ko);
             }
+        }
+
+        /// Design-B prefetch (Option A) for sym_p2p. Called PRE-compute by the
+        /// framework (after the argtuple load, before operator()) with the NEXT owned
+        /// task's col (input[0]) and row (input[1]) ranges. For each distinct record
+        /// key NOT already resident in sym_lru_ and NOT already pending, issue an async
+        /// byte request so the transfer overlaps THIS task's compute. Option A: the
+        /// owned batch is resident in the LRU and thus skipped, so only the transient
+        /// is prefetched — no subworld→universe rank math. Diagonal / both-owned next
+        /// tasks prefetch nothing (both keys resident). No-op unless this is the sym_p2p
+        /// cloud path. salt = ψ (full ket) matches store_batches / operator().
+        /// MUST be public: the framework's external SFINAE dispatch helper calls it.
+        void sym_pipeline_advance(World& world, const vecfuncT& psi_full,
+                                  const Batch_1D& next_col, const Batch_1D& next_row,
+                                  const bool has_next_task) const {
+            if (not use_sym_p2p_owner_algorithm() or not use_cloud_batch_fetch()) return;
+            // Establish the cache world FIRST so operator()'s later ensure_cache_world
+            // is a no-op and won't wipe the prefetch we issue here (mirrors
+            // cloud_kbatch_pipeline_advance).
+            ensure_cache_world(world);
+            // Promote the previous task's `next` to `current` (consumed by this task's
+            // operator()); retire whatever was in `current` (consumed already, or a
+            // misprediction whose in-flight request still completes harmlessly in
+            // BatchTransport — dropping our Future handle does not orphan the MPI op).
+            sym_pf_current_ = std::move(sym_pf_next_);
+            sym_pf_next_ = SymPrefetchSlot();
+            if (not has_next_task or cloud_ptr == nullptr) return;
+            const typename Cloud::keyT salt = batch_salt(psi_full);
+            const Batch_1D ncol = normalize_range(next_col, long(psi_full.size()));
+            const Batch_1D nrow = normalize_range(next_row, long(psi_full.size()));
+            // Issue AT MOST ONE request — the next task's transient (its first
+            // NON-resident operand; Option A: the owned operand is already in the LRU
+            // and is skipped). Strict single-issue keeps in-flight ≤ 2 (current+next),
+            // the bound the proven asymmetric path uses.
+            auto issue = [&](const Batch_1D& r) -> bool {
+                const typename Cloud::keyT key = batch_record_key(salt, DIM_VF, r);
+                if (sym_lru_contains(key)) return false;                 // owned/resident -> skip (Option A)
+                if (sym_pf_current_.valid and sym_pf_current_.key == key) return false;  // already staged
+                sym_pf_next_.valid = true;
+                sym_pf_next_.key = key;
+                sym_pf_next_.fut = cloud_ptr->request_batch_bytes_async(key);
+                if (cloud_ptr->is_batch_debug())
+                    print("SYM_PREFETCH rank=", world.rank(), " sw=", world.id(), " t=", wall_time(),
+                          " row=[", r.begin, ",", r.end, ") key=", key);
+                return true;
+            };
+            if (not issue(ncol) and not same_range(nrow, ncol)) issue(nrow);  // one transient only
         }
 
         void prefetch_next_bra_async(World& world,
@@ -1604,6 +2073,24 @@ private:
             const vecfuncT& mo_bra = std::get<1>(argtuple);  // input[1]: rotating row / bra
             const vecfuncT& mo_ket = std::get<2>(argtuple);  // paired with bra by inner index
             const typename Cloud::keyT salt = batch_salt(mo_ket);  // ket: full in both store and operator()
+
+            // Symmetric one-set store: bra==ket==vf==psi (guaranteed: nemo with
+            // bra!=ket falls back to copy in K_macrotask_efficient). Store psi in
+            // M=(base+level-1)*nproc batches over a single split; batch k pinned to
+            // rank (k mod nsubworld). The symmetric kernels read this same set for
+            // the column (vf), row (bra), and ket roles. One record/batch (DIM_VF).
+            if (use_sym_p2p_owner_algorithm()) {
+                const std::vector<Batch_1D> split =
+                        exchange_sym_owner_split(mo_ket.size(), nsubworld, batch_granularity_);
+                for (long k = 0; k < long(split.size()); ++k) {
+                    const Batch_1D& r = split[k];
+                    vecfuncT slice(mo_ket.begin() + r.begin, mo_ket.begin() + r.end);
+                    cloud.store_batch(world, slice, ProcessID(k % nsubworld),
+                                      batch_record_key(salt, DIM_VF, r), /*fence=*/false);
+                }
+                world.gop.fence();
+                return;
+            }
 
             const std::vector<Batch_1D> col_split = exchange_row_owner_split(vf.size(), nsubworld);
             const std::vector<Batch_1D> row_split = exchange_row_owner_split(mo_bra.size(), nsubworld);
@@ -1823,9 +2310,35 @@ private:
                 and same_range(vf_prefetch_.next_range, normalize_range(vf_range, long(vf_batch.size())));
 
             vecfuncT bra_local;
+            vecfuncT vf_local_sym;        // sym_p2p: cloud-fetched vf (column); aliased by vf_work
             const vecfuncT* bra_work = &bra_batch;
             const vecfuncT* vf_work = &vf_batch;
-            if (use_owner_aware_fetch()) {
+            if (use_sym_p2p_owner_algorithm() and use_cloud_batch_fetch()) {
+                // One-set cloud fetch: psi over the row (bra) and column (vf) ranges.
+                // One range is owned by this rank (local read), the other is transient
+                // (remote p2p). Both come from the single DIM_VF record set. Because
+                // bra==ket==vf, these batches also serve the kernels' ket role
+                // (the offdiagonal kernel uses bra_work/vf_work as ket_rows/ket_columns).
+                MADNESS_CHECK_THROW(cloud_ptr != nullptr, "cloud_ptr is null in sym_p2p fetch");
+                Cloud& cloud = *cloud_ptr;
+                const typename Cloud::keyT salt = batch_salt(vket);
+                // Bounded-LRU fetch (sym_batch_lru_fetch): the cache-aware task order
+                // (shuffle_partition_by_owner) keeps an owner's local batch and the
+                // rotating transient adjacent, so consecutive tasks reuse the resident
+                // batch instead of re-fetching. The LRU is keyed by the cloud record
+                // key and is subworld-scoped (clear_local_caches) — NOT the cloud-side
+                // cache_result path, which segfaults across protocol transitions.
+                // Copy the handles out of the returned ref before the next fetch, since
+                // an insert there may relocate the slot.
+                bra_local = sym_batch_lru_fetch(world, cloud, batch_record_key(salt, DIM_VF, bra_range));
+                if (diagonal_block) {
+                    vf_local_sym = bra_local;     // same range -> same data
+                } else {
+                    vf_local_sym = sym_batch_lru_fetch(world, cloud, batch_record_key(salt, DIM_VF, vf_range));
+                }
+                bra_work = &bra_local;
+                vf_work = &vf_local_sym;
+            } else if (use_owner_aware_fetch()) {
                 bra_local = fetch_batch_with_cache(world, bra_batch, bra_range, bra_cache_);
                 bra_work = &bra_local;
                 vf_work = &acquire_current_vf(world, vf_batch, vf_range);
@@ -1833,12 +2346,15 @@ private:
             const double t_bravf_done = wall_time();
 
             if (symmetric and diagonal_block) {
-                vecfuncT ket_batch = use_owner_aware_fetch()
+                vecfuncT ket_batch = use_sym_p2p_owner_algorithm()
+                        ? *bra_work        // one-set: ket == bra over the (diagonal) range
+                        : use_owner_aware_fetch()
                         ? fetch_range_with_cache(world, vket, bra_range, ket_cache_)
                         : bra_range.copy_batch(vket);
                 const double t_ket_done = wall_time();
                 vecfuncT resultcolumn;
-                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
+                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner
+                    or algorithm_==small_memory_symmetric_p2p_owner) {
                     resultcolumn = compute_diagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, ket_batch,
                                                                                                   *bra_work, *vf_work);
                 } else {
@@ -1862,7 +2378,8 @@ private:
             } else if (symmetric and not diagonal_block) {
                 std::pair<vecfuncT, vecfuncT> resultpair;
                 const double t_ket_done = wall_time(); // ket fetch is inside compute for offdiag
-                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner) {
+                if (algorithm_==small_memory_symmetric_mt or algorithm_==small_memory_symmetric_mt_owner
+                    or algorithm_==small_memory_symmetric_p2p_owner) {
                     resultpair = compute_offdiagonal_batch_in_symmetric_matrix_smallmem_symmetric(world, vket,
                                                                                                     *bra_work, *vf_work);
                 } else {
@@ -2111,10 +2628,17 @@ private:
                                 "smallmem_sym_mt offdiagonal: column range mismatch");
 
             // ket vectors corresponding to tile row and tile column ranges.
-            vecfuncT ket_rows = use_owner_aware_fetch()
+            // One-set (sym_p2p): bra==ket==vf, so ket_rows==bra_batch and
+            // ket_columns==vf_batch — reuse them directly instead of re-fetching
+            // (the full `ket` is unused on this path).
+            vecfuncT ket_rows = use_sym_p2p_owner_algorithm()
+                    ? bra_batch
+                    : use_owner_aware_fetch()
                     ? fetch_range_with_cache(subworld, ket, row_range, ket_cache_)
                     : row_range.copy_batch(ket);
-            vecfuncT ket_columns = use_owner_aware_fetch()
+            vecfuncT ket_columns = use_sym_p2p_owner_algorithm()
+                    ? vf_batch
+                    : use_owner_aware_fetch()
                     ? fetch_range_transient(subworld, ket, column_range)
                     : column_range.copy_batch(ket);
             MADNESS_CHECK_THROW(ket_rows.size() == bra_batch.size(),

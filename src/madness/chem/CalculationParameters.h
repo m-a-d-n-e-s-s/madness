@@ -67,13 +67,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","smallmem_sym","smallmem_sym_mt","smallmem_sym_mt_owner","smallmem_mt_owner","largemem"});
+		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","smallmem_sym","smallmem_sym_mt","smallmem_sym_mt_owner","smallmem_sym_p2p_owner","smallmem_mt_owner","largemem"});
 		initialize<std::string> ("hfex_cloud_policy","default","HF exchange macrotask cloud policy",{"default","small_memory","small_memory_owner","large_memory","node_replicated_target"});
 		initialize<int>   ("hfex_min_batch_size",0,"minimum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<int>   ("hfex_max_batch_size",0,"maximum tile batch size for HF exchange macrotask partitioning (0=auto)");
 		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
 		initialize<bool>  ("hfex_use_cloud_batch_fetch",true,"smallmem_mt_owner: fetch input batches via the cloud owner-pinned p2p path (true) or copy-via-universe (false); A/B transport comparison");
 		initialize<bool>  ("hfex_use_mflex",true,"use m-flex peel search to load-balance the smallmem_sym_mt_owner assignment");
+		initialize<long>  ("hfex_batch_granularity",1,"smallmem_sym_p2p_owner: granularity level (>=1); M=(base+level-1)*nproc batches, base=2 if nproc even else 1. 1=lowest granularity (~1 batch/rank)");
+		initialize<bool>  ("hfex_local_accumulation",true,"owner-aware HF exchange: accumulate task results subworld-locally + one final subworld->universe gaxpy (true), or gaxpy each task's result into the universe immediately (false). A/B for the result-finalize strategy");
 		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
 		initialize<bool>  ("hfex_shuffle_mos",false,"randomly permute the MO order passed to the HF exchange operator (fixed seed); result is unshuffled before returning");
 		initialize<double>("hfex_smallmem_mul_tol",-1.0,"TEMP debug knob: tolerance passed to every mul_sparse/dot inside the smallmem_*_mt_owner kernels; negative = legacy (mul_tol*0.1)");
@@ -224,6 +226,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
     bool hfex_replicate_debug() const {return get<bool>("hfex_replicate_debug");}
     bool hfex_use_cloud_batch_fetch() const {return get<bool>("hfex_use_cloud_batch_fetch");}
     bool hfex_use_mflex() const {return get<bool>("hfex_use_mflex");}
+    long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
+    bool hfex_local_accumulation() const {return get<bool>("hfex_local_accumulation");}
     int hfex_mflex_max_exhaustive() const {return get<int>("hfex_mflex_max_exhaustive");}
     bool hfex_shuffle_mos() const {return get<bool>("hfex_shuffle_mos");}
     double hfex_smallmem_mul_tol() const {return get<double>("hfex_smallmem_mul_tol");}

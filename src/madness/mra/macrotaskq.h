@@ -839,8 +839,25 @@ public:
 			// flush their subworld-local buffer into the universe result
 			// exactly once per subworld. finalize() is guarded per task so
 			// iterating is cheap (O(ntasks) virtual calls + bool checks).
+			// The fence above aligns all ranks (absorbing the straggler wait),
+			// so the span below isolates the finalize() + subworld->universe gaxpy
+			// (the fenceless gaxpy in finalize_into is actually executed by the
+			// fence that closes this span). Exposed and grows with k / on multinode.
+			//
+			// LIFETIME CONTRACT (load-bearing): finalize() may submit FENCELESS ops
+			// (e.g. ExchangeImpl::finalize_into's subworld->universe gaxpy) that only
+			// complete at the universe.gop.fence() below. A task's accumulator buffer
+			// therefore MUST outlive this fence — do NOT release/clear it inside
+			// finalize(). (ExchangeImpl learned this the hard way: clearing Kf_local_
+			// in finalize_into freed impls mid-gaxpy → remote do_gaxpy_inplace looked
+			// up a released-but-registered impl → intermittent std::bad_weak_ptr,
+			// worse at high k. The fix defers the release to cleanup(), after this
+			// fence.) If this loop is ever changed to fence per-subworld, re-audit
+			// every accumulates_own_output task for this hazard.
+			const double finalize_t0 = wall_time();
 			for (auto& t : taskq) t->finalize(subworld, cloud);
 			universe.gop.fence();
+			const double finalize_elapsed = wall_time() - finalize_t0;
 
 			universe.gop.sum(tasktime);
 			if (printprogress() and universe.rank()==0) std::cout << std::endl;
@@ -856,6 +873,7 @@ public:
 	        }
 	        if (printtimings_detail()) {
 	            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
+	            printf(" finalize gaxpy (sw->universe)%5.2fs\n", finalize_elapsed);
 	            printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
 	        }
 			taskq_statistics["elapsed_time"]=cpu11-cpu00;
@@ -1201,6 +1219,31 @@ class MacroTask {
         }
     }
 
+    // Symmetric p2p-owner cloud prefetch (Design B, Option A): called PRE-compute.
+    // Issues an async byte request for the NEXT owned task's non-resident (transient)
+    // batch(es) so the transfer overlaps this task's compute. Takes BOTH the next
+    // task's col (input[0]) and row (input[1]) ranges; the task-side hook skips any
+    // key already resident in its LRU (= the owned operand), so only the transient is
+    // prefetched. Salt is derived from the full ket = std::get<2>(argtuple) (matching
+    // store_batches / operator()), so the >=3-tuple guard mirrors the asymmetric hook.
+    template<typename Q, typename ArgTuple>
+    static auto sym_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int)
+        -> decltype(task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next), void()) {
+        task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void sym_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const Batch_1D&, const bool, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static void sym_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int) {
+        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
+            sym_pipeline_advance_dispatch(task, subworld, argtuple, next_col, next_row, has_next, 0);
+        }
+    }
+
     template<typename Q, typename ResT>
     static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
         -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
@@ -1536,6 +1579,12 @@ private:
                                       and (next_ptr->task.batch.input.size() > 1);
                 const Batch_1D next_hint = has_next ? next_ptr->task.batch.input[1] : Batch_1D();
                 cloud_kbatch_pipeline_advance_or_noop(task, subworld, argtuple, next_hint, has_next, 0);
+                // Symmetric p2p-owner cloud prefetch (Design B, Option A): same
+                // next-owned-task peek, but pass BOTH ranges so the task can prefetch
+                // the next task's transient (non-resident) batch. No-op for other algos.
+                const Batch_1D next_col = has_next ? next_ptr->task.batch.input[0] : Batch_1D();
+                const Batch_1D next_row = has_next ? next_ptr->task.batch.input[1] : Batch_1D();
+                sym_pipeline_advance_or_noop(task, subworld, argtuple, next_col, next_row, has_next, 0);
             }
 
     		std::string msg="";

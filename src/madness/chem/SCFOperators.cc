@@ -771,6 +771,18 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_use_cloud_batch_fetch(const bool flag) {
 }
 
 template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long& level) {
+    impl->set_batch_granularity(level);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_local_accumulation(const bool flag) {
+    impl->set_local_accumulation(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_use_mflex(const bool flag) {
     impl->set_use_mflex(flag);
     return *this;

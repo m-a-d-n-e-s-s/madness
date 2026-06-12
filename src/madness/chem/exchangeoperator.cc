@@ -20,6 +20,7 @@ Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, con
             mo_ket = convert<double, T, NDIM>(world, calc->bmo);
         }
         mo_bra = conj(world, mo_ket);
+        bra_equals_ket_ = false;   // bra = conj(ket) != ket in general (complex)
     } else {
         if (ispin == 0) { // alpha spin
             mo_ket = calc->amo;        // deep copy necessary if T==double_complex
@@ -27,6 +28,7 @@ Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, con
             mo_ket = calc->bmo;
         }
         mo_bra = mo_ket;
+        bra_equals_ket_ = true;    // real, no nuclear correlation factor: bra == ket (moldft)
     }
 
 }
@@ -46,6 +48,7 @@ Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const Nemo *nemo,
 
     mo_bra = mul(world, nemo->ncf->square(), mo_ket);
     truncate(world, mo_bra);
+    bra_equals_ket_ = false;   // nemo: bra = R^2 * ket != ket
 }
 
 template<typename T, std::size_t NDIM>
@@ -94,6 +97,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         Kf = K_macrotask_efficient(vket, mul_tol);
     } else if (algorithm_ == small_memory_symmetric_mt
             or algorithm_ == small_memory_symmetric_mt_owner
+            or algorithm_ == small_memory_symmetric_p2p_owner
             or algorithm_ == small_memory_mt_owner) {
         Kf = K_macrotask_efficient(vket, mul_tol);
     } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute
@@ -146,13 +150,57 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
-                                  min_batch_size_, max_batch_size_, algorithm_);
+                                  min_batch_size_, max_batch_size_, algorithm_, batch_granularity_);
     xtask.replicate_for_debug_ = replicate_for_debug_;
     xtask.local_accumulation_ = local_accumulation_;
     xtask.use_mflex_ = use_mflex_;
     xtask.mflex_max_exhaustive_ = mflex_max_exhaustive_;
     xtask.smallmem_mul_tol_ = smallmem_mul_tol_;  // TEMP debug knob
-    xtask.use_cloud_batch_fetch_ = use_cloud_batch_fetch_;
+    // Graceful fallback: the cloud-batch fetch path pins one vf column-batch per
+    // subworld via the row-owner partition (nbatch = min(nsubworld, n_MO)). When
+    // nproc > n_MO that partition is degenerate — some ranks own no batch — which
+    // the cloud path cannot fetch (it would deref an empty/missing record and
+    // crash). Fall back to copy-via-universe in that case; the copy path and the
+    // result reduction both handle the degenerate partition correctly.
+    bool cloud_batch_active = use_cloud_batch_fetch_ and not replicate_for_debug_
+                              and (algorithm_ == small_memory_mt_owner
+                                   or algorithm_ == small_memory_symmetric_p2p_owner);
+    // The asymmetric row-owner partition crashes when nproc > n_MO (empty batch
+    // deref) → fall back to copy. The symmetric p2p-owner path handles nproc > n_MO
+    // fine on the CLOUD path (M = min((base+level-1)*nproc, n_MO) < nproc batches,
+    // extra ranks idle) now that the result-accumulation bad_weak_ptr is fixed — and
+    // it MUST stay on the cloud path because its copy fallback is incorrect (uses the
+    // held-vf accessor, wrong for the rotating triangular vf). So this guard is
+    // asymmetric-only.
+    if (cloud_batch_active and algorithm_ == small_memory_mt_owner and world.size() > nresult) {
+        cloud_batch_active = false;
+        if (world.rank()==0)
+            print("WARNING: nproc (", world.size(), ") > n_MO (", nresult,
+                  "); the row-owner cloud-batch fetch partition is degenerate, "
+                  "falling back to copy-via-universe (cloud-batch fetch requires n_MO >= nproc)");
+    }
+    // smallmem_sym_p2p_owner stores ONE set and requires bra==ket (moldft). Nemo
+    // (bra=R^2*ket != ket) is unsupported: the one-set store would be wrong and the
+    // copy fallback is also incorrect for this algorithm. Fail loud — use the
+    // asymmetric algorithm for nemo.
+    if (algorithm_ == small_memory_symmetric_p2p_owner) {
+        MADNESS_CHECK_THROW(bra_equals_ket_,
+            "smallmem_sym_p2p_owner requires bra==ket (moldft / no nuclear correlation "
+            "factor); use the asymmetric algorithm for nemo");
+        // The triangular one-set algorithm ONLY works on the cloud-batch fetch path:
+        // operator() fetches the rotating bra/vf batches by record key. With the cloud
+        // path off (hfex_use_cloud_batch_fetch=false, or replicate_for_debug_),
+        // cloud_batch_active is false and operator() would fall into the owner-aware
+        // copy branch (acquire_current_vf), whose held-vf accessor is WRONG for the
+        // rotating triangular vf → silently wrong energy. Fail loud instead. (The
+        // nproc>n_MO fallback above is asymmetric-only, so for this algorithm
+        // cloud_batch_active is false only when the user disabled the cloud path.)
+        MADNESS_CHECK_THROW(cloud_batch_active,
+            "smallmem_sym_p2p_owner requires the cloud-batch fetch path: set "
+            "hfex_use_cloud_batch_fetch=true and do not use replicate_for_debug "
+            "(the copy/replicate fallback is incorrect for the rotating triangular vf)");
+    }
+    xtask.use_cloud_batch_fetch_ = cloud_batch_active;
     xtask.log_diagnostics_ = printdebug();          // owner_map + batch record dump on universe rank 0
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
@@ -163,13 +211,14 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // cloud-batch fetch path (small_memory_mt_owner only): input batches live as
     // owner-pinned serialized records in the cloud's batch container. The argtuple
     // is still stored as pointers (shape); batches are stored/fetched separately.
-    if (use_cloud_batch_fetch_ and algorithm_ == small_memory_mt_owner and not replicate_for_debug_) {
+    if (cloud_batch_active) {
         effective_policy.storage_policy = MacroTaskInfo::StoreFunctionBatched;
         effective_policy.ptr_target_distribution_policy = DistributionType::Distributed;
         if (world.rank()==0) print("using StoreFunctionBatched policy: input batches fetched owner-to-owner from the cloud");
     }
     auto taskq_factory = MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(effective_policy);
     if (algorithm_ == small_memory_symmetric_mt_owner
+     or algorithm_ == small_memory_symmetric_p2p_owner
      or algorithm_ == small_memory_mt_owner) {
         taskq_factory.set_nworld(world.size());
     }

@@ -116,6 +116,7 @@ private:
 public:
     enum ExchangeAlgorithm {
         small_memory, small_memory_symmetric, small_memory_symmetric_mt, small_memory_symmetric_mt_owner,
+        small_memory_symmetric_p2p_owner,
         small_memory_mt_owner,
         large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
     };
@@ -133,6 +134,9 @@ public:
                 break;
             case small_memory_symmetric_mt_owner:
                 os << "smallmem_sym_mt_owner";
+                break;
+            case small_memory_symmetric_p2p_owner:
+                os << "smallmem_sym_p2p_owner";
                 break;
             case small_memory_mt_owner:
                 os << "smallmem_mt_owner";
@@ -168,6 +172,7 @@ public:
         else if (alg_lc=="smallmem_sym") alg=small_memory_symmetric;
         else if (alg_lc=="smallmem_sym_mt") alg=small_memory_symmetric_mt;
         else if (alg_lc=="smallmem_sym_mt_owner") alg=small_memory_symmetric_mt_owner;
+        else if (alg_lc=="smallmem_sym_p2p_owner") alg=small_memory_symmetric_p2p_owner;
         else if (alg_lc=="smallmem_mt_owner") alg=small_memory_mt_owner;
         else if (alg_lc=="largemem") alg=large_memory;
         else if (alg_lc=="multiworld") alg=multiworld_efficient;
@@ -210,6 +215,8 @@ public:
     Exchange& set_max_batch_size(const long& n);
     Exchange& set_replicate_for_debug(const bool flag);
     Exchange& set_use_cloud_batch_fetch(const bool flag);
+    Exchange& set_batch_granularity(const long& level);
+    Exchange& set_local_accumulation(const bool flag);
     Exchange& set_use_mflex(const bool flag);
     Exchange& set_mflex_max_exhaustive(const long& n);
     Exchange& set_smallmem_mul_tol(const double tol);  // TEMP debug knob
