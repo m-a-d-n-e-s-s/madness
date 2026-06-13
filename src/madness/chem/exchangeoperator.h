@@ -2153,7 +2153,7 @@ private:
         /// partition. Collective on `world` (the universe); no-op unless the
         /// cloud-batch fetch path is active. Called by the framework via the
         /// store_batches_or_noop hook right after the pointer argtuple is stored.
-        void store_batches(World& world, Cloud& cloud, const argtupleT& argtuple,
+        void store_batches(World& world, World& subworld, Cloud& cloud, const argtupleT& argtuple,
                            const long nsubworld) {
             if (not use_cloud_batch_fetch()) return;
             // Phase 4a-i: store_batch now skips the per-function internal gop.fences,
@@ -2171,15 +2171,64 @@ private:
             // rank (k mod nsubworld). The symmetric kernels read this same set for
             // the column (vf), row (bra), and ket roles. One record/batch (DIM_VF).
             if (use_sym_p2p_owner_algorithm()) {
+                // DISTRIBUTED per-owner store (B2-via-copy). The old path serialized
+                // every batch via a collective ParallelOutputArchive gather to rank 0
+                // (96 sequential MPI_Gathervs → rank 0 ingests the whole ~24 GB set
+                // through one NIC). Instead: every rank registers routing for ALL
+                // records (local, no comm), then each rank distributively pulls the
+                // batches IT owns into its own size-1 subworld (copy() → owner pulls
+                // p2p from every source rank, no rank-0 funnel) and serializes them
+                // there. All owners run concurrently → the ingest spreads across owners
+                // (~0.5 GB each) instead of funneling. Records are semantically
+                // identical (the size-1-subworld store emits the same parallel-format
+                // bytes; pair order differs but deserialize is order-independent), so
+                // the fetch path is untouched.
+                static const bool phase_dbg = (std::getenv("MAD_BATCH_STORE_PHASES") != nullptr);
                 const std::vector<Batch_1D> split =
                         exchange_sym_owner_split(mo_ket.size(), nsubworld, batch_granularity_);
+                const double t0 = wall_time();
+                // OPTION-2-STEP-1 PROBE: replicate run_all's context for the cross-world
+                // copy by making the GLOBAL FunctionDefaults pmap the size-1 subworld
+                // (in setup it is the universe / load-balanced pmap; if any code on the
+                // copy path reads the global pmap it would route to universe ranks that
+                // do not exist in the size-1 subworld -> MPI_ERR_RANK). Restored below.
+                auto b2_saved_pmap = FunctionDefaults<NDIM>::get_pmap();
+                FunctionDefaults<NDIM>::set_default_pmap(subworld);
+                // phase 0+1: register routing on every rank; owner pulls its batches.
+                std::vector<std::pair<typename Cloud::keyT, vecfuncT>> pending;
                 for (long k = 0; k < long(split.size()); ++k) {
                     const Batch_1D& r = split[k];
-                    vecfuncT slice(mo_ket.begin() + r.begin, mo_ket.begin() + r.end);
-                    cloud.store_batch(world, slice, ProcessID(k % nsubworld),
-                                      batch_record_key(salt, DIM_VF, r), /*fence=*/false);
+                    const ProcessID owner = ProcessID(k % nsubworld);
+                    const typename Cloud::keyT record = batch_record_key(salt, DIM_VF, r);
+                    cloud.register_batch_owner(record, owner);   // all ranks, local
+                    if (owner == world.rank()) {
+                        vecfuncT local(r.end - r.begin);
+                        for (long i = r.begin; i < r.end; ++i)
+                            local[i - r.begin] = copy(subworld, mo_ket[i], /*fence=*/false);
+                        pending.emplace_back(record, std::move(local));
+                    }
                 }
-                world.gop.fence();
+                const double t_issue = wall_time();
+                // Complete the cross-world copies on the SUBWORLD (size-1), matching the
+                // copy-fetch idiom: the source ranks' comm threads serve the
+                // serialize_remote_coeffs requests, so a subworld fence drains this
+                // owner's pending inserts. (The global-pmap wrap above is what keeps the
+                // cross-world copy routing inside the size-1 subworld.)
+                subworld.gop.fence();
+                const double t_copy = wall_time();
+                // phase 2: each owner serializes its now-local batches into the record.
+                // store_batch over the size-1 subworld → trivial-local gather → same
+                // parallel-format bytes; its internal set_owner re-registers harmlessly.
+                for (auto& pr : pending)
+                    cloud.store_batch(subworld, pr.second, world.rank(), pr.first, /*fence=*/false);
+                subworld.gop.fence();   // complete the (local) record writes
+                FunctionDefaults<NDIM>::set_pmap(b2_saved_pmap);   // restore the universe pmap
+                world.gop.fence();      // collective alignment; no cross-world ops pending now
+                if (phase_dbg && world.rank() == 0) {
+                    printf("BATCH_STORE_PHASES(B2) nbatch=%ld owned=%ld issue=%.2f copy=%.2f store=%.2f\n",
+                           long(split.size()), long(pending.size()),
+                           t_issue - t0, t_copy - t_issue, wall_time() - t_copy);
+                }
                 return;
             }
 

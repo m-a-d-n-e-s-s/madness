@@ -877,6 +877,19 @@ public:
         return recordlist;
     }
 
+    /// Register the owner of a batch record WITHOUT storing any payload.
+
+    /// Local map insert, no communication. Like store_batch's internal routing,
+    /// it must be called with identical (record, owner) on EVERY rank so all
+    /// ranks route fetches consistently. Used by the distributed per-owner store
+    /// path: all ranks register routing for all records, then each owner calls
+    /// store_batch only for its own records (over its size-1 subworld). Separating
+    /// registration from payload keeps routing replicated while the byte-store is
+    /// owner-local.
+    void register_batch_owner(const keyT record, const ProcessID owner) {
+        batch_pmap->set_owner(record, owner);
+    }
+
     /// Store a batch of functions as a single owner-pinned record.
 
     /// The whole vector (size + each function) is serialized into one record
