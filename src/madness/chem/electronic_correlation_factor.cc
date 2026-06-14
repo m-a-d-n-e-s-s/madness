@@ -28,26 +28,38 @@ void CorrelationFactor::run_apply_U_diagnostics(
         const real_function_3d& phi_j_bra) const
 {
     std::cout << std::scientific << std::setprecision(8);
-    auto dm = diagnose_Ue(local, semilocal, phi_i, phi_j, ao, mixed, U1nuc);
+    const double mu     = op_mod.mu();
+    const double energy = -0.5 * mu * mu;
+    real_convolution_6d G = BSHOperator<6>(world, mu, lo, 1.e-6);
+
+    // Ue diagnostics (occ/energy ignored by diagnose_Ue)
+    auto dm = diagnose_Ue(local, semilocal, phi_i, phi_j, ao,
+                          occ_ket, occ_bra, energy, mixed, U1nuc);
     print("diagnosis for Ue term:");
     dm.print_report("Ue");
 
-    // GQUe diagnostics: Q12 from occ_bra/occ_ket, G from op_mod's mu
+    // GUe diagnostics: apply G to each Ue piece (occ ignored by diagnose_GUe)
+    real_function_6d Glocal     = apply(G, copy(local)).truncate();
+    real_function_6d Gsemilocal = apply(G, copy(semilocal)).truncate();
+    real_function_6d Gmixed     = apply(G, copy(mixed)).truncate();
+    auto dm1 = diagnose_GUe(Glocal, Gsemilocal, phi_i, phi_j, ao,
+                            occ_ket, occ_bra, energy, Gmixed, U1nuc);
+    print("diagnosis for GUe term:");
+    dm1.print_report("GUe");
+
+    // GQUe diagnostics: Q12 from occ_bra/occ_ket
     if (occ_ket.size() > 0) {
-        const std::vector<real_function_3d>& obra = occ_bra.empty() ? occ_ket : occ_bra;
-        const double mu     = op_mod.mu();
-        const double energy = -0.5 * mu * mu;
+        MADNESS_CHECK_THROW(occ_bra.size()>0,"no bra in run_apply_U_diagnostics");
 
         StrongOrthogonalityProjector<double,3> Q12(world);
-        Q12.set_spaces(obra, occ_ket, obra, occ_ket);
-        real_convolution_6d G = BSHOperator<6>(world, mu, lo, 1.e-6);
+        Q12.set_spaces(occ_bra, occ_ket, occ_bra, occ_ket);
 
         real_function_6d GQlocal     = apply(G, Q12(local)).truncate();
         real_function_6d GQsemilocal = apply(G, Q12(semilocal)).truncate();
         real_function_6d GQmixed     = apply(G, Q12(mixed)).truncate();
 
         auto dm2 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, ao,
-                                 occ_ket, obra, energy, GQmixed, U1nuc);
+                                 occ_ket, occ_bra, energy, GQmixed, U1nuc);
         print("diagnosis for GQUe term:");
         dm2.print_report("GQUe");
 
@@ -55,13 +67,24 @@ void CorrelationFactor::run_apply_U_diagnostics(
         // the (0,1) element is <i_bra j_bra|G Q12 Ue_X|ij>
         if (phi_i_bra.is_initialized() && phi_j_bra.is_initialized()) {
             std::vector<real_function_3d> pair_bra = {phi_i_bra, phi_j_bra};
-            auto dm3 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, pair_bra,
-                                     occ_ket, obra, energy, GQmixed, U1nuc,
+            auto dm3 = diagnose_GUe(Glocal, Gsemilocal, phi_i, phi_j, pair_bra,
+                                     occ_ket, occ_bra, energy, Gmixed, U1nuc,
+                                     /*orthonormalize_basis=*/false);
+            print("diagnosis for GUe term in the raw pair-bra basis:");
+            dm3.print_report("GUe-pair");
+
+            print_pair_energy_report(dm3, {"Glocal", "Gsemilocal", "Gmixed"},
+                                     {1.0, 1.0, -1.0},
+                                     "MP2 energy contribution <i_bra j_bra|G Ue|ij>"
+                                     " (Ue = local + semilocal - mixed):");
+
+            auto dm4 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, pair_bra,
+                                     occ_ket, occ_bra, energy, GQmixed, U1nuc,
                                      /*orthonormalize_basis=*/false);
             print("diagnosis for GQUe term in the raw pair-bra basis:");
-            dm3.print_report("GQUe-pair");
+            dm4.print_report("GQUe-pair");
 
-            print_pair_energy_report(dm3, {"GQlocal", "GQsemilocal", "GQmixed"},
+            print_pair_energy_report(dm4, {"GQlocal", "GQsemilocal", "GQmixed"},
                                      {1.0, 1.0, -1.0},
                                      "MP2 energy contribution <i_bra j_bra|G Q12 Ue|ij>"
                                      " (Ue = local + semilocal - mixed):");
@@ -122,11 +145,11 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_GQUe(
 // ---------------------------------------------------------------------------
 
 DiagnosticMatrix<> CorrelationFactor::diagnose_Ue_impl(
+        DiagnosticMatrix<> dm,
         const std::vector<CCPairFunction<double,6>>& bra,
         const real_function_6d& Uphi_local,
         const real_function_6d& Uphi_semilocal,
         const real_function_3d& phi_i, const real_function_3d& phi_j,
-        const std::vector<real_function_3d>& aobasis,
         const std::string& name_local, const std::string& name_semilocal,
         const real_function_6d& Uphi_mixed,
         const std::vector<real_function_3d>& U1nuc,
@@ -136,7 +159,6 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_Ue_impl(
     const double wall0  = wall_time();
     timer t(world);
 
-    DiagnosticMatrix<> dm(world, aobasis);
     dm.init(name_local);
     dm.init(name_semilocal);
     if (do_mixed) dm.init(name_mixed);

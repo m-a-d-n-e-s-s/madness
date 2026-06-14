@@ -113,19 +113,22 @@ int main(int argc, char **argv) {
         auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
         print("error computed by projecting on the ao basis",nemo->get_calc()->aobasis.get_name(), "size",ao.size());
         // ExchangeCommutator instance carrying the orthonormal AO basis used
-        // as the observer set inside diagnose().
+        // as the observer set of the diagnose_* methods.
         ExchangeCommutator ec(ao);
 
-        // Score lambda: project Kf, fK, and KffK onto the AO basis and print
-        // errors for whichever pieces are present in the result.  Empty
-        // entries in the KffKResult are skipped by diagnose().
-        auto score_full = [&](const ExchangeCommutator::KffKResult& r,
-                              bool include_K2) {
-            auto d = ec.diagnose(
-                    world, amo, R2amo, phi_i.function, phi_j.function,
-                    r.Kf, r.fK, r.KffK, lrfparam,
-                    /*verbose=*/true,
-                    include_K2);
+        // K̂φᵢ, K̂φⱼ and the pair energy — shared by all diagnose_* references
+        Exchange<double,3> Kdiag(world, info.parameters.lo());
+        Kdiag.set_bra_and_ket(info.mo_bra, info.mo_ket);
+        const real_function_3d Kphi_i_diag = Kdiag(phi_i.function);
+        const real_function_3d Kphi_j_diag = Kdiag(phi_j.function);
+        const auto& aeps = nemo->get_calc()->aeps;
+        const double energy_ij_diag = aeps(i) + aeps(j);
+
+        // Score lambda: project Kf and fK onto the AO basis and print errors
+        // (KffK = Kf − fK is derived inside diagnose_KffK; energy is ignored there).
+        auto score_full = [&](const ExchangeCommutator::KffKResult& r) {
+            auto d = ec.diagnose_KffK(world, r.Kf, r.fK, phi_i.function, phi_j.function,
+                                      Kphi_i_diag, Kphi_j_diag, info, energy_ij_diag, ao);
             d.print_report(r.algo);
         };
 
@@ -183,8 +186,7 @@ int main(int argc, char **argv) {
 
             print("\n========== three-range C: medium=6D, alpha_lo=1, alpha_hi=1e4 ==========");
             score_full(ExchangeCommutator::apply_KffK_lowrank_three_range(
-                           world, phi_i, phi_j, info, opt3),
-                       /*include_K2=*/true);
+                           world, phi_i, phi_j, info, opt3));
         }
 
         // compute Ue term and its diagnosis
@@ -204,7 +206,7 @@ int main(int argc, char **argv) {
                     auto Uphi_mixed    = cf.apply_U_mixed_commutator(phi_i.function, phi_j.function, op_mod, thresh6, U1nuc);
                     auto diag = cf.diagnose_Ue(Uphi_local, Uphi_semilocal,
                                                phi_i.function, phi_j.function, ao,
-                                               Uphi_mixed, U1nuc);
+                                               {}, {}, 0.0, Uphi_mixed, U1nuc);
                     print("diagnosis for Ue term:");
                     diag.print_report("Ue");
 
@@ -225,8 +227,8 @@ int main(int argc, char **argv) {
 
                     print("\ndiagnosis for G Ue term (energy =", energy_ij, "):");
                     auto gue = cf.diagnose_GUe(GUphi_local, GUphi_semilocal,
-                                               phi_i.function, phi_j.function, ao, energy_ij,
-                                               GUphi_mixed, U1nuc);
+                                               phi_i.function, phi_j.function, ao,
+                                               {}, {}, energy_ij, GUphi_mixed, U1nuc);
                     gue.print_report("GUe");
                 }
             }
@@ -272,7 +274,7 @@ int main(int argc, char **argv) {
                 if (0) {
                     print("\n========== G [K, f] |ij> diagnostic — 6D reference ==========");
                     auto kffk_6d = ExchangeCommutator::apply_KffK_6d(world, phi_i, phi_j, info);
-                    score_full(kffk_6d, /*include_K2=*/true);  // print Kf/fK errors for reference
+                    score_full(kffk_6d);  // print Kf/fK errors for reference
 
                     auto GKf_6d_cc = apply_G_to_pairs(kffk_6d.Kf, G6d);
                     auto GfK_6d_cc = apply_G_to_pairs(kffk_6d.fK, G6d);
@@ -281,7 +283,8 @@ int main(int argc, char **argv) {
 
                     auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
                                                         phi_i.function, phi_j.function,
-                                                        Kphi_i, Kphi_j, info, energy_ij);
+                                                        Kphi_i, Kphi_j, info, energy_ij,
+                                                        ec.ao_basis);
                     gkffk_6d.print_report("GKffK-6d");
                     print("6D ref  — time:", gkffk_6d.time);
                 }
@@ -293,14 +296,15 @@ int main(int argc, char **argv) {
                 LowRankFunction<double,6> exchange_op=ExchangeCommutator::compute_lrf_exchange_operator(world, info, sa_opt, lrfparam);
                 auto kffk_lrf = ExchangeCommutator::apply_KffK_lowrank_split_alpha(
                         world, phi_i, phi_j, info, exchange_op, lrfparam, sa_opt);
-                score_full(kffk_lrf, /*include_K2=*/true);  // print Kf/fK errors for reference
+                score_full(kffk_lrf);  // print Kf/fK errors for reference
 
                 auto GKf_lrf_cc = apply_G_to_pairs(kffk_lrf.Kf, G6d);
                 auto GfK_lrf_cc = apply_G_to_pairs(kffk_lrf.fK, G6d);
 
                 auto gkffk_lrf = ec.diagnose_GKffK(world, GKf_lrf_cc, GfK_lrf_cc,
                                                      phi_i.function, phi_j.function,
-                                                     Kphi_i, Kphi_j, info, energy_ij);
+                                                     Kphi_i, Kphi_j, info, energy_ij,
+                                                     ec.ao_basis);
                 gkffk_lrf.print_report("GKffK-lrf");
                 print("LRF     — time:", gkffk_lrf.time);
             }

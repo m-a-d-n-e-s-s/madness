@@ -550,184 +550,43 @@ ExchangeCommutator::apply_KffK_lowrank_three_range(
 }
 
 // ---------------------------------------------------------------------------
-//  Diagnostics (extracted from benchmark's test_kcomm_accuracy)
+//  [K̂,f] diagnostic — plain ⟨ab| projection vs analytic 3D reference
 // ---------------------------------------------------------------------------
 
 DiagnosticMatrix<>
-ExchangeCommutator::diagnose(
+ExchangeCommutator::diagnose_KffK(
         World& world,
-        const std::vector<Function<double,3>>& kvec,
-        const std::vector<Function<double,3>>& R2kvec,
-        const Function<double,3>& phi_i,
-        const Function<double,3>& phi_j,
-        const std::vector<CCPairFunction<double,6>>& Kf,
-        const std::vector<CCPairFunction<double,6>>& fK,
-        const std::vector<CCPairFunction<double,6>>& KffK,
-        const LowRankFunctionParameters& obs_param,
-        bool verbose,
-        bool include_K2,
-        const std::vector<Vector<double,3>>& centers_in,
-        KRefPieces* kpieces_out) const
+        const std::vector<CCPairFunction<double,6>>& Kf_cc,
+        const std::vector<CCPairFunction<double,6>>& fK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double /*energy*/,                     // ignored: no G in this diagnostic
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
 {
-    wall_timer t(world);
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_KffK: aobasis must be non-empty");
+    const double wall0 = wall_time();
 
-    // Observer basis: prefer the AO basis stored on this instance.  When
-    // empty, fall back to a canonical-orthonormalized harmonic basis built
-    // from obs_param at centers_in (origin if empty).  Use *canonical*
-    // orthonormalization with a linear-dependency cutoff: the iterative
-    // Löwdin in plain orthonormalize() diverges to NaN when the raw
-    // Cartesian-Gaussian set has near-zero overlap eigenvalues (which
-    // happens routinely once multiple centers are stacked).
-    std::vector<Function<double,3>> phi_a_owned;
-    if (ao_basis.empty()) {
-        const auto centers = centers_in.empty()
-                ? std::vector<Vector<double,3>>({ Vector<double,3>(0.0) })
-                : centers_in;
-        phi_a_owned = LowRankFunctionFactory<double,6>::harmonic_basis(
-                world, obs_param.tempered(), 2, centers);
-        phi_a_owned = orthonormalize_canonical(phi_a_owned);
-    }
-    const auto& phi_a = ao_basis.empty() ? phi_a_owned : ao_basis;
-
-    const bool symmetric_ij = (&phi_i == &phi_j);  // cheap fast path; full check below
-
-    if (verbose) {
-        const char* basis_kind = ao_basis.empty() ? "harmonic (fallback)" : "AO";
-        print("[diagnose]", basis_kind, "observer basis: phi_a.size() =", phi_a.size(),
-              " kvec.size() =", kvec.size(),
-              " ||phi_i|| =", phi_i.norm2(),
-              " ||phi_j|| =", phi_j.norm2(),
-              " same-object i,j =", symmetric_ij);
-    }
-
-    // K̂ in nemo formalism is non-self-adjoint: bra-side R² makes
-    //   K̂  = set_bra_and_ket(R²k, k)   acts on a ket: K̂φ(r) = Σ_k k(r) ∫ R²k(r') φ(r') dr'
-    //   K̂† = set_bra_and_ket(k, R²k)   acts on a bra: K̂†φ(r) = R²(r) Σ_k k(r) ∫ k(r') φ(r') dr'
-    // The algorithm (apply_KffK_lowrank etc.) uses info.mo_bra = R²·k and
-    // info.mo_ket = k internally, so the reference must respect this:
-    //   * apply K̂  on phi_i / phi_j (ket side)
-    //   * apply K̂† on phi_a         (bra side, when moved over from ⟨ab| via Hermiticity)
-    madness::Exchange<double, 3> K(world, 1.e-6);
-    K.set_bra_and_ket(R2kvec, kvec);
-    madness::Exchange<double, 3> Kdagger(world, 1.e-6);
-    Kdagger.set_bra_and_ket(kvec, R2kvec);
-
-    auto f12ptr = std::shared_ptr<SeparatedConvolution<double,3>>(
-            SlaterF12OperatorPtr_ND<3>(world, 1.0, 1.e-6,
-                                       FunctionDefaults<3>::get_thresh()));
-    auto& f12 = *f12ptr;
-
-    // some helpful intermediates
-    const auto f12_aj = f12(phi_a * phi_j);
-    const auto f12_ai = f12(phi_a * phi_i);
-
-    auto Kdagger_a = Kdagger(phi_a);
-    auto K_i = K(phi_i);
-    auto K_j = K(phi_j);
-
-    // Build DiagnosticMatrix over the resolved observer basis.
-    DiagnosticMatrix<> dm(world, phi_a);
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
     dm.init("Kf");
     dm.init("fK");
     dm.init("KffK");
 
-    // Reference integrals (analytic ⟨ab | · | ij⟩) — computed per K̂_p so the
-    // four pieces are individually inspectable.
-    //   Kf_K1[a,b] = ⟨ab | K̂₁ f | ij⟩  =  ⟨(K̂†a)·i | f₁₂ | b·j⟩
-    //   Kf_K2[a,b] = ⟨ab | K̂₂ f | ij⟩  =  ⟨a·i      | f₁₂ | (K̂†b)·j⟩
-    //   fK_K1[a,b] = ⟨ab | f K̂₁ | ij⟩  =  ⟨a·(Ki)   | f₁₂ | b·j⟩
-    //   fK_K2[a,b] = ⟨ab | f K̂₂ | ij⟩  =  ⟨a·i      | f₁₂ | b·(Kj)⟩
-    const Tensor<double> ref_Kf_K1 = matrix_inner(world, Kdagger_a * phi_i, f12_aj);
-    const Tensor<double> ref_Kf_K2 = matrix_inner(world, f12_ai, Kdagger_a * phi_j);
-    const Tensor<double> ref_fK_K1 = matrix_inner(world, phi_a * K_i,      f12_aj);
-    const Tensor<double> ref_fK_K2 = matrix_inner(world, f12_ai,           phi_a * K_j);
+    // Result: project the 6D pieces onto ⟨ab|
+    dm.entries["Kf"].result   = dm.project_ab(Kf_cc);
+    dm.entries["fK"].result   = dm.project_ab(fK_cc);
+    dm.entries["KffK"].result = dm.entries["Kf"].result - dm.entries["fK"].result;
 
-    dm.entries["Kf"].ref  = copy(ref_Kf_K1);
-    dm.entries["fK"].ref  = copy(ref_fK_K1);
-    if (include_K2) {
-        dm.entries["Kf"].ref += ref_Kf_K2;
-        dm.entries["fK"].ref += ref_fK_K2;
-    }
+    // Ref: analytic 3D Kf/fK matrix elements over the plain ⟨ab| bra
+    dm.entries["Kf"].ref = kf_provider(world, phi_i, phi_j, info)(dm.ao_basis, dm.ao_basis);
+    dm.entries["fK"].ref = fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info)(dm.ao_basis, dm.ao_basis);
     dm.entries["KffK"].ref = dm.entries["Kf"].ref - dm.entries["fK"].ref;
 
-    if (verbose) {
-        const double sym_Kf = (ref_Kf_K1 - transpose(ref_Kf_K2)).normf();
-        const double sym_fK = (ref_fK_K1 - transpose(ref_fK_K2)).normf();
-        print("[diagnose] ||ref_Kf_K1|| =", ref_Kf_K1.normf(),
-              " ||ref_Kf_K2|| =", ref_Kf_K2.normf(),
-              " ||ref_Kf_K1 - ref_Kf_K2^T|| =", sym_Kf,
-              "   (zero iff phi_i = phi_j)");
-        print("[diagnose] ||ref_fK_K1|| =", ref_fK_K1.normf(),
-              " ||ref_fK_K2|| =", ref_fK_K2.normf(),
-              " ||ref_fK_K1 - ref_fK_K2^T|| =", sym_fK,
-              "   (zero iff phi_i = phi_j)");
-        print("[diagnose] ||ref_Kf|| =", dm.entries["Kf"].ref.normf(),
-              " ||ref_fK|| =", dm.entries["fK"].ref.normf());
-    }
-
-    // Describe one pair entry: kind, rank/size, factor norms.
-    auto dump_pair = [&world](const std::string& tag,
-                              const std::vector<CCPairFunction<double,6>>& v) {
-        if (v.empty()) { print("[diagnose]", tag, ": empty"); return; }
-        for (std::size_t k = 0; k < v.size(); ++k) {
-            const auto& f = v[k];
-            std::string kind = "unassigned";
-            if (f.is_assigned()) {
-                if (f.is_pure())                     kind = "pure-6d";
-                else if (f.is_decomposed_no_op())    kind = "decomposed";
-                else if (f.is_op_decomposed())       kind = "op-decomposed";
-                else                                 kind = "mixed";
-            }
-            std::stringstream ss;
-            ss << "[diagnose] " << tag << "[" << k << "] kind=" << kind;
-            if (f.is_assigned() && (f.is_decomposed_no_op() || f.is_op_decomposed())) {
-                auto a = f.get_a(); auto b = f.get_b();
-                ss << " rank=" << a.size()
-                   << " ||a||=" << get_size(a)
-                   << " GB ||b||=" << get_size(b) << " GB";
-            } else if (f.is_assigned() && f.is_pure()) {
-                ss << " ||f||=" << f.get_function().norm2()
-                   << get_size(f.get_function()) << " GB";
-            }
-            print(ss.str());
-        }
-    };
-
-    if (verbose) {
-        dump_pair("Kf",   Kf);
-        dump_pair("fK",   fK);
-        dump_pair("KffK", KffK);
-    }
-
-    // Fill result tensors — caller assigns the returned tensor to the entry.
-    if (!Kf.empty())   dm.entries["Kf"].result   = dm.project_ab(Kf);
-    if (!fK.empty())   dm.entries["fK"].result   = dm.project_ab(fK);
-    if (!KffK.empty()) dm.entries["KffK"].result = dm.project_ab(KffK);
-
     dm.compute_errors();
-
-    if (verbose && !Kf.empty())
-        print("[diagnose] Kf   ||computed||=", dm.entries["Kf"].result.normf(),
-              " ||ref||=", dm.entries["Kf"].ref.normf(),
-              " error=", dm.entries["Kf"].error);
-    if (verbose && !fK.empty())
-        print("[diagnose] fK   ||computed||=", dm.entries["fK"].result.normf(),
-              " ||ref||=", dm.entries["fK"].ref.normf(),
-              " error=", dm.entries["fK"].error);
-    if (verbose && !KffK.empty())
-        print("[diagnose] KffK ||computed||=", dm.entries["KffK"].result.normf(),
-              " ||ref||=", dm.entries["KffK"].ref.normf(),
-              " error=", dm.entries["KffK"].error);
-
-    // Expose K1/K2 decomposition if caller requested it.
-    if (kpieces_out) {
-        kpieces_out->ref_Kf_K1 = ref_Kf_K1;
-        kpieces_out->ref_Kf_K2 = ref_Kf_K2;
-        kpieces_out->ref_fK_K1 = ref_fK_K1;
-        kpieces_out->ref_fK_K2 = ref_fK_K2;
-    }
-
-    dm.time = t.elapsed();
+    dm.time = wall_time() - wall0;
     return dm;
 }
 
@@ -745,15 +604,17 @@ ExchangeCommutator::diagnose_GKffK(
         const real_function_3d& Kphi_i,
         const real_function_3d& Kphi_j,
         const Info& info,
-        double energy) const
+        double energy,
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
 {
     MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GKffK: energy must be negative");
-    MADNESS_CHECK_THROW(!ao_basis.empty(), "diagnose_GKffK: ao_basis must be non-empty");
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_GKffK: aobasis must be non-empty");
 
     const double lo    = info.parameters.lo();
     const double wall0 = wall_time();
 
-    DiagnosticMatrix<> dm(world, ao_basis);
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
     dm.init("GKf");
     dm.init("GfK");
     dm.init("GKffK");

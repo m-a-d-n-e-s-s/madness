@@ -900,11 +900,13 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
     save(GV,"GV_const"+pair.name());
+    CCPair p1=pair;
+    p1.update_u(GV);
     CC_vecfunction singles_dummy;
-    double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,pair,singles_dummy,info);
+    double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,p1,singles_dummy,info);
 
     char buf[256];
-    snprintf(buf,sizeof(buf),"corraletion energy of pair %zu %zu: %e", i, j, correlation_energy);
+    snprintf(buf,sizeof(buf),"correlation energy of pair %zu %zu: %e", i, j, correlation_energy);
     print(buf);
 
     return GV;
@@ -1490,102 +1492,6 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     return Uxy;
 }
 
-madness::real_function_6d
-CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                                             const CCParameters& parameters, const real_function_3d& Rsquare,
-                                             const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                                             const FuncType& x_type, const FuncType& y_type, const real_convolution_6d *Gscreen) {
-    const std::string x_name = "phi" + stringify(i);
-    const std::string y_name = "phi" + stringify(j);
-
-    if (parameters.debug()) print("Computing Ue|" + x_name + y_name + ">");
-
-    real_function_3d x_function=mo_ket[i];
-    real_function_3d y_function=mo_ket[j];
-    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
-
-    const bool symmetric = (x_type == y_type && i == j);
-    CCTimer time_Ue(world, "Ue|" + x_name + y_name + ">");
-    double tight_thresh = parameters.thresh_6D();     // right now this is the std. thresh
-    // check if screening operator is in modified NS Form
-    if (Gscreen != NULL) {
-        if (!Gscreen->modified()) error("Demanded Screening for Ue but given BSH Operator is not in modified NS form");
-    }
-    if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
-
-    if (parameters.debug() && symmetric) print("Exploiting Pair Symmetry\n");
-
-    real_function_6d Uxy = real_factory_6d(world);
-    Uxy.set_thresh(tight_thresh);
-    // Apply the untransformed U Potential
-    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, U1);
-    Uxy.set_thresh(tight_thresh);
-    // Apply the double commutator R^{-1}[[T,f,R]
-    for (size_t axis = 0; axis < 3; axis++) {
-        // Make the local parts of the Nuclear and electronic U potentials
-        const real_function_3d Un_local = U1[axis];
-        const real_function_3d Un_local_x = (Un_local * x_function).truncate();
-        real_function_3d Un_local_y;
-        if (symmetric) Un_local_y = copy(Un_local_x);
-        else Un_local_y = (Un_local * y_function).truncate();
-
-        const real_function_6d Ue_local = corrfac.U1(axis);
-        // Now add the Un_local_x part to the first particle of the Ue_local potential
-        real_function_6d UeUnx = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(Un_local_x).particle2(
-                copy(y_function)).thresh(tight_thresh);
-        // Fill the Tree where it will be necessary
-        UeUnx.fill_cuspy_tree(*Gscreen);
-        // Set back the thresh
-        UeUnx.set_thresh(FunctionDefaults<6>::get_thresh());
-//        print_size(UeUnx, "UeUnx", parameters.debug());
-        // Now add the Un_local_y part to the second particle of the Ue_local potential
-        real_function_6d UeUny;
-        if (symmetric) UeUny = -1.0 * madness::swap_particles(UeUnx);     // Ue_local is antisymmetric
-        else {
-            UeUny = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(copy(x_function)).particle2(
-                    Un_local_y).thresh(tight_thresh);
-            // Fill the Tree were it will be necessary
-            UeUny.fill_cuspy_tree(*Gscreen);
-            // Set back the thresh
-            UeUny.set_thresh(FunctionDefaults<6>::get_thresh());
-        }
-//        print_size(UeUny, "UeUny", parameters.debug());
-        // Construct the double commutator part and add it to the Ue part
-        real_function_6d diff = (UeUnx - UeUny).scale(-1.0);
-        diff.truncate();
-        Uxy = (Uxy + diff).truncate();
-    }
-    if (parameters.debug()) time_Ue.info();
-
-    // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
-    CCTimer time_sane(world, "Ue-Sanity-Check");
-    real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
-            copy(x_function * Rsquare)).particle2(copy(y_function * Rsquare));
-    const double a = inner(Uxy, tmp);
-    const real_function_3d xx = (x_function * x_function * Rsquare);
-    const real_function_3d yy = (y_function * y_function * Rsquare);
-//    const real_function_3d gxx = g12(xx);
-    real_convolution_3d poisson= CoulombOperator(world,parameters.lo(),parameters.thresh_3D());
-    const real_function_3d gxx= poisson(xx);
-
-    const double aa = inner(yy, gxx);
-    const double error = std::fabs(a - aa);
-    const double diff = a - aa;
-    time_sane.info(parameters.debug(), error);
-    if (world.rank() == 0) {
-        std::cout << std::fixed << std::setprecision(10) << "<" << x_name + y_name << "|U_R|" << x_name + y_name
-                  << "> =" << a << ", <" << x_name + y_name << "|g12|" << x_name + y_name
-                  << "> =" << aa << ", diff=" << error << "\n";
-        //printf("<xy| U_R |xy>  %12.8f\n",a);
-        //printf("<xy|1/r12|xy>  %12.8f\n",aa);
-        Uxy.print_size("Ue potential");
-        if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D())
-            print("Ue potential wrong, diff=",std::to_string(diff));
-        else print("Ue potential seems to be sane, diff=" + std::to_string(diff));
-    }
-    return Uxy;
-}
-
 
 /// calculate [F,Qt] f12 |rhs>
 
@@ -1655,16 +1561,6 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     return result[0];
 }
 
-void
-CCPotentials::compare_Ue_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
-        const Info& info, const CCPairFunction<double,6> Ue)
-{
-    // use the identity [F,f] = Ue - [K,f] - g12
-    // use the identity [T,f] = Ue - g12
-    // then: < ab | [F,f] | ij > = ( e_a + a_b - e_i - e_j ) <ab | f | ij> + <ab | g | ij>  = <ab | Ue - [K,f] | ij>
-
-}
-
 
 std::vector<CCPairFunction<double,6>>
 CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
@@ -1676,22 +1572,24 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     auto ao=orthonormalize_canonical(info.ao);
     print("error computed by projecting on the ao basis size",ao.size());
     // ExchangeCommutator instance carrying the orthonormal AO basis used
-    // as the observer set inside diagnose().
+    // as the observer set of the diagnose_* methods.
     ExchangeCommutator ec(ao);
 
-    LowRankFunctionParameters lrfparam;
     std::string algo=info.parameters.get<std::string>("kffk_algorithm");
 
-    // Score lambda: project Kf, fK, and KffK onto the AO basis and print
-    // errors for whichever pieces are present in the result.  Empty
-    // entries in the KffKResult are skipped by diagnose().
-    auto score_full = [&](const ExchangeCommutator::KffKResult& r,
-                          bool include_K2) {
-        auto d = ec.diagnose(
-                world, info.mo_ket, info.mo_bra, phi_i.function, phi_j.function,
-                r.Kf, r.fK, r.KffK, lrfparam,
-                /*verbose=*/true,
-                include_K2);
+    // K̂φᵢ, K̂φⱼ and the pair energy — shared by all diagnose_* references
+    Exchange<double,3> K(world, info.parameters.lo());
+    K.set_bra_and_ket(info.mo_bra, info.mo_ket);
+    const real_function_3d Kphi_i = K(phi_i.function);
+    const real_function_3d Kphi_j = K(phi_j.function);
+    const double energy = (Gscreen != nullptr)
+            ? -0.5 * Gscreen->mu() * Gscreen->mu() : -1.0;
+
+    // Score lambda: project Kf and fK onto the AO basis and print errors
+    // (KffK = Kf − fK is derived inside diagnose_KffK; energy is ignored there).
+    auto score_full = [&](const ExchangeCommutator::KffKResult& r) {
+        auto d = ec.diagnose_KffK(world, r.Kf, r.fK, phi_i.function, phi_j.function,
+                                  Kphi_i, Kphi_j, info, energy, ao);
         d.print_report(r.algo);
     };
 
@@ -1702,7 +1600,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
         {
             result=ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info);
             KffK=result.KffK;
-            score_full(result, /*include_K2=*/true);
+            score_full(result);
         }
     }
     else if (algo=="lrf_split_alpha") {
@@ -1714,7 +1612,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
             opt.alpha_star               = alpha;
             result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
             KffK=result.KffK;
-            score_full(result, /*include_K2=*/true);
+            score_full(result);
         }
     } else {
         std::string msg="unknown KffK algorithm: " + algo;
@@ -1725,19 +1623,18 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     // G·Q12·[K̂,f] diagnostics with 3D-only reference (see operator_diagnostics.md)
     // ---------------------------------------------------------------
     if (Gscreen != nullptr && !info.ao.empty()) {
-        const double mu     = Gscreen->mu();
-        const double energy = -0.5 * mu * mu;
-        const double lo     = info.parameters.lo();
-
-        // K̂φᵢ, K̂φⱼ — needed by the Schwinger reference
-        Exchange<double,3> K(world, lo);
-        K.set_bra_and_ket(info.mo_bra, info.mo_ket);
-        const real_function_3d Kphi_i = K(phi_i.function);
-        const real_function_3d Kphi_j = K(phi_j.function);
+        const double mu = Gscreen->mu();
+        const double lo = info.parameters.lo();
 
         StrongOrthogonalityProjector<double,3> Q12(world);
         Q12.set_spaces(info.mo_bra, info.mo_ket, info.mo_bra, info.mo_ket);
         real_convolution_6d G = BSHOperator<6>(world, mu, lo, info.parameters.thresh_bsh_6D());
+
+        // apply G; apply(G, vector) collapses to one pure 6D function
+        auto apply_G = [&](const std::vector<CCPairFunction<double,6>>& v)
+                -> std::vector<CCPairFunction<double,6>> {
+            return {madness::apply(G, v)};
+        };
 
         // apply Q12 then G; apply(G, vector) collapses to one pure 6D function
         auto apply_GQ12 = [&](const std::vector<CCPairFunction<double,6>>& v)
@@ -1745,19 +1642,39 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
             auto Qv = Q12(v);
             return {madness::apply(G, Qv)};
         };
+
+        const auto GKf = apply_G(result.Kf);
+        const auto GfK = apply_G(result.fK);
+
         const auto GQKf = apply_GQ12(result.Kf);
         const auto GQfK = apply_GQ12(result.fK);
 
         // accuracy check in the orthonormalized AO observer basis
-        auto dmq = ec.diagnose_GQKffK(world, GQKf, GQfK, phi_i.function, phi_j.function,
+        auto dmq = ec.diagnose_GKffK(world, GKf, GfK, phi_i.function, phi_j.function,
+                                      Kphi_i, Kphi_j, info, energy, ao);
+        print("diagnosis for G [K,f] term:");
+        dmq.print_report("GKffK");
+
+        // accuracy check in the orthonormalized AO observer basis
+        auto dmgq = ec.diagnose_GQKffK(world, GQKf, GQfK, phi_i.function, phi_j.function,
                                       Kphi_i, Kphi_j, info, energy, ao);
         print("diagnosis for G Q12 [K,f] term:");
-        dmq.print_report("GQKffK");
+        dmgq.print_report("GQKffK");
 
         // MP2 pair-energy contribution in the raw pair-bra basis {i_bra, j_bra}
         const bool have_bra_pair = (phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size());
         if (have_bra_pair) {
             std::vector<real_function_3d> pair_bra = {info.mo_bra[phi_i.i], info.mo_bra[phi_j.i]};
+            auto dme1 = ec.diagnose_GKffK(world, GKf, GfK, phi_i.function, phi_j.function,
+                                          Kphi_i, Kphi_j, info, energy, pair_bra,
+                                          /*orthonormalize_basis=*/false);
+            print("diagnosis for G Q12 [K,f] term in the raw pair-bra basis:");
+            dme1.print_report("GQKffK-pair");
+
+            print_pair_energy_report(dme1, {"GKf", "GfK"}, {1.0, -1.0},
+                                     "MP2 energy contribution <i_bra j_bra|G [K,f]|ij>"
+                                     " ([K,f] = Kf - fK):");
+
             auto dme = ec.diagnose_GQKffK(world, GQKf, GQfK, phi_i.function, phi_j.function,
                                           Kphi_i, Kphi_j, info, energy, pair_bra,
                                           /*orthonormalize_basis=*/false);

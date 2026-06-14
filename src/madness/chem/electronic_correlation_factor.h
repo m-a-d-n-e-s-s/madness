@@ -258,6 +258,10 @@ namespace madness {
         }
 
         /// compute the error in Uphi by comparing to reference values: project onto a (small) aobasis
+
+        /// NOTE: diagnose_Ue, diagnose_GUe and diagnose_GQUe share the same signature;
+        /// parameters not needed by a particular diagnostic are ignored (here:
+        /// occ_ket, occ_bra, energy — pass {} and 0.0).
         /// @param[in]  Uphi_mixed   U_mixed|ij> (optional; pass default-constructed to skip)
         /// @param[in]  U1nuc        nuclear U1 potentials (required when Uphi_mixed is provided)
         /// @return DiagnosticMatrix with entries "local", "semilocal" (and "mixed" if applicable).
@@ -266,11 +270,16 @@ namespace madness {
                              const real_function_6d& Uphi_semilocal,
                              const real_function_3d& phi_i, const real_function_3d& phi_j,
                              const std::vector<real_function_3d>& aobasis,
+                             const std::vector<real_function_3d>& /*occ_ket*/,
+                             const std::vector<real_function_3d>& /*occ_bra*/,
+                             const double /*energy*/,
                              const real_function_6d& Uphi_mixed = real_function_6d(),
-                             const std::vector<real_function_3d>& U1nuc = {}) const {
-            DiagnosticMatrix<> dm(world, aobasis);
-            return diagnose_Ue_impl(dm.build_simple_bra(),
-                                    Uphi_local, Uphi_semilocal, phi_i, phi_j, aobasis,
+                             const std::vector<real_function_3d>& U1nuc = {},
+                             const bool orthonormalize_basis = true) const {
+            DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+            auto bra = dm.build_simple_bra();
+            return diagnose_Ue_impl(std::move(dm), bra,
+                                    Uphi_local, Uphi_semilocal, phi_i, phi_j,
                                     "local", "semilocal",
                                     Uphi_mixed, U1nuc, "mixed");
         }
@@ -289,6 +298,9 @@ namespace madness {
         ///   M(a,b) ≈ sum_n w_n^{6d} <ã_n b̃_n | Ue | ij>
         /// where ã_n = g_{alpha_n} * a (3D Gaussian convolution).
         ///
+        /// NOTE: diagnose_Ue, diagnose_GUe and diagnose_GQUe share the same signature;
+        /// parameters not needed by a particular diagnostic are ignored (here:
+        /// occ_ket, occ_bra — pass {}).
         /// @param[in]  GUphi_local      G U_local    |ij> as a 6D MRA function (reference)
         /// @param[in]  GUphi_semilocal  G U_semilocal|ij> as a 6D MRA function (reference)
         /// @param[in]  phi_i    orbital i (particle 1)
@@ -304,13 +316,17 @@ namespace madness {
                                     const real_function_3d& phi_i,
                                     const real_function_3d& phi_j,
                                     const std::vector<real_function_3d>& aobasis,
+                                    const std::vector<real_function_3d>& /*occ_ket*/,
+                                    const std::vector<real_function_3d>& /*occ_bra*/,
                                     const double energy,
                                     const real_function_6d& GUphi_mixed = real_function_6d(),
-                                    const std::vector<real_function_3d>& U1nuc = {}) const {
+                                    const std::vector<real_function_3d>& U1nuc = {},
+                                    const bool orthonormalize_basis = true) const {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GUe: energy must be negative");
-            DiagnosticMatrix<> dm(world, aobasis);
-            return diagnose_Ue_impl(dm.build_Gab_bra(energy, lo),
-                                    GUphi_local, GUphi_semilocal, phi_i, phi_j, aobasis,
+            DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+            auto bra = dm.build_Gab_bra(energy, lo);
+            return diagnose_Ue_impl(std::move(dm), bra,
+                                    GUphi_local, GUphi_semilocal, phi_i, phi_j,
                                     "Glocal", "Gsemilocal",
                                     GUphi_mixed, U1nuc, "Gmixed");
         }
@@ -367,6 +383,10 @@ namespace madness {
                 const real_function_3d& phi_j_bra) const;
         /// Unified core for diagnose_Ue and diagnose_GUe.
         ///
+        /// @param dm         DiagnosticMatrix holding the observer basis (already
+        ///                   orthonormalized by its constructor if requested); the
+        ///                   bra must have been built from this same dm.  Filled
+        ///                   with entries and returned.
         /// @param bra        Observer bra: simple (build_simple_bra) or Schwinger (build_Gab_bra).
         ///                   Controls the 3D ref computation only.
         ///                   bra[k].get_a()[a] = particle-1 function for basis index a (weight absorbed)
@@ -375,11 +395,11 @@ namespace madness {
         /// @param Uphi_semilocal  B·U_semilocal|ij> (6D MRA, B already applied)
         /// @param name_local / name_semilocal / name_mixed  entry keys in the returned DiagnosticMatrix
         DiagnosticMatrix<> diagnose_Ue_impl(
+                DiagnosticMatrix<> dm,
                 const std::vector<CCPairFunction<double,6>>& bra,
                 const real_function_6d& Uphi_local,
                 const real_function_6d& Uphi_semilocal,
                 const real_function_3d& phi_i, const real_function_3d& phi_j,
-                const std::vector<real_function_3d>& aobasis,
                 const std::string& name_local, const std::string& name_semilocal,
                 const real_function_6d& Uphi_mixed = real_function_6d(),
                 const std::vector<real_function_3d>& U1nuc = {},

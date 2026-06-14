@@ -413,15 +413,6 @@ public:
     apply_transformed_Ue(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
                          const real_convolution_6d* Gscreen = NULL) const;
 
-    /// Static version of apply_transformed_Ue for the use in a macrotask.
-    /// Will eventually replace the former.
-    real_function_6d
-    static apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                                          const CCParameters& parameters, const real_function_3d& Rsquare,
-                                          const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                                          const FuncType& x_type, const FuncType& y_type,
-                                          const real_convolution_6d* Gscreen = NULL);
-
     real_function_6d
     static apply_Ue(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                     const Info& info, const real_convolution_6d* Gscreen);
@@ -436,10 +427,6 @@ public:
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                const LowRankFunction<double,6>& exchange_op,
                const Info& info, const real_convolution_6d* Gscreen);
-
-    static void
-    compare_Ue_matrix_elements(World& world, const CCFunction<double, 3>& phi, const CCFunction<double, 3>& phi_j,
-        const Info& info, const CCPairFunction<double,6> Ue);
 
     static CCPairFunction<double, 6>
     apply_commutator_F_Qt_f12(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,

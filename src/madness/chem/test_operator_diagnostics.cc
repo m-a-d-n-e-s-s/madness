@@ -178,7 +178,7 @@ int test_diagnose_Ue(World& world) {
         auto Uphi_local     = cf.apply_U_local    (phi_i, phi_j, op_mod, thresh6);
         auto Uphi_semilocal = cf.apply_U_semilocal(phi_i, phi_j, op_mod, thresh6);
 
-        auto dm = cf.diagnose_Ue(Uphi_local, Uphi_semilocal, phi_i, phi_j, ao_raw);
+        auto dm = cf.diagnose_Ue(Uphi_local, Uphi_semilocal, phi_i, phi_j, ao_raw, {}, {}, 0.0);
         dm.print_report("test_diagnose_Ue");
 
         t.checkpoint(dm.entries["local"].error, thresh6, "diagnose_Ue: local error");
@@ -335,7 +335,7 @@ int test_diagnose_GUe(World& world) {
         auto GUphi_local     = apply(G, Uphi_local).truncate();
         auto GUphi_semilocal = apply(G, Uphi_semilocal).truncate();
 
-        auto dm = cf.diagnose_GUe(GUphi_local, GUphi_semilocal, phi_i, phi_j, ao_raw, energy);
+        auto dm = cf.diagnose_GUe(GUphi_local, GUphi_semilocal, phi_i, phi_j, ao_raw, {}, {}, energy);
         dm.print_report("test_diagnose_GUe");
 
         // The Schwinger quadrature introduces ~1% relative error beyond the 6D grid threshold.
@@ -516,7 +516,7 @@ int test_diagnose_GQKffK(World& world) {
         std::vector<CCPairFunction<double,6>> GKf_cc = {CCPairFunction<double,6>(GKf)};
         std::vector<CCPairFunction<double,6>> GfK_cc = {CCPairFunction<double,6>(GfK)};
         auto dm2 = ec.diagnose_GKffK(world, GKf_cc, GfK_cc, phi_i, phi_j,
-                                     Kphi_i, Kphi_j, info, energy);
+                                     Kphi_i, Kphi_j, info, energy, ao_raw);
         dm2.print_report("test_diagnose_GKffK");
         t.checkpoint(dm2.entries["GKf"].error,   10.0*thresh6, "diagnose_GKffK: GKf error");
         t.checkpoint(dm2.entries["GfK"].error,   10.0*thresh6, "diagnose_GKffK: GfK error");

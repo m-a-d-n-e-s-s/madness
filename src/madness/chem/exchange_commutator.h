@@ -22,18 +22,18 @@ namespace madness {
 
 struct ExchangeCommutator {
 
-    /// Orthonormalized AO basis used as the observer set in diagnose().
+    /// Orthonormalized AO basis, the default observer set for the diagnose_*
+    /// methods (passed explicitly as their aobasis parameter).
     /// The caller is responsible for orthonormalization; near-linear-
     /// dependent inputs will produce a numerically unreliable diagnostic.
     std::vector<Function<double, 3>> ao_basis;
 
-    /// Construct with the AO basis used by diagnose() to project the
-    /// commutator onto matrix elements ⟨ab | · | ij⟩.
+    /// Construct with the AO basis used to project the commutator onto
+    /// matrix elements ⟨ab | · | ij⟩.
     explicit ExchangeCommutator(std::vector<Function<double, 3>> ao_basis_in)
         : ao_basis(std::move(ao_basis_in)) {}
 
-    /// Default ctor leaves ao_basis empty; only the static apply_KffK_*
-    /// entry points may be used in that state — diagnose() will throw.
+    /// Default ctor leaves ao_basis empty.
     ExchangeCommutator() = default;
 
     /// Uniform result envelope for every algorithm path.  Each "piece" may
@@ -47,15 +47,6 @@ struct ExchangeCommutator {
         double      mem_gb = 0.0;                      ///< combined size of pair factors (GByte)
         long        rank   = 0;                        ///< combined LRF rank (0 for 6D)
         std::string algo;                              ///< "6d" / "lrf" / "lrf-direct" / "lrf-split-alpha"
-    };
-
-    /// Auxiliary tensors kept alongside the DiagnosticMatrix for the K̂₁/K̂₂ decomposition.
-    /// These are filled by diagnose() and carried in its returned DiagnosticMatrix extras field.
-    struct KRefPieces {
-        Tensor<double> ref_Kf_K1;    ///< ⟨ab | K̂₁ f | ij⟩
-        Tensor<double> ref_Kf_K2;    ///< ⟨ab | K̂₂ f | ij⟩
-        Tensor<double> ref_fK_K1;    ///< ⟨ab | f K̂₁ | ij⟩
-        Tensor<double> ref_fK_K2;    ///< ⟨ab | f K̂₂ | ij⟩
     };
 
     /// Options for the split-α LRF k-commutator variant
@@ -162,47 +153,31 @@ struct ExchangeCommutator {
             const ThreeRangeOptions& opt);
 
     // ---------------------------------------------------------------------
-    // Diagnostics — harmonic-basis projection of the 6D result, compared
-    // against a straight-6D reference built from Exchange<3> and f12 applied
-    // to that basis.  Unassigned CCPairFunctions are skipped.
+    // [K̂,f] diagnostic — plain ⟨ab| projection vs analytic 3D reference
     // ---------------------------------------------------------------------
 
-    /// Pair-vector arguments allow commutator pieces built from multiple
-    /// CCPairFunctions (e.g. the separable + f12-wrapped pair from the
-    /// split-α assembly).  An empty vector skips that role.  Set verbose
-    /// to dump per-stage norms (harmonic basis, K applications, f12
-    /// applications, reference matrices, and per-pair shape/norms) — use
-    /// when a piece comes back as NaN to localize the source.
+    /// Diagnose ⟨ab | [K̂,f₁₂] | ij⟩ (no G, no Q₁₂): the 6D pieces are
+    /// projected onto the observer basis and compared against the analytic
+    /// Kf/fK matrix elements from kf_provider/fk_provider evaluated over the
+    /// plain ⟨ab| bra.  Unassigned CCPairFunctions are skipped.
     ///
-    /// The observer basis is the orthonormalized AO basis stored on this
-    /// instance (`ao_basis`).  When `ao_basis` is empty the routine falls
-    /// back to building a Cartesian-Gaussian harmonic basis from
-    /// `obs_param` placed at `centers` (origin if empty), then
-    /// orthonormalizing it canonically — preserving the original
-    /// behaviour for callers that haven't supplied an AO basis.
-    ///
-    /// The reference is built as the sum of the K̂₁ and K̂₂ pieces (the
-    /// latter is gated by `include_K2`).  All four ⟨ab|·|ij⟩ contributions
-    /// are also returned individually in Diagnostics so non-symmetric
-    /// regressions in either particle's K̂ application can be localized.
-    /// Returns a DiagnosticMatrix with entries "Kf", "fK", "KffK".
+    /// NOTE: diagnose_KffK, diagnose_GKffK and diagnose_GQKffK share the same
+    /// signature; parameters not needed by a particular diagnostic are
+    /// ignored (here: energy — pass any value).
+    /// Returns a DiagnosticMatrix with entries "Kf", "fK", "KffK" (= Kf − fK).
     /// ref=3D Exchange+f12 analytic formula, result=6D projection, error=||ref-result||.
-    /// The K1/K2 decomposition tensors are placed in the returned dm.entries["Kf"].ref etc.
-    /// as the sum K1+K2, with the individual pieces available in the returned KRefPieces.
-    DiagnosticMatrix<> diagnose(
+    DiagnosticMatrix<> diagnose_KffK(
             World& world,
-            const std::vector<Function<double, 3>>& kvec,
-            const std::vector<Function<double, 3>>& R2kvec,
-            const Function<double, 3>& phi_i,
-            const Function<double, 3>& phi_j,
-            const std::vector<CCPairFunction<double, 6>>& Kf,
-            const std::vector<CCPairFunction<double, 6>>& fK,
-            const std::vector<CCPairFunction<double, 6>>& KffK,
-            const LowRankFunctionParameters& obs_param,
-            bool verbose = false,
-            bool include_K2 = true,
-            const std::vector<Vector<double, 3>>& centers = {},
-            KRefPieces* kpieces_out = nullptr) const;
+            const std::vector<CCPairFunction<double,6>>& Kf_cc,
+            const std::vector<CCPairFunction<double,6>>& fK_cc,
+            const real_function_3d& phi_i,
+            const real_function_3d& phi_j,
+            const real_function_3d& Kphi_i,
+            const real_function_3d& Kphi_j,
+            const Info& info,
+            double energy,
+            const std::vector<real_function_3d>& aobasis,
+            bool orthonormalize_basis = true) const;
 
     // ---------------------------------------------------------------------
     // G·[K̂,f] diagnostics — Schwinger-quadrature 3D reference vs 6D projection
@@ -236,12 +211,15 @@ struct ExchangeCommutator {
     /// functions and the sum over quadrature nodes n (with 6D weight
     /// w_n = c_n^{bsh}·(αₙ/π)^{3/2}) approximates G.
     ///
+    /// NOTE: diagnose_GKffK and diagnose_GQKffK share the same signature.
     /// @param GKf_cc   G·K̂f₁₂|ij⟩ pieces (caller applies G6d externally)
     /// @param GfK_cc   G·f₁₂K̂|ij⟩ pieces
     /// @param Kphi_i   K̂φᵢ (precomputed once by caller)
     /// @param Kphi_j   K̂φⱼ (precomputed once by caller)
     /// @param info     molecular/orbital info carrying mo_ket, mo_bra, parameters
     /// @param energy   ε_i + ε_j  (must be negative)
+    /// @param aobasis  observer basis
+    /// @param orthonormalize_basis  Löwdin-orthonormalize aobasis (false: keep raw)
     DiagnosticMatrix<> diagnose_GKffK(
             World& world,
             const std::vector<CCPairFunction<double,6>>& GKf_cc,
@@ -251,7 +229,9 @@ struct ExchangeCommutator {
             const real_function_3d& Kphi_i,
             const real_function_3d& Kphi_j,
             const Info& info,
-            double energy) const;
+            double energy,
+            const std::vector<real_function_3d>& aobasis,
+            bool orthonormalize_basis = true) const;
 
     // ---------------------------------------------------------------------
     // G·Q₁₂·[K̂,f] diagnostic — 3D-only reference, Q₁₂ expanded on the ket
