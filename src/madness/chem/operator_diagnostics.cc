@@ -270,6 +270,77 @@ void print_pair_energy_report(const DiagnosticMatrix<T,NDIM>& dm,
 }
 
 // ---------------------------------------------------------------------------
+//  pair_energy_weights — strong-orthogonality-projected g12 bra weights
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+Tensor<T> pair_energy_weights(World& world,
+                              const std::vector<Function<T,NDIM/2>>& observer,
+                              const Function<T,NDIM/2>& phi_i_bra,
+                              const Function<T,NDIM/2>& phi_j_bra,
+                              const std::vector<Function<T,NDIM/2>>& occ_ket,
+                              const std::vector<Function<T,NDIM/2>>& occ_bra,
+                              const SeparatedConvolution<T,NDIM/2>& g12)
+{
+    constexpr std::size_t LDIM = NDIM/2;
+    const int nb = static_cast<int>(observer.size());
+
+    // Q-project the observer functions: Q a = a - sum_m occ_ket_m <occ_bra_m|a>
+    std::vector<Function<T,LDIM>> Qobs = observer;
+    if (!occ_ket.empty()) {
+        const Tensor<T> S = matrix_inner(world, occ_bra, observer);  // (nocc,nb)
+        Qobs = sub(world, observer, transform(world, occ_ket, S));
+    }
+
+    // products with the pair-bra orbitals, then the g12 convolution
+    const std::vector<Function<T,LDIM>> iQ = Qobs * phi_i_bra;   // {phi_i_bra * Q a}
+    const std::vector<Function<T,LDIM>> jQ = Qobs * phi_j_bra;
+    std::vector<Function<T,LDIM>> g_iQ(nb), g_jQ(nb);
+    for (int b=0; b<nb; ++b) { g_iQ[b]=g12(iQ[b]); g_jQ[b]=g12(jQ[b]); }
+
+    // W(a,b) = 2<iQ_a|g12|jQ_b> - <jQ_a|g12|iQ_b>
+    return 2.0*matrix_inner(world, iQ, g_jQ) - matrix_inner(world, jQ, g_iQ);
+}
+
+// ---------------------------------------------------------------------------
+//  print_pair_energy_report_RI — contract result/ref tensors with W
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+void print_pair_energy_report_RI(const DiagnosticMatrix<T,NDIM>& dm,
+                                 const std::vector<std::string>& pieces,
+                                 const std::vector<double>& signs,
+                                 const Tensor<T>& W,
+                                 double factor,
+                                 const std::string& title)
+{
+    MADNESS_CHECK_THROW(pieces.size() == signs.size(),
+                        "print_pair_energy_report_RI: pieces/signs size mismatch");
+    auto contract = [&W,factor](const Tensor<T>& M) {
+        double e = 0.0;
+        for (long a=0; a<M.dim(0); ++a)
+            for (long b=0; b<M.dim(1); ++b) e += W(a,b)*M(a,b);
+        return factor*e;
+    };
+    constexpr std::size_t nbuf = 256;
+    char buf[nbuf];
+    print(title);
+    std::snprintf(buf,nbuf,"  %-12s %18s %18s %15s","piece","Expr2 (3d-ket)","Expr3 (6d-ket)","diff");
+    print(std::string(buf));
+    double tot3d=0.0, tot6d=0.0;
+    for (std::size_t p=0; p<pieces.size(); ++p) {
+        const auto& e = dm.entries.at(pieces[p]);
+        const double e3d = signs[p]*contract(e.ref);     // Expr2: 3d Schwinger ket
+        const double e6d = signs[p]*contract(e.result);  // Expr3: 6d projected ket
+        std::snprintf(buf,nbuf,"  %-12s % .8e % .8e % .3e",pieces[p].c_str(),e3d,e6d,e6d-e3d);
+        print(std::string(buf));
+        tot3d+=e3d; tot6d+=e6d;
+    }
+    std::snprintf(buf,nbuf,"  %-12s % .8e % .8e % .3e","total",tot3d,tot6d,tot6d-tot3d);
+    print(std::string(buf));
+}
+
+// ---------------------------------------------------------------------------
 //  compute_errors
 // ---------------------------------------------------------------------------
 
@@ -310,5 +381,15 @@ template class DiagnosticMatrix<double, 6>;  // LDIM=3 one-particle (standard 3D
 template void print_pair_energy_report<double, 6>(
         const DiagnosticMatrix<double,6>&, const std::vector<std::string>&,
         const std::vector<double>&, const std::string&);
+
+template Tensor<double> pair_energy_weights<double, 6>(
+        World&, const std::vector<Function<double,3>>&,
+        const Function<double,3>&, const Function<double,3>&,
+        const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+        const SeparatedConvolution<double,3>&);
+
+template void print_pair_energy_report_RI<double, 6>(
+        const DiagnosticMatrix<double,6>&, const std::vector<std::string>&,
+        const std::vector<double>&, const Tensor<double>&, double, const std::string&);
 
 } // namespace madness

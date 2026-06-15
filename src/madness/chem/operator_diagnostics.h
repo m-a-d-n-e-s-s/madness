@@ -189,6 +189,39 @@ void print_pair_energy_report(const DiagnosticMatrix<T,NDIM>& dm,
                               const std::vector<double>& signs,
                               const std::string& title);
 
+// forward declaration -- operator.h is included only in operator_diagnostics.cc
+template<typename Q, std::size_t MDIM> class SeparatedConvolution;
+
+/// Strong-orthogonality-projected pair-energy weights over an orthonormal
+/// observer basis {a}:
+///   W^Q(a,b) = 2<phi_i_bra (Q a)|g12|(Q b) phi_j_bra>
+///                - <phi_j_bra (Q a)|g12|(Q b) phi_i_bra>
+/// with Q = 1 - sum_m |occ_ket_m><occ_bra_m| applied to both observer factors
+/// (Q12 = Q⊗Q is separable).  Used to contract <ab|G Q12 X|ij> diagnostic
+/// tensors into the MP2 pair-energy contribution
+///   E = factor * sum_ab W^Q(a,b) <ab|G Q12 X|ij>.
+template<typename T, std::size_t NDIM>
+Tensor<T> pair_energy_weights(World& world,
+                              const std::vector<Function<T,NDIM/2>>& observer,
+                              const Function<T,NDIM/2>& phi_i_bra,
+                              const Function<T,NDIM/2>& phi_j_bra,
+                              const std::vector<Function<T,NDIM/2>>& occ_ket,
+                              const std::vector<Function<T,NDIM/2>>& occ_bra,
+                              const SeparatedConvolution<T,NDIM/2>& g12);
+
+/// RI pair-energy report: contract the .result (6d-projected ket, "Expr3") and
+/// .ref (3d Schwinger ket, "Expr2") tensors of the named pieces with the
+/// pair-energy weights W and print "Expr2(3d-ket) / Expr3(6d-ket) / diff" per
+/// piece plus the signed total, where the per-term energy is
+///   factor * sum_p sign_p * sum_ab W(a,b) M_p(a,b).
+template<typename T, std::size_t NDIM>
+void print_pair_energy_report_RI(const DiagnosticMatrix<T,NDIM>& dm,
+                                 const std::vector<std::string>& pieces,
+                                 const std::vector<double>& signs,
+                                 const Tensor<T>& W,
+                                 double factor,
+                                 const std::string& title);
+
 } // namespace madness
 
 #endif // MADNESS_CHEM_OPERATOR_DIAGNOSTICS_H

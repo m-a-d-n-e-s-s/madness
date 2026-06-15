@@ -88,6 +88,21 @@ void CorrelationFactor::run_apply_U_diagnostics(
                                      {1.0, 1.0, -1.0},
                                      "MP2 energy contribution <i_bra j_bra|G Q12 Ue|ij>"
                                      " (Ue = local + semilocal - mixed):");
+
+            // RI MP2 pair-energy of the Ue term: contract <ab|G Q12 Ue|ij> with
+            // the strong-orthogonality-projected g12 weights W^Q on the SAME
+            // orthonormal observer basis dm2 uses.  Expr3 (6d ket, .result) vs
+            // Expr2 (3d Schwinger ket, .ref).  Ue enters g~ with +, so the
+            // constant-part contribution carries factor -2*facE.
+            const double thresh3 = FunctionDefaults<3>::get_thresh();
+            std::shared_ptr<SeparatedConvolution<double,3>> g12coul(CoulombOperatorPtr(world, lo, thresh3));
+            const bool symmetric = ((phi_i - phi_j).norm2() < 1.e-8);
+            const double facE = symmetric ? 1.0 : 2.0;
+            Tensor<double> Wq = pair_energy_weights<double,6>(world, dm2.ao_basis,
+                    phi_i_bra, phi_j_bra, occ_ket, occ_bra, *g12coul);
+            print_pair_energy_report_RI(dm2, {"GQlocal","GQsemilocal","GQmixed"}, {1.0,1.0,-1.0},
+                    Wq, -2.0*facE,
+                    "RI MP2 pair-energy contribution of Ue, Expr2 3d-ket vs Expr3 6d-ket:");
         }
     }
 }

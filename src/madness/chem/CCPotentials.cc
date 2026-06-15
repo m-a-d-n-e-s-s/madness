@@ -737,6 +737,44 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
     return vphi;
 }
 
+/// Diagnostic: bin the pair-energy CONTRIBUTION of a pair function u by physical
+/// diagonal box distance d_phys = max|l_{123}-l_{456}|/2^n (fraction of the
+/// cell).  For each cutoff T the leaf boxes with d_phys > T are zeroed on a
+/// throwaway copy and the pair energy <2ij-ji|g12|u_masked> is evaluated.
+/// Because the functional is linear and g12 (in the bra) carries the full
+/// coupling, E(<=T) is exactly the share of the pair energy contributed by boxes
+/// of u within diagonal distance T.  If E(<=T) saturates at small T the energy
+/// lives near the coalescence diagonal (a goal-oriented, diagonal-tightened
+/// truncation could prune far boxes for free); if it grows slowly it does not.
+/// The T<=2.0 (keep-all) row reproduces the full pair energy of u as a check.
+static void diagonal_energy_histogram(World& world, const std::string& name,
+        const real_function_6d& u, const CCPair& pair, const Info& info) {
+    const std::vector<double> cutoffs = {0.0, 1.0/64, 1.0/16, 1.0/8, 1.0/4, 1.0/2, 2.0};
+    CC_vecfunction singles_dummy;
+    char buf[256];
+    print_header3("diagonal-distance histogram of pair-energy contribution: "+name);
+    print("  T = max|l123-l456|/2^n (cell fraction); E(<=T) cumulative, dE per shell");
+    double prev=0.0;
+    for (double T : cutoffs) {
+        real_function_6d masked = copy(u);
+        masked.reconstruct();
+        auto maskop = [T](const Key<6>& key, FunctionNode<double,6>& node) {
+            if (!node.has_coeff()) return;
+            const Vector<Translation,6>& l = key.translation();
+            auto ad = [](Translation a, Translation b){ return a>b ? a-b : b-a; };
+            const Translation d = std::max(ad(l[0],l[3]), std::max(ad(l[1],l[4]), ad(l[2],l[5])));
+            const double dphys = double(d) / double(Translation(1) << key.level());
+            if (dphys > T) node.scale(0.0);
+        };
+        masked.get_impl()->unary_op_node_inplace(maskop, true);
+        CCPair pt=pair; pt.update_u(masked);
+        const double e=CCPotentials::compute_pair_correlation_energy(world,pt,singles_dummy,info);
+        snprintf(buf,sizeof(buf),"  T<=%8.4f  E_cumulative % .8e  dE_shell % .8e",T,e,e-prev);
+        print(buf);
+        prev=e;
+    }
+}
+
 /// the constant part is the contribution to the doubles that are independent of the doubles
 
 /// CC-equations from Kottmann et al., JCTC 13, 5956 (2017)
@@ -818,11 +856,20 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     GG.print_timings=false;
 
     // compute all 6d potentials without applying the SO projector
+    // Vparts holds the regularization potential split into named pieces so the
+    // pair energy can be decomposed per term.  For MP2 the pieces are Ue and
+    // KffK (the latter already carrying the minus sign of g~ = Ue - KffK);
+    // CC2/LRCC2 keep a single combined "all" piece (no decomposition).
+    std::vector<std::pair<std::string,std::vector<CCPairFunction<double,6>>>> Vparts;
     std::vector<CCPairFunction<double,6>> V;
     if (targetstate==CT_MP2) {
-        std::vector<std::string> argument={"Ue","KffK"};
-        auto Vreg=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,argument,pair.bsh_eps);
-        V=consolidate(apply_in_separated_form(Q12,Vreg));
+        // split per term so each contributes one entry to Vparts; calling
+        // apply_Vreg once per term invokes apply_Ue / apply_KffK exactly once
+        // each, i.e. the same total work as the combined {"Ue","KffK"} call.
+        auto Vreg_Ue  =apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"Ue"},  pair.bsh_eps);
+        auto Vreg_KffK=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"KffK"},pair.bsh_eps);
+        Vparts.emplace_back("Ue",  consolidate(apply_in_separated_form(Q12,Vreg_Ue)));
+        Vparts.emplace_back("KffK",consolidate(apply_in_separated_form(Q12,Vreg_KffK)));
     } else if (targetstate==CT_CC2) {       // Eq. (42) of Kottmann, JCTC 13, 5945 (2017)
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
         auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
@@ -878,7 +925,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     }
     print("finished computing potential for constant part, now applying G");
 
-    V=consolidate(V);
+    // non-MP2 paths keep a single combined piece
+    if (Vparts.empty()) Vparts.emplace_back("all", consolidate(V));
     t1.end("finished computing potential for constant part");
     MemoryMeasurer::measure_and_print(world);
     MemoryMeasurer::release_free_memory();
@@ -888,25 +936,80 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
     G.destructive() = true;
 
+    // Apply G to each named piece separately and assemble the constant part
+    // GV = sum_parts GVpart, with GVpart = -2 Q12 G (Vpart).  The pair-energy
+    // functional <2ij-ji|g12|.> is linear in GV, so the per-piece energies sum
+    // exactly to the total -- this is the per-term (Ue/KffK) decomposition.
+    //
+    // (b) For each piece we also evaluate the energy BEFORE and AFTER the 6D
+    // truncation of GVpart, to quantify the truncation error (the before/after
+    // gap is what makes the per-term sum differ slightly from the directly
+    // computed total).  Holding the untruncated piece transiently raises peak
+    // memory -- acceptable for a diagnostic.
+    CC_vecfunction singles_dummy;
     real_function_6d GV=real_factory_6d(world).empty();
-    for (const auto& vv : V) {
-        GV+= (G(vv)).get_function();      // note V is destroyed here
-        MemoryMeasurer::measure_and_print(world);
-        MemoryMeasurer::release_free_memory();
-        MemoryMeasurer::measure_and_print(world);
+    std::vector<std::tuple<std::string,double,double>> term_energies;  // (name, before, after)
+    for (auto& [name, vpart] : Vparts) {
+        real_function_6d GVpart_raw=real_factory_6d(world).empty();
+        for (const auto& vv : vpart) {
+            GVpart_raw+= (G(vv)).get_function();      // note vpart is destroyed here
+            // MemoryMeasurer::measure_and_print(world);
+            MemoryMeasurer::release_free_memory();
+            // MemoryMeasurer::measure_and_print(world);
+        }
+        double tight_thresh_6d= parameters.tight_thresh_6D();
+        GVpart_raw.set_thresh(tight_thresh_6d);
+        FunctionDefaults<6>::set_thresh(tight_thresh_6d);
+        real_function_6d GVpart_full=-2.0*Q12(GVpart_raw);                  // before truncation
+        real_function_6d GVpart=copy(GVpart_full);
+        GVpart.truncate(tight_thresh_6d).reduce_rank();                                    // after truncation
+        GV+=GVpart;
+
+        // per-term energy before/after the 6D truncation
+        CCPair pbefore=pair; pbefore.update_u(GVpart_full);
+        CCPair pafter =pair; pafter.update_u(GVpart);
+        const double e_before=CCPotentials::compute_pair_correlation_energy(world,pbefore,singles_dummy,info);
+        const double e_after =CCPotentials::compute_pair_correlation_energy(world,pafter, singles_dummy,info);
+        term_energies.emplace_back(name,e_before,e_after);
+
+        // localize where the pair energy of this piece lives in diagonal box
+        // distance; the T<=2.0 (=keep-all) row reproduces e_after above
+        diagonal_energy_histogram(world, name, GVpart, pair, info);
     }
-    GV=-2.0*Q12(GV).truncate().reduce_rank();
+    FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
+
 
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
     save(GV,"GV_const"+pair.name());
     CCPair p1=pair;
     p1.update_u(GV);
-    CC_vecfunction singles_dummy;
     double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,p1,singles_dummy,info);
 
     char buf[256];
     snprintf(buf,sizeof(buf),"correlation energy of pair %zu %zu: %e", i, j, correlation_energy);
+    print(buf);
+
+    // per-term energy decomposition (Ue/KffK pieces sum to the total; the
+    // functional is linear in GV) with the 6D-truncation cross-check.
+    double sum_before=0.0, sum_after=0.0;
+    for (const auto& [name,eb,ea] : term_energies) { sum_before+=eb; sum_after+=ea; }
+    if (term_energies.size()>1) {
+        print_header3("MP2 pair-energy decomposition of pair "+std::to_string(i)+" "+std::to_string(j));
+        print("  constant part GV = -2 Q12 G (Ue - KffK)|ij>; the KffK row is the");
+        print("  contribution of the -KffK term as it enters g~ = Ue - KffK.");
+        snprintf(buf,sizeof(buf),"  %-6s %18s %18s %15s","term","before-trunc","after-trunc","diff");
+        print(buf);
+        for (const auto& [name,eb,ea] : term_energies) {
+            snprintf(buf,sizeof(buf),"  %-6s % .10e % .10e % .3e",name.c_str(),eb,ea,eb-ea);
+            print(buf);
+        }
+        snprintf(buf,sizeof(buf),"  %-6s % .10e % .10e % .3e","sum",sum_before,sum_after,sum_before-sum_after);
+        print(buf);
+    }
+    snprintf(buf,sizeof(buf),
+             "6D-truncation check of total pair energy: before % .10e  after % .10e  diff % .3e",
+             sum_before, correlation_energy, sum_before-correlation_energy);
     print(buf);
 
     return GV;
@@ -1660,6 +1763,21 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
                                       Kphi_i, Kphi_j, info, energy, ao);
         print("diagnosis for G Q12 [K,f] term:");
         dmgq.print_report("GQKffK");
+
+        // RI MP2 pair-energy of the KffK term: contract <ab|G Q12 [K,f]|ij> with
+        // the strong-orthogonality-projected g12 weights W^Q on the SAME
+        // orthonormal observer basis used by dmgq.  Expr3 (6d ket, .result) vs
+        // Expr2 (3d Schwinger ket, .ref).  [K,f] = Kf - fK enters g~ with a
+        // minus, so the KffK contribution carries factor +2*facE.
+        if ((phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size())) {
+            const double thresh3 = FunctionDefaults<3>::get_thresh();
+            std::shared_ptr<SeparatedConvolution<double,3>> g12coul(CoulombOperatorPtr(world, lo, thresh3));
+            const double facE = (phi_i.i==phi_j.i) ? 1.0 : 2.0;
+            Tensor<double> Wq = pair_energy_weights<double,6>(world, ao,
+                    info.mo_bra[phi_i.i], info.mo_bra[phi_j.i], info.mo_ket, info.mo_bra, *g12coul);
+            print_pair_energy_report_RI(dmgq, {"GQKf","GQfK"}, {1.0,-1.0}, Wq, 2.0*facE,
+                    "RI MP2 pair-energy contribution of KffK (= -[K,f] in g~), Expr2 3d-ket vs Expr3 6d-ket:");
+        }
 
         // MP2 pair-energy contribution in the raw pair-bra basis {i_bra, j_bra}
         const bool have_bra_pair = (phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size());
