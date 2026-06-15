@@ -81,7 +81,11 @@ outputs:
 
   - name: pymadness{{ mpi_suffix }}
     files:
-      - lib/python*/site-packages/pymadness/
+      # NB: the '/**' is required. conda-build's expand_globs() does NOT recurse
+      # into a trailing-slash directory when the pattern contains a wildcard
+      # (here 'python*'), so 'pymadness/' alone packages only the empty dir and
+      # drops __init__.py/plotting.py. '/**' forces the contents to be included.
+      - lib/python*/site-packages/pymadness/**
       - lib/python*/site-packages/_pymadness*
     requirements:
       host:
