@@ -125,7 +125,8 @@ public:
 
     /// ref(a,b) = Σ_n w_n <ã_n b̃_n | X | ij>  with ã_n = w_n g_{α_n}⋆a, b̃_n = g_{α_n}⋆b
     /// (Schwinger/BSH fit of G moved onto the bra; X supplied as an element provider).
-    Tensor<T> ref_Gab(const ElementProvider& elements, double energy, double lo) const;
+    Tensor<T> ref_Gab(const ElementProvider& elements, double energy, double lo,
+                      double eps = -1.0) const;
 
     /// ref(a,b) = Σ_n w_n <ã_n b̃_n | Q₁₂ X | ij>  with Q₁₂ = (1-O₁)(1-O₂),
     /// O = Σ_k |k_ket><k_bra| (plain sum, matching StrongOrthogonalityProjector).
@@ -139,7 +140,7 @@ public:
     Tensor<T> ref_GQab(const ElementProvider& elements,
                        const std::vector<Function<T,LDIM>>& occ_ket,
                        const std::vector<Function<T,LDIM>>& occ_bra,
-                       double energy, double lo) const;
+                       double energy, double lo, double eps = -1.0) const;
 
     // -------------------------------------------------------------------------
     // Post-projection utilities
@@ -163,7 +164,12 @@ public:
     /// Multi-slot Schwinger bra for <ab|G| projection (BSH fit for energy).
     /// bra[n].get_a()[a] = w_n * (g_n * ao_basis[a])  (weight absorbed into particle 1)
     /// bra[n].get_b()[b] =        g_n * ao_basis[b]
-    std::vector<CCPairFunction<T,NDIM>> build_Gab_bra(double energy, double lo) const;
+    /// @param[in] eps  fit/convolution accuracy for the Schwinger G representation;
+    ///                 if <=0 falls back to FunctionDefaults<LDIM>::get_thresh().
+    ///                 (the diagnostics pass tight_thresh_3d to make the 3D
+    ///                 reference a stable, threshold-decoupled yardstick).
+    std::vector<CCPairFunction<T,NDIM>> build_Gab_bra(double energy, double lo,
+                                                      double eps = -1.0) const;
 
 private:
     World& world_;

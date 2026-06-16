@@ -775,6 +775,28 @@ static void diagonal_energy_histogram(World& world, const std::string& name,
     }
 }
 
+/// quick 3D-only Ue / GUe / GQUe references for all pairs (no 6D work)
+
+/// constructs a CorrelationFactor like the constant-part macrotask does and
+/// calls CorrelationFactor::compute_3d_references for each pair, so the 3D
+/// references can be compared cheaply before the expensive constant part runs.
+void CCPotentials::print_3d_references(World& world, const std::vector<CCPair>& pair_vec,
+                                       const Info& info) {
+    if (info.ao.empty() || info.mo_bra.empty()) return;
+    const auto& parameters = info.parameters;
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    corrfac.set_truncate_mode(-2);
+    if (world.rank() == 0)
+        print_header3("3D references for Ue / GUe / GQUe (quick check, no 6D)");
+    for (const auto& pair : pair_vec) {
+        if (world.rank() == 0) print("pair", pair.i, pair.j);
+        corrfac.compute_3d_references(info.mo_ket[pair.i], info.mo_ket[pair.j],
+                                      info.mo_bra[pair.i], info.mo_bra[pair.j],
+                                      info.mo_ket, info.mo_bra,
+                                      pair.bsh_eps, info.U1, parameters.tight_thresh_3D());
+    }
+}
+
 /// the constant part is the contribution to the doubles that are independent of the doubles
 
 /// CC-equations from Kottmann et al., JCTC 13, 5956 (2017)
@@ -1560,7 +1582,8 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     const real_function_3d xbra = have_bra_pair ? info.mo_bra[phi_i.i] : real_function_3d();
     const real_function_3d ybra = have_bra_pair ? info.mo_bra[phi_j.i] : real_function_3d();
     real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1, info.ao,
-                                           info.mo_ket, info.mo_bra, xbra, ybra);
+                                           info.mo_ket, info.mo_bra, xbra, ybra,
+                                           info.parameters.tight_thresh_3D());
 
     if (parameters.debug()) time_Ue.info();
     t1.tag("finished semi-local part of Ue");

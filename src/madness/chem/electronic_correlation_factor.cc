@@ -25,7 +25,8 @@ void CorrelationFactor::run_apply_U_diagnostics(
         const std::vector<real_function_3d>& occ_ket,
         const std::vector<real_function_3d>& occ_bra,
         const real_function_3d& phi_i_bra,
-        const real_function_3d& phi_j_bra) const
+        const real_function_3d& phi_j_bra,
+        const double tight_thresh_3d) const
 {
     std::cout << std::scientific << std::setprecision(8);
     const double mu     = op_mod.mu();
@@ -34,7 +35,8 @@ void CorrelationFactor::run_apply_U_diagnostics(
 
     // Ue diagnostics (occ/energy ignored by diagnose_Ue)
     auto dm = diagnose_Ue(local, semilocal, phi_i, phi_j, ao,
-                          occ_ket, occ_bra, energy, mixed, U1nuc);
+                          occ_ket, occ_bra, energy, mixed, U1nuc,
+                          /*orthonormalize_basis=*/true, tight_thresh_3d);
     print("diagnosis for Ue term:");
     dm.print_report("Ue");
 
@@ -43,7 +45,8 @@ void CorrelationFactor::run_apply_U_diagnostics(
     real_function_6d Gsemilocal = apply(G, copy(semilocal)).truncate();
     real_function_6d Gmixed     = apply(G, copy(mixed)).truncate();
     auto dm1 = diagnose_GUe(Glocal, Gsemilocal, phi_i, phi_j, ao,
-                            occ_ket, occ_bra, energy, Gmixed, U1nuc);
+                            occ_ket, occ_bra, energy, Gmixed, U1nuc,
+                            /*orthonormalize_basis=*/true, tight_thresh_3d);
     print("diagnosis for GUe term:");
     dm1.print_report("GUe");
 
@@ -59,7 +62,8 @@ void CorrelationFactor::run_apply_U_diagnostics(
         real_function_6d GQmixed     = apply(G, Q12(mixed)).truncate();
 
         auto dm2 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, ao,
-                                 occ_ket, occ_bra, energy, GQmixed, U1nuc);
+                                 occ_ket, occ_bra, energy, GQmixed, U1nuc,
+                                 /*orthonormalize_basis=*/true, tight_thresh_3d);
         print("diagnosis for GQUe term:");
         dm2.print_report("GQUe");
 
@@ -69,7 +73,7 @@ void CorrelationFactor::run_apply_U_diagnostics(
             std::vector<real_function_3d> pair_bra = {phi_i_bra, phi_j_bra};
             auto dm3 = diagnose_GUe(Glocal, Gsemilocal, phi_i, phi_j, pair_bra,
                                      occ_ket, occ_bra, energy, Gmixed, U1nuc,
-                                     /*orthonormalize_basis=*/false);
+                                     /*orthonormalize_basis=*/false, tight_thresh_3d);
             print("diagnosis for GUe term in the raw pair-bra basis:");
             dm3.print_report("GUe-pair");
 
@@ -80,7 +84,7 @@ void CorrelationFactor::run_apply_U_diagnostics(
 
             auto dm4 = diagnose_GQUe(GQlocal, GQsemilocal, phi_i, phi_j, pair_bra,
                                      occ_ket, occ_bra, energy, GQmixed, U1nuc,
-                                     /*orthonormalize_basis=*/false);
+                                     /*orthonormalize_basis=*/false, tight_thresh_3d);
             print("diagnosis for GQUe term in the raw pair-bra basis:");
             dm4.print_report("GQUe-pair");
 
@@ -122,11 +126,14 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_GQUe(
         const double energy,
         const real_function_6d& GQ12Uphi_mixed,
         const std::vector<real_function_3d>& U1nuc,
-        const bool orthonormalize_basis) const
+        const bool orthonormalize_basis,
+        const double tight_thresh_3d) const
 {
     MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GQUe: energy must be negative");
     const bool do_mixed = GQ12Uphi_mixed.is_initialized() && !U1nuc.empty();
     const double wall0 = wall_time();
+    // tight fit thresh & lo for a threshold-decoupled 3D reference
+    const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : lo;
     timer t(world);
 
     DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
@@ -142,12 +149,12 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_GQUe(
 
     // Ref: Schwinger fit of G on the bra + Q12 ket-expansion (ref_GQab)
     dm.entries["GQlocal"].ref = dm.ref_GQab(
-        ue_local_provider(phi_i, phi_j), occ_ket, occ_bra, energy, lo);
+        ue_local_provider(phi_i, phi_j, tt), occ_ket, occ_bra, energy, tt, tt);
     dm.entries["GQsemilocal"].ref = dm.ref_GQab(
-        ue_semilocal_provider(phi_i, phi_j), occ_ket, occ_bra, energy, lo);
+        ue_semilocal_provider(phi_i, phi_j, tt), occ_ket, occ_bra, energy, tt, tt);
     if (do_mixed)
         dm.entries["GQmixed"].ref = dm.ref_GQab(
-            ue_mixed_provider(phi_i, phi_j, U1nuc), occ_ket, occ_bra, energy, lo);
+            ue_mixed_provider(phi_i, phi_j, U1nuc, tt), occ_ket, occ_bra, energy, tt, tt);
     t.tag("3D ref with Q12 ket expansion");
 
     dm.compute_errors();
@@ -168,7 +175,7 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_Ue_impl(
         const std::string& name_local, const std::string& name_semilocal,
         const real_function_6d& Uphi_mixed,
         const std::vector<real_function_3d>& U1nuc,
-        const std::string& name_mixed) const
+        const std::string& name_mixed, double eps) const
 {
     const bool do_mixed = Uphi_mixed.is_initialized() && !U1nuc.empty();
     const double wall0  = wall_time();
@@ -185,21 +192,21 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_Ue_impl(
     t.tag("compute 6D projections");
 
     {
-        auto local_el = ue_local_provider(phi_i, phi_j);
+        auto local_el = ue_local_provider(phi_i, phi_j, eps);
         for (const auto& bk : bra)
             dm.entries[name_local].ref += local_el(bk.get_a(), bk.get_b());
     }
     t.tag("3D ref for local");
 
     {
-        auto semilocal_el = ue_semilocal_provider(phi_i, phi_j);
+        auto semilocal_el = ue_semilocal_provider(phi_i, phi_j, eps);
         for (const auto& bk : bra)
             dm.entries[name_semilocal].ref += semilocal_el(bk.get_a(), bk.get_b());
     }
     t.tag("3D ref for semilocal");
 
     if (do_mixed) {
-        auto mixed_el = ue_mixed_provider(phi_i, phi_j, U1nuc);
+        auto mixed_el = ue_mixed_provider(phi_i, phi_j, U1nuc, eps);
         for (const auto& bk : bra)
             dm.entries[name_mixed].ref += mixed_el(bk.get_a(), bk.get_b());
         t.tag("3D ref for mixed");
@@ -216,9 +223,9 @@ DiagnosticMatrix<> CorrelationFactor::diagnose_Ue_impl(
 // ---------------------------------------------------------------------------
 
 DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_local_provider(
-        const real_function_3d& phi_i, const real_function_3d& phi_j) const
+        const real_function_3d& phi_i, const real_function_3d& phi_j, double eps) const
 {
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
     auto fg_op     = std::make_shared<SeparatedConvolution<double,3>>(
             world, OperatorInfo(_gamma, dcut, thresh, OT_FG12));
     auto slater_op = std::make_shared<SeparatedConvolution<double,3>>(
@@ -240,9 +247,9 @@ DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_local_provider(
 }
 
 DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_semilocal_provider(
-        const real_function_3d& phi_i, const real_function_3d& phi_j) const
+        const real_function_3d& phi_i, const real_function_3d& phi_j, double eps) const
 {
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
     auto bsh_op = std::make_shared<SeparatedConvolution<double,3>>(
             world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
 
@@ -281,9 +288,9 @@ DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_semilocal_provider(
 
 DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_mixed_provider(
         const real_function_3d& phi_i, const real_function_3d& phi_j,
-        const std::vector<real_function_3d>& U1nuc) const
+        const std::vector<real_function_3d>& U1nuc, double eps) const
 {
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
     auto bsh_op = std::make_shared<SeparatedConvolution<double,3>>(
             world, OperatorInfo(_gamma, dcut, thresh, OT_BSH));
 
@@ -318,6 +325,61 @@ DiagnosticMatrix<>::ElementProvider CorrelationFactor::ue_mixed_provider(
         }
         return M;
     };
+}
+
+// ---------------------------------------------------------------------------
+//  compute_3d_references — quick 3D-only Ue / GUe / GQUe references (no 6D)
+// ---------------------------------------------------------------------------
+
+void CorrelationFactor::compute_3d_references(
+        const real_function_3d& phi_i, const real_function_3d& phi_j,
+        const real_function_3d& phi_i_bra, const real_function_3d& phi_j_bra,
+        const std::vector<real_function_3d>& occ_ket,
+        const std::vector<real_function_3d>& occ_bra,
+        const double energy, const std::vector<real_function_3d>& U1nuc,
+        const double tight_thresh_3d) const
+{
+    MADNESS_CHECK_THROW(energy < 0.0, "compute_3d_references: energy must be negative");
+    // raw pair-bra basis {i_bra, j_bra}: element (0,1) = <i_bra j_bra|X|ij>
+    const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : FunctionDefaults<3>::get_thresh()*0.1;
+    std::vector<real_function_3d> pair_bra = {phi_i_bra, phi_j_bra};
+    DiagnosticMatrix<> dm(world, pair_bra, /*orthonormalize=*/false);
+    const int nb = dm.nbasis();
+
+    auto loc = ue_local_provider(phi_i, phi_j, tt);
+    auto sem = ue_semilocal_provider(phi_i, phi_j, tt);
+    const bool do_mixed = !U1nuc.empty();
+    DiagnosticMatrix<>::ElementProvider mix;
+    if (do_mixed) mix = ue_mixed_provider(phi_i, phi_j, U1nuc, tt);
+
+    // build the bra slots once and reuse for all three providers
+    const auto sbra = dm.build_simple_bra();             // Ue   (no G)
+    const auto gbra = dm.build_Gab_bra(energy, tt, tt);  // G Ue (Schwinger fit)
+
+    auto sum_over = [nb](const std::vector<CCPairFunction<double,6>>& bra,
+                         const DiagnosticMatrix<>::ElementProvider& prov) {
+        Tensor<double> r(nb, nb);
+        for (const auto& bk : bra) r += prov(bk.get_a(), bk.get_b());
+        return r;
+    };
+    auto zero = [nb](){ return Tensor<double>(nb, nb); };
+
+    const Tensor<double> Ue   = sum_over(sbra, loc) + sum_over(sbra, sem)
+                              - (do_mixed ? sum_over(sbra, mix) : zero());
+    const Tensor<double> GUe  = sum_over(gbra, loc) + sum_over(gbra, sem)
+                              - (do_mixed ? sum_over(gbra, mix) : zero());
+    const Tensor<double> GQUe = dm.ref_GQab(loc, occ_ket, occ_bra, energy, tt, tt)
+                              + dm.ref_GQab(sem, occ_ket, occ_bra, energy, tt, tt)
+                              - (do_mixed ? dm.ref_GQab(mix, occ_ket, occ_bra, energy, tt, tt)
+                                          : zero());
+
+    if (world.rank() == 0) {
+        char buf[256];
+        std::snprintf(buf, sizeof(buf),
+            "  3d-ref (tight_thresh_3d=%.1e):  <ij|Ue|ij>=% .8e  <ij|G Ue|ij>=% .8e  <ij|G Q12 Ue|ij>=% .8e",
+            tt, Ue(0,1), GUe(0,1), GQUe(0,1));
+        print(std::string(buf));
+    }
 }
 
 } // namespace madness

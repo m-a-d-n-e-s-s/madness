@@ -185,7 +185,8 @@ namespace madness {
                                  const std::vector<real_function_3d> occ_ket=std::vector<real_function_3d>(),
                                  const std::vector<real_function_3d> occ_bra=std::vector<real_function_3d>(),
                                  const real_function_3d phi_i_bra=real_function_3d(),
-                                 const real_function_3d phi_j_bra=real_function_3d()) const {
+                                 const real_function_3d phi_j_bra=real_function_3d(),
+                                 const double tight_thresh_3d=-1.0) const {
             MADNESS_CHECK_THROW(op_mod.modified(), "ElectronicCorrelationFactor::apply_U, op_mod must be in modified_NS form");
             const double thresh = FunctionDefaults<6>::get_thresh();
 
@@ -198,7 +199,8 @@ namespace madness {
             // do some diagnostics (defined in electronic_correlation_factor.cc)
             if (ao.size()>0)
                 run_apply_U_diagnostics(local, semilocal, mixed, phi_i, phi_j, op_mod,
-                                        U1nuc, ao, occ_ket, occ_bra, phi_i_bra, phi_j_bra);
+                                        U1nuc, ao, occ_ket, occ_bra, phi_i_bra, phi_j_bra,
+                                        tight_thresh_3d);
 
             result.print_size("Ue|ij>");
             return result;
@@ -275,13 +277,15 @@ namespace madness {
                              const double /*energy*/,
                              const real_function_6d& Uphi_mixed = real_function_6d(),
                              const std::vector<real_function_3d>& U1nuc = {},
-                             const bool orthonormalize_basis = true) const {
+                             const bool orthonormalize_basis = true,
+                             const double tight_thresh_3d = -1.0) const {
             DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : lo;
             auto bra = dm.build_simple_bra();
             return diagnose_Ue_impl(std::move(dm), bra,
                                     Uphi_local, Uphi_semilocal, phi_i, phi_j,
                                     "local", "semilocal",
-                                    Uphi_mixed, U1nuc, "mixed");
+                                    Uphi_mixed, U1nuc, "mixed", tt);
         }
 
         /// compute <ab|(T-E)^{-1} Ue|ij> via 3D Gaussian quadrature of the Schwinger representation
@@ -321,14 +325,17 @@ namespace madness {
                                     const double energy,
                                     const real_function_6d& GUphi_mixed = real_function_6d(),
                                     const std::vector<real_function_3d>& U1nuc = {},
-                                    const bool orthonormalize_basis = true) const {
+                                    const bool orthonormalize_basis = true,
+                                    const double tight_thresh_3d = -1.0) const {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GUe: energy must be negative");
             DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
-            auto bra = dm.build_Gab_bra(energy, lo);
+            // tight fit thresh & lo for a threshold-decoupled 3D reference
+            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : lo;
+            auto bra = dm.build_Gab_bra(energy, tt, tt);
             return diagnose_Ue_impl(std::move(dm), bra,
                                     GUphi_local, GUphi_semilocal, phi_i, phi_j,
                                     "Glocal", "Gsemilocal",
-                                    GUphi_mixed, U1nuc, "Gmixed");
+                                    GUphi_mixed, U1nuc, "Gmixed", tt);
         }
 
         /// Diagnose <ab|G Q₁₂ Ue|ij> where Q₁₂ = (1-O₁)(1-O₂).
@@ -364,7 +371,25 @@ namespace madness {
                 const double energy,
                 const real_function_6d& GQ12Uphi_mixed = real_function_6d(),
                 const std::vector<real_function_3d>& U1nuc = {},
-                const bool orthonormalize_basis = true) const;
+                const bool orthonormalize_basis = true,
+                const double tight_thresh_3d = -1.0) const;
+
+        /// Quick 3D-only references for Ue, GUe and GQUe (no 6D work).
+        ///
+        /// Reuses the Ue element providers and the Schwinger/Q12 reference
+        /// builders to evaluate the <i_bra j_bra|X|ij> 3D reference for X = Ue,
+        /// G Ue and G Q12 Ue in the raw pair-bra basis, and prints the combined
+        /// (local + semilocal - mixed) value of each.  Intended to be called
+        /// before the (expensive) constant-part macrotask so the references can
+        /// be compared cheaply.  energy = eps_i + eps_j (< 0); pass
+        /// tight_thresh_3d to match the reference fit accuracy used in the
+        /// constant-part diagnostics.
+        void compute_3d_references(const real_function_3d& phi_i, const real_function_3d& phi_j,
+                const real_function_3d& phi_i_bra, const real_function_3d& phi_j_bra,
+                const std::vector<real_function_3d>& occ_ket,
+                const std::vector<real_function_3d>& occ_bra,
+                const double energy, const std::vector<real_function_3d>& U1nuc,
+                const double tight_thresh_3d = -1.0) const;
 
     private:
         /// the diagnostics block of apply_U: Ue, GQUe, and the MP2 pair-energy
@@ -380,7 +405,8 @@ namespace madness {
                 const std::vector<real_function_3d>& occ_ket,
                 const std::vector<real_function_3d>& occ_bra,
                 const real_function_3d& phi_i_bra,
-                const real_function_3d& phi_j_bra) const;
+                const real_function_3d& phi_j_bra,
+                const double tight_thresh_3d=-1.0) const;
         /// Unified core for diagnose_Ue and diagnose_GUe.
         ///
         /// @param dm         DiagnosticMatrix holding the observer basis (already
@@ -403,14 +429,15 @@ namespace madness {
                 const std::string& name_local, const std::string& name_semilocal,
                 const real_function_6d& Uphi_mixed = real_function_6d(),
                 const std::vector<real_function_3d>& U1nuc = {},
-                const std::string& name_mixed = "") const;
+                const std::string& name_mixed = "", double eps = -1.0) const;
 
         /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_local | ij>
 
         /// OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER.
         /// The convolution operators are built once and captured in the closure.
         DiagnosticMatrix<>::ElementProvider ue_local_provider(
-                const real_function_3d& phi_i, const real_function_3d& phi_j) const;
+                const real_function_3d& phi_i, const real_function_3d& phi_j,
+                double eps = -1.0) const;
 
         /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_semilocal | ij>
 
@@ -418,7 +445,8 @@ namespace madness {
         /// The BSH operator and the orbital intermediates (r, ∇φ, rφ, ĩ, j̃) are
         /// built once and captured in the closure.
         DiagnosticMatrix<>::ElementProvider ue_semilocal_provider(
-                const real_function_3d& phi_i, const real_function_3d& phi_j) const;
+                const real_function_3d& phi_i, const real_function_3d& phi_j,
+                double eps = -1.0) const;
 
         /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_mixed | ij>
 
@@ -426,7 +454,7 @@ namespace madness {
         /// Operator and intermediates are built once and captured in the closure.
         DiagnosticMatrix<>::ElementProvider ue_mixed_provider(
                 const real_function_3d& phi_i, const real_function_3d& phi_j,
-                const std::vector<real_function_3d>& U1nuc) const;
+                const std::vector<real_function_3d>& U1nuc, double eps = -1.0) const;
 
         /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
 

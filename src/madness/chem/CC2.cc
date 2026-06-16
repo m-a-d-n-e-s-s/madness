@@ -470,6 +470,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
                 world, info, opt, lrfparam);
         MemoryMeasurer::measure_and_print(world);
 
+        // quick 3D-only Ue/GUe/GQUe reference check (no 6D) for cheap comparison
+        // CCPotentials::print_3d_references(world, pair_vec, info);
+
         if (world.rank()==0) print_header3("Starting computing constant part");
         MacroTaskConstantPart t;
         MacroTask task(world, t);

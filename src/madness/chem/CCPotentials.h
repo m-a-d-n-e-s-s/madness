@@ -336,6 +336,13 @@ public:
                                  const LowRankFunction<double,6>& exchange_op,
                                  const Info& info);
 
+    /// quick 3D-only Ue / GUe / GQUe references for all pairs (no 6D work)
+
+    /// reuses CorrelationFactor::compute_3d_references; meant to be called right
+    /// before the constant-part macrotask to compare the 3D references cheaply.
+    static void print_3d_references(World& world, const std::vector<CCPair>& pair_vec,
+                                    const Info& info);
+
     /// iterate a pair for MP2, CC2, LRCC2 on constant singles
     static CCPair iterate_pair_macrotask(World& world,
                                          const CCPair& pair, const CC_vecfunction& gs_singles,

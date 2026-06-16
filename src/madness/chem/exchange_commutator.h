@@ -281,7 +281,8 @@ struct ExchangeCommutator {
             World& world,
             const real_function_3d& phi_i,
             const real_function_3d& phi_j,
-            const Info& info);
+            const Info& info,
+            double eps = -1.0);
 
     /// element provider: M(x,y) = Σ_p ⟨p1[x](1) p2[y](2)|f₁₂ K̂_p|φᵢφⱼ⟩
     ///   K̂₁: ⟨x·(K̂φᵢ) | f₁₂⋆(y·φⱼ)⟩       K̂₂: ⟨x·φᵢ | f₁₂⋆(y·(K̂φⱼ))⟩
@@ -292,7 +293,8 @@ struct ExchangeCommutator {
             const real_function_3d& phi_j,
             const real_function_3d& Kphi_i,
             const real_function_3d& Kphi_j,
-            const Info& info);
+            const Info& info,
+            double eps = -1.0);
 };
 
 } // namespace madness

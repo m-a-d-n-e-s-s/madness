@@ -611,7 +611,10 @@ ExchangeCommutator::diagnose_GKffK(
     MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GKffK: energy must be negative");
     MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_GKffK: aobasis must be non-empty");
 
+    // tight fit accuracy & length scale for the 3D Schwinger reference, decoupled
+    // from the working threshold so the reference is a stable yardstick
     const double lo    = info.parameters.lo();
+    const double tt3   = info.parameters.tight_thresh_3D();
     const double wall0 = wall_time();
 
     DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
@@ -626,10 +629,10 @@ ExchangeCommutator::diagnose_GKffK(
 
     // Fill ref: 3D Schwinger quadrature ⟨ab|G·X|ij⟩ ≈ Σₙ wₙ ⟨ã_n b̃_n|X|ij⟩ via
     // ref_Gab with the Kf/fK element providers (formulas in the provider docs).
-    dm.entries["GKf"].ref = dm.ref_Gab(kf_provider(world, phi_i, phi_j, info),
-                                       energy, lo);
-    dm.entries["GfK"].ref = dm.ref_Gab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info),
-                                       energy, lo);
+    dm.entries["GKf"].ref = dm.ref_Gab(kf_provider(world, phi_i, phi_j, info, tt3),
+                                       energy, lo, tt3);
+    dm.entries["GfK"].ref = dm.ref_Gab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info, tt3),
+                                       energy, lo, tt3);
     dm.entries["GKffK"].ref = dm.entries["GKf"].ref - dm.entries["GfK"].ref;
 
     dm.compute_errors();
@@ -647,11 +650,12 @@ ExchangeCommutator::kf_provider(
         World& world,
         const real_function_3d& phi_i,
         const real_function_3d& phi_j,
-        const Info& info)
+        const Info& info,
+        double eps)
 {
     const double lo     = info.parameters.lo();
     const double gamma  = info.parameters.gamma();
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
 
     auto Kdagger = std::make_shared<madness::Exchange<double,3>>(world, lo);
     Kdagger->set_bra_and_ket(info.mo_ket, info.mo_bra);
@@ -680,11 +684,12 @@ ExchangeCommutator::fk_provider(
         const real_function_3d& phi_j,
         const real_function_3d& Kphi_i,
         const real_function_3d& Kphi_j,
-        const Info& info)
+        const Info& info,
+        double eps)
 {
     const double lo     = info.parameters.lo();
     const double gamma  = info.parameters.gamma();
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
 
     auto f12 = std::shared_ptr<SeparatedConvolution<double,3>>(
             SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
@@ -728,7 +733,10 @@ ExchangeCommutator::diagnose_GQKffK(
     MADNESS_CHECK_THROW(!info.mo_ket.empty() && info.mo_ket.size() == info.mo_bra.size(),
                         "diagnose_GQKffK: invalid occupied spaces in info");
 
+    // tight fit accuracy & length scale for the 3D Schwinger reference, decoupled
+    // from the working threshold so the reference is a stable yardstick
     const double lo    = info.parameters.lo();
+    const double tt3   = info.parameters.tight_thresh_3D();
     const double wall0 = wall_time();
 
     DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
@@ -742,10 +750,10 @@ ExchangeCommutator::diagnose_GQKffK(
     dm.entries["GQKffK"].result = dm.entries["GQKf"].result - dm.entries["GQfK"].result;
 
     // Ref: Schwinger fit of G on the bra + Q12 ket-expansion (ref_GQab)
-    dm.entries["GQKf"].ref = dm.ref_GQab(kf_provider(world, phi_i, phi_j, info),
-                                         info.mo_ket, info.mo_bra, energy, lo);
-    dm.entries["GQfK"].ref = dm.ref_GQab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info),
-                                         info.mo_ket, info.mo_bra, energy, lo);
+    dm.entries["GQKf"].ref = dm.ref_GQab(kf_provider(world, phi_i, phi_j, info, tt3),
+                                         info.mo_ket, info.mo_bra, energy, tt3, tt3);
+    dm.entries["GQfK"].ref = dm.ref_GQab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info, tt3),
+                                         info.mo_ket, info.mo_bra, energy, tt3, tt3);
     dm.entries["GQKffK"].ref = dm.entries["GQKf"].ref - dm.entries["GQfK"].ref;
 
     dm.compute_errors();

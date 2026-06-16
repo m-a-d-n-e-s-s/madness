@@ -135,10 +135,12 @@ Tensor<T> DiagnosticMatrix<T,NDIM>::project_ab(
 
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>>
-DiagnosticMatrix<T,NDIM>::build_Gab_bra(double energy, double lo) const
+DiagnosticMatrix<T,NDIM>::build_Gab_bra(double energy, double lo, double eps) const
 {
     MADNESS_CHECK_THROW(energy < 0.0, "build_Gab_bra: energy must be negative");
-    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    // fit/convolution accuracy: use eps if given (diagnostics pass tight_thresh_3d
+    // to decouple the 3D reference from the working threshold), else FunctionDefaults
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<LDIM>::get_thresh();
     const double mu     = std::sqrt(-2.0 * energy);
     const double hi     = FunctionDefaults<LDIM>::get_cell_width().normf();
 
@@ -198,10 +200,10 @@ Tensor<T> DiagnosticMatrix<T,NDIM>::project_Gab(
 
 template<typename T, std::size_t NDIM>
 Tensor<T> DiagnosticMatrix<T,NDIM>::ref_Gab(const ElementProvider& elements,
-                                            double energy, double lo) const
+                                            double energy, double lo, double eps) const
 {
     Tensor<T> ref(nbasis(), nbasis());
-    for (const auto& bk : build_Gab_bra(energy, lo))
+    for (const auto& bk : build_Gab_bra(energy, lo, eps))
         ref += elements(bk.get_a(), bk.get_b());
     return ref;
 }
@@ -210,7 +212,7 @@ template<typename T, std::size_t NDIM>
 Tensor<T> DiagnosticMatrix<T,NDIM>::ref_GQab(const ElementProvider& elements,
         const std::vector<Function<T,LDIM>>& occ_ket,
         const std::vector<Function<T,LDIM>>& occ_bra,
-        double energy, double lo) const
+        double energy, double lo, double eps) const
 {
     MADNESS_CHECK_THROW(!occ_ket.empty() && occ_ket.size() == occ_bra.size(),
                         "ref_GQab: invalid occupied spaces");
@@ -219,7 +221,7 @@ Tensor<T> DiagnosticMatrix<T,NDIM>::ref_GQab(const ElementProvider& elements,
     const Slice s_ab(0, nb - 1), s_occ(nb, nb + nocc - 1);
 
     Tensor<T> ref(nb, nb);
-    for (const auto& bk : build_Gab_bra(energy, lo)) {
+    for (const auto& bk : build_Gab_bra(energy, lo, eps)) {
         std::vector<Function<T,LDIM>> p1 = bk.get_a();   // weighted ã_a
         p1.insert(p1.end(), occ_bra.begin(), occ_bra.end());
         std::vector<Function<T,LDIM>> p2 = bk.get_b();   // b̃_b
