@@ -27,15 +27,16 @@ namespace madness {
         double dcut; ///< the cutoff for the 1/r potential
         double lo; ///< smallest length scale to be resolved
         int truncate_mode=1;
+        double tight_thresh_6d=-1.0;    ///< thresh for truncations, keep deliberately tight
 
     public:
         /// ctor, use negative gamma for linear correlation factor r12
         CorrelationFactor(World& world) : world(world), _gamma(-1.0), dcut(1.e-10),
-                                          lo(1.e-10) {}
+                                          lo(1.e-10), tight_thresh_6d(FunctionDefaults<6>::get_thresh()*0.1) {}
 
         /// ctor, use negative gamma for linear correlation factor r12
         CorrelationFactor(World& world, const double& gamma, const double dcut,
-                          const Molecule& molecule) : world(world), _gamma(gamma), dcut(dcut) {
+                          const Molecule& molecule) : world(world), _gamma(gamma), dcut(dcut), tight_thresh_6d(FunctionDefaults<6>::get_thresh()*0.1) {
             lo = 1.e-6; //lo = molecule.smallest_length_scale();
             //        if (world.rank()==0) {
             //            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
@@ -45,7 +46,8 @@ namespace madness {
 
         /// ctor, use negative gamma for linear correlation factor r12
         CorrelationFactor(World& world, const double& gamma, const double dcut,
-                          const double lo) : world(world), _gamma(gamma), dcut(dcut), lo(lo) {
+                          const double lo, const double tt6=FunctionDefaults<6>::get_thresh()*0.1)
+                    : world(world), _gamma(gamma), dcut(dcut), lo(lo), tight_thresh_6d(tt6) {
             //        if (world.rank()==0) {
             //            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
             //            else if (gamma==0.0) print("constructed linear correlation factor");
@@ -57,6 +59,7 @@ namespace madness {
             _gamma = other._gamma;
             dcut = other.dcut;
             lo = other.lo;
+            tight_thresh_6d = other.tight_thresh_6d;
         }
 
         /// assignment; assume other's world is this world
@@ -64,6 +67,7 @@ namespace madness {
             _gamma = other._gamma;
             dcut = other.dcut;
             lo = other.lo;
+            tight_thresh_6d = other.tight_thresh_6d;
             return *this;
         }
 
@@ -94,7 +98,7 @@ namespace madness {
             real_function_6d mul = CompositeFactory<double, 6, 3>(world)
                                    .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j)).thresh(thresh*fac)
                                     .truncate_mode(truncate_mode);
-            mul.fill_cuspy_tree(op_mod).truncate(FunctionDefaults<6>::get_thresh()*0.3);
+            mul.fill_cuspy_tree(op_mod).truncate(tight_thresh_6d);
             mul.print_size("local Ue|ij>");
             return mul;
         }
@@ -121,11 +125,11 @@ namespace madness {
                 real_function_6d tmp = CompositeFactory<double, 6, 3>(world)
                        .g12(u).particle1(p1).particle2(p2).thresh(thresh*fac)
                                     .truncate_mode(truncate_mode);
-                tmp.fill_cuspy_tree(op_mod).truncate();
+                tmp.fill_cuspy_tree(op_mod).truncate(tight_thresh_6d);
                 result = result + tmp;
                 world.gop.fence();
             }
-            result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
+            result.truncate(tight_thresh_6d).reduce_rank();
             result.print_size("semi-local Ue|ij>");
             return result;
         }
@@ -155,11 +159,11 @@ namespace madness {
                 real_function_6d tmp = CompositeFactory<double, 6, 3>(world)
                        .g12(u).particle1(p1).particle2(p2).thresh(thresh*fac)
                                     .truncate_mode(truncate_mode);
-                tmp.fill_cuspy_tree(op_mod).truncate();
+                tmp.fill_cuspy_tree(op_mod).truncate(tight_thresh_6d);
                 result = result + tmp;
                 world.gop.fence();
             }
-            result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
+            result.truncate(tight_thresh_6d).reduce_rank();
             result.print_size("mixed commutator of Ue: R^{-1} [[T,f12],R] |ij>");
             return result;
         }
@@ -194,7 +198,7 @@ namespace madness {
             real_function_6d semilocal=apply_U_semilocal(phi_i, phi_j,op_mod,thresh);
             real_function_6d mixed=apply_U_mixed_commutator(phi_i, phi_j,op_mod,thresh,U1nuc);
             real_function_6d result=local+semilocal-mixed;
-            result.truncate(FunctionDefaults<6>::get_thresh()*0.3).reduce_rank();
+            result.truncate(tight_thresh_6d).reduce_rank();
 
             // do some diagnostics (defined in electronic_correlation_factor.cc)
             if (ao.size()>0)
@@ -280,7 +284,7 @@ namespace madness {
                              const bool orthonormalize_basis = true,
                              const double tight_thresh_3d = -1.0) const {
             DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
-            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : lo;
+            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : FunctionDefaults<3>::get_thresh()*0.1;
             auto bra = dm.build_simple_bra();
             return diagnose_Ue_impl(std::move(dm), bra,
                                     Uphi_local, Uphi_semilocal, phi_i, phi_j,
@@ -330,7 +334,7 @@ namespace madness {
             MADNESS_CHECK_THROW(energy < 0.0, "diagnose_GUe: energy must be negative");
             DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
             // tight fit thresh & lo for a threshold-decoupled 3D reference
-            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : lo;
+            const double tt = (tight_thresh_3d > 0.0) ? tight_thresh_3d : FunctionDefaults<3>::get_thresh()*0.1;
             auto bra = dm.build_Gab_bra(energy, tt, tt);
             return diagnose_Ue_impl(std::move(dm), bra,
                                     GUphi_local, GUphi_semilocal, phi_i, phi_j,
@@ -431,6 +435,11 @@ namespace madness {
                 const std::vector<real_function_3d>& U1nuc = {},
                 const std::string& name_mixed = "", double eps = -1.0) const;
 
+    public:
+        // Ue element-provider factories — public so external diagnostics (e.g.
+        // the RI MP2 test in CCPotentials::make_constant_part_macrotask) can
+        // build the 3D reference, mirroring ExchangeCommutator::{kf,fk}_provider.
+
         /// element provider: M(x,y) = <p1[x](1) p2[y](2) | Ue_local | ij>
 
         /// OT_FG12(γ) kernel = (1-exp(-γr))/(2γr);  U_local = 2γ·FG12 + (γ/2)·SLATER.
@@ -456,6 +465,7 @@ namespace madness {
                 const real_function_3d& phi_i, const real_function_3d& phi_j,
                 const std::vector<real_function_3d>& U1nuc, double eps = -1.0) const;
 
+    private:
         /// functor for the local potential (1-f12)/r12 + sth (doubly connected term of the commutator)
 
         /// TODO: turn this into coeffs directly

@@ -970,7 +970,50 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     // memory -- acceptable for a diagnostic.
     CC_vecfunction singles_dummy;
     real_function_6d GV=real_factory_6d(world).empty();
-    std::vector<std::tuple<std::string,double,double>> term_energies;  // (name, before, after)
+    std::vector<std::pair<std::string,double>> term_energies;  // (name, true 6D energy e_before)
+
+    // RI MP2 pair-energy test (Ue and KffK only): validate the *production*
+    // 6D constant part against an independent 3D RI reference on the AO
+    // observer basis.  The 6d side is <ab|GVpart_raw>, where GVpart_raw =
+    // G Q12 Vreg_term is the actual ket the loop below builds (filled per
+    // term inside the loop).  The 3d side is <ab|G Q12 X|ij> via the
+    // Schwinger/BSH fit (ref_GQab) of the Ue / KffK element providers.  Both
+    // tensors contract with the strong-orthogonality-projected weights W^Q;
+    // the constant part's outer -2 Q12 is absorbed into factor = -2*facE.
+    // Guarded like the deeper diagnostics in apply_KffK / run_apply_U_diagnostics.
+    std::shared_ptr<DiagnosticMatrix<double,6>> ri_dm;
+    bool do_diagnostics=(parameters.cp_diagnostics()=="full") or (parameters.cp_diagnostics()=="final");
+    if (do_diagnostics && !info.ao.empty()) {
+        const double energy = pair.bsh_eps;          // ε_i + ε_j < 0
+        const double lo     = parameters.lo();
+        const double tt3  = parameters.tight_thresh_3D();
+        ri_dm = std::make_shared<DiagnosticMatrix<double,6>>(world, info.ao, /*orthonormalize=*/true);
+
+        // Ue = local + semilocal - mixed (signs match apply_U / run_apply_U_diagnostics)
+        CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, lo);
+        ri_dm->init("Ue");
+        ri_dm->entries["Ue"].ref =
+              ri_dm->ref_GQab(corrfac.ue_local_provider(info.mo_ket[i], info.mo_ket[j], tt3),
+                              info.mo_ket, info.mo_bra, energy, lo, tt3)
+            + ri_dm->ref_GQab(corrfac.ue_semilocal_provider(info.mo_ket[i], info.mo_ket[j], tt3),
+                              info.mo_ket, info.mo_bra, energy, lo, tt3)
+            - ri_dm->ref_GQab(corrfac.ue_mixed_provider(info.mo_ket[i], info.mo_ket[j], info.U1, tt3),
+                              info.mo_ket, info.mo_bra, energy, lo, tt3);
+
+        // KffK as it enters g~ = Ue - KffK; Vreg_KffK already carries the sign,
+        // so the reference reproduces <ab|G Q12 (-(Kf - fK))|ij>.
+        Exchange<double,3> K(world, lo);
+        K.set_bra_and_ket(info.mo_bra, info.mo_ket);
+        const real_function_3d Kphi_i = K(info.mo_ket[i]);
+        const real_function_3d Kphi_j = K(info.mo_ket[j]);
+        ri_dm->init("KffK");
+        ri_dm->entries["KffK"].ref =
+            -( ri_dm->ref_GQab(ExchangeCommutator::kf_provider(world, info.mo_ket[i], info.mo_ket[j], info, tt3),
+                               info.mo_ket, info.mo_bra, energy, lo, tt3)
+             - ri_dm->ref_GQab(ExchangeCommutator::fk_provider(world, info.mo_ket[i], info.mo_ket[j], Kphi_i, Kphi_j, info, tt3),
+                               info.mo_ket, info.mo_bra, energy, lo, tt3) );
+    }
+
     for (auto& [name, vpart] : Vparts) {
         real_function_6d GVpart_raw=real_factory_6d(world).empty();
         for (const auto& vv : vpart) {
@@ -979,6 +1022,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             MemoryMeasurer::release_free_memory();
             // MemoryMeasurer::measure_and_print(world);
         }
+        // RI test, 6d side: project the production ket GVpart_raw = G Q12 Vreg
+        // (before truncation) onto the AO observer pairs |ab>.
+        if (ri_dm && ri_dm->entries.count(name))
+            ri_dm->entries[name].result = ri_dm->project_ab(GVpart_raw);
         double tight_thresh_6d= parameters.tight_thresh_6D();
         GVpart_raw.set_thresh(tight_thresh_6d);
         FunctionDefaults<6>::set_thresh(tight_thresh_6d);
@@ -987,19 +1034,38 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         GVpart.truncate(tight_thresh_6d).reduce_rank();                                    // after truncation
         GV+=GVpart;
 
-        // per-term energy before/after the 6D truncation
+        // per-term true 6D pair energy (before truncation) for the summary table
         CCPair pbefore=pair; pbefore.update_u(GVpart_full);
-        CCPair pafter =pair; pafter.update_u(GVpart);
         const double e_before=CCPotentials::compute_pair_correlation_energy(world,pbefore,singles_dummy,info);
-        const double e_after =CCPotentials::compute_pair_correlation_energy(world,pafter, singles_dummy,info);
-        term_energies.emplace_back(name,e_before,e_after);
+        term_energies.emplace_back(name,e_before);
 
         // localize where the pair energy of this piece lives in diagonal box
-        // distance; the T<=2.0 (=keep-all) row reproduces e_after above
+        // distance; the T<=2.0 (=keep-all) row reproduces the per-term energy
         diagonal_energy_histogram(world, name, GVpart, pair, info);
     }
     FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
 
+    // Consolidated constant-part pair-energy summary: one table with columns
+    //   energy(6D)  energy(6D-RI)  energy(3D-RI)  dE(RI)  err(6D)
+    // energy(6D) is the true per-term pair energy (term_energies); the RI
+    // columns contract the production 6d ket (.result) and the 3d Schwinger
+    // reference (.ref) with the strong-orthogonality-projected weights W^Q.
+    // factor = -2*facE folds in the constant part's -2 Q12 and the i!=j double
+    // counting; each Vreg already carries its own sign.
+    if (ri_dm) {
+        const double facE = (i==j) ? 1.0 : 2.0;
+        std::shared_ptr<SeparatedConvolution<double,3>> g12coul(
+                CoulombOperatorPtr(world, parameters.lo(), FunctionDefaults<3>::get_thresh()));
+        Tensor<double> Wq = pair_energy_weights<double,6>(world, ri_dm->ao_basis,
+                info.mo_bra[i], info.mo_bra[j], info.mo_ket, info.mo_bra, *g12coul);
+        const std::vector<std::string> pieces={"Ue","KffK"}, labels={"Ue","[K,f]"};
+        std::vector<double> energy6d(pieces.size(),0.0);
+        for (const auto& [nm,eb] : term_energies)
+            for (size_t p=0; p<pieces.size(); ++p) if (nm==pieces[p]) energy6d[p]=eb;
+        char tbuf[128];
+        snprintf(tbuf,sizeof(tbuf),"MP2 constant-part pair-energy summary (pair %zu %zu):",i,j);
+        print_pair_energy_table_RI(*ri_dm, pieces, labels, energy6d, Wq, -2.0*facE, std::string(tbuf));
+    }
 
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
@@ -1010,28 +1076,6 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
     char buf[256];
     snprintf(buf,sizeof(buf),"correlation energy of pair %zu %zu: %e", i, j, correlation_energy);
-    print(buf);
-
-    // per-term energy decomposition (Ue/KffK pieces sum to the total; the
-    // functional is linear in GV) with the 6D-truncation cross-check.
-    double sum_before=0.0, sum_after=0.0;
-    for (const auto& [name,eb,ea] : term_energies) { sum_before+=eb; sum_after+=ea; }
-    if (term_energies.size()>1) {
-        print_header3("MP2 pair-energy decomposition of pair "+std::to_string(i)+" "+std::to_string(j));
-        print("  constant part GV = -2 Q12 G (Ue - KffK)|ij>; the KffK row is the");
-        print("  contribution of the -KffK term as it enters g~ = Ue - KffK.");
-        snprintf(buf,sizeof(buf),"  %-6s %18s %18s %15s","term","before-trunc","after-trunc","diff");
-        print(buf);
-        for (const auto& [name,eb,ea] : term_energies) {
-            snprintf(buf,sizeof(buf),"  %-6s % .10e % .10e % .3e",name.c_str(),eb,ea,eb-ea);
-            print(buf);
-        }
-        snprintf(buf,sizeof(buf),"  %-6s % .10e % .10e % .3e","sum",sum_before,sum_after,sum_before-sum_after);
-        print(buf);
-    }
-    snprintf(buf,sizeof(buf),
-             "6D-truncation check of total pair energy: before % .10e  after % .10e  diff % .3e",
-             sum_before, correlation_energy, sum_before-correlation_energy);
     print(buf);
 
     return GV;
@@ -1570,10 +1614,10 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     real_function_3d x_function=phi_i.function;
     real_function_3d y_function=phi_j.function;
 
-    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    CorrelationFactor corrfac(world, parameters.gamma(), parameters.lo(),parameters.lo(),
+        parameters.tight_thresh_6D());
     corrfac.set_truncate_mode(-2);
 
-    CCTimer time_Ue(world, "Ue|" + x_name + y_name + ">");
     MADNESS_CHECK_THROW(Gscreen != NULL, "Demanded Screening for Ue but given BSH Operator is NULL");
     if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
 
@@ -1581,12 +1625,12 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
     const bool have_bra_pair = (phi_i.i < info.mo_bra.size()) && (phi_j.i < info.mo_bra.size());
     const real_function_3d xbra = have_bra_pair ? info.mo_bra[phi_i.i] : real_function_3d();
     const real_function_3d ybra = have_bra_pair ? info.mo_bra[phi_j.i] : real_function_3d();
-    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1, info.ao,
+    auto observerbasis = (parameters.cp_diagnostics()=="full") ? info.ao  : std::vector<real_function_3d>();
+    real_function_6d Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, info.U1, observerbasis,
                                            info.mo_ket, info.mo_bra, xbra, ybra,
                                            info.parameters.tight_thresh_3D());
 
-    if (parameters.debug()) time_Ue.info();
-    t1.tag("finished semi-local part of Ue");
+    t1.tag("finished computing Ue|ij> ");
 
     // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
     CCTimer time_sane(world, "Ue-Sanity-Check");
@@ -1699,7 +1743,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     print("error computed by projecting on the ao basis size",ao.size());
     // ExchangeCommutator instance carrying the orthonormal AO basis used
     // as the observer set of the diagnose_* methods.
-    ExchangeCommutator ec(ao);
+    ExchangeCommutator ec;
 
     std::string algo=info.parameters.get<std::string>("kffk_algorithm");
 
@@ -1711,44 +1755,39 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     const double energy = (Gscreen != nullptr)
             ? -0.5 * Gscreen->mu() * Gscreen->mu() : -1.0;
 
-    // Score lambda: project Kf and fK onto the AO basis and print errors
-    // (KffK = Kf − fK is derived inside diagnose_KffK; energy is ignored there).
-    auto score_full = [&](const ExchangeCommutator::KffKResult& r) {
-        auto d = ec.diagnose_KffK(world, r.Kf, r.fK, phi_i.function, phi_j.function,
-                                  Kphi_i, Kphi_j, info, energy, ao);
-        d.print_report(r.algo);
-    };
 
-    std::vector<CCPairFunction<double,6>> KffK;
     ExchangeCommutator::KffKResult result;
     if (algo=="6d") {
         print("\n========== 6D reference: Kf, fK, KffK via apply_Kfxy ==========");
-        {
-            result=ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info);
-            KffK=result.KffK;
-            score_full(result);
-        }
+        result=ExchangeCommutator::apply_KffK_6d( world, phi_i, phi_j, info);
     }
     else if (algo=="lrf_split_alpha") {
         double alpha=info.parameters.get<double>("kffk_alpha");
         print("\n========== full commutator: Kf, fK, KffK with K̂₁+K̂₂, alpha*=",alpha," ==========");
-        {
-            LowRankFunctionParameters lrfparam;
-            ExchangeCommutator::SplitAlphaOptions opt;
-            opt.alpha_star               = alpha;
-            result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
-            KffK=result.KffK;
-            score_full(result);
-        }
+        LowRankFunctionParameters lrfparam;
+        ExchangeCommutator::SplitAlphaOptions opt;
+        opt.alpha_star               = alpha;
+        result=ExchangeCommutator::apply_KffK_lowrank_split_alpha(world, phi_i, phi_j, info, exchange_op, lrfparam, opt);
     } else {
         std::string msg="unknown KffK algorithm: " + algo;
         MADNESS_EXCEPTION(msg.c_str(),1);
     }
 
+    std::vector<CCPairFunction<double,6>> KffK=result.KffK;
+    // internal consistency
+    if (info.parameters.cp_diagnostics()=="full") {
+        auto d = ec.diagnose_KffK(world, result.Kf, result.fK,
+            phi_i.function, phi_j.function, Kphi_i, Kphi_j, info, energy, ao);
+        d.print_report(result.algo);
+    }
+
     // ---------------------------------------------------------------
     // G·Q12·[K̂,f] diagnostics with 3D-only reference (see operator_diagnostics.md)
     // ---------------------------------------------------------------
-    if (Gscreen != nullptr && !info.ao.empty()) {
+    if (info.parameters.cp_diagnostics()=="full") {
+
+        MADNESS_CHECK_THROW(Gscreen != nullptr,"no Gscreen in KffK diagnostics");
+        MADNESS_CHECK_THROW(!info.ao.empty(),"no ao basis in KffK diagnostics");
         const double mu = Gscreen->mu();
         const double lo = info.parameters.lo();
 

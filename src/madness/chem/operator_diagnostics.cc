@@ -343,6 +343,55 @@ void print_pair_energy_report_RI(const DiagnosticMatrix<T,NDIM>& dm,
 }
 
 // ---------------------------------------------------------------------------
+//  print_pair_energy_table_RI — consolidated constant-part summary table
+// ---------------------------------------------------------------------------
+
+template<typename T, std::size_t NDIM>
+void print_pair_energy_table_RI(const DiagnosticMatrix<T,NDIM>& dm,
+                                const std::vector<std::string>& pieces,
+                                const std::vector<std::string>& labels,
+                                const std::vector<double>& energy6d,
+                                const Tensor<T>& W,
+                                double factor,
+                                const std::string& title)
+{
+    MADNESS_CHECK_THROW(pieces.size() == labels.size() &&
+                        pieces.size() == energy6d.size(),
+                        "print_pair_energy_table_RI: pieces/labels/energy6d size mismatch");
+    auto contract = [&W,factor](const Tensor<T>& M) {
+        double e = 0.0;
+        for (long a=0; a<M.dim(0); ++a)
+            for (long b=0; b<M.dim(1); ++b) e += W(a,b)*M(a,b);
+        return factor*e;
+    };
+    constexpr std::size_t nbuf = 256;
+    char buf[nbuf];
+    print(title);
+    std::snprintf(buf,nbuf,"  %-10s %16s %16s %16s %14s %12s","term",
+                  "energy(6D)","energy(6D-RI)","energy(3D-RI)","dE(RI)","err(6D)");
+    print(std::string(buf));
+
+    double s6d=0.0, s6dRI=0.0, s3dRI=0.0;
+    Tensor<T> diffsum;
+    for (std::size_t p=0; p<pieces.size(); ++p) {
+        const auto& e = dm.entries.at(pieces[p]);
+        const double e6dRI = contract(e.result);          // factor * Σ W M6d
+        const double e3dRI = contract(e.ref);             // factor * Σ W M3d
+        const Tensor<T> d  = e.ref - e.result;            // M3d − M6d
+        const double err   = d.normf();                   // ‖M3d − M6d‖_F
+        std::snprintf(buf,nbuf,"  %-10s % 16.8e % 16.8e % 16.8e % 14.3e % 12.3e",
+                      labels[p].c_str(), energy6d[p], e6dRI, e3dRI, e6dRI-e3dRI, err);
+        print(std::string(buf));
+        s6d+=energy6d[p]; s6dRI+=e6dRI; s3dRI+=e3dRI;
+        if (diffsum.size()==0) diffsum=copy(d); else diffsum+=d;
+    }
+    const double errsum = (diffsum.size()>0) ? diffsum.normf() : 0.0;
+    std::snprintf(buf,nbuf,"  %-10s % 16.8e % 16.8e % 16.8e % 14.3e % 12.3e",
+                  "sum", s6d, s6dRI, s3dRI, s6dRI-s3dRI, errsum);
+    print(std::string(buf));
+}
+
+// ---------------------------------------------------------------------------
 //  compute_errors
 // ---------------------------------------------------------------------------
 
@@ -393,5 +442,10 @@ template Tensor<double> pair_energy_weights<double, 6>(
 template void print_pair_energy_report_RI<double, 6>(
         const DiagnosticMatrix<double,6>&, const std::vector<std::string>&,
         const std::vector<double>&, const Tensor<double>&, double, const std::string&);
+
+template void print_pair_energy_table_RI<double, 6>(
+        const DiagnosticMatrix<double,6>&, const std::vector<std::string>&,
+        const std::vector<std::string>&, const std::vector<double>&,
+        const Tensor<double>&, double, const std::string&);
 
 } // namespace madness

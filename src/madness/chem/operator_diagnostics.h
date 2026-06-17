@@ -228,6 +228,31 @@ void print_pair_energy_report_RI(const DiagnosticMatrix<T,NDIM>& dm,
                                  double factor,
                                  const std::string& title);
 
+/// Consolidated constant-part pair-energy summary table.
+///
+/// One row per piece (plus a "sum" row), with columns
+///   energy(6D)  energy(6D-RI)  energy(3D-RI)  Δenergy(RI)  err(6D)
+/// where, per piece p with M6d = entries[p].result, M3d = entries[p].ref:
+///   energy(6D)    = energy6d[p]                       (true pair energy, no RI)
+///   energy(6D-RI) = factor * Σ_ab W(a,b) M6d(a,b)
+///   energy(3D-RI) = factor * Σ_ab W(a,b) M3d(a,b)
+///   Δenergy(RI)   = energy(6D-RI) − energy(3D-RI)
+///   err(6D)       = ‖M3d − M6d‖_F                     (before W-contraction)
+/// All pieces add with +1 (each Vreg already carries its sign, and energy6d is
+/// already signed).  The sum-row err is ‖Σ_p (M3d−M6d)‖_F.
+///
+/// @param pieces   entry keys into dm.entries, e.g. {"Ue","KffK"}
+/// @param labels   display labels per piece, e.g. {"Ue","[K,f]"}
+/// @param energy6d true per-term 6D pair energy (aligned with pieces)
+template<typename T, std::size_t NDIM>
+void print_pair_energy_table_RI(const DiagnosticMatrix<T,NDIM>& dm,
+                                const std::vector<std::string>& pieces,
+                                const std::vector<std::string>& labels,
+                                const std::vector<double>& energy6d,
+                                const Tensor<T>& W,
+                                double factor,
+                                const std::string& title);
+
 } // namespace madness
 
 #endif // MADNESS_CHEM_OPERATOR_DIAGNOSTICS_H

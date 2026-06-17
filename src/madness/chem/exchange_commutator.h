@@ -22,18 +22,6 @@ namespace madness {
 
 struct ExchangeCommutator {
 
-    /// Orthonormalized AO basis, the default observer set for the diagnose_*
-    /// methods (passed explicitly as their aobasis parameter).
-    /// The caller is responsible for orthonormalization; near-linear-
-    /// dependent inputs will produce a numerically unreliable diagnostic.
-    std::vector<Function<double, 3>> ao_basis;
-
-    /// Construct with the AO basis used to project the commutator onto
-    /// matrix elements ⟨ab | · | ij⟩.
-    explicit ExchangeCommutator(std::vector<Function<double, 3>> ao_basis_in)
-        : ao_basis(std::move(ao_basis_in)) {}
-
-    /// Default ctor leaves ao_basis empty.
     ExchangeCommutator() = default;
 
     /// Uniform result envelope for every algorithm path.  Each "piece" may
