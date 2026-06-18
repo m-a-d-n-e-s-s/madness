@@ -112,9 +112,9 @@ int main(int argc, char **argv) {
 
         auto ao=orthonormalize_canonical(nemo->get_calc()->ao);
         print("error computed by projecting on the ao basis",nemo->get_calc()->aobasis.get_name(), "size",ao.size());
-        // ExchangeCommutator instance carrying the orthonormal AO basis used
-        // as the observer set of the diagnose_* methods.
-        ExchangeCommutator ec(ao);
+        // ExchangeCommutator instance; the orthonormal AO basis `ao` is the
+        // observer set passed explicitly to each diagnose_* method.
+        ExchangeCommutator ec;
 
         // K̂φᵢ, K̂φⱼ and the pair energy — shared by all diagnose_* references
         Exchange<double,3> Kdiag(world, info.parameters.lo());
@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
                     auto gkffk_6d = ec.diagnose_GKffK(world, GKf_6d_cc, GfK_6d_cc,
                                                         phi_i.function, phi_j.function,
                                                         Kphi_i, Kphi_j, info, energy_ij,
-                                                        ec.ao_basis);
+                                                        ao);
                     gkffk_6d.print_report("GKffK-6d");
                     print("6D ref  — time:", gkffk_6d.time);
                 }
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
                 auto gkffk_lrf = ec.diagnose_GKffK(world, GKf_lrf_cc, GfK_lrf_cc,
                                                      phi_i.function, phi_j.function,
                                                      Kphi_i, Kphi_j, info, energy_ij,
-                                                     ec.ao_basis);
+                                                     ao);
                 gkffk_lrf.print_report("GKffK-lrf");
                 print("LRF     — time:", gkffk_lrf.time);
             }

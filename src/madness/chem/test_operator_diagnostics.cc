@@ -500,7 +500,7 @@ int test_diagnose_GQKffK(World& world) {
         std::vector<CCPairFunction<double,6>> GQKf_cc = {CCPairFunction<double,6>(GQKf)};
         std::vector<CCPairFunction<double,6>> GQfK_cc = {CCPairFunction<double,6>(GQfK)};
 
-        ExchangeCommutator ec(ao_raw);
+        ExchangeCommutator ec;
         auto dm = ec.diagnose_GQKffK(world, GQKf_cc, GQfK_cc, phi_i, phi_j,
                                      Kphi_i, Kphi_j, info, energy, ao_raw);
         dm.print_report("test_diagnose_GQKffK");
