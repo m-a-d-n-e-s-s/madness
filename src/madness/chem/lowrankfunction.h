@@ -43,7 +43,7 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             // orthomethod removed — always use cholesky (rr_cholesky) orthonormalization
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","twostage","harmonics"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","twostage","harmonics","adaptive"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
             initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity (non-canon. sensitive to thresh!)");
