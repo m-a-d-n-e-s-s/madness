@@ -74,7 +74,7 @@ namespace madness {
             initialize < double > ("corrfac_gamma", 1.0, "exponent for the correlation factor");
             initialize < std::size_t > ("output_prec", 8, "for formatted output");
             initialize < bool > ("debug", false, "");
-            initialize < std::string > ("cp_diagnostics", "final", "cross-check constant-part intermediates",{"none","final","full"});
+            initialize < std::string > ("cp_diagnostics", "none", "cross-check constant-part intermediates",{"none","final","full"});
             initialize < bool > ("plot", false, "");
             initialize < bool > ("kain", true, "");
             initialize < std::size_t > ("kain_subspace", 3, "");
