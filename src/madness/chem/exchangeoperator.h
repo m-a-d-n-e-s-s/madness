@@ -175,6 +175,119 @@ exchange_sym_round_robin_assign(const long n, const long M) {
 }
 
 
+/// ---- Option C0: coalesced finalize transfer (exchange-local) ----
+/// One coefficient node in transit during the coalesced finalize drain. Carries
+/// the destination function index, the node key, and the full FunctionNode
+/// (coeff + has_children + norms) — identical wire content to the per-node active
+/// message in do_gaxpy_inplace, just batched. Serialized automatically as a
+/// WorldObject::task argument.
+template <typename T, std::size_t NDIM>
+struct FinalizeNodeRec {
+    std::size_t f = 0;                  ///< index into the destination function vector
+    Key<NDIM> key;                      ///< tree-node key
+    FunctionNode<T, NDIM> node;         ///< source node (full FunctionNode)
+    template <typename Archive>
+    void serialize(Archive& ar) { ar & f & key & node; }
+};
+
+/// Receiver endpoint for the coalesced finalize transfer. A WorldObject living in
+/// the transport world (the universe for the subworld/node -> universe drains, the
+/// node sub-World for stage1). Source nodes are pushed here in bulk chunks via
+/// task() — so the deserialize + accumulate runs on a worker, never the comm
+/// thread — and accumulated into the local slices of the destination functions,
+/// reproducing FunctionNode::gaxpy_inplace exactly. Cached per transport world;
+/// set_targets() refreshes the destination impls + beta before each finalize,
+/// under the readiness barrier in coalesced_gaxpy.
+template <typename T, std::size_t NDIM>
+class FinalizeReducer : public WorldObject<FinalizeReducer<T, NDIM>> {
+public:
+    typedef FunctionImpl<T, NDIM> implT;
+    typedef FinalizeNodeRec<T, NDIM> recT;
+
+    explicit FinalizeReducer(World& world)
+        : WorldObject<FinalizeReducer<T, NDIM>>(world) {
+        this->process_pending();
+    }
+
+    /// (re)point at the destination function impls for the next drain. Local;
+    /// every rank calls this before coalesced_gaxpy's readiness barrier.
+    void set_targets(std::vector<implT*> dests, T beta) {
+        dests_ = std::move(dests);
+        beta_ = beta;
+    }
+
+    /// worker-side: accumulate a chunk of source nodes into the local slices of
+    /// the destination functions. The accessor write-lock serializes concurrent
+    /// senders to the same key; the math is identical to do_gaxpy_inplace
+    /// (FunctionNode::gaxpy_inplace, funcimpl.h).
+    void accumulate_chunk(const std::vector<recT>& recs) {
+        for (const auto& r : recs) {
+            MADNESS_ASSERT(r.f < dests_.size() and dests_[r.f] != nullptr);
+            typename implT::dcT::accessor acc;
+            dests_[r.f]->get_coeffs().insert(acc, r.key);   // get-or-create, locks key
+            acc->second.template gaxpy_inplace<T, T>(T(1.0), r.node, beta_);
+        }
+    }
+
+private:
+    std::vector<implT*> dests_;
+    T beta_ = T(1.0);
+};
+
+/// Coalesced replacement for the per-node gaxpy scatter in the exchange finalize.
+/// Instead of one active message per source tree node, bucket the local source
+/// nodes by their destination owner and push each bucket as bulk chunks
+/// (task() -> worker-side accumulate). `dest_vec` and `src_vec` may live in
+/// different worlds (subworld/node -> universe, or subworld -> node); routing uses
+/// the DESTINATION pmap and the transport rides `transport_world` (== dest's
+/// world). Completion is the caller's existing fence (node fence / universe
+/// fence); the only fence issued here is the readiness barrier that guarantees
+/// every rank has set its reducer targets before any chunk task can arrive.
+///
+/// MUST be called collectively on transport_world (every rank, once per finalize);
+/// ranks with an empty `src_vec` still participate in the barrier (no buckets).
+template <typename T, std::size_t NDIM>
+void coalesced_gaxpy(World& transport_world,
+                     FinalizeReducer<T, NDIM>& reducer,
+                     std::vector<Function<T, NDIM>>& dest_vec,
+                     std::vector<Function<T, NDIM>>& src_vec,
+                     const T beta,
+                     const std::size_t chunk_entries) {
+    typedef FunctionImpl<T, NDIM> implT;
+    typedef FinalizeNodeRec<T, NDIM> recT;
+
+    // point the reducer at the destination impls (local), then barrier so no
+    // chunk task can run on a rank that has not refreshed its targets yet.
+    std::vector<implT*> dests(dest_vec.size(), nullptr);
+    for (std::size_t f = 0; f < dest_vec.size(); ++f)
+        dests[f] = dest_vec[f].get_impl().get();
+    reducer.set_targets(dests, beta);
+    transport_world.gop.fence();
+
+    // bucket local source nodes by destination owner; flush as bulk chunks.
+    std::map<ProcessID, std::vector<recT>> buckets;
+    const std::size_t nf = std::min(src_vec.size(), dest_vec.size());
+    for (std::size_t f = 0; f < nf; ++f) {
+        auto simpl = src_vec[f].get_impl();
+        auto dimpl = dest_vec[f].get_impl();
+        if (not simpl or not dimpl) continue;
+        const implT& dref = *dimpl;
+        for (auto it = simpl->get_coeffs().begin(); it != simpl->get_coeffs().end(); ++it) {
+            const ProcessID owner = dref.get_coeffs().owner(it->first);
+            std::vector<recT>& b = buckets[owner];
+            b.push_back(recT{f, it->first, it->second});
+            if (b.size() >= chunk_entries) {
+                reducer.task(owner, &FinalizeReducer<T, NDIM>::accumulate_chunk, b);
+                b.clear();
+            }
+        }
+    }
+    for (auto& kv : buckets)
+        if (not kv.second.empty())
+            reducer.task(kv.first, &FinalizeReducer<T, NDIM>::accumulate_chunk, kv.second);
+}
+
+
 template<typename T, std::size_t NDIM>
 class Exchange<T,NDIM>::ExchangeImpl {
     typedef Function<T, NDIM> functionT;
@@ -548,6 +661,52 @@ private:
         static inline vecfuncT Kf_node_;
         static inline bool Kf_node_initialized_ = false;
         static inline long Kf_node_world_id_ = -1;
+
+        // ---- Option C0: coalesced finalize transfer ----
+        // Cached receiver endpoints, one per transport world (universe for the
+        // ->universe drains, the node sub-World for stage1). Rebuilt only when the
+        // world id changes; no per-iteration WorldObject construction.
+        static inline std::shared_ptr<FinalizeReducer<T, NDIM>> universe_reducer_;
+        static inline long universe_reducer_world_id_ = -1;
+        static inline std::shared_ptr<FinalizeReducer<T, NDIM>> node_reducer_;
+        static inline long node_reducer_world_id_ = -1;
+        // Once-per-finalize guards: the coalesced drain (with its collective
+        // readiness barrier) must run exactly once per rank, uniformly, even on
+        // ranks that owned no tasks (replicated taskq => first call lands on the
+        // same loop iteration on every rank). Replaces the old data-less
+        // early-return guards. Reset in cleanup().
+        static inline bool finalize_stage1_done_ = false;
+        static inline bool finalize_universe_done_ = false;   // shared by finalize_into + stage2 node->universe
+
+        /// chunk size (entries) for coalesced_gaxpy, derived from k so a worst-case
+        /// all-coeff chunk (~(2k)^NDIM*sizeof(T) per node) stays under the eager AM
+        /// buffer (~1.5 MB default); we target ~1 MB.
+        static std::size_t finalize_chunk_entries() {
+            const long k = FunctionDefaults<NDIM>::get_k();
+            const double node_bytes = std::pow(double(2 * k), double(NDIM)) * double(sizeof(T));
+            const double target = 1024.0 * 1024.0;
+            return std::max<std::size_t>(1, std::size_t(target / std::max(1.0, node_bytes)));
+        }
+
+        /// cached reducer on the universe transport world (collective on first use)
+        static FinalizeReducer<T, NDIM>& get_universe_reducer(World& world) {
+            const long wid = long(world.id());
+            if (not universe_reducer_ or universe_reducer_world_id_ != wid) {
+                universe_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+                universe_reducer_world_id_ = wid;
+            }
+            return *universe_reducer_;
+        }
+        /// cached reducer on the node sub-World transport (collective on first use)
+        static FinalizeReducer<T, NDIM>& get_node_reducer(World& world) {
+            const long wid = long(world.id());
+            if (not node_reducer_ or node_reducer_world_id_ != wid) {
+                node_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+                node_reducer_world_id_ = wid;
+            }
+            return *node_reducer_;
+        }
+
         struct VfPrefetchState {
             Batch_1D current_range;
             vecfuncT current_data;
@@ -1658,20 +1817,30 @@ private:
         /// row contributions are spread across multiple ranks there and the
         /// final truncate happens once in K_macrotask_efficient on the universe Kf.
         void finalize_into(World& subworld, vecfuncT& universe_result) {
-            if (not Kf_local_initialized_) return;
-            change_tree_state(Kf_local_, compressed);
-            if (algorithm_ == small_memory_mt_owner) {
-                truncate(subworld, Kf_local_);
+            // Once per rank (uniform across the replicated taskq => every rank's
+            // first call lands on the same loop iteration). Replaces the old
+            // `if (not Kf_local_initialized_) return;` data-less early-return so
+            // that data-less ranks still participate in coalesced_gaxpy's
+            // collective readiness barrier.
+            if (finalize_universe_done_) return;
+            finalize_universe_done_ = true;
+            if (universe_result.empty()) return;   // nresult>0 in practice; uniform
+            if (Kf_local_initialized_) {
+                change_tree_state(Kf_local_, compressed);
+                if (algorithm_ == small_memory_mt_owner) truncate(subworld, Kf_local_);
             }
-            gaxpy(1.0, universe_result, 1.0, Kf_local_, false);
-            // Do NOT clear Kf_local_ here: the gaxpy above is fenceless (false) and
-            // completes only at the framework's universe fence AFTER all subworlds
-            // finalize. Releasing Kf_local_'s impls now (clear) frees them mid-gaxpy
-            // → the gaxpy's remote do_gaxpy_inplace looks up a released-but-still-
-            // registered impl via shared_from_this() → std::bad_weak_ptr (intermittent,
-            // worse at high k where the gaxpy runs longer). Defer the release: the old
-            // impls live until the next accumulate_locally reinit or xtask destruction,
-            // both of which happen after the protective universe fence.
+            vecfuncT empty;
+            vecfuncT& src = Kf_local_initialized_ ? Kf_local_ : empty;
+            World& universe = universe_result.front().world();
+            // Coalesced subworld->universe drain (option C0): bulk per-owner chunks
+            // instead of one AM per tree node. Completes at the framework's universe
+            // fence (so the lifetime contract below is unchanged).
+            coalesced_gaxpy<T, NDIM>(universe, get_universe_reducer(universe),
+                                     universe_result, src, T(1.0), finalize_chunk_entries());
+            // Do NOT clear Kf_local_ here: keep the original lifetime (released at
+            // cleanup() after the universe fence). (C0 copies node data into transit
+            // records, so Kf_local_ is no longer referenced by in-flight tasks —
+            // early release is a possible follow-up memory win; kept conservative.)
             Kf_local_initialized_ = false;
             Kf_local_world_id_ = -1;
         }
@@ -1710,9 +1879,16 @@ private:
         void finalize_stage1(World& subworld, World* nodeworld) {
             if (nodeworld == nullptr) return;
             ensure_node_accumulator(*nodeworld);   // collective on all node ranks
-            if (not Kf_local_initialized_) return; // this rank ran no owned tasks
-            change_tree_state(Kf_local_, compressed);
-            gaxpy(1.0, Kf_node_, 1.0, Kf_local_, false);
+            // Once per rank (uniform). Replaces the data-less early-return so
+            // data-less ranks still hit coalesced_gaxpy's collective barrier.
+            if (finalize_stage1_done_) return;
+            finalize_stage1_done_ = true;
+            if (Kf_local_initialized_) change_tree_state(Kf_local_, compressed);
+            vecfuncT empty;
+            vecfuncT& src = Kf_local_initialized_ ? Kf_local_ : empty;
+            // Coalesced subworld->node drain (intra-node); completes at the node fence.
+            coalesced_gaxpy<T, NDIM>(*nodeworld, get_node_reducer(*nodeworld),
+                                     Kf_node_, src, T(1.0), finalize_chunk_entries());
             // Kf_local_ drained; do NOT clear (see finalize_into lifetime note).
             Kf_local_initialized_ = false;
             Kf_local_world_id_ = -1;
@@ -1731,12 +1907,23 @@ private:
                 finalize_into(subworld, universe_result);
                 return;
             }
-            if (not Kf_node_initialized_) return;
-            change_tree_state(Kf_node_, compressed);
-            if (algorithm_ == small_memory_mt_owner) {
-                truncate(*nodeworld, Kf_node_);
+            // Once per rank (uniform). Kf_node_initialized_ is collectively true on
+            // every node rank (ensure_node_accumulator), so this is not the data-less
+            // case — but the once-guard still ensures the collective barrier fires once.
+            if (finalize_universe_done_) return;
+            finalize_universe_done_ = true;
+            if (universe_result.empty()) return;
+            if (Kf_node_initialized_) {
+                change_tree_state(Kf_node_, compressed);
+                if (algorithm_ == small_memory_mt_owner) truncate(*nodeworld, Kf_node_);
             }
-            gaxpy(1.0, universe_result, 1.0, Kf_node_, false);
+            vecfuncT empty;
+            vecfuncT& src = Kf_node_initialized_ ? Kf_node_ : empty;
+            World& universe = universe_result.front().world();
+            // Coalesced node->universe drain (option C0): bulk per-owner chunks
+            // instead of one AM per tree node. Completes at the framework's universe fence.
+            coalesced_gaxpy<T, NDIM>(universe, get_universe_reducer(universe),
+                                     universe_result, src, T(1.0), finalize_chunk_entries());
             Kf_node_initialized_ = false;
             Kf_node_world_id_ = -1;
         }
@@ -2099,6 +2286,19 @@ private:
             Kf_node_initialized_ = false;
             Kf_node_world_id_ = -1;
             cache_world_id_ = -1;
+            // reset the coalesced-finalize once-guards for the next K() invocation.
+            finalize_stage1_done_ = false;
+            finalize_universe_done_ = false;
+            // Destroy the cached reducers HERE, while their transport worlds are
+            // still alive (cleanup() runs in run_all's cleanup_after_run, before the
+            // taskq — and thus nodeworld_ptr — is destroyed). The node sub-World is
+            // recreated every K() invocation, so a reducer cached across invocations
+            // would outlive its world and segfault in ~WorldObject -> unregister_ptr
+            // when later reassigned. Reconstructed fresh (collectively) on next use.
+            node_reducer_.reset();
+            node_reducer_world_id_ = -1;
+            universe_reducer_.reset();
+            universe_reducer_world_id_ = -1;
         }
 
 
