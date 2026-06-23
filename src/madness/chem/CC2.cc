@@ -45,6 +45,27 @@ nlohmann::json CC2::solve() {
         std::cout << std::fixed << std::setprecision(1) << "\nenforcing core-value separation at time " << wall_time() << std::endl;
     }
 
+    // local-MP2 resonance diagnostics and optional block-canonicalization (Option B).
+    // runs after localization (orbitals settled) and before update_info, so that the
+    // canonicalized orbitals propagate into info.fock automatically.
+    std::vector<std::vector<long>> resonant_blocks;
+    {
+        Tensor<double> lfock=nemo->compute_fock_matrix(nemo->get_calc()->amo,nemo->get_calc()->aocc);
+        resonant_blocks=detect_resonant_blocks(lfock,parameters.freeze());
+        if (world.rank()==0 and not resonant_blocks.empty()) {
+            print_header2("local-MP2 resonance diagnostics");
+            print_fragile_pairs(resonant_blocks,lfock,parameters.freeze(),nemo->get_calc()->amo.size());
+            print("localized Fock matrix"); print(lfock);
+        }
+        if (not resonant_blocks.empty() and parameters.canonicalize_resonant_blocks()) {
+            lfock=canonicalize_resonant_blocks(lfock,resonant_blocks);
+            if (world.rank()==0) {
+                print("Fock matrix after block-canonicalization of resonant block(s)");
+                print(lfock);
+            }
+        }
+    }
+
     CCOPS.reset_nemo(nemo);
     CCOPS.get_potentials.parameters=parameters;
     CCOPS.update_intermediates(CCOPS.mo_ket());
@@ -110,6 +131,11 @@ nlohmann::json CC2::solve() {
                 printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
 	        }
         }
+        // localized-basis diagnostic: when canonicalization is disabled, report the symmetry
+        // defect e_ik - e_jk (must vanish by symmetry; nonzero flags the resonance under-resolution)
+        if (not resonant_blocks.empty() and not parameters.canonicalize_resonant_blocks())
+            report_symmetry_defect(resonant_blocks, mp2pairs, info);
+
         CC2Results mp2results(parameters.freeze(),"mp2");
         mp2results.set_energies(nemo->get_calc()->current_energy, mp2_energy);
         results["mp2"]=mp2results;
@@ -411,6 +437,119 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
 
 };
 
+std::vector<std::vector<long>> CC2::detect_resonant_blocks(const Tensor<double>& fmat, long freeze) const {
+
+    std::vector<std::vector<long>> blocks;
+    // canonical orbitals already diagonalize the Fock -> no off-diagonal coupling, no resonance
+    if (nemo->get_calc_param().localize_method()=="canon") return blocks;
+
+    const long nmo=fmat.dim(0);
+    const double ratio_thresh=parameters.resonance_ratio_thresh();
+    const double deg_floor=parameters.resonance_deg_floor();
+    const double coupling_floor=parameters.resonance_coupling_floor();
+
+    // union-find over active orbitals; connect i,j if their coupling is "resonant"
+    std::vector<long> parent(nmo);
+    for (long i=0; i<nmo; ++i) parent[i]=i;
+    auto find=[&parent](long x){ while (parent[x]!=x) { parent[x]=parent[parent[x]]; x=parent[x]; } return x; };
+    auto unite=[&](long a, long b){ parent[find(a)]=find(b); };
+
+    bool any=false;
+    for (long a=freeze; a<nmo; ++a) {
+        for (long b=a+1; b<nmo; ++b) {
+            const double d=std::fabs(fmat(a,a)-fmat(b,b));
+            const double c=std::fabs(fmat(a,b));
+            const bool resonant = (d>deg_floor) ? (c/d > ratio_thresh) : (c > coupling_floor);
+            if (resonant) { unite(a,b); any=true; }
+        }
+    }
+    if (not any) return blocks;
+
+    // collect connected components of size >= 2 (deterministic ordering on every rank)
+    std::map<long,std::vector<long>> comp;
+    for (long a=freeze; a<nmo; ++a) comp[find(a)].push_back(a);
+    for (auto& kv : comp) if (kv.second.size()>=2) blocks.push_back(kv.second);
+    for (auto& blk : blocks) std::sort(blk.begin(), blk.end());
+    std::sort(blocks.begin(), blocks.end());
+    return blocks;
+}
+
+Tensor<double> CC2::canonicalize_resonant_blocks(const Tensor<double>& fmat,
+                                                 const std::vector<std::vector<long>>& blocks) {
+
+    // build the block-diagonalizing unitary (reuses the Localizer's jacobi machinery)
+    Tensor<double> U=Localizer::compute_block_canonicalization_matrix(fmat, blocks);
+    world.gop.broadcast(U.ptr(), U.size(), 0);   // identical U across ranks (insurance)
+
+    // rotate the orbitals and recompute the Fock matrix -- same write-back as enforce_core_valence_separation
+    nemo->get_calc()->amo=truncate(transform(world, nemo->get_calc()->amo, U));
+    Tensor<double> newfock=nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+    for (long i=0; i<newfock.dim(0); ++i) nemo->get_calc()->aeps(i)=newfock(i,i);
+    return newfock;
+}
+
+void CC2::print_fragile_pairs(const std::vector<std::vector<long>>& blocks, const Tensor<double>& fmat,
+                              long freeze, long nocc) const {
+
+    print("detected",blocks.size(),"resonant block(s) in the localized Fock matrix");
+    for (const auto& block : blocks) {
+        std::string s;
+        for (long o : block) s+=" "+std::to_string(o);
+        print("  block orbitals:",s);
+        for (size_t bi=0; bi<block.size(); ++bi) {
+            for (size_t bj=bi+1; bj<block.size(); ++bj) {
+                const long i=block[bi], j=block[bj];
+                const double d=std::fabs(fmat(i,i)-fmat(j,j)), c=std::fabs(fmat(i,j));
+                if (d>0.0)
+                    printf("    orbitals (%ld,%ld): |F_ij|=%.3e  gap=%.3e  ratio=%.3e\n", i,j,c,d, c/d);
+                else
+                    printf("    orbitals (%ld,%ld): |F_ij|=%.3e  gap=%.3e  ratio=inf (degenerate)\n", i,j,c,d);
+                for (long k=freeze; k<nocc; ++k) {
+                    if (k==i or k==j) continue;
+                    printf("      fragile pairs (%ld,%ld) and (%ld,%ld)\n",
+                           std::min(i,k),std::max(i,k), std::min(j,k),std::max(j,k));
+                }
+                printf("      in-block pairs (%ld,%ld) (%ld,%ld) (%ld,%ld)\n", i,i, i,j, j,j);
+            }
+        }
+    }
+}
+
+void CC2::report_symmetry_defect(const std::vector<std::vector<long>>& blocks,
+                                 const Pairs<CCPair>& pairs, const Info& info) const {
+
+    const long freeze=info.parameters.freeze();
+    const long nocc=info.mo_ket.size();
+    auto tmap=PairVectorMap::triangular_map(freeze,nocc);
+    std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(pairs,tmap);
+    CC_vecfunction singles_dummy(PARTICLE);
+
+    // per-pair correlation energies e_ij (collective -- all ranks participate)
+    std::map<std::pair<long,long>,double> emap;
+    for (auto& p : pair_vec) {
+        const double eij=CCPotentials::compute_pair_correlation_energy(world, p, singles_dummy, info);
+        emap[{long(p.i),long(p.j)}]=eij;
+    }
+    if (world.rank()!=0) return;
+
+    auto e=[&emap](long a, long b){ return (a<=b) ? emap[{a,b}] : emap[{b,a}]; };
+    print_header2("local-MP2 symmetry test  |e_ik - e_jk|  (localized basis)");
+    for (const auto& block : blocks) {
+        for (size_t bi=0; bi<block.size(); ++bi) {
+            for (size_t bj=bi+1; bj<block.size(); ++bj) {
+                const long i=block[bi], j=block[bj];
+                for (long k=freeze; k<nocc; ++k) {
+                    if (k==i or k==j) continue;
+                    printf("    e_%ld%ld - e_%ld%ld = % .3e   (% .8f vs % .8f)\n",
+                           i,k,j,k, e(i,k)-e(j,k), e(i,k), e(j,k));
+                }
+                printf("    e_%ld%ld - e_%ld%ld = % .3e   (in-block diagonal)\n",
+                       i,i,j,j, e(i,i)-e(j,j));
+            }
+        }
+    }
+}
+
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
 std::vector<CC_vecfunction> CC2::solve_ccs() const {
     std::vector<CC_vecfunction> excitations=tdhf->get_converged_roots();
@@ -555,8 +694,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         if (parameters.kain()) {
             use_kain="with KAIN";
             std::vector<real_function_6d> kain_update = solver.update(u, residual);
-            MADNESS_CHECK_THROW(solver.get_rlist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
-            MADNESS_CHECK_THROW(solver.get_ulist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+            if (parameters.kain_subspace()>1) {
+                MADNESS_CHECK_THROW(solver.get_rlist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+                MADNESS_CHECK_THROW(solver.get_ulist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+            }
             truncate(kain_update);
             for (size_t i=0; i<pair_vec.size(); ++i) {
                 kain_update[i].reduce_rank();

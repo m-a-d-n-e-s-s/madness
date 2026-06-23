@@ -348,6 +348,34 @@ public:
     /// will throw if the fock matrix is not block diagonal
     /// @return     the new fock matrix
     Tensor<double> enforce_core_valence_separation(const Tensor<double>& fmat);
+
+    /// local-MP2 resonance screen: find near-degenerate, strongly-coupled occupied blocks
+
+    /// a block is a connected group of active orbitals i,j with small |F_ii-F_jj| and large
+    /// |F_ij| (ratio |F_ij|/|F_ii-F_jj| > resonance_ratio_thresh, with a degeneracy floor).
+    /// Such blocks make the local-MP2 coupling iteration ill-conditioned (resonance).
+    /// @return     list of orbital-index groups (each of size >=2); empty for localize=canon
+    std::vector<std::vector<long>> detect_resonant_blocks(const Tensor<double>& fmat, long freeze) const;
+
+    /// block-canonicalize the given orbital blocks: rotate the orbitals in member nemo so that
+
+    /// the Fock sub-block over each group becomes diagonal (removes the resonant coupling).
+    /// updates nemo's amo/aeps; reuses Localizer::compute_block_canonicalization_matrix.
+    /// @param[in]  fmat    the current (localized) Fock matrix
+    /// @return     the new Fock matrix after canonicalization
+    Tensor<double> canonicalize_resonant_blocks(const Tensor<double>& fmat,
+                                                const std::vector<std::vector<long>>& blocks);
+
+    /// print the pair functions made fragile by the detected resonant blocks (rank 0)
+    void print_fragile_pairs(const std::vector<std::vector<long>>& blocks, const Tensor<double>& fmat,
+                             long freeze, long nocc) const;
+
+    /// symmetry test e_ik == e_jk for orbitals i,j in a resonant block (localized-basis diagnostic)
+
+    /// prints the defect |e_ik - e_jk|, which must vanish by symmetry for symmetry-equivalent i,j;
+    /// a nonzero value flags under-resolution of the resonant block. Rank 0 prints.
+    void report_symmetry_defect(const std::vector<std::vector<long>>& blocks,
+                                const Pairs<CCPair>& pairs, const Info& info) const;
 };
 
 
