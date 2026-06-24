@@ -1,0 +1,11 @@
+<map id="test_list.cc" name="test_list.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="114,5,206,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,48,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="140,33,61,75,59,70,137,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="72,79,152,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="154,33,130,69,125,66,150,30"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="176,79,240,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="170,30,195,66,190,69,166,33"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="264,79,355,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="185,28,274,70,271,75,183,33"/>
+</map>

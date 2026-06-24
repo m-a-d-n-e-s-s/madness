@@ -1,0 +1,26 @@
+<map id="CalcParams" name="CalcParams">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1645,161,1744,186"/>
+<area shape="rect" id="Node000002" href="$classGroundStateCalculation.html" title=" " alt="" coords="1293,90,1469,115"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1458,116,1622,152,1646,158,1645,163,1621,157,1457,121"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="119,154,178,179"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="191,152,291,123,366,95,399,83,442,73,541,59,626,50,700,46,770,46,915,54,1100,65,1185,71,1270,81,1310,87,1309,93,1269,87,1185,76,1100,71,915,59,770,51,700,51,626,55,542,64,443,79,400,88,367,100,293,128,192,158"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="952,161,1100,186"/>
+<area shape="poly" id="edge9_Node000006_Node000003" title=" " alt="" coords="192,164,952,170,952,175,192,170"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,215,677,241"/>
+<area shape="poly" id="edge7_Node000007_Node000003" title=" " alt="" coords="192,179,250,197,316,212,380,220,443,224,442,230,379,225,316,217,249,202,190,184"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,89,663,114"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="677,99,1293,100,1293,105,677,104"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="638,114,702,125,815,141,928,156,952,160,951,165,928,161,814,147,701,131,637,119"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,89,230,114"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="244,99,457,99,457,104,244,104"/>
+<area shape="poly" id="edge12_Node000001_Node000006" title=" " alt="" coords="1114,171,1645,171,1645,176,1114,176"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="1112,156,1269,125,1326,113,1327,118,1270,131,1113,161"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="691,226,807,220,927,204,994,183,996,189,929,209,807,226,691,232"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,265,641,305"/>
+<area shape="poly" id="edge10_Node000006_Node000008" title=" " alt="" coords="654,288,717,287,786,281,858,268,927,247,952,234,976,217,1011,184,1015,188,979,221,955,238,929,252,859,273,787,286,717,292,654,293"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,307,292,333"/>
+<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="305,304,479,289,480,295,306,309"/>
+<area shape="rect" id="Node000010" href="$structmadness_1_1ResponseParameters.html" title=" " alt="" coords="701,313,928,338"/>
+<area shape="poly" id="edge14_Node000010_Node000009" title=" " alt="" coords="306,319,701,322,701,327,306,324"/>
+<area shape="poly" id="edge13_Node000001_Node000010" title=" " alt="" coords="902,308,1645,179,1646,184,903,313"/>
+</map>

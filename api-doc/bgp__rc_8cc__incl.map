@@ -1,0 +1,7 @@
+<map id="bgp_rc.cc" name="bgp_rc.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="57,5,140,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,88,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="92,33,65,69,61,66,88,29"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="113,79,191,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="110,29,137,66,133,69,105,33"/>
+</map>

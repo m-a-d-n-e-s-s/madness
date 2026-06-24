@@ -1,0 +1,9 @@
+<map id="madness::PropertyResults" name="madness::PropertyResults">
+<area shape="rect" id="Node000001" title=" " alt="" coords="15,183,207,208"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ResultsBase.html" title=" " alt="" coords="5,80,175,105"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="98,118,112,182,106,183,93,119"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="199,80,405,105"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="269,114,134,185,132,180,267,110"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="221,5,383,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="305,45,305,80,299,80,299,45"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="Fred" name="Fred">
+<area shape="rect" id="Node000001" title="Wrapper around vector demonstrating interface necessary." alt="" coords="87,93,137,119"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="5,5,219,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,59,115,93,109,93,109,59"/>
+</map>

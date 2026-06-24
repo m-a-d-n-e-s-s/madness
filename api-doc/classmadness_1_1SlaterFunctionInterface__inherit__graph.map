@@ -1,0 +1,7 @@
+<map id="madness::SlaterFunctionInterface" name="madness::SlaterFunctionInterface">
+<area shape="rect" id="Node000001" title="a function like f(x)=exp(&#45;mu x)" alt="" coords="5,181,245,207"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1TwoElectronInterface.html" title=" " alt="" coords="13,93,238,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="128,147,128,181,123,181,123,147"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="29,5,221,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="128,59,128,93,123,93,123,59"/>
+</map>

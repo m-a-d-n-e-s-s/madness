@@ -1,0 +1,23 @@
+<map id="timers.cc" name="timers.cc">
+<area shape="rect" id="Node000001" title="Implementation of functions for timers, etc." alt="" coords="371,5,453,31"/>
+<area shape="rect" id="Node000002" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info." alt="" coords="176,79,355,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="390,33,303,75,300,70,387,28"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="379,79,445,104"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="415,31,415,65,409,65,409,31"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="469,79,544,104"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="429,29,482,68,479,72,426,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,152,72,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="230,107,86,151,84,146,228,101"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="96,152,163,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="245,106,165,148,162,143,242,102"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="187,152,245,177"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="259,106,234,142,230,139,255,103"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="269,152,360,177"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="276,103,301,139,297,142,271,106"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="384,152,459,177"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="291,102,384,144,382,149,289,106"/>
+<area shape="rect" id="Node000008" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="483,152,685,177"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="317,101,520,146,519,152,316,107"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="516,225,652,251"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="587,178,587,212,581,212,581,178"/>
+</map>

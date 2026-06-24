@@ -1,0 +1,5 @@
+<map id="test_problems.h" name="test_problems.h">
+<area shape="rect" id="Node000001" title="Provides test problems for examining the convergence of embedded (Dirichlet) boundary conditions." alt="" coords="27,5,153,31"/>
+<area shape="rect" id="Node000002" href="$embedded__dirichlet_8cc.html" title="Provides test problems for examining the convergence of embedded (Dirichlet) boundary conditions." alt="" coords="5,79,175,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,44,93,79,87,79,87,44"/>
+</map>

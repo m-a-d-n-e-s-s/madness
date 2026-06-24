@@ -1,0 +1,5 @@
+<map id="madness::Batch" name="madness::Batch">
+<area shape="rect" id="Node000001" title="a batch consists of a 2D&#45;input batch and a 1D&#45;output batch: K&#45;batch &lt;&#45; (I&#45;batch, J&#45;batch)" alt="" coords="17,93,144,119"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Batch__1D.html" title=" " alt="" coords="5,5,156,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="83,45,83,93,78,93,78,45"/>
+</map>

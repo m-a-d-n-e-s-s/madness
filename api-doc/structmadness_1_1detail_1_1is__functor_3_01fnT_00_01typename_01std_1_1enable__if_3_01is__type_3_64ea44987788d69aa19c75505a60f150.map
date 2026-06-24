@@ -1,0 +1,5 @@
+<map id="madness::detail::is_functor&lt; fnT, typename std::enable_if&lt; is_type&lt; typename fnT::result_type &gt;::value &gt;::type &gt;" name="madness::detail::is_functor&lt; fnT, typename std::enable_if&lt; is_type&lt; typename fnT::result_type &gt;::value &gt;::type &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,79,213,163"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="53,5,165,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="112,44,112,79,107,79,107,44"/>
+</map>

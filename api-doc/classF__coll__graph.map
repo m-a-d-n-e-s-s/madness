@@ -1,0 +1,13 @@
+<map id="F" name="F">
+<area shape="rect" id="Node000001" title="simple class for testing the solver" alt="" coords="540,77,579,102"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="287,5,479,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="460,47,517,68,541,78,539,83,515,73,458,52"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="287,69,479,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="493,87,540,87,540,92,493,92"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Function.html" title=" " alt="" coords="305,133,460,173"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="461,127,515,107,539,96,541,101,517,112,463,132"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,104,199,144"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="213,133,306,143,305,148,212,138"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="73,169,131,194"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="145,174,305,158,305,164,145,180"/>
+</map>

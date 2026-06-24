@@ -1,0 +1,18 @@
+<map id="lda.h" name="lda.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="224,5,279,31"/>
+<area shape="rect" id="Node000002" href="$libxc_8h.html" title=" " alt="" coords="219,79,284,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="254,44,254,79,249,79,249,44"/>
+<area shape="rect" id="Node000003" href="$dft_8cc.html" title=" " alt="" coords="5,152,63,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="206,110,64,157,62,151,204,105"/>
+<area shape="rect" id="Node000004" href="$electronicstructureapp_8h.html" title=" " alt="" coords="87,152,267,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="231,115,191,154,187,150,228,111"/>
+<area shape="rect" id="Node000006" href="$solver_8h.html" title=" " alt="" coords="291,152,364,177"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="275,111,317,150,313,154,272,115"/>
+<area shape="rect" id="Node000008" href="$test__xc_8cc.html" title=" " alt="" coords="388,152,475,177"/>
+<area shape="poly" id="edge8_Node000002_Node000008" title=" " alt="" coords="294,106,403,149,401,154,292,111"/>
+<area shape="rect" id="Node000005" href="$solver__driver_8cc.html" title=" " alt="" coords="125,225,249,251"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="183,191,188,225,183,226,178,192"/>
+<area shape="poly" id="edge6_Node000006_Node000005" title=" " alt="" coords="294,186,211,227,209,223,291,181"/>
+<area shape="rect" id="Node000007" href="$test__he_8cc.html" title=" " alt="" coords="283,225,371,251"/>
+<area shape="poly" id="edge7_Node000006_Node000007" title=" " alt="" coords="330,191,330,225,325,225,325,191"/>
+</map>

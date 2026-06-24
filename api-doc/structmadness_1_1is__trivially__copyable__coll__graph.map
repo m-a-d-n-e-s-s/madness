@@ -1,0 +1,5 @@
+<map id="madness::is_trivially_copyable&lt; T &gt;" name="madness::is_trivially_copyable&lt; T &gt;">
+<area shape="rect" id="Node000001" title="trait for trivial (=bitwise) copyability of T, defaults to std::is_trivially_copyable&lt;T&gt; but can be s..." alt="" coords="38,79,195,119"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,228,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,44,119,79,114,79,114,44"/>
+</map>

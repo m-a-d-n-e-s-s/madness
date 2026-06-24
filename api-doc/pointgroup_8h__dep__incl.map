@@ -1,0 +1,5 @@
+<map id="pointgroup.h" name="pointgroup.h">
+<area shape="rect" id="Node000001" title="Implements basic functionality for Abelian point groups (D2h and subgroups)" alt="" coords="5,5,109,31"/>
+<area shape="rect" id="Node000002" href="$testpg_8cc.html" title=" " alt="" coords="17,79,98,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="60,44,60,79,55,79,55,44"/>
+</map>

@@ -1,0 +1,14 @@
+<map id="Gaussian&lt; T, NDIM &gt;" name="Gaussian&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="245,77,409,102"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,197,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="143,48,246,81,244,86,141,53"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="187,47,282,74,281,79,185,52"/>
+<area shape="poly" id="edge3_Node000001_Node000002" title=" " alt="" coords="211,36,270,55,314,74,312,79,268,60,210,41"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="5,69,197,109"/>
+<area shape="poly" id="edge4_Node000001_Node000003" title=" " alt="" coords="125,115,147,123,173,129,233,131,288,122,307,112,320,100,324,104,310,117,289,127,233,136,173,134,145,128,123,120"/>
+<area shape="poly" id="edge5_Node000001_Node000003" title=" " alt="" coords="150,109,194,113,240,113,283,108,314,100,315,105,284,114,241,118,193,119,150,115"/>
+<area shape="poly" id="edge6_Node000001_Node000003" title=" " alt="" coords="211,96,245,95,245,101,211,101"/>
+<area shape="poly" id="edge7_Node000001_Node000003" title=" " alt="" coords="211,78,245,78,245,83,211,83"/>
+<area shape="poly" id="edge8_Node000001_Node000003" title=" " alt="" coords="150,64,193,60,241,60,284,65,315,74,314,79,283,70,240,66,194,65,150,69"/>
+<area shape="poly" id="edge9_Node000001_Node000003" title=" " alt="" coords="123,59,145,50,173,45,233,42,289,52,310,62,324,74,320,78,307,66,288,57,233,48,173,50,147,55,125,64"/>
+</map>

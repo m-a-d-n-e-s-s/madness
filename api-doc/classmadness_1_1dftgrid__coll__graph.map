@@ -1,0 +1,11 @@
+<map id="madness::dftgrid&lt; NDIM &gt;" name="madness::dftgrid&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,196,203,221"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1gridbase.html" title=" " alt="" coords="10,108,155,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="91,146,104,195,98,196,86,147"/>
+<area shape="rect" id="Node000003" href="$classGridBuilder.html" title=" " alt="" coords="179,108,274,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="200,144,122,198,119,194,197,139"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Vector.html" title=" " alt="" coords="35,5,255,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="166,40,220,106,215,110,161,43"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="280,5,339,31"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="293,43,238,110,234,106,289,39"/>
+</map>

@@ -1,0 +1,6 @@
+<map id="madness::WorldProfileObj" name="madness::WorldProfileObj">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,110,195,135"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="210,114,221,122,213,131,195,134,194,129,211,126,216,123,207,118"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1RMIStats.html" title=" " alt="" coords="27,5,173,31"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="103,45,103,110,97,110,97,45"/>
+</map>

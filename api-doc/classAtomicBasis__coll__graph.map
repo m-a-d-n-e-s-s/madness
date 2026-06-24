@@ -1,0 +1,7 @@
+<map id="AtomicBasis" name="AtomicBasis">
+<area shape="rect" id="Node000001" title="Represents multiple shells of contracted gaussians on a single center." alt="" coords="57,197,159,223"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="5,80,211,105"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="111,119,111,197,105,197,105,119"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="27,5,189,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="111,45,111,80,105,80,105,45"/>
+</map>

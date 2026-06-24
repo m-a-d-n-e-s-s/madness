@@ -1,0 +1,5 @@
+<map id="AtomicBasisSet" name="AtomicBasisSet">
+<area shape="rect" id="Node000001" title="Contracted Gaussian basis." alt="" coords="5,93,129,119"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="38,5,97,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="70,45,70,93,65,93,65,45"/>
+</map>

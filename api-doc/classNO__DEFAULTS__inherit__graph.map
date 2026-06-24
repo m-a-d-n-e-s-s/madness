@@ -1,0 +1,23 @@
+<map id="NO_DEFAULTS" name="NO_DEFAULTS">
+<area shape="rect" id="Node000001" title="Disables default copy constructor and assignment operators." alt="" coords="5,206,120,231"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Future_3_01std_1_1vector_3_01Future_3_01T_01_4_01_4_01_4.html" title="Specialization of Future for a vector of Futures." alt="" coords="179,5,373,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="71,192,106,124,133,87,166,55,186,43,189,48,170,59,137,90,111,127,76,194"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Hash__private_1_1HashAccessor.html" title=" " alt="" coords="187,70,365,125"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="85,195,122,164,167,134,190,122,192,127,169,138,125,168,89,199"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1MutexReaderWriter.html" title=" " alt="" coords="168,149,384,174"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="115,199,167,184,217,171,219,177,169,189,117,204"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1PthreadConditionVariable.html" title="Simple wrapper for Pthread condition variable with its own mutex." alt="" coords="175,199,377,239"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="134,216,175,216,175,221,134,221"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1World.html" title="A parallel world class." alt="" coords="213,263,339,289"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="117,233,169,248,219,261,217,266,167,253,115,238"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="177,313,375,338"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="88,239,124,270,169,299,199,310,197,315,167,304,121,275,84,243"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1detail_1_1ArgHolder.html" title="A wrapper object for holding task function argument objects." alt="" coords="177,363,375,403"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="79,242,116,296,141,324,170,348,191,360,188,365,166,353,137,328,111,299,75,245"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Hash__private_1_1entry.html" title=" " alt="" coords="451,135,628,175"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="398,156,450,154,451,160,398,161"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1DQueue.html" title=" " alt="" coords="432,199,647,239"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="391,216,432,216,432,221,391,221"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1DQueue.html" title="A thread safe, fast but simple doubled&#45;ended queue." alt="" coords="450,263,629,289"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="382,239,481,261,480,266,381,244"/>
+</map>

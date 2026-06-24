@@ -1,0 +1,5 @@
+<map id="madness::RMI" name="madness::RMI">
+<area shape="rect" id="Node000001" title="This class implements the communications server thread and provides the only send interface." alt="" coords="21,93,136,119"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1RMIStats.html" title=" " alt="" coords="5,5,152,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="81,45,81,93,76,93,76,45"/>
+</map>

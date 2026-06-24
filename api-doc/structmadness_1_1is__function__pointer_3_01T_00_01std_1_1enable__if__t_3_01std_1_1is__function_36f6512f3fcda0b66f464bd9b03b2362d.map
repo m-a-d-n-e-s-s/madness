@@ -1,0 +1,5 @@
+<map id="madness::is_function_pointer&lt; T, std::enable_if_t&lt; std::is_function&lt; typename std::remove_pointer&lt; T &gt;::type &gt;::value &gt; &gt;" name="madness::is_function_pointer&lt; T, std::enable_if_t&lt; std::is_function&lt; typename std::remove_pointer&lt; T &gt;::type &gt;::value &gt; &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,79,244,163"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="69,5,181,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="127,44,127,79,122,79,122,44"/>
+</map>

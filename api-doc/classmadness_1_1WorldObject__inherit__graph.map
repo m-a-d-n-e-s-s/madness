@@ -1,0 +1,15 @@
+<map id="madness::WorldObject&lt; Derived &gt;" name="madness::WorldObject&lt; Derived &gt;">
+<area shape="rect" id="Node000001" title="Implements most parts of a globally addressable object (via unique ID)." alt="" coords="253,133,421,173"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionImpl.html" title=" " alt="" coords="499,5,673,45"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="369,122,414,87,468,55,498,43,500,48,471,60,417,92,373,126"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1FunctionImpl.html" title=" " alt="" coords="499,69,673,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="428,127,507,107,508,112,429,132"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1SeparatedConvolution.html" title=" " alt="" coords="469,133,703,173"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="435,151,469,151,469,156,435,156"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SeparatedConvolution.html" title=" " alt="" coords="469,197,703,237"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="429,174,508,195,507,200,428,179"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1SeparatedConvolution.html" title=" " alt="" coords="469,261,703,301"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="373,180,417,215,471,247,499,259,497,264,468,252,414,219,369,184"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1WorldObjectBase.html" title="Base class for WorldObject, useful for introspection." alt="" coords="5,141,205,166"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="219,151,253,151,253,156,219,156"/>
+</map>
