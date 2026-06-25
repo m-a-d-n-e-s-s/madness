@@ -46,6 +46,7 @@
 #include <madness/mra/mra.h>
 
 #include<madness/chem/CalculationParameters.h>
+#include<madness/chem/BSHApplyStrategy.h>
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
@@ -409,6 +410,18 @@ public:
 
     vecfuncT compute_residual(World& world, tensorT& occ, tensorT& fock,
                               const vecfuncT& psi, vecfuncT& Vpsi, double& err);
+
+private:
+    /// BSH-apply backend executors (dispatched from compute_residual via a BSHApplyPlan;
+    /// see BSHApplyStrategy.h and docs/bsh_apply_macrotask.md). Each consumes Vpsi (clears
+    /// it) and returns the new orbitals. eps is the per-orbital BSH exponent vector.
+    vecfuncT apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                                 const CalculationParameters& param, const BSHApplyPlan& plan);
+    vecfuncT apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                             const CalculationParameters& param, const BSHApplyPlan& plan);
+    vecfuncT apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                             const CalculationParameters& param);
+public:
 
     tensorT make_fock_matrix(World& world, const vecfuncT& psi,
                              const vecfuncT& Vpsi, const tensorT& occ,

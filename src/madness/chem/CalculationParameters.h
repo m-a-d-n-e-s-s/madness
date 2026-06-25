@@ -79,13 +79,14 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
 		initialize<bool>  ("hfex_shuffle_mos",false,"randomly permute the MO order passed to the HF exchange operator (fixed seed); result is unshuffled before returning");
 		initialize<double>("hfex_smallmem_mul_tol",-1.0,"TEMP debug knob: tolerance passed to every mul_sparse/dot inside the smallmem_*_mt_owner kernels; negative = legacy (mul_tol*0.1)");
-		initialize<std::string>("bsh_apply","tile","BSH operator apply backend in compute_residual: tile=rank-aware memory-bounded loop (default); macrotask=distribute across subworlds (memory-for-speed, tune for OOM cases); plain=single un-tiled apply",{"tile","macrotask","plain"});
+		initialize<std::string>("bsh_apply","tile","BSH operator apply backend in compute_residual: auto=pick tile/macrotask from topology+memory (BSHApplyStrategy.h); tile=rank-aware memory-bounded loop (default); macrotask=distribute across subworlds (memory-frugal, multinode); plain=single un-tiled apply",{"auto","tile","macrotask","plain"});
 		initialize<int>   ("bsh_apply_nworld",0,"bsh_apply=macrotask: number of subworlds for the BSH apply (0=auto=nrank, i.e. 1 rank/subworld); lower it (e.g. 2) for more ranks per apply");
 		initialize<int>   ("bsh_apply_max_batch",0,"bsh_apply=macrotask: max orbitals per BSH apply task (0=partitioner default); smaller = less memory per task");
 		initialize<int>   ("bsh_apply_min_batch",0,"bsh_apply=macrotask: min orbitals per BSH apply task (0=partitioner default)");
 		initialize<int>   ("bsh_apply_max_tile",0,"bsh_apply=tile: cap orbitals per tile (0=auto=min(nmo,10*nproc)); set it to bound peak memory on large/tight-thresh runs where the auto tile is the whole MO vector and OOMs");
 		initialize<std::string>("bsh_apply_policy","small_memory","bsh_apply=macrotask: cloud storage preset. small_memory=StoreFunctionViaPointer (pointers in cloud, coeffs streamed to subworlds; framework-handled, low mem); default/large_memory=StoreFunction (full functions replicated per rank, high mem)",{"small_memory","small_memory_owner","default","large_memory","node_replicated_target"});
 		initialize<bool>  ("bsh_apply_memcheck",false,"if true, print a MemoryMeasurer map after each BSH apply (adds fences; use for memory comparison, not timing)");
+		initialize<double>("bsh_apply_memory_budget",0.0,"bsh_apply=auto: per-NODE memory budget in GB (e.g. your SLURM allocation). 0=disable the single-node OOM gate (auto then chooses purely on topology). Set it so auto falls back to macrotask before tile would OOM");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -220,6 +221,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	int bsh_apply_max_tile() const {return get<int>("bsh_apply_max_tile");}
 	bool bsh_apply_memcheck() const {return get<bool>("bsh_apply_memcheck");}
 	std::string bsh_apply_policy() const {return get<std::string>("bsh_apply_policy");}
+	double bsh_apply_memory_budget() const {return get<double>("bsh_apply_memory_budget");}
 
 	int maxiter() const {return get<int>("maxiter");}
 	std::vector<int> maxiter_protocol() const {return get<std::vector<int>>("maxiter_protocol");}

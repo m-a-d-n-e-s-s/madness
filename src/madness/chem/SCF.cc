@@ -1730,84 +1730,178 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms,
     rms = sqrt(rms / v.size());
 }
 
-vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
-                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
-
-
-    // Apply the BSH operator inside a MacroTask so the work is distributed across
-    // subworlds: this bounds the peak (nonstandard-form) memory per subworld and
-    // runs the per-orbital applies concurrently instead of serializing them behind
-    // global fences (which is what makes the un-tiled apply OOM and the tile loop
-    // slow for large systems / tight thresh). Each result orbital maps 1:1 to its
-    // input orbital, so the framework's default per-batch result handling applies
-    // directly -- no custom partitioner or owner logic is needed.
-    //
-    // eps is the 1D tensor of per-orbital BSH exponents. It is NOT a
-    // vector<Function>, so the framework does not auto-batch it: it arrives whole
-    // in every subworld and we slice it to this task's batch by hand.
+/// Macrotask BSH apply: distribute the per-orbital applies across subworlds so the peak
+/// (nonstandard-form) working set per subworld is bounded and the applies run
+/// concurrently (auto_copy gather via StoreFunctionViaPointer). Each result orbital maps
+/// 1:1 to its input, so the framework's default per-batch result handling applies
+/// directly. `eps` is the 1D per-orbital BSH exponent tensor; it is not a vector<Function>
+/// so the framework does not auto-batch it -- it arrives whole and is sliced by hand.
+/// `plan` knobs (batch, nworld) override the explicit params when set (>0). Consumes Vpsi.
+vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                                  const CalculationParameters& param, const BSHApplyPlan& plan) {
     class ApplyTask : public MacroTaskOperationBase {
     public:
         ApplyTask() {
             name="apply_bsh";
         }
-        // you need to define the exact argument(s) of operator() as tuple
         typedef std::tuple<const std::vector<real_function_3d> &, const Tensor<double>&,
         const CalculationParameters&> argtupleT;
-
-        // you need to define the result type
-        // resultT must implement gaxpy(alpha, result, beta, contribution)
-        // with resultT result, contribution;
         using resultT = std::vector<real_function_3d>;
 
-        // allocator is called both in the universe (full argtuple -> full-size
-        // result) and in each subworld (batched argtuple -> batch-size result),
-        // so sizing from the (possibly batched) input vector is correct for both.
+        // called in the universe (full argtuple -> full-size result) and in each subworld
+        // (batched argtuple -> batch-size result); sizing from the input vector fits both.
         resultT allocator(World &world, const argtupleT &argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            resultT result = zero_functions_compressed<double, 3>(world, n);
-            return result;
+            return zero_functions_compressed<double, 3>(world, n);
         }
 
         resultT operator()(const std::vector<real_function_3d> &Vpsi,
             const Tensor<double>& eps, const CalculationParameters& param) const {
             // auto_copy: the framework deep-copied this task's input batch into the
-            // subworld (StoreFunctionViaPointer streams the coeffs) and hands us
-            // shallow handles to those subworld functions, so the apply runs in
-            // Vpsi.front().world() (== the subworld).
+            // subworld and hands us shallow handles to those subworld functions, so the
+            // apply runs in Vpsi.front().world() (== the subworld).
             World& world = Vpsi.front().world();
             MADNESS_CHECK_THROW(eps.ndim()==1,"need a 1D tensor for eps in ApplyTask");
-
-            // slice eps to this task's batch; the Slice end is inclusive, and an
-            // un-partitioned (full-size) batch carries end==-1, so resolve it.
+            // slice eps to this task's batch (Slice end inclusive; full-size batch -> -1).
             const long b = batch.input[0].begin;
             const long e = batch.input[0].is_full_size() ? eps.size() : batch.input[0].end;
             Tensor<double> batched_eps=eps(Slice(b, e-1));
             MADNESS_CHECK_THROW(batched_eps.size()==static_cast<long>(Vpsi.size()),
                                 "batched eps size mismatch in ApplyTask");
-
             std::vector<poperatorT> ops = make_bsh_operators(world, batched_eps,param);
             vecfuncT tmp_Vpsi = Vpsi;   // shallow copies; set_thresh mutates impl state
             set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
-
-            // Decompose the cost: time just the in-subworld apply (and truncate), so
-            // it can be compared against the outer "Apply BSH (macrotask)" timer
-            // (framework overhead = outer - task-exec) and across nworld settings.
-            // Printed by subworld rank 0.
+            // time just the in-subworld apply+truncate, comparable to the outer
+            // "Apply BSH (macrotask)" timer (framework overhead = outer - task-exec).
             const bool instr = param.print_level() >= 10;
-            // get_size is collective over the subworld -- every rank must call it
-            const double in_gb = instr ? get_size(world, tmp_Vpsi) : 0.0;   // input batch resident in subworld
+            const double in_gb = instr ? get_size(world, tmp_Vpsi) : 0.0;
             const double w0 = wall_time();
             vecfuncT new_psi = apply(world, ops, tmp_Vpsi);
             const double w1 = wall_time();
-            truncate(world, new_psi);   // truncate in-subworld so the universe gaxpy stays small
+            truncate(world, new_psi);   // in-subworld so the universe gaxpy stays small
             const double w2 = wall_time();
-            const double out_gb = instr ? get_size(world, new_psi) : 0.0;   // result batch resident in subworld
+            const double out_gb = instr ? get_size(world, new_psi) : 0.0;
             if (instr and world.rank() == 0)
                 printf("  [ApplyTask sw nrank=%d nfunc=%zu apply=%.2fs truncate=%.2fs in=%.3fGB out=%.3fGB]\n",
                        world.size(), tmp_Vpsi.size(), w1 - w0, w2 - w1, in_gb, out_gb);
             return new_psi;
         }
     };
+
+    START_TIMER(world);
+    ApplyTask apply_task;
+    // batch (orbitals/task -> memory/task) on the partitioner; nworld (subworlds) on the
+    // factory. plan overrides the explicit params when set (>0); 0 = framework default.
+    const long maxb = plan.batch > 0 ? plan.batch : param.bsh_apply_max_batch();
+    const long minb = plan.batch > 0 ? plan.batch : param.bsh_apply_min_batch();
+    if (maxb > 0) apply_task.partitioner->set_max_batch_size(maxb);
+    if (minb > 0) apply_task.partitioner->set_min_batch_size(minb);
+    auto factory = MacroTaskQFactory(world);
+    // small_memory = StoreFunctionViaPointer (pointers in cloud, coeffs streamed to
+    // subworlds; framework-handled auto_copy). preset() is a no-op stub -> set_policy().
+    factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
+    const long nw = plan.nworld > 0 ? plan.nworld : param.bsh_apply_nworld();
+    if (nw > 0) factory.set_nworld(nw);
+    // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
+    // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
+    if (param.print_level() >= 10) factory.set_printlevel(5);
+    MacroTask macrotask(world, apply_task, factory);
+    const bool instr = param.print_level() >= 10;
+    const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
+    vecfuncT new_psi = macrotask(Vpsi, eps, param);
+    Vpsi.clear();
+    world.gop.fence();
+    if (instr) {
+        const double newpsi_gb = get_size(world, new_psi);
+        // peak RSS (fence-free getrusage high-water-mark) for the memory A/B + estimator
+        // calibration. rss_max = worst rank, rss_tot = sum over ranks.
+        double rss_max = madness::get_rss_usage_in_GB();
+        double rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0) {
+            auto cs = macrotask.get_taskq()->get_cloud_statistics();
+            printf("  [BSH macrotask: held Vpsi=%.2fGB (%.3f/rank) result=%.2fGB | "
+                   "comm deep-copy max=%.2fs av=%.2fs | cloud-read max=%.2fs | write=%.2fs | tgt-repl=%.2fs"
+                   " | peakRSS max=%.2fGB/rank tot=%.2fGB]\n",
+                   vpsi_gb, vpsi_gb/std::max<int>(1,world.size()), newpsi_gb,
+                   cs.value("copy_time_max_s",-1.0), cs.value("copy_time_av_s",-1.0),
+                   cs.value("reading_time_max_s",-1.0), cs.value("writing_time_s",-1.0),
+                   cs.value("target_replication_time_s",-1.0),
+                   rss_max, rss_tot);
+        }
+    }
+    END_TIMER(world, "Apply BSH (macrotask)");
+    return new_psi;
+}
+
+/// Tile the BSH apply so the peak nonstandard working set stays bounded: the untiled apply
+/// converts every orbital at once and OOMs for large systems. ntile keeps ~min_tile
+/// orbitals/rank in flight; plan.max_tile (or bsh_apply_max_tile) caps it further for
+/// memory-constrained large/tight-thresh runs. Consumes Vpsi.
+vecfuncT SCF::apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param, const BSHApplyPlan& plan) {
+    START_TIMER(world);
+    const size_t nfunc = Vpsi.size();
+    const size_t min_tile = 10;
+    size_t ntile = std::min(std::max<size_t>(nfunc, 1),
+                            min_tile * std::max<size_t>(world.size(), 1));
+    const long max_tile = plan.max_tile > 0 ? plan.max_tile : param.bsh_apply_max_tile();
+    if (max_tile > 0) ntile = std::min(ntile, size_t(max_tile));
+    vecfuncT new_psi(nfunc);
+    for (size_t ilo=0; ilo<nfunc; ilo+=ntile) {
+        size_t iend = std::min(ilo+ntile,nfunc);
+        vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+        // eps(i) == min(-0.05, fock(i,i)) for the whole vector; slice it for this tile.
+        tensorT tmp_eps = eps(Slice(long(ilo), long(iend)-1));
+        std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
+        set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+        vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+        truncate(world, tmp_new_psi);
+        // move results home and release processed inputs so their trees free as the loop
+        // advances (tmp_Vpsi holds the shallow ref; actual free at its destruction).
+        for (size_t i = ilo; i<iend; ++i){
+            new_psi[i] = std::move(tmp_new_psi[i-ilo]);
+            Vpsi[i].clear(false);
+        }
+        ops.clear();
+    }
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {   // peak RSS for the tile-vs-macrotask memory A/B
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH tile: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    return new_psi;
+}
+
+/// Single un-tiled apply (small systems / debugging). Consumes Vpsi.
+vecfuncT SCF::apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param) {
+    START_TIMER(world);
+    std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
+    set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
+    vecfuncT new_psi = apply(world, ops, Vpsi);
+    ops.clear();
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH plain: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    START_TIMER(world);
+    truncate(world, new_psi);
+    END_TIMER(world, "Truncate new psi");
+    return new_psi;
+}
+
+vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
+                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
 
     START_TIMER(world);
     PROFILE_MEMBER_FUNC(SCF);
@@ -1831,156 +1925,42 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
 
-    // BSH-apply backend, selected by the "bsh_apply" input parameter (default "tile"):
-    //   "macrotask" : distribute the apply across subworlds (memory-for-speed; at
-    //                 default subworld count this is slower for in-memory systems,
-    //                 so reserve it for cases where tile/plain OOM, and tune nworld)
-    //   "tile"      : rank-aware memory-bounded tile loop (default)
-    //   "plain"     : single un-tiled apply (small systems / debugging)
-    // The cost of Apply BSH grows steeply at tight thresh (e.g. 1e-8) for large
-    // systems; a precision/size/nproc-aware auto-heuristic is still TODO.
+    // BSH-apply backend, selected by the "bsh_apply" parameter. The executors live in
+    // apply_bsh_{macrotask,tiled,plain}; the decision (for "auto") and the model are in
+    // BSHApplyStrategy.h / docs/bsh_apply_macrotask.md. eps is the per-orbital exponent
+    // vector (= min(-0.05, fock(i,i)) computed above), fed identically to every backend.
     const std::string bsh_apply_mode = param.bsh_apply();
+    BSHApplyPlan plan;
+    plan.max_tile = param.bsh_apply_max_tile();   // 0 = auto
+    plan.nworld   = param.bsh_apply_nworld();      // 0 = auto
+    // plan.batch left 0 -> the macrotask executor uses bsh_apply_{min,max}_batch
     vecfuncT new_psi;
-
-    if (bsh_apply_mode == "macrotask") {
-        START_TIMER(world);
-        // eps is already the per-orbital min(-0.05, fock(i,i)) computed above, which
-        // is exactly what the tile/plain paths feed make_bsh_operators.
-        ApplyTask apply_task;
-        // max/min_batch_size (orbitals per task -> memory per task) live on the
-        // task partitioner; nworld (subworlds -> ranks per apply / concurrency) lives
-        // on the factory. They are orthogonal: the partitioner sizes batches against
-        // the universe size regardless of nworld. 0 = leave the framework default.
-        if (param.bsh_apply_max_batch() > 0) apply_task.partitioner->set_max_batch_size(param.bsh_apply_max_batch());
-        if (param.bsh_apply_min_batch() > 0) apply_task.partitioner->set_min_batch_size(param.bsh_apply_min_batch());
-        auto factory = MacroTaskQFactory(world);
-        // Cloud storage policy. The factory default ("default" preset) is actually
-        // StoreFunction + RankReplicated -- it serializes the whole Vpsi into the
-        // cloud and replicates it on every rank (huge, and worse with more ranks).
-        // small_memory = StoreFunctionViaPointer stores only pointers and lets the
-        // framework stream coefficients to subworlds (framework-handled, no task
-        // hooks needed -- see test_vectormacrotask). NB: MacroTaskQFactory::preset()
-        // is a no-op stub, so the policy must go through set_policy(...).
-        factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
-        if (param.bsh_apply_nworld() > 0) factory.set_nworld(param.bsh_apply_nworld());
-        // emit taskq completion + cloud store/fetch timings so the macrotask cost
-        // can be split into task-execution vs framework overhead (serialize/finalize).
-        // 5 (not 3) so printtimings_detail() fires -> the BSH taskq prints its OWN
-        // "finalize gaxpy (sw->universe)" line (the output result transfer), closing the
-        // last unmeasured piece of the apply; still <10 so no per-task debug flood.
-        if (param.print_level() >= 10) factory.set_printlevel(5);
-        MacroTask macrotask(world, apply_task, factory);
-        // Memory breakdown (held-original vs result) + communication timing. get_size
-        // is collective on the universe -- all ranks call; held Vpsi captured before
-        // the call since it is cleared after. Deep-copy (copy_time) is the coefficient
-        // transfer universe->subworld, the macrotask's dominant communication.
-        const bool instr = param.print_level() >= 10;
-        const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
-        new_psi = macrotask(Vpsi, eps, param);
-        Vpsi.clear();
-        world.gop.fence();
-        if (instr) {
-            const double newpsi_gb = get_size(world, new_psi);   // collective: all ranks
-            // Peak RSS (getrusage high-water-mark, fence-free) right after the apply:
-            // captures the apply-time memory peak (vs tile) for the memory A/B and the
-            // estimator calibration. rss_max = worst rank, rss_tot = sum over ranks.
-            double rss_max = madness::get_rss_usage_in_GB();
-            double rss_tot = rss_max;
-            world.gop.max(rss_max); world.gop.sum(rss_tot);
-            if (world.rank() == 0) {
-                auto cs = macrotask.get_taskq()->get_cloud_statistics();
-                printf("  [BSH macrotask: held Vpsi=%.2fGB (%.3f/rank) result=%.2fGB | "
-                       "comm deep-copy max=%.2fs av=%.2fs | cloud-read max=%.2fs | write=%.2fs | tgt-repl=%.2fs"
-                       " | peakRSS max=%.2fGB/rank tot=%.2fGB]\n",
-                       vpsi_gb, vpsi_gb/std::max<int>(1,world.size()), newpsi_gb,
-                       cs.value("copy_time_max_s",-1.0), cs.value("copy_time_av_s",-1.0),
-                       cs.value("reading_time_max_s",-1.0), cs.value("writing_time_s",-1.0),
-                       cs.value("target_replication_time_s",-1.0),
-                       rss_max, rss_tot);
-            }
-        }
-        END_TIMER(world, "Apply BSH (macrotask)");
-    } else if (bsh_apply_mode == "tile") {
-        START_TIMER(world);
-        // Tile the BSH apply so the peak (nonstandard-form) working set stays
-        // bounded: the untiled apply nonstandard-converts every orbital at once
-        // and OOMs for large systems. The rank-aware target keeps ~min_tile
-        // orbitals in flight per rank, but at tight thresh (large k-trees) even
-        // a single full tile (ntile==nmo, which happens once min_tile*nproc>=nmo)
-        // OOMs -- observed on valinomycin at 1e-8, where ntile=min(300,10*64)=300
-        // held all MOs at once. bsh_apply_max_tile caps the orbitals-per-tile so
-        // the apply is split into >=ceil(nmo/max_tile) tiles regardless of nproc;
-        // set it for memory-constrained large/tight-thresh runs. Clamped to [1,nmo].
-        const size_t nfunc = Vpsi.size();
-        const size_t min_tile = 10;
-        size_t ntile = std::min(std::max<size_t>(nfunc, 1),
-                                min_tile * std::max<size_t>(world.size(), 1));
-        const size_t max_tile = param.bsh_apply_max_tile();
-        if (max_tile > 0) ntile = std::min(ntile, max_tile);
-        new_psi.resize(nfunc);
-
-        for (size_t ilo=0; ilo<nfunc; ilo+=ntile) {
-            size_t iend = std::min(ilo+ntile,nfunc);
-            vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
-
-            int tmp_nmo = tmp_Vpsi.size();
-            tensorT tmp_eps(tmp_nmo);
-            for (int i = 0; i < tmp_nmo; ++i) {
-                tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
-            }
-
-            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
-            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
-
-            vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
-
-            //truncate tmp_new_psi
-            truncate(world, tmp_new_psi);
-
-            // Move the results into their final home and release the processed
-            // inputs (apply has restored them to standard form and we are done
-            // with them) so their trees free as the loop advances instead of
-            // pinning all of Vpsi until the very end. tmp_Vpsi still holds a
-            // shallow ref to each impl, so the actual free happens when it
-            // destructs at the end of this iteration.
-            for (size_t i = ilo; i<iend; ++i){
-                new_psi[i] = std::move(tmp_new_psi[i-ilo]);
-                Vpsi[i].clear(false);
-            }
-            ops.clear();
-        }
-
-        Vpsi.clear();
-        world.gop.fence();
-        if (param.print_level() >= 10) {   // peak RSS for the tile-vs-macrotask memory A/B
-            double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
-            world.gop.max(rss_max); world.gop.sum(rss_tot);
-            if (world.rank() == 0)
-                printf("  [BSH tile: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
-        }
-        END_TIMER(world, "Apply BSH");
+    if (bsh_apply_mode == "plain") {
+        new_psi = apply_bsh_plain(world, Vpsi, eps, param);
     } else {
-        START_TIMER(world);
-
-        std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
-        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
-
-        new_psi = apply(world, ops, Vpsi);
-
-        ops.clear();
-        Vpsi.clear();
-        world.gop.fence();
-        if (param.print_level() >= 10) {
-            double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
-            world.gop.max(rss_max); world.gop.sum(rss_tot);
-            if (world.rank() == 0)
-                printf("  [BSH plain: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+        // tile / macrotask / auto. "auto" runs the chooser (topology + optional OOM gate)
+        // and sets a protocol-aware batch; explicit modes force the backend.
+        BSHBackend backend = (bsh_apply_mode == "macrotask") ? BSHBackend::Macrotask
+                                                             : BSHBackend::Tile;
+        if (bsh_apply_mode == "auto") {
+            BSHApplyContext ctx;
+            ctx.nmo     = nmo;
+            ctx.k       = FunctionDefaults<3>::get_k();
+            ctx.nproc   = world.size();
+            ctx.n_nodes = long(ranks_per_host(world).size());     // collective
+            const double node_budget = param.bsh_apply_memory_budget();   // per-NODE GB, 0=off
+            const long ranks_per_node = std::max<long>(1, ctx.nproc / std::max<long>(1, ctx.n_nodes));
+            ctx.mem_budget_gb = (node_budget > 0.0) ? node_budget / double(ranks_per_node) : 0.0;
+            const BSHApplyPlan ap = choose_bsh_apply_plan(ctx);
+            backend = ap.backend;
+            if (backend == BSHBackend::Macrotask)
+                plan.batch = choose_bsh_batch(FunctionDefaults<3>::get_thresh());   // protocol-aware
+            if (param.print_level() >= 2 and world.rank() == 0)
+                print("BSH apply [auto]:", ap.reason);
         }
-        END_TIMER(world, "Apply BSH");
-        
-        START_TIMER(world);
-        truncate(world, new_psi);
-        END_TIMER(world, "Truncate new psi");
+        new_psi = (backend == BSHBackend::Macrotask)
+                      ? apply_bsh_macrotask(world, Vpsi, eps, param, plan)
+                      : apply_bsh_tiled(world, Vpsi, eps, param, plan);
     }
 
     // Optional memory snapshot for comparing the three bsh_apply backends. Taken
