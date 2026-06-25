@@ -520,6 +520,7 @@ public:
 	virtual void finalize_stage2(World& /*subworld*/, World* /*nodeworld*/, Cloud& /*cloud*/) {}	// default no-op
 	virtual bool has_batch_info() const { return false; }
 	virtual Batch get_batch() const { return Batch(); }
+	virtual std::string get_name() const { return "task"; }   // overridden by MacroTaskInternal
 
     virtual void print_me(std::string s="") const {
         printf("this is task with priority %4.1f\n",priority);
@@ -920,7 +921,12 @@ public:
 	        }
 	        if (printtimings_detail()) {
 	            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
-	            printf(" finalize gaxpy (sw->universe)%5.2fs\n", finalize_elapsed);
+	            // label by task name: this "finalize gaxpy" print is SHARED by every macrotask
+            // taskq (BSH apply, HF exchange, ...); without the name it is ambiguous which
+            // taskq a value belongs to (mis-read twice). The name makes BSH-vs-exchange
+            // finalize times unmistakable for A/B (e.g. plain bulk gaxpy vs coalesced finalize).
+            printf(" finalize gaxpy (sw->universe)%5.2fs [%s]\n", finalize_elapsed,
+                   (taskq.empty() ? "?" : taskq.front()->get_name().c_str()));
 	            if (nodeworld)
 	                printf("   of which stage1 (->node)   %5.2fs / stage2 (node->univ)%5.2fs\n",
 	                       finalize_stage1_elapsed, finalize_elapsed - finalize_stage1_elapsed);
@@ -1488,7 +1494,7 @@ private:
         recordlistT outputrecords;
     public:
         taskT task;
-    	std::string get_name() const {
+    	std::string get_name() const override {
     		if (task.name=="unknown_task") return typeid(task).name();
     		return task.name;
     	}
