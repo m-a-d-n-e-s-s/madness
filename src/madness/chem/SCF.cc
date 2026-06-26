@@ -1913,14 +1913,37 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
         eps(i) = std::min(-0.05, fock(i, i));
         fock(i, i) -= eps(i);
     }
-    vecfuncT fpsi = transform(world, psi, fock, trantol, true);
 
-    for (int i = 0; i < nmo; ++i) { // Undo the damage
+    // Vpsi -= psi*fock, TILED over output columns. transform() materializes its full
+    // result, so the untiled `transform(psi, fock)` holds the whole fpsi (nmo functions)
+    // alongside psi+Vpsi -> ~3x orbital memory at tight thresh, which OOMs large systems
+    // UPSTREAM of the (memory-frugal) BSH apply -- the BSH backend choice can't help.
+    // Tiling keeps only `ntile` fpsi functions live at once -> peak ~2x (psi+Vpsi, which
+    // is structural to the residual) + one chunk. Rank-aware bound, reusing the apply's
+    // bsh_apply_max_tile memory cap; for small systems ntile>=nmo -> a single chunk,
+    // identical to the old untiled path. fock keeps the -eps diagonal shift across all
+    // chunks (restored after the loop). See docs/bsh_apply_macrotask.md.
+    {
+        const size_t min_tile = 10;
+        size_t ntile = std::min(std::max<size_t>(nmo, 1),
+                                min_tile * std::max<size_t>(world.size(), 1));
+        const long max_tile = param.bsh_apply_max_tile();
+        if (max_tile > 0) ntile = std::min(ntile, size_t(max_tile));
+        for (size_t ilo = 0; ilo < size_t(nmo); ilo += ntile) {
+            size_t iend = std::min(ilo + ntile, size_t(nmo));
+            vecfuncT fpsi = transform(world, psi,
+                                      fock(_, Slice(long(ilo), long(iend) - 1)), trantol, true);
+            for (size_t i = ilo; i < iend; ++i)
+                Vpsi[i].gaxpy(1.0, fpsi[i - ilo], -1.0, false);
+            world.gop.fence();
+            fpsi.clear();   // free this chunk before building the next
+        }
+    }
+
+    for (int i = 0; i < nmo; ++i) { // Undo the damage (after all chunks used the shift)
         fock(i, i) += eps(i);
     }
 
-    gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
-    fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
