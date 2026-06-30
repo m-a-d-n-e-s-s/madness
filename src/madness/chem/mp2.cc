@@ -651,7 +651,7 @@ real_function_6d MP2::make_Uphi0(ElectronPair& pair) const {
         real_convolution_6d op_mod = BSHOperator<6>(world,
                                                     sqrt(-2 * eps), 0.0001, 1e-5);
         op_mod.modified() = true;
-        Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), op_mod);
+        Uphi0 = corrfac.apply_U(hf->nemo(i), hf->nemo(j), op_mod, hf->nemo_ptr->ncf->U1vec());
     }
 
     {

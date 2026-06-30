@@ -10,7 +10,8 @@ set(MADMRA_HEADERS
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
-    commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h)
+    commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h composite_product_op.h)
+
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
     twoscale.cc qmprop.cc QCCalculationParametersBase.cc)
@@ -56,7 +57,7 @@ if(BUILD_TESTING)
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-        testdiff1D testdiff2D testdiff3D)
+        testdiff1D testdiff2D testdiff3D test_composite_product test_composite_dsl)
   
     foreach(_test ${MRA_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADmra")

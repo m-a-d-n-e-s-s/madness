@@ -85,6 +85,17 @@ public:
     Tensor<T> compute_core_valence_separation_transformation_matrix(World& world,
                                         const MolecularOrbitals<T, NDIM>& mo_in, const Tensor<T>& Fock) const;
 
+    /// build a unitary that diagonalizes the Fock SUB-BLOCK over each given index group
+
+    /// canonicalizes (zeroes the off-diagonal Fock elements within) each block while leaving
+    /// all other orbitals and the inter-group couplings untouched -- the minimal rotation that
+    /// removes a near-degenerate strongly-coupled (resonant) block in local MP2/CC2.
+    /// New orbitals are obtained as transform(mos, U); the new Fock is U^T Fock U.
+    /// @param[in] Fock     the (localized) Fock matrix
+    /// @param[in] blocks   groups of (not necessarily contiguous) orbital indices to canonicalize
+    static Tensor<double> compute_block_canonicalization_matrix(const Tensor<double>& Fock,
+                                        const std::vector<std::vector<long>>& blocks);
+
     template<typename T>
     static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set,
                                               const bool silent=false);

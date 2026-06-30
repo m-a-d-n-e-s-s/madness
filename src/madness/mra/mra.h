@@ -89,6 +89,7 @@ namespace madness {
 #include <madness/mra/function_factory.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/mra/funcimpl.h>
+#include <madness/mra/composite_product_op.h>
 
 // some forward declarations
 namespace madness {
@@ -116,6 +117,31 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct hartree_leaf_op;
+
+    // ---- composite_dsl forward declarations -----------------------------------------
+    /// Tag identifying which particle (1 or 2) an LDIM function refers to in a DSL
+    /// expression.  Concrete tags `p1`, `p2` below.
+    struct ParticleTag {
+        int idx;
+        constexpr explicit ParticleTag(int i) : idx(i) {}
+        constexpr bool operator==(ParticleTag o) const { return idx == o.idx; }
+        constexpr bool operator!=(ParticleTag o) const { return idx != o.idx; }
+    };
+    /// Pre-declared particle tags.  Use as `f(p1)`, `u(p1, p2)`, etc.
+    inline constexpr ParticleTag p1{1};
+    inline constexpr ParticleTag p2{2};
+
+    /// Tagged LDIM-Function proxy, produced by `Function<T,LDIM>::operator()(ParticleTag)`.
+    template<typename T, std::size_t NDIM_> struct LdimRef;
+    /// Tagged NDIM-Function proxy, produced by `Function<T,NDIM>::operator()(ParticleTag,ParticleTag)`.
+    template<typename T, std::size_t NDIM_> struct NdimRef;
+
+    /// Factory functions used by `Function::operator()`.  Definitions live in
+    /// `composite_dsl.h`; include that header to actually use the DSL.
+    template<typename T, std::size_t NDIM_>
+    LdimRef<T, NDIM_> make_ldim_ref(const Function<T, NDIM_>& f, ParticleTag p);
+    template<typename T, std::size_t NDIM_>
+    NdimRef<T, NDIM_> make_ndim_ref(const Function<T, NDIM_>& f);
 
     template<typename T, std::size_t NDIM, std::size_t LDIM, typename opT>
     struct hartree_convolute_leaf_op;
@@ -418,6 +444,35 @@ namespace madness {
             return (*this)(r);
         }
 
+        // ---- composite_dsl interface --------------------------------------------------
+        // The two member templates below are templated on a `Tag = ParticleTag` so their
+        // bodies are instantiated lazily (on first call) rather than eagerly with the
+        // explicit Function<T,NDIM> instantiations in mra*.cc.  This lets us
+        // forward-declare LdimRef/NdimRef in mra.h and put the actual definitions in
+        // composite_dsl.h without paying a full-class-instantiation tax.
+        //
+        /// Tag this Function (used as an LDIM operand) as a factor on a particular
+        /// particle.  Used to build composite expressions like `f(p1) * u(p1,p2)`.
+        /// Include `<madness/mra/composite_dsl.h>` to enable evaluation.
+        template <class Tag,
+                  class = std::enable_if_t<std::is_same_v<Tag, ParticleTag>>>
+        LdimRef<T,NDIM> operator()(Tag p) const {
+            return make_ldim_ref<T,NDIM>(*this, p);
+        }
+        /// Tag this Function (used as an NDIM operand) with both particle indices.
+        ///
+        /// Only `(p1, p2)` ordering is supported (matches MADNESS's natural NDIM
+        /// dimension order); a permuted ordering would require an explicit dim swap.
+        template <class Tag1, class Tag2,
+                  class = std::enable_if_t<std::is_same_v<Tag1, ParticleTag> &&
+                                           std::is_same_v<Tag2, ParticleTag>>>
+        NdimRef<T,NDIM> operator()(Tag1 a, Tag2 b) const {
+            MADNESS_CHECK_THROW(a == p1 && b == p2,
+                "Function::operator()(a, b): only (p1, p2) ordering is supported; "
+                "permuted ordering would require an explicit dim-swap.");
+            return make_ndim_ref<T,NDIM>(*this);
+        }
+
         /// Throws if function is not initialized.
         ///
         /// This function mimics operator() by going through the
@@ -624,6 +679,15 @@ namespace madness {
             verify();
             impl->set_thresh(value);
             if (fence) impl->world.gop.fence();
+        }
+
+
+        /// Sets the truncate_mode (-2,-1,0,1,2,3,4) on this Function's impl.  No fence is
+        /// issued — truncate_mode is a local per-impl integer with no global state.
+        void set_truncate_mode(int value) {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            impl->set_truncate_mode(value);
         }
 
 
@@ -2216,9 +2280,15 @@ namespace madness {
     	result.get_impl()->reset_timer();
     	op.reset_timer();
 
-		// will fence here
-        for (size_t i=0; i<f1.size(); ++i)
-            result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
+		// fuse all pairs into a single tree traversal
+        {
+            std::vector<const FunctionImpl<T,LDIM>*> fimpls(f1.size()), gimpls(f2.size());
+            for (size_t i=0; i<f1.size(); ++i) {
+                fimpls[i]=f1[i].get_impl().get();
+                gimpls[i]=f2[i].get_impl().get();
+            }
+            result.get_impl()->recursive_apply(op, fimpls, gimpls, false);
+        }
         world.gop.fence();
 
         if (op.print_timings) {
@@ -2521,6 +2591,143 @@ namespace madness {
     }
 
 
+    /// build result = Σ_t (ket_t · factor1_t(1) · factor2_t(2) · extra_t(1,2)) adaptively
+    ///
+    /// Each term's ket is either an explicit NDIM Function (`term.ket`) or a sum of
+    /// hartree products  ket_t(1,2) = Σ_k p1[k](1) ⊗ p2[k](2).  factor1 / factor2 are
+    /// optional single LDIM factors; extra is an optional NDIM factor (typically an
+    /// on-demand ERI).
+    ///
+    /// Subsumes:
+    ///   - multiply(f,g,particle)   : one term, factor1 or factor2
+    ///   - make_Vphi(...)           : sum of three terms with shared ket
+    ///   - make_Vphi_ij_u(...)      : one term, factor1=i, factor2=j
+    ///
+    /// Inputs are brought into redundant state internally; the result is reconstructed.
+    /// `target_precision`: error threshold; 0 → use the result's thresh.
+    /// `oversampling`:     additional quadrature points for pointwise_multiplier.
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> composite_product(World& world,
+                                       std::vector<composite_term<T,NDIM>> terms,
+                                       double target_precision = 0.0,
+                                       int oversampling = 1,
+                                       bool fence = true) {
+        MADNESS_ASSERT(!terms.empty());
+
+        // model the result tree shape on the first available NDIM impl, or fall back
+        // to constructing an empty Function from defaults when only hartree pairs are given.
+        Function<T,NDIM> result;
+        if (terms.front().ket.is_initialized()) {
+            result.set_impl(terms.front().ket, false);
+        } else {
+            MADNESS_ASSERT(!terms.front().p1.empty());
+            result = FunctionFactory<T,NDIM>(world).empty();
+        }
+
+        using Leaf = Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM>>;
+        Leaf leaf_op(result.get_impl().get());
+
+        composite_product_apply<T,NDIM,Leaf>(result.get_impl().get(), leaf_op, terms,
+                                              target_precision, oversampling, fence);
+        return result;
+    }
+
+    /// Overload taking a polymorphic LeafOpBase for fine-grained tree-structure control.
+    ///
+    /// The caller-provided `leaf_op` lets you drive a cuspy box (ElectronCuspyBox_op,
+    /// NuclearCuspyBox_op), a custom Specialbox_op, or a screening operator through
+    /// the composite product's per-key refinement decisions.
+    ///
+    /// Lifetime: `leaf_op` must outlive this call.
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> composite_product(World& world,
+                                       std::vector<composite_term<T,NDIM>> terms,
+                                       const LeafOpBase<T,NDIM>& leaf_op,
+                                       double target_precision = 0.0,
+                                       int oversampling = 1,
+                                       bool fence = true) {
+        MADNESS_ASSERT(!terms.empty());
+
+        Function<T,NDIM> result;
+        if (terms.front().ket.is_initialized()) {
+            result.set_impl(terms.front().ket, false);
+        } else {
+            MADNESS_ASSERT(!terms.front().p1.empty());
+            result = FunctionFactory<T,NDIM>(world).empty();
+        }
+
+        LeafOpRef<T,NDIM> leaf_ref(leaf_op);
+        composite_product_apply<T,NDIM,LeafOpRef<T,NDIM>>(
+            result.get_impl().get(), leaf_ref, terms,
+            target_precision, oversampling, fence);
+        return result;
+    }
+
+    /// compute <bra | Σ_t (ket_t · factor1_t · factor2_t)> adaptively
+    ///
+    /// `bra` may be on-demand (e.g., an ERI functor) or a regular tree-resident NDIM
+    /// Function.  Per-term `extra` is not allowed in inner mode (route extras through
+    /// the bra instead).
+    template <typename T, std::size_t NDIM>
+    T composite_inner(World& world,
+                      std::vector<composite_term<T,NDIM>> terms,
+                      Function<T,NDIM> bra,
+                      double target_precision = 0.0,
+                      int oversampling = 1) {
+        MADNESS_CHECK_THROW(!terms.empty(),
+            "composite_inner: terms list must not be empty");
+        MADNESS_CHECK_THROW(bra.is_initialized(),
+            "composite_inner: bra Function must be initialised");
+
+        // pick a sibling impl to model the accumulator's pmap / thresh / k
+        const FunctionImpl<T,NDIM>* like = nullptr;
+        if (terms.front().ket.is_initialized()) {
+            like = terms.front().ket.get_impl().get();
+        } else if (bra.is_initialized() && !bra.is_on_demand()) {
+            like = bra.get_impl().get();
+        }
+        MADNESS_CHECK_THROW(like,
+            "composite_inner: cannot model accumulator — provide a ket in the first term, "
+            "or a non-on-demand bra");
+
+        using Leaf = Leaf_op<T,NDIM,SeparatedConvolution<double,NDIM>,Specialbox_op<T,NDIM>>;
+        Leaf leaf_op(const_cast<FunctionImpl<T,NDIM>*>(like));
+
+        return composite_inner_apply<T,NDIM,Leaf>(world, like, leaf_op, terms,
+                                                   bra,
+                                                   target_precision, oversampling);
+    }
+
+    /// Overload taking a polymorphic LeafOpBase for fine-grained refinement control.
+    template <typename T, std::size_t NDIM>
+    T composite_inner(World& world,
+                      std::vector<composite_term<T,NDIM>> terms,
+                      Function<T,NDIM> bra,
+                      const LeafOpBase<T,NDIM>& leaf_op,
+                      double target_precision = 0.0,
+                      int oversampling = 1) {
+        MADNESS_CHECK_THROW(!terms.empty(),
+            "composite_inner: terms list must not be empty");
+        MADNESS_CHECK_THROW(bra.is_initialized(),
+            "composite_inner: bra Function must be initialised");
+
+        const FunctionImpl<T,NDIM>* like = nullptr;
+        if (terms.front().ket.is_initialized()) {
+            like = terms.front().ket.get_impl().get();
+        } else if (bra.is_initialized() && !bra.is_on_demand()) {
+            like = bra.get_impl().get();
+        }
+        MADNESS_CHECK_THROW(like,
+            "composite_inner: cannot model accumulator — provide a ket in the first term, "
+            "or a non-on-demand bra");
+
+        LeafOpRef<T,NDIM> leaf_ref(leaf_op);
+        return composite_inner_apply<T,NDIM,LeafOpRef<T,NDIM>>(
+            world, like, leaf_ref, terms, bra,
+            target_precision, oversampling);
+    }
+
+
     template <typename T, std::size_t NDIM>
     Function<T,NDIM>
     project(const Function<T,NDIM>& other,
@@ -2586,6 +2793,10 @@ namespace madness {
             for (auto& g : vg) g.get_impl()->compute_snorm_and_dnorm(false);
             world.gop.fence();
         }
+        // print("f tree");
+        // f.get_impl()->print_tree(std::cout,3);
+        // print("g tree");
+        // for (const auto& gg: vg) gg.get_impl()->print_tree(std::cout,3);
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
         std::vector<Function<resultT,NDIM>> result(vg.size());

@@ -135,6 +135,43 @@ Tensor<T> Localizer::compute_core_valence_separation_transformation_matrix(World
     return U;
 }
 
+Tensor<double> Localizer::compute_block_canonicalization_matrix(const Tensor<double>& Fock,
+                         const std::vector<std::vector<long>>& blocks) {
+
+    const long nmo = Fock.dim(0);
+    MADNESS_CHECK(Fock.ndim() == 2 && Fock.dim(0) == Fock.dim(1));
+
+    // start from the identity -- orbitals outside any block are left untouched
+    Tensor<double> U(nmo, nmo);
+    for (long i = 0; i < nmo; ++i) U(i, i) = 1.0;
+
+    for (const auto& block : blocks) {
+        const int m = int(block.size());
+        if (m < 2) continue;
+
+        // gather the m x m Fock sub-block over the (not necessarily contiguous) block indices
+        Tensor<double> S(m, m);
+        for (int p = 0; p < m; ++p)
+            for (int q = 0; q < m; ++q)
+                S(p, q) = Fock(block[p], block[q]);
+
+        // diagonalize the sub-block with the existing jacobi rotation; all-singleton sets
+        // make jacobi zero every off-diagonal element, i.e. fully diagonalize S.
+        // jacobi yields V with V*S*V^T = diagonal; mirror compute_core_valence_separation...:
+        // the embedded transform is transpose(V), so that (U^T Fock U) has the block diagonal.
+        Tensor<double> V(m, m);
+        std::vector<int> set(m);
+        for (int p = 0; p < m; ++p) set[p] = p;
+        jacobi(S, V, set);
+        Tensor<double> Ublock = transpose(V);
+
+        for (int p = 0; p < m; ++p)
+            for (int q = 0; q < m; ++q)
+                U(block[p], block[q]) = Ublock(p, q);
+    }
+    return U;
+}
+
 template<typename T>
 bool Localizer::check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set,
                                               const bool silent) {

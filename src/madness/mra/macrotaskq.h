@@ -10,7 +10,7 @@
  This improves locality and speedups for large number of compute nodes, by reducing communications
  within worlds.
 
- The user defines a macrotask (an example is found in test_vectormacrotask.cc), the tasks are
+ The user defines a task (examples are found in test_vectormacrotask.cc), the tasks are
  lightweight and carry only bookkeeping information, actual input and output are stored in a
  cloud (see cloud.h)
 
@@ -28,7 +28,6 @@
   - std::tuple<std::vector<XXX>, std::vector<YYY>> (a tuple of n vectors of WorldObjects: XXX, YYY, .. = {Function, ScalarResultImpl, ...})
 
 
- TODO: priority q
  TODO: task submission from inside task (serialize task instead of replicate)
  TODO: update documentation
  TODO: consider serializing task member variables
@@ -658,6 +657,8 @@ public:
 	/// run all tasks
 	void run_all() {
 
+		sort_tasks_by_priority();
+
 		if (printdebug()) print_taskq();
 		if (printtimings_detail()) {
 			if (universe.rank()==0) {
@@ -721,7 +722,7 @@ public:
 			double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
-			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time(), "no node", get_hostname());
 
 			task->run(subworld,cloud, taskq, element, printdebug(), policy);
 
@@ -806,7 +807,14 @@ public:
         universe.gop.fence();
     }
 
+
+	void sort_tasks_by_priority() {
+		std::stable_sort(taskq.begin(),taskq.end(),[](const std::shared_ptr<MacroTaskBase>& a, const std::shared_ptr<MacroTaskBase>& b) {
+			return a->get_priority() > b->get_priority();
+		});
+	}
 private:
+
 	void add_replicated_task(const std::shared_ptr<MacroTaskBase>& task) {
 		taskq.push_back(task);
 	}
@@ -871,6 +879,11 @@ template<typename taskT>
 class MacroTask {
     using partitionT = MacroTaskPartitioner::partitionT;
 
+    typedef typename taskT::resultT resultT;
+    typedef typename taskT::argtupleT argtupleT;
+    typedef Cloud::recordlistT recordlistT;
+
+
     template<typename Q>
     struct is_vector : std::false_type {
     };
@@ -878,9 +891,12 @@ class MacroTask {
     struct is_vector<std::vector<Q>> : std::true_type {
     };
 
-    typedef typename taskT::resultT resultT;
-    typedef typename taskT::argtupleT argtupleT;
-    typedef Cloud::recordlistT recordlistT;
+	// the next two type traits figure out if a taskT has a member function: compute_priority(Batch&, argtupleT&)
+	template <typename T,typename argtupleT>
+	using member_compute_priority_t = decltype(std::declval<T>().compute_priority(std::declval<Batch&>(), std::declval<argtupleT&>()));
+
+	template <typename T, typename argtupleT>
+	using has_member_compute_priority = madness::meta::is_detected<member_compute_priority_t, T, argtupleT>;
 
     taskT task;
     bool debug=false;
@@ -947,7 +963,20 @@ public:
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
 
-    	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
+    	// if task has a compute_priority function implemented, recompute the priorities
+    	if constexpr (has_member_compute_priority<taskT, argtupleT>::value) {
+    		auto predicate = [&](const Batch& batch, const argtupleT& argtuple) {
+				return task.compute_priority(batch,argtuple);
+			};
+    		std::function<double(const Batch& batch, const argtupleT& argtuple)> predicate1 = predicate;
+    		MacroTaskPartitioner::recompute_priorities(partition,argtuple,predicate1);
+    	}
+
+        // store input and output: output being a pointer to a universe function (vector)
+    	if (debug and world.rank()==0) {
+    		print("MacroTask storage policy: ",taskq_ptr->get_policy().storage_policy);
+    		print("Cloud storage policy:     ",taskq_ptr->cloud.get_storing_policy());
+    	}
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         resultT result = task.allocator(world, argtuple);
@@ -1144,7 +1173,7 @@ private:
     		}
 
     		try {
-			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
+			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"with priority",this->get_priority(),"at time",wall_time());
         	    double cpu0=cpu_time();
     			task.subworld_ptr=&subworld;	// give the task access to the subworld
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
@@ -1292,6 +1321,8 @@ public:
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
+    MacroTaskOperationBase(const std::string name) : batch(Batch(_, _, _)),
+				name(name), partitioner(new MacroTaskPartitioner) {}
 };
 
 

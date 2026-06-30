@@ -6,6 +6,7 @@
 #include <madness/chem/TDHF.h>
 
 #include <madness/chem/ResponseParameters.hpp>
+#include<madness/chem/lowrankfunction.h>
 
 using namespace madness;
 using path = std::filesystem::path;
@@ -191,4 +192,5 @@ using Params = ParameterManager<CalculationParameters,
                                 OEP_Parameters,
                                 TDHFParameters,
                                 CCParameters,
+                                LowRankFunctionParameters,
                                 Molecule>;

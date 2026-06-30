@@ -1,0 +1,764 @@
+//
+// exchange_commutator.cc — Phase A implementation.
+//
+// Every apply_KffK_* entry point is a thin wrapper around an existing
+// CCPotentials static method, extended with uniform wall-time / memory /
+// rank instrumentation packaged in a KffKResult.  The scalar split-α
+// routine and the harmonic-basis diagnostic are extracted verbatim from
+// benchmark_exchange_commutator.cc.  No existing behaviour is duplicated.
+//
+
+#include <madness/chem/exchange_commutator.h>
+
+#include <madness/chem/CCPotentials.h>
+#include <madness/chem/SCFOperators.h>   // madness::Exchange
+#include <madness/mra/operator.h>        // SlaterF12OperatorPtr_ND / SlaterOperatorPtr_ND
+#include <madness/world/timing_utilities.h>
+#include <madness/world/timers.h>
+
+namespace madness {
+
+namespace {
+
+/// 6D pair size in GByte: sum over decomposed factors or the pure 6D part.
+double pair_size_gb(World& world, const std::vector<CCPairFunction<double,6>>& v) {
+    double total = 0.0;
+    for (const auto& cc : v) {
+        if (!cc.is_assigned()) continue;
+        if (cc.is_pure()) {
+            total += get_size(cc.get_function());
+        } else if (cc.is_decomposed()) {
+            total += get_size(world, cc.get_a()) + get_size(world, cc.get_b());
+        }
+    }
+    return total;
+}
+
+long pair_rank(const std::vector<CCPairFunction<double,6>>& v) {
+    long R = 0;
+    for (const auto& cc : v) {
+        if (cc.is_decomposed() && cc.is_assigned()) R += cc.get_a().size();
+    }
+    return R;
+}
+
+/// Sum the three named pieces into the aggregate mem / rank fields.
+void finalize_sizes(World& world, ExchangeCommutator::KffKResult& r) {
+    r.mem_gb = pair_size_gb(world, r.Kf)
+             + pair_size_gb(world, r.fK)
+             + pair_size_gb(world, r.KffK);
+    r.rank   = pair_rank(r.Kf) + pair_rank(r.fK) + pair_rank(r.KffK);
+}
+
+struct wall_timer {
+    World& world;
+    double start;
+    explicit wall_timer(World& w) : world(w) {
+        world.gop.fence();
+        start = wall_time();
+    }
+    double elapsed() {
+        world.gop.fence();
+        return wall_time() - start;
+    }
+};
+
+// Apply a partial-Coulomb K̂(phi) = Σ_k k_ket * op_partial(k_bra * phi).
+// op_partial is a 3D SeparatedConvolution holding only a subset of the
+// Coulomb GFit (e.g. just the medium Gaussians).  Mirrors K_macrotask but
+// substitutes op_partial for the full Coulomb.
+real_function_3d K_partial_3d(
+        World& world,
+        const std::vector<real_function_3d>& mo_ket,
+        const std::vector<real_function_3d>& mo_bra,
+        const real_function_3d& f,
+        SeparatedConvolution<double, 3>& op_partial) {
+    op_partial.particle() = 1;
+    real_function_3d result = real_factory_3d(world);
+    for (size_t k = 0; k < mo_ket.size(); ++k) {
+        result += op_partial(mo_bra[k] * f).truncate() * mo_ket[k];
+    }
+    return result;
+}
+
+// Apply Kf|xy⟩ in 6D using a partial-Coulomb operator.  Body cloned from
+// CCPotentials::apply_Kfxy with g12 → op_partial; debug test-lambdas
+// dropped (they returned 0.0 unconditionally upstream).
+real_function_6d apply_Kfxy_partial(
+        World& world,
+        const CCFunction<double, 3>& x,
+        const CCFunction<double, 3>& y,
+        const Info& info,
+        const CCParameters& parameters,
+        SeparatedConvolution<double, 3>& op_partial) {
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    op_partial.destructive() = true;
+
+    real_function_6d result = FunctionFactory<double, 6>(world);
+
+    for (int particle : {1, 2}) {
+        const auto& kbra = info.mo_bra;
+        const auto k_arg = (particle == 1) ? kbra * x.function : kbra * y.function;
+
+        const std::size_t batchsize = 3;
+        for (std::size_t kbatch = 0; kbatch < info.mo_ket.size(); kbatch += batchsize) {
+            for (std::size_t k = kbatch;
+                 k < std::min(kbatch + batchsize, info.mo_ket.size()); ++k) {
+                real_function_3d xx = (particle == 1) ? k_arg[k] : x.function;
+                real_function_3d yy = (particle == 2) ? k_arg[k] : y.function;
+                xx.truncate();
+                yy.truncate();
+                real_function_6d X = CompositeFactory<double, 6, 3>(world)
+                                        .g12(corrfac.f())
+                                        .particle1(copy(xx))
+                                        .particle2(copy(yy));
+                X.fill_cuspy_tree().truncate(parameters.tight_thresh_6D()).reduce_rank();
+
+                op_partial.particle() = particle;
+                real_function_6d Y = op_partial(X);
+                auto tmp = (multiply(copy(Y), copy(info.mo_ket[k]), particle))
+                                .truncate(parameters.tight_thresh_6D() * 3.0);
+                result += tmp;
+            }
+            result.truncate(parameters.tight_thresh_6D())
+                  .reduce_rank(parameters.tight_thresh_6D());
+        }
+
+        if (x.i == y.i) {
+            result += madness::swap_particles(result);
+            break;
+        }
+    }
+    return result;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+//  6D path — mirrors test_kcomm_6d in the benchmark file
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::KffKResult
+ExchangeCommutator::apply_KffK_6d(
+        World& world,
+        const CCFunction<double,3>& phi_i,
+        const CCFunction<double,3>& phi_j,
+        const Info& info,
+        const real_convolution_6d* Gscreen)
+{
+    KffKResult out;
+    out.algo = "6d";
+    wall_timer t(world);
+
+    const CCParameters& parameters = info.parameters;
+
+    // --- Kf|ij> via apply_Kfxy ---------------------------------------------
+    real_function_6d Kfxy = CCPotentials::apply_Kfxy(world, phi_i, phi_j, info, parameters);
+    Kfxy.truncate().reduce_rank();
+
+    // --- fK|ij> via K_macrotask + make_f_xy_macrotask ----------------------
+    const real_function_3d x_ket = phi_i.function;
+    const real_function_3d y_ket = phi_j.function;
+    const real_function_3d x_bra = (info.R_square * phi_i.function).truncate();
+    const real_function_3d y_bra = (info.R_square * phi_j.function).truncate();
+
+    const bool symmetric_fk = (phi_i == phi_j);
+    const real_function_3d Kx = CCPotentials::K_macrotask(
+            world, info.mo_ket, info.mo_bra, x_ket, parameters);
+    const FuncType Kx_type = UNDEFINED;
+    const real_function_6d fKphi0b = CCPotentials::make_f_xy_macrotask(
+            world, Kx, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+            parameters, Kx_type, phi_j.type, Gscreen);
+    real_function_6d fKphi0a;
+    if (symmetric_fk) {
+        fKphi0a = madness::swap_particles(fKphi0b);
+    } else {
+        const real_function_3d Ky = CCPotentials::K_macrotask(
+                world, info.mo_ket, info.mo_bra, y_ket, parameters);
+        const FuncType Ky_type = UNDEFINED;
+        fKphi0a = CCPotentials::make_f_xy_macrotask(
+                world, x_ket, Ky, x_bra, y_bra, phi_i.i, phi_j.i,
+                parameters, phi_i.type, Ky_type, Gscreen);
+    }
+    real_function_6d fKxy = (fKphi0a + fKphi0b);
+    fKxy.truncate().reduce_rank();
+
+    out.Kf   = { CCPairFunction<double,6>(Kfxy) };
+    out.fK   = { CCPairFunction<double,6>(fKxy) };
+    out.KffK = { CCPairFunction<double,6>(Kfxy),
+                 -1.0 * CCPairFunction<double,6>(fKxy) };
+    finalize_sizes(world, out);
+    out.t_wall = t.elapsed();
+    return out;
+}
+
+LowRankFunction<double,6>
+ExchangeCommutator::compute_lrf_exchange_operator(
+    World& world,
+    const Info& info,
+    const SplitAlphaOptions& opt,
+    const LowRankFunctionParameters& lrfparam) {
+
+    constexpr std::size_t LDIM=3;
+    constexpr std::size_t NDIM=6;
+
+    timer t(world);
+    // K̂ kernel (Coulomb 1/r) via OperatorInfo; small-α subset built below.
+    GFit<double, LDIM> fit = GFit<double, LDIM>::CoulombFit(
+            opt.lo, opt.hi, opt.eps_gfit, false);
+    const Tensor<double> c_all = fit.coeffs();
+    const Tensor<double> a_all = fit.exponents();
+    const long M = c_all.size();
+    t.tag("fit operator expansion");
+
+    std::vector<double> cs, as;
+    for (long mu = 0; mu < M; ++mu) {
+        if (a_all[mu] <= opt.alpha_star) {
+            MADNESS_ASSERT(c_all[mu] > 0.0);  // risk #3 in the plan
+            cs.push_back(c_all[mu]);
+            as.push_back(a_all[mu]);
+        }
+    }
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    const long Mk = cs.size();
+    Tensor<double> c_t(Mk), a_t(Mk);
+    for (long mu = 0; mu < Mk; ++mu) { c_t[mu] = cs[mu]; a_t[mu] = as[mu]; }
+    auto trunc_op = std::make_shared<SeparatedConvolution<double, LDIM>>(
+            world, c_t, a_t, opt.lo, thresh);
+
+    std::vector<Vector<double, LDIM>> origins=info.molecular_coordinates;
+
+    // The two commutator pieces are each stored as a single CCPairFunction
+    // stack, so they compose cleanly into Kf / fK / KffK.  The Kf piece is a
+    // plain decomposed pair `g_ρ(1) · (phi_j · A_ρ)(2)` (the f12 is already
+    // baked into A_ρ); the fK piece must be wrapped with f12 because its
+    // factors `C_i(1)` and `phi_j(2)` carry no f12 themselves.  The minus
+    // sign of the commutator is applied on the KffK stack only.
+
+    // The nemo exchange kernel is K(r,r') = Σ_k k(r)·R²(r')·k(r')/|r-r'|,
+    // i.e. the bra-side R²-weighted orbital lives on the *integration*
+    // coordinate.  In the LRF picture (r,r') → (particle 1, particle 2),
+    // particle 2 is the integration coord, so k_bra (= R²·k) must be the
+    // particle-2 multiplier.  When R²=1 the two arguments coincide, which
+    // hid this asymmetry until non-trivial NCFs were tested.
+    LRFunctorF12<double, NDIM> functor(trunc_op, info.mo_ket, info.mo_bra);
+    auto lrf_exchange_op = LowRankFunctionFactory<double, NDIM>(lrfparam, origins)
+               .project(functor, FunctionDefaults<6>::get_thresh(), 0);
+    lrf_exchange_op.print_size("LRF of exchange kernel");
+    t.tag("construct LRF of exchange kernel");
+    return lrf_exchange_op;
+}
+
+// ---------------------------------------------------------------------------
+//  Full 6D split-α assembly — loops over mo_ket, produces a KffKResult
+//  that diagnose/print_report can consume.
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::KffKResult
+ExchangeCommutator::apply_KffK_lowrank_split_alpha(
+        World& world,
+        const CCFunction<double, 3>& phi_i,
+        const CCFunction<double, 3>& phi_j,
+        const Info& info,
+        const LowRankFunction<double,6>& exchange_op,
+        const LowRankFunctionParameters& lrfparam,
+        const SplitAlphaOptions& opt)
+{
+    constexpr std::size_t LDIM = 3;
+    constexpr std::size_t NDIM = 2 * LDIM;
+    KffKResult out;
+    out.algo = "lrf-split-alpha";
+    timer t(world);
+    wall_timer t1(world);
+
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    const bool symmetric = (phi_i == phi_j);
+
+    auto f12_cc = CCConvolutionOperatorPtr<double, LDIM>(
+            world, OT_F12, info.parameters);
+    auto f12ptr = f12_cc->get_op();
+
+    auto lrf_exchange_op = exchange_op;
+    if (lrf_exchange_op.get_g().size()==0) lrf_exchange_op=compute_lrf_exchange_operator(world, info, opt, lrfparam);
+    auto& gvec = lrf_exchange_op.g;
+    auto& hvec = lrf_exchange_op.h;
+    double tol=FunctionDefaults<LDIM>::get_thresh();
+
+    // piece 1 (K̂₁ f part):  Σ_ρ g_ρ(1) · (phi_j · A_ρ)(2)
+    // A_ρ(r₂) = f12(h_ρ · phi_i)(r₂)
+    auto j_A_pi = phi_j.function * apply(world, *f12ptr, hvec * phi_i.function);
+    auto Kf=LowRankFunction<double,NDIM>(gvec,j_A_pi,tol);
+    if (symmetric) {
+        Kf+=LowRankFunction<double,NDIM>(j_A_pi,gvec,tol);
+    } else {
+        auto i_A_pj = phi_i.function * apply(world, *f12ptr, hvec * phi_j.function);
+        Kf+=LowRankFunction<double,NDIM>(i_A_pj,gvec,tol);
+    }
+    t.tag("construct Kf |ij>");
+
+    // piece 2 (f K̂₁ part):  Σ_ρ B_ρi · g_ρ(1) · f(1,2) · phi_j(2)
+    //                       =  C_i(1) f(1,2) phi_j(2)
+    // B_ρ     = ⟨h_ρ | phi_i⟩
+    // NOTE: for internal consistency the fK term uses the truncated exchange kernel
+    // instead of simply applying the exchange operator on the ket.
+    auto B_pi = inner(world, phi_i.function, hvec);
+    auto C_i=transform(world,gvec,B_pi);
+    MADNESS_CHECK_THROW(C_i.size()==1,"invalid size for Ci");
+    auto fK=LowRankFunction<double,6>(C_i,{phi_j.function},tol);
+    if (symmetric) {
+        fK+=LowRankFunction<double,NDIM>({phi_j.function},C_i,tol);
+    } else {
+        auto B_pj = inner(world, phi_j.function, hvec);
+        auto C_j=transform(world,gvec,B_pj);
+        fK+=LowRankFunction<double,NDIM>({phi_i.function},C_j,tol);
+    }
+    t.tag("construct fK |ij>");
+
+    // Assemble named pair stacks.  Kf has f12 absorbed into the per-ρ factor
+    // `j_A_pi = phi_j · f12(h_ρ · phi_i)`, so it is a plain decomposed pair.
+    // fK's factors `C_i(1)` and `phi_j(2)` are bare orbitals; the pair must
+    // be wrapped with f12_cc to represent C_i(1) · f(1,2) · phi_j(2).
+    out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
+    out.fK = { CCPairFunction<double, 6>(f12_cc,    fK.get_g(), fK.get_h()) };
+    out.fK[0].convert_to_pure_no_op_inplace();
+    out.fK[0].get_function().print_size("fK |ij> after conversion to pure");
+    t.tag("convert fK to pure");
+
+    out.KffK.push_back(out.Kf[0]);
+    out.KffK.push_back(-1.0 * out.fK[0]);
+
+    finalize_sizes(world, out);
+    out.rank   = gvec.size();   // LRF rank of the underlying decomposition
+    out.t_wall = t1.elapsed();
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+//  Three-range LRF assembly: diffuse + medium sub-LRFs, tight discarded.
+//  Mirrors apply_KffK_lowrank_split_alpha but builds two LRFs (with separate
+//  LowRankFunctionParameters) and concatenates their g/h vectors before
+//  assembling Kf and fK.  See lrf_three_range_gfit.md.
+// ---------------------------------------------------------------------------
+
+ExchangeCommutator::KffKResult
+ExchangeCommutator::apply_KffK_lowrank_three_range(
+        World& world,
+        const CCFunction<double, 3>& phi_i,
+        const CCFunction<double, 3>& phi_j,
+        const Info& info,
+        const ThreeRangeOptions& opt)
+{
+    constexpr std::size_t LDIM = 3;
+    constexpr std::size_t NDIM = 2 * LDIM;
+    KffKResult out;
+    out.algo = "lrf-three-range";
+    timer t(world);
+    wall_timer t1(world);
+
+    const double thresh = FunctionDefaults<LDIM>::get_thresh();
+    const bool symmetric = (phi_i == phi_j);
+
+    auto f12_cc = CCConvolutionOperatorPtr<double, LDIM>(
+            world, OT_F12, info.parameters);
+    auto f12ptr = f12_cc->get_op();
+
+    // GFit of 1/r and partition into three slabs by α.
+    GFit<double, LDIM> fit = GFit<double, LDIM>::CoulombFit(
+            opt.lo, opt.hi, opt.eps_gfit, false);
+    const Tensor<double> c_all = fit.coeffs();
+    const Tensor<double> a_all = fit.exponents();
+    const long M = c_all.size();
+    t.tag("fit operator expansion");
+
+    std::vector<double> cs_diff, as_diff, cs_med, as_med;
+    long n_tight = 0;
+    for (long mu = 0; mu < M; ++mu) {
+        const double a = a_all[mu];
+        const double c = c_all[mu];
+        if (a > opt.alpha_hi) {            // tight: discard
+            ++n_tight;
+            continue;
+        }
+        MADNESS_ASSERT(c > 0.0);
+        if (a < opt.alpha_lo) {            // diffuse
+            cs_diff.push_back(c);
+            as_diff.push_back(a);
+        } else {                           // medium
+            cs_med.push_back(c);
+            as_med.push_back(a);
+        }
+    }
+    const long Md = cs_diff.size();
+    const long Mm = cs_med.size();
+    if (world.rank() == 0) {
+        print("[three-range] GFit partition: M_total =", M,
+              " diffuse =", Md, " medium =", Mm, " tight (discard) =", n_tight,
+              " | alpha_lo =", opt.alpha_lo, " alpha_hi =", opt.alpha_hi);
+    }
+    MADNESS_CHECK_THROW(Md > 0 || Mm > 0,
+                       "three-range: both diffuse and medium are empty");
+
+    auto make_op = [&](const std::vector<double>& cs,
+                       const std::vector<double>& as)
+            -> std::shared_ptr<SeparatedConvolution<double, LDIM>> {
+        const long Mk = cs.size();
+        if (Mk == 0) return {};
+        Tensor<double> c_t(Mk), a_t(Mk);
+        for (long mu = 0; mu < Mk; ++mu) { c_t[mu] = cs[mu]; a_t[mu] = as[mu]; }
+        return std::make_shared<SeparatedConvolution<double, LDIM>>(
+                world, c_t, a_t, opt.lo, thresh);
+    };
+    auto op_diff = make_op(cs_diff, as_diff);
+    auto op_med  = make_op(cs_med,  as_med);
+
+    std::vector<Vector<double, LDIM>> origins = info.molecular_coordinates;
+
+    // Build the two LRFs with their own parameter sets.  Each one represents
+    // its sub-kernel · k(r₁) · k(r₂); the kernel splits linearly so the two
+    // (g, h) sets simply concatenate into the joint decomposition used below.
+    std::vector<Function<double, LDIM>> gvec, hvec;
+    long rank_diff = 0, rank_med = 0;
+
+    if (op_diff) {
+        LRFunctorF12<double, NDIM> functor_diff(op_diff, info.mo_ket, info.mo_bra);
+        auto lrf_diff = LowRankFunctionFactory<double, NDIM>(
+                            opt.lrfparam_diffuse, origins)
+                .project(functor_diff, FunctionDefaults<6>::get_thresh(), 0);
+        rank_diff = lrf_diff.g.size();
+        gvec.insert(gvec.end(), lrf_diff.g.begin(), lrf_diff.g.end());
+        hvec.insert(hvec.end(), lrf_diff.h.begin(), lrf_diff.h.end());
+        t.tag("construct LRF (diffuse)");
+    }
+    if (op_med && !opt.medium_use_6d) {
+        LRFunctorF12<double, NDIM> functor_med(op_med, info.mo_ket, info.mo_bra);
+        auto factory_med = LowRankFunctionFactory<double, NDIM>(
+                                opt.lrfparam_medium, origins);
+        auto lrf_med = opt.medium_use_taylor
+            ? factory_med.project_from_operator(
+                    functor_med,
+                    FunctionDefaults<6>::get_thresh(),
+                    opt.max_taylor_order)
+            : factory_med.project(
+                    functor_med,
+                    FunctionDefaults<6>::get_thresh(), 0);
+        rank_med = lrf_med.g.size();
+        gvec.insert(gvec.end(), lrf_med.g.begin(), lrf_med.g.end());
+        hvec.insert(hvec.end(), lrf_med.h.begin(), lrf_med.h.end());
+        t.tag(opt.medium_use_taylor
+              ? "construct LRF (medium, Taylor)"
+              : "construct LRF (medium, random-Y)");
+    }
+    if (world.rank() == 0) {
+        print("[three-range] LRF ranks: diffuse =", rank_diff,
+              " medium =", rank_med, " total =", rank_diff + rank_med);
+    }
+
+    double tol = FunctionDefaults<LDIM>::get_thresh();
+
+    // piece 1 (K̂₁ f part):  Σ_ρ g_ρ(1) · (phi_j · A_ρ)(2)
+    // A_ρ(r₂) = f12(h_ρ · phi_i)(r₂)
+    auto j_A_pi = phi_j.function * apply(world, *f12ptr, hvec * phi_i.function);
+    auto Kf = LowRankFunction<double, NDIM>(gvec, j_A_pi, tol);
+    if (symmetric) {
+        Kf += LowRankFunction<double, NDIM>(j_A_pi, gvec, tol);
+    } else {
+        auto i_A_pj = phi_i.function * apply(world, *f12ptr, hvec * phi_j.function);
+        Kf += LowRankFunction<double, NDIM>(i_A_pj, gvec, tol);
+    }
+    t.tag("construct Kf |ij>");
+
+    // piece 2 (f K̂₁ part):  Σ_ρ B_ρi · g_ρ(1) · f(1,2) · phi_j(2)
+    auto B_pi = inner(world, phi_i.function, hvec);
+    auto C_i = transform(world, gvec, B_pi);
+    MADNESS_CHECK_THROW(C_i.size() == 1, "invalid size for Ci");
+    auto fK = LowRankFunction<double, 6>(C_i, {phi_j.function}, tol);
+    if (symmetric) {
+        fK += LowRankFunction<double, NDIM>({phi_j.function}, C_i, tol);
+    } else {
+        auto B_pj = inner(world, phi_j.function, hvec);
+        auto C_j  = transform(world, gvec, B_pj);
+        fK += LowRankFunction<double, NDIM>({phi_i.function}, C_j, tol);
+    }
+    t.tag("construct fK |ij>");
+
+    out.Kf = { CCPairFunction<double, 6>(Kf.get_g(), Kf.get_h()) };
+    out.fK = { CCPairFunction<double, 6>(f12_cc, fK.get_g(), fK.get_h()) };
+    out.fK[0].convert_to_pure_no_op_inplace();
+    t.tag("convert fK to pure");
+
+    out.KffK.push_back(out.Kf[0]);
+    out.KffK.push_back(-1.0 * out.fK[0]);
+
+    // -----------------------------------------------------------------
+    // 6D medium piece: only built when opt.medium_use_6d is set.  Uses
+    // the partial-Coulomb operator op_med (medium Gaussians only) and
+    // the standard 6D apply_Kfxy / K_macrotask machinery.  Result is a
+    // pure 6D pair appended to Kf / fK / KffK.  Tight is still
+    // discarded (handled above by the GFit partition).
+    // -----------------------------------------------------------------
+    if (op_med && opt.medium_use_6d) {
+        // K̂_med f12 |ij⟩  ------------------------------------------------
+        real_function_6d Kfxy_med = apply_Kfxy_partial(
+                world, phi_i, phi_j, info, info.parameters, *op_med);
+        Kfxy_med.truncate().reduce_rank();
+        t.tag("construct Kf medium (6D)");
+
+        // f12 K̂_med |ij⟩  -----------------------------------------------
+        const real_function_3d x_ket = phi_i.function;
+        const real_function_3d y_ket = phi_j.function;
+        const real_function_3d x_bra = (info.R_square * phi_i.function).truncate();
+        const real_function_3d y_bra = (info.R_square * phi_j.function).truncate();
+
+        const real_function_3d Kx_med = K_partial_3d(
+                world, info.mo_ket, info.mo_bra, x_ket, *op_med);
+        const FuncType Kx_type = UNDEFINED;
+        const bool symmetric_fk = (phi_i == phi_j);
+        const real_function_6d fKphi0b = CCPotentials::make_f_xy_macrotask(
+                world, Kx_med, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+                info.parameters, Kx_type, phi_j.type, /*Gscreen=*/nullptr);
+        real_function_6d fKphi0a;
+        if (symmetric_fk) {
+            fKphi0a = madness::swap_particles(fKphi0b);
+        } else {
+            const real_function_3d Ky_med = K_partial_3d(
+                    world, info.mo_ket, info.mo_bra, y_ket, *op_med);
+            const FuncType Ky_type = UNDEFINED;
+            fKphi0a = CCPotentials::make_f_xy_macrotask(
+                    world, x_ket, Ky_med, x_bra, y_bra, phi_i.i, phi_j.i,
+                    info.parameters, phi_i.type, Ky_type, /*Gscreen=*/nullptr);
+        }
+        real_function_6d fKxy_med = (fKphi0a + fKphi0b);
+        fKxy_med.truncate().reduce_rank();
+        t.tag("construct fK medium (6D)");
+
+        out.Kf.push_back(CCPairFunction<double, 6>(Kfxy_med));
+        out.fK.push_back(CCPairFunction<double, 6>(fKxy_med));
+        out.KffK.push_back(CCPairFunction<double, 6>(Kfxy_med));
+        out.KffK.push_back(-1.0 * CCPairFunction<double, 6>(fKxy_med));
+
+        if (world.rank() == 0) {
+            print("[three-range] medium=6D piece appended:",
+                  " Kf size =",  get_size(Kfxy_med), "GB",
+                  " fK size =",  get_size(fKxy_med), "GB");
+        }
+    }
+
+    finalize_sizes(world, out);
+    out.rank   = rank_diff + rank_med;
+    out.t_wall = t1.elapsed();
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+//  [K̂,f] diagnostic — plain ⟨ab| projection vs analytic 3D reference
+// ---------------------------------------------------------------------------
+
+DiagnosticMatrix<>
+ExchangeCommutator::diagnose_KffK(
+        World& world,
+        const std::vector<CCPairFunction<double,6>>& Kf_cc,
+        const std::vector<CCPairFunction<double,6>>& fK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double /*energy*/,                     // ignored: no G in this diagnostic
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
+{
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_KffK: aobasis must be non-empty");
+    const double wall0 = wall_time();
+
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+    dm.init("Kf");
+    dm.init("fK");
+    dm.init("KffK");
+
+    // Result: project the 6D pieces onto ⟨ab|
+    dm.entries["Kf"].result   = dm.project_ab(Kf_cc);
+    dm.entries["fK"].result   = dm.project_ab(fK_cc);
+    dm.entries["KffK"].result = dm.entries["Kf"].result - dm.entries["fK"].result;
+
+    // Ref: analytic 3D Kf/fK matrix elements over the plain ⟨ab| bra
+    dm.entries["Kf"].ref = kf_provider(world, phi_i, phi_j, info)(dm.ao_basis, dm.ao_basis);
+    dm.entries["fK"].ref = fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info)(dm.ao_basis, dm.ao_basis);
+    dm.entries["KffK"].ref = dm.entries["Kf"].ref - dm.entries["fK"].ref;
+
+    dm.compute_errors();
+    dm.time = wall_time() - wall0;
+    return dm;
+}
+
+// ---------------------------------------------------------------------------
+//  G·[K̂,f] Schwinger diagnostic
+// ---------------------------------------------------------------------------
+
+DiagnosticMatrix<>
+ExchangeCommutator::diagnose_GKffK(
+        World& world,
+        const std::vector<CCPairFunction<double,6>>& GKf_cc,
+        const std::vector<CCPairFunction<double,6>>& GfK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double energy,
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
+{
+    MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GKffK: energy must be negative");
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_GKffK: aobasis must be non-empty");
+
+    // tight fit accuracy & length scale for the 3D Schwinger reference, decoupled
+    // from the working threshold so the reference is a stable yardstick
+    const double lo    = info.parameters.lo();
+    const double tt3   = info.parameters.tight_thresh_3D();
+    const double wall0 = wall_time();
+
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+    dm.init("GKf");
+    dm.init("GfK");
+    dm.init("GKffK");
+
+    // Fill result: project G·Kf and G·fK onto ⟨ab|  (G already applied by caller)
+    dm.entries["GKf"].result   = dm.project_ab(GKf_cc);
+    dm.entries["GfK"].result   = dm.project_ab(GfK_cc);
+    dm.entries["GKffK"].result = dm.entries["GKf"].result - dm.entries["GfK"].result;
+
+    // Fill ref: 3D Schwinger quadrature ⟨ab|G·X|ij⟩ ≈ Σₙ wₙ ⟨ã_n b̃_n|X|ij⟩ via
+    // ref_Gab with the Kf/fK element providers (formulas in the provider docs).
+    dm.entries["GKf"].ref = dm.ref_Gab(kf_provider(world, phi_i, phi_j, info, tt3),
+                                       energy, lo, tt3);
+    dm.entries["GfK"].ref = dm.ref_Gab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info, tt3),
+                                       energy, lo, tt3);
+    dm.entries["GKffK"].ref = dm.entries["GKf"].ref - dm.entries["GfK"].ref;
+
+    dm.compute_errors();
+    dm.time = wall_time() - wall0;
+    return dm;
+}
+
+// ---------------------------------------------------------------------------
+//  Kf / fK element providers — the operator-specific unit plugged into
+//  DiagnosticMatrix::ref_Gab / ref_GQab (see operator_diagnostics.md)
+// ---------------------------------------------------------------------------
+
+DiagnosticMatrix<>::ElementProvider
+ExchangeCommutator::kf_provider(
+        World& world,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const Info& info,
+        double eps)
+{
+    const double lo     = info.parameters.lo();
+    const double gamma  = info.parameters.gamma();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
+
+    auto Kdagger = std::make_shared<madness::Exchange<double,3>>(world, lo);
+    Kdagger->set_bra_and_ket(info.mo_ket, info.mo_bra);
+    auto f12 = std::shared_ptr<SeparatedConvolution<double,3>>(
+            SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
+
+    return [&world, Kdagger, f12, phi_i, phi_j](
+            const std::vector<real_function_3d>& p1,
+            const std::vector<real_function_3d>& p2) {
+        // K̂₁: ⟨(K̂†x)·φᵢ | f₁₂⋆(y·φⱼ)⟩      K̂₂: ⟨f₁₂⋆(x·φᵢ) | (K̂†y)·φⱼ⟩
+        const auto Kdag_p1_phii = (*Kdagger)(p1) * phi_i;
+        const auto Kdag_p2_phij = (*Kdagger)(p2) * phi_j;
+        const auto f12_p2_phij  = (*f12)(p2 * phi_j);
+        const auto f12_p1_phii  = (*f12)(p1 * phi_i);
+
+        Tensor<double> M = matrix_inner(world, Kdag_p1_phii, f12_p2_phij);  // K̂₁
+        M += matrix_inner(world, f12_p1_phii, Kdag_p2_phij);                // K̂₂
+        return M;
+    };
+}
+
+DiagnosticMatrix<>::ElementProvider
+ExchangeCommutator::fk_provider(
+        World& world,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double eps)
+{
+    const double lo     = info.parameters.lo();
+    const double gamma  = info.parameters.gamma();
+    const double thresh = (eps > 0.0) ? eps : FunctionDefaults<3>::get_thresh();
+
+    auto f12 = std::shared_ptr<SeparatedConvolution<double,3>>(
+            SlaterF12OperatorPtr_ND<3>(world, gamma, lo, thresh));
+
+    return [&world, f12, phi_i, phi_j, Kphi_i, Kphi_j](
+            const std::vector<real_function_3d>& p1,
+            const std::vector<real_function_3d>& p2) {
+        // K̂₁: ⟨x·(K̂φᵢ) | f₁₂⋆(y·φⱼ)⟩       K̂₂: ⟨x·φᵢ | f₁₂⋆(y·(K̂φⱼ))⟩
+        const auto p1_Kphii     = p1 * Kphi_i;
+        const auto p1_phii      = p1 * phi_i;
+        const auto f12_p2_phij  = (*f12)(p2 * phi_j);
+        const auto f12_p2_Kphij = (*f12)(p2 * Kphi_j);
+
+        Tensor<double> M = matrix_inner(world, p1_Kphii, f12_p2_phij);      // K̂₁
+        M += matrix_inner(world, p1_phii, f12_p2_Kphij);                    // K̂₂
+        return M;
+    };
+}
+
+// ---------------------------------------------------------------------------
+//  G·Q₁₂·[K̂,f] diagnostic — 3D-only reference, Q₁₂ expanded on the ket
+//  (see operator_diagnostics.md for the derivation)
+// ---------------------------------------------------------------------------
+
+DiagnosticMatrix<>
+ExchangeCommutator::diagnose_GQKffK(
+        World& world,
+        const std::vector<CCPairFunction<double,6>>& GQKf_cc,
+        const std::vector<CCPairFunction<double,6>>& GQfK_cc,
+        const real_function_3d& phi_i,
+        const real_function_3d& phi_j,
+        const real_function_3d& Kphi_i,
+        const real_function_3d& Kphi_j,
+        const Info& info,
+        double energy,
+        const std::vector<real_function_3d>& aobasis,
+        bool orthonormalize_basis) const
+{
+    MADNESS_CHECK_THROW(energy < 0.0,     "diagnose_GQKffK: energy must be negative");
+    MADNESS_CHECK_THROW(!aobasis.empty(), "diagnose_GQKffK: aobasis must be non-empty");
+    MADNESS_CHECK_THROW(!info.mo_ket.empty() && info.mo_ket.size() == info.mo_bra.size(),
+                        "diagnose_GQKffK: invalid occupied spaces in info");
+
+    // tight fit accuracy & length scale for the 3D Schwinger reference, decoupled
+    // from the working threshold so the reference is a stable yardstick
+    const double lo    = info.parameters.lo();
+    const double tt3   = info.parameters.tight_thresh_3D();
+    const double wall0 = wall_time();
+
+    DiagnosticMatrix<> dm(world, aobasis, orthonormalize_basis);
+    dm.init("GQKf");
+    dm.init("GQfK");
+    dm.init("GQKffK");
+
+    // Result: project the caller-supplied G Q12 pieces onto ⟨ab|
+    dm.entries["GQKf"].result   = dm.project_ab(GQKf_cc);
+    dm.entries["GQfK"].result   = dm.project_ab(GQfK_cc);
+    dm.entries["GQKffK"].result = dm.entries["GQKf"].result - dm.entries["GQfK"].result;
+
+    // Ref: Schwinger fit of G on the bra + Q12 ket-expansion (ref_GQab)
+    dm.entries["GQKf"].ref = dm.ref_GQab(kf_provider(world, phi_i, phi_j, info, tt3),
+                                         info.mo_ket, info.mo_bra, energy, tt3, tt3);
+    dm.entries["GQfK"].ref = dm.ref_GQab(fk_provider(world, phi_i, phi_j, Kphi_i, Kphi_j, info, tt3),
+                                         info.mo_ket, info.mo_bra, energy, tt3, tt3);
+    dm.entries["GQKffK"].ref = dm.entries["GQKf"].ref - dm.entries["GQfK"].ref;
+
+    dm.compute_errors();
+    dm.time = wall_time() - wall0;
+    return dm;
+}
+
+} // namespace madness

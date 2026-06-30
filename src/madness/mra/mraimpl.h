@@ -645,14 +645,70 @@ namespace madness {
 
 
     /// Returns the truncation threshold according to truncate_method
+    ///
+    /// All modes scale tol with the box size h_n = L/2^n at level n (L = cell_min_width).
+    /// The positive modes tighten the threshold at fine levels so that high-frequency
+    /// content is kept accurately — appropriate when the function itself or its
+    /// derivatives must be pointwise accurate.  The negative modes loosen the threshold
+    /// at fine levels — appropriate when the function will immediately be passed to a
+    /// smoothing integral operator that suppresses high-frequency content anyway.
+    ///
+    /// Design rationale for each mode:
+    ///
+    ///  Mode 0:   t_n = tol  (uniform, level-independent)
+    ///            Simplest choice.  No level weighting; each wavelet coefficient is kept
+    ///            if it exceeds tol regardless of its scale.
+    ///
+    ///  Mode 1:   t_n = tol * min(1, L/2^n)
+    ///            Designed for first-derivative accuracy.  A level-n coefficient of
+    ///            magnitude t_n contributes t_n * (2^n/L) to ||∇f||, so this mode
+    ///            makes every level contribute at most tol to the gradient error.
+    ///            Clamped to tol at coarse levels (L/2^n > 1).
+    ///
+    ///  Mode 2:   t_n = tol * min(1, (L/2^n)^2)
+    ///            Designed for second-derivative (Laplacian) accuracy.  Each level
+    ///            contributes at most tol to ||∇²f||.  Tighter than mode 1 at fine
+    ///            levels; same tol at coarse levels.
+    ///
+    ///  Mode 3:   t_n = tol/2^{NDIM/2} * min(1, L/2^n)
+    ///            Like mode 1 but with an extra 1/2^{NDIM/2} prefactor intended to
+    ///            account for the growing number of tree nodes in higher dimensions.
+    ///            See inline comment below for the (disputed) justification.
+    ///
+    ///  Mode 4:   t_n = tol * min(1, (L/2^n)^{NDIM/2})
+    ///            Rigorous L2 bound for NDIM dimensions: if each node's L2 error is
+    ///            at most t_n, then the total L2 error is at most tol when the
+    ///            level-n box volume (L/2^n)^NDIM is used to weight the sum.
+    ///            Recovers mode 1 for NDIM=2 and mode 2 for NDIM=4.
+    ///
+    ///  Mode -1:  t_n = tol * max(1, 2^n/L)      [dual of mode 1]
+    ///            Designed for accuracy after applying a first-order smoothing operator
+    ///            S with ||S||_{k} ~ 1/k (e.g. a Poisson-type convolution).  If the
+    ///            representation error at level n has L2 norm t_n, the error after S is
+    ///            ~t_n * (L/2^n).  Setting t_n = tol * (2^n/L) ensures ||S(f-f̃)||₂ ≤
+    ///            const*tol while allowing much coarser fine-level representation.
+    ///            CAUTION: the resulting f̃ is only meaningful as input to such an S;
+    ///            derivatives and inner products with non-smooth functions will be wrong.
+    ///
+    ///  Mode -2:  t_n = tol * max(1, (2^n/L)^2)  [dual of mode 2]
+    ///            Designed for accuracy after applying the resolvent G = (T-E)^{-1},
+    ///            whose Fourier-space symbol is G(k) = 2/(k²+μ²) ~ 2/k² for k >> μ.
+    ///            A level-n error of magnitude t_n survives G as ~t_n*(L/2^n)².
+    ///            Setting t_n = tol*(2^n/L)² guarantees ||G(f-f̃)||₂ ≤ const*tol
+    ///            while aggressively pruning fine levels (factor ~(2^n/L)² looser than
+    ///            mode 0 at level n).  The coarse-level floor (where max clamps to 1)
+    ///            is unchanged — coarse-level errors pass through G at amplitude ~1/|E|
+    ///            and are only reduced by tightening tol itself, not by choosing this mode.
+    ///            CAUTION: same as mode -1 — use only for intermediates fed into G.
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::truncate_tol(double tol, const keyT& key) const {
 
-        // RJH ... introduced max level here to avoid runaway
-        // refinement due to truncation threshold going down to
-        // intrinsic numerical error
-        const int MAXLEVEL1 = 20; // 0.5**20 ~= 1e-6
-        const int MAXLEVEL2 = 10; // 0.25**10 ~= 1e-6
+        // Caps on the level exponent to prevent threshold from going below
+        // intrinsic numerical noise (positive modes) or growing beyond the
+        // point where further loosening has any practical effect (negative modes).
+        // RJH: original comment — introduced MAXLEVEL to avoid runaway refinement.
+        const int MAXLEVEL1 = 20; // 0.5^20 ~= 1e-6
+        const int MAXLEVEL2 = 10; // 0.25^10 ~= 1e-6
 
         if (truncate_mode == 0) {
             return tol;
@@ -666,27 +722,54 @@ namespace madness {
             return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
         }
         else if (truncate_mode == 3) {
-            // similar to truncate mode 1, but with an additional factor to
-            // account for an increased number of boxes in higher dimensions
-
-            // here is our handwaving argument: this threshold will give each
-            // FunctionNode an error of less than tol. The total error can
-            // then be as high as sqrt(#nodes) * tol. Therefore in order to
-            // account for higher dimensions: divide tol by about the root of
-            // number of siblings (2^NDIM) that have a large error when we
-            // refine along a deep branch of the tree. FAB
-            //
-            // Nope ... it can easily be as high as #nodes * tol.  The real
-            // fix for this is an end-to-end error analysis of the larger
-            // application and if desired to include this factor into the
-            // threshold selected by the application. RJH
+            // Like mode 1 but divided by 2^{NDIM/2} to account for the growing number
+            // of tree nodes in higher dimensions.  Handwaving argument (FAB): if each
+            // node contributes at most tol, the total error is at most sqrt(#nodes)*tol;
+            // dividing by ~sqrt(siblings per level) = 2^{NDIM/2} absorbs that factor.
+            // Counter-argument (RJH): the total can be as large as #nodes*tol, so the
+            // real fix is an end-to-end error analysis in the application, not this factor.
             const static double fac=1.0/std::pow(2,NDIM*0.5);
             tol*=fac;
 
             double L = FunctionDefaults<NDIM>::get_cell_min_width();
             return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
-
-        } else {
+        }
+        else if (truncate_mode == 4) {
+            // Rigorous L2 bound: each box at level n has volume h^NDIM = (L/2^n)^NDIM.
+            // Keeping the L2 error per box below t_n bounds the total L2 error by
+            // tol when t_n = tol * (L/2^n)^{NDIM/2}.  This recovers mode 1 for NDIM=2
+            // and mode 2 for NDIM=4; for 6D it gives t_n ~ (L/2^n)^3 (much tighter
+            // at fine levels than modes 1 or 2).
+            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            int n = std::min(key.level(), MAXLEVEL2);
+            return tol * std::min(1.0, std::pow(std::pow(0.5, n) * L, NDIM * 0.5));
+        }
+        else if (truncate_mode == -1) {
+            // Dual of mode 1: t_n = tol * max(1, 2^n/L).
+            // Loosens the threshold at fine levels by the same factor that mode 1
+            // tightens it.  Appropriate when the function is input to a first-order
+            // smoothing convolution S with ||S||_k ~ L/2^n at level n, so that the
+            // post-S error ~t_n*(L/2^n) remains bounded by tol at every level.
+            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            int n = std::min(key.level(), MAXLEVEL1);
+            return tol * std::max(1.0, std::pow(2.0, n) / L);
+        }
+        else if (truncate_mode == -2) {
+            // Dual of mode 2: t_n = tol * max(1, (2^n/L)^2).
+            // Appropriate when the function is the operand of the resolvent
+            // G = (T-E)^{-1} whose Fourier symbol G(k) ~ 2/(k^2+mu^2).  A level-n
+            // wavelet error of magnitude t_n passes through G with amplitude
+            // ~t_n*(L/2^n)^2; this mode sets t_n = tol*(2^n/L)^2 so that
+            // ||G(f-f̃)||_2 <= const*tol regardless of level.
+            // At fine levels the looser threshold dramatically reduces storage:
+            // at level 10 in a 20 a.u. box the factor is (1024/20)^2 ~ 2600.
+            // The coarse-level floor (where max clamps to 1, n <= log2(L) ~ 4-5)
+            // is unchanged — coarse errors in G f are only reducible by tightening tol.
+            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            int n = std::min(key.level(), MAXLEVEL2);
+            return tol * std::max(1.0, std::pow(std::pow(2.0, n) / L, 2.0));
+        }
+        else {
             MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
         }
     }
@@ -1802,7 +1885,7 @@ namespace madness {
 
         // truncate leaf nodes to avoid excessive tree refinement
         begin1=wall_time();
-        flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
+        flo_unary_op_node_inplace(do_truncate_NS_leafs(this,FunctionDefaults<NDIM>::get_thresh()*0.3),true);
         end1=wall_time();
         if (printme) printf("time in do_truncate_NS_leafs  %8.4f\n",end1-begin1);
 

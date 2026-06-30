@@ -7,6 +7,8 @@
 
 
 #include<madness/chem/CC2.h>
+#include<madness/chem/lowrankfunction.h>
+#include<madness/chem/exchange_commutator.h>
 #include<madness/chem/Results.h>
 #include<madness/mra/commandlineparser.h>
 #include "MolecularOrbitals.h"
@@ -19,13 +21,15 @@ namespace madness {
 
 /// solve the CC2 ground state equations, returns the correlation energy
 nlohmann::json CC2::solve() {
-    if (parameters.test()) CCOPS.test();
+    // if (parameters.test()) CCOPS.test();
 
     if (world.rank()==0) {
         print_header1("Starting the correlated treatment");
         std::cout << std::fixed << std::setprecision(1) << "\nstarting calculation at time " << wall_time() << std::endl;
     }
     const CalcType ctype = parameters.calc_type();
+    FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
+    FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
 
     // fill in results here
     std::map<std::string,CC2Results> results;
@@ -49,6 +53,11 @@ nlohmann::json CC2::solve() {
     Info info;
     info=CCOPS.update_info(parameters,nemo);
     info.intermediate_potentials=CCIntermediatePotentials(parameters);
+    info.ao=nemo->get_calc()->ao;
+
+    // early-exit test: run apply_KffK_low_rank_direct on the first active pair and return
+    if (parameters.test()) {
+    }
 
     // check if all pair functions have been loaded or computed
     auto all_pairs_exist = [](const Pairs<CCPair>& pairs) {
@@ -317,9 +326,11 @@ nlohmann::json CC2::solve() {
        }
 
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
-    print("results of the CC2 calculation");
-    for (auto& res:results) {
-        print(res.first,": ",res.second.to_json());
+    if (world.rank()==0) {
+        print("results of the CC2 calculation");
+        for (auto& res:results) {
+            print(res.first,": ",res.second.to_json());
+        }
     }
     // turn map into json vector
     nlohmann::json results_json;
@@ -443,11 +454,31 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
         if (world.rank()==0) {
             std::cout << std::fixed << std::setprecision(1) << "\nStarting constant part at time " << wall_time() << std::endl;
+            std::cout << std::scientific << std::setprecision(8);
         }
+
+        if (world.rank()==0) print_header3("Starting computing LRF of the exchange commutator");
+        // compute the exchange commutator -- exchange operator without high-frequency components
+        LowRankFunctionParameters lrfparam;
+        lrfparam.set_derived_value("radius",         2.0);
+        lrfparam.set_user_defined_value("volume_element", parameters.kffk_volume_element());
+        lrfparam.set_derived_value("tol",            FunctionDefaults<3>::get_thresh());
+        if (world.rank()==0) lrfparam.print("lrf_param");
+        ExchangeCommutator::SplitAlphaOptions opt;
+        opt.alpha_star               = parameters.kffk_alpha();
+        auto lrf_exchange_op = ExchangeCommutator::compute_lrf_exchange_operator(
+                world, info, opt, lrfparam);
+        MemoryMeasurer::measure_and_print(world);
+
+        // quick 3D-only Ue/GUe/GQUe reference check (no 6D) for cheap comparison
+        // CCPotentials::print_3d_references(world, pair_vec, info);
+
+        if (world.rank()==0) print_header3("Starting computing constant part");
         MacroTaskConstantPart t;
         MacroTask task(world, t);
         std::vector<Function<double,3>> gs_singles, ex_singles;         // dummy vectors
-        std::vector<real_function_6d> result_vec = task(pair_vec, gs_singles, ex_singles, info) ;
+        std::vector<real_function_6d> result_vec = task(pair_vec, gs_singles, ex_singles,
+            lrf_exchange_op, info) ;
 
         if (world.rank()==0) {
             std::cout << std::fixed << std::setprecision(1) << "\nFinished constant part at time " << wall_time() << std::endl;
@@ -489,6 +520,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
         t_iter.tag("compute coupling");
 
+        MemoryMeasurer::measure_and_print(world);
+
         MacroTaskIteratePair t;
         MacroTask task1(world, t);
         CC_vecfunction dummy_singles1(PARTICLE);
@@ -522,8 +555,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         if (parameters.kain()) {
             use_kain="with KAIN";
             std::vector<real_function_6d> kain_update = solver.update(u, residual);
-            MADNESS_CHECK_THROW(solver.get_rlist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
-            MADNESS_CHECK_THROW(solver.get_ulist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+            if (parameters.kain_subspace()>1) {
+                MADNESS_CHECK_THROW(solver.get_rlist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+                MADNESS_CHECK_THROW(solver.get_ulist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+            }
             truncate(kain_update);
             for (size_t i=0; i<pair_vec.size(); ++i) {
                 kain_update[i].reduce_rank();
@@ -713,10 +748,20 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     cc2_s.reconstruct();
     lrcc2_s.reconstruct();
 
+    // compute the exchange commutator -- exchange operator without high-frequency components
+    LowRankFunctionParameters lrfparam;
+    lrfparam.set_derived_value("radius",         2.0);
+    lrfparam.set_derived_value("volume_element", 0.2);
+    lrfparam.set_derived_value("tol",            FunctionDefaults<3>::get_thresh());
+    lrfparam.print("lrf_param");
+    ExchangeCommutator::SplitAlphaOptions opt;
+    opt.alpha_star               = info.parameters.kffk_alpha();
+    auto lrf_exchange_op = ExchangeCommutator::compute_lrf_exchange_operator(world, info, opt, lrfparam);
+
     // make new constant part
     MacroTaskConstantPart tc;
     MacroTask task(world, tc);
-    auto cp = task(pair_vec, cc2_s.get_vecfunction(), lrcc2_s.get_vecfunction(), info) ;
+    auto cp = task(pair_vec, cc2_s.get_vecfunction(), lrcc2_s.get_vecfunction(), lrf_exchange_op, info) ;
     print_size(world,cp,"constant part in iter");
 
     for (size_t i=0; i<pair_vec.size(); ++i) {
@@ -850,12 +895,22 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         if (world.rank()==0) print("computing the constant part via macrotasks -- output redirected");
         timer timer1(world);
 
+        // compute the exchange commutator -- exchange operator without high-frequency components
+        LowRankFunctionParameters lrfparam;
+        lrfparam.set_derived_value("radius",         2.0);
+        lrfparam.set_derived_value("volume_element", 0.2);
+        lrfparam.set_derived_value("tol",            FunctionDefaults<3>::get_thresh());
+        lrfparam.print("lrf_param");
+        ExchangeCommutator::SplitAlphaOptions opt;
+        opt.alpha_star               = parameters.kffk_alpha();
+        auto lrf_exchange_op = ExchangeCommutator::compute_lrf_exchange_operator(world, info, opt, lrfparam);
+
         std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
         for (auto& p : pair_vec) p.reconstruct();
         MacroTaskConstantPart t;
         MacroTask task(world, t);
         std::vector<real_function_6d> constant_part_vec = task(pair_vec, singles.get_vecfunction(),
-            ex_singles_dummy.get_vecfunction(), info) ;
+            ex_singles_dummy.get_vecfunction(),  lrf_exchange_op, info) ;
         for (size_t i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
 
         if (parameters.debug()) {

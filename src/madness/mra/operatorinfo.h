@@ -19,6 +19,7 @@ enum OpType {
     OT_F212,        /// (1-exp(-r))^2
     OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
     OT_BSH,         /// exp(-r)/r
+    OT_INVRSQ,      /// 1/r^2
     OT_SIZE         /// for ending loops
 };
 
@@ -47,6 +48,8 @@ std::ostream& operator<<(std::ostream& os, const OpType type) {
                 return "f12^2g";
             case OpType::OT_BSH:
                 return "bsh";
+            case OpType::OT_INVRSQ:
+                return "invrsq";
             default:
                 return "undefined";
         }

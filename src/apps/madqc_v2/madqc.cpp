@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
-            if (world.rank() == 0) print(info::print_revision_information());
+            // if (world.rank() == 0) print(info::print_revision_information());
 
 
             // Create workflow
@@ -224,6 +224,8 @@ int main(int argc, char** argv) {
                 calc_param.set_derived_value("k", 5);
                 calc_param.set_derived_value("print_level", 2);
                 calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d") * 0.01);
+                calc_param.set_derived_value("dconv", cc_param.get<double>("thresh_6d") * 0.1);
+                calc_param.set_derived_value("convergence_criteria", std::vector<std::string>{"each_energy"});
 
                 calc_param.set_derived_values(molecule);
                 cc_param.set_derived_values();

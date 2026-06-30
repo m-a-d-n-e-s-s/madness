@@ -113,7 +113,7 @@ int test_tight_diffuse(World& world) {
 
 int test_partial_inner(World& world) {
     bool do_low_rank=false;
-#if HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
     do_low_rank=true;
 #endif
     print("\ntesting partial inner; low rank: ",do_low_rank,"\n");

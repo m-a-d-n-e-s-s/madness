@@ -40,7 +40,10 @@
 
 */
 
+#include <algorithm>
+#include <cstring>
 #include <functional>
+#include <limits>
 #include <set>
 #include <unordered_set>
 
@@ -2193,42 +2196,54 @@ namespace madness
                 //     }
                 // }
 
-                // Gather all buffers to process 0
-                // first gather all of the sizes and counts to a vector in process 0
-                const int size = local_size;
-                std::vector<int> sizes(world->size());
-                MPI_Gather(&size, 1, MPI_INT, sizes.data(), 1, MPI_INT, 0, world->mpi.comm().Get_mpi_comm());
+                // Gather all per-rank buffers to process 0, then write them out
+                // contiguously. A single rank's buffer (local_size) and the grand
+                // total can both exceed INT_MAX, so all sizes/offsets are size_t and
+                // the point-to-point transfers are chunked to stay within the INT_MAX
+                // limit of one MPI message. (The old code used int sizes/offsets and a
+                // single MPI_Gatherv, which overflowed to a negative size and threw
+                // std::bad_alloc once a function's serialized container exceeded 2 GiB.)
                 world->gop.sum(count); // just need total number of elements
 
-                // print("time 3",wall_time());
-                //  build the cumulative sum of sizes
-                std::vector<int> offsets(world->size());
-                offsets[0] = 0;
-                for (int i = 1; i < world->size(); ++i)
-                    offsets[i] = offsets[i - 1] + sizes[i - 1];
-                size_t total_size = offsets.back() + sizes.back();
-                // if (world->rank() == 0)
-                    // print("total_size", total_size);
+                // largest payload sent through a single SafeMPI message (leave headroom
+                // below INT_MAX for any per-message overhead), mirroring worldrmi.
+                constexpr std::size_t max_msg =
+                    static_cast<std::size_t>(std::numeric_limits<int>::max()) - (std::size_t(1) << 20);
+                const Tag gather_tag = world->mpi.unique_tag();
 
-                // print("time 4",wall_time());
-                // gather the vector of data v from each process to process 0
-                unsigned char *all_data = 0;
                 if (world->rank() == 0)
                 {
-                    all_data = new unsigned char[total_size];
-                }
-                MPI_Gatherv(buf, local_size, MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
+                    // collect every rank's buffer size (size_t, no truncation)
+                    std::vector<std::size_t> sizes(world->size(), 0);
+                    sizes[0] = local_size;
+                    for (ProcessID p = 1; p < world->size(); ++p)
+                        world->mpi.Recv(sizes[p], p, gather_tag);
 
-                wall1 = wall_time();
-                // if (world->rank() == 0)
-                    // printf("time in gather+gatherv: %8.4fs\n", wall1 - wall0);
-                wall0 = wall1;
+                    std::size_t total_size = 0;
+                    for (ProcessID p = 0; p < world->size(); ++p)
+                        total_size += sizes[p];
 
-                delete[] buf;
+                    unsigned char *all_data = new unsigned char[total_size];
 
-                // print("time 5",wall_time());
-                if (world->rank() == 0)
-                {
+                    // rank 0's own buffer goes first
+                    if (local_size > 0)
+                        std::memcpy(all_data, buf, local_size);
+                    std::size_t offset = local_size;
+
+                    // then receive each remote rank's buffer, chunked to <= max_msg
+                    for (ProcessID p = 1; p < world->size(); ++p)
+                    {
+                        std::size_t received = 0;
+                        while (received < sizes[p])
+                        {
+                            const std::size_t n = std::min(sizes[p] - received, max_msg);
+                            world->mpi.Recv(all_data + offset + received, long(n), p, gather_tag);
+                            received += n;
+                        }
+                        offset += sizes[p];
+                    }
+                    delete[] buf;
+
                     auto &localar = ar.local_archive();
                     localar & magic & 1; // 1 client
                     // localar & t;
@@ -2236,14 +2251,23 @@ namespace madness
                     localar & -magic &(unsigned long)(count);
                     localar.store(all_data, total_size);
                     ArchivePrePostImpl<localarchiveT, dcT>::postamble_store(localar);
-                    wall1 = wall_time();
-                    // if (world->rank() == 0)
-                        // printf("time in final copy on node 0: %8.4fs\n", wall1 - wall0);
 
                     delete[] all_data;
                 }
+                else
+                {
+                    // tell rank 0 how many bytes we hold, then send them chunked
+                    world->mpi.Send(local_size, 0, gather_tag);
+                    std::size_t sent = 0;
+                    while (sent < local_size)
+                    {
+                        const std::size_t n = std::min(local_size - sent, max_msg);
+                        world->mpi.Send(buf + sent, long(n), 0, gather_tag);
+                        sent += n;
+                    }
+                    delete[] buf;
+                }
                 world->gop.fence();
-                // print("time 6",wall_time());
             }
         };
 

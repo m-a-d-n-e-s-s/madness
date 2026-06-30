@@ -1331,7 +1331,7 @@ int main(int argc, char **argv) {
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     int isuccess=0;
-#ifdef USE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
 
     CCParameters ccparam(world, parser);
     try {

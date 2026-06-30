@@ -926,6 +926,7 @@ struct Info {
     CCIntermediatePotentials intermediate_potentials;
     Function<double,3> R_square, U2, R;;
     std::vector<Function<double,3>> U1;
+    std::vector<Function<double,3>> ao;
 
     vector_real_function_3d get_active_mo_ket() const {
         vector_real_function_3d result;
@@ -942,6 +943,7 @@ struct Info {
     void reconstruct() const {
         madness::reconstruct(mo_bra);
         madness::reconstruct(mo_ket);
+        madness::reconstruct(ao);
         R_square.reconstruct();
         madness::reconstruct(U1);
         U2.reconstruct();
@@ -964,6 +966,7 @@ struct Info {
         records+=cloud.store(world,molecular_coordinates);
         records+=cloud.store(world,U2);
         records+=cloud.store(world,U1);
+        records+=cloud.store(world,ao);
         return records;
     }
 
@@ -983,6 +986,7 @@ struct Info {
         molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
         U2=cloud.forward_load<Function<double,3>>(world,recordlist);
         U1=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        ao=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
     }
 
 };
@@ -1289,47 +1293,6 @@ struct CCSize {
     }
 };
 
-
-class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
-
-    class ConstantPartPartitioner : public MacroTaskPartitioner {
-    public:
-        ConstantPartPartitioner() {};
-
-        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-                                   const std::string policy) const override {
-            partitionT p;
-            for (size_t i = 0; i < vsize1; i++) {
-                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
-                p.push_back(std::make_pair(batch,1.0));
-            }
-            return p;
-        }
-    };
-
-public:
-    MacroTaskMp2ConstantPart(){partitioner.reset(new ConstantPartPartitioner());}
-
-    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
-            // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
-            // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
-    typedef std::tuple<const std::vector<CCPair>&, const madness::Info&, const std::vector<std::string>& > argtupleT;
-
-    using resultT = std::vector<real_function_6d>;
-
-    resultT allocator(World& world, const argtupleT& argtuple) const {
-        std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
-        return result;
-    }
-
-//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<Function<double,3>>& mo_ket,
-//                        const std::vector<Function<double,3>>& mo_bra, const CCParameters& parameters,
-//                        const Function<double,3>& Rsquare, const std::vector<Function<double,3>>& U1,
-//                        const std::vector<std::string>& argument) const;
-    resultT operator() (const std::vector<CCPair>& pair, const Info& info, const std::vector<std::string>& argument) const;
-};
-
 /// compute the "constant" part of MP2, CC2, or LR-CC2
 ///
 /// the constant part is
@@ -1338,35 +1301,33 @@ public:
 /// result = G [F,f] |t_i x_j> + |x_i t_j>  for LR-CC2
 class MacroTaskConstantPart : public MacroTaskOperationBase {
 
-    class ConstantPartPartitioner : public MacroTaskPartitioner {
-    public:
-        ConstantPartPartitioner() {};
-
-        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-                                   const std::string policy) const override {
-            partitionT p;
-            for (size_t i = 0; i < vsize1; i++) {
-                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
-                p.push_back(std::make_pair(batch,1.0));
-            }
-            return p;
-        }
-    };
-
 public:
     MacroTaskConstantPart()  {
-        partitioner.reset(new ConstantPartPartitioner());
+        partitioner->set_max_batch_size(1);
         name="ConstantPart";
     }
 
-    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
-    // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
-    // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
     typedef std::tuple<const std::vector<CCPair>&,
                        const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       const LowRankFunction<double,6>&,
                        const madness::Info&> argtupleT;
 
     using resultT = std::vector<real_function_6d>;
+
+    /// compute the priority based on the sum of orbital energies:
+
+    /// heuristically the lower the energy the more localized the functions are and thus the faster
+    /// diagonal elements are more important than off-diagonal elements
+    double compute_priority(const Batch& batch, const argtupleT& argtuple) const {
+        const std::vector<CCPair>& pairs = std::get<0>(argtuple);
+        const int i=batch.input[0].begin;
+        bool diagonal=pairs[i].i==pairs[i].j;
+        double priority=std::abs(1.0/pairs[i].bsh_eps);
+        if (diagonal) priority+=10.0;
+        // print("setting priority to 1");
+        return 1.0;
+        return priority;
+    }
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
@@ -1376,76 +1337,15 @@ public:
     resultT operator() (const std::vector<CCPair>& pair,
         const std::vector<Function<double,3>>& gs_singles,
         const std::vector<Function<double,3>>& ex_singles,
+        const LowRankFunction<double,6>& exchange_op,
         const Info& info) const;
-};
-
-class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
-
-    class UpdatePairPartitioner : public MacroTaskPartitioner {
-    public :
-        UpdatePairPartitioner() {
-            set_dimension(2);
-        }
-
-        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-                                   const std::string policy) const override {
-            partitionT p;
-            for (size_t i = 0; i < vsize1; i++) {
-                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
-                p.push_back(std::make_pair(batch, 1.0));
-            }
-            return p;
-        }
-    };
-public:
-    MacroTaskMp2UpdatePair() {
-        partitioner.reset(new UpdatePairPartitioner());
-        name="MP2UpdatePair";
-    }
-
-    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
-                        // const std::vector< madness::Vector<double,3> >&,
-                       // const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
-                       // const std::vector<Function<double,3>>&, const Function<double,3>&> argtupleT;
-    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&,
-                    const std::vector<madness::Vector<double,3>>&, const Info& > argtupleT;
-
-    using resultT = std::vector<real_function_6d>;
-
-    resultT allocator(World& world, const argtupleT& argtuple) const {
-        std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
-        return result;
-    }
-
-//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling, const CCParameters& parameters,
-//                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
-//                        const std::vector<Function<double,3>>& mo_ket, const std::vector<Function<double,3>>& mo_bra,
-//                        const std::vector<Function<double,3>>& U1, const Function<double,3>& U2) const;
-    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling,
-                        const std::vector< madness::Vector<double,3> >& all_coords_vec, const Info& info) const;
 };
 
 
 class MacroTaskIteratePair : public MacroTaskOperationBase {
-
-    class IteratePairPartitioner : public MacroTaskPartitioner {
-    public :
-        IteratePairPartitioner() = default;
-
-        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-                                   const std::string policy) const override {
-            partitionT p;
-            for (size_t i = 0; i < vsize1; i++) {
-                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
-                p.push_back(std::make_pair(batch,1.0));
-            }
-            return p;
-        }
-    };
 public:
     MacroTaskIteratePair() {
-        partitioner.reset(new IteratePairPartitioner());
+        partitioner->set_max_batch_size(1);
         name="IteratePair";
     }
 
@@ -1459,6 +1359,15 @@ public:
         > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
+
+    /// compute priority based on the size of the pair function
+    double compute_priority(const Batch& batch, const argtupleT& argtuple) const {
+        const std::vector<CCPair>& pairs = std::get<0>(argtuple);
+        const int i=batch.input[0].begin;
+        double sz=pairs[i].function().size();
+        // print("computing priority for",i,sz);
+        return sz;
+    }
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();

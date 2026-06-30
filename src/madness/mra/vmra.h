@@ -466,6 +466,35 @@ namespace madness {
     }
 
 
+    /// return a matrix that orthonormalizes the vectors v_ortho = transform(world,v,result);
+    template<typename T>
+    Tensor<T> orthonormalize_symmetric_matrix(Tensor<T> ovlp) {
+
+        int n=ovlp.dim(0);
+        Tensor<T> U;
+        Tensor< typename Tensor<T>::scalar_type > s;
+        syev(ovlp, U, s);
+
+        // transform s to s^{-1/2} in-place
+        for(size_t i = 0; i < n; ++i) {
+            const auto s_i = s(i);
+            s(i) = 1.0 / sqrt(s_i);
+        }
+
+        // save Ut before U gets modified with s^{-1/2}
+        const Tensor<T> Ut = conj_transpose(U);
+
+        for(size_t i = 0; i < n; ++i){
+            for(size_t j = 0; j < n; ++j){
+                U(i, j) = U(i, j) * s(j);
+            }
+        }
+
+        Tensor<T> X = inner(U, Ut, 1, 0);
+        return X;
+    }
+
+
     /// symmetric orthonormalization (see e.g. Szabo/Ostlund)
 
     /// @param[in] the vector to orthonormalize
@@ -528,6 +557,52 @@ namespace madness {
     	return orthonormalize_symmetric(v, ovlp, lindep);
     }
 
+    /// compute the transformation matrix for canonical orthonormalization (see e.g. Szabo/Ostlund)
+
+    /// @param[in] overlap matrix
+    /// @param[in] lindep	linear dependency threshold relative to largest eigenvalue
+    /// @return the transformation matrix, i.e. the matrix U in the canonical orthonormalization,
+    ///         such that transform(world,v,U) gives the orthonormalized vector
+    template<typename T, std::size_t NDIM>
+    Tensor<T> canonical_orthonormalization_matrix(World& world, const Tensor<T> ovlp, double lindep = 1e-12) {
+        Tensor<T> U;
+        Tensor<typename Tensor<T>::scalar_type> s;
+        syev(ovlp, U, s);
+        lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
+        const size_t n = ovlp.dim(0);
+
+        // transform s to s^{-1/2} in-place
+        int rank = 0, nlindep = 0;
+    	for(size_t i = 0; i < n; ++i) {
+            const auto s_i = s(i);
+    		if (s_i > lindep) {
+            s(i) = 1.0 / sqrt(s_i);
+        		rank++;
+    		} else {
+    		    nlindep++;
+    		}
+    	}
+    	MADNESS_ASSERT(size_t(nlindep + rank) == n);
+
+        // remove linearly dependent vectors and values
+        if (nlindep > 0) {
+            if (world.rank() == 0)
+                print("Linear dependencies detected: removed ", nlindep,
+                      " functions, rank = ", rank, s(nlindep),s(n-1));
+            U = U(_, Slice(nlindep, -1));
+            s = s(Slice(nlindep, -1));
+        }
+
+        // modify U in-place, U is now transformation matrix (U * s^{-1/2})
+    	for(size_t i = 0; i < n; ++i){
+    		for(size_t j = 0; j < rank; ++j){
+                U(i, j) = U(i, j) * s(j);
+            }
+        }
+
+        return U;
+    }
+
     /// canonical orthonormalization (see e.g. Szabo/Ostlund)
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
@@ -537,45 +612,10 @@ namespace madness {
     		const std::vector<Function<T,NDIM> >& v,
 			const Tensor<T>& ovlp,
 			double lindep = 1e-12) {
+
     	if(v.empty()) return v;
-
         World& world = v.front().world();
-        const size_t n = v.size();
-
-    	Tensor<T> U;
-    	Tensor< typename Tensor<T>::scalar_type > s;
-    	syev(ovlp, U, s);
-    	lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
-
-    	// transform s to s^{-1/2} in-place
-    	int rank = 0, nlindep = 0;
-    	for(size_t i = 0; i < n; ++i) {
-            const auto s_i = s(i);
-    		if (s_i > lindep) {
-    			s(i) = 1.0 / sqrt(s_i);
-        		rank++;
-    		} else {
-    			nlindep++;
-    		}
-    	}
-    	MADNESS_ASSERT(size_t(nlindep + rank) == n);
-
-        // remove linearly dependent vectors and values
-        if (nlindep > 0) {
-            if (world.rank() == 0)
-                print("Linear dependencies detected: removed ", nlindep,
-                      " functions, rank = ", rank);
-            U = U(_, Slice(nlindep, -1));
-            s = s(Slice(nlindep, -1));
-        }
-
-        // modify U in-place, U is now transformation matrix (U * s^{-1/2})
-    	for(size_t i = 0; i < n; ++i){
-    		for(size_t j = 0; j < rank; ++j){
-    			U(i, j) = U(i, j) * s(j);
-    		}
-    	}
-
+        Tensor<T> U = canonical_orthonormalization_matrix<T,NDIM>(world, ovlp, lindep);
     	return transform(world, v, U);
     }
 
@@ -651,11 +691,20 @@ namespace madness {
     	for(integer i=0;i<rank;++i){
     		pv[i]=v[piv[i]];
     	}
+        // no need to invert all of ovlp, only the upper left rank x rank block
+        // ex. with a (3,3) matrix ovlp with rank=2
+        //  | i >  L_{ir}
+        // (1 2 3) (a b // 0 c // 0 0) = ( a + 2b )
     	ovlp=ovlp(Slice(0,rank-1),Slice(0,rank-1));
 
-    	Tensor<T> L = transpose(ovlp);
+        // result = |i~> = sum_r |i> U_{ir}^(-1)
+        // with <i~|j~> = sum_{r} U_{ir}^(-1) <i|j> U_{jp}^(-1)
+        //              = sum_{r} U_{ir}^(-1) (U^T U)_{ij} U_{jr}^(-1)
+        //              = sum_{r} U_{ir}^(-1) U_{ip} U_{jp} U_{jp}^(-1)
+        //              = delta_{ij}        // has matrix dimension (r,r)
+    	Tensor<T> L = transpose(ovlp);      // fbischoff thinks the transpose is not necessary here
     	Tensor<T> Linv = inverse(L);
-    	Tensor<T> U = transpose(Linv);
+    	Tensor<T> U = transpose(Linv);      // fbischoff thinks the transpose is not necessary here
 
     	World& world=v.front().world();
     	return transform(world, pv, U);
@@ -1873,9 +1922,14 @@ namespace madness {
 
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
-    double get_size(World& world, const std::vector< Function<T,NDIM> >& v){
+    double get_size(World& world, const std::vector< Function<T,NDIM> >& v) {
+        return get_size(v);
+    }
 
-    	if (v.empty()) return 0.0;
+    // gives back the size in GB
+    template <typename T, std::size_t NDIM>
+    double get_size(const std::vector< Function<T,NDIM> >& v) {
+        if (v.empty()) return 0.0;
 
     	const double d=sizeof(T);
         const double fac=1024*1024*1024;

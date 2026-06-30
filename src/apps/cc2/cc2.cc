@@ -42,7 +42,7 @@
 
 using namespace madness;
 
-#ifdef USE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
 
 int main(int argc, char **argv) {
 

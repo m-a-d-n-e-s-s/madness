@@ -544,7 +544,7 @@ void test_orthonormalize_symmetric(World& world) {
     if (world.rank() == 0) 
         print("error norm",(identity-test).normf(),"\n");
 
-    MADNESS_CHECK((identity-test).normf() < thresh);
+    MADNESS_CHECK((identity-test).normf() < thresh*10.0);       // loosen thresh here, according to lindep
 }
 
 template <typename T, int NDIM>
@@ -693,7 +693,7 @@ int main(int argc, char**argv) {
         test_multi_to_multi_op<1>(world);
         test_multi_to_multi_op<2>(world);
         if (!smalltest) test_multi_to_multi_op<3>(world);
-#if !HAVE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
         test_inner<double,std::complex<double>,1,false>(world);
         if (!smalltest) {
             test_inner<std::complex<double>,double,1,false>(world);

@@ -385,7 +385,7 @@ public:
     class MacroTaskCoulomb : public MacroTaskOperationBase {
     public:
         // you need to define the exact argument(s) of operator() as tuple
-        typedef std::tuple<const Function<double,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
+        typedef std::tuple<const Function<T,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
 
         using resultT = std::vector<Function<T,NDIM>>;
 
@@ -410,7 +410,7 @@ public:
             return result;
         }
 
-        resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
+        resultT operator()(const Function<T,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
             return truncate(vcoul * arg);
         }
     };
@@ -466,17 +466,18 @@ public:
     }
 
     /// getter for the Coulomb potential
-    const real_function_3d& potential() const {return vcoul;}
+    const Function<T,NDIM>& potential() const {return vcoul;}
 
     /// setter for the Coulomb potential
-    real_function_3d& potential() {return vcoul;}
+    Function<T,NDIM>& potential() {return vcoul;}
 
-    real_function_3d compute_density(const SCF* calc) const;
+    Function<T,NDIM> compute_density(const SCF* calc) const;
 
     /// given a density compute the Coulomb potential
 
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
+    /// density can be complex, e.g. for excitation energies
     Function<T,NDIM> compute_potential(const Function<T,NDIM>& density) const {
     	return (*poisson)(density).truncate();
     }
@@ -484,18 +485,18 @@ public:
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
     /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const SCF* calc) const;
+    Function<T,NDIM> compute_potential(const SCF* calc) const;
 
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
     /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const Nemo* nemo) const;
+    Function<T,NDIM> compute_potential(const Nemo* nemo) const;
 
 private:
     World& world;
     std::shared_ptr<real_convolution_3d> poisson;
     double lo=1.e-4;
-    real_function_3d vcoul; ///< the coulomb potential
+    Function<T,NDIM> vcoul; ///< the coulomb potential, can be complex for excited states using complex orbitals
 };
 
 

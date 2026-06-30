@@ -142,17 +142,17 @@ public:
 
     /// ctor with a regular Tensor, deep
 	GenTensor(const Tensor<T>& other)  {
-		tensor=std::shared_ptr<Tensor<T> >(new Tensor<T>(copy(other)));
+		tensor=std::shared_ptr<Tensor<T> >(new Tensor<T>((other)));
     }
 
     /// ctor with a TensorTrain as argument, shallow
 	GenTensor(const TensorTrain<T>& other) {
-		tensor=std::shared_ptr<TensorTrain<T> >(new TensorTrain<T>(copy(other))) ;
+		tensor=std::shared_ptr<TensorTrain<T> >(new TensorTrain<T>((other))) ;
     }
 
     /// ctor with a SVDTensor as argument, shallow
 	GenTensor(const SVDTensor<T>& other) {
-		tensor=std::shared_ptr<SVDTensor<T> >(new SVDTensor<T>(copy(other)));
+		tensor=std::shared_ptr<SVDTensor<T> >(new SVDTensor<T>((other)));
     }
 
     /// ctor with a SliceLowRankTensor as argument, deep
@@ -405,12 +405,14 @@ public:
 
     float_scalar_type normf() const {
 		float_scalar_type norm;
+		if (not is_assigned()) return 0.0;
 		std::visit([&norm](auto& obj) {norm=obj->normf();}, tensor);
 		return norm;
     }
 
     float_scalar_type svd_normf() const {
 		float_scalar_type norm;
+		if (not is_assigned()) return 0.0;
 		if (is_svd_tensor()) return get_svdtensor().svd_normf();
 		std::visit([&norm](auto& obj) {norm=obj->normf();}, tensor);
 		return norm;
