@@ -1063,6 +1063,14 @@ std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDI
 }
 
 template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> > operator+(const CCPairFunction<T,NDIM> c1, const CCPairFunction<T,NDIM>& c2) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    result.push_back(c1);
+    result.push_back(c2);
+    return result;
+}
+
+template <typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM> > operator+(const std::vector<CCPairFunction<T,NDIM>> c1, const std::vector<CCPairFunction<T,NDIM> >& c2) {
     std::vector<CCPairFunction<T,NDIM>> result;
     for (const auto& l : c1) result.push_back(l);

@@ -92,11 +92,6 @@ namespace madness {
             initialize<std::string>("KffK_algorithm", "lrf_split_alpha", "algorithm for KffK commutator", {"lrf_split_alpha", "lrf_direct", "6d"});
             initialize<double>("KffK_alpha", 100.0,"max exponent in g12");
             initialize<double>("KffK_volume_element", 0.2,"volume element for exchange commutator");
-            // resonance diagnostics / block-canonicalization for local MP2 (see local-mp2-resonance notes)
-            initialize<bool>("canonicalize_resonant_blocks", true, "block-canonicalize near-degenerate strongly-coupled occupied blocks before local MP2");
-            initialize<double>("resonance_ratio_thresh", 1.0, "flag a block if |F_ij|/|F_ii-F_jj| exceeds this");
-            initialize<double>("resonance_deg_floor", 1.e-4, "treat |F_ii-F_jj| below this as degenerate (0/0 guard)");
-            initialize<double>("resonance_coupling_floor", 1.e-4, "min |F_ij| to flag a block in the degenerate branch");
         }
 
         void set_derived_values();
@@ -199,11 +194,6 @@ namespace madness {
         double kffk_volume_element() const { return get<double>("kffk_volume_element");}
 
         std::string kffk_algorithm() const { return get<std::string>("kffk_algorithm"); }
-
-        bool canonicalize_resonant_blocks() const { return get<bool>("canonicalize_resonant_blocks"); }
-        double resonance_ratio_thresh() const { return get<double>("resonance_ratio_thresh"); }
-        double resonance_deg_floor() const { return get<double>("resonance_deg_floor"); }
-        double resonance_coupling_floor() const { return get<double>("resonance_coupling_floor"); }
 
         /// print out the parameters
         void information(World& world) const;

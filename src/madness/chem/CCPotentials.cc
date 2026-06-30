@@ -890,8 +890,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         // each, i.e. the same total work as the combined {"Ue","KffK"} call.
         auto Vreg_Ue  =apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"Ue"},  pair.bsh_eps);
         auto Vreg_KffK=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"KffK"},pair.bsh_eps);
+        auto Vreg_f12_coupling=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"f12_coupling"},pair.bsh_eps);
         Vparts.emplace_back("Ue",  consolidate(apply_in_separated_form(Q12,Vreg_Ue)));
         Vparts.emplace_back("KffK",consolidate(apply_in_separated_form(Q12,Vreg_KffK)));
+        Vparts.emplace_back("f12_coupling",consolidate(apply_in_separated_form(Q12,Vreg_f12_coupling)));
     } else if (targetstate==CT_CC2) {       // Eq. (42) of Kottmann, JCTC 13, 5945 (2017)
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
         auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
@@ -1454,6 +1456,7 @@ std::vector<CCPairFunction<double,6>>
     real_function_6d V=real_factory_6d(world);
     std::vector<CCPairFunction<double,6>> V_lowrank;
     if (exists("KffK")) V_lowrank -= apply_KffK(world,ti,tj,exchange_op,info,&Gscreen);
+    if (exists("f12_coupling")) V_lowrank -= apply_f12_coupling(world,ti,tj,info,&Gscreen);
     if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
     if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
     if (exists("comm_F_Qt_f12")) {
@@ -1868,6 +1871,30 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     }
     return KffK;
 
+}
+
+/// compute the coupled f12 contributions: f12 (\sum_k f_jk |ik>  + f_ik |kj>)
+std::vector<CCPairFunction<double, 6>>
+CCPotentials::apply_f12_coupling(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+               const Info& info, const real_convolution_6d* Gscreen) {
+
+    auto ivec=info.get_active_mo_ket();
+    int nfrozen=info.parameters.freeze();
+    Slice active(nfrozen,-1);
+    Tensor<double> f_act_i=copy(info.fock(active,phi_i.i));
+    Tensor<double> f_act_j=copy(info.fock(active,phi_j.i));
+    f_act_i[phi_i.i - nfrozen]=0.0;
+    f_act_j[phi_j.i - nfrozen]=0.0;
+
+    auto f_ivec = transform(world,ivec,f_act_i);
+    auto f_jvec = transform(world,ivec,f_act_j);
+    MADNESS_CHECK_THROW(f_ivec.size()==1,"incorrect size of f_ivec");
+    MADNESS_CHECK_THROW(f_jvec.size()==1,"incorrect size of f_jvec");
+    auto f12_op=std::shared_ptr<CCConvolutionOperator<double,3>>(new CCConvolutionOperator<double,3>(world,OpType::OT_F12,info.parameters));
+    auto f12_coupled=CCPairFunction<double,6>(f12_op,phi_i.function,f_jvec[0])
+                + CCPairFunction<double,6>(f12_op,f_ivec[0],phi_j.function);
+    f12_coupled=consolidate(f12_coupled,{"op_dec_to_pure"});
+    return f12_coupled;
 }
 
 

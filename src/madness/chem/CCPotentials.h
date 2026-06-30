@@ -435,6 +435,10 @@ public:
                const LowRankFunction<double,6>& exchange_op,
                const Info& info, const real_convolution_6d* Gscreen);
 
+    static std::vector<CCPairFunction<double, 6>>
+    apply_f12_coupling(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+               const Info& info, const real_convolution_6d* Gscreen);
+
     static CCPairFunction<double, 6>
     apply_commutator_F_Qt_f12(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                               const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
