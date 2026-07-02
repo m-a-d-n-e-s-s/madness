@@ -135,7 +135,7 @@ namespace madness {
 
         coeffT _coeffs; ///< The coefficients, if any
         double _norm_tree; ///< After norm_tree will contain norm of sum coefficients summed up tree
-        double _dnorm_tree; ///< After norm_tree will contain norm of difference coefficients summed up tree
+        double _dnorm_tree=1e300; ///< After norm_tree will contain norm of difference coefficients summed up tree
         //double _inf_norm_tree; ///< After norm_tree will contain infinity norm of function values at quadrature points
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
@@ -165,8 +165,8 @@ namespace madness {
         }
 
         explicit
-        FunctionNode(const coeffT& coeff, double norm_tree, double snorm, double dnorm, bool has_children) :
-	  _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
+        FunctionNode(const coeffT& coeff, double norm_tree, double dnorm_tree, double snorm, double dnorm, bool has_children) :
+	  _coeffs(coeff), _norm_tree(norm_tree), _dnorm_tree(dnorm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) :
@@ -194,7 +194,7 @@ namespace madness {
         template<typename Q>
         FunctionNode<Q, NDIM>
         convert() const {
-            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, snorm, dnorm, _has_children);
+            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, _dnorm_tree, snorm, dnorm, _has_children);
         }
 
         /// Returns true if there are coefficients in this node
