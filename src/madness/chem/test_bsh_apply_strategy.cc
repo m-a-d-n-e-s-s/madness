@@ -33,11 +33,11 @@ void expect_backend(const std::string& label, const BSHApplyContext& c, BSHBacke
     if (!ok) ++failures;
 }
 
-void expect_batch(double thresh, long want) {
-    long got = choose_bsh_batch(thresh);
+void expect_batch(const std::string& label, const BSHApplyContext& c, double thresh, long want) {
+    long got = choose_bsh_batch(c, thresh);
     const bool ok = (got == want);
-    std::printf("  [%s] batch(thresh=%.0e) expected=%ld got=%ld\n",
-                ok ? "PASS" : "FAIL", thresh, want, got);
+    std::printf("  [%s] %-20s batch(thresh=%.0e) expected=%ld got=%ld\n",
+                ok ? "PASS" : "FAIL", label.c_str(), thresh, want, got);
     if (!ok) ++failures;
 }
 
@@ -68,10 +68,23 @@ int main(int /*argc*/, char** /*argv*/) {
     // multinode always macrotask even for a tiny system
     expect_backend("2node/tiny",      {20,  6,  2, 2, b125, 3}, BSHBackend::Macrotask);
 
-    std::printf("=== protocol-aware batch ramp ===\n");
-    expect_batch(1.0e-4, 4);   // loose  -> batch up
-    expect_batch(1.0e-6, 4);   // medium -> batch up
-    expect_batch(1.0e-8, 1);   // tight  -> b=1
+    std::printf("=== topology+protocol-aware batch ===\n");
+    const BSHApplyContext c40b    {161, 10, 8,  1,  b125, 3};                       // single node
+    const BSHApplyContext valinob {300, 10, 64, 8,  b125, 3};                       // 8 ranks/node (intra)
+    const BSHApplyContext w213b    {1065,10, 60, 30, budget_per_rank_gb(384,2), 3}; // 2/node, real 384GB node
+    const BSHApplyContext w213_1tb {1065,10, 60, 30, b500, 3};                      // 2/node, 1 TB node
+    const BSHApplyContext w213_nob {1065,10, 60, 30, 0.0,  3};                      // 2/node, no budget
+    // loose/medium: working set tiny -> batch up everywhere
+    expect_batch("C40 loose",        c40b,     1.0e-4, 4);
+    expect_batch("w213 medium",      w213b,    1.0e-6, 4);
+    // tight, single-node or intra-node-multinode -> b=1 (memory / compute-monolith)
+    expect_batch("C40 tight",        c40b,     1.0e-8, 1);
+    expect_batch("valino tight",     valinob,  1.0e-8, 1);   // rpn=8 -> not inter-node-sparse
+    // tight + inter-node-sparse (>=2 nodes, <=2 ranks/node) + budget -> widen, memory-bounded
+    expect_batch("w213 tight",       w213b,    1.0e-8, 5);   // 0.10*192/3.44 -> 5
+    expect_batch("w213 tight 1TB",   w213_1tb, 1.0e-8, 8);   // 0.10*500/3.44 -> 14, capped at B_HI=8
+    // tight + inter-node-sparse but no budget -> cannot bound the working set -> b=1
+    expect_batch("w213 tight no-bdg",w213_nob, 1.0e-8, 1);
 
     std::printf("=== estimator sanity (C40-like ~34 GB/rank) ===\n");
     const double w_c40 = estimate_tile_peak_per_rank_gb({161, 10, 8, 1, 0.0, 3});

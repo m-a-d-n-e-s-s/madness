@@ -116,12 +116,39 @@ inline BSHApplyPlan choose_bsh_apply_plan(const BSHApplyContext& c) {
     return p;
 }
 
-/// Protocol-aware batch (orbitals per macrotask task). Loose/medium protocol: batch up to
-/// amortize per-task fixed overhead (compute cheap, memory small). Tight protocol: b=1 to
-/// avoid the capacity-bound compute-monolith penalty (see docs "Batch size in the model").
-/// Caller must cap the result at floor(nmo / nsubworld). `thresh` is the CURRENT protocol.
-inline long choose_bsh_batch(double thresh, long b_lo = 4) {
-    return (thresh > 1.0e-7) ? b_lo : 1;
+/// Topology+protocol-aware batch (orbitals per macrotask apply task). Two competing effects:
+/// a larger batch amortizes the per-task framework/gather overhead (speed) but enlarges the
+/// per-task nonstandard-form working set (memory) and, intra-node, becomes a compute-monolith
+/// that blocks peers' gather-serving (the capacity-bound penalty).
+///
+///   - loose/medium protocol (thresh > 1e-7): the per-orbital working set is tiny, so batch
+///     up freely (`b_lo`) -- pure overhead amortization, ~0 memory cost.
+///   - tight protocol: default b=1 (protects memory; avoids the monolith penalty -- validated
+///     intra-node, e.g. valinomycin 8/node b=4 was +20% SLOWER at 1e-8). Widen ONLY in the
+///     inter-node, thinly-packed regime (>=2 nodes AND few ranks/node), where the apply is
+///     framework/overhead-bound rather than monolith-bound: many orbitals spread over many
+///     one-rank subworlds => many waves whose per-task overhead dominates, so a modest batch
+///     amortizes it (w213 60rk/2-per: b~8 ~24% faster apply at 1e-8). The widen is gated on a
+///     memory budget (per-task working set ~ batch*(2k)^ndim*C_GB, the same coeff model as the
+///     tile estimator on one rank) kept to a small fraction of the per-rank budget, since the
+///     apply shares the node with the (unmodeled) resident floor; with no budget we cannot
+///     bound it, so stay at b=1.
+///
+/// Caller must still cap the result at floor(nmo / nsubworld). `thresh` is the CURRENT protocol.
+/// PROVISIONAL constants (APPLY_FRACTION, B_HI, the ranks/node boundary) -- calibrated from a
+/// single inter-node point (w213); see docs/bsh_apply_macrotask.md "Batch size in the model".
+inline long choose_bsh_batch(const BSHApplyContext& c, double thresh, long b_lo = 4) {
+    if (thresh > 1.0e-7) return b_lo;          // loose/medium: working set tiny, amortize freely
+
+    const long rpn = std::max<long>(1, c.nproc / std::max<long>(1, c.n_nodes));
+    const bool inter_node_sparse = (c.n_nodes >= 2) && (rpn <= 2);
+    if (!inter_node_sparse || c.mem_budget_gb <= 0.0) return 1;   // monolith regime / unbounded -> safe
+
+    const double APPLY_FRACTION = 0.10;        ///< apply working set may use ~10% of per-rank budget
+    const long   B_HI           = 8;           ///< cap (measured w213 sweet spot; avoids monolith)
+    const double per_orb_ws = std::pow(2.0 * double(std::max<long>(1, c.k)), c.ndim) * 4.3e-4;  // GB
+    const long b_mem = std::max<long>(1, long(APPLY_FRACTION * c.mem_budget_gb / std::max(1e-9, per_orb_ws)));
+    return std::min<long>(B_HI, b_mem);
 }
 
 }  // namespace madness

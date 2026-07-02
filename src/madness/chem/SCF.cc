@@ -1494,13 +1494,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
 	        auto exchange_alg = Exchange<double,3>::string2algorithm(param.hfexalg());
 	        K.set_algorithm(exchange_alg);
-	        // Cap the exchange taskq printlevel below 10: at print_level>=10 the macrotask
-	        // framework's per-task io_redirect switches to File mode (one debug file per
-	        // task in <name>_output/), which thrashes GPFS metadata at scale (the BSH-apply
-	        // study runs at print_level 10 for its own instrumentation, which is gated on
-	        // param.print_level() and is unaffected by this cap). 5 keeps the exchange's
-	        // timers + finalize gaxpy on stdout; <10 = Discard (no per-task files).
-	        K.set_symmetric(true).set_printlevel(std::min<long>(param.print_level(), 5));
+	        // Exchange taskq print level follows the user's print_level. Note: at
+	        // print_level>=10 the macrotask framework's per-task io_redirect switches to
+	        // File mode (one debug file per task in <name>_output/), which is heavy on GPFS
+	        // metadata at scale -- so that verbosity is an explicit user opt-in, not forced.
+	        K.set_symmetric(true).set_printlevel(param.print_level());
         auto [min_batch_size, max_batch_size] = resolve_hfex_batch_sizes(
                 amo.size(), std::max<long>(1, world.size()),
                 param.hfex_min_batch_size(), param.hfex_max_batch_size());
@@ -1977,7 +1975,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
             const BSHApplyPlan ap = choose_bsh_apply_plan(ctx);
             backend = ap.backend;
             if (backend == BSHBackend::Macrotask)
-                plan.batch = choose_bsh_batch(FunctionDefaults<3>::get_thresh());   // protocol-aware
+                plan.batch = choose_bsh_batch(ctx, FunctionDefaults<3>::get_thresh());  // topology+protocol-aware
             if (param.print_level() >= 2 and world.rank() == 0)
                 print("BSH apply [auto]:", ap.reason);
         }

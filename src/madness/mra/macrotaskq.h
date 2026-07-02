@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
+#include <madness/world/ranks_and_hosts.h>   // get_rss_usage_in_GB (per-task RSS diagnostics)
 #include <madness/mra/macrotaskpartitioner.h>
 #include <madness/mra/memory_measurement.h>
 
@@ -1633,6 +1634,13 @@ private:
         	    }
         	};
         	fixb_dbg_phase("A_run_start");
+        	// Wrap the WHOLE per-task body (cloud.load + prefetch/pipeline hooks + auto_copy +
+        	// compute + accumulate) in the try below, not just the compute: a throw in the
+        	// PRE-compute region -- e.g. a bad_alloc in the owner-pinned p2p fetch/prefetch or
+        	// in auto_copy -- otherwise escapes uninstrumented to TBB ("unhandled exception from
+        	// enqueue task" -> abort with no task id / what()). Catching it here names the task
+        	// and prints e.what(), which distinguishes a memory fault (bad_alloc) from a logic bug.
+        	try {
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const double t_cloud_load_done = wall_time();
         	fixb_dbg_phase("B_after_cloud_load");
@@ -1696,7 +1704,6 @@ private:
     		}
     		const double t_fetch_done = wall_time();
 
-    		try {
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
     			task.subworld_ptr=&subworld;	// give the task access to the subworld
@@ -1784,17 +1791,29 @@ private:
         		        t_prefetch_issue_done - t_accumulate_done,
         		        t_prefetch_issue_done - t_entry);
         		    print(std::string(pbuffer));
+        		    // per-task RSS (current resident, GB) -> the per-task io_redirect FILE (not the
+        		    // already-verbose stderr), gated on debug (printdebug, print_level>=10). Local
+        		    // /proc read, no collective. Post-process: grep across <name>_output/*_task.* for
+        		    // the last iteration's per-task RSS trajectory (the peak before any abort).
+        		    if (debug) print("task RSS (current resident, GB):", get_rss_usage_in_GB(),
+        		                     "task", element, "subworld", subworld.id());
         		}
 
         	} catch (std::exception& e) {
+        		// RSS (current resident, GB) at the moment of failure -- local /proc read, no
+        		// collective. Distinguishes a memory fault (RSS near the node ceiling + a
+        		// bad_alloc what()) from a logic/comm bug (RSS well below the ceiling).
+        		const double rss_at_fail = get_rss_usage_in_GB();
         		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
         		print(e.what());
+        		print("RSS at failure (current resident, GB):", rss_at_fail);
         		print_me_as_table();
         		print("\n\n");
         		{
         			io_redirect_cout io2;
         			print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
         			print(e.what());
+        			print("RSS at failure (current resident, GB):", rss_at_fail);
         		}
         		MADNESS_EXCEPTION("failing task",1);
         	}
