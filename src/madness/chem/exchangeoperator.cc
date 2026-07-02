@@ -202,6 +202,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     }
     xtask.use_cloud_batch_fetch_ = cloud_batch_active;
     xtask.log_diagnostics_ = printdebug();          // owner_map + batch record dump on universe rank 0
+    xtask.universe_rank_ = world.rank();            // keys the per-task profile file (MAD_EXCH_TASK_PROFILE)
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {

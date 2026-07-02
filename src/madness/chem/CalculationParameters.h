@@ -74,7 +74,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("hfex_replicate_debug",false,"replicate all orbitals for communication-free exchange (debug)");
 		initialize<bool>  ("hfex_use_cloud_batch_fetch",true,"smallmem_mt_owner: fetch input batches via the cloud owner-pinned p2p path (true) or copy-via-universe (false); A/B transport comparison");
 		initialize<bool>  ("hfex_use_mflex",true,"use m-flex peel search to load-balance the smallmem_sym_mt_owner assignment");
-		initialize<long>  ("hfex_batch_granularity",1,"smallmem_sym_p2p_owner: granularity level (>=1); M=(base+level-1)*nproc batches, base=2 if nproc even else 1. 1=lowest granularity (~1 batch/rank)");
+		initialize<long>  ("hfex_batch_granularity",2,"smallmem_sym_p2p_owner: granularity level (>=1) = batches per rank; M=level*nproc batches. Every level selectable (1=1 batch/rank, 2=2/rank, ...). Default 2 preserves the previous default (2*nproc)");
 		initialize<int>   ("hfex_local_accumulation",2,"owner-aware HF exchange result-finalize mode: 0=per-task gaxpy into universe (O(ntask)); 1=subworld-local accumulate + one bulk subworld->universe gaxpy (O(nrank)); 2=node-local hierarchical reduction (default; intra-node reduce then one inter-node node-sum gaxpy, auto-degrades to mode 1 when single-node)");
 		initialize<int>   ("hfex_mflex_max_exhaustive",5000,"upper bound on C(R,m) for the exhaustive arm of the m-flex search");
 		initialize<bool>  ("hfex_shuffle_mos",false,"randomly permute the MO order passed to the HF exchange operator (fixed seed); result is unshuffled before returning");

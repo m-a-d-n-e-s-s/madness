@@ -5,18 +5,111 @@
 #include<madness/world/cloud.h>
 #include<madness/mra/macrotaskq.h>
 #include<madness/chem/SCFOperators.h>
+#include<madness/world/ranks_and_hosts.h>
 #include<unordered_map>
 #include<queue>
 #include<random>
 #include<numeric>
 #include<set>
 #include<limits>
+#include<fstream>
 
 namespace madness {
 
 // forward declaration
 class SCF;
 class Nemo;
+
+/// Per-task performance record for the owner-pinned exchange (smallmem_sym_p2p_owner
+/// primarily). Emitted as one JSON object per task to a per-subworld .jsonl file when
+/// the env var MAD_EXCH_TASK_PROFILE is set; merge the files in post. Designed for a
+/// Gantt view: [wall_start, wall_end] places the task; the interior splits into
+/// wait-for-data, pure compute (further broken into mul1/apply/mul2/truncate), and
+/// residual overhead. Wall times are honest per-component because the smallmem kernels
+/// run every op with fence=true, so each op completes before the next (no added fence).
+///   transient_class: worst fetch tier this task hit (lru < prefetch < sync); the owned
+///   operand is always local, so the worst tier is the transient one — sync => the task
+///   stalled waiting for remote bytes (waited=true), the key efficiency signal.
+struct ExchTaskProfile {
+    long task_id = -1;
+    long universe_rank = 0;                     ///< keys the output file (one per process)
+    unsigned long subworld_id = 0;
+    int subworld_nrank = 0;
+    double thresh = 0.0;                        ///< FunctionDefaults thresh at task time (protocol tier)
+    long k = 0;                                 ///< FunctionDefaults wavelet order at task time
+    bool diagonal = false;
+    long row_begin = 0, row_end = 0, col_begin = 0, col_end = 0;
+    long n_row = 0, n_col = 0;
+    double wall_start = 0.0, wall_end = 0.0;   ///< absolute wall_time() clock
+    double wait_for_data_wall = 0.0;            ///< bra+vf fetch wall (task-ready -> first compute)
+    int transient_class = -1;                   ///< 0=lru,1=prefetch,2=sync,-1=n/a
+    bool waited = false;                        ///< a synchronous (remote) fetch happened
+    double compute_wall = 0.0, compute_cpu = 0.0;
+    double mul1_wall = 0.0, apply_wall = 0.0, mul2_wall = 0.0, truncate_wall = 0.0;
+    double peak_rss_gb = 0.0;                   ///< getrusage high-water-mark at task end
+
+    void reset() { *this = ExchTaskProfile(); }
+    void observe_fetch_tier(int tier) {         ///< tier: 0 lru, 1 prefetch, 2 sync
+        if (tier > transient_class) transient_class = tier;
+        if (tier == 2) waited = true;
+    }
+};
+
+/// Is per-task exchange profiling enabled? Gated once on the env var MAD_EXCH_TASK_PROFILE.
+inline bool exch_task_profile_enabled() {
+    static const bool on = (std::getenv("MAD_EXCH_TASK_PROFILE") != nullptr);
+    return on;
+}
+
+/// Append one task record as a JSON line to exch_taskprof.r<universe_rank>.jsonl.
+/// Called only from subworld rank 0 when profiling is enabled. The output stream is
+/// kept OPEN for the life of the process (one file per rank, appended across all
+/// K-applications) — this bounds the file count at nproc regardless of iteration
+/// count, and avoids a per-task open/close (costly metadata ops on a parallel FS).
+/// subworld_id stays in each record so tasks can still be grouped by subworld/K-app.
+inline void exch_write_task_profile(const ExchTaskProfile& p) {
+    static std::ofstream os;   // one per process (this process has a single universe_rank)
+    if (!os.is_open()) {
+        char fname[64];
+        std::snprintf(fname, sizeof(fname), "exch_taskprof.r%ld.jsonl", p.universe_rank);
+        os.open(fname, std::ios::app);
+        if (!os.is_open()) return;
+    }
+    auto tier_name = [](int t) {
+        switch (t) { case 0: return "lru"; case 1: return "prefetch"; case 2: return "sync"; default: return "none"; }
+    };
+    const double residual = (p.wall_end - p.wall_start) - p.wait_for_data_wall - p.compute_wall;
+    const double wall_total = p.wall_end - p.wall_start;
+    const double compute_pct = (wall_total > 0.0) ? 100.0 * p.compute_wall / wall_total : 0.0;
+    os.setf(std::ios::fixed); os.precision(6);
+    os << "{"
+       << "\"task_id\":" << p.task_id
+       << ",\"universe_rank\":" << p.universe_rank
+       << ",\"subworld_id\":" << p.subworld_id
+       << ",\"subworld_nrank\":" << p.subworld_nrank
+       << ",\"thresh\":" << p.thresh << ",\"k\":" << p.k
+       << ",\"diagonal\":" << (p.diagonal ? "true" : "false")
+       << ",\"row_range\":[" << p.row_begin << "," << p.row_end << "]"
+       << ",\"col_range\":[" << p.col_begin << "," << p.col_end << "]"
+       << ",\"n_row\":" << p.n_row << ",\"n_col\":" << p.n_col
+       << ",\"wall_start\":" << p.wall_start << ",\"wall_end\":" << p.wall_end
+       << ",\"wall_total\":" << wall_total
+       << ",\"wait_for_data_wall\":" << p.wait_for_data_wall
+       << ",\"transient_class\":\"" << tier_name(p.transient_class) << "\""
+       << ",\"waited\":" << (p.waited ? "true" : "false")
+       << ",\"compute_wall\":" << p.compute_wall
+       << ",\"compute_cpu\":" << p.compute_cpu
+       << ",\"accumulate_residual_wall\":" << residual
+       << ",\"compute_components_wall\":{"
+       <<   "\"mul1\":" << p.mul1_wall << ",\"apply\":" << p.apply_wall
+       <<   ",\"mul2\":" << p.mul2_wall << ",\"truncate\":" << p.truncate_wall
+       <<   ",\"other\":" << (p.compute_wall - p.mul1_wall - p.apply_wall - p.mul2_wall - p.truncate_wall)
+       << "}"
+       << ",\"compute_pct\":" << compute_pct
+       << ",\"peak_rss_gb\":" << p.peak_rss_gb
+       << "}\n";
+    os.flush();   // keep the file fresh for mid-run inspection (no per-task open/close)
+}
 
 /// Split a vector of length n into exactly nbatch = min(nsubworld, n)
 /// contiguous batches with sizes differing by at most 1. The first
@@ -44,24 +137,25 @@ inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const
 
 /// Number of batches M for the symmetric round-robin (p2p) owner algorithm.
 ///
-/// M = (base + level - 1) * nsubworld, with base = 2 if nsubworld is even
-/// else 1 (the parity device that keeps tasks-per-rank an even integer at the
-/// lowest granularity). `level` (>= 1) is the granularity knob:
-///   odd  nsubworld: level 1 -> nsubworld,    level 2 -> 2*nsubworld, ...
-///   even nsubworld: level 1 -> 2*nsubworld,  level 2 -> 3*nsubworld, ...
+/// M = level * nsubworld: `level` (>= 1) is directly the number of batches per
+/// rank, so EVERY level is selectable (level 1 -> 1 batch/rank, level 2 ->
+/// 2/rank, ...) regardless of nsubworld parity. (The old formula carried a
+/// parity device — base = 2 for even nsubworld — that made 1 batch/rank
+/// UNREACHABLE for even nsubworld; removed so the granularity sweep can test
+/// whether the even-tasks-per-rank constraint matters at all. The default knob
+/// value is 2, preserving the previous even-nsubworld default of 2*nsubworld.)
 /// The result is clamped to [1, n] (cannot have more batches than orbitals);
 /// when n is below the formula value the caller is in the small-problem regime
 /// and should fall back to small_memory_symmetric_mt_owner.
 ///
 /// Each batch k is owned by rank (k mod nsubworld), so with the unclamped
-/// formula every rank owns exactly (base + level - 1) batches.
+/// formula every rank owns exactly `level` batches.
 inline long exchange_sym_owner_nbatch(const std::size_t n, const long nsubworld,
                                       const long granularity_level) {
     if (n == 0) return 0;
     const long nsw = std::max<long>(1, nsubworld);
     const long level = std::max<long>(1, granularity_level);
-    const long base = (nsw % 2 == 0) ? 2 : 1;
-    const long M = (base + level - 1) * nsw;
+    const long M = level * nsw;
     return std::min<long>(M, long(n));
 }
 
@@ -399,7 +493,7 @@ public:
     bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
     long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
     bool use_cloud_batch_fetch_ = true; ///< if true (and algorithm==small_memory_mt_owner), fetch input batches from the cloud's owner-pinned batch container instead of copy()ing from the universe. Default off (A/B baseline).
-    long batch_granularity_ = 1;        ///< granularity level (>=1) for small_memory_symmetric_p2p_owner: M = (base+level-1)*nproc batches, base=2 if nproc even else 1. Level 1 = lowest granularity (~1 batch/rank). Runtime tunable.
+    long batch_granularity_ = 2;        ///< granularity level (>=1) = batches per rank for small_memory_symmetric_p2p_owner: M = level*nproc batches. Default 2 (= 2 batches/rank, the previous default). Runtime tunable.
     bool bra_equals_ket_ = false;       ///< true iff set_bra_and_ket received the same vector for bra and ket (moldft / plain HF). Set in set_bra_and_ket. Gates the one-set small_memory_symmetric_p2p_owner path (nemo has bra=R^2*ket != ket).
 
     /// default ctor
@@ -628,17 +722,30 @@ private:
         // ExchangeImpl::use_cloud_batch_fetch_ before submitting. Default off so
         // the existing copy()-from-universe path stays the A/B baseline.
         bool use_cloud_batch_fetch_ = true;
-        // Granularity level (>=1) for small_memory_symmetric_p2p_owner. Drives
-        // M = (base+level-1)*nproc batches via exchange_sym_owner_split, shared
+        // Granularity level (>=1) = batches per rank for small_memory_symmetric_p2p_owner.
+        // Drives M = level*nproc batches via exchange_sym_owner_split, shared
         // by the partitioner, store_batches, and the round-robin owner
         // assignment. Set from ExchangeImpl::batch_granularity_ before submitting.
-        long batch_granularity_ = 1;
+        long batch_granularity_ = 2;
         // When true, dump owner_map_ and (for cloud-batch) the cloud's batch
         // record routing at universe rank 0, once per K-application, right
         // after the partition + owner assignment is built. Set from
         // ExchangeImpl::printdebug() in K_macrotask_efficient.
         bool log_diagnostics_ = false;
+        // This process's universe rank, set from ExchangeImpl::world.rank() before
+        // submitting. Used only to key the per-task profile file (MAD_EXCH_TASK_PROFILE)
+        // to ONE file per process (appended across all K-applications), instead of one
+        // file per subworld-id which would explode with iterations x nproc.
+        long universe_rank_ = 0;
     private:
+        // Per-task performance record (MAD_EXCH_TASK_PROFILE). NON-static: scoped to
+        // the single operator() call on this task object; the kernels and
+        // sym_batch_lru_fetch write into it via `this` during that call. Reset at
+        // operator() entry, emitted at operator() exit on subworld rank 0.
+        mutable ExchTaskProfile prof_;
+        // Monotonic per-process task sequence for profiling identity (the task object
+        // does not know its framework `element`); unique together with subworld_id.
+        static inline std::atomic<long> prof_task_seq_{0};
         static inline std::unordered_map<long, functionT> bra_cache_;
         static inline std::unordered_map<long, functionT> ket_cache_;
         // Dedicated cache for the held i-batch (vf) in small_memory_mt_owner.
@@ -908,6 +1015,7 @@ private:
 
         void add_owner_compute_time(const double cpu0, const double cpu1) const {
             if (use_owner_aware_fetch()) owner_compute_timer += long((cpu1 - cpu0) * 1000l);
+            if (exch_task_profile_enabled()) prof_.compute_cpu = cpu1 - cpu0;
         }
 
         /// wall-time companion to add_owner_compute_time. Called from operator() to
@@ -916,6 +1024,12 @@ private:
         /// communication/fences that happened during the compute phase.
         void add_owner_compute_wall_time(const double wall0, const double wall1) const {
             if (use_owner_aware_fetch()) owner_compute_wall_timer += long((wall1 - wall0) * 1000l);
+            if (exch_task_profile_enabled()) {
+                // wall0 = compute start (post fetch), wall1 = compute end. Everything
+                // from task entry to compute start is data-wait (bra+vf[+ket] fetch).
+                prof_.compute_wall = wall1 - wall0;
+                prof_.wait_for_data_wall = wall0 - prof_.wall_start;
+            }
         }
 
         void ensure_cache_world(World& world) const {
@@ -1032,6 +1146,7 @@ private:
                                     sym_lru_.slots.begin() + s,
                                     sym_lru_.slots.begin() + s + 1);
                     ++sym_cache_hits_;
+                    prof_.observe_fetch_tier(0);
                     add_owner_fetch_time(cpu0, process_cpu_time());
                     return sym_lru_.slots.front().second;
                 }
@@ -1045,12 +1160,14 @@ private:
                             world, slot->fut, key, /*cache_result=*/false);
                     *slot = SymPrefetchSlot();   // retire the consumed slot
                     ++sym_prefetch_hits_;
+                    prof_.observe_fetch_tier(1);
                     add_owner_fetch_time(cpu0, process_cpu_time());
                     return sym_lru_insert(key, std::move(data));
                 }
             }
             // (3) synchronous miss
             ++sym_cache_misses_;
+            prof_.observe_fetch_tier(2);
             vecfuncT data = cloud.fetch_batch_p2p<T, NDIM>(world, key, /*cache_result=*/false);
             add_owner_fetch_time(cpu0, process_cpu_time());
             return sym_lru_insert(key, std::move(data));
@@ -1081,7 +1198,7 @@ private:
             /// (or fewer, if n < nsubworld) batches per dimension via even-remainder
             /// spread. Used by small_memory_mt_owner.
             bool row_owner_ = false;
-            /// when true, produce a lower-triangular grid over M=(base+level-1)*nsubworld
+            /// when true, produce a lower-triangular grid over M=level*nsubworld
             /// batches (single split, both dims) via exchange_sym_owner_split. Used by
             /// small_memory_symmetric_p2p_owner.
             bool sym_p2p_owner_ = false;
@@ -2367,7 +2484,7 @@ private:
 
             // Symmetric one-set store: bra==ket==vf==psi (guaranteed: nemo with
             // bra!=ket falls back to copy in K_macrotask_efficient). Store psi in
-            // M=(base+level-1)*nproc batches over a single split; batch k pinned to
+            // M=level*nproc batches over a single split; batch k pinned to
             // rank (k mod nsubworld). The symmetric kernels read this same set for
             // the column (vf), row (bra), and ket roles. One record/batch (DIM_VF).
             if (use_sym_p2p_owner_algorithm()) {
@@ -2503,6 +2620,26 @@ private:
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
             const double t_op_start = wall_time();
+
+            // per-task profiling (MAD_EXCH_TASK_PROFILE): reset + stamp identity/geometry.
+            // Interior timers (wait/compute/components/cpu) are filled by the accumulator
+            // helpers and the smallmem kernels; wall_end + peak RSS + emit happen at exit.
+            const bool prof_on = exch_task_profile_enabled();
+            if (prof_on) {
+                prof_.reset();
+                prof_.task_id = prof_task_seq_++;
+                prof_.universe_rank = universe_rank_;
+                prof_.subworld_id = static_cast<unsigned long>(world.id());
+                prof_.subworld_nrank = world.size();
+                prof_.thresh = FunctionDefaults<NDIM>::get_thresh();   // current protocol tier
+                prof_.k = FunctionDefaults<NDIM>::get_k();
+                prof_.diagonal = diagonal_block;
+                prof_.row_begin = bra_range.begin; prof_.row_end = bra_range.end;
+                prof_.col_begin = vf_range.begin;  prof_.col_end = vf_range.end;
+                prof_.n_row = bra_range.end - bra_range.begin;
+                prof_.n_col = vf_range.end - vf_range.begin;
+                prof_.wall_start = t_op_start;
+            }
 
             // -------- small_memory_mt_owner: row-owner asymmetric branch --------
             // For this algorithm each rank exclusively owns one i-batch (= vf_range).
@@ -2765,6 +2902,15 @@ private:
                 }
             }
             if (use_owner_aware_fetch()) release_finished_vf(vf_range);
+
+            // per-task profiling: stamp end + peak RSS and emit one JSON line (rank 0).
+            // Wall end is taken here (after the compute branches) so it bounds the whole
+            // operator() span; the accumulate/finalize overhead is downstream in run().
+            if (prof_on) {
+                prof_.wall_end = wall_time();
+                prof_.peak_rss_gb = madness::get_rss_usage_in_GB();
+                if (world.rank() == 0) exch_write_task_profile(prof_);
+            }
             return Kf;
         }
 
@@ -2805,24 +2951,40 @@ private:
             // TEMP debug knob.
             const double eff_tol = (smallmem_mul_tol_ >= 0.0) ? smallmem_mul_tol_ : mul_tol*0.1;
 
+            // per-component wall timing (MAD_EXCH_TASK_PROFILE). Honest without added
+            // fences: every op below runs with fence=true, so each completes before the
+            // next. `tick` folds the elapsed into the per-task accumulator.
+            const bool prof_on = exch_task_profile_enabled();
+            auto tick = [&](double& acc, double t0) { if (prof_on) acc += wall_time() - t0; };
+
             for (long i = 0; i < n; ++i) {
                 // Build N_ij for the upper-triangle of this diagonal tile row.
                 vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
+                double _t = prof_on ? wall_time() : 0.0;
                 vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, eff_tol, true, false);
-                if (subworld.rank() == 0) {
+                tick(prof_.mul1_wall, _t);
+                if (log_diagnostics_) {
                     print("smallmem_sym_mt diagonal i=", i, " psif.size()=", psif.size());
                 }
+                _t = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, _t);
+                _t = prof_on ? wall_time() : 0.0;
                 psif = apply(subworld, *poisson.get(), psif);
+                tick(prof_.apply_wall, _t);
+                _t = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, _t);
                 make_redundant(subworld, psif, true);
 
                 // Assemble full row update within the tile and accumulate by vector gaxpy.
                 vecfuncT update_i = zero_functions_compressed<T, NDIM>(subworld, n);
                 compress(subworld, update_i);
 
+                _t = prof_on ? wall_time() : 0.0;
                 vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, eff_tol, true, false);
-                if (subworld.rank() == 0) {
+                tick(prof_.mul2_wall, _t);
+                if (log_diagnostics_) {
                     print("smallmem_sym_mt diagonal i=", i, " vpsi.size()=", row_contrib.size());
                 }
                 compress(subworld, row_contrib);
@@ -2832,7 +2994,9 @@ private:
 
                 for (long j = 0; j < i; ++j) {
                     vecfuncT psif_single(1, psif[j]);
+                    _t = prof_on ? wall_time() : 0.0;
                     vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], psif_single, eff_tol, true, false);
+                    tick(prof_.mul2_wall, _t);
                     compress(subworld, mirrored);
                     update_i[i] += mirrored[0];
                 }
@@ -2996,27 +3160,44 @@ private:
             // TEMP debug knob.
             const double eff_tol = (smallmem_mul_tol_ >= 0.0) ? smallmem_mul_tol_ : mul_tol*0.1;
 
+            // per-component wall timing (MAD_EXCH_TASK_PROFILE); honest without added
+            // fences (every op runs with fence=true). See the diagonal kernel.
+            const bool prof_on = exch_task_profile_enabled();
+            auto tick = [&](double& acc, double t0) { if (prof_on) acc += wall_time() - t0; };
+
             for (long irow = 0; irow < nrow; ++irow) {
                 // Build N_ij for this offdiagonal tile row, all tile columns.
+                double _t = prof_on ? wall_time() : 0.0;
                 vecfuncT psif = mul_sparse(subworld, bra_batch[irow], vf_batch, eff_tol, true, false);
-                if (subworld.rank() == 0) {
+                tick(prof_.mul1_wall, _t);
+                if (log_diagnostics_) {
                     print("smallmem_sym_mt offdiag irow=", irow, " psif.size()=", psif.size());
                 }
+                _t = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, _t);
+                _t = prof_on ? wall_time() : 0.0;
                 psif = apply(subworld, *poisson.get(), psif);
+                tick(prof_.apply_wall, _t);
+                _t = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, _t);
                 make_redundant(subworld, psif, true);
 
                 // Row accumulation for vf-range: resultrow[j] += ket_row[irow] * N_ij.
+                _t = prof_on ? wall_time() : 0.0;
                 vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], psif, eff_tol, true, false);
-                if (subworld.rank() == 0) {
+                tick(prof_.mul2_wall, _t);
+                if (log_diagnostics_) {
                     print("smallmem_sym_mt offdiag irow=", irow, " vpsi.size()=", row_update.size());
                 }
                 compress(subworld, row_update);
                 gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
 
                 // Mirror accumulation for bra-range: resultcolumn[irow] += sum_j ket_column[j] * N_ij.
+                _t = prof_on ? wall_time() : 0.0;
                 auto column_update = dot(subworld, ket_columns, psif, true, false, eff_tol);
+                tick(prof_.mul2_wall, _t);
                 vecfuncT single_column_update = zero_functions_compressed<T, NDIM>(subworld, nrow);
                 single_column_update[irow] = copy(column_update);
                 gaxpy(subworld, 1.0, resultcolumn, 1.0, single_column_update);
