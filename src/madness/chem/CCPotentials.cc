@@ -890,10 +890,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         // each, i.e. the same total work as the combined {"Ue","KffK"} call.
         auto Vreg_Ue  =apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"Ue"},  pair.bsh_eps);
         auto Vreg_KffK=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"KffK"},pair.bsh_eps);
-        auto Vreg_f12_coupling=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"f12_coupling"},pair.bsh_eps);
+        // auto Vreg_f12_coupling=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,exchange_op,{"f12_coupling"},pair.bsh_eps);
         Vparts.emplace_back("Ue",  consolidate(apply_in_separated_form(Q12,Vreg_Ue)));
         Vparts.emplace_back("KffK",consolidate(apply_in_separated_form(Q12,Vreg_KffK)));
-        Vparts.emplace_back("f12_coupling",consolidate(apply_in_separated_form(Q12,Vreg_f12_coupling)));
+        // Vparts.emplace_back("f12_coupling",consolidate(apply_in_separated_form(Q12,Vreg_f12_coupling)));
     } else if (targetstate==CT_CC2) {       // Eq. (42) of Kottmann, JCTC 13, 5945 (2017)
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
         auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,exchange_op,argument, pair.bsh_eps);
@@ -1098,7 +1098,7 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
     if (pair.ctype == CT_ADC2)MADNESS_ASSERT(ex_singles.type == RESPONSE);
 
     real_function_6d constant_part = pair.constant_part;
-    constant_part.truncate().reduce_rank();
+    // constant_part.truncate().reduce_rank();
     pair.function().truncate().reduce_rank();
 
     StrongOrthogonalityProjector<double,3> Q12(world);

@@ -628,9 +628,14 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
     World& world = info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
+    // the partitioner batches only the first vector argument (pair); local_coupling
+    // arrives full-size and must be indexed by the global pair position
+    const long offset = batch.input[0].begin;
+    MADNESS_CHECK_THROW(offset + pair.size() <= local_coupling.size(),
+                        "coupling/pair vector size mismatch in MacroTaskIteratePair");
     for (size_t i = 0; i < pair.size(); i++) {
         result[i]=  CCPotentials::iterate_pair_macrotask(world, pair[i], gs_singles, ex_singles,
-            local_coupling[i], info, maxiter).function();
+            local_coupling[offset + i], info, maxiter).function();
     }
     return result;
 
