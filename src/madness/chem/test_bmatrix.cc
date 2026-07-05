@@ -160,7 +160,6 @@ int main(int argc, char** argv) {
         lrf_params.set_derived_value<double>("radius", 5.0);
         lrf_params.set_derived_value<double>("volume_element", 0.1);
         lrf_params.set_derived_value<std::string>("gridtype", std::string("random"));
-        lrf_params.set_derived_value<bool>("canonicalize", true);
 
         double t0_lrf = wall_time();
         std::vector<std::pair<size_t,size_t>> pairs;

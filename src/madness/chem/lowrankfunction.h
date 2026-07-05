@@ -46,7 +46,6 @@ namespace madness {
             initialize<std::string>("gridtype","random","the grid type",{"random","twostage","harmonics","adaptive"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
-            initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity (non-canon. sensitive to thresh!)");
             initialize<std::vector<double>>("tempered",{0.05,2.0,3.0},"zeta_min,zeta_max,factor");
         }
         [[nodiscard]] std::string get_tag() const override {
@@ -64,7 +63,6 @@ namespace madness {
         [[nodiscard]] double tol() const {return get<double>("tol");}
         [[nodiscard]] int optimize() const {return get<int>("optimize");}
         [[nodiscard]] int lmax() const {return get<int>("lmax");}
-        [[nodiscard]] bool canonicalize() const {return get<bool>("canonicalize");}
         [[nodiscard]] std::string gridtype() const {return get<std::string>("gridtype");}
         // orthomethod removed — always cholesky
         [[nodiscard]] std::string f12type() const {return get<std::string>("f12type");}
@@ -745,9 +743,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
     /// a LowRankFunction can be created from a hi-dim function directly, or from a composite like f(1,2) phi(1) psi(2),
     /// where f(1,2) is a two-particle function (e.g. a Slater function)
-    /// there are two possible representation
-    ///  canonical:     f(1,2) = \sum_i g_i(1) h_i(2)
-    ///  general:       f(1,2) = \sum_{ij} g_i(1) M_{ij} h_j(2)
+    /// the representation is canonical:  f(1,2) = \sum_i g_i(1) h_i(2)
     /// for the time being we don't require g or h to be orthogonal or normalized
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunction : public archive::ParallelSerializableObject {
@@ -756,21 +752,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         double rank_revealing_tol=1.e-8;     // rrcd tol
         bool do_print=false;
         std::vector<Function<T,LDIM>> g,h;
-        Tensor<T> metric;   ///< the coupling matrix in the general representation, empty in the canonical representation
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
 
         LowRankFunction() = default;
 
         LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
-                        double tol, const Tensor<T> metric=Tensor<T>()) :
-                        rank_revealing_tol(tol), g(g), h(h), metric(metric) {
+                        double tol) :
+                        rank_revealing_tol(tol), g(g), h(h) {
+            MADNESS_CHECK_THROW(this->g.size()==this->h.size(),"inconsistent sizes in LRF");
         }
 
         /// shallow copy ctor
         LowRankFunction(const LowRankFunction& other) :
             rank_revealing_tol(other.rank_revealing_tol),
-            g(other.g), h(other.h), metric(other.metric) {
+            g(other.g), h(other.h) {
         }
 
         World& world() const {
@@ -781,7 +777,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// deep copy
         friend LowRankFunction copy(const LowRankFunction& other) {
             return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),
-                other.rank_revealing_tol, madness::copy(other.metric));
+                other.rank_revealing_tol);
         }
 
         /// serialize to an archive (e.g. cloud or file)
@@ -790,7 +786,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             try {
                 std::size_t gsize=g.size();
                 std::size_t hsize=g.size();
-                ar & gsize & hsize & rank_revealing_tol & metric;
+                ar & gsize & hsize & rank_revealing_tol;
                 g.resize(gsize);        // noop for saving
                 h.resize(hsize);        // noop for saving
                 for (int i=0; i<gsize; ++i) ar & g[i];
@@ -805,8 +801,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             hashT h1=0;
             for (const auto& aa : f.g) hash_combine(h1,hash_value(aa.get_impl()));
             for (const auto& bb : f.h) hash_combine(h1,hash_value(bb.get_impl()));
-            double normf=f.metric.normf();
-            hash_combine(h1,hash_value(f.metric.normf()));
             hash_combine(h1,hash_value(f.rank_revealing_tol));
             return h1;
         }
@@ -819,7 +813,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             Recordlist<Cloud::keyT> records;
             records+=cloud.store(world,g);
             records+=cloud.store(world,h);
-            records+=cloud.store(world,metric);
             records+=cloud.store(world,rank_revealing_tol);
             return records;
         }
@@ -831,7 +824,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             // load bookkeeping stuff in a vector
             g=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
             h=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
-            metric=cloud.forward_load<Tensor<double>>(world,recordlist);
             rank_revealing_tol=cloud.forward_load<double>(world,recordlist);
         }
 
@@ -841,7 +833,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             do_print = f.do_print;
             g = f.g;
             h = f.h;
-            metric = f.metric;
             return *this;
         }
 
@@ -856,21 +847,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             Tensor<T> gvec(g.size()), hvec(h.size());
             for (int i=0; i<g.size(); ++i) gvec(i)=g[i](first);
             for (int i=0; i<h.size(); ++i) hvec(i)=h[i](second);
-            if (is_canonical()) result=gvec.trace(hvec);
-            else result=gvec.trace(inner(metric,hvec,1,0));
+            result=gvec.trace(hvec);
             return result;
-        }
-
-        /// the canonical representation is a special case of the general representation where the coupling matrix
-        /// is the identity, so we can check for that
-        bool is_canonical() const {
-            // some sanity check
-            if (metric.size()==0) MADNESS_CHECK_THROW(g.size()==h.size(),"inconsistent sizes in LRF");
-            if (metric.size()>0) {
-                MADNESS_CHECK_THROW(g.size()==metric.dim(0),"inconsistent g sizes in LRF");
-                MADNESS_CHECK_THROW(h.size()==metric.dim(1),"inconsistent h sizes in LRF");
-            }
-            return metric.size()==0;
         }
 
         /*
@@ -892,41 +870,27 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// in-place addition
         LowRankFunction& operator+=(const LowRankFunction& b) {
-
-            // result metric is (m1  0 \\ 0  m2)
-            if (metric or b.metric) {
-                Tensor<T> tmp_metric=Tensor<T>(g.size() + b.g.size(), h.size() + b.h.size());
-                Tensor<T> ametric= (metric) ? metric : identity_matrix<T>(g.size());
-                if (ametric) tmp_metric(Slice(0,g.size()-1),Slice(0,h.size()-1))=ametric;
-
-                Tensor<T> bmetric= (b.metric) ? b.metric : identity_matrix<T>(b.g.size());
-                if (bmetric) tmp_metric(Slice(g.size(),g.size()+b.g.size()-1),Slice(h.size(),h.size()+b.h.size()-1))=bmetric;
-                metric=tmp_metric;
-            }
-
             g=append(g,copy(b.g));
             h=append(h,copy(b.h));
-
             return *this;
         }
 
         /// in-place subtraction
         LowRankFunction& operator-=(const LowRankFunction& b) {
-            LowRankFunction<T,NDIM> tmp(b);     // shallow
-            if (b.metric) tmp.metric=-1.0*b.metric;           // deep
-            else tmp.metric=-1.0*identity_matrix<T>(b.g.size());
-            return (*this)+=tmp;
+            g=append(g,copy(b.g)*T(-1.0));
+            h=append(h,copy(b.h));
+            return *this;
         }
 
         /// scale by a scalar
         template<typename Q>
         LowRankFunction operator*(const Q a) const {
-            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h),rank_revealing_tol,metric);
+            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h),rank_revealing_tol);
         }
 
         /// out-of-place scale by a scalar (no type conversion)
         LowRankFunction operator*(const T a) const {
-            return LowRankFunction(g * a, h,rank_revealing_tol,metric);
+            return LowRankFunction(g * a, h,rank_revealing_tol);
         }
 
         /// multiplication with a scalar
@@ -944,15 +908,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         typename TensorTypeData<T>::scalar_type norm2() const {
             auto g_ij=matrix_inner(world(),g,g);
             auto h_ij=matrix_inner(world(),h,h);
-            // ||this||^2 = <g_i| g_k> M_ij <h_j| h_l> M_kl
-            // in the canonical case, M_ij = delta_ij, so we just need to contract g_ij and h_ij
-            if (is_canonical()) return sqrt(g_ij.trace(h_ij));
-
-            /// in the general case we have to contract with the coupling matrix metric
-            auto SM1=inner(g_ij,metric,1,0);     // S_il = <g_i| g_k> M_kl
-            auto SM2=inner(metric,h_ij,1,0);     // S_il = M_ij <h_j| h_l>
-            return sqrt(SM1.trace(SM2));
-
+            // ||this||^2 = <g_i| g_k> <h_i| h_k>
+            return sqrt(g_ij.trace(h_ij));
         }
 
         std::vector<Function<T,LDIM>> get_functions(const particle<LDIM>& p) const {
@@ -968,12 +925,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             Tensor<long> r(2);
             r(0l)=g.size();
             r(1l)=h.size();
-            if (metric.size()>0) {
-                MADNESS_ASSERT(r(0l)==metric.dim(0));
-                MADNESS_ASSERT(r(1l)==metric.dim(1));
-            } else {
-                MADNESS_ASSERT(r(0l)==r(1l));
-            }
+            MADNESS_ASSERT(r(0l)==r(1l));
             return r;
         }
 
@@ -994,21 +946,18 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             if (world().rank()==0) print(buf);
         }
 
-        /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
+        /// f(1,2) = \sum_i g_i(1) h_i(2)
         Function<T,NDIM> reconstruct() const {
             if (g.size()==0) return Function<T,NDIM>();
-            std::vector<Function<T,LDIM>> gtilde=g;
-            if (not is_canonical()) gtilde=transform(g.front().world(),g,metric);        // gtilde_p(1) = \sum_q g_q(1) M_{qp}
-            MADNESS_ASSERT(gtilde.size()==h.size());
-            auto fapprox=hartree_product(gtilde[0],h[0]);
-            for (int i=1; i<gtilde.size(); ++i) fapprox+=hartree_product(gtilde[i],h[i]);
+            MADNESS_ASSERT(g.size()==h.size());
+            auto fapprox=hartree_product(g[0],h[0]);
+            for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
             return fapprox;
         }
 
-        /// remove linear dependencies in g and h; result will have the form
-        /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
+        /// remove linear dependencies in g and h; result stays in canonical form
+        /// f(1,2) = \sum_i g_i(1) h_i(2)
         /// {g} and {h} are not necessarily orthogonal, but they are linearly independent
-        /// the coupling matrix M is not necessarily quadratic
         void remove_linear_dependencies(double tol=-1.0) {
             if (tol<0.0) tol=rank_revealing_tol;
             if (g.size()==0) return;
@@ -1025,18 +974,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             //             X_inv: its (r,p) "inverse" from original functions to orthonormalized functions:
             //                 v_p = v_ortho_i X_inv_ip
             // note that X is not the inverse of X_inv, that would be X_full
-            g=pg;
-            h=ph;
-            // g M h = pg X X^(-1) M X^(-T) X^T ph
+            // g h = pg X X^(-1) X^(-T) X^T ph
+            // absorb the coupling matrix M = Xg . Xh^T into g to keep the canonical form
             auto XXinv_g=inner(Xg,Xg_inv);
             auto XXinv_h=inner(Xh,Xh_inv);
-            if (metric.size()>0) {
-                metric=inner(XXinv_g,inner(metric,XXinv_h,1,1),1,0);      // Xg . M . Xh^T
-            } else {
-                // if it was canonical keep it canonical
-                metric = inner(XXinv_g,XXinv_h,1,1);      // Xg . Xh^T
-                canonicalize();
-            }
+            auto M = inner(XXinv_g,XXinv_h,1,1);      // Xg . Xh^T
+            g=transform(world,pg,M);
+            h=ph;
         }
 
         void reorthonormalize() {
@@ -1104,7 +1048,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     private:
         /// orthonormalize the argument vector via rank-revealing Cholesky
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
-            MADNESS_CHECK_THROW(is_canonical(),"no orthonormalization unless canonicalized");
             if (g.size()==0) return g;
             auto ovlp=matrix_inner(g.front().world(),g,g);
             auto g2=orthonormalize_rrcd(g,ovlp,rank_revealing_tol);
@@ -1119,7 +1062,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize(const LRFunctorBase<T,NDIM>& lrfunctor1, const long nopt=1) {
             timer t(world());
-            MADNESS_CHECK_THROW(is_canonical(),"currently only optimization of canonical LRFs supported");
             t.do_print=do_print;
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
@@ -1132,11 +1074,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 h=truncate(inner(lrfunctor1,g,p1,p1));
                 t.tag("inner2");
             }
-        }
-        void canonicalize() {
-            if (is_canonical()) return;
-            g=transform(world(),g,metric);
-            metric=Tensor<T>();
         }
 
         /// compute the l2 error |functor - \sum_i g_ih_i|_2
@@ -1153,34 +1090,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             term1=term1*term1;
             t.tag("computing term1");
 
-            // \int f(1,2) \sum_{ij} g_i(1) m_{ij} h_j(2) d1d2
-            // = \sum_{ij} m_{ij} \int (\int f(1,2) g_i(1) d1) h_j(2) d2
-            double term2=0.0;
-            if (is_canonical()) {
-                term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
-            } else {
-                std::vector<Function<T,LDIM>> fh=inner(lrfunctor1,h,p2,p1);
-                Tensor<T> fgh=matrix_inner(world(),g,fh);
-                term2=fgh.trace(metric);
-            }
+            // \int f(1,2) \sum_i g_i(1) h_i(2) d1d2
+            // = \sum_i \int (\int f(1,2) g_i(1) d1) h_i(2) d2
+            double term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
             t.tag("computing term2");
 
-            double term3=0.0;
-            if (is_canonical()) {
-                auto tmp1=matrix_inner(world(),h,h);
-                auto tmp2=matrix_inner(world(),g,g);
-                term3=tmp1.trace(tmp2);
-            } else {
-                // general case: no orthogonality, so we have to contract with the coupling matrix metric
-                // \int gh(1,2)^2 d1d2 = \int \sum_{ijkl} g_i(1) m_{ij} g_k(1) m_{kl} h_j(2) h_l(2) d1d2
-                //   = \sum_{ijkl} m_{ij} m_{kl} <g_i | g_k> <h_j | h_l>
-                auto gmat=matrix_inner(world(),g,g);
-                auto hmat=matrix_inner(world(),h,h);
-                auto SM1 = inner(gmat,metric);          // gmat_ik m_kl = SM1_il
-                auto SM2 = inner(metric, hmat);         // m_ij hmat_jl = SM2_il
-                term3=SM1.trace(SM2);
-            }
-//            print("term3/a/diff",term3a,term3,term3-term3a);
+            auto tmp1=matrix_inner(world(),h,h);
+            auto tmp2=matrix_inner(world(),g,g);
+            double term3=tmp1.trace(tmp2);
             t.tag("computing term3");
 
             double arg=term1-2.0*term2+term3;
@@ -1208,8 +1125,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// @param[in] f_norm_sq  precomputed ||f||^2 (typically lrfunctor.norm2()^2)
         /// @pre the LRF is in canonical form and g holds the reprojected factors.
         double l2error_pythagoras(double f_norm_sq) const {
-            MADNESS_CHECK_THROW(is_canonical(),
-                "l2error_pythagoras requires canonical form (h orthonormal)");
             MADNESS_CHECK_THROW(f_norm_sq > 0.0,
                 "l2error_pythagoras requires a positive ||f||^2");
             if (g.size()==0) return 0.0;
@@ -1229,14 +1144,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     T inner(const LowRankFunction<T,NDIM>& a, const LowRankFunction<T,NDIM>& b) {
         World& world=a.world();
 
-        // result = <a.g_i| b.g_k> a.M_ij <a.h_j| b.h_l> b.M_kl
+        // result = <a.g_i| b.g_k> <a.h_i| b.h_k>
         auto g_ik=matrix_inner(world,a.g,b.g);
         auto h_jl=matrix_inner(world,a.h,b.h);
-
-        /// in the general case we have to contract with the coupling matrix metric
-        auto SM1 = (b.metric.size()) ? inner(g_ik,b.metric,1,0) : g_ik;     // S_il = <g_i| g_k> M_kl
-        auto SM2 = (a.metric.size()) ? inner(a.metric,h_jl,1,0) : h_jl;     // S_il = M_ij <h_j| h_l>
-        return SM1.trace(SM2);
+        return g_ik.trace(h_jl);
     }
 
     /**
@@ -1257,10 +1168,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM, std::size_t PDIM>
     LowRankFunction<T,NDIM> inner(const Function<T,NDIM>& f1, const LowRankFunction<T,NDIM>& f2,
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
-        // MADNESS_CHECK_THROW(f2.is_canonical(),"need canonical representation for inner product of two low-rank functions");
         auto result=inner(f2,f1,p2,p1);
         std::swap(result.g,result.h);
-        if (result.metric) result.metric=transpose(result.metric);
         return result;
     }
 
@@ -1276,23 +1185,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         static_assert(TensorTypeData<T>::iscomplex==false, "complex inner in LowRankFunction not implemented");
         World& world=f1.world();
         static_assert(2*PDIM==NDIM);
-        // int f(1,2) k(2,3) d2 = \sum \int g_i(1) M_ij h_j(2) k(2,3) d2
-        //                      = \sum g_i(1) M_ij \int h_j(2) k(2,3) d2
-        //                      = \sum g_i(1) M_ij k_j(3)
+        // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
+        //                      = \sum g_i(1) \int h_i(2) k(2,3) d2
+        //                      = \sum g_i(1) k_i(3)
         LowRankFunction<T, NDIM> result;
         if (p1.is_last()) { // integrate over 2: result(1,3) = lrf(1,2) f(2,3)
             result.g = f1.g;
             change_tree_state(f1.h,reconstructed);
             result.h=innerXX<PDIM>(f2,f1.h,p2.get_array(),particle<PDIM>::particle1().get_array());
-            result.metric=f1.metric;
         } else if (p1.is_first()) { // integrate over 1: result(2,3) = lrf(1,2) f(1,3)
-            // int f(1,2) k(2,3) d2 = \sum \int g_i(1) M_ij h_j(2) k(1,3) d1
-            //                      = \sum h_j(2) M_ij \int g_i(1) k(1,3) d1
-            //                      = \sum h_j(2) M_ji k_i(3)
+            // int f(1,2) k(1,3) d1 = \sum \int g_i(1) h_i(2) k(1,3) d1
+            //                      = \sum h_i(2) \int g_i(1) k(1,3) d1
+            //                      = \sum h_i(2) k_i(3)
             result.g = f1.h;        // correct! second variable of f1 becomes first variable of result
             change_tree_state(f1.g,reconstructed);
             result.h=innerXX<PDIM>(f2,f1.g,p2.get_array(),particle<PDIM>::particle1().get_array());
-            if (f1.metric.size()>0) result.metric=transpose(f1.metric);
         }
         return result;
     }
@@ -1310,18 +1217,15 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         static_assert(2*PDIM==NDIM);
 
         // integrate over 2: result(1,3) =
-        // p1,p2 = 1,0: inner(lrf(1,2) ,lrf(2,3) ) = \sum_ij g1_i(1) M_ij <h1_j(2) g2_k(2)> h2_l(3) M_kl
-        // p1,p2 = 0,0: inner(lrf(2,1) ,lrf(2,3) ) = \sum_ij h1_j(1) M_ij <g1_i(2) g2_k(2)> h2_l(3) M_kl
-        // p1,p2 = 0,1: inner(lrf(2,1) ,lrf(3,2) ) = \sum_ij h1_j(1) M_ij <g1_i(2) h2_l(2)> g2_k(3) M_kl
-        // p1,p2 = 1,1: inner(lrf(1,2) ,lrf(3,2) ) = \sum_ij g1_i(1) M_ij <h1_j(2) h2_l(2)> g2_k(3) M_kl
+        // p1,p2 = 1,0: inner(lrf(1,2) ,lrf(2,3) ) = \sum_ik g1_i(1) <h1_i(2) g2_k(2)> h2_k(3)
+        // p1,p2 = 0,0: inner(lrf(2,1) ,lrf(2,3) ) = \sum_ik h1_i(1) <g1_i(2) g2_k(2)> h2_k(3)
+        // p1,p2 = 0,1: inner(lrf(2,1) ,lrf(3,2) ) = \sum_ik h1_i(1) <g1_i(2) h2_k(2)> g2_k(3)
+        // p1,p2 = 1,1: inner(lrf(1,2) ,lrf(3,2) ) = \sum_ik g1_i(1) <h1_i(2) h2_k(2)> g2_k(3)
         auto matrix=matrix_inner(world,f1.get_functions(p1),f2.get_functions(p2));
-        int index1 = (p1.is_first()) ? 0 : 1;
-        int index2 = (p2.is_first()) ? 0 : 1;
-        auto tmp = (f1.metric.size()>0) ? inner(f1.metric,matrix,index1,0) : matrix;
-        auto metric = (f2.metric.size()>0) ? inner(tmp,f2.metric,1,index2) : tmp;
-        auto gg=copy(world,f1.get_functions(p1.complement()));
+        // absorb the coupling matrix into g to keep the canonical form: gg_k(1) = \sum_i f1_i(1) matrix_ik
+        auto gg=transform(world,f1.get_functions(p1.complement()),matrix);
         auto hh=copy(world,f2.get_functions(p2.complement()));
-        return LowRankFunction<T,NDIM>(gg,hh,f1.rank_revealing_tol,metric);
+        return LowRankFunction<T,NDIM>(gg,hh,f1.rank_revealing_tol);
     }
 
     ///  f(1) = inner(lrf(1,2), f(2))
@@ -1337,12 +1241,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         static_assert(2*PDIM==NDIM);
         MADNESS_CHECK(p2.is_first());
 
-        // inner(lrf(1,2), f_k(2) ) = \sum_i g1_i(1) M_{ij} <h1_j(2) f_k(2)>
-        // inner(lrf(2,1), f_k(2) ) = \sum_i h1_j(1) M_{ij} <g1_i(2) f_k(2)>
+        // inner(lrf(1,2), f_k(2) ) = \sum_j g1_j(1) <h1_j(2) f_k(2)>
+        // inner(lrf(2,1), f_k(2) ) = \sum_j h1_j(1) <g1_j(2) f_k(2)>
         auto matrix_jk=matrix_inner(world,f1.get_functions(p1),vf);
-        int index1 = (p1.is_first()) ? 0 : 1;
-        auto matrix = (f1.metric.size()>0) ? inner(f1.metric,matrix_jk,index1,0) : matrix_jk;
-        return transform(world,f1.get_functions(p1.complement()),matrix);
+        return transform(world,f1.get_functions(p1.complement()),matrix_jk);
     }
 
     ///  f(1) = inner(lrf(1,2), f(2))
@@ -1360,11 +1262,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     /// Factory class to compute a low-rank approximation of a given hi-dimensional function
     /// f(r1,r2) using randomized projection and rank-revealing Cholesky decomposition (RRCD).
     ///
-    /// The approximation takes the form
-    ///   f(r1,r2) ≈ Σ_{ij} g_i(r1) X_{ij} h_j(r2)
-    /// where X is the "half-metric", g are (non-orthogonal) basis functions, and h are
-    /// backprojected functions. In the canonical form (canonicalize=true), X is absorbed
-    /// into g and the representation simplifies to Σ_i g_i(r1) h_i(r2).
+    /// The approximation takes the canonical form
+    ///   f(r1,r2) ≈ Σ_i g_i(r1) h_i(r2)
+    /// where h are orthonormalized backprojected functions and g their reprojections.
     ///
     /// ## Error analysis
     ///
@@ -1451,10 +1351,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return *this;
         }
         // set_orthomethod removed — always use cholesky
-        LowRankFunctionFactory& set_canonicalize(const bool canonicalize) {
-            parameters.set_user_defined_value("canonicalize",canonicalize);
-            return *this;
-        }
+        // set_canonicalize removed — the representation is always canonical
         LowRankFunctionFactory& set_gridtype(const std::string& gridtype) {
             parameters.set_user_defined_value("gridtype",gridtype);
             return *this;

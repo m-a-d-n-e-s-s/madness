@@ -162,31 +162,19 @@ template<std::size_t LDIM>
 int test_numerics(World& world, LowRankFunctionParameters& parameters) {
 
     /**
-    2D numerical results for tol, volume_element, canonicalize with thresh 1.e-6
-    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 1         error 1.216274e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 1         error 5.161666e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 1         error 1.629885e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 1         error 6.962729e-04
-    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 1         error 2.404550e-04
-
-    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 0         error 2.732504e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 0         error 1.352570e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 0         error 5.691447e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 0         error 2.848441e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 0         error 1.655696e-03
+    2D numerical results for tol, volume_element with thresh 1.e-6 (canonical representation)
+    lrf l2 err, tol, volume 1.00e-05 1.00e-01         error 1.216274e-02
+    lrf l2 err, tol, volume 1.00e-06 1.00e-01         error 5.161666e-03
+    lrf l2 err, tol, volume 1.00e-07 1.00e-01         error 1.629885e-03
+    lrf l2 err, tol, volume 1.00e-08 1.00e-01         error 6.962729e-04
+    lrf l2 err, tol, volume 1.00e-09 1.00e-01         error 2.404550e-04
 
     3D numerical results: numerical parameters: k, eps(3D), eps(6D) 6 3.000000e-05 1.000000e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 1         error 3.389503e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 1         error 1.216609e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 1         error 5.161720e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 1         error 3.033423e-03
-    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 1         error 2.738746e-03
-
-    lrf l2 err, tol, volume, canonicalize 1.00e-05 1.00e-01, 0         error 5.267631e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-06 1.00e-01, 0         error 2.576630e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-07 1.00e-01, 0         error 1.670944e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-08 1.00e-01, 0         error 4.430516e-02
-    lrf l2 err, tol, volume, canonicalize 1.00e-09 1.00e-01, 0         error 2.903584e-01
+    lrf l2 err, tol, volume 1.00e-05 1.00e-01         error 3.389503e-02
+    lrf l2 err, tol, volume 1.00e-06 1.00e-01         error 1.216609e-02
+    lrf l2 err, tol, volume 1.00e-07 1.00e-01         error 5.161720e-03
+    lrf l2 err, tol, volume 1.00e-08 1.00e-01         error 3.033423e-03
+    lrf l2 err, tol, volume 1.00e-09 1.00e-01         error 2.738746e-03
 
     **/
     test_output t1("test_numerics");
@@ -236,31 +224,28 @@ int test_numerics(World& world, LowRankFunctionParameters& parameters) {
     t1.checkpoint(true,"prep 2");
 
 
-    for (auto canonicalize : {true,false}) {
-        for (auto ve : {1.e-1,1.e-2}) {
-            // for (auto tol : {1.e-5,1.e-6, 1.e-7}) {
-            for (auto tol : {1.e-5,1.e-6,1.e-7,1.e-8,1.e-9}) {
-                for (auto& functor : functors) {
-                    parameters.set_derived_value("canonicalize",canonicalize);
-                    parameters.set_derived_value("volume_element",ve);
-                    parameters.set_derived_value("tol",tol);
+    for (auto ve : {1.e-1,1.e-2}) {
+        // for (auto tol : {1.e-5,1.e-6, 1.e-7}) {
+        for (auto tol : {1.e-5,1.e-6,1.e-7,1.e-8,1.e-9}) {
+            for (auto& functor : functors) {
+                parameters.set_derived_value("volume_element",ve);
+                parameters.set_derived_value("tol",tol);
 
 
-                    double target_thresh=1.e-3;
-                    auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
-                    auto lrfunction1=builder.project(*functor,target_thresh,1);
+                double target_thresh=1.e-3;
+                auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins);
+                auto lrfunction1=builder.project(*functor,target_thresh,1);
 
 
-                    // turn tol into a string with scientic notation and 2 digits, for better readability of the output
-                    char buf[80];
-                    snprintf(buf,80,"tol, volume, canonicalize %.2e %.2e, %s",
-                        parameters.tol(), parameters.volume_element(), std::to_string(canonicalize).c_str());
-                    std::string description(buf);
-                    { // test l2 error
-                        double error1=lrfunction1.l2error(*functor);
-                        print("error, tol", error1,target_thresh);
-                        t1.checkpoint(error1,target_thresh,"lrf l2 err, "+description);
-                    }
+                // turn tol into a string with scientic notation and 2 digits, for better readability of the output
+                char buf[80];
+                snprintf(buf,80,"tol, volume %.2e %.2e",
+                    parameters.tol(), parameters.volume_element());
+                std::string description(buf);
+                { // test l2 error
+                    double error1=lrfunction1.l2error(*functor);
+                    print("error, tol", error1,target_thresh);
+                    t1.checkpoint(error1,target_thresh,"lrf l2 err, "+description);
                 }
             }
         }
@@ -383,11 +368,9 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
     Vector<double,LDIM> origin(0.0);
     std::vector<Vector<double,LDIM>> origins = {origin};
 
-    for (auto canonicalize : {true,false}) {
-        for (auto gridtype : {"random","harmonics","adaptive"}) {
+    for (auto gridtype : {"random","harmonics","adaptive"}) {
                 for (auto& functor : functors) {
                     parameters.set_derived_value("gridtype",std::string(gridtype));
-                    parameters.set_derived_value("canonicalize",canonicalize);
                     parameters.print("grid");
 
                     print("working with functor,",functor->type());
@@ -403,7 +386,6 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
                     std::string stol=std::string(buf);
 
                     std::string description=std::string(parameters.gridtype())+
-                                        ", canon="+std::to_string(canonicalize)+
                                         ", "+functor->type()+
                                         ", tol="+stol;
                     t1.checkpoint(true,"lrf projection");
@@ -423,7 +405,6 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
                     }
                 }
             }
-        }
     FunctionDefaults<LDIM>::set_thresh(thresh_ldim);
     return t1.end();
 }
@@ -449,9 +430,8 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     std::vector<Vector<double,LDIM>> origins = {origin};
 
     for (auto gridtype : {"random","harmonics"}) {
-        for (auto canonicalize : {true,false}) {
+        {
             parameters.set_derived_value("gridtype",std::string(gridtype));
-            parameters.set_derived_value("canonicalize",canonicalize);
             parameters.print("grid");
 
             auto builder= LowRankFunctionFactory<double,NDIM>(parameters, origins).set_radius(4)
@@ -493,10 +473,6 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
                 double n2=lrf2.norm2();
                 double refn2=functor2.norm2();
                 t1.checkpoint(fabs(n2-refn2),thresh,"norm2 computation");
-                auto lrf3=copy(lrf2);
-                lrf3.canonicalize();
-                double n3=lrf3.norm2();
-                t1.checkpoint(fabs(n3-refn2),thresh,"norm2 computation - canon");
             }
 
 
@@ -698,44 +674,36 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
 
     // for (auto& lrfunctor : {lrfunctor1,lrfunctor2}) {
     for (auto& lrfunctor : {lrfunctor2}) {
-        for (auto& canonicalize : {true,false}) {
-            for (auto gridtype : {"random","harmonics"}) {
-                parameters.set_derived_value("gridtype",std::string(gridtype));
-                print_header2("in functor loop");
-                parameters.set_derived_value("canonicalize",canonicalize);
-                MADNESS_CHECK_THROW(parameters.canonicalize() == canonicalize,"incorrect setting of canonicalize"); // make sure it isn't overridden
-                std::string description=std::string(parameters.gridtype())+", canon="+std::to_string(canonicalize);
+        for (auto gridtype : {"random","harmonics"}) {
+            parameters.set_derived_value("gridtype",std::string(gridtype));
+            print_header2("in functor loop");
+            std::string description=std::string(parameters.gridtype());
 
-                // with Slater tol must be relaxed
-                double target_thresh= 1.e-2;
-                if (gridtype == std::string("harmonics")) target_thresh=9.e-2; // harmonics cannot represent the cusp
+            // with Slater tol must be relaxed
+            double target_thresh= 1.e-2;
+            if (gridtype == std::string("harmonics")) target_thresh=9.e-2; // harmonics cannot represent the cusp
 
-                LowRankFunctionFactory<double, NDIM> builder(parameters, origins);
-                auto lrf = builder.project(lrfunctor,target_thresh);
+            LowRankFunctionFactory<double, NDIM> builder(parameters, origins);
+            auto lrf = builder.project(lrfunctor,target_thresh);
 
-                double error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, target_thresh, "l2 error in projection "+description);
+            double error = lrf.l2error(lrfunctor);
+            t1.checkpoint(error, target_thresh, "l2 error in projection "+description);
 
-                auto lrf2(lrf);
-                if (canonicalize) MADNESS_CHECK((lrf.rank()-lrf2.rank()).sumsq()==0);
-                else {
-                    MADNESS_CHECK(lrf.metric.dim(0) == lrf.metric.dim(0));
-                    MADNESS_CHECK(lrf.metric.dim(1) == lrf.metric.dim(1));
-                }
-                MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
-                error = lrf2.l2error(lrfunctor);
-                t1.checkpoint(error, target_thresh, "l2 error in copy ctor "+description);
+            auto lrf2(lrf);
+            MADNESS_CHECK((lrf.rank()-lrf2.rank()).sumsq()==0);
+            MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
+            error = lrf2.l2error(lrfunctor);
+            t1.checkpoint(error, target_thresh, "l2 error in copy ctor "+description);
 
-                lrf.remove_linear_dependencies();
-                error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, target_thresh, "l2 error in remove_lindep "+description);
+            lrf.remove_linear_dependencies();
+            error = lrf.l2error(lrfunctor);
+            t1.checkpoint(error, target_thresh, "l2 error in remove_lindep "+description);
 
-                lrf+=lrf;
-                lrf*=0.5;
-                lrf.remove_linear_dependencies();
-                error = lrf.l2error(lrfunctor);
-                t1.checkpoint(error, target_thresh, "l2 error in remove_lindep with lindep "+description);
-            }
+            lrf+=lrf;
+            lrf*=0.5;
+            lrf.remove_linear_dependencies();
+            error = lrf.l2error(lrfunctor);
+            t1.checkpoint(error, target_thresh, "l2 error in remove_lindep with lindep "+description);
         }
 
     }
@@ -908,150 +876,6 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
-/// test norm2 with an asymmetric (non-symmetric) coupling matrix
-///
-/// Build a LowRankFunction in canonical form, compute its norm as reference,
-/// then transform into a general representation with an asymmetric metric
-/// and verify that norm2() still returns the correct value.
-template<std::size_t LDIM>
-int test_norm2_asymmetric_metric(World& world, LowRankFunctionParameters parameters) {
-    constexpr std::size_t NDIM = 2 * LDIM;
-    test_output t1("LowRankFunction::norm2 with asymmetric metric in dimension " + std::to_string(NDIM));
-    // t1.set_cout_to_terminal();
-    double thresh = FunctionDefaults<LDIM>::get_thresh();
-
-    // build a few basis functions for g and h
-    const int nfunc = 3;
-    std::vector<Function<double,LDIM>> gfuncs(nfunc), hfuncs(nfunc);
-    for (int i = 0; i < nfunc; ++i) {
-        double alpha_g = 1.0 + 0.5 * i;
-        double alpha_h = 2.0 + 0.3 * i;
-        gfuncs[i] = FunctionFactory<double,LDIM>(world)
-                .functor([alpha_g](const Vector<double,LDIM>& r) { return exp(-alpha_g * inner(r,r)); });
-        hfuncs[i] = FunctionFactory<double,LDIM>(world)
-                .functor([alpha_h](const Vector<double,LDIM>& r) { return exp(-alpha_h * inner(r,r)); });
-    }
-
-    // 1) canonical LRF: f(1,2) = sum_i g_i(1) h_i(2)
-    LowRankFunction<double,NDIM> lrf_canon(gfuncs, hfuncs, 1.e-8);
-    double norm_canon = lrf_canon.norm2();
-    double norm_reconstruct = lrf_canon.reconstruct().norm2();
-    print("canonical norm2, reconstruct norm2", norm_canon, norm_reconstruct);
-    t1.checkpoint(fabs(norm_canon - norm_reconstruct) < 10.0 * thresh,
-                  "canonical norm2 matches reconstruct");
-
-    // 2) general LRF with symmetric metric: M = S (overlap of g)
-    //    f(1,2) = sum_{ij} g_i(1) S^{-1}_{ij} S_{jk} h_k(2)  [just identity transform, same function]
-    //    Instead, define: new_g = g, new_h = h, metric = I (trivially symmetric) -- boring.
-    //    Better: transform g -> g' = g * A, metric = A^{-1}
-    //    with A being an arbitrary invertible matrix (asymmetric).
-    {
-        // build an asymmetric, invertible matrix A
-        Tensor<double> A(nfunc, nfunc);
-        A(0,0) = 1.0; A(0,1) = 0.3; A(0,2) = 0.0;
-        A(1,0) = 0.0; A(1,1) = 1.0; A(1,2) = 0.2;
-        A(2,0) = 0.1; A(2,1) = 0.0; A(2,2) = 1.0;
-        // A is not symmetric: A(0,1)=0.3 != A(1,0)=0.0
-
-        // compute A^{-1} by solving A * Ainv = I
-        Tensor<double> Ainv;
-        {
-            Tensor<double> I = Tensor<double>(nfunc, nfunc);
-            for (int i = 0; i < nfunc; ++i) I(i,i) = 1.0;
-            gesv(A, I, Ainv);
-        }
-
-        // transform: g' = g * A  (i.e. g'_j = sum_i g_i A_{ij})
-        auto gprime = transform(world, gfuncs, A);
-
-        // the function is the same: f = g' A^{-1} h = g * A * A^{-1} * h = g * h
-        // so metric = A^{-1}, which is asymmetric
-        LowRankFunction<double,NDIM> lrf_asym(gprime, hfuncs, 1.e-8, Ainv);
-        MADNESS_CHECK(!lrf_asym.is_canonical()); // metric is set
-
-        double norm_asym = lrf_asym.norm2();
-        double norm_asym_reconstruct = lrf_asym.reconstruct().norm2();
-        print("asymmetric metric norm2, reconstruct norm2", norm_asym, norm_asym_reconstruct);
-        print("asymmetric metric norm2 vs canonical norm2", norm_asym, norm_canon);
-
-        // the function hasn't changed, so norm must match the canonical reference
-        t1.checkpoint(fabs(norm_asym - norm_canon), 10.0 * thresh,
-                      "asymmetric metric: norm2 matches canonical norm2");
-        t1.checkpoint(fabs(norm_asym - norm_asym_reconstruct), 10.0 * thresh,
-                      "asymmetric metric: norm2 matches reconstruct norm2");
-
-        // 2b) function evaluation with asymmetric metric
-        {
-            Vector<double,NDIM> r;
-            r.fill(0.2);
-            double val_canon = lrf_canon(r);
-            double val_asym = lrf_asym(r);
-            print("eval canonical, asymmetric", val_canon, val_asym);
-            t1.checkpoint(fabs(val_canon - val_asym), 10.0 * thresh,
-                          "asymmetric metric: operator() matches canonical");
-        }
-
-        // 2c) inner product: inner(canonical, general_asymmetric) should equal inner(canonical, canonical)
-        {
-            double ip_cc = inner(lrf_canon, lrf_canon);
-            double ip_ca = inner(lrf_canon, lrf_asym);
-            double ip_ac = inner(lrf_asym, lrf_canon);
-            double ip_aa = inner(lrf_asym, lrf_asym);
-            print("inner cc, ca, ac, aa", ip_cc, ip_ca, ip_ac, ip_aa);
-            t1.checkpoint(fabs(ip_cc - ip_ca), 10.0 * thresh,
-                          "asymmetric metric: inner(canon,asym) matches inner(canon,canon)");
-            t1.checkpoint(fabs(ip_cc - ip_ac), 10.0 * thresh,
-                          "asymmetric metric: inner(asym,canon) matches inner(canon,canon)");
-            t1.checkpoint(fabs(ip_cc - ip_aa), 10.0 * thresh,
-                          "asymmetric metric: inner(asym,asym) matches inner(canon,canon)");
-        }
-
-        // 2d) canonicalize from asymmetric metric
-        {
-            auto lrf_recanonicalized = copy(lrf_asym);
-            lrf_recanonicalized.canonicalize();
-            t1.checkpoint(lrf_recanonicalized.is_canonical(),
-                          "asymmetric metric: canonicalize sets is_canonical()");
-            double norm_recanon = lrf_recanonicalized.norm2();
-            t1.checkpoint(fabs(norm_recanon - norm_canon), 10.0 * thresh,
-                          "asymmetric metric: norm2 after canonicalize matches");
-            Vector<double,NDIM> r;
-            r.fill(0.2);
-            double val_canon = lrf_canon(r);
-            double val_recanon = lrf_recanonicalized(r);
-            t1.checkpoint(fabs(val_canon - val_recanon), 10.0 * thresh,
-                          "asymmetric metric: eval after canonicalize matches");
-        }
-    }
-
-    // 3) another asymmetric metric obtained via remove_linear_dependencies
-    //    after lrf += lrf, the metric becomes block-diagonal, and remove_linear_dependencies
-    //    can produce an asymmetric metric
-    {
-        auto lrf_dup = copy(lrf_canon);
-        lrf_dup += lrf_canon;
-        lrf_dup *= 0.5;
-        // at this point lrf_dup has a block-diagonal metric (from +=) but represents the same function
-        double norm_dup = lrf_dup.norm2();
-        print("duplicated norm2", norm_dup);
-        t1.checkpoint(fabs(norm_dup - norm_canon), 10.0 * thresh,
-                      "duplicated: norm2 matches canonical");
-
-        lrf_dup.remove_linear_dependencies();
-        // after remove_linear_dependencies the metric is generally asymmetric
-        double norm_lindep = lrf_dup.norm2();
-        double norm_lindep_reconstruct = lrf_dup.reconstruct().norm2();
-        print("after remove_lindep: norm2, reconstruct norm2, is_canonical",
-              norm_lindep, norm_lindep_reconstruct, lrf_dup.is_canonical());
-        t1.checkpoint(fabs(norm_lindep - norm_canon), 10.0 * thresh,
-                      "remove_lindep: norm2 matches canonical");
-        t1.checkpoint(fabs(norm_lindep - norm_lindep_reconstruct), 10.0 * thresh,
-                      "remove_lindep: norm2 matches reconstruct");
-    }
-
-    return t1.end();
-}
-
 /// make an RI basis for an atom, namely Gaussian functions
 template<std::size_t LDIM>
 int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
@@ -1062,18 +886,15 @@ int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
     auto v_rhs = std::vector<std::string>({"exponential"});
     auto v_tol = std::vector<double>({1.e-4,1.e-6,1.e-8});
     auto v_lmax=std::vector<int>({2});
-    auto v_canonicalize=std::vector<bool>({true,false});
 
 
-    for (auto canonicalize : v_canonicalize) {
+    {
         for (auto gridtype : v_rhs) {
             for (auto tol : v_tol) {
             // for (auto lmax : v_lmax) {
                  timer t_total(world);
-                 print("canonicalize",canonicalize);
                  print("gridtype",gridtype);
                  parameters.set_derived_value("gridtype",std::string(gridtype));
-                 parameters.set_derived_value("canonicalize",bool(canonicalize));
                  parameters.set_derived_value("tol",tol);
                  parameters.set_derived_value("radius",1.8);
                  // parameters.set_derived_value("lmax",lmax);
@@ -1121,9 +942,9 @@ int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
                  double elapsed = t_total.end("end loop");
                  char result_buf[256];
                  std::snprintf(result_buf, sizeof(result_buf),
-                               "result: tol, vol, radius, canonicalize lmax, zeta, elapsed, l2error, rel. error: "
-                               "%.1e, %.1e, %.1e, %d, %d %.1e, %.1e, %.1e, %e, %e, %e\n",
-                               parameters.tol(), parameters.volume_element(), parameters.radius(), bool(canonicalize),
+                               "result: tol, vol, radius, lmax, zeta, elapsed, l2error, rel. error: "
+                               "%.1e, %.1e, %.1e, %d %.1e, %.1e, %.1e, %e, %e, %e\n",
+                               parameters.tol(), parameters.volume_element(), parameters.radius(),
                                parameters.lmax(), zeta[0], zeta[1], zeta[2], elapsed, error,
                                fabs(trialnorm - result1) / trialnorm);
                 print(result_buf);
@@ -1140,7 +961,6 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
     // t1.set_cout_to_terminal();
 
     parameters.set_derived_value("gridtype",std::string("adaptive"));
-    parameters.set_derived_value("canonicalize",true);
     parameters.set_derived_value("radius",3.0);
     // parameters.set_derived_value("volume_element",0.08);
     parameters.set_derived_value("tol",1.e-4);
@@ -1827,7 +1647,6 @@ int main(int argc, char **argv) {
         isuccess+=test_direct_projection<1>(world, parameters);
         isuccess+=test_adaptive_project<1>(world, parameters);
         isuccess+=test_recursive_apply<1>(world);
-        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
         // isuccess+=test_numerics<1>(world, parameters);
         isuccess+=test_remove_lindep<1>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
@@ -1839,7 +1658,6 @@ int main(int argc, char **argv) {
             isuccess+=test_direct_projection<2>(world, parameters);
             isuccess+=test_adaptive_project<2>(world, parameters);
             isuccess+=test_recursive_apply<2>(world);
-            isuccess+=test_norm2_asymmetric_metric<2>(world, parameters);
             // isuccess+=test_numerics<2>(world, parameters);
             isuccess+=test_remove_lindep<2>(world,parameters);
             isuccess+=test_arithmetic<2>(world,parameters);

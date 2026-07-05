@@ -303,14 +303,9 @@ Tensor<double> BMatrix::compute_via_lrf(World& world, const Info& info,
         print("LRF rank:", lrf_f12.rank()[0], " nact:", nact, " freeze:", freeze);
     }
 
-    // ── Effective canonical LRF factors ─────────────────────────────────────
-    // If the LRF has a non-trivial metric M, absorb it: g_eff_p = Σ_q g_q M_{qp}
-    // so that f12 = Σ_p g_eff_p(r1) h_p(r2)  (canonical form).
+    // ── Canonical LRF factors: f12 = Σ_p g_p(r1) h_p(r2) ────────────────────
     auto g_eff = lrf_f12.get_g();   // a_p(r1), size R
     auto h_eff = lrf_f12.get_h();   // b_p(r2), size R
-    if (!lrf_f12.is_canonical()) {
-        g_eff = transform(world, lrf_f12.get_g(), lrf_f12.metric);
-    }
     const int R     = (int)g_eff.size();
     const int Rnact = R * (int)nact;
 
@@ -459,10 +454,7 @@ double BMatrix::compute_via_lrf_pair(World& world, const Info& info,
     // catastrophic cancellation when g_can is nearly parallel to phi_i.
     auto g_raw_lrf = lrf_f12_ij.get_g();
     auto h_raw_lrf = lrf_f12_ij.get_h();
-    // Absorb metric if non-canonical (makes g_eff = g_can)
-    auto g_eff = lrf_f12_ij.is_canonical()
-                   ? g_raw_lrf
-                   : transform(world, g_raw_lrf, lrf_f12_ij.metric);
+    auto g_eff = g_raw_lrf;
 
     // Compute L² Gram matrix of g_can
     auto G_mat = matrix_inner(world, g_eff, g_eff);   // L² inner products
