@@ -2,7 +2,7 @@
 #include <madness/chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 

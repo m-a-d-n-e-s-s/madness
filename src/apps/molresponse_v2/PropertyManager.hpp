@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include <string>
 

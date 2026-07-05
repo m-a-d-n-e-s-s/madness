@@ -1,7 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <iostream>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include "ResponseState.hpp"
 #include "ResponseVector.hpp"

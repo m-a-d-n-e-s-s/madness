@@ -1114,6 +1114,7 @@ namespace madness {
         long n=f.size(), m=g.size();
         MADNESS_CHECK(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
+        if (n==0) return r;
 
         auto tensor_type = [](const std::vector<Function<T,NDIM>>& v) {
             return v.front().get_impl()->get_tensor_type();

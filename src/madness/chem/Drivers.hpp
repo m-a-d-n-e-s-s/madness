@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <vector>
 

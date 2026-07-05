@@ -14,21 +14,45 @@ fi
 mkdir -p build
 cd build
 
+# The static MADNESS libraries get linked into the _pymadness shared
+# extension module, so everything must be compiled position-independent.
 cmake ${CMAKE_ARGS} \
   -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
   -DCMAKE_PREFIX_PATH="${PREFIX}" \
   -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DBUILD_TESTING=OFF \
   ${MPI_FLAG} \
   -DENABLE_LIBXC=OFF \
   -DMADNESS_TASK_BACKEND=Pthreads \
   -DMPI_CXX_SKIP_MPICXX=ON \
   -DMPIEXEC_PREFLAGS='--allow-run-as-root' \
+  -DENABLE_PYTHON=ON \
+  -DPython3_EXECUTABLE="${PYTHON}" \
+  -DPython3_ROOT_DIR="${PREFIX}" \
   ..
 
 ninja install
+
+# --- Relocate pymadness into site-packages -------------------------------
+# CMake installs the Python package and the _pymadness extension into
+# ${PREFIX}/lib/pymadness, which is not on Python's import path.  The
+# package imports the extension as a *top-level* module (`import _pymadness`),
+# so the layout must be:
+#   ${SP_DIR}/pymadness/{__init__,plotting}.py   <- the package
+#   ${SP_DIR}/_pymadness*.so                      <- sibling extension module
+PYM_SRC="${PREFIX}/lib/pymadness"
+if [ -d "${PYM_SRC}" ]; then
+  : "${SP_DIR:=$("${PYTHON}" -c 'import site; print(site.getsitepackages()[0])')}"
+  mkdir -p "${SP_DIR}/pymadness"
+  # pure-Python package files
+  find "${PYM_SRC}" -maxdepth 1 -name '*.py' -exec mv {} "${SP_DIR}/pymadness/" \;
+  # compiled extension module as a sibling of the package
+  mv "${PYM_SRC}"/_pymadness*.so "${SP_DIR}/"
+  rm -rf "${PYM_SRC}"
+fi
 
 # Set up environment activation for MADNESS data directories
 mkdir -p "${PREFIX}/etc/conda/activate.d"

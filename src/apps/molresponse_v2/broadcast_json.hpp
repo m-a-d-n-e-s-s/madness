@@ -1,6 +1,6 @@
 #pragma once
 
-#include "madness/external/nlohmann_json/json.hpp"
+#include <nlohmann/json.hpp>
 #include <fstream>
 #include <madness/world/world.h>
 #include <sstream>

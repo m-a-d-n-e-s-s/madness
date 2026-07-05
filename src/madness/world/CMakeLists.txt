@@ -45,6 +45,11 @@ if(MADNESS_ENABLE_CEREAL)
   target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
 endif()
 
+# nlohmann_json is used starting at MADworld (cloud.h); linking it PUBLIC here
+# carries the usage requirement to every downstream component and to installed
+# consumers of MADNESS. N.B. if fetched it is part of its own export set.
+target_link_libraries(${targetname} PUBLIC nlohmann_json::nlohmann_json)
+
 # Set the dependencies for the MADworld library
 target_include_directories(${targetname} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>

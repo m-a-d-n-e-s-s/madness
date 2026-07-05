@@ -1,8 +1,16 @@
 {% set version = environ.get('GIT_DESCRIBE_TAG', 'dev') %}
 {% set mpi = environ.get('MPI_VARIANT', 'nompi') %}
+{% set mpi_suffix = '-mpi' if mpi == 'openmpi' else '' %}
+
+# Multi-output recipe: MADNESS is compiled once (with the Python bindings
+# enabled) and the install tree is split into two conda packages:
+#   * madness[-mpi]   -- C++ libraries, headers, CMake config, apps, data
+#   * pymadness[-mpi] -- the pymadness Python package + _pymadness extension,
+#                        which depends on the matching madness build.
+# This lets users do:  conda install madness && conda install pymadness
 
 package:
-  name: {{ 'madness-mpi' if mpi == 'openmpi' else 'madness' }}
+  name: madness-split
   version: {{ version }}
 
 source:
@@ -20,7 +28,7 @@ requirements:
   build:
     - {{ compiler('cxx') }}
     - {{ compiler('c') }}
-    - cmake >=3.12
+    - cmake >=3.16
     - ninja
 {% if mpi == 'openmpi' %}
     - openmpi
@@ -28,20 +36,77 @@ requirements:
   host:
     - libblas
     - liblapack
-{% if mpi == 'openmpi' %}
-    - openmpi
-{% endif %}
-  run:
-    - libblas
-    - liblapack
+    - python
+    - numpy
+    - pybind11 >=2.11
 {% if mpi == 'openmpi' %}
     - openmpi
 {% endif %}
 
-test:
-  commands:
-    - test -f $PREFIX/include/madness/world/world.h  # [unix]
-    - test -f $PREFIX/lib/libMADworld.a  # [unix]
+outputs:
+  - name: madness{{ mpi_suffix }}
+    files:
+      - bin/
+      - include/madness/
+      - lib/libMAD*
+      - lib/cmake/madness/
+      - lib/pkgconfig/MADNESS.pc
+      - share/madness/
+      - etc/conda/activate.d/activate_madness.sh
+      - etc/conda/deactivate.d/deactivate_madness.sh
+    requirements:
+      build:
+        - {{ compiler('cxx') }}
+        - {{ compiler('c') }}
+{% if mpi == 'openmpi' %}
+        - openmpi
+{% endif %}
+      host:
+        - libblas
+        - liblapack
+{% if mpi == 'openmpi' %}
+        - openmpi
+{% endif %}
+      run:
+        - libblas
+        - liblapack
+{% if mpi == 'openmpi' %}
+        - openmpi
+{% endif %}
+    test:
+      commands:
+        - test -f $PREFIX/include/madness/world/world.h  # [unix]
+        - test -f $PREFIX/lib/libMADworld.a              # [unix]
+        - test -f $PREFIX/lib/cmake/madness/madness-config.cmake  # [unix]
+
+  - name: pymadness{{ mpi_suffix }}
+    files:
+      # NB: the '/**' is required. conda-build's expand_globs() does NOT recurse
+      # into a trailing-slash directory when the pattern contains a wildcard
+      # (here 'python*'), so 'pymadness/' alone packages only the empty dir and
+      # drops __init__.py/plotting.py. '/**' forces the contents to be included.
+      - lib/python*/site-packages/pymadness/**
+      - lib/python*/site-packages/_pymadness*
+    requirements:
+      host:
+        - python
+        - numpy
+      run:
+        - python
+        - {{ pin_compatible('numpy') }}
+        - {{ pin_subpackage('madness' ~ mpi_suffix, exact=True) }}
+    test:
+{% if mpi == 'openmpi' %}
+      # Importing loads the extension, which under MPI may need an mpiexec
+      # launcher; just confirm the package is locatable on sys.path.
+      commands:
+        - python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('pymadness') else 1)"
+{% else %}
+      requires:
+        - numpy
+      imports:
+        - pymadness
+{% endif %}
 
 about:
   home: https://github.com/m-a-d-n-e-s-s/madness
@@ -53,6 +118,10 @@ about:
     differential equations in many dimensions using adaptive, fast methods with
     guaranteed precision based on multi-resolution analysis and novel separated
     representations.
+
+    This recipe produces two packages: `madness` (the C++ libraries, headers,
+    CMake config, applications, and data) and `pymadness` (the Python
+    bindings, which depend on `madness`).
   dev_url: https://github.com/m-a-d-n-e-s-s/madness
   doc_url: https://madness.readthedocs.io/
 

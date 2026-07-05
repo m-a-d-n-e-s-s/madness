@@ -5,7 +5,7 @@
 #ifndef RESULTS_H
 #define RESULTS_H
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include<string>
 

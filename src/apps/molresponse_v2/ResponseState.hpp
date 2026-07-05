@@ -4,7 +4,7 @@
 #include <madness/chem/projector.h>
 #include <madness/mra/mra.h>
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <vector>

@@ -22,7 +22,7 @@
 #include "madness/world/archive.h"
 #include "madness/world/world.h"
 #include "madness/mra/commandlineparser.h"
-#include "madness/external/nlohmann_json/json.hpp"
+#include <nlohmann/json.hpp>
 
 
 namespace madness {

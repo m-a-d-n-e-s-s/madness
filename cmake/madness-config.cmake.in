@@ -62,6 +62,13 @@ if (madness_HAS_CEREAL)
   endif(NOT TARGET cereal)
 endif(madness_HAS_CEREAL)
 
+# 3. nlohmann_json (public dependency of MADworld)
+set(madness_HAS_NLOHMANN_JSON @MADNESS_HAS_NLOHMANN_JSON@)
+if (madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
+  get_filename_component(nlohmann_json_DIR "@nlohmann_json_CONFIG@" DIRECTORY)
+  find_package(nlohmann_json REQUIRED CONFIG HINTS "${nlohmann_json_DIR}")
+endif(madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
+
 # Set the madness libraries target
 set(madness_LIBRARIES madness)
 

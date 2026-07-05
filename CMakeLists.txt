@@ -672,6 +672,9 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+# nlohmann_json is used as low as MADworld (cloud.h), so it must be available
+# even in the MADWORLD_ONLY build
+include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchNlohmannJson.cmake)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
@@ -701,6 +704,9 @@ add_custom_target(install-madness-libraries)
 add_dependencies(everything madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
+# make nlohmann/json.hpp visible to every in-tree target's sources (the MAD*-obj
+# object libraries do not inherit usage requirements through target linkage)
+include_directories($<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 include(CTest)

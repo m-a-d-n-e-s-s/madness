@@ -10,7 +10,7 @@
 
 // #include "catch.hpp"
 #include <fstream>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 //#include "mra.h"
 #include "tensor.h"
