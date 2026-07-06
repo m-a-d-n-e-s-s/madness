@@ -888,8 +888,17 @@ private:
         /// exactly like bra_cache_ — NOT the cloud-side cache_result path (that one
         /// segfaults across protocol transitions; see the plan's deferred items).
         struct SymBatchLRU {
-            std::vector<std::pair<typename Cloud::keyT, vecfuncT>> slots;  // front = most-recently-used
-            std::size_t capacity = 2;
+            struct Slot { typename Cloud::keyT key; vecfuncT data; bool pinned; };
+            std::vector<Slot> slots;  // front = most-recently-used
+            // OWNED batches are pinned (never evicted): a rank reuses its owned batch(es)
+            // across ALL its tasks, so they must stay resident. Only TRANSIENT (non-owned)
+            // entries are bounded, to transient_capacity. Set in prepare_owner_assignment.
+            // (Previously a single cap=owned+1 list where the churning one-shot transients
+            // evicted the reusable owned batches, re-syncing them at every owned-batch
+            // switch — the dominant sync source for owned-per-rank>1; see the perf review.
+            // Pinning all owned = the rank's fixed data share (nmo/nproc), granularity-
+            // independent, so this is memory-safe.)
+            std::size_t transient_capacity = 2;
         };
         static inline SymBatchLRU sym_lru_;
 
@@ -1110,17 +1119,28 @@ private:
 
         /// True iff `key` is currently resident in the sym_p2p LRU.
         bool sym_lru_contains(const typename Cloud::keyT& key) const {
-            for (const auto& s : sym_lru_.slots) if (s.first == key) return true;
+            for (const auto& s : sym_lru_.slots) if (s.key == key) return true;
             return false;
         }
 
-        /// Insert a freshly fetched/deserialized batch at the LRU front, evicting the
-        /// tail past capacity, and return a ref to it.
-        const vecfuncT& sym_lru_insert(const typename Cloud::keyT& key, vecfuncT&& data) const {
-            sym_lru_.slots.insert(sym_lru_.slots.begin(), std::make_pair(key, std::move(data)));
-            if (sym_lru_.slots.size() > std::max<std::size_t>(1, sym_lru_.capacity))
-                sym_lru_.slots.pop_back();
-            return sym_lru_.slots.front().second;
+        /// Insert a freshly fetched/deserialized batch at the LRU front and return a ref.
+        /// `pinned` marks an OWNED batch (never evicted). Transient entries past
+        /// transient_capacity are evicted LRU-first (pinned owned entries are skipped).
+        const vecfuncT& sym_lru_insert(const typename Cloud::keyT& key, vecfuncT&& data,
+                                       const bool pinned) const {
+            sym_lru_.slots.insert(sym_lru_.slots.begin(),
+                                  typename SymBatchLRU::Slot{key, std::move(data), pinned});
+            auto n_transient = [&]() {
+                std::size_t c = 0; for (const auto& s : sym_lru_.slots) if (!s.pinned) ++c; return c;
+            };
+            // evict the LRU-most (back) TRANSIENT slot until transient count fits
+            while (n_transient() > std::max<std::size_t>(1, sym_lru_.transient_capacity)) {
+                for (auto it = sym_lru_.slots.end(); it != sym_lru_.slots.begin(); ) {
+                    --it;
+                    if (!it->pinned) { sym_lru_.slots.erase(it); break; }
+                }
+            }
+            return sym_lru_.slots.front().data;
         }
 
         /// Bounded-LRU fetch for the one-set sym_p2p path, keyed by cloud record key.
@@ -1138,9 +1158,13 @@ private:
                                             const typename Cloud::keyT& key) const {
             const double cpu0 = process_cpu_time();
             ensure_cache_world(world);
+            // OWNED batches (stored on this rank in the B2 distributed store) are pinned
+            // in the LRU so the churning transients can't evict them; batch_owner returns
+            // the owning universe rank, universe_rank_ is this process's universe rank.
+            const bool owned = (cloud.batch_owner(key) == universe_rank_);
             // (1) LRU hit
             for (std::size_t s = 0; s < sym_lru_.slots.size(); ++s) {
-                if (sym_lru_.slots[s].first == key) {
+                if (sym_lru_.slots[s].key == key) {
                     if (s != 0)
                         std::rotate(sym_lru_.slots.begin(),
                                     sym_lru_.slots.begin() + s,
@@ -1148,7 +1172,7 @@ private:
                     ++sym_cache_hits_;
                     prof_.observe_fetch_tier(0);
                     add_owner_fetch_time(cpu0, process_cpu_time());
-                    return sym_lru_.slots.front().second;
+                    return sym_lru_.slots.front().data;
                 }
             }
             // (2) Design-B prefetch consume: the bytes for this key were requested one
@@ -1162,7 +1186,7 @@ private:
                     ++sym_prefetch_hits_;
                     prof_.observe_fetch_tier(1);
                     add_owner_fetch_time(cpu0, process_cpu_time());
-                    return sym_lru_insert(key, std::move(data));
+                    return sym_lru_insert(key, std::move(data), owned);
                 }
             }
             // (3) synchronous miss
@@ -1170,7 +1194,7 @@ private:
             prof_.observe_fetch_tier(2);
             vecfuncT data = cloud.fetch_batch_p2p<T, NDIM>(world, key, /*cache_result=*/false);
             add_owner_fetch_time(cpu0, process_cpu_time());
-            return sym_lru_insert(key, std::move(data));
+            return sym_lru_insert(key, std::move(data), owned);
         }
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
@@ -1389,12 +1413,12 @@ private:
                 const std::vector<Batch_1D> split =
                         exchange_sym_owner_split(nresult, nsubworld, batch_granularity_);
                 const long M = long(split.size());
-                // Size the reuse LRU to hold an owner's local batch(es) plus one
-                // rotating transient: owned-per-rank = ceil(M/nsubworld), +1 for the
-                // transient. With the cache-aware ordering this captures the reuse
-                // while keeping the footprint bounded (the smallmem invariant).
-                const long owned_per_rank = (M + nsubworld - 1) / nsubworld;
-                sym_lru_.capacity = std::size_t(std::max<long>(2, owned_per_rank + 1));
+                // Owned batches are PINNED in the LRU (never evicted — see SymBatchLRU),
+                // so only the transient working set is bounded. Two transient slots cover
+                // the double-buffer (current + next-prefetch) plus one reuse hit; owned
+                // residency is handled by pinning, independent of this cap and of
+                // granularity (pinned owned = the rank's fixed nmo/nsubworld share).
+                sym_lru_.transient_capacity = 2;
                 std::map<long,long> begin_to_idx;
                 for (long k = 0; k < M; ++k) begin_to_idx[split[k].begin] = k;
                 const std::map<std::pair<long,long>,long> rr =
