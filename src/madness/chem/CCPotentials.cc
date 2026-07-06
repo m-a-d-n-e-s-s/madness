@@ -737,44 +737,6 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
     return vphi;
 }
 
-/// Diagnostic: bin the pair-energy CONTRIBUTION of a pair function u by physical
-/// diagonal box distance d_phys = max|l_{123}-l_{456}|/2^n (fraction of the
-/// cell).  For each cutoff T the leaf boxes with d_phys > T are zeroed on a
-/// throwaway copy and the pair energy <2ij-ji|g12|u_masked> is evaluated.
-/// Because the functional is linear and g12 (in the bra) carries the full
-/// coupling, E(<=T) is exactly the share of the pair energy contributed by boxes
-/// of u within diagonal distance T.  If E(<=T) saturates at small T the energy
-/// lives near the coalescence diagonal (a goal-oriented, diagonal-tightened
-/// truncation could prune far boxes for free); if it grows slowly it does not.
-/// The T<=2.0 (keep-all) row reproduces the full pair energy of u as a check.
-static void diagonal_energy_histogram(World& world, const std::string& name,
-        const real_function_6d& u, const CCPair& pair, const Info& info) {
-    const std::vector<double> cutoffs = {0.0, 1.0/64, 1.0/16, 1.0/8, 1.0/4, 1.0/2, 2.0};
-    CC_vecfunction singles_dummy;
-    char buf[256];
-    print_header3("diagonal-distance histogram of pair-energy contribution: "+name);
-    print("  T = max|l123-l456|/2^n (cell fraction); E(<=T) cumulative, dE per shell");
-    double prev=0.0;
-    for (double T : cutoffs) {
-        real_function_6d masked = copy(u);
-        masked.reconstruct();
-        auto maskop = [T](const Key<6>& key, FunctionNode<double,6>& node) {
-            if (!node.has_coeff()) return;
-            const Vector<Translation,6>& l = key.translation();
-            auto ad = [](Translation a, Translation b){ return a>b ? a-b : b-a; };
-            const Translation d = std::max(ad(l[0],l[3]), std::max(ad(l[1],l[4]), ad(l[2],l[5])));
-            const double dphys = double(d) / double(Translation(1) << key.level());
-            if (dphys > T) node.scale(0.0);
-        };
-        masked.get_impl()->unary_op_node_inplace(maskop, true);
-        CCPair pt=pair; pt.update_u(masked);
-        const double e=CCPotentials::compute_pair_correlation_energy(world,pt,singles_dummy,info);
-        snprintf(buf,sizeof(buf),"  T<=%8.4f  E_cumulative % .8e  dE_shell % .8e",T,e,e-prev);
-        print(buf);
-        prev=e;
-    }
-}
-
 /// quick 3D-only Ue / GUe / GQUe references for all pairs (no 6D work)
 
 /// constructs a CorrelationFactor like the constant-part macrotask does and
@@ -947,15 +909,15 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             // apply_G_and_print(tmp,"commutator projector response");
         }
     }
-    print("finished computing potential for constant part, now applying G");
 
     // non-MP2 paths keep a single combined piece
     if (Vparts.empty()) Vparts.emplace_back("all", consolidate(V));
     t1.end("finished computing potential for constant part");
-    MemoryMeasurer::measure_and_print(world);
+    if (parameters.debug()) MemoryMeasurer::measure_and_print(world);
     MemoryMeasurer::release_free_memory();
-    MemoryMeasurer::measure_and_print(world);
+    if (parameters.debug()) MemoryMeasurer::measure_and_print(world);
 
+    print_header3("apply G on constant part rhs");
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
     G.destructive() = true;
@@ -1016,18 +978,33 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
                                info.mo_ket, info.mo_bra, energy, lo, tt3) );
     }
 
+    // if no diagnostics are requested collapse all V parts into one
+    if (not ri_dm) {
+        std::vector<std::pair<std::string,std::vector<CCPairFunction<double,6>>>> Veverything(1);
+        Veverything.front().first="everything";
+        for (auto& [name, vpart] : Vparts) {
+            Veverything.front().second+=std::vector<CCPairFunction<double,6>>{vpart};
+        }
+        Veverything.front().second=consolidate(Veverything.front().second);
+        MemoryMeasurer::release_free_memory();
+        std::swap(Veverything,Vparts);
+        print("number of terms Vparts: ", Vparts[0].second.size());
+    }
+
+
     for (auto& [name, vpart] : Vparts) {
         real_function_6d GVpart_raw=real_factory_6d(world).empty();
+        print("starting work on ",name);
         for (const auto& vv : vpart) {
             GVpart_raw+= (G(vv)).get_function();      // note vpart is destroyed here
-            // MemoryMeasurer::measure_and_print(world);
             MemoryMeasurer::release_free_memory();
-            // MemoryMeasurer::measure_and_print(world);
         }
         // RI test, 6d side: project the production ket GVpart_raw = G Q12 Vreg
         // (before truncation) onto the AO observer pairs |ab>.
         if (ri_dm && ri_dm->entries.count(name))
             ri_dm->entries[name].result = ri_dm->project_ab(GVpart_raw);
+
+        // apply Q12 projector with tight thresholds
         double tight_thresh_6d= parameters.tight_thresh_6D();
         GVpart_raw.set_thresh(tight_thresh_6d);
         FunctionDefaults<6>::set_thresh(tight_thresh_6d);
@@ -1037,13 +1014,12 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         GV+=GVpart;
 
         // per-term true 6D pair energy (before truncation) for the summary table
-        CCPair pbefore=pair; pbefore.update_u(GVpart_full);
-        const double e_before=CCPotentials::compute_pair_correlation_energy(world,pbefore,singles_dummy,info);
-        term_energies.emplace_back(name,e_before);
+        if (ri_dm) {
+            CCPair pbefore=pair; pbefore.update_u(GVpart_full);
+            const double e_before=CCPotentials::compute_pair_correlation_energy(world,pbefore,singles_dummy,info);
+            term_energies.emplace_back(name,e_before);
+        }
 
-        // localize where the pair energy of this piece lives in diagonal box
-        // distance; the T<=2.0 (=keep-all) row reproduces the per-term energy
-        diagonal_energy_histogram(world, name, GVpart, pair, info);
     }
     FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
 
@@ -1077,7 +1053,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,p1,singles_dummy,info);
 
     char buf[256];
-    snprintf(buf,sizeof(buf),"correlation energy of pair %zu %zu: %e", i, j, correlation_energy);
+    snprintf(buf,sizeof(buf),"correlation energy of pair %zu %zu: %12.8f", i, j, correlation_energy);
     print(buf);
 
     return GV;
@@ -1474,8 +1450,10 @@ std::vector<CCPairFunction<double,6>>
     std::vector<CCPairFunction<double, 6>> result;
     if (V.tree_size()>0) result+=CCPairFunction<double,6>(V);
     result+=V_lowrank;
-    t.tag("computing V");
-    MemoryMeasurer::measure_and_print(world);
+
+    std::string msg="computing V: ";
+    for (const auto& a : argument) msg+=a+" ";
+    t.tag(msg);
     return result;
 
 }
@@ -1742,6 +1720,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
                                                   const real_convolution_6d *Gscreen) {
 
 
+    print_header3("Computing [K,f12] |ij> ");
     auto ao=orthonormalize_canonical(info.ao);
     print("error computed by projecting on the ao basis size",ao.size());
     // ExchangeCommutator instance carrying the orthonormal AO basis used
