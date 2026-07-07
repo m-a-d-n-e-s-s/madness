@@ -323,9 +323,16 @@ ExchangeCommutator::apply_KffK_lowrank_split_alpha(
     out.fK[0].convert_to_pure_no_op_inplace();
     out.fK[0].get_function().print_size("fK |ij> after conversion to pure");
     t.tag("convert fK to pure");
+    print("keep lindep in Kf");
     // out.Kf[0].print_size("Kf with lindep");
-    out.Kf=consolidate(out.Kf,{"remove_lindep"});
+    // out.Kf=consolidate(out.Kf,{"remove_lindep"});
     // out.Kf[0].print_size("Kf without lindep");
+
+    // cannot reconstruct Kf to pure 6d -- blows up memory
+    // out.Kf=consolidate(out.Kf,{"remove_lindep","dec_to_pure"});
+    // out.Kf[0].get_function().print_size("Kf |ij> after conversion to pure");
+    // t.tag("convert Kf to pure");
+    // out.Kf[0].print_size("Kf with lindep");
 
     out.KffK.push_back(out.Kf[0]);
     out.KffK.push_back(-1.0 * out.fK[0]);

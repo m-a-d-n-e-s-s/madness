@@ -458,6 +458,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         }
 
         if (world.rank()==0) print_header3("Starting computing LRF of the exchange commutator");
+        timer t1(world);
         // compute the exchange commutator -- exchange operator without high-frequency components
         LowRankFunctionParameters lrfparam;
         lrfparam.set_derived_value("radius",         2.0);
@@ -469,6 +470,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         auto lrf_exchange_op = ExchangeCommutator::compute_lrf_exchange_operator(
                 world, info, opt, lrfparam);
         MemoryMeasurer::measure_and_print(world);
+        t1.tag("construct low-rank exchange operator");
+        // real_function_6d full_exchange_op=lrf_exchange_op.reconstruct();
+        // full_exchange_op.print_size("fullrank exchange op");
+        // t1.tag("reconstruct exchange operator");
 
         // quick 3D-only Ue/GUe/GQUe reference check (no 6D) for cheap comparison
         // CCPotentials::print_3d_references(world, pair_vec, info);

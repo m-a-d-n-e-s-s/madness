@@ -153,7 +153,9 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::remove_linearly_depe
         if (c.is_pure()) result.push_back(c);
         else if (c.is_decomposed()) {
 
-            LowRankFunction<T,NDIM> lrf(c.get_a(),c.get_b(),thresh);
+            // thresh is an amplitude threshold, but rr_cholesky (pstrf) compares its
+            // tol against the Gram-matrix pivots, i.e. squared amplitudes
+            LowRankFunction<T,NDIM> lrf(c.get_a(),c.get_b(),thresh*thresh);
             lrf.reorthonormalize();
             result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),lrf.get_g(),lrf.get_h()));
 
