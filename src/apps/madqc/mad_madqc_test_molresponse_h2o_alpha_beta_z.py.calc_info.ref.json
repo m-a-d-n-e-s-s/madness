@@ -1,0 +1,822 @@
+{
+    "tasks": [
+        {
+            "convergence": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-06
+            },
+            "convergence_info": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-06
+            },
+            "metadata": {
+                "mpi_size": 4
+            },
+            "model": "scf",
+            "molecule": {
+                "geometry": [
+                    [
+                        0.0,
+                        0.0,
+                        0.22166487405270968
+                    ],
+                    [
+                        0.0,
+                        1.430900620341511,
+                        -0.8866594962108387
+                    ],
+                    [
+                        0.0,
+                        -1.430900620341511,
+                        -0.8866594962108387
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "input.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "O",
+                    "H",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": 0.0,
+                "final_geometry": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "max_gradient": 0.0,
+                "max_step": 0.0,
+                "nsteps": 0
+            },
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -1.0091930192216764e-05,
+                        4.4992357329433994e-09,
+                        -0.3897455308790185
+                    ]
+                },
+                "energy": -76.06744156280708,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            },
+            "scf": {
+                "is_opt": false,
+                "model": "scf",
+                "molecule": {
+                    "geometry": [
+                        [
+                            0.0,
+                            0.0,
+                            0.22166487405270968
+                        ],
+                        [
+                            0.0,
+                            1.430900620341511,
+                            -0.8866594962108387
+                        ],
+                        [
+                            0.0,
+                            -1.430900620341511,
+                            -0.8866594962108387
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "input.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "O",
+                        "H",
+                        "H"
+                    ]
+                },
+                "properties": {
+                    "dipole": {
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            -1.0091930192216764e-05,
+                            4.4992357329433994e-09,
+                            -0.3897455308790185
+                        ]
+                    },
+                    "energy": -76.06744156280708,
+                    "gradient": {
+                        "ndim": -1,
+                        "size": 0
+                    }
+                },
+                "scf_eigenvalues_a": {
+                    "dims": [
+                        5
+                    ],
+                    "ndim": 1,
+                    "size": 5,
+                    "vals": [
+                        -20.559501840183504,
+                        -0.9715515736087377,
+                        -0.9715516601819663,
+                        -0.7163424605364979,
+                        -0.5106058977862675
+                    ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_fock_a": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_total_energy": 0.0
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    5
+                ],
+                "ndim": 1,
+                "size": 5,
+                "vals": [
+                    -20.559501840183504,
+                    -0.9715515736087377,
+                    -0.9715516601819663,
+                    -0.7163424605364979,
+                    -0.5106058977862675
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        },
+        {
+            "metadata": {
+                "engine": "molresponse_v3",
+                "excited_states": {},
+                "fd_states": {
+                    "dipole_z": {
+                        "1e-04_k6": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-04_k6__f0.00000",
+                                "bsh_residual": 0.0002518113465329244,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 15,
+                                "metrics": {
+                                    "bytes": 6151680,
+                                    "coeffs": 768960,
+                                    "iters": 15,
+                                    "rss_gb": 1.5225486755371094,
+                                    "wall_s": 77.7505099773407
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            },
+                            "f0.02000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-04_k6__f0.02000",
+                                "bsh_residual": 0.00044991998420330627,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.02,
+                                "iter": 16,
+                                "metrics": {
+                                    "bytes": 12303360,
+                                    "coeffs": 1537920,
+                                    "iters": 16,
+                                    "rss_gb": 1.6740341186523438,
+                                    "wall_s": 149.36470293998718
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "full"
+                            },
+                            "f0.04000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-04_k6__f0.04000",
+                                "bsh_residual": 0.000384310256875469,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.04,
+                                "iter": 20,
+                                "metrics": {
+                                    "bytes": 12248064,
+                                    "coeffs": 1531008,
+                                    "iters": 20,
+                                    "rss_gb": 1.7339515686035156,
+                                    "wall_s": 184.80302214622498
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "full"
+                            }
+                        },
+                        "1e-06_k8": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-06_k8__f0.00000",
+                                "bsh_residual": 0.00015222153970050346,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 4,
+                                "metrics": {
+                                    "bytes": 33259520,
+                                    "coeffs": 4157440,
+                                    "iters": 4,
+                                    "rss_gb": 2.2372207641601563,
+                                    "wall_s": 51.05673694610596
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            },
+                            "f0.02000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-06_k8__f0.02000",
+                                "bsh_residual": 0.00018476233580781544,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.02,
+                                "iter": 4,
+                                "metrics": {
+                                    "bytes": 66912256,
+                                    "coeffs": 8364032,
+                                    "iters": 4,
+                                    "rss_gb": 2.4514846801757813,
+                                    "wall_s": 93.48208498954773
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "full"
+                            },
+                            "f0.04000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-06_k8__f0.04000",
+                                "bsh_residual": 0.00017600410282647556,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.04,
+                                "iter": 4,
+                                "metrics": {
+                                    "bytes": 67239936,
+                                    "coeffs": 8404992,
+                                    "iters": 4,
+                                    "rss_gb": 2.5142555236816406,
+                                    "wall_s": 91.93059992790222
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "full"
+                            }
+                        }
+                    }
+                },
+                "io": {
+                    "backend": "native",
+                    "hdf5_compiled": false
+                },
+                "properties": {
+                    "alpha": {
+                        "1e-06_k8": [
+                            {
+                                "alpha": [
+                                    [
+                                        8.532510729905342
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00015222153970050346,
+                                "omega": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            },
+                            {
+                                "alpha": [
+                                    [
+                                        8.541676654269853
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00018476233580781544,
+                                "omega": 0.02,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            },
+                            {
+                                "alpha": [
+                                    [
+                                        8.569679043724271
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00017600410282647556,
+                                "omega": 0.04,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00017600410282647556,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "beta": {
+                        "1e-06_k8": [
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 7.724823173289602,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 7.832245284443269,
+                                "freq_b": 0.02,
+                                "freq_c": 0.02,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00017600410282647556,
+                                        "converged": true,
+                                        "freq": 0.04,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "freq": 0.02,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "freq": 0.02,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    }
+                },
+                "protocols": {
+                    "1e-04_k6": {
+                        "index": -1,
+                        "k": 6,
+                        "thresh": 0.0001
+                    },
+                    "1e-06_k8": {
+                        "index": -1,
+                        "k": 8,
+                        "thresh": 1e-06
+                    }
+                },
+                "schema_version": 1,
+                "v3_diagnostics": {
+                    "passes": 6,
+                    "schedule": [
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_z@f0.00000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 0,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 1,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_z@f0.02000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_z@f0.04000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 2,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__dipole_z@f0.02000_f0.02000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 3,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_z@f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_z@f0.02000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_z@f0.04000",
+                                    "thresh": 1e-06
+                                }
+                            ],
+                            "k": 8,
+                            "pass": 4,
+                            "protocol_index": 1,
+                            "thresh": 1e-06
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__dipole_z@f0.02000_f0.02000",
+                                    "thresh": 1e-06
+                                }
+                            ],
+                            "k": 8,
+                            "pass": 5,
+                            "protocol_index": 1,
+                            "thresh": 1e-06
+                        }
+                    ],
+                    "stop_reason": "complete"
+                },
+                "v3_timing": {
+                    "assemble": {
+                        "cpu_s": 20.334183858241886,
+                        "wall_s": 20.334558963775635
+                    },
+                    "plan_build": {
+                        "cpu_s": 8.963467553257942e-05,
+                        "wall_s": 8.106231689453125e-05
+                    },
+                    "solve": {
+                        "cpu_s": 876.3860938174184,
+                        "wall_s": 876.4024991989136
+                    }
+                },
+                "vbc_states": {
+                    "vbc:dipole_z__dipole_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 13188096,
+                                "coeffs": 1648512,
+                                "iters": 0,
+                                "rss_gb": 1.567108154296875,
+                                "wall_s": 29.99690294265747
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 72941568,
+                                "coeffs": 9117696,
+                                "iters": 0,
+                                "rss_gb": 2.5126190185546875,
+                                "wall_s": 72.3492980003357
+                            }
+                        }
+                    },
+                    "vbc:dipole_z__dipole_z@f0.02000_f0.02000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.02000_f0.02000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 13243392,
+                                "coeffs": 1655424,
+                                "iters": 0,
+                                "rss_gb": 1.7367897033691406,
+                                "wall_s": 30.031898975372314
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.02000_f0.02000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 73924608,
+                                "coeffs": 9240576,
+                                "iters": 0,
+                                "rss_gb": 2.5039291381835938,
+                                "wall_s": 71.11486983299255
+                            }
+                        }
+                    }
+                }
+            },
+            "properties": {
+                "raman_spectra": null,
+                "response_properties": {
+                    "alpha": {
+                        "1e-06_k8": [
+                            {
+                                "alpha": [
+                                    [
+                                        8.532510729905342
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00015222153970050346,
+                                "omega": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            },
+                            {
+                                "alpha": [
+                                    [
+                                        8.541676654269853
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00018476233580781544,
+                                "omega": 0.02,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            },
+                            {
+                                "alpha": [
+                                    [
+                                        8.569679043724271
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "z",
+                                "max_bsh_residual": 0.00017600410282647556,
+                                "omega": 0.04,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00017600410282647556,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "beta": {
+                        "1e-06_k8": [
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 7.724823173289602,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00015222153970050346,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 7.832245284443269,
+                                "freq_b": 0.02,
+                                "freq_c": 0.02,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00017600410282647556,
+                                        "converged": true,
+                                        "freq": 0.04,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "freq": 0.02,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00018476233580781544,
+                                        "converged": true,
+                                        "freq": 0.02,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    }
+                },
+                "vibrational_analysis": null
+            },
+            "type": "response"
+        }
+    ]
+}

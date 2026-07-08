@@ -10,6 +10,7 @@ dft
 end
 response
     kain true
+    dconv 1e-4
     dipole true
     dipole.directions z
     quadratic true
