@@ -6,539 +6,922 @@
 #include <madness/chem/Results.h>
 
 namespace madness {
-  // Scoped CWD: changes the current directory to the given one, and restores when
-  // the object goes out of scope
-  struct ScopedCWD {
-    std::filesystem::path old_cwd;
-    explicit ScopedCWD(std::filesystem::path const& new_dir) {
-      old_cwd = std::filesystem::current_path();
-      std::filesystem::current_path(new_dir);
+enum class NextAction { Ok, ReloadOnly, Restart, Redo };
+
+// Scoped CWD: changes the current directory to the given one, and restores when
+// the object goes out of scope
+struct ScopedCWD {
+  std::filesystem::path old_cwd;
+
+  explicit ScopedCWD(const std::filesystem::path &new_dir) {
+    old_cwd = std::filesystem::current_path();
+    std::filesystem::current_path(new_dir);
+  }
+
+  ~ScopedCWD() { std::filesystem::current_path(old_cwd); }
+};
+
+class Application {
+public:
+  explicit Application(const Params &p) : params_(p) {}
+
+  virtual ~Application() = default;
+
+  // run: write all outputs under the given directory
+  virtual void run(const std::filesystem::path &workdir) = 0;
+
+  // optional hook to return a JSON fragment of this app's main results
+  [[nodiscard]] virtual nlohmann::json results() const = 0;
+
+  virtual void print_parameters(World &world) const = 0;
+
+  /// check if this calculation has a json with results
+  [[nodiscard]] virtual bool has_results(const std::string &filename) const {
+    // check if the results file exists
+    // return std::filesystem::exists(workdir_ / filename);
+    return std::filesystem::exists(filename);
+  }
+
+  [[nodiscard]] virtual bool verify_molecule(const nlohmann::json &j) const {
+    // check if some key parameters of the calculation match:
+    // molecule, box size, nmo_alpha, nmo_beta
+    Molecule mol1 = params_.get<Molecule>();
+    Molecule mol2;
+    mol2.from_json(j["molecule"]);
+    if (not(mol1 == mol2)) {
+      print("molecule mismatch");
+      mol1.print();
+      mol2.print();
+      return false;
     }
-    ~ScopedCWD() { std::filesystem::current_path(old_cwd); }
-  };
+    return true;
+  }
 
-
-  /// common interface for any underlying MADNESS app
-  class Application {
-  public:
-    explicit Application(const Params& p) : params_(p) {}
-    virtual ~Application() = default;
-
-    // run: write all outputs under the given directory
-    virtual void run(const std::filesystem::path& workdir) = 0;
-
-    // optional hook to return a JSON fragment of this app's main results
-    [[nodiscard]] virtual nlohmann::json results() const = 0;
-
-    // get the parameters used for this application
-    [[nodiscard]] virtual const QCCalculationParametersBase& get_parameters() const = 0;
-
-    virtual void print_parameters(World& world) const {
-      std::string tag= get_parameters().get_tag();
-      if (world.rank() == 0) get_parameters().print(tag,"end");
+  /// read the results from a json file
+  [[nodiscard]] virtual nlohmann::json
+  read_results(const std::string &filename) const {
+    if (has_results(filename)) {
+      std::ifstream ifs(filename);
+      nlohmann::json j;
+      ifs >> j;
+      ifs.close();
+      // if (not verify_molecule(j))
+      // {
+      //   std::string msg =
+      //       "Results file " + filename + " does not match the parameters of
+      //       the calculation";
+      //   print(msg);
+      //   return nlohmann::json(); // return empty json
+      // }
+      return j;
+    } else {
+      std::string msg = "Results file " + filename + " does not exist in " +
+                        std::filesystem::current_path().string();
+      MADNESS_EXCEPTION(msg.c_str(), 1);
     }
+    return nlohmann::json();
+  }
 
-    // get the working directory for this application
-    [[nodiscard]] path get_workdir() const {
-      return workdir_;
+protected:
+  Params params_;
+  nlohmann::json results_;
+};
+
+template <typename Library> class SCFApplication : public Application {
+private:
+public:
+  using Calc = typename Library::Calc;
+
+  explicit SCFApplication(World &w, const Params &p)
+      : Application(p), world_(w) {}
+
+  // Give downstream steps the live calc
+  std::shared_ptr<Calc> calc() { return lib_.calc(world_, params_); }
+  void set_calc_workdir(const std::filesystem::path &workdir) {
+    calc()->work_dir = workdir;
+  }
+
+  // print parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "SCF Parameters:" << std::endl;
     }
+    lib_.print_parameters();
+  }
 
-    /// check if this calculation has a json with results
-    [[nodiscard]] virtual bool has_results(std::string filename) const {
-      // check if the results file exists
-      // return std::filesystem::exists(workdir_ / filename);
-      return std::filesystem::exists( filename);
-    }
-
-    [[nodiscard]] virtual bool verify_results(const nlohmann::json& j) const {
-      // check if some key parameters of the calculation match:
-      // molecule, box size, nmo_alpha, nmo_beta
-      Molecule mol1 = params_.get<Molecule>();
-      Molecule mol2;
-      mol2.from_json(j["molecule"]);
-      if (not (mol1 == mol2)) {
-        print("molecule mismatch");
-        mol1.print();
-        mol2.print();
-        return false;
-      }
-      return true;
-    }
-
-    /// read the results from a json file
-    [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
-      if (has_results(filename)) {
-        std::cout << "Found checkpoint file: " << filename << std::endl;
-        // std::ifstream ifs(workdir_ / filename);
-        std::ifstream ifs( filename);
-        nlohmann::json j;
-        ifs >> j;
-        ifs.close();
-        if (not verify_results(j)) {
-          std::string msg= "Results file " + filename + " does not match the parameters of the calculation";
-          print(msg);
-          return nlohmann::json(); // return empty json
-        }
-        return j;
-      } else {
-        std::string msg= "Results file " + filename + " does not exist in " + workdir_.string();
-        MADNESS_EXCEPTION(msg.c_str(), 1);
-      }
-      return nlohmann::json();
-    }
-
-    /// check if the wavefunctions are already computed
-    [[nodiscard]] virtual bool has_wavefunctions(std::string filename) const {
-      return std::filesystem::exists(workdir_ / filename);
-    }
-
-    /// read the wavefunctions from a file
-    [[nodiscard]] virtual std::vector<double> read_wavefunctions(std::string filename) const {
-      if (has_wavefunctions(filename)) {
-        std::ifstream ifs(workdir_ / filename);
-        std::vector<double> wfs;
-        double value;
-        while (ifs >> value) {
-          wfs.push_back(value);
-        }
-        ifs.close();
-        return wfs;
-      } else {
-        std::string msg= "Wavefunction file " + filename + " does not exist in " + workdir_.string();
-        MADNESS_EXCEPTION(msg.c_str(), 1);
-      }
-      return {};
-    }
-
-    /// check if this calculation needs to be redone
-    [[nodiscard]] virtual bool needs_redo() const {
-      // read json and check if the results are already there
-      if (std::filesystem::exists(workdir_ / "results.json")) {
-        std::ifstream ifs(workdir_ / "results.json");
-        nlohmann::json j;
-        ifs >> j;
-        ifs.close();
-        // check if the results are already there
-        return !j.contains("energy") || !j["energy"].is_number();
-      }
-      // by default, we assume that the calculation needs to be redone
-      return true;
-    }
-
-  protected:
-    const Params params_;
-    path workdir_;
-    nlohmann::json results_;
-  };
-
-
-  template <typename Library, typename ScfT = SCF>
-  class SCFApplication : public Application, public ScfT, public std::enable_shared_from_this<SCFApplication<Library,ScfT>> {
-  public:
-
-    /// SCF ctor
-    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
-    explicit SCFApplication(World& w, const Params& p)
-        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()), world_(w) {}
-
-    /// Nemo ctor
-    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
-    explicit SCFApplication(World& w, const Params& p)
-        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
-
-    std::shared_ptr<const SCF> get_scf() const {
-      return std::dynamic_pointer_cast<const SCF>(this->shared_from_this());
-    }
-
-    bool constexpr is_nemo() const {
-      return std::is_same_v<ScfT, Nemo>;
-    }
-
-    std::shared_ptr<const Nemo> get_nemo() const {
-      auto return_ptr= std::dynamic_pointer_cast<const Nemo>(this->shared_from_this());
-      if (!return_ptr) {
-        MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
-      }
-      return return_ptr;
-    }
-
-    std::shared_ptr<Nemo> get_nemo() {
-      auto return_ptr= std::dynamic_pointer_cast<Nemo>(this->shared_from_this());
-      if (!return_ptr) {
-        MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
-      }
-      return return_ptr;
-    }
-
-    void print_parameters(World& world) const override {
-      std::string tag= get_parameters().get_tag();
-      if (world.rank() == 0) {
-        if constexpr (std::is_same_v<ScfT, SCF>) { // SCF
-          get_parameters().print("dft","end");
-        } else {  // Nemo
-          get_parameters().print("dft");
-          get_nemo()->get_nemo_param().print();
-          print("end");
-        }
-      }
-    }
-
-    const QCCalculationParametersBase& get_parameters() const override {
-      if (is_nemo()) {
-        return get_nemo()->get_calc_param();
-      } else {
-        return get_scf()->param;
-      }
-    }
-
-    void run(const std::filesystem::path& workdir) override {
-      // 1) set up a namedspaced directory for this run
-      std::string label= is_nemo() ? "nemo" : Library::label();
-      PathManager pm(workdir, label.c_str());
-      pm.create();
-      workdir_=pm.dir();
+  // sets the calc working directory and runs the calculation
+  void run(const std::filesystem::path &workdir) override {
+    // 1) set up a namedspaced directory for this run
+    std::string label = Library::label();
+    PathManager pm(workdir, label);
+    pm.create();
+    {
       world_.gop.fence();
-      {
-        ScopedCWD scwd(pm.dir());
+      ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running SCF in " << pm.dir() << std::endl;
+      }
+      // 2) define the "checkpoint" file
+      auto ckpt = label + ".calc_info.json";
+      SCFResultsTuple empty_results;
+      nlohmann::json j;
+      NextAction action;
+      if (has_results(ckpt)) {
+        j = read_results(ckpt); // which results are we readin
+        try {
+          auto &[scf_r, properties, convergence, optr] = scf_results;
+          scf_r.from_json(j["scf"]);
+          properties.from_json(j["properties"]);
+          convergence.from_json(j["convergence"]);
+          action = lib_.valid(world_, scf_results, params_);
+
+        } catch (...) {
+          print("Failed to parse checkpoint file: ", ckpt);
+          scf_results = empty_results;
+          action = madness::NextAction::Redo;
+        }
+      } else {
+        scf_results = empty_results;
+        action = madness::NextAction::Redo;
+      }
+
+      // Guard against reusing a checkpoint computed for a DIFFERENT molecule.
+      if (action != madness::NextAction::Redo &&
+          !checkpoint_geometry_matches(j)) {
+        if (world_.rank() == 0)
+          print("WARNING: checkpoint geometry does not match the requested "
+                "molecule; ignoring checkpoint and recomputing.");
+        scf_results = empty_results;
+        action = madness::NextAction::Redo;
+      }
+      world_.gop.fence();
+      set_calc_workdir(pm.dir());
+      auto params_copy = params_;
+
+      // if okay and optimize we have to set Molecule to new geometry
+      //
+      if (world_.rank() == 0) {
+        print("Molecule from params:");
+        params_.get<Molecule>().print();
+      }
+      if (action == madness::NextAction::Ok ||
+          action == madness::NextAction::ReloadOnly ||
+          action == madness::NextAction::Restart) {
         if (world_.rank() == 0) {
-          std::cout << "Running SCF in " << pm.dir() << std::endl;
+          print("SCF results are valid, no need to rerun");
+          print("Ensure we are running on the correct molecule geometry");
         }
 
-        auto scfParams = params_.get<CalculationParameters>();
-        bool needEnergy = true;
-        bool needDipole = scfParams.dipole();
-        bool needGradient = scfParams.derivatives();
-        bool needWavefunctions = true;
+        auto &mol = params_.get<Molecule>();
+        mol.from_json(j["scf"]["molecule"]);
+      }
+      if (world_.rank() == 0) {
+        print("Molecule from scf results :");
+        params_.get<Molecule>().print();
+      }
 
-        // 2) define the "checkpoint" file
-        auto ckpt = params_.get<CalculationParameters>().prefix()+".calc_info.json";
-        nlohmann::json j;
-        if (has_results(ckpt)) j=read_results(ckpt);
+      world_.gop.fence();
 
-        [[maybe_unused]] bool ok = true;
-        if (needEnergy && !j.contains("energy")) ok = false;
-        if (needDipole && !j.contains("dipole")) ok = false;
-        if (needGradient && !j.contains("gradient")) ok = false;
-        if (needWavefunctions) {
-          try {
-            double thresh=scfParams.protocol().back();
-            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(scfParams.econv());
-            if constexpr (std::is_same_v<ScfT, SCF>) SCF::set_protocol<3>(world_,thresh);
-            this->load_mos(world_);
-          } catch (...) {
-            // if we cannot load MOs, we need to recompute them
-            ok = false;
-          }
-        }
+      if (world_.rank() == 0)
+        print("Next action is ", static_cast<int>(action),
+              " (0=Ok,1=ReloadOnly,2=Restart,3=Redo)");
 
-        if (ok) {
-          energy_ = j["energy"];
-          if (needDipole) dipole_ = tensor_from_json<double>(j["dipole"]);
-          if (needGradient) gradient_ = tensor_from_json<double>(j["gradient"]);
-          return;
-        }
+      if (action == madness::NextAction::Restart ||
+          action == madness::NextAction::Redo) {
+        scf_results = lib_.run(world_, params_, madness::NextAction::Restart);
+      } else {
+        lib_.calc(world_, params_); // just set up the calc without running
+      }
 
-        // we could dump params_ to JSON and pass as argv if desired…
-        MetaDataResults metadata(world_);
-        if constexpr (std::is_same_v<ScfT, SCF>) {
-          results_ = Library::run_scf(world_, params_, pm.dir());
-        } else if constexpr (std::is_same_v<ScfT, Nemo>) {
-          results_ = Library::run_nemo(this->get_nemo());
-        } else {
-          MADNESS_CHECK_THROW("unknown SCF type", 1);
-        }
-        results_["metadata"] = metadata.to_json();
+      // // Need work (Restart or Redo) — both call run()
+      // scf_results = lib_.run(world_, params_);
 
-        // legacy
-        PropertyResults properties= results_["properties"];
-        energy_ = properties.energy;
-        dipole_ = properties.dipole;
-        gradient_ = properties.gradient;
+      results_["scf"] = std::get<0>(scf_results).to_json();
+      results_["properties"] = std::get<1>(scf_results).to_json();
+      results_["convergence"] = std::get<2>(scf_results).to_json();
+      results_["molecule"] = std::get<0>(scf_results).scf_molecule.to_json();
+      results_["optimization_results"] = std::get<3>(scf_results).to_json();
+      // Backward-compatible top-level fields expected by existing scripted tests.
+      // Keep these in sync with the nested "scf/properties/convergence" schema.
+      results_["model"] = "scf";
+      results_["scf_total_energy"] = results_["scf"]["scf_total_energy"];
+      results_["scf_eigenvalues_a"] = results_["scf"]["scf_eigenvalues_a"];
+      results_["scf_fock_a"] = results_["scf"]["scf_fock_a"];
+      results_["convergence_info"] = results_["convergence"];
+      results_["metadata"] = {{"mpi_size", world_.size()}};
 
+      // write the checkpoint file
+      if (world_.rank() == 0) {
+        std::ofstream ofs(ckpt);
+        ofs << results_.dump(4);
+        ofs.close();
+        print("Written checkpoint file: ", ckpt);
       }
     }
+  }
 
-    nlohmann::json results() const override {
-      return results_;
+  // std::shared_ptr<SCFApplicationT> scf_app =
+  // std::dynamic_pointer_cast<SCFApplicationT>(reference_.shared_from_this());
+
+  nlohmann::json results() const override { return results_; }
+
+private:
+  // Returns true iff the checkpoint's stored geometry matches the requested
+  // molecule's nuclear framework. Compares only atoms (element + position via
+  // Atom::operator==), NOT derived quantities (rcut/field/pointgroup/
+  // parameters), which can differ on a JSON round-trip and would otherwise
+  // force spurious recomputes.
+  bool checkpoint_geometry_matches(const nlohmann::json &j) const {
+    const nlohmann::json *molj = nullptr;
+    if (j.contains("molecule"))
+      molj = &j.at("molecule");
+    else if (j.contains("scf") && j["scf"].contains("molecule"))
+      molj = &j["scf"].at("molecule");
+    if (!molj)
+      return true; // nothing to compare against -> don't block reuse
+    Molecule ckpt_mol;
+    try {
+      ckpt_mol.from_json(*molj);
+    } catch (...) {
+      return true; // can't parse -> let other validation decide
     }
+    const Molecule &want = params_.get<Molecule>();
+    if (ckpt_mol.natom() != want.natom())
+      return false;
+    for (unsigned int i = 0; i < want.natom(); ++i)
+      if (!(want.get_atom(i) == ckpt_mol.get_atom(i)))
+        return false;
+    return true;
+  }
 
-  private:
-    World& world_;
-    double energy_;
+  World &world_;
+  Library lib_; // owns shared_ptr<Engine>
+  SCFResultsTuple scf_results;
+};
 
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
-  };
+/**
+ * @brief Wrapper application to run the molresponse workflow
+ *        via the molresponse_lib::run_response function.
+ */
+template <typename Library> class ResponseApplication : public Application {
+public:
+  /**
+   * @param world   MADNESS world communicator
+   * @param params  Unified Params containing ResponseParameters & Molecule
+   * @param ref_dir   Directory of precomputed ground-state (SCF) outputs
+   */
+  ResponseApplication(World &world, Params params,
+                      std::shared_ptr<SCF> reference)
+      : Application(std::move(params)),
+        world_(world),
+        reference_(std::move(reference)) {}
+
+  // print parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "Response Parameters:" << std::endl;
+      params_.get<ResponseParameters>().print("response");
+    }
+  }
 
   /**
-   * @brief Wrapper application to run the molresponse workflow
-   *        via the molresponse_lib::run_response function.
+   * @brief Execute response + property workflow, writing into workdir/response
    */
-  template <typename Library>
-  class ResponseApplication : public Application {
-  public:
-    /**
-     * @param world   MADNESS world communicator
-     * @param params  Unified Params containing ResponseParameters & Molecule
-     * @param indir   Directory of precomputed ground-state (SCF) outputs
-     */
-    ResponseApplication(World& world, Params params, std::filesystem::path indir)
-        : Application(std::move(params)),
-          world_(world),
-          indir_(std::move(indir)) {}
+  void run(const std::filesystem::path &workdir) override {
+    // create a namespaced subdirectory for response outputs
+    PathManager pm(workdir, Library::label());
+    pm.create();
+    {
+      ScopedCWD scwd(pm.dir());
 
+      auto res = Library::run_response(world_, params_, reference_, pm.dir());
 
-    const QCCalculationParametersBase& get_parameters() const override {
-      return params_.get<ResponseParameters>();
+      metadata_ = std::move(res.metadata);
+      properties_["response_properties"] = std::move(res.properties);
+      properties_["vibrational_analysis"] = std::move(res.vibrational_analysis);
+      properties_["raman_spectra"] = std::move(res.raman_spectra);
     }
-    /**
-     * @brief Execute response + property workflow, writing into workdir/response
-     */
-    void run(const std::filesystem::path& workdir) override {
-      // create a namespaced subdirectory for response outputs
-      PathManager pm(workdir, Library::label());
-      pm.create();
-      {
-        ScopedCWD scwd(pm.dir());
+  }
 
-        auto res = Library::run_response(world_, params_, indir_, pm.dir());
+  /**
+   * @brief Return a JSON fragment summarizing results
+   */
+  [[nodiscard]] nlohmann::json results() const override {
+    return {{"type", "response"},
+            {"metadata", metadata_},
+            {"properties", properties_}};
+  }
 
-        metadata_ = std::move(res.metadata);
-        properties_ = std::move(res.properties);
+private:
+  World &world_;
+  nlohmann::json metadata_;
+  nlohmann::json properties_;
+  std::optional<nlohmann::json> vibrational_analysis_;
+  std::shared_ptr<SCF> reference_;
+};
+
+class CC2Application : public Application, public CC2 {
+public:
+  explicit CC2Application(World &w, const Params &p,
+                          const std::shared_ptr<Nemo> &reference)
+      : Application(p),
+        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference),
+        world_(w), reference_(reference) {}
+
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "CC2 Parameters:" << std::endl;
+    }
+  }
+
+  void run(const std::filesystem::path &workdir) override {
+    // 1) set up a namedspaced directory for this run
+    std::string label = "cc2";
+    PathManager pm(workdir, label);
+    pm.create();
+    world_.gop.fence();
+    {
+      ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running CC2 in " << pm.dir() << std::endl;
       }
-    }
 
-    /**
-     * @brief Return a JSON fragment summarizing results
-     */
-    [[nodiscard]] nlohmann::json results() const override {
-      return {{"type", "response"},
-              {"metadata", metadata_},
-              {"properties", properties_}};
-    }
-
-  private:
-    World& world_;
-    std::filesystem::path indir_;
-    nlohmann::json metadata_;
-    nlohmann::json properties_;
-  };
-
-  template <typename Library, typename SCFApplicationT>
-  class CC2Application : public Application, public CC2 {
-  public:
-    explicit CC2Application(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), 
-          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()),
-          world_(w), reference_(reference) {
-    }
-
-    const QCCalculationParametersBase& get_parameters() const override {
-      return parameters; // CCParameters
-    }
-
-    void run(const std::filesystem::path& workdir) override {
-      // 1) set up a namedspaced directory for this run
-      PathManager pm(workdir, Library::label());
-      pm.create();
-      world_.gop.fence();
-      {
-        ScopedCWD scwd(pm.dir());
+      // 2) define the "checkpoint" file
+      auto ckpt = label + "_results.json";
+      print("cc checkpoint file", ckpt);
+      if (std::filesystem::exists(ckpt)) {
         if (world_.rank() == 0) {
-          std::cout << "Running CC2 in " << pm.dir() << std::endl;
+          std::cout << "Found checkpoint file: " << ckpt << std::endl;
         }
+        // read the checkpoint file
+        std::ifstream ifs(ckpt);
+        ifs >> results_;
+        ifs.close();
 
-        // 2) define the "checkpoint" file
-        std::string label=Library::label();
-        auto ckpt = label + "_results.json";
-        print("cc checkpoint file",ckpt);
-        if (std::filesystem::exists(ckpt)) {
-          if (world_.rank() == 0) {
-            std::cout << "Found checkpoint file: " << ckpt << std::endl;
-          }
-          // read the checkpoint file
-          std::ifstream ifs(ckpt);
-          ifs >> results_;
-          ifs.close();
-
-          // bool ok = true;
-          // bool needEnergy = true;
-          // if (needEnergy && !results_.contains("energy")) ok = false;
-
-        }
-
-        auto rel = std::filesystem::relative(reference_.get_workdir(), pm.dir());
-        if (world.rank() == 0) {
-          std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
-          std::cout << "Ground state archive: " << reference_.get_workdir() << std::endl;
-          std::cout << "Relative path: " << rel << std::endl;
-        }
-
-        results_=this->solve();
-
+        // bool ok = true;
+        // bool needEnergy = true;
+        // if (needEnergy && !results_.contains("energy"))
+        //   ok = false;
       }
+
+      auto rel = std::filesystem::relative(reference_->work_dir, pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
+        std::cout << "Ground state archive: " << reference_->work_dir
+                  << std::endl;
+        std::cout << "Relative path: " << rel << std::endl;
+      }
+
+      results_ = this->solve();
     }
+  }
 
-    nlohmann::json results() const override {
-      return results_;
+  nlohmann::json results() const override { return results_; }
+
+private:
+  World &world_;
+  const std::shared_ptr<Nemo> reference_;
+};
+
+class TDHFApplication : public Application, public TDHF {
+public:
+  explicit TDHFApplication(World &w, const Params &p,
+                           const std::shared_ptr<Nemo> &reference)
+      : Application(p), TDHF(w, p.get<TDHFParameters>(), reference), world_(w),
+        reference_(reference) {}
+
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "TDHF Parameters:" << std::endl;
     }
+  }
 
-  private:
-    World& world_;
-    const Application& reference_;
-  };
+  void run(const std::filesystem::path &workdir) override {
+    // 1) set up a namedspaced directory for this run
+    PathManager pm(workdir, "tdhf");
+    pm.create();
+    world_.gop.fence();
+    {
+      ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running CIS in " << pm.dir() << std::endl;
+      }
 
+      // we could dump params_ to JSON and pass as argv if desired…
+      try {
+        const double time_scf_start = wall_time();
+        this->prepare_calculation();
+        const double time_scf_end = wall_time();
+        if (world_.rank() == 0)
+          printf(" at time %.1f\n", wall_time());
 
+        const double time_cis_start = wall_time();
+        std::vector<CC_vecfunction> roots = this->solve_cis();
+        const double time_cis_end = wall_time();
+        if (world_.rank() == 0)
+          printf(" at time %.1f\n", wall_time());
 
-  template<typename SCFApplicationT>
-  class TDHFApplication : public Application, public TDHF {
-  public:
-    explicit TDHFApplication(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), 
-          TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()),
-          world_(w), reference_(reference) {
-    }
-
-
-    const QCCalculationParametersBase& get_parameters() const override {
-      return TDHF::get_parameters(); // TDHFParameters
-    }
-
-    void run(const std::filesystem::path& workdir) override {
-      // 1) set up a namedspaced directory for this run
-      PathManager pm(workdir, "tdhf");
-      pm.create();
-      world_.gop.fence();
-      {
-        ScopedCWD scwd(pm.dir());
         if (world_.rank() == 0) {
-          std::cout << "Running CIS in " << pm.dir() << std::endl;
+          std::cout << std::setfill(' ');
+          std::cout << "\n\n\n";
+          std::cout << "--------------------------------------------------\n";
+          std::cout << "MRA-CIS ended \n";
+          std::cout << "--------------------------------------------------\n";
+          std::cout << std::setw(25) << "time scf" << " = "
+                    << time_scf_end - time_scf_start << "\n";
+          std::cout << std::setw(25) << "time cis" << " = "
+                    << time_cis_end - time_cis_start << "\n";
+          std::cout << "--------------------------------------------------\n";
         }
-
-        // we could dump params_ to JSON and pass as argv if desired…
-        try {
-          const double time_scf_start = wall_time();
-          this->prepare_calculation();
-          const double time_scf_end = wall_time();
-          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
-
-          const double time_cis_start = wall_time();
-          std::vector<CC_vecfunction> roots = this->solve_cis();
-          const double time_cis_end = wall_time();
-          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
-
-          if (world_.rank() == 0) {
-            std::cout << std::setfill(' ');
-            std::cout << "\n\n\n";
-            std::cout << "--------------------------------------------------\n";
-            std::cout << "MRA-CIS ended \n";
-            std::cout << "--------------------------------------------------\n";
-            std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
-            std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
-            std::cout << "--------------------------------------------------\n";
-          }
-          auto j=this->analyze(roots);
-          // funnel through CISResults to make sure we have the right format
-          CISResults results(j);
-          results_= results.to_json();
-
-        } catch (std::exception& e) {
-          print("Caught exception: ", e.what());
-        }
-      }
-    }
-
-    nlohmann::json results() const override {
-      return results_;
-    }
-
-  private:
-    World& world_;
-    const Application& reference_;
-
-  };
-
-
-
-  template<typename SCFApplicationT>
-  class OEPApplication : public Application, public OEP {
-  public:
-    explicit OEPApplication(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), 
-          OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()),
-          world_(w), reference_(reference) {
-    }
-
-    const QCCalculationParametersBase& get_parameters() const override {
-      return oep_param; // OEP_Parameters
-    }
-
-    void run(const std::filesystem::path& workdir) override {
-      // 1) set up a namedspaced directory for this run
-      PathManager pm(workdir, "oep");
-      pm.create();
-      world_.gop.fence();
-      {
-        ScopedCWD scwd(pm.dir());
+        auto j = this->analyze(roots);
+        // funnel through CISResults to make sure we have the right format
+        CISResults results(j);
+        results_ = results.to_json();
+      } catch (std::exception &e) {
+        // Do not silently swallow: record the failure so the emitted
+        // calc_info.json reflects it instead of looking like a clean run.
         if (world_.rank() == 0) {
-          std::cout << "Running OEP in " << pm.dir() << std::endl;
+          print("==================================================");
+          print("CIS calculation FAILED with an exception:");
+          print(e.what());
+          print("==================================================");
         }
-
-        // 2) define the "checkpoint" file
-        std::string label="oep";
-        auto ckpt = label + "_results.json";
-        print("cc checkpoint file",ckpt);
-        if (std::filesystem::exists(ckpt)) {
-          if (world_.rank() == 0) {
-            std::cout << "Found checkpoint file: " << ckpt << std::endl;
-          }
-          // read the checkpoint file
-          std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
-          ifs.close();
-
-        }
-
-        // we could dump params_ to JSON and pass as argv if desired…
-        try {
-          const double time_scf_start = wall_time();
-          this->value();
-          const double time_scf_end = wall_time();
-          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
-
-          if (world_.rank() == 0) {
-            std::cout << std::setfill(' ');
-            std::cout << "\n\n\n";
-            std::cout << "--------------------------------------------------\n";
-            std::cout << "MRA-OEP ended \n";
-            std::cout << "--------------------------------------------------\n";
-            std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
-            std::cout << "--------------------------------------------------\n";
-          }
-        } catch (std::exception& e) {
-          print("Caught exception: ", e.what());
-        }
-        // nlohmann::json results;
-        results_=this->analyze();
+        results_["status"] = "failed";
+        results_["error"] = e.what();
       }
     }
+  }
 
-    nlohmann::json results() const override {
-      return results_;
+  nlohmann::json results() const override { return results_; }
+
+private:
+  World &world_;
+  std::shared_ptr<Nemo> reference_;
+  std::filesystem::path ref_dir_;
+};
+
+class OEPApplication : public Application, public OEP {
+public:
+  explicit OEPApplication(World &w, const Params &p,
+                          const std::shared_ptr<Nemo> &reference)
+      : Application(p), OEP(w, p.get<OEP_Parameters>(), reference), world_(w),
+        reference_(reference) {}
+
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "OEP Parameters:" << std::endl;
     }
+  }
 
-  private:
-    World& world_;
-    const Application& reference_;
+  void run(const std::filesystem::path &workdir) override {
+    // 1) set up a namedspaced directory for this run
+    PathManager pm(workdir, "oep");
+    pm.create();
+    world_.gop.fence();
+    {
+      ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running OEP in " << pm.dir() << std::endl;
+      }
 
-    double energy_;
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
-  };
+      // 2) define the "checkpoint" file
+      std::string label = "oep";
+      auto ckpt = label + "_results.json";
+      print("cc checkpoint file", ckpt);
+      if (std::filesystem::exists(ckpt)) {
+        if (world_.rank() == 0) {
+          std::cout << "Found checkpoint file: " << ckpt << std::endl;
+        }
+        // read the checkpoint file
+        std::ifstream ifs(ckpt);
+        nlohmann::json j;
+        ifs >> j;
+        ifs.close();
+      }
 
+      // we could dump params_ to JSON and pass as argv if desired…
+      try {
+        const double time_scf_start = wall_time();
+        this->value();
+        const double time_scf_end = wall_time();
+        if (world_.rank() == 0)
+          printf(" at time %.1f\n", wall_time());
+
+        if (world_.rank() == 0) {
+          std::cout << std::setfill(' ');
+          std::cout << "\n\n\n";
+          std::cout << "--------------------------------------------------\n";
+          std::cout << "MRA-OEP ended \n";
+          std::cout << "--------------------------------------------------\n";
+          std::cout << std::setw(25) << "time scf" << " = "
+                    << time_scf_end - time_scf_start << "\n";
+          std::cout << "--------------------------------------------------\n";
+        }
+        results_ = this->analyze();
+      } catch (std::exception &e) {
+        // Do not silently swallow: record the failure so the emitted
+        // calc_info.json reflects it instead of looking like a clean run.
+        if (world_.rank() == 0) {
+          print("==================================================");
+          print("OEP calculation FAILED with an exception:");
+          print(e.what());
+          print("==================================================");
+        }
+        results_["status"] = "failed";
+        results_["error"] = e.what();
+      }
+    }
+  }
+
+  nlohmann::json results() const override { return results_; }
+
+private:
+  World &world_;
+  std::shared_ptr<Nemo> reference_;
+
+  // double energy_;
+  // std::optional<Tensor<double>> dipole_;
+  // std::optional<Tensor<double>> gradient_;
+  // std::optional<real_function_3d> density_;
+};
+
+inline NextAction decide_next_action(bool at_protocol, bool archive_needed,
+                                     bool archive_exists,
+                                     bool all_properties_computed,
+                                     bool restart_exists) {
+  // We must recompute if any of these are true:
+  const bool must_redo =
+      !at_protocol // not at final protocol
+      ||
+      (archive_needed && !archive_exists) // user wants archive but it's missing
+      || !all_properties_computed;        // a requested prop is missing
+
+  if (!must_redo) {
+    // We’re at final protocol, have all requested props, and either
+    // the archive is present or not required.
+    // If the archive isn't there but also not required, it's just a reload.
+    if (!archive_exists && !archive_needed)
+      return NextAction::ReloadOnly;
+    return NextAction::Ok;
+  }
+
+  // We need work; decide between Restart vs Redo:
+  return restart_exists ? NextAction::Restart : NextAction::Redo;
 }
 
+template <typename SCFParams>
+NextAction valid(World &world, const SCFResultsTuple &results,
+                 const SCFParams &params) {
+  // Take a copy of the parameters
+  auto [sr, pr, cr, optr] = results;
 
+  // Required convergence for "final" protocol
+  const auto vthresh = params.protocol().back(); // final protocol
+  const auto vdconv = params.dconv();
+  const bool archive_needed = params.save();
+
+  // Requested outputs
+  const bool need_energy = true;
+  const bool need_dipole = params.dipole();
+  const bool need_gradient = params.derivatives();
+
+  if (world.rank() == 0) {
+    print("Validating SCF results:");
+    print(" Required protocol threshold: ", vthresh);
+    print(" Required density convergence: ", vdconv);
+    print(" Archive needed: ", archive_needed);
+    print(" Need energy: ", need_energy);
+    print(" Need dipole: ", need_dipole);
+    print(" Need gradient: ", need_gradient);
+  }
+
+  // Files/paths
+  const std::string archivename = params.prefix();
+  const auto restart_path =
+      std::filesystem::path(archivename + ".restartdata.00000");
+  const bool archive_exists = std::filesystem::exists(restart_path);
+  if (world.rank() == 0) {
+    print("Restart file: ", restart_path.string());
+  }
+
+  // State in resultout the threshold refinement.
+  //
+  const bool at_protocol =
+      (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
+
+  const auto pjson = sr.properties.to_json();
+  const bool energy_ok = pjson.contains("energy");
+  const bool dipole_ok = pjson.contains("dipole");
+  const bool gradient_ok = pjson.contains("gradient");
+
+  if (world.rank() == 0) {
+    print("at_protocol: ", at_protocol);
+    print("archive_needed: ", archive_needed);
+    print("archive_exists: ", archive_exists);
+    print("energy_ok: ", energy_ok);
+    print("dipole_ok: ", dipole_ok);
+    print("gradient_ok: ", gradient_ok);
+  }
+
+  // Only require props the user asked for
+  const bool all_properties_computed = (need_energy ? energy_ok : true) &&
+                                       (need_dipole ? dipole_ok : true) &&
+                                       (need_gradient ? gradient_ok : true);
+
+  bool is_gopt = false;
+  bool gopt_ok = true;
+  if (params.gopt()) {
+    is_gopt = true;
+  }
+  if (is_gopt) {
+    // check if the optimized geometry is available
+    try {
+
+      double gtol = params.gtol();
+      // A geometry optimization is only valid if the max gradient has
+      // dropped below gtol; otherwise it must be restarted/redone.
+      // (Previously this set gopt_ok=true on non-convergence, which made an
+      //  unconverged optimization look valid and suppressed the redo.)
+      gopt_ok = (optr.max_gradient < gtol);
+    } catch (...) {
+      gopt_ok = false;
+    }
+  }
+
+  // Decide action
+  const bool must_redo = !at_protocol || (archive_needed && !archive_exists) ||
+                         !all_properties_computed || !gopt_ok;
+
+  // if we don't need to redo, we can either reload or return ok
+  if (!must_redo)
+    return (!archive_exists && !archive_needed) ? NextAction::ReloadOnly
+                                                : NextAction::Ok;
+
+  if (world.rank() == 0) {
+    print("at_protocol: ", at_protocol);
+    print("archive_needed: ", archive_needed);
+    print("archive_exists: ", archive_exists);
+    print("all_properties_computed: ", all_properties_computed);
+    print("gopt_ok: ", gopt_ok);
+  }
+  // with we need to redo we can restart from the exisiting archive
+  return archive_exists ? NextAction::Restart : NextAction::Redo;
+}
+
+struct moldft_lib {
+  static constexpr const char *label() { return "moldft"; }
+
+  vector<double> protocol;
+  SCFResultsTuple last_results_;
+
+  using Calc = SCF;
+
+  NextAction valid(World &world, const SCFResultsTuple &results,
+                   const Params &params) {
+    last_results_ = results;
+    return ::valid(world, results, params.get<CalculationParameters>());
+  }
+
+  // expose the live engine
+  std::shared_ptr<Calc> calc(World &world, const Params &params) {
+    if (!calc_)
+      initialize_(world, params); // create once
+    return calc_;
+  }
+
+  static void print_parameters() { Calc::print_parameters(); }
+  // params get's changed by SCF constructor
+  SCFResultsTuple run(World &world, const Params &params,
+                      const NextAction next_action_) {
+    auto moldft_params = params.get<CalculationParameters>();
+    const auto &molecule = params.get<Molecule>();
+    const auto &params_copy = params;
+
+    SCFResultsTuple results;
+    auto &scf_res = std::get<0>(results);
+    auto &opt_res = std::get<3>(results);
+    auto &prop_res = std::get<1>(results);
+    auto &conv_res = std::get<2>(results);
+
+    if (next_action_ == NextAction::Ok ||
+        next_action_ == NextAction::ReloadOnly) {
+      // nothing to do
+      return last_results_;
+    }
+
+    if (NextAction::Restart == next_action_) {
+      // Handle restart logic
+      auto cr = std::get<2>(last_results_);
+      moldft_params.set_user_defined_value("restart", true);
+    }
+    auto scf = calc(world, params_copy);
+    // redirect any log files into outdir if needed…
+    // Warm and fuzzy for the user
+    if (world.rank() == 0) {
+      print("\n\n");
+      print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+      print(" ----------------------------------------------------------\n");
+      print("\n");
+      //   scf->molecule.print();
+      print("\n");
+      //    scf->param.print("dft");
+    }
+    // Come up with an initial OK data map
+    if (world.size() > 1) {
+      scf->set_protocol<3>(world, 1e-4);
+      scf->make_nuclear_potential(world);
+      scf->initial_load_bal(world);
+    }
+    // vama
+    scf->set_protocol<3>(world, scf->param.protocol()[0]);
+    double energy = 0.0;
+    scf_res.is_opt = scf->param.gopt();
+
+    if (scf_res.is_opt) {
+      // Geometry convergence thresholds tied to final SCF protocol
+      // following the Dalton-style rules:
+      //
+      //   wf_thresh = final SCF threshold (protocol().back())
+      //
+      //   |ΔE|   < max(1e-6, 2 * wf_thresh)
+      //   ||g||  < max(1e-4, 2 * wf_thresh)
+      //   ||dx|| < max(1e-4, 2 * wf_thresh)
+      //
+      // MolOpt uses:
+      //   etol -> energy change tolerance
+      //   gtol -> max gradient tolerance
+      //   xtol -> max Cartesian step tolerance
+      //
+      const double wf_thresh = scf->param.protocol().back();
+      const double etol = std::max(1.0e-7, 2.0 * wf_thresh);
+      const double gxtol = std::max(1.0e-5, 2.0 * wf_thresh);
+      const double gprec = std::max(1.0e-6, wf_thresh);
+
+      MolOpt opt(scf->param.gmaxiter(), // maximum geometry iterations
+                 0.1,   // maximum step in any Cartesian coordinate
+                 etol,  // energy-change tolerance
+                 gxtol, // gradient tolerance
+                 gxtol, // step (Cartesian) tolerance
+                 etol,  // assumed energy precision
+                 gprec, // assumed gradient precision
+                 (world.rank() == 0) ? 1 : 0, // print_level
+                 scf->param.algopt());
+
+      MolecularEnergy target(world, *scf);
+      opt_res = opt.optimize_app(scf->molecule, target);
+      auto new_mol = opt_res.final_geometry;
+
+      Tensor<double> gradient;
+      target.energy_and_gradient(new_mol, energy, gradient);
+      scf_res.scf_molecule = new_mol;
+
+      scf_res.properties.energy = energy;
+      scf_res.properties.gradient = gradient;
+
+      // write out the optimized geometry
+      if (world.rank() == 0) {
+        std::string geomfile = scf->param.prefix() + "_opt.xyz";
+        std::ofstream ofs(geomfile);
+        new_mol.print(ofs);
+        ofs.close();
+        print("optimized geometry written to ", geomfile);
+        // write out mad.in with optimized geometry
+      }
+
+      // MolecularEnergy E(world, *scf);
+      // energy = E.value(new_mol.get_all_coords().flat());
+    } else {
+      MolecularEnergy E(world, *scf);
+      scf_res.scf_molecule = molecule;
+
+      energy = E.value(scf->molecule.get_all_coords().flat());
+      if (world.rank() == 0 && scf->param.print_level() > 0)
+        E.output_calc_info_schema();
+    }
+
+    functionT rho = scf->make_density(world, scf->aocc, scf->amo);
+    functionT brho = rho;
+    if (scf->param.nbeta() != 0 && !scf->param.spin_restricted())
+      brho = scf->make_density(world, scf->bocc, scf->bmo);
+    rho.gaxpy(1.0, brho, 1.0);
+
+    // optionally compute gradient, dipole, etc.
+    Tensor<double> grad;
+    if (scf->param.derivatives()) {
+      grad = scf->derivatives(world, rho);
+      scf->e_data.add_gradient(grad);
+      scf_res.properties.gradient = grad;
+    }
+
+    tensorT dip;
+    if (scf->param.dipole())
+      dip = scf->dipole(world, scf->make_density(world, scf->aocc, scf->amo));
+
+    scf->do_plots(world);
+
+    conv_res.set_converged_thresh(FunctionDefaults<3>::get_thresh());
+    conv_res.set_converged_dconv(scf->param.dconv());
+    prop_res.energy = energy;
+    prop_res.dipole = dip;
+    prop_res.gradient = grad;
+
+    scf_res.aeps = scf->aeps;
+    scf_res.beps = scf->beps;
+    scf_res.properties = prop_res;
+
+    return results;
+  }
+
+private:
+  void initialize_(World &world, const Params &params) {
+    // write mad.in if missing
+    const auto &cp = params.get<CalculationParameters>();
+    const auto &mol = params.get<Molecule>();
+
+    world.gop.fence();
+    if (world.rank() == 0) {
+      if (true) {
+        // should always overwrite for now
+
+        json in;
+        in["dft"] = cp.to_json_if_precedence("defined");
+        in["molecule"] = mol.to_json_if_precedence("defined");
+        std::ofstream ofs("mad.in");
+        write_json_to_input_file(in, {"dft"}, ofs);
+        mol.print_defined_only(ofs);
+      }
+    }
+    world.gop.fence();
+
+    commandlineparser parser;
+    parser.set_keyval("input", "mad.in");
+    if (world.rank() == 0)
+      ::print("input filename: ", parser.value("input"));
+
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+    std::cout.precision(6);
+    calc_ = std::make_shared<SCF>(world, parser);
+  }
+
+  std::shared_ptr<Calc> calc_;
+}; // namespace moldft_lib
+
+struct nemo_lib {
+  using Calc = Nemo;
+  static constexpr const char *label() { return "nemo"; }
+
+  std::shared_ptr<Calc> calc(World &world, const Params &params) {
+    if (!nemo_)
+      initialize_(world, params);
+    return nemo_;
+  }
+
+  static NextAction valid(World &world, const SCFResultsTuple &results,
+                   const Params &params) {
+    // Take a copy of the parameters
+    return ::valid(world, results, params.get<CalculationParameters>());
+  }
+
+  static void print_parameters() { Calc::print_parameters(); }
+
+  SCFResultsTuple run(World &world, const Params &params,
+                      NextAction action = NextAction::Redo) {
+    SCFResultsTuple results;
+    auto nm = calc(world, params);
+    nm->get_calc()->work_dir = std::filesystem::current_path();
+
+    nm->value();
+    PropertyResults pr = nm->analyze();
+    // compute the hessian
+
+    ConvergenceResults cr;
+    cr.set_converged_thresh(nm->get_calc()->converged_for_thresh);
+    cr.set_converged_dconv(nm->get_calc()->converged_for_dconv);
+
+    SCFResults sr;
+    sr.aeps = nm->get_calc()->aeps;
+    sr.beps = nm->get_calc()->beps;
+    sr.properties = pr;
+    sr.scf_total_energy = nm->get_calc()->current_energy;
+
+    if (nm->get_nemo_param().hessian())
+      sr.properties.vibrations =
+          nm->hessian(nm->get_calc()->molecule.get_all_coords());
+    results = {sr, pr, cr, OptimizationResults()};
+
+    return results;
+  }
+
+private:
+  void initialize_(World &world, const Params &params) {
+    nemo_ = std::make_shared<Nemo>(
+        world, params.get<CalculationParameters>(),
+        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>());
+  }
+
+  std::shared_ptr<Calc> nemo_;
+};
+} // namespace madness

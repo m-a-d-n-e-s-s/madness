@@ -1,0 +1,28 @@
+dft
+    dconv 0.0001
+    dipole true
+    l 100.0
+    localize "canon"
+    maxiter 30
+    print_level 10
+    protocol [1e-1,1e-2,1e-4]
+    xc "hf"
+end
+response
+    dipole true
+    dipole.directions z
+    dipole.frequencies [0.0]
+    excited.enable true
+    excited.num_states 2
+    excited.tda false
+    excited.guess_max_iter 1
+    excited.maxiter 20
+    excited.maxsub 4
+    print_level 2
+end
+molecule
+    eprec 1e-5
+    units angstrom
+    H 0.000000000000 0.000000000000 -0.370000000000
+    H 0.000000000000 0.000000000000 0.370000000000
+end

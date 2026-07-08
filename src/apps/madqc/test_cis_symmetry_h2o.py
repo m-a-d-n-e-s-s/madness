@@ -20,14 +20,14 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+"_b1.calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=h2o --wf=cis'
-    dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'"'
+    global_arguments=' --molecule=h2o --wf=cis --prefix='+prefix
+    dft_arguments=' --dft="k=8; localize=canon;"'
     other_arguments=' --tdhf="freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
     cleanup(prefix)  # Clean up previous output files
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
-    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , encoding='utf-8', errors='replace')
 
     print("finished with run")
     print(p.stdout)
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
-    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , encoding='utf-8', errors='replace')
     print("finished with run")
     print(p.stdout)
 

@@ -1,0 +1,1632 @@
+{
+    "tasks": [
+        {
+            "convergence": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-05
+            },
+            "convergence_info": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-05
+            },
+            "metadata": {
+                "mpi_size": 8
+            },
+            "model": "scf",
+            "molecule": {
+                "geometry": [
+                    [
+                        0.0,
+                        0.0,
+                        -1.5176490010301067
+                    ],
+                    [
+                        0.0,
+                        0.0,
+                        1.5176490010301067
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": true,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "src/apps/madqc/test_molresponse_lih_alpha_raman_beta_xyz.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "Li",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": 0.0,
+                "final_geometry": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "max_gradient": 0.0,
+                "max_step": 0.0,
+                "nsteps": 0
+            },
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        1.86586188040859e-14,
+                        1.0757287780475251e-14,
+                        -2.7034877779253415
+                    ]
+                },
+                "energy": -7.987360296906403,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            },
+            "scf": {
+                "is_opt": false,
+                "model": "scf",
+                "molecule": {
+                    "geometry": [
+                        [
+                            0.0,
+                            0.0,
+                            -1.5176490010301067
+                        ],
+                        [
+                            0.0,
+                            0.0,
+                            1.5176490010301067
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": true,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "src/apps/madqc/test_molresponse_lih_alpha_raman_beta_xyz.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "Li",
+                        "H"
+                    ]
+                },
+                "properties": {
+                    "dipole": {
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            1.86586188040859e-14,
+                            1.0757287780475251e-14,
+                            -2.7034877779253415
+                        ]
+                    },
+                    "energy": -7.987360296906403,
+                    "gradient": {
+                        "ndim": -1,
+                        "size": 0
+                    }
+                },
+                "scf_eigenvalues_a": {
+                    "dims": [
+                        2
+                    ],
+                    "ndim": 1,
+                    "size": 2,
+                    "vals": [
+                        -2.446044882728785,
+                        -0.3013169470977548
+                    ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_fock_a": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_total_energy": 0.0
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    2
+                ],
+                "ndim": 1,
+                "size": 2,
+                "vals": [
+                    -2.446044882728785,
+                    -0.3013169470977548
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        },
+        {
+            "metadata": {
+                "states": {
+                    "Dipole_x": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Dipole_y": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Dipole_z": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_0x": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_0y": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_0z": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_1x": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_1y": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    },
+                    "Nuc_1z": {
+                        "protocols": {
+                            "1e-04": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            },
+                            "1e-05": {
+                                "converged": {
+                                    "0.000": true
+                                },
+                                "saved": {
+                                    "0.000": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "properties": {
+                "raman_spectra": {
+                    "polarizability_derivatives": [
+                        {
+                            "dims": [
+                                9,
+                                6
+                            ],
+                            "ndim": 2,
+                            "size": 54,
+                            "vals": [
+                                -5.846054085744887e-08,
+                                -1.3733665932052705e-07,
+                                -6.9578107674952605,
+                                -8.225462146127516e-08,
+                                -6.354685270488263e-08,
+                                6.981331161592884,
+                                -8.302355320919351e-08,
+                                -8.306529686595608e-08,
+                                4.2379294518161915e-14,
+                                -3.60703798964249e-08,
+                                -3.608001802434595e-08,
+                                -2.128322398966942e-11,
+                                1.0690824685346072,
+                                -7.920122457181856e-11,
+                                1.363554677155654e-10,
+                                -1.1602161898885495,
+                                -8.049367987408997e-12,
+                                1.9954883300584618e-08,
+                                -8.306523399757154e-08,
+                                -8.302364753131307e-08,
+                                4.2253418645927507e-14,
+                                -3.607995054270827e-08,
+                                -3.607044729588937e-08,
+                                -2.128393973080378e-11,
+                                -1.3733684013660964e-07,
+                                -5.846087888122017e-08,
+                                -6.9578107672399945,
+                                -6.354676780710745e-08,
+                                -8.22550057422035e-08,
+                                6.9813311615303535,
+                                -7.920939327621805e-11,
+                                1.0690824684426083,
+                                1.3639913070545573e-10,
+                                -8.043879223225245e-12,
+                                -1.1602161925841303,
+                                1.9954906844617552e-08,
+                                1.0690944136580591,
+                                -8.258669117090019e-11,
+                                1.3003438066700103e-10,
+                                -1.160207177394419,
+                                -9.205791905028645e-12,
+                                1.9974925832312373e-08,
+                                -8.25877058344431e-11,
+                                1.069094413565193,
+                                1.3006070815201293e-10,
+                                -9.201028709811645e-12,
+                                -1.1602071800892033,
+                                1.9974933610963548e-08,
+                                -7.956957462204226e-08,
+                                -7.956990322101585e-08,
+                                -13.502308027358325,
+                                9.919667786765225e-09,
+                                9.919186916550624e-09,
+                                13.48396050274471
+                            ]
+                        }
+                    ],
+                    "polarizability_derivatives_normal_modes": [
+                        {
+                            "dims": [
+                                9,
+                                1
+                            ],
+                            "ndim": 2,
+                            "size": 9,
+                            "vals": [
+                                0.17422034321368746,
+                                -4.641111444634773e-13,
+                                4.3458732576540327e-10,
+                                -4.64126349224038e-13,
+                                0.1742203432115162,
+                                4.3458770080377656e-10,
+                                4.3504426625327893e-10,
+                                4.3504435248357745e-10,
+                                0.33669649369638
+                            ]
+                        }
+                    ],
+                    "polarization_frequencies": [
+                        0.0
+                    ],
+                    "raman_spectra": {
+                        "0.000000": [
+                            {
+                                "alpha2": 7.455507367141946,
+                                "beta2": 3.77349590557807,
+                                "dep_ratio": 0.03228965203336019,
+                                "depol_int": 11.32048771673421,
+                                "freq_cm1": 1427.9409902285297,
+                                "mode": 1,
+                                "pol_int": 350.5918151436999
+                            }
+                        ]
+                    },
+                    "vibrational_frequencies": [
+                        1427.9409902285297
+                    ]
+                },
+                "response_properties": [
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 3.704592622250091e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 1.8452054662866654e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.06701133123156
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 1.7759634908520735e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 3.930715480751981e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -1.0640208332468393e-13
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.0670113312243
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -9.881613756423747e-14
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 4.089747854610359e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 1.4700662562261435e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 3.8316328733988e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -1.2570814614948532e-13
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 3.91833459667361e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 1.7691672779540646e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.06701131923728
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -1.2060627019652896e-13
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.0670113192341
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 1.2306306147735757e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.0664725689071
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -1.1941801489042552e-13
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 4.370431968223622e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": -1.1337664069340402e-13
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 190.06647255691004
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 2.0337934897924107e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Dipole_x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 4.359667284410654e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Dipole_y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 2.015422295817327e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Dipole_z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "hyperpolarizability",
+                        "value": 315.559402534838
+                    },
+                    {
+                        "component": [
+                            "x",
+                            "x"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": 25.419976231490498
+                    },
+                    {
+                        "component": [
+                            "x",
+                            "y"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": -2.9358460107431483e-14
+                    },
+                    {
+                        "component": [
+                            "x",
+                            "z"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": 9.732666061967876e-15
+                    },
+                    {
+                        "component": [
+                            "y",
+                            "x"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": -1.73749903353837e-14
+                    },
+                    {
+                        "component": [
+                            "y",
+                            "y"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": 25.419976231190734
+                    },
+                    {
+                        "component": [
+                            "y",
+                            "z"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": -4.74130283645291e-14
+                    },
+                    {
+                        "component": [
+                            "z",
+                            "x"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": 3.649511248760007e-14
+                    },
+                    {
+                        "component": [
+                            "z",
+                            "y"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": -2.6918571538470104e-14
+                    },
+                    {
+                        "component": [
+                            "z",
+                            "z"
+                        ],
+                        "freqB": 0.0,
+                        "property": "polarizability",
+                        "value": 22.14668894666038
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -5.846054085744887e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.3733665932052705e-07
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -6.9578107674952605
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.225462146127516e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -6.354685270488263e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_x",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 6.981331161592884
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.302355320919351e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.306529686595608e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 4.2379294518161915e-14
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -3.60703798964249e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -3.608001802434595e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_y",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -2.128322398966942e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.0690824685346072
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -7.920122457181856e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.363554677155654e-10
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.1602161898885495
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.049367987408997e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_x",
+                            "Dipole_z",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.9954883300584618e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.306523399757154e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.302364753131307e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 4.2253418645927507e-14
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -3.607995054270827e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -3.607044729588937e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_x",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -2.128393973080378e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.3733684013660964e-07
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -5.846087888122017e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -6.9578107672399945
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -6.354676780710745e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.22550057422035e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_y",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 6.9813311615303535
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -7.920939327621805e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.0690824684426083
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.3639913070545573e-10
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.043879223225245e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.1602161925841303
+                    },
+                    {
+                        "component": [
+                            "Dipole_y",
+                            "Dipole_z",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.9954906844617552e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.0690944136580591
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.258669117090019e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.3003438066700103e-10
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.160207177394419
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -9.205791905028645e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_x",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.9974925832312373e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -8.25877058344431e-11
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.069094413565193
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.3006070815201293e-10
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -9.201028709811645e-12
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -1.1602071800892033
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_y",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 1.9974933610963548e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_0x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -7.956957462204226e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_0y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -7.956990322101585e-08
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_0z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": -13.502308027358325
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_1x"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 9.919667786765225e-09
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_1y"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 9.919186916550624e-09
+                    },
+                    {
+                        "component": [
+                            "Dipole_z",
+                            "Dipole_z",
+                            "Nuc_1z"
+                        ],
+                        "freqB": 0.0,
+                        "freqC": 0.0,
+                        "property": "raman",
+                        "value": 13.48396050274471
+                    }
+                ],
+                "vibrational_analysis": {
+                    "au2invcm": 219474.63136314,
+                    "frequencies": {
+                        "dims": [
+                            6
+                        ],
+                        "ndim": 1,
+                        "size": 6,
+                        "vals": [
+                            -8.731922161195282e-20,
+                            -8.598438496818255e-21,
+                            0.0,
+                            3.9180101645407653e-25,
+                            2.3965996472102718e-20,
+                            0.006506177872858007
+                        ]
+                    },
+                    "hessian": {
+                        "dims": [
+                            6,
+                            6
+                        ],
+                        "ndim": 2,
+                        "size": 36,
+                        "vals": [
+                            -0.00015816115110954543,
+                            5.220712750997336e-12,
+                            -3.0356006597287433e-10,
+                            0.00015816115110954543,
+                            5.2594213706402826e-14,
+                            2.7084445797243006e-10,
+                            5.220712750997336e-12,
+                            -0.00015816115177173795,
+                            -3.0388314087304025e-10,
+                            5.254911089602743e-14,
+                            0.00015816115177173795,
+                            2.708464563738744e-10,
+                            -3.0356006597287433e-10,
+                            -3.0388314087304025e-10,
+                            0.06791402536440075,
+                            -8.935907569451729e-13,
+                            -8.939377016403682e-13,
+                            -0.06791402536440075,
+                            0.00015816115110954543,
+                            5.254911089602743e-14,
+                            -8.935907569451729e-13,
+                            -0.00015816115110954543,
+                            1.0957901253050295e-13,
+                            -1.636166375995618e-11,
+                            5.2594213706402826e-14,
+                            0.00015816115177173795,
+                            -8.939377016403682e-13,
+                            1.0957901253050295e-13,
+                            -0.00015816115177173795,
+                            -1.635596389229499e-11,
+                            2.7084445797243006e-10,
+                            2.708464563738744e-10,
+                            -0.06791402536440075,
+                            -1.636166375995618e-11,
+                            -1.635596389229499e-11,
+                            0.06791402536440075
+                        ]
+                    },
+                    "normalmodes": {
+                        "dims": [
+                            6,
+                            6
+                        ],
+                        "ndim": 2,
+                        "size": 36,
+                        "vals": [
+                            -0.14334534260613874,
+                            -0.021605169078472538,
+                            1.7887995417327044e-25,
+                            0.9889168782039419,
+                            0.03207393685828474,
+                            -6.81660286855664e-26,
+                            0.6558129644637838,
+                            0.744352519797242,
+                            1.1033690267682515e-24,
+                            0.1092972146440487,
+                            0.06247240017617831,
+                            -4.204623434585432e-25,
+                            -1.0032209179703189e-24,
+                            -7.3816643564069435e-25,
+                            0.9344507410405752,
+                            -3.99449485243091e-25,
+                            3.4236736083730823e-26,
+                            -0.3560924213862462,
+                            -0.6973885687629746,
+                            0.596995364256116,
+                            -5.763842089812358e-25,
+                            -0.1004864511982706,
+                            0.3835989994004342,
+                            2.196435184976886e-25,
+                            0.2510192274569457,
+                            -0.298444430333846,
+                            0.0,
+                            -1.5972653592040387e-08,
+                            0.9208258627176061,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.3560924213862462,
+                            0.0,
+                            0.0,
+                            0.9344507410405752
+                        ]
+                    },
+                    "normalmodes_atomic": {
+                        "dims": [
+                            6,
+                            6
+                        ],
+                        "ndim": 2,
+                        "size": 36,
+                        "vals": [
+                            -0.0012743611226749014,
+                            -0.00019207312230627187,
+                            1.5902690319742666e-27,
+                            0.008791616108538743,
+                            0.00028514200350153007,
+                            -6.060059940887666e-28,
+                            0.005830273453356218,
+                            0.006617403087877392,
+                            9.809112497924204e-27,
+                            0.0009716682706722609,
+                            0.0005553888014587014,
+                            -3.7379719097298575e-27,
+                            -8.918781120279319e-27,
+                            -6.562407892307208e-27,
+                            0.008307404159679089,
+                            -3.5511645178801734e-27,
+                            3.043696058703973e-28,
+                            -0.00316571386027276,
+                            -0.01626962088802812,
+                            0.013927512843501216,
+                            -1.3446668021250404e-26,
+                            -0.0023442834290776228,
+                            0.008949114701352607,
+                            5.124140165946047e-27,
+                            0.005856115011426655,
+                            -0.006962514092090727,
+                            0.0,
+                            -3.7263160045661836e-10,
+                            0.021482267363345214,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.00830740415967909,
+                            0.0,
+                            0.0,
+                            0.02180012689659426
+                        ]
+                    },
+                    "reducedmass": {
+                        "dims": [
+                            6
+                        ],
+                        "ndim": 1,
+                        "size": 6,
+                        "vals": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.1304696094233881
+                        ]
+                    }
+                }
+            },
+            "type": "response"
+        }
+    ]
+}

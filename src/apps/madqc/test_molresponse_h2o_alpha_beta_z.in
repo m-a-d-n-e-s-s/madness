@@ -1,0 +1,24 @@
+dft
+    dconv 0.0001
+    dipole true
+    l 200.0
+    localize "new"
+    maxiter 30
+    print_level 20
+    protocol [0.0001,1e-06]
+    xc "hf"
+end
+response
+    kain true
+    dipole true
+    dipole.directions z
+    quadratic true
+    dipole.frequencies [0, 0.02]
+end
+molecule
+    eprec 1e-6
+    units angstrom
+    O 0.000000000000 0.000000000000 0.117299997610
+    H 0.000000000000 0.757199998838 -0.469200001024
+    H 0.000000000000 -0.757199998838 -0.469200001024
+end

@@ -30,15 +30,15 @@ if __name__ == "__main__":
     referencefile=args.reference_directory+"/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=he --wf=mp2'
-    dft_arguments=' --dft="maxiter=10; econv=1.e-5; dconv=1.e-3; prefix='+prefix+'; k=5"'
+    global_arguments=' --molecule=he --wf=mp2 --prefix='+prefix
+    dft_arguments=' --dft="maxiter=10; econv=1.e-5; dconv=1.e-3; k=5"'
     other_arguments=' --cc2="freeze 0; calc_type=mp2"'
     cleanup(prefix)  # Clean up previous output files
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
 
-    p=subprocess.run(cmd,shell=True,stdout=None, stderr=None , universal_newlines=True)
+    p=subprocess.run(cmd,shell=True,stdout=None, stderr=None , encoding='utf-8', errors='replace')
     print("finished with run")
     exitcode=p.returncode
     print("exitcode ",exitcode)

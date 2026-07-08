@@ -16,14 +16,14 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=he --wf=cis'
-    dft_arguments=' --dft="k=6; maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
+    global_arguments=' --molecule=he --wf=cis --prefix='+prefix
+    dft_arguments=' --dft="k=6; maxiter=1; econv=1.e-4; dconv=1.e-3;"'
     other_arguments=' --tdhf="thresh=1.e-3; maxiter=10; guess_maxiter=0; econv=1; dconv=1; guess_excitation_operators=dipole+; guess_excitations=2; nexcitations=2"'
     cleanup(prefix)
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
-    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , encoding='utf-8', errors='replace')
 
     print("finished with run")
     print(p.stdout)

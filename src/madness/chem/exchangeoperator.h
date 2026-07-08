@@ -111,6 +111,10 @@ public:
 
     ExchangeImpl& set_macro_task_info(const std::vector<std::string>& info) {
         macro_task_info.from_vector_of_strings(info);
+        if (world.rank() == 0 && printdebug()) {
+            print("set macrotaskinfo to");
+            print(macro_task_info);
+        }
         return *this;
     }
 
