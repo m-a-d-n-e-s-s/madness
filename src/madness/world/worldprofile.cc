@@ -33,6 +33,9 @@
 #include <madness/world/mpi_archive.h>
 #include <madness/world/MADworld.h>
 #include <madness/world/atomicint.h>
+#include <cmath>
+#include <fstream>
+#include <ostream>
 
 namespace madness {
 
@@ -47,9 +50,12 @@ namespace madness {
     double WorldProfile::wall_start = madness::wall_time();
 
     WorldProfileEntry::WorldProfileEntry(const char* name)
-            : name(name) 
+            : name(name)
     {
         for (int i=0; i<MAX_NTHREAD; i++) depth[i] = 0;
+        clear();  // zero the ProfileStat accumulators; else uninitialized doubles
+                  // accumulate as NaN (value += delta) and counts read as garbage,
+                  // which printf tolerated but strict JSON (dump_json) does not.
     };
 
     WorldProfileEntry::WorldProfileEntry(const WorldProfileEntry& other)
@@ -382,6 +388,98 @@ namespace madness {
         }
         world.gop.fence();
 
+#endif
+    }
+
+#ifdef WORLD_PROFILE_ENABLE
+    // --- machine-readable profile emission (perf-model thread, doc 29) ---------
+    // Hand-rolled JSON (no nlohmann dependency in the low-level world/ lib).
+    // Schema v1 is pinned in src/apps/molresponse/docs/operator_contracts.md.
+    // Strict JSON has no NaN/Inf literals; emit 0 for any non-finite value
+    // (defense-in-depth — the constructor clear() should already prevent these).
+    static inline double json_finite(double x) { return std::isfinite(x) ? x : 0.0; }
+
+    static void json_write_escaped(std::ostream& o, const std::string& s) {
+        for (char c : s) {
+            if (c == '"' || c == '\\') o << '\\' << c;
+            else o << c;
+        }
+    }
+
+    static void json_write_stat(std::ostream& o, const char* key,
+                                double sum, double min, double max,
+                                int pmin, int pmax) {
+        o << '"' << key << "\":{\"sum\":" << json_finite(sum) << ",\"min\":" << json_finite(min)
+          << ",\"max\":" << json_finite(max) << ",\"pmin\":" << pmin << ",\"pmax\":" << pmax << '}';
+    }
+
+    static void json_write_profile(World& world,
+                                   const std::vector<WorldProfileEntry>& v,
+                                   double total_cpu_s, double total_wall_s,
+                                   double overhead, const std::string& path,
+                                   const std::string& context_json) {
+        std::ofstream o(path);
+        if (!o) return;
+        o.setf(std::ios::scientific);
+        o.precision(8);
+        o << "{\"schema_version\":1,\"world_size\":" << world.size()
+          << ",\"total_cpu_s\":" << total_cpu_s
+          << ",\"total_wall_s\":" << total_wall_s
+          << ",\"overhead_s_per_call\":" << json_finite(overhead)
+          << ",\"context\":" << context_json << ",\"phases\":[";
+        for (unsigned int i=0; i<v.size(); ++i) {
+            const WorldProfileEntry& e = v[i];
+            o << (i ? "," : "") << "{\"name\":\"";
+            json_write_escaped(o, e.name);
+            o << "\",\"phase\":\"other\",";
+            json_write_stat(o,"count",     e.count.sum,e.count.min,e.count.max,e.count.pmin,e.count.pmax); o<<',';
+            json_write_stat(o,"cpu_excl_s",e.xcpu.sum,e.xcpu.min,e.xcpu.max,e.xcpu.pmin,e.xcpu.pmax);      o<<',';
+            json_write_stat(o,"cpu_incl_s",e.icpu.sum,e.icpu.min,e.icpu.max,e.icpu.pmin,e.icpu.pmax);      o<<',';
+            json_write_stat(o,"nmsg_sent_excl", e.xnmsg_sent.sum,e.xnmsg_sent.min,e.xnmsg_sent.max,e.xnmsg_sent.pmin,e.xnmsg_sent.pmax); o<<',';
+            json_write_stat(o,"nmsg_sent_incl", e.inmsg_sent.sum,e.inmsg_sent.min,e.inmsg_sent.max,e.inmsg_sent.pmin,e.inmsg_sent.pmax); o<<',';
+            json_write_stat(o,"nbyte_sent_excl",e.xnbyt_sent.sum,e.xnbyt_sent.min,e.xnbyt_sent.max,e.xnbyt_sent.pmin,e.xnbyt_sent.pmax); o<<',';
+            json_write_stat(o,"nbyte_sent_incl",e.inbyt_sent.sum,e.inbyt_sent.min,e.inbyt_sent.max,e.inbyt_sent.pmin,e.inbyt_sent.pmax); o<<',';
+            json_write_stat(o,"nmsg_recv_excl", e.xnmsg_recv.sum,e.xnmsg_recv.min,e.xnmsg_recv.max,e.xnmsg_recv.pmin,e.xnmsg_recv.pmax); o<<',';
+            json_write_stat(o,"nmsg_recv_incl", e.inmsg_recv.sum,e.inmsg_recv.min,e.inmsg_recv.max,e.inmsg_recv.pmin,e.inmsg_recv.pmax); o<<',';
+            json_write_stat(o,"nbyte_recv_excl",e.xnbyt_recv.sum,e.xnbyt_recv.min,e.xnbyt_recv.max,e.xnbyt_recv.pmin,e.xnbyt_recv.pmax); o<<',';
+            json_write_stat(o,"nbyte_recv_incl",e.inbyt_recv.sum,e.inbyt_recv.min,e.inbyt_recv.max,e.inbyt_recv.pmin,e.inbyt_recv.pmax);
+            o << '}';
+        }
+        o << "]}\n";
+    }
+#endif
+
+    void WorldProfile::dump_json(World& world, const std::string& path,
+                                 const std::string& context_json) {
+#ifdef WORLD_PROFILE_ENABLE
+        for (int i=0; i<100; ++i) est_profile_overhead();   // populate overhead entry
+
+        std::vector<WorldProfileEntry>& nv = const_cast<std::vector<WorldProfileEntry>&>(items);
+        ProcessID me = world.rank();
+        for (unsigned int i=0; i<nv.size(); ++i) nv[i].init_par_stats(me);
+
+        recv_stats(world, 2*me+1);   // gather children up the binary tree
+        recv_stats(world, 2*me+2);
+
+        if (me) {
+            archive::MPIOutputArchive ar(world, (me-1)/2);
+            ar & nv;
+        }
+        else {
+            double overhead = 0.0;
+            int overid = find("WorldProfile::est_profile_overhead");
+            if (overid != -1)
+                overhead = get_entry(overid).xcpu.sum/get_entry(overid).count.sum;
+            json_write_profile(world, nv,
+                               madness::cpu_time()  - WorldProfile::cpu_start,
+                               madness::wall_time() - WorldProfile::wall_start,
+                               overhead, path, context_json);
+        }
+        world.gop.fence();
+#else
+        (void) world;
+        (void) path;
+        (void) context_json;
 #endif
     }
 

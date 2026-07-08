@@ -3466,6 +3466,14 @@ template <typename T, std::size_t NDIM>
                 bool binary) {
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM<=6);
+        // The plot cell must be an (NDIM x 2) [lo,hi]-per-dimension tensor; an empty
+        // or ill-shaped cell would dereference out of bounds below (cell(d,0)/(d,1)),
+        // which previously segfaulted. Convert that into a clear error. Callers must
+        // default an unset cell to the simulation cell first (see SCF::do_plots).
+        MADNESS_CHECK_THROW(cell.ndim()==2 && cell.dim(0)>=static_cast<long>(NDIM)
+                            && cell.dim(1)>=2,
+                            "plotdx: plot cell must be an (NDIM x 2) [lo,hi] tensor "
+                            "(got an empty or ill-shaped cell)");
         const char* element[6] = {"lines","quads","cubes","cubes4D","cubes5D","cubes6D"};
 
         function.verify();

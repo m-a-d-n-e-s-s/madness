@@ -412,9 +412,8 @@ struct MacroTaskInfo {
 			print("msg",msg);
 			MADNESS_CHECK_THROW(0, "Oh no3");
 		}
-		print("set macrotaskinfo to");
-		print(*this);
-
+		// NB: parsing does not log — callers print the resolved policy
+		// gated on verbosity (see ExchangeImpl::set_macro_task_info).
 	}
 
 	StoragePolicy storage_policy=StoreFunctionViaPointer;

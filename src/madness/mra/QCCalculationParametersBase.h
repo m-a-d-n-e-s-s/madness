@@ -365,7 +365,7 @@ namespace madness {
         bool print_debug = false;
         bool ignore_unknown_keys = true;
         bool ignore_unknown_keys_silently = false;
-        bool throw_if_datagroup_not_found = true;
+        bool throw_if_datagroup_not_found = false;
 
         /// ctor for testing
         QCCalculationParametersBase() {}
