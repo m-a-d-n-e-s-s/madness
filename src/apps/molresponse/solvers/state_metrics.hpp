@@ -29,15 +29,29 @@
 #include <madness/world/MADworld.h>
 
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 
 #include <cstddef>
 #include <fstream>
 
 namespace molresponse_v3 {
 
-/// Resident set size of THIS process in GiB, from /proc/self/statm
-/// (field 1 = resident pages). Returns 0.0 if unreadable (non-Linux/no proc).
+/// Resident set size of THIS process in GiB. Linux: /proc/self/statm
+/// (field 1 = resident pages). macOS: mach task_info (no procfs there —
+/// returning 0.0 failed test_state_metrics' "RSS > 0" on macos CI).
+/// Returns 0.0 only if the platform query itself fails.
 inline double process_rss_gb() {
+#ifdef __APPLE__
+  mach_task_basic_info info;
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                reinterpret_cast<task_info_t>(&info), &count) != KERN_SUCCESS)
+    return 0.0;
+  return static_cast<double>(info.resident_size) /
+         (1024.0 * 1024.0 * 1024.0);
+#else
   std::ifstream statm("/proc/self/statm");
   if (!statm) return 0.0;
   long total_pages = 0, resident_pages = 0;
@@ -47,6 +61,7 @@ inline double process_rss_gb() {
   const double bytes =
       static_cast<double>(resident_pages) * static_cast<double>(page);
   return bytes / (1024.0 * 1024.0 * 1024.0);
+#endif
 }
 
 struct StateMetrics {
