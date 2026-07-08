@@ -1,0 +1,23 @@
+{
+    "name": "h2_alpha_dynamic",
+    "system": "h2_hf",
+    "tier": "medium",
+    "property": "polarizability",
+    "perturbation": "dipole",
+    "directions": "xyz",
+    "frequencies": [0.0, 0.02, 0.04, 0.06],
+    "protocol": [1e-4],
+    "response_settings": {
+        "maxiter": 15,
+        "kain": true,
+        "dconv": 1e-4
+    },
+    "expected": {
+        "note": "fill from v2 reference at Inc 3"
+    },
+    "reference_sources": {
+        "v2_serial": null,
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

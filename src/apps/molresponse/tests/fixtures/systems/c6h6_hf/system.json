@@ -1,0 +1,21 @@
+{
+    "name": "c6h6_hf",
+    "description": "Benzene, Hartree-Fock, closed-shell, medium scaling test",
+    "molecule": "C6H6",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 12,
+    "n_electrons": 42,
+    "n_occupied": 21,
+    "geometry_source": "GECKO_MOL_LIB/beta_set/C6H6.mol",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

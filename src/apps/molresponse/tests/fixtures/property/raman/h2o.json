@@ -1,0 +1,24 @@
+{
+    "name": "h2o_raman",
+    "system": "h2o_hf",
+    "tier": "medium",
+    "property": "raman",
+    "perturbation": "dipole+nuclear",
+    "directions": "xyz",
+    "frequencies": [0.0, 0.02],
+    "protocol": [1e-4, 1e-6],
+    "response_settings": {
+        "maxiter": 15,
+        "kain": true,
+        "dconv": 1e-4,
+        "nuclear": true
+    },
+    "expected": {
+        "note": "fill from v2 reference or gecko"
+    },
+    "reference_sources": {
+        "v2_serial": null,
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

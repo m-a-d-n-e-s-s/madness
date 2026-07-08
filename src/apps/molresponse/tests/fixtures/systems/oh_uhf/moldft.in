@@ -1,0 +1,13 @@
+dft
+    xc hf
+    l 40.0
+    protocol [1e-4]
+    maxiter 30
+    nopen 1
+end
+molecule
+    eprec 1e-5
+    units atomic
+    O  0.0  0.0  0.0
+    H  0.0  0.0  1.832
+end

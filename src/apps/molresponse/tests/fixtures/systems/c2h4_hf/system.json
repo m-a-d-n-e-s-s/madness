@@ -1,0 +1,21 @@
+{
+    "name": "c2h4_hf",
+    "description": "Ethylene, Hartree-Fock, closed-shell, mid-size benchmark for excited-state timing",
+    "molecule": "C2H4",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 6,
+    "n_electrons": 16,
+    "n_occupied": 8,
+    "geometry_source": "Standard equilibrium (rCC=1.339, rCH=1.087, HCH=117.4 deg)",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

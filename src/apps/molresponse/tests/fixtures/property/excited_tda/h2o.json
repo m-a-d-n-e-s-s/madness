@@ -1,0 +1,22 @@
+{
+    "name": "h2o_excited_tda",
+    "system": "h2o_hf",
+    "tier": "medium",
+    "property": "excitation_energies",
+    "method": "tda",
+    "num_states": 4,
+    "protocol": [1e-4, 1e-6],
+    "response_settings": {
+        "maxiter": 20,
+        "maxsub": 4,
+        "dconv": 1e-4
+    },
+    "expected": {
+        "note": "fill from v2 or legacy reference"
+    },
+    "reference_sources": {
+        "v2_serial": null,
+        "legacy": null,
+        "dalton": "molresponse_testdata/dalton_fixtures/h2o_excited/"
+    }
+}

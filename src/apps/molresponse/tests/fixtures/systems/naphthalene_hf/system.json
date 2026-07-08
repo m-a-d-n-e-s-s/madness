@@ -1,0 +1,21 @@
+{
+    "name": "naphthalene_hf",
+    "description": "Naphthalene, Hartree-Fock, closed-shell, large scaling test",
+    "molecule": "C10H8",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 18,
+    "n_electrons": 68,
+    "n_occupied": 34,
+    "geometry_source": "GECKO_MOL_LIB/larger_mols/naphthalene.mol",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

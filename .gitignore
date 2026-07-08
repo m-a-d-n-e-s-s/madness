@@ -1,6 +1,11 @@
 build*
+vscode_build*
 cmake-build-debug*
 .history*
+*-workspace
+*/__pycache__/
+slurm-logs/
+molresponse_testdata/
 
 # Compiled Object files
 *.slo
@@ -68,3 +73,47 @@ compile_commands
 diff.txt
 newdiff.txt
 .vscode/settings.json
+
+# Local response workflow artifacts
+mad.in
+tmp_h2o_*.in
+tmp_h2o_validation/
+tmp_state_parallel_scaling/
+test_molresponse/
+
+# Test-fixture run outputs (regenerable by re-running moldft on each fixture's moldft.in)
+src/apps/molresponse_v3/tests/fixtures/systems/*/mad.*
+src/apps/molresponse_v3/tests/fixtures/systems/*/moldft.std*
+src/apps/molresponse_v3/tests/fixtures/systems/*/MacroTaskExchangeRow_task.*
+src/apps/molresponse_v3/tests/fixtures/systems/*/*.log
+
+# MacroTaskQ exchange scratch (transient runtime output, regenerable; can land in
+# the repo root or any cwd a solve runs from, not just the fixture dirs above)
+MacroTaskExchangeRow_task.*
+
+# Benchmark job outputs (stay in scratch, not the source tree)
+src/apps/molresponse_v3/tests/fixtures/benchmarks/**/*.err
+src/apps/molresponse_v3/tests/fixtures/benchmarks/**/*.out
+src/apps/molresponse_v3/tests/fixtures/benchmarks/jobs.txt
+
+# IDE / agent caches
+.claude/
+.vscode/
+
+# Workflow scripts now live in madness_studies/scripts/
+/scripts/
+
+# Test executables sometimes built into source tree by mistake
+src/apps/molresponse_v3/test_es_solver
+src/apps/molresponse_v3/test_v3_solver
+
+# CMake-generated headers / configure output (only valid in build/, never source)
+src/madness/config.h
+src/madness/tensor/tensor_spec.h
+src/madness/tensor/tensoriter_spec.h
+src/madness/mra/run_test_*_mpi2.cmake
+src/madness/mra/run_test_*_mpi2.cmake.in
+
+# huge GS archives do not belong in git (fixtures live on scratch)
+src/apps/*/tests/fixtures/**/mad.restartdata*
+src/apps/*/tests/fixtures/**/*.restartaodata

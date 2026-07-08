@@ -1,0 +1,21 @@
+{
+    "name": "uracil_hf",
+    "description": "Uracil \u2014 RNA base, 12 atoms, ~29 occ (PubChem CID 1174)",
+    "molecule": "uracil",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 12,
+    "n_electrons": 58,
+    "n_occupied": 29,
+    "geometry_source": "PubChem 3D conformer (MMFF94 optimized) via scripts/fetch_pubchem_xyz.py",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

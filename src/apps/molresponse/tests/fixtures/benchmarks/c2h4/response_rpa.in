@@ -1,0 +1,10 @@
+response
+    archive mad.restartdata
+    excited_state true
+    tda false
+    states 4
+    protocol [1.e-6]
+    dconv 1.e-4
+    maxiter 25
+    print_level 1
+end

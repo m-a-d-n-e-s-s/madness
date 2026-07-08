@@ -1,0 +1,16 @@
+dft
+    dconv 0.0001
+    dipole true
+    l 80.0
+    localize "new"
+    maxiter 30
+    protocol [0.0001,1e-05]
+    xc "hf"
+end
+molecule
+    eprec 1e-6
+    no_orient true
+    units angstrom
+    Li  0.000000000000   0.000000000000  -0.803105264950
+    H   0.000000000000   0.000000000000   0.803105264950
+end

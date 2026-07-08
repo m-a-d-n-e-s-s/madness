@@ -1,0 +1,25 @@
+{
+    "name": "h2o_alpha_dynamic",
+    "system": "h2o_hf",
+    "tier": "medium",
+    "property": "polarizability",
+    "perturbation": "dipole",
+    "directions": "z",
+    "frequencies": [0.0, 0.02, 0.04, 0.06],
+    "protocol": [1e-4, 1e-6],
+    "response_settings": {
+        "maxiter": 15,
+        "kain": true,
+        "dconv": 1e-4
+    },
+    "expected": {
+        "alpha_zz_freq0.00_1e-6": 8.532221201234368,
+        "alpha_zz_freq0.02_1e-6": 8.54140820564299,
+        "note": "from v2 reference (z-only test)"
+    },
+    "reference_sources": {
+        "v2_serial": "src/apps/madqc/mad_madqc_test_molresponse_h2o_alpha_beta_z.py.calc_info.ref.json",
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

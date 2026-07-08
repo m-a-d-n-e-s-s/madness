@@ -1,0 +1,21 @@
+{
+    "name": "histidine_hf",
+    "description": "L-Histidine (neutral) \u2014 amino acid, 20 atoms, ~38 occ (PubChem CID 6274)",
+    "molecule": "histidine",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 20,
+    "n_electrons": 82,
+    "n_occupied": 41,
+    "geometry_source": "PubChem 3D conformer (MMFF94 optimized) via scripts/fetch_pubchem_xyz.py",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

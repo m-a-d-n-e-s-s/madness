@@ -1,0 +1,24 @@
+{
+    "name": "lih_raman_protocol_study",
+    "system": "lih_hf",
+    "tier": "high",
+    "property": "raman",
+    "perturbation": "dipole+nuclear",
+    "directions": "xyz",
+    "frequencies": [0.0],
+    "protocol": [1e-4, 1e-5, 1e-6],
+    "response_settings": {
+        "maxiter": 60,
+        "kain": true,
+        "dconv": 1e-4,
+        "nuclear": true
+    },
+    "expected": {
+        "note": "multi-protocol convergence study for T3 workflow"
+    },
+    "reference_sources": {
+        "v2_serial": "src/apps/madqc/mad_madqc_test_molresponse_lih_alpha_raman_beta_xyz.py.calc_info.ref.json",
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

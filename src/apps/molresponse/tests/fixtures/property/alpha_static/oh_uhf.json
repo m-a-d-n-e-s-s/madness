@@ -1,0 +1,23 @@
+{
+    "name": "oh_alpha_static",
+    "system": "oh_uhf",
+    "tier": "medium",
+    "property": "polarizability",
+    "perturbation": "dipole",
+    "directions": "xyz",
+    "frequencies": [0.0],
+    "protocol": [1e-4],
+    "response_settings": {
+        "maxiter": 15,
+        "kain": true,
+        "dconv": 1e-4
+    },
+    "expected": {
+        "note": "open-shell milestone — no reference yet"
+    },
+    "reference_sources": {
+        "v2_serial": null,
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

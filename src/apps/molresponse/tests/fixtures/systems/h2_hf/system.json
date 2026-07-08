@@ -1,0 +1,20 @@
+{
+    "name": "h2_hf",
+    "description": "H2, Hartree-Fock, closed-shell, minimal test system",
+    "molecule": "H2",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 2,
+    "n_electrons": 2,
+    "n_occupied": 1,
+    "geometry_source": "GECKO_MOL_LIB/beta_set/H2.mol",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 5,
+        "L": 200.0,
+        "protocol": [
+            0.0001
+        ]
+    }
+}

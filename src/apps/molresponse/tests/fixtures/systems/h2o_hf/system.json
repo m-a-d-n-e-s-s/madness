@@ -1,0 +1,35 @@
+{
+    "name": "h2o_hf",
+    "description": "Water, Hartree-Fock, closed-shell",
+    "molecule": "H2O",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 3,
+    "n_electrons": 10,
+    "n_occupied": 5,
+    "geometry_source": "GECKO_MOL_LIB/beta_set/H2O.mol",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    },
+    "reference_energy_au": -76.0674415628071,
+    "reference_eigenvalues_au": [
+        -20.55950184,
+        -0.97155157,
+        -0.97155166,
+        -0.71634246,
+        -0.5106059
+    ],
+    "reference_dipole_au": [
+        -1.009e-05,
+        4.499e-09,
+        -0.38975
+    ],
+    "reference_source": "src/apps/madqc/mad_madqc_test_molresponse_h2o_alpha_beta_z.py.calc_info.ref.json"
+}

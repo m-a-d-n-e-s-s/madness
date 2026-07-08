@@ -1,0 +1,12 @@
+dft
+    xc hf
+    l 200.0
+    protocol [1e-4, 1e-6, 1e-8]
+    maxiter 30
+    nopen 1
+end
+molecule
+    eprec 1e-6
+    units atomic
+    Al  0.0  0.0  0.0
+end

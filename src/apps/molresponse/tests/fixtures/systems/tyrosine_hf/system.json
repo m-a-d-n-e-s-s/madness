@@ -1,0 +1,21 @@
+{
+    "name": "tyrosine_hf",
+    "description": "L-Tyrosine (neutral) \u2014 amino acid, 24 atoms, ~43 occ (PubChem CID 6057)",
+    "molecule": "tyrosine",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 24,
+    "n_electrons": 96,
+    "n_occupied": 48,
+    "geometry_source": "PubChem 3D conformer (MMFF94 optimized) via scripts/fetch_pubchem_xyz.py",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

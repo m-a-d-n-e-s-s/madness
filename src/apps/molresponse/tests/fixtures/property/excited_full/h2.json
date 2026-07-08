@@ -1,0 +1,22 @@
+{
+    "name": "h2_excited_full",
+    "system": "h2_hf",
+    "tier": "medium",
+    "property": "excitation_energies",
+    "method": "full_tddft",
+    "num_states": 2,
+    "protocol": [1e-1, 1e-2, 1e-4],
+    "response_settings": {
+        "maxiter": 20,
+        "maxsub": 4,
+        "dconv": 1e-4
+    },
+    "expected": {
+        "note": "fill from v2 reference at Inc 8"
+    },
+    "reference_sources": {
+        "v2_serial": null,
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

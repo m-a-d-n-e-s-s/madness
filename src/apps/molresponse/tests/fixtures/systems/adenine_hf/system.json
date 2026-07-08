@@ -1,0 +1,21 @@
+{
+    "name": "adenine_hf",
+    "description": "Adenine \u2014 DNA/RNA base, 15 atoms, ~35 occ (PubChem CID 190)",
+    "molecule": "adenine",
+    "method": "hf",
+    "spin": "restricted",
+    "n_atoms": 15,
+    "n_electrons": 70,
+    "n_occupied": 35,
+    "geometry_source": "PubChem 3D conformer (MMFF94 optimized) via scripts/fetch_pubchem_xyz.py",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001,
+            1e-06
+        ]
+    }
+}

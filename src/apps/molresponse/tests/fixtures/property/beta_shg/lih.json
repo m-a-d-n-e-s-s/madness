@@ -1,0 +1,25 @@
+{
+    "name": "lih_beta_shg",
+    "system": "lih_hf",
+    "tier": "medium",
+    "property": "hyperpolarizability",
+    "perturbation": "dipole",
+    "directions": "xyz",
+    "frequencies": [0.0],
+    "protocol": [1e-4, 1e-5],
+    "response_settings": {
+        "maxiter": 60,
+        "kain": true,
+        "dconv": 1e-4,
+        "quadratic": true
+    },
+    "expected": {
+        "beta_xxz_static": 190.06701133123156,
+        "note": "from v2 reference (xyz). Large permanent dipole along z."
+    },
+    "reference_sources": {
+        "v2_serial": "src/apps/madqc/mad_madqc_test_molresponse_lih_alpha_raman_beta_xyz.py.calc_info.ref.json",
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

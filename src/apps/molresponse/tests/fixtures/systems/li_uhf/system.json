@@ -1,0 +1,24 @@
+{
+    "name": "li_uhf",
+    "description": "Lithium atom, Hartree-Fock, open-shell (doublet)",
+    "molecule": "Li",
+    "method": "hf",
+    "spin": "unrestricted",
+    "n_atoms": 1,
+    "n_electrons": 3,
+    "n_occupied": 2,
+    "n_alpha": 2,
+    "n_beta": 1,
+    "nopen": 1,
+    "geometry_source": "GECKO_MOL_LIB/beta_set/Li.mol",
+    "seawulf_checkpoint": null,
+    "scf_settings": {
+        "xc": "hf",
+        "k": 6,
+        "L": 200.0,
+        "protocol": [
+            0.0001
+        ],
+        "nopen": 1
+    }
+}

@@ -1,0 +1,26 @@
+{
+    "name": "h2o_beta_shg",
+    "system": "h2o_hf",
+    "tier": "medium",
+    "property": "hyperpolarizability",
+    "perturbation": "dipole",
+    "directions": "z",
+    "frequencies": [0.0, 0.02],
+    "protocol": [1e-4, 1e-6],
+    "response_settings": {
+        "maxiter": 15,
+        "kain": true,
+        "dconv": 1e-4,
+        "quadratic": true
+    },
+    "expected": {
+        "beta_zzz_static": 7.720691632506269,
+        "beta_zzz_shg_0.02": 7.825356422457752,
+        "note": "from v2 reference (z-only). beta(-2w;w,w) SHG."
+    },
+    "reference_sources": {
+        "v2_serial": "src/apps/madqc/mad_madqc_test_molresponse_h2o_alpha_beta_z.py.calc_info.ref.json",
+        "legacy": null,
+        "gecko_gaussian": null
+    }
+}

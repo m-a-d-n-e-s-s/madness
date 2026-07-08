@@ -1,0 +1,68 @@
+{
+    "_description": "Standard numerical accuracy tiers for all molresponse_v3 tests. These settings define the DFT block defaults and are shared across all systems and properties regardless of xc functional.",
+    "_note_on_protocol": "The effective dconv in SCF is max(thresh, user_dconv) — see SCF.cc:2143. The final protocol value must be <= dconv to achieve the desired density accuracy. k is auto-selected from thresh: 1e-2→4, 1e-4→6, 1e-6→8, 1e-8→10.",
+    "_note_on_L": "L should be at least 10x the spatial extent of the system. 200.0 is safe for most molecules up to naphthalene. Small systems (H2, He, Li) can use smaller L.",
+    "_note_on_eprec": "Nuclear potential smoothing. Must match the target accuracy tier — too coarse introduces geometry-dependent errors.",
+
+    "tiers": {
+        "low": {
+            "description": "Fast, fuzzy calculations for smoke tests and development iteration",
+            "dft": {
+                "dconv": 1e-2,
+                "econv": 1e-3,
+                "protocol": [1e-4],
+                "l": 200.0,
+                "maxiter": 25,
+                "localize": "new",
+                "dipole": true
+            },
+            "molecule": {
+                "eprec": 1e-3
+            },
+            "auto_k_at_final_protocol": 6,
+            "effective_dconv_at_final_step": 1e-2,
+            "use_case": "CI smoke tests, development cycle, quick validation"
+        },
+        "medium": {
+            "description": "Standard production accuracy — default for most tests and property validation",
+            "dft": {
+                "dconv": 1e-4,
+                "econv": 1e-5,
+                "protocol": [1e-4, 1e-6],
+                "l": 200.0,
+                "maxiter": 25,
+                "localize": "new",
+                "dipole": true
+            },
+            "molecule": {
+                "eprec": 1e-4
+            },
+            "auto_k_at_final_protocol": 8,
+            "effective_dconv_at_final_step": 1e-4,
+            "use_case": "Property validation, v2/v3 parity checks, reference value generation"
+        },
+        "high": {
+            "description": "High accuracy for protocol convergence studies and publication-quality results",
+            "dft": {
+                "dconv": 1e-6,
+                "econv": 1e-7,
+                "protocol": [1e-4, 1e-6, 1e-8],
+                "l": 200.0,
+                "maxiter": 30,
+                "localize": "new",
+                "dipole": true
+            },
+            "molecule": {
+                "eprec": 1e-6
+            },
+            "auto_k_at_final_protocol": 10,
+            "effective_dconv_at_final_step": 1e-6,
+            "use_case": "Protocol convergence studies, basis-set-limit benchmarks, Dalton comparisons"
+        }
+    },
+
+    "common": {
+        "xc": "hf",
+        "xc_note": "HF is the default for all tiers. Override xc to test LDA, PBE, etc. — numerical settings stay the same."
+    }
+}
