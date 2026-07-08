@@ -203,6 +203,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     xtask.use_cloud_batch_fetch_ = cloud_batch_active;
     xtask.log_diagnostics_ = printdebug();          // owner_map + batch record dump on universe rank 0
     xtask.universe_rank_ = world.rank();            // keys the per-task profile file (MAD_EXCH_TASK_PROFILE)
+    xtask.cost_aware_assign_ = cost_aware_assign_;  // cost-aware owner assignment (from hfex_cost_aware_assign)
     if (taskq) taskq->set_printlevel(printlevel);
     auto effective_policy = macro_task_info;
     if (replicate_for_debug_) {
@@ -238,6 +239,22 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
     world.gop.fence();
+
+    // cost-aware load balancing (opt-in, sym_p2p): synchronize this call's per-task costs across
+    // ranks so every rank holds an identical cost matrix for the NEXT call's deterministic
+    // assignment. Each task ran on exactly one rank, so the sum unions the per-rank contributions.
+    if ((MacroTaskExchangeSimple::cost_aware_resolve(cost_aware_assign_) or printdebug())
+        and algorithm_ == small_memory_symmetric_p2p_owner) {
+        auto& local = MacroTaskExchangeSimple::sym_cost_local_ref();
+        if (not local.empty()) {
+            world.gop.sum(local.data(), local.size());          // union per-rank task costs
+            // debug (print_level>=10): dump the synchronized per-call cost matrix (rank 0) BEFORE the EMA blend
+            if (world.rank() == 0 and printdebug())
+                MacroTaskExchangeSimple::sym_dump_cost(FunctionDefaults<NDIM>::get_k());
+            MacroTaskExchangeSimple::sym_commit_cost_global();  // EMA-blend into the next-call reference
+        }
+    }
+
     statistics=gather_statistics();
     statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
     statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();

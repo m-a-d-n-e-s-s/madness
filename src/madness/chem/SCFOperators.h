@@ -216,6 +216,7 @@ public:
     Exchange& set_replicate_for_debug(const bool flag);
     Exchange& set_use_cloud_batch_fetch(const bool flag);
     Exchange& set_batch_granularity(const long& level);
+    Exchange& set_cost_aware_assign(const bool value);
     Exchange& set_accumulation_mode(const int mode);
     Exchange& set_use_mflex(const bool flag);
     Exchange& set_mflex_max_exhaustive(const long& n);

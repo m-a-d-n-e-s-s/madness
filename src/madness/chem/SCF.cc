@@ -1514,6 +1514,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	        K.set_replicate_for_debug(param.hfex_replicate_debug());
 	        K.set_use_cloud_batch_fetch(param.hfex_use_cloud_batch_fetch());
 	        K.set_batch_granularity(param.hfex_batch_granularity());
+	        K.set_cost_aware_assign(param.hfex_cost_aware_assign());
 	        K.set_accumulation_mode(param.hfex_local_accumulation());
 	        K.set_use_mflex(param.hfex_use_mflex());
 	        K.set_mflex_max_exhaustive(param.hfex_mflex_max_exhaustive());

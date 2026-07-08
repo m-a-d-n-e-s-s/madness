@@ -777,6 +777,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long& level) {
 }
 
 template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assign(const bool value) {
+    impl->set_cost_aware_assign(value);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
     impl->set_accumulation_mode(mode);
     return *this;

@@ -13,6 +13,9 @@
 #include<set>
 #include<limits>
 #include<fstream>
+#include<filesystem>
+#include<cstdlib>
+#include<cstdio>
 
 namespace madness {
 
@@ -268,6 +271,60 @@ exchange_sym_round_robin_assign(const long n, const long M) {
     return owner;
 }
 
+/// Cost-aware owner assignment for the symmetric p2p-owner triangular task matrix.
+/// Same ownership/eligibility as exchange_sym_round_robin_assign (batch k owned by k%n;
+/// off-diagonal (i,j) eligible on {i%n, j%n}; diagonal (i,i) pinned to i%n), but balances
+/// per-rank total COST instead of task COUNT. `cost` is indexed by the triangular index
+/// tri(i,j)=a*(a+1)/2+b (a=max(i,j), b=min) and holds a relative per-task cost (the previous
+/// call's measured wall). Greedy largest-cost-first onto the less-loaded eligible rank, then
+/// bounded local search relieving the hottest rank. Deterministic (identical on every rank
+/// given the same `cost`). Preserves the pin-owned invariant: a task always lands on a rank
+/// that stores one of its batches, so no extra fetch. See ~/exchange_load_balancing (phase 1
+/// sim: g1 → 1.05–1.10x, g2 → 1.01x vs round-robin 1.2–1.5x, without breaking ownership).
+inline std::map<std::pair<long,long>,long>
+exchange_sym_cost_aware_assign(const long n, const long M, const std::vector<double>& cost) {
+    std::map<std::pair<long,long>,long> owner;
+    if (n <= 0 or M <= 0) return owner;
+    auto tri = [](long i, long j){ long a = std::max(i,j), b = std::min(i,j); return a*(a+1)/2 + b; };
+    auto C = [&](long i, long j) -> double {
+        const long t = tri(i,j); return (t < long(cost.size())) ? cost[t] : 0.0;
+    };
+    std::vector<double> load(n, 0.0);
+    // forced diagonals (single owner)
+    for (long i = 0; i < M; ++i) { const long r = i % n; load[r] += C(i,i); owner[{i,i}] = r; }
+    // off-diagonals, largest cost first (deterministic tie-break by (i,j))
+    std::vector<std::pair<long,long>> off;
+    off.reserve(std::size_t(M) * std::size_t(M > 0 ? M - 1 : 0) / 2);
+    for (long i = 0; i < M; ++i) for (long j = 0; j < i; ++j) off.emplace_back(i, j);
+    std::sort(off.begin(), off.end(), [&](const std::pair<long,long>& A, const std::pair<long,long>& B){
+        const double ca = C(A.first,A.second), cb = C(B.first,B.second);
+        return (ca != cb) ? (ca > cb) : (A < B);
+    });
+    for (const auto& [i,j] : off) {
+        const long ri = i % n, rj = j % n;
+        const long r = (ri == rj) ? ri : (load[ri] <= load[rj] ? ri : rj);
+        owner[{i,j}] = r; load[r] += C(i,j);
+    }
+    // local search: relieve the hottest rank by flipping its off-diagonals to their other owner
+    for (long pass = 0; pass < 50; ++pass) {
+        long hot = 0; for (long p = 1; p < n; ++p) if (load[p] > load[hot]) hot = p;
+        bool improved = false;
+        for (const auto& [i,j] : off) {
+            auto it = owner.find({i,j});
+            if (it->second != hot) continue;
+            const long ri = i % n, rj = j % n;
+            if (ri == rj) continue;                          // no choice
+            const long other = (hot == ri) ? rj : ri;
+            const double c = C(i,j);
+            if (load[other] + c < load[hot]) {               // strictly lowers this rank
+                load[hot] -= c; load[other] += c; it->second = other; improved = true;
+            }
+        }
+        if (not improved) break;
+    }
+    return owner;
+}
+
 
 /// ---- Option C0: coalesced finalize transfer (exchange-local) ----
 /// One coefficient node in transit during the coalesced finalize drain. Carries
@@ -493,7 +550,8 @@ public:
     bool use_mflex_ = true;             ///< if true (and using owner-aware algorithm), run the m-flex peel search to load-balance the owner assignment
     long mflex_max_exhaustive_ = 5000;  ///< upper bound on C(R,m) for the exhaustive arm of the m-flex peel search
     bool use_cloud_batch_fetch_ = true; ///< if true (and algorithm==small_memory_mt_owner), fetch input batches from the cloud's owner-pinned batch container instead of copy()ing from the universe. Default off (A/B baseline).
-    long batch_granularity_ = 2;        ///< granularity level (>=1) = batches per rank for small_memory_symmetric_p2p_owner: M = level*nproc batches. Default 2 (= 2 batches/rank, the previous default). Runtime tunable.
+    long batch_granularity_ = 1;        ///< granularity level (>=1) = batches per rank for small_memory_symmetric_p2p_owner: M = level*nproc batches. Default 1 (coarsest: lowest overhead+memory; cost-aware assignment handles the high-protocol straggler). Runtime tunable.
+    bool cost_aware_assign_ = true;     ///< small_memory_symmetric_p2p_owner: balance owner assignment by measured per-task cost (default) vs round-robin task count. Env MAD_EXCH_COST_AWARE_ASSIGN overrides. Runtime tunable.
     bool bra_equals_ket_ = false;       ///< true iff set_bra_and_ket received the same vector for bra and ket (moldft / plain HF). Set in set_bra_and_ket. Gates the one-set small_memory_symmetric_p2p_owner path (nemo has bra=R^2*ket != ket).
 
     /// default ctor
@@ -584,6 +642,11 @@ public:
     /// granularity level (>=1) for small_memory_symmetric_p2p_owner; clamped to >=1.
     ExchangeImpl& set_batch_granularity(const long& level) {
         batch_granularity_ = std::max<long>(1, level);
+        return *this;
+    }
+
+    ExchangeImpl& set_cost_aware_assign(const bool value) {
+        cost_aware_assign_ = value;
         return *this;
     }
 
@@ -737,6 +800,9 @@ private:
         // to ONE file per process (appended across all K-applications), instead of one
         // file per subworld-id which would explode with iterations x nproc.
         long universe_rank_ = 0;
+        /// cost-aware owner assignment (vs round-robin), set from ExchangeImpl before submitting
+        /// (from the hfex_cost_aware_assign parameter). Env MAD_EXCH_COST_AWARE_ASSIGN overrides.
+        bool cost_aware_assign_ = true;
     private:
         // Per-task performance record (MAD_EXCH_TASK_PROFILE). NON-static: scoped to
         // the single operator() call on this task object; the kernels and
@@ -920,6 +986,89 @@ private:
         static inline SymPrefetchSlot sym_pf_current_;   // promoted from prev task's `next`; consumed this task
         static inline SymPrefetchSlot sym_pf_next_;       // issued ahead during this task's compute
 
+        // ---- cost-aware owner assignment (load balancing) — opt-in via MAD_EXCH_COST_AWARE_ASSIGN ----
+        // Persistent, synchronized per-task cost (triangular-indexed) from the PREVIOUS exchange
+        // call; feeds exchange_sym_cost_aware_assign() in prepare_owner_assignment(). Survives
+        // iterations AND protocol changes — cost structure is protocol-invariant (Spearman k8~k10
+        // ~0.98), only relative cost matters. Round-robin remains the default; cost-aware is a
+        // selectable strategy. See docs / ~/exchange_load_balancing.
+        static inline std::vector<double> sym_cost_global_;   // synchronized, tri-indexed; persists across calls
+        static inline std::vector<double> sym_cost_local_;    // this call, rank-local; gop-summed after the call
+        static inline std::map<long,long>  sym_begin_to_idx_; // batch begin offset -> batch index (this call)
+        static inline long sym_cost_M_ = 0;                   // #batches this call (sizes the cost vectors)
+        static inline long sym_call_index_ = 0;               // Exchange() call counter (per process)
+    public:
+        /// Resolve the cost-aware-vs-round-robin choice: the env var MAD_EXCH_COST_AWARE_ASSIGN
+        /// (1/0) overrides for A/B testing; otherwise the passed parameter value (from
+        /// hfex_cost_aware_assign, default true) governs. Read the env once per process.
+        static bool cost_aware_resolve(const bool param_default) {
+            static const int env = []{
+                const char* e = std::getenv("MAD_EXCH_COST_AWARE_ASSIGN");
+                return e ? (std::string(e) == "0" ? 0 : 1) : -1;   // -1 = unset
+            }();
+            return (env >= 0) ? (env != 0) : param_default;
+        }
+        /// instance view: is cost-aware assignment active for this task?
+        bool cost_aware_active() const { return cost_aware_resolve(cost_aware_assign_); }
+        /// per-task profiling active: its env (MAD_EXCH_TASK_PROFILE) OR print_level>=10
+        /// (log_diagnostics_) — print_level 10 is the single master switch for all exchange
+        /// debug/assessment output (profiler JSONL + cost-matrix dump + strategy prints).
+        bool profile_active() const { return exch_task_profile_enabled() or log_diagnostics_; }
+        /// triangular index of a batch-pair (i>=j collapsed): a*(a+1)/2 + b
+        static long sym_tri(const long i, const long j) {
+            const long a = std::max(i,j), b = std::min(i,j); return a*(a+1)/2 + b;
+        }
+        /// rank-local per-task cost buffer for the current call (gop-summed after the call)
+        static std::vector<double>& sym_cost_local_ref() { return sym_cost_local_; }
+        /// EMA smoothing factor for the cost reference: global = alpha*this_call + (1-alpha)*global.
+        /// alpha=1 (default) = overwrite (use only the previous call, current behavior). alpha<1
+        /// smooths across iterations — dampens single-sample overcorrection (the k10 warm-up) and
+        /// accumulates loose/medium history to seed the first tight-tier call (cost is
+        /// protocol-invariant so the blend preserves relative structure). Env MAD_EXCH_COST_EMA_ALPHA.
+        static double sym_cost_ema_alpha() {
+            static const double a = []{
+                const char* e = std::getenv("MAD_EXCH_COST_EMA_ALPHA");
+                double v = e ? std::atof(e) : 1.0;
+                return (v > 0.0 and v <= 1.0) ? v : 1.0;
+            }();
+            return a;
+        }
+        /// promote the (gop-summed) local costs to the global reference for the next call, blended
+        /// by the EMA factor (overwrite when alpha=1 or on first call / size change).
+        static void sym_commit_cost_global() {
+            const double alpha = sym_cost_ema_alpha();
+            if (alpha >= 1.0 or sym_cost_global_.size() != sym_cost_local_.size()) {
+                sym_cost_global_ = sym_cost_local_;
+            } else {
+                for (std::size_t t = 0; t < sym_cost_local_.size(); ++t)
+                    sym_cost_global_[t] = alpha * sym_cost_local_[t]
+                                        + (1.0 - alpha) * sym_cost_global_[t];
+            }
+        }
+        /// Per-iteration cost-matrix dump (debug): enabled by print_level>=10 (like the other
+        /// exchange debug output), written by the caller under that gate. Writes the synchronized
+        /// per-call measured cost as CSV (i,j,cost) to MAD_EXCH_DUMP_COST if set, else ./exch_cost_matrix.
+        /// Rank-0 only.
+        static void sym_dump_cost(const int k) {
+            if (sym_cost_local_.empty() or sym_cost_M_ <= 0) return;
+            const char* env = std::getenv("MAD_EXCH_DUMP_COST");
+            const std::string dir = env ? std::string(env) : std::string("exch_cost_matrix");
+            std::error_code ec; std::filesystem::create_directories(dir, ec);
+            char fn[1024];
+            std::snprintf(fn, sizeof(fn), "%s/Ccall%03ld_k%d.csv", dir.c_str(), sym_call_index_, k);
+            std::ofstream o(fn);
+            if (not o) return;
+            o << "# call=" << sym_call_index_ << " k=" << k << " M=" << sym_cost_M_ << "\n";
+            o << "i,j,cost\n";
+            const long M = sym_cost_M_;
+            for (long i = 0; i < M; ++i)
+                for (long j = 0; j <= i; ++j) {
+                    const long t = i * (i + 1) / 2 + j;
+                    if (t < long(sym_cost_local_.size())) o << i << "," << j << "," << sym_cost_local_[t] << "\n";
+                }
+        }
+    private:
+
         static inline long cache_world_id_ = -1;
 
         static void clear_kbatch_prefetch() {
@@ -1024,7 +1173,7 @@ private:
 
         void add_owner_compute_time(const double cpu0, const double cpu1) const {
             if (use_owner_aware_fetch()) owner_compute_timer += long((cpu1 - cpu0) * 1000l);
-            if (exch_task_profile_enabled()) prof_.compute_cpu = cpu1 - cpu0;
+            if (profile_active()) prof_.compute_cpu = cpu1 - cpu0;
         }
 
         /// wall-time companion to add_owner_compute_time. Called from operator() to
@@ -1033,7 +1182,7 @@ private:
         /// communication/fences that happened during the compute phase.
         void add_owner_compute_wall_time(const double wall0, const double wall1) const {
             if (use_owner_aware_fetch()) owner_compute_wall_timer += long((wall1 - wall0) * 1000l);
-            if (exch_task_profile_enabled()) {
+            if (profile_active()) {
                 // wall0 = compute start (post fetch), wall1 = compute end. Everything
                 // from task entry to compute start is data-wait (bra+vf[+ket] fetch).
                 prof_.compute_wall = wall1 - wall0;
@@ -1421,8 +1570,27 @@ private:
                 sym_lru_.transient_capacity = 2;
                 std::map<long,long> begin_to_idx;
                 for (long k = 0; k < M; ++k) begin_to_idx[split[k].begin] = k;
+                // Owner assignment strategy: round-robin (balances task COUNT, default) or
+                // cost-aware (balances per-rank COST, opt-in via MAD_EXCH_COST_AWARE_ASSIGN).
+                // Cost-aware engages only from the 3rd Exchange() call on — so its reference is
+                // the previous call's synchronized cost, and that reference is iteration >=1
+                // (the first call is anomalous: cold caches / initial guess). Bootstrap calls
+                // use round-robin. Publish begin->index + size the local cost buffer so the
+                // per-task compute wall can be recorded (operator() exit) and gop-summed after
+                // the call (.cc) into sym_cost_global_ for the NEXT call's assignment.
+                ++sym_call_index_;
+                sym_begin_to_idx_ = begin_to_idx;
+                sym_cost_M_ = M;
+                const std::size_t ntask = std::size_t(M) * std::size_t(M + 1) / 2;
+                if (cost_aware_active() or log_diagnostics_) sym_cost_local_.assign(ntask, 0.0);
+                const bool use_cost_aware = cost_aware_active() and sym_call_index_ >= 3
+                        and sym_cost_global_.size() == ntask;
                 const std::map<std::pair<long,long>,long> rr =
-                        exchange_sym_round_robin_assign(nsubworld, M);
+                        use_cost_aware ? exchange_sym_cost_aware_assign(nsubworld, M, sym_cost_global_)
+                                       : exchange_sym_round_robin_assign(nsubworld, M);
+                if (log_diagnostics_)
+                    print("sym_p2p owner assignment: call", sym_call_index_, "strategy",
+                          (use_cost_aware ? "cost-aware" : "round-robin"), "M", M);
                 for (const auto& [batch, prio] : partition) {
                     MADNESS_CHECK_THROW(batch.input.size() >= 2,
                                         "small_memory_symmetric_p2p_owner expects 2D batches (col, row)");
@@ -2648,7 +2816,7 @@ private:
             // per-task profiling (MAD_EXCH_TASK_PROFILE): reset + stamp identity/geometry.
             // Interior timers (wait/compute/components/cpu) are filled by the accumulator
             // helpers and the smallmem kernels; wall_end + peak RSS + emit happen at exit.
-            const bool prof_on = exch_task_profile_enabled();
+            const bool prof_on = profile_active();
             if (prof_on) {
                 prof_.reset();
                 prof_.task_id = prof_task_seq_++;
@@ -2935,6 +3103,20 @@ private:
                 prof_.peak_rss_gb = madness::get_rss_usage_in_GB();
                 if (world.rank() == 0) exch_write_task_profile(prof_);
             }
+
+            // cost-aware load balancing: record this task's total wall as its cost, keyed by the
+            // batch-pair (i,j), into the rank-local buffer. Synchronized across ranks after the
+            // call (.cc) and used as the NEXT call's assignment reference. sym_p2p only; opt-in.
+            if ((cost_aware_active() or log_diagnostics_) and algorithm_ == small_memory_symmetric_p2p_owner
+                and not sym_cost_local_.empty()) {
+                const auto ic = sym_begin_to_idx_.find(vf_range.begin);
+                const auto jr = sym_begin_to_idx_.find(bra_range.begin);
+                if (ic != sym_begin_to_idx_.end() and jr != sym_begin_to_idx_.end()) {
+                    const long t = sym_tri(ic->second, jr->second);
+                    if (t < long(sym_cost_local_.size()))
+                        sym_cost_local_[t] += (wall_time() - t_op_start);
+                }
+            }
             return Kf;
         }
 
@@ -2978,7 +3160,7 @@ private:
             // per-component wall timing (MAD_EXCH_TASK_PROFILE). Honest without added
             // fences: every op below runs with fence=true, so each completes before the
             // next. `tick` folds the elapsed into the per-task accumulator.
-            const bool prof_on = exch_task_profile_enabled();
+            const bool prof_on = profile_active();
             auto tick = [&](double& acc, double t0) { if (prof_on) acc += wall_time() - t0; };
 
             for (long i = 0; i < n; ++i) {
@@ -3186,7 +3368,7 @@ private:
 
             // per-component wall timing (MAD_EXCH_TASK_PROFILE); honest without added
             // fences (every op runs with fence=true). See the diagonal kernel.
-            const bool prof_on = exch_task_profile_enabled();
+            const bool prof_on = profile_active();
             auto tick = [&](double& acc, double t0) { if (prof_on) acc += wall_time() - t0; };
 
             for (long irow = 0; irow < nrow; ++irow) {

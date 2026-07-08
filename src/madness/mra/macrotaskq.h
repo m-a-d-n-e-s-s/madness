@@ -41,6 +41,7 @@
 #define SRC_MADNESS_MRA_MACROTASKQ_H_
 
 #include <algorithm>
+#include <cstdlib>                              // std::getenv (per-task file-output opt-in)
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/world/ranks_and_hosts.h>   // get_rss_usage_in_GB (per-task RSS diagnostics)
@@ -1618,8 +1619,16 @@ private:
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo policy) override {
-        	const auto io_mode = debug ? io_redirect::Mode::File
-        	                           : io_redirect::Mode::Discard;
+        	// Per-task cout is captured to a per-task file (<name>_output/<name>_task.#####)
+        	// only when explicitly opted in via MAD_MACROTASK_TASK_FILES; otherwise it is
+        	// discarded. This file dump is a heavyweight debug aid (one file per task, a whole
+        	// directory at fine granularity) now largely superseded by the exchange profiler
+        	// (MAD_EXCH_TASK_PROFILE, which records the same per-task timing/RSS as JSON). It is
+        	// no longer tied to the print level, so print_level>=10 gives the verbose stderr
+        	// traces without spilling a per-task directory. Opt back in with the env var.
+        	static const bool task_files = (std::getenv("MAD_MACROTASK_TASK_FILES") != nullptr);
+        	const auto io_mode = task_files ? io_redirect::Mode::File
+        	                                : io_redirect::Mode::Discard;
         	const double t_entry = wall_time();
         	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
         	const double t_run_start = wall_time();
