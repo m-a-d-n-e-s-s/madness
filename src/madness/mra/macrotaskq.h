@@ -651,6 +651,29 @@ public:
 	long get_nsubworld() const {return nsubworld;}
 	void set_printlevel(const long p) {printlevel=p;}
 
+	// --- Phase-0 (A6) run()-loop phase instrumentation, env MAD_MACROTASK_RUN_PHASES ---
+	// The per-task exchange profiler only brackets operator(); the ~110ms/tile inter-operator()
+	// "gap" (dispatch + cloud.load(argtuple) + copy_input_batch + result-accumulate) is invisible
+	// to it. These per-K-app accumulators split that gap so we can decide the task-fusion target
+	// (model §12.3). Summed across a rank's owner-pinned tiles in MacroTask::run(), printed once
+	// per run_all (= per Exchange() call). Measurement only; no behavior change.
+	static inline bool run_phase_enabled_ = (std::getenv("MAD_MACROTASK_RUN_PHASES") != nullptr);
+	static inline double rp_dispatch_ = 0.0;    // run() entry -> cloud.load start (io_redirect etc.)
+	static inline double rp_cloudload_ = 0.0;   // cloud.load(argtuple)
+	static inline double rp_prep_ = 0.0;        // copy_input_batch + prefetch-advance + auto_copy
+	static inline double rp_compute_ = 0.0;     // operator() (std::apply)  [cross-checks profiler busy]
+	static inline double rp_insert_ = 0.0;      // gap compute_done -> accumulate_start (print only, ~0)
+	// 3-way split of the accumulate bracket (all ~O(nresult) full-width per tile — the subset-accumulate target):
+	static inline double rp_alloc_ = 0.0;       // task.allocator() = zero_functions_compressed(nresult) per tile
+	static inline double rp_insertb_ = 0.0;     // insert_batch scatter (touched fns -> full-width result_subworld)
+	static inline double rp_accumulate_ = 0.0;  // accumulate_locally gaxpy(nresult) into Kf_local_ (or universe accum)
+	static inline double rp_epilogue_ = 0.0;    // post-accumulate prefetch-issue (accumulate_done -> run() end)
+	static inline double rp_framework_ = 0.0;   // BETWEEN run() calls: queue loop + next-task setup
+	static inline double rp_last_end_ = 0.0;    // previous tile's run()-end wall (for rp_framework_)
+	static inline long   rp_count_ = 0;
+	static void rp_reset() { rp_dispatch_=rp_cloudload_=rp_prep_=rp_compute_=rp_insert_=rp_alloc_=rp_insertb_
+	                         =rp_accumulate_=rp_epilogue_=rp_framework_=rp_last_end_=0.0; rp_count_=0; }
+
 	MacroTaskInfo get_policy() const {
 		return policy;
 	}
@@ -803,6 +826,7 @@ public:
 		try {
 	//		if (printdebug()) print("I am subworld",subworld.id());
 			double tasktime=0.0;
+			if (run_phase_enabled_) rp_reset();
 			const long requester_slot = universe.rank() % std::max<long>(1,nsubworld);
 			const bool all_tasks_owned = (not taskq.empty()) and std::all_of(taskq.begin(), taskq.end(),
 					[](const std::shared_ptr<MacroTaskBase>& t) { return t->get_owner_slot() >= 0; });
@@ -856,6 +880,18 @@ public:
 					       universe.rank(), static_cast<unsigned long>(subworld.id()), wall_time(), tasktime);
 				}
 			}
+	        if (run_phase_enabled_ and rp_count_>0) {
+	            const double per = 1000.0/double(rp_count_);   // per-task, ms
+	            // overhead = everything but compute; should ~equal the profiler inter-task gap.
+	            const double oh = rp_framework_+rp_dispatch_+rp_cloudload_+rp_prep_+rp_insert_
+	                              +rp_alloc_+rp_insertb_+rp_accumulate_+rp_epilogue_;
+	            printf("RUN_PHASES rank=%3d ntask=%ld | per-tile ms: framework=%.1f dispatch=%.1f cloudload=%.1f prep=%.1f insert=%.1f alloc=%.1f insertb=%.1f accumulate=%.1f epilogue=%.1f compute=%.1f | overhead=%.1f ms/tile (tot %.2fs) compute=%.2fs\n",
+	                   universe.rank(), rp_count_,
+	                   rp_framework_*per, rp_dispatch_*per, rp_cloudload_*per, rp_prep_*per, rp_insert_*per,
+	                   rp_alloc_*per, rp_insertb_*per, rp_accumulate_*per, rp_epilogue_*per, rp_compute_*per,
+	                   oh*per, oh, rp_compute_);
+	            fflush(stdout);
+	        }
 	        universe.gop.set_forbid_fence(false);
 			universe.gop.fence();
 
@@ -1736,21 +1772,38 @@ private:
 						std::swap(element1,element2);
 					}
         		};
-        		resultT result_subworld=task.allocator(subworld,argtuple);
-        		if constexpr (is_tuple<resultT>::value) {
-        			binary_tuple_loop(result_subworld, result_batch, insert_batch);
-				} else {
-					insert_batch(result_subworld,result_batch);
-				}
-
-        		// accumulate the subworld-local results into the final, universe result
-        		// — unless the task accumulates into its own subworld-local buffer and
-        		// defers the single universe gaxpy until finalize() (see run_all).
-        		if (task.accumulates_own_output()) {
-        			accumulate_locally_or_noop(task, subworld, result_subworld, 0);
+        		// Owner-aware fast path: when the task accumulates its own output AND its result batch is
+        		// full-size, operator() already produced the full-width result, and the framework's
+        		// allocator + insert_batch would just re-allocate an nresult-wide zero vector and copy the
+        		// result into it identically — the dominant per-tile ∝nresult cost (RUN_PHASES `alloc`,
+        		// model §13). Skip both and accumulate operator()'s result_batch directly. Guarded so the
+        		// generic path (any non-owner task, tuple result, or a batched/subset result) is unchanged.
+        		double t_alloc_done, t_insertb_done;
+        		bool own_fast = false;
+        		if constexpr (not is_tuple<resultT>::value) {
+        			own_fast = task.accumulates_own_output() and task.batch.result.is_full_size();
+        		}
+        		if (own_fast) {
+        			t_alloc_done = t_insertb_done = wall_time();
+        			accumulate_locally_or_noop(task, subworld, result_batch, 0);
         		} else {
-        			resultT result_universe=get_output(subworld, cloud);       // lives in the universe
-        			accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        			resultT result_subworld=task.allocator(subworld,argtuple);
+        			t_alloc_done = wall_time();
+        			if constexpr (is_tuple<resultT>::value) {
+        				binary_tuple_loop(result_subworld, result_batch, insert_batch);
+        			} else {
+        				insert_batch(result_subworld,result_batch);
+        			}
+        			t_insertb_done = wall_time();
+        			// accumulate the subworld-local results into the final, universe result
+        			// — unless the task accumulates into its own subworld-local buffer and
+        			// defers the single universe gaxpy until finalize() (see run_all).
+        			if (task.accumulates_own_output()) {
+        				accumulate_locally_or_noop(task, subworld, result_subworld, 0);
+        			} else {
+        				resultT result_universe=get_output(subworld, cloud);       // lives in the universe
+        				accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        			}
         		}
         		const double t_accumulate_done = wall_time();
 
@@ -1784,6 +1837,27 @@ private:
         		}
         		fixb_dbg_phase("H_run_return");
         		const double t_prefetch_issue_done = wall_time();
+
+        		// Phase-0 (A6): attribute this tile's FULL run()-loop timeline into MacroTaskQ::rp_*
+        		// so the phases sum to the profiler's inter-task gap. rp_framework_ is the between-
+        		// run()-calls handoff (queue loop + next-task setup), measured as this tile's entry
+        		// minus the previous tile's run()-end. See MacroTaskQ::rp_reset (per-K-app reset).
+        		if (MacroTaskQ::run_phase_enabled_) {
+        			if (MacroTaskQ::rp_last_end_ > 0.0)
+        				MacroTaskQ::rp_framework_ += (t_entry - MacroTaskQ::rp_last_end_);
+        			MacroTaskQ::rp_dispatch_   += (t_run_start - t_entry);
+        			MacroTaskQ::rp_cloudload_  += (t_cloud_load_done - t_run_start);
+        			MacroTaskQ::rp_prep_       += (t_fetch_done - t_cloud_load_done);
+        			MacroTaskQ::rp_compute_    += (t_compute_done - t_fetch_done);
+        			MacroTaskQ::rp_insert_     += (t_accumulate_start - t_compute_done);
+        			// 3-way split of the accumulate bracket (allocator / insert_batch / accumulate_locally):
+        			MacroTaskQ::rp_alloc_      += (t_alloc_done - t_accumulate_start);
+        			MacroTaskQ::rp_insertb_    += (t_insertb_done - t_alloc_done);
+        			MacroTaskQ::rp_accumulate_ += (t_accumulate_done - t_insertb_done);
+        			MacroTaskQ::rp_epilogue_   += (t_prefetch_issue_done - t_accumulate_done);
+        			MacroTaskQ::rp_last_end_    = t_prefetch_issue_done;
+        			++MacroTaskQ::rp_count_;
+        		}
 
         		// per-task phase timing diagnostic
         		{

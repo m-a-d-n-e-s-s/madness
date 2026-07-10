@@ -2099,6 +2099,25 @@ private:
         /// accumulator Kf_local_. Lazily initialized on first call per subworld.
         /// Typed as vecfuncT (== resultT) because resultT is declared later in
         /// the class body.
+        /// result-vector indices this tile actually wrote: operator() scatters resultcolumn/resultrow
+        /// only into bra_range (input[1]) and vf_range (input[0]) of a full-width Kf, leaving the other
+        /// ~nresult-2·batchsize entries zero. Union of the two input ranges is a correct SUPERSET of every
+        /// Kf[i]+= site (diagonal/offdiagonal/asymmetric). Full-size or missing ranges → whole [0,nresult)
+        /// (falls back to the old full-width behavior). Ranges are disjoint for offdiag (i≠j); the ==guard
+        /// collapses the diagonal to one range.
+        std::vector<long> touched_result_indices() const {
+            std::vector<long> idx;
+            auto add_range = [&](const Batch_1D& b) {
+                long s = b.is_full_size() ? 0 : b.begin;
+                long e = b.is_full_size() ? long(nresult) : b.end;
+                for (long i = s; i < e && i < long(nresult); ++i) idx.push_back(i);
+            };
+            if (batch.input.empty()) { for (long i = 0; i < long(nresult); ++i) idx.push_back(i); return idx; }
+            add_range(batch.input[0]);
+            if (batch.input.size() > 1 and not (batch.input[1] == batch.input[0])) add_range(batch.input[1]);
+            return idx;
+        }
+
         void accumulate_locally(World& subworld, const vecfuncT& result_subworld) const {
             const long wid = long(subworld.id());
             if (not Kf_local_initialized_ or Kf_local_world_id_ != wid) {
@@ -2106,12 +2125,19 @@ private:
                 Kf_local_initialized_ = true;
                 Kf_local_world_id_ = wid;
             }
-            // match MacroTaskInternal::accumulate_into_final_result state handling
+            // Subset accumulate: gaxpy only the columns/rows this tile touched into Kf_local_, instead of a
+            // full-width gaxpy over all nresult (mostly-zero) functions — the per-tile ∝nresult accumulate tax
+            // exposed at scale (model §12.5/§13). Provably equivalent to the full gaxpy: skipped entries are
+            // structurally zero, so gaxpy(Kf_local_[i], 0) is a no-op (validated bit-exact, valinomycin 64r).
             vecfuncT& rs = const_cast<vecfuncT&>(result_subworld);
-            TreeState op_state = rs[0].get_impl()->get_tensor_type()==TT_FULL
-                                 ? compressed : reconstructed;
-            change_tree_state(rs, op_state);
-            gaxpy(1.0, Kf_local_, 1.0, rs, false);
+            std::vector<long> touched = touched_result_indices();
+            vecfuncT rs_sub, kf_sub;
+            rs_sub.reserve(touched.size()); kf_sub.reserve(touched.size());
+            for (long i : touched) { rs_sub.push_back(rs[i]); kf_sub.push_back(Kf_local_[i]); }  // shallow handles
+            if (rs_sub.empty()) return;
+            TreeState op_state = rs_sub[0].get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+            change_tree_state(rs_sub, op_state);
+            gaxpy(1.0, kf_sub, 1.0, rs_sub, false);   // gaxpy mutates kf_sub[k] in place = Kf_local_[touched[k]]
         }
 
         /// single subworld->universe gaxpy, draining Kf_local_ into the
