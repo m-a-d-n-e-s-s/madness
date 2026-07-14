@@ -51,10 +51,11 @@ namespace molresponse_v3 {
 /// Qb` so a v3 reader who's familiar with `SCF.cc` finds the same
 /// names. Closed-shell runs leave the `*_b` fields empty.
 ///
-/// TODO(DFT): when c_xc != 1.0 (hybrid / pure DFT), gamma needs the
-/// W = xc.apply_xc_kernel(rho) · phi term — see
-/// molresponse_legacy/iterate_gamma.cc:114-123. Requires capturing an
-/// XCOperator handle here.
+/// DFT/hybrid response: when c_xc != 1.0 (pure DFT or hybrid), the response
+/// gamma needs the XC kernel term f_xc·rho folded into the local potential
+/// (W = apply_xc_kernel(rho)·phi0), mirroring chem/TDHF.cc:762-770. This is
+/// carried by the optional `xc` handle + response_local_potential() below;
+/// a null handle ⇒ the pure-HF path, byte-unchanged. RHF/closed-shell only.
 ///
 /// TODO(load-balancing): per-response orbital load balance once we
 /// fan out across MPI ranks. Exchange ops in compute_gamma / V0x are
@@ -79,6 +80,12 @@ struct ResponseGroundState {
   double                                  c_xc = 1.0;
   double                                  lo   = 1.0e-10;
 
+  // Optional DFT/hybrid XC response kernel (f_xc). Null ⇒ pure-HF path,
+  // unchanged. Built by build_response_ground_state_closed_shell when the
+  // functional is DFT with c_xc != 1.0. RHF only (apply_xc_kernel asserts
+  // !spin_polarized). Applied via response_local_potential() below.
+  std::shared_ptr<madness::XCOperator<double, 3>> xc;
+
   int                                     n_roots = 0;
 
   // Cached ground-state HF exchange operators K0 = K[phi_occ, phi_occ], built
@@ -97,6 +104,21 @@ struct ResponseGroundState {
   // (depends on k/thresh). NOTE: n² RESIDENT functions — a memory-for-wall-time
   // trade (per-iter g0 rebuild → once/protocol); heavy at large n_occ (Inc-3 tiles).
   std::vector<madness::real_function_3d>        g0_alpha;
+
+  /// Response local potential applied to a perturbed density `rho`:
+  ///   V = J[rho]            (pure HF, `xc` null — byte-unchanged), or
+  ///   V = J[rho] + f_xc·rho (DFT/hybrid, `xc` set).
+  /// The caller multiplies V by the ground orbitals inside
+  /// two_electron::apply_gamma, yielding (J + f_xc)·phi0 − c_xc·K — matching
+  /// chem/TDHF.cc:762-770. f_xc is frequency-independent (rho carries ω), so
+  /// the one call serves static, dynamic (±ω folded into rho), TDA and Full.
+  /// RHF only: apply_xc_kernel asserts !is_spin_polarized().
+  madness::real_function_3d
+  response_local_potential(const madness::real_function_3d &rho) const {
+    auto V = madness::apply(*coulop, rho);
+    if (xc) V += xc->apply_xc_kernel(rho);
+    return V;
+  }
 };
 
 
@@ -139,7 +161,7 @@ struct Kernels<TDA, ClosedShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}}, g0.Qa, g0.c_xc, g0.lo);
@@ -157,7 +179,7 @@ struct Kernels<TDA, ClosedShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,
         {{g0.amo, state.x_alpha}}, g0.Qa, g0.c_xc, g0.lo);
@@ -295,7 +317,7 @@ struct Kernels<TDA, OpenShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}}, g0.Qa, g0.c_xc, g0.lo);
@@ -313,7 +335,7 @@ struct Kernels<TDA, OpenShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,
         {{g0.amo, state.x_alpha}}, g0.Qa, g0.c_xc, g0.lo);

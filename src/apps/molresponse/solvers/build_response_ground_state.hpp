@@ -31,6 +31,8 @@
 
 #include <madness/chem/SCFOperators.h>
 
+#include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include <cstdlib>
@@ -100,6 +102,12 @@ inline ResponseGroundState
 build_response_ground_state_open_shell(madness::World &world, GroundState &gs,
                                         double c_xc = 1.0,
                                         double lo   = 1.0e-10) {
+  // Open-shell DFT response (spin-resolved f_xc) is NOT supported — the XC
+  // response-kernel port is RHF-only (apply_xc_kernel asserts !spin_polarized).
+  // Fail loud rather than silently return HF-like numbers for a DFT functional.
+  if (gs.scf().xc.is_dft() && gs.hf_exchange_coefficient() != 1.0)
+    throw std::runtime_error(
+        "open-shell DFT response (f_xc) not supported: RHF/closed-shell only");
   ResponseGroundState t;
   t.amo            = gs.orbitals_alpha();
   t.aeps           = gs.energies_alpha();
@@ -150,6 +158,19 @@ build_response_ground_state_closed_shell(madness::World &world, GroundState &gs,
   // Cache K0 once (avoids re-copying the occupied orbitals on every compute_V0x
   // exchange apply — see ResponseGroundState::K0_alpha). K0_beta stays null (CS).
   t.K0_alpha = common_ops::make_ground_exchange(world, t.amo, lo);
+
+  // DFT/hybrid response kernel (f_xc). Gate mirrors GroundState::build_v_local:
+  // a DFT functional with a non-unit exact-exchange
+  // coefficient (pure DFT c_xc==0, or hybrids 0<c_xc<1). Built with
+  // spin_polarized=FALSE — apply_xc_kernel asserts !is_spin_polarized() (RHF
+  // only) — unlike build_v_local, which (harmlessly) passes is_spin_restricted().
+  // Null otherwise ⇒ the pure-HF path is byte-unchanged. Mirrors chem/TDHF.cc.
+  if (gs.scf().xc.is_dft() && gs.hf_exchange_coefficient() != 1.0) {
+    auto &scf  = gs.scf();
+    auto  arho = scf.make_density(world, scf.get_aocc(), scf.get_amo());
+    t.xc = std::make_shared<madness::XCOperator<double, 3>>(
+        world, scf.param.xc(), /*spin_polarized=*/false, arho, arho);
+  }
   debug_gs_fock_check(world, t, "closed");
   return t;
 }

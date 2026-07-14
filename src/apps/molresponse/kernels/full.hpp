@@ -87,7 +87,7 @@ struct Kernels<Full, ClosedShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}, {S1.y_alpha, S2.y_alpha}},
@@ -110,7 +110,7 @@ struct Kernels<Full, ClosedShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     // X: K[phi0, x](phi0) + K[y, phi0](phi0)
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,
@@ -286,7 +286,7 @@ struct Kernels<Full, OpenShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}, {S1.y_alpha, S2.y_alpha}}, g0.Qa, g0.c_xc, g0.lo);
@@ -304,7 +304,7 @@ struct Kernels<Full, OpenShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     // alpha: K[phi,x](phi) + K[y,phi](phi) ; Y swaps x<->y
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,

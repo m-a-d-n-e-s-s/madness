@@ -74,7 +74,7 @@ struct Kernels<Static, ClosedShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}, {S1.x_alpha, S2.x_alpha}},
@@ -93,7 +93,7 @@ struct Kernels<Static, ClosedShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     // K[phi0,x](phi0) + K[x,phi0](phi0) -- the second term distinguishes Static from TDA.
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,
@@ -217,7 +217,7 @@ struct Kernels<Static, OpenShell> {
           const ResponseGroundState &g0,
           const State &S1, const State &S2, const State &S3) {
     auto rho = compute_density(world, g0, S1, S2);
-    auto J   = apply(*g0.coulop, rho);
+    auto J   = g0.response_local_potential(rho);  // + f_xc·rho for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J, S3.x_alpha,
         {{S2.x_alpha, S1.x_alpha}, {S1.x_alpha, S2.x_alpha}}, g0.Qa, g0.c_xc, g0.lo);
@@ -233,7 +233,7 @@ struct Kernels<Static, OpenShell> {
                 const ResponseGroundState &g0,
                 const State    &state,
                 const madness::real_function_3d &rho1) {
-    auto J_rho = apply(*g0.coulop, rho1);
+    auto J_rho = g0.response_local_potential(rho1);  // + f_xc·rho1 for DFT/hybrid
     State out;
     out.x_alpha = two_electron::apply_gamma(world, J_rho, g0.amo,
         {{g0.amo, state.x_alpha}, {state.x_alpha, g0.amo}}, g0.Qa, g0.c_xc, g0.lo);

@@ -141,7 +141,7 @@ build_ctx_static_cs(madness::World &world, const ResponseGroundState &gs,
                     const madness::real_function_3d &rho, double vtol,
                     int tile = 0) {
   ResponseExchangeCtx ctx;
-  ctx.J  = madness::apply(*gs.coulop, rho);
+  ctx.J  = gs.response_local_potential(rho);  // Coulomb (+ f_xc·rho for DFT/hybrid)
   ctx.Tx = build_pair_tensor(world, gs.coulop, gs.amo, state.x_alpha, vtol, tile);
   return ctx;
 }
@@ -190,7 +190,7 @@ build_ctx_full_cs(madness::World &world, const ResponseGroundState &gs,
                   const madness::real_function_3d &rho, double vtol,
                   int tile = 0) {
   ResponseExchangeCtx ctx;
-  ctx.J  = madness::apply(*gs.coulop, rho);
+  ctx.J  = gs.response_local_potential(rho);  // Coulomb (+ f_xc·rho for DFT/hybrid)
   // Inc-3a: build Tx and Ty fused (was two build_pair_tensor calls = two waves);
   // Inc-3b: `tile` blocks the φ-row index to bound the n² peak. Bit-identical.
   auto Ts = build_pair_tensors(world, gs.coulop, gs.amo,
