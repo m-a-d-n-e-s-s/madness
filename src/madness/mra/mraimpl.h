@@ -994,8 +994,17 @@ namespace madness {
     }
 
     /// After 1d push operator must sum coeffs down the tree to restore correct scaling function coefficients
+
+    /// @warning NUMERICALLY UNSTABLE for tensor types other than TT_FULL: sum_down propagates
+    /// coefficients from the root to the leaves, and at each level the low-rank (SVD) tensor
+    /// operations (v2k construction at target thresh, unfilter, per-node add_SVD) re-truncate
+    /// the rank. These truncation errors compound multiplicatively down the tree, so a deeply
+    /// refined (e.g. cuspy) function loses ~1-2 digits relative to the TT_FULL result. Prefer a
+    /// path that avoids sum_down for TT_2D/TT_SVD where threshold-level accuracy is required.
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::sum_down(bool fence) {
+        if (get_tensor_type()!=TT_FULL && world.rank()==0)
+            print("WARNING: sum_down is numerically unstable for tensor type",get_tensor_type());
         tree_state=reconstructed;
         if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
         if (fence) world.gop.fence();
@@ -2108,54 +2117,67 @@ namespace madness {
     T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT& x, const tensorT& c) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const int k = cdata.k;
-        double px[NDIM][MAXK];
         T sum = T(0.0);
 
-        for (std::size_t i=0; i<NDIM; ++i) legendre_scaling_functions(x[i],k,px[i]);
+        // v = sum_{p,q,...} c[p,q,...] phi_p(x0) phi_q(x1) ... is a separable
+        // contraction; the fastest evaluation depends on the dimension.
+        //
+        // NDIM<=2 (deep 1-D radial trees are the hottest eval workload): a
+        // factored register-resident loop.  Partial sums stay in registers, the
+        // only memory traffic is one streaming read of c, and no per-thread
+        // scratch is needed (px is <= NDIM*MAXK*8 bytes of stack).  Routing the
+        // tiny (k x 1) contraction through general_fast_transform's dispatch
+        // and ping-pong scratch measured ~20% slower at NDIM=1.
+        //
+        // NDIM>=3: general_fast_transform's staged contraction vectorizes
+        // (the factored loop's inner reduction cannot under strict FP) and
+        // measured 4-5x faster at NDIM=6; the phi matrices and scratch are
+        // thread_local, so this path stays allocation-free after warm-up.
+        if constexpr (NDIM <= 2) {
+            MADNESS_ASSERT(k <= MAXK);
+            double px[NDIM][MAXK];
+            for (std::size_t i=0; i<NDIM; ++i) legendre_scaling_functions(x[i],k,px[i]);
 
-        if (NDIM == 1) {
-            for (int p=0; p<k; ++p)
-                sum += c(p)*px[0][p];
-        }
-        else if (NDIM == 2) {
-            for (int p=0; p<k; ++p)
-                for (int q=0; q<k; ++q)
-                    sum += c(p,q)*px[0][p]*px[1][q];
-        }
-        else if (NDIM == 3) {
-            for (int p=0; p<k; ++p)
-                for (int q=0; q<k; ++q)
-                    for (int r=0; r<k; ++r)
-                        sum += c(p,q,r)*px[0][p]*px[1][q]*px[2][r];
-        }
-        else if (NDIM == 4) {
-            for (int p=0; p<k; ++p)
-                for (int q=0; q<k; ++q)
-                    for (int r=0; r<k; ++r)
-                        for (int s=0; s<k; ++s)
-                            sum += c(p,q,r,s)*px[0][p]*px[1][q]*px[2][r]*px[3][s];
-        }
-        else if (NDIM == 5) {
-            for (int p=0; p<k; ++p)
-                for (int q=0; q<k; ++q)
-                    for (int r=0; r<k; ++r)
-                        for (int s=0; s<k; ++s)
-                            for (int t=0; t<k; ++t)
-                                sum += c(p,q,r,s,t)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t];
-        }
-        else if (NDIM == 6) {
-            for (int p=0; p<k; ++p)
-                for (int q=0; q<k; ++q)
-                    for (int r=0; r<k; ++r)
-                        for (int s=0; s<k; ++s)
-                            for (int t=0; t<k; ++t)
-                                for (int u=0; u<k; ++u)
-                                    sum += c(p,q,r,s,t,u)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t]*px[5][u];
+            if constexpr (NDIM == 1) {
+                const T* cp = c.ptr();
+                for (int p=0; p<k; ++p) sum += cp[p]*px[0][p];
+            }
+            else {
+                for (int p=0; p<k; ++p) {
+                    const double a = px[0][p];
+                    const T* cq = &c(p,0);
+                    T s2 = T(0);
+                    for (int q=0; q<k; ++q) s2 += cq[q]*px[1][q];
+                    sum += a*s2;
+                }
+            }
         }
         else {
-            MADNESS_EXCEPTION("FunctionImpl:eval_cube:NDIM?",NDIM);
+            thread_local Tensor<double> phi[NDIM];
+            thread_local int phi_k = -1;
+            if (phi_k != k) {
+                for (std::size_t i=0; i<NDIM; ++i) phi[i] = Tensor<double>(long(k), 1L);
+                phi_k = k;
+            }
+            for (std::size_t i=0; i<NDIM; ++i)
+                legendre_scaling_functions(x[i], k, phi[i].ptr());
+
+            typedef TENSOR_RESULT_TYPE(T,double) evalR;
+            // ws/res are references bound to the thread_local scratch tensors.
+            auto [ws, res] = madness::detail::eval_scratch<evalR>(c.size());
+            general_fast_transform(c, phi, res, ws);
+            sum = res.ptr()[0];
         }
-        return sum*pow(2.0,0.5*NDIM*n)/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+        // exp2 replaces pow for the level scaling; 1/sqrt(cell_volume) is cached
+        // per thread and refreshed only if the cell changes (perf-doc change #2).
+        thread_local double cached_cell_volume = -1.0;
+        thread_local double cached_inv_sqrt_cell_vol = 0.0;
+        const double cell_volume = FunctionDefaults<NDIM>::get_cell_volume();
+        if (cell_volume != cached_cell_volume) {
+            cached_cell_volume = cell_volume;
+            cached_inv_sqrt_cell_vol = 1.0/std::sqrt(cell_volume);
+        }
+        return sum * std::exp2(0.5*NDIM*n) * cached_inv_sqrt_cell_vol;
     }
 
     template <typename T, std::size_t NDIM>
@@ -3024,6 +3046,97 @@ namespace madness {
             key = keyT(key.level()+1,l);
         }
         return std::pair<bool,T>(false,0.0);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void
+    FunctionImpl<T,NDIM>::eval_local_only(const Vector<double,NDIM>* xin,
+                                          std::size_t npt, Level maxlevel,
+                                          std::pair<bool,T>* results) {
+        const ProcessID me = world.rank();
+
+        // Memoize the most recently hit leaf (key + shallow coefficient copy).
+        // Quadrature callers stream spatially coherent points, so consecutive
+        // points usually land in the same leaf box; replaying the exact
+        // coordinate-refinement arithmetic against the cached key costs a few
+        // flops per level and skips the per-level container find()s that
+        // dominate the descent.  A miss falls through to the verbatim
+        // single-point walk below (owner()+find()+Future -- no const_accessor,
+        // which doubles NUMA descent cost).  Leaves partition the domain and
+        // interior nodes of a reconstructed function hold no coeffs, so a
+        // translation match at the cached level identifies exactly the leaf the
+        // scalar descent would have stopped at: results are bit-for-bit
+        // identical to the single-point overload.  No fence intervenes within a
+        // call, so the cached node cannot be invalidated mid-call.
+        bool have_cache = false;
+        keyT cached_key;
+        tensorT cached_c;
+
+        for (std::size_t ip=0; ip<npt; ++ip) {
+            results[ip] = std::pair<bool,T>(false, T(0));
+
+            if (have_cache) {
+                Vector<double,NDIM> x = xin[ip];
+                Vector<Translation,NDIM> l;
+                for (std::size_t i=0; i<NDIM; ++i) l[i] = 0;
+                const Level nl = cached_key.level();
+                for (Level nn=0; nn<nl; ++nn) {
+                    for (std::size_t i=0; i<NDIM; ++i) {
+                        double xi = x[i]*2.0;
+                        int li = int(xi);
+                        if (li == 2) li = 1;
+                        x[i] = xi - li;
+                        l[i] = 2*l[i] + li;
+                    }
+                }
+                bool same = true;
+                const Vector<Translation,NDIM>& lc = cached_key.translation();
+                for (std::size_t i=0; i<NDIM; ++i) same = same && (l[i] == lc[i]);
+                if (same) {
+                    results[ip] = std::pair<bool,T>(true, eval_cube(nl, x, cached_c));
+                    continue;
+                }
+            }
+
+            // Verbatim single-point descent (keep in sync with the scalar
+            // overload above).
+            Vector<double,NDIM> x = xin[ip];
+            keyT key(0);
+            Vector<Translation,NDIM> l = key.translation();
+            while (key.level() <= maxlevel) {
+                if (coeffs.owner(key) == me) {
+                    typename dcT::futureT fut = coeffs.find(key);
+                    typename dcT::iterator it = fut.get();
+                    if (it != coeffs.end()) {
+                        nodeT& node = it->second;
+                        if (node.has_coeff()) {
+                            cached_key = key;
+                            cached_c = node.coeff().full_tensor();
+                            have_cache = true;
+                            results[ip] = std::pair<bool,T>(true,
+                                eval_cube(key.level(), x, cached_c));
+                            break;
+                        }
+                    }
+                }
+                for (std::size_t i=0; i<NDIM; ++i) {
+                    double xi = x[i]*2.0;
+                    int li = int(xi);
+                    if (li == 2) li = 1;
+                    x[i] = xi - li;
+                    l[i] = 2*l[i] + li;
+                }
+                key = keyT(key.level()+1,l);
+            }
+        }
+    }
+
+    template <typename T, std::size_t NDIM>
+    std::vector<std::pair<bool,T>>
+    FunctionImpl<T,NDIM>::eval_local_only(const std::vector<Vector<double,NDIM>>& xin, Level maxlevel) {
+        std::vector<std::pair<bool,T>> results(xin.size(), std::pair<bool,T>(false,T(0)));
+        eval_local_only(xin.data(), xin.size(), maxlevel, results.data());
+        return results;
     }
 
     template <typename T, std::size_t NDIM>

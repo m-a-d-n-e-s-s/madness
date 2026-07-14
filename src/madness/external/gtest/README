@@ -1,7 +1,0 @@
-The original source of gtest 1.7.0 including its LICENSE file is
-provided in the zip file.
-
-This file was unzipped and the src and include directory trees copied
-into this directory.  Also src/gtest-all.cc was copied into this
-directory.  This same recipe should hopefully work for future
-versions.

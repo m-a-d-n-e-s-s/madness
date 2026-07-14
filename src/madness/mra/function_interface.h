@@ -192,6 +192,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
 	public:
 
+		using FunctionFunctorInterface<T,NDIM>::operator();
+
 		/// constructor takes its Factory
 		CompositeFunctorInterface(World& world, std::vector<pimplT> ket, pimplT g12,
 				pimplL v1, pimplL v2, std::vector<pimplL> p1, std::vector<pimplL> p2)
@@ -276,6 +278,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
         typedef GenTensor<T> coeffT;
 
+        using FunctionFunctorInterface<T,NDIM>::operator();
+
 		T (*f)(const coordT&);
 
 		ElementaryInterface(T (*f)(const coordT&)) : f(f) {}
@@ -297,6 +301,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
         typedef GenTensor<T> coeffT;
 
+        using FunctionFunctorInterface<T,NDIM>::operator();
+
         opT op;
 
         FunctorInterface(const opT& op) : op(op) {}
@@ -314,6 +320,9 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         const opT op;
 
     public:
+
+        using FunctionFunctorInterface<T,NDIM>::operator();
+
         FunctionInterface(const opT& op) : op(op) {}
 
         T operator()(const coordT& coord) const {return op(coord);}
@@ -334,6 +343,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     protected:
         static constexpr std::size_t LDIM=NDIM/2;
 	public:
+
+		using FunctionFunctorInterface<T,NDIM>::operator();
 
 		typedef GenTensor<T> coeffT;
 

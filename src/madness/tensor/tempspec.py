@@ -35,6 +35,21 @@ for t,q in transform_typelist:
     f.write("template Tensor<TensorResultType<%s,%s>::type> general_transform(const Tensor<%s>& t, const Tensor<%s> c[]);\n" % (t,q,t,q))
     f.write("template Tensor<TensorResultType<%s,%s>::type>& fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, Tensor< TensorResultType<%s,%s>::type >& result, Tensor< TensorResultType<%s,%s>::type >& work);\n" % (t,q,t,q,t,q,t,q))
 
+# general_fast_transform lowers through mTxmq, so it is only valid where
+# TENSOR_RESULT_TYPE(t,q) == t (the matrix type q does not promote the
+# result past the tensor type t). This excludes the real-tensor x
+# complex-matrix pairs in transform_typelist, which the eval path never
+# uses and which can hit a missing cblas mixed-type gemm under MKL.
+general_fast_transform_typelist = [["double", "double"],
+                                   ["float", "float"],
+                                   ["double_complex", "double_complex"],
+                                   ["float_complex", "float_complex"],
+                                   ["double_complex", "double"],
+                                   ["float_complex", "float"]]
+
+f.write("\n// Instantiations for general_fast_transform\n")
+for t,q in general_fast_transform_typelist:
+    f.write("template Tensor<TensorResultType<%s,%s>::type>& general_fast_transform(const Tensor<%s>& t, const Tensor<%s>* c, Tensor< TensorResultType<%s,%s>::type >& result, Tensor< TensorResultType<%s,%s>::type >& workspace);\n" % (t,q,t,q,t,q,t,q))
 
 f.write("\n// Instantiations only for complex types\n")
 for t in complex_typelist:

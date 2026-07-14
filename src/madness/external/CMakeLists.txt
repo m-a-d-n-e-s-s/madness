@@ -1,8 +1,8 @@
 # src/madness/external
 
-if(BUILD_TESTING)
-  add_subdirectory(gtest)
-endif()
+# NOTE: gtest is no longer bundled here; the MADgtest target is provided by
+# cmake/modules/FindOrFetchGTest.cmake (included from the top-level CMakeLists
+# under BUILD_TESTING).
 
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
   add_subdirectory(muParser)

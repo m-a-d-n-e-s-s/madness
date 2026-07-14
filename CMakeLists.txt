@@ -714,6 +714,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 include(CTest)
 if(BUILD_TESTING)
   set(MADNESS_HAS_GOOGLE_TEST 1)
+  include(FindOrFetchGTest)  # provides the MADgtest target (discover-or-fetch)
   add_custom_target_subproject(madness unittests)
   add_custom_target_subproject(madness scripted_tests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible

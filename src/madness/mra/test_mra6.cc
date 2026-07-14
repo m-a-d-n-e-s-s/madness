@@ -49,7 +49,7 @@ using madness::_reverse;
 
 #include <iostream>
 #include <gtest/gtest.h>
-#include <tr1/tuple>
+#include <tuple>
 
 namespace {
 
@@ -84,7 +84,7 @@ namespace {
     }
 
 
-    class UnaryGenTest : public ::testing::TestWithParam<std::tr1::tuple<
+    class UnaryGenTest : public ::testing::TestWithParam<std::tuple<
     		::madness::TensorType, long, double, TensorFill> > {
     public:
     	std::vector<long> dim;
@@ -101,11 +101,11 @@ namespace {
 			madness::Random::Random(100);
             int alldim= (madness::RandomValue<long>()&0x5) + 3;
 
-            tt=std::tr1::get<0>(this->GetParam());
-            long ndim=std::tr1::get<1>(this->GetParam());
-            eps=std::tr1::get<2>(this->GetParam());
+            tt=std::get<0>(this->GetParam());
+            long ndim=std::get<1>(this->GetParam());
+            eps=std::get<2>(this->GetParam());
 
-            fill0=std::tr1::get<3>(this->GetParam());
+            fill0=std::get<3>(this->GetParam());
             dim=std::vector<long>(ndim,alldim);
 
     		// fill the full tensors t0 and t1 with numbers that will yield certain ranks
@@ -115,7 +115,7 @@ namespace {
     	}
     };
 
-    class BinaryGenTest : public ::testing::TestWithParam<std::tr1::tuple<
+    class BinaryGenTest : public ::testing::TestWithParam<std::tuple<
     		::madness::TensorType, long, double, TensorFill, TensorFill> > {
     public:
     	std::vector<long> dim;
@@ -135,12 +135,12 @@ namespace {
         BinaryGenTest() {
             int alldim= (madness::RandomValue<long>()&0x5) + 3;
 
-            tt=std::tr1::get<0>(this->GetParam());
-            long ndim=std::tr1::get<1>(this->GetParam());
-            eps=std::tr1::get<2>(this->GetParam());
+            tt=std::get<0>(this->GetParam());
+            long ndim=std::get<1>(this->GetParam());
+            eps=std::get<2>(this->GetParam());
 
-            fill0=std::tr1::get<3>(this->GetParam());
-            fill1=std::tr1::get<4>(this->GetParam());
+            fill0=std::get<3>(this->GetParam());
+            fill1=std::get<4>(this->GetParam());
             dim=std::vector<long>(ndim,alldim);
 
     		// fill the full tensors t0 and t1 with numbers that will yield certain ranks
@@ -154,14 +154,14 @@ namespace {
     	}
     };
 
-    INSTANTIATE_TEST_CASE_P(UnaryGenTest,UnaryGenTest,
+    INSTANTIATE_TEST_SUITE_P(UnaryGenTest,UnaryGenTest,
     				::testing::Combine(::testing::Values(::madness::TT_FULL, ::madness::TT_2D),
     								   ::testing::Values(2,4,6),
     								   ::testing::Values(1.e-3, 1.e-4, 1.e-5),
      								   ::testing::Values(null,index,random)
     ));
 
-    INSTANTIATE_TEST_CASE_P(BinaryGenTest,BinaryGenTest,
+    INSTANTIATE_TEST_SUITE_P(BinaryGenTest,BinaryGenTest,
     				::testing::Combine(::testing::Values(::madness::TT_FULL, ::madness::TT_2D),
     								   ::testing::Values(2l,4l),
     								   ::testing::Values(1.e-3, 1.e-4, 1.e-5),
@@ -429,7 +429,7 @@ namespace {
 
     // let's keep construction as a typed test so that at least compiling will always work
     typedef ::testing::Types<float, double, float_complex, double_complex> GenTensorTestTypes;
-    TYPED_TEST_CASE(GenTensorTest, GenTensorTestTypes);
+    TYPED_TEST_SUITE(GenTensorTest, GenTensorTestTypes);
 
     TYPED_TEST(GenTensorTest, Construction) {
         for (int ndim=0; ndim<=TENSOR_MAXDIM; ndim+=2) {	// even number of dimensions only

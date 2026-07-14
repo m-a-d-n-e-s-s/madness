@@ -97,7 +97,7 @@ namespace {
     template <typename T> T* TensorTest<T>::move_test_ptr;
 
     typedef ::testing::Types<int, long, float, double, float_complex, double_complex> TensorTestTypes;
-    TYPED_TEST_CASE(TensorTest, TensorTestTypes);
+    TYPED_TEST_SUITE(TensorTest, TensorTestTypes);
 
     TYPED_TEST(TensorTest, Basic) {
         for (int ndim=1; ndim<=TENSOR_MAXDIM; ++ndim) {

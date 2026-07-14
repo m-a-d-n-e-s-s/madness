@@ -294,6 +294,61 @@ namespace madness {
             return impl->eval_local_only(xsim,maxlevel);
         }
 
+        /// Batched eval_local_only writing into a caller-provided buffer.
+
+        /// Resizes results to xuser.size() (reusing its capacity) and stores one
+        /// (local?,value) pair per input point, in input order: (true,value) if
+        /// the point is owned locally, otherwise (false,0.0).
+        /// Consecutive points that fall in the same leaf box share that box's
+        /// descent and coefficient fetch (last-box memoization), so spatially
+        /// coherent point streams (quadrature grids) amortise the per-point
+        /// tree descent.  Results are bit-for-bit identical to calling the
+        /// single-point eval_local_only on each point.  No communications, and
+        /// no per-call heap allocation once results has capacity.
+        ///
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be
+        /// computed with max_local_depth();
+        void eval_local_only(const std::vector<coordT>& xuser, Level maxlevel,
+                             std::vector<std::pair<bool,T>>& results) const {
+            const double eps=1e-15;
+            verify();
+            MADNESS_ASSERT(is_reconstructed());
+            thread_local std::vector<coordT> xsim;
+            xsim.resize(xuser.size());
+            for (std::size_t ip=0; ip<xuser.size(); ++ip) {
+                coordT xs;
+                user_to_sim(xuser[ip],xs);
+                // If on the boundary, move the point just inside the volume so the
+                // evaluation logic does not fail (matches the single-point path).
+                for (std::size_t d=0; d<NDIM; ++d) {
+                    if (xs[d] < -eps) {
+                        MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                    }
+                    else if (xs[d] < eps) {
+                        xs[d] = eps;
+                    }
+
+                    if (xs[d] > 1.0+eps) {
+                        MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                    }
+                    else if (xs[d] > 1.0-eps) {
+                        xs[d] = 1.0-eps;
+                    }
+                }
+                xsim[ip] = xs;
+            }
+            results.resize(xuser.size());
+            impl->eval_local_only(xsim.data(), xsim.size(), maxlevel, results.data());
+        }
+
+        /// Batched eval_local_only returning a fresh vector (see the
+        /// output-parameter overload above for semantics).
+        std::vector<std::pair<bool,T>> eval_local_only(const std::vector<coordT>& xuser, Level maxlevel) const {
+            std::vector<std::pair<bool,T>> results;
+            eval_local_only(xuser, maxlevel, results);
+            return results;
+        }
+
         /// Only the invoking process will receive the result via the future
         /// though other processes may be involved in the evaluation.
         ///
@@ -607,6 +662,11 @@ namespace madness {
 
 
         /// Returns the maximum local depth of the function tree ... no communications
+
+        /// This is the value to pass as \c maxlevel to eval_local_only: it bounds the
+        /// descent to the deepest leaf actually held on this rank.  Passing a larger
+        /// bound (e.g. Level::max()) only makes a missing/remote point descend through
+        /// empty levels doing owner() checks that never match -- pure overhead.
         std::size_t max_local_depth() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0;
@@ -2126,8 +2186,9 @@ namespace madness {
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
 
+        TreeState operating_state=left.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
         // no compression for high-dimensional functions
-        if (NDIM==6) {
+        if (operating_state==reconstructed) {
             left.reconstruct();
             right.reconstruct();
             return gaxpy_oop_reconstructed(1.0,left,1.0,right,true);

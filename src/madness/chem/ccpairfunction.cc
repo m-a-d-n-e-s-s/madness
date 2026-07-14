@@ -201,11 +201,22 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(c
         if (op_pure[opint].size()>0) {
             auto op=ops[opint];
             if (op_pure[opint].size()>1) {
-                // Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
-                // tmp.fill_tree();
-                Tensor<double> c(op_pure[opint].size(),1);
-                c=1.0;
-                Function<T,NDIM> tmp=transform_reconstructed(world, op_pure[opint],c,true)[0];
+                // sum same-type pure terms with the SAME primitive as direct addition
+                // (operator+ -> gaxpy_oop_reconstructed) so that consolidate is byte-for-byte
+                // equivalent to direct addition; transform_reconstructed uses a different
+                // reconstructed-summation algorithm (redundant merge + sum_down) that diverges
+                // from direct addition for TT_2D.
+                // sum same-type pure terms with the SAME primitive as direct addition
+                // (operator+ == gaxpy_oop_reconstructed with fence=true), so consolidate is
+                // byte-for-byte equivalent to direct addition. The fence per term is required:
+                // this is a sequentially dependent accumulation (each add consumes the previous
+                // result), and an unfenced gaxpy_oop_reconstructed traverses its operands'
+                // trees immediately -- so the previous, not-yet-materialized result would be
+                // dereferenced through a raw CoeffTracker pointer and segfault at the fence.
+                change_tree_state(op_pure[opint],reconstructed);
+                Function<T,NDIM> tmp=copy(op_pure[opint].front());
+                for (size_t i=1; i<op_pure[opint].size(); ++i)
+                    tmp=gaxpy_oop_reconstructed(1.0,tmp,1.0,op_pure[opint][i],true);
                 result.push_back(CCPairFunction<T,NDIM>(op,tmp));
             } else {
                 MADNESS_CHECK_THROW(op_pure[opint].size()==1,"op_pure[opint].size()!=1");

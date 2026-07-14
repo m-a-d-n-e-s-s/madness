@@ -109,7 +109,7 @@ namespace {
 
     // Set types use in tests
     typedef ::testing::Types<int, int*, std::shared_ptr<int>, C> MyTypes;
-    TYPED_TEST_CASE(StackTest, MyTypes);
+    TYPED_TEST_SUITE(StackTest, MyTypes);
 
     TYPED_TEST(StackTest, DefaultConstructor) {
         typedef typename StackTest<gtest_TypeParam_>::Stack_ Stack_;

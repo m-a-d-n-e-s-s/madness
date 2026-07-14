@@ -419,7 +419,7 @@ namespace madness {
             FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
 
     	    auto tmp=hartree_product(left,right);
-    	    tmp.truncate(thresh*0.3);
+    	    tmp.truncate(tight_thresh);
 
             FunctionDefaults<2*NDIM>::set_thresh(thresh);
             Function<T, 2 * NDIM> result = copy(f);
