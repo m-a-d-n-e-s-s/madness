@@ -90,7 +90,14 @@ struct lbcost {
 
     double operator()(const Key<NDIM>& key, const FunctionNode<T, NDIM>& node) const {
         if (key.level() < 1) {
-            return 100.0 * (leaf_value + parent_value);
+            // Root (level 0) is a structural catch-all node with no real work; cost it like an ordinary
+            // node. The old 100x amplification here was accumulated once per function by add_tree, so
+            // key0's cost grew as ~100*(leaf+parent)*n_funcs. On many-light-function balances (e.g. the
+            // kinetic-energy matrix over n orbital trees) that made key0 the largest "subtree": the
+            // bin-packer assigned it to one rank and, seeing that rank as most-loaded, starved it of real
+            // work -> one idle rank (a flat 1/nproc loss). Costing the root normally fixes it; results are
+            // bit-identical (only tree ownership changes).
+            return leaf_value + parent_value;
         } else if (node.is_leaf()) {
             return leaf_value;
         } else {
