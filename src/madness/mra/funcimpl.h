@@ -54,6 +54,9 @@
 #include <iostream>
 #include <type_traits>
 #include <cstdlib>
+#include <atomic>
+#include <ctime>
+#include <cstdint>
 
 namespace madness {
 
@@ -70,6 +73,34 @@ namespace madness {
 
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
+
+    // --- differentiation fetch-serving profiler (MAD_DIFF_PROFILE), measurement only ---
+    // sock_it_to_me() is the neighbor-coeff *server* for the derivative's find_neighbor(); it lives in
+    // FunctionImpl, not the Derivative operator, so its serving CPU cannot go in DerivativeBase's
+    // per-<T,NDIM> statics. It is accumulated here (thread-CPU, ns, CLOCK_THREAD_CPUTIME_ID, same clock
+    // as the operator buckets) and folded into DerivativeBase::dp_report so "useful CPU" = operator CPU +
+    // serving CPU, and idle = wall*threads - useful. One global set is unambiguous because the profiler
+    // is only ever read across a single fenced differentiate window (dp_reset .. dp_report).
+    namespace diffprof {
+        inline bool serve_enabled = (std::getenv("MAD_DIFF_PROFILE") != nullptr);
+        inline std::atomic<std::uint64_t> serve_ns{0};   ///< sock_it_to_me body thread-CPU
+        inline std::atomic<std::uint64_t> serve_n{0};    ///< sock_it_to_me invocation count
+        // Neighbor-fetch RESOLUTION classification (halo-redesign sizing), counted in sock_it_to_me on
+        // the SERVING side. Clean because sock_it_to_me fires only for real fetches, never for the
+        // descent's task-arg-passed parent coeffs (which would look like walk-ups at do_diff2 but are
+        // not fetches). Each call is exactly one of the three below, so hit_leaf+hit_interior+miss_fwd
+        // == serve_n. Cases (see kemat_redesign.md §3.1): (a) same-level leaf, (b) refine-down/interior,
+        // (c) walk-up/prolong. A walk-up chain = k>=1 miss_fwd hops ending in one hit_leaf, so
+        // #walk-up-fetches == #chains <= miss_fwd (equality when chains are one level).
+        inline std::atomic<std::uint64_t> serve_hit_leaf{0};       ///< probe hit + coeff: same-level(a) or walk-up terminal(c)
+        inline std::atomic<std::uint64_t> serve_hit_interior{0};   ///< probe hit + no coeff: refine-down (b)
+        inline std::atomic<std::uint64_t> serve_miss_fwd{0};       ///< probe miss -> forward to parent: walk-up hop (c)
+        inline std::atomic<std::uint64_t> serve_miss_fwd_remote{0};///< walk-up hop whose parent is off-rank (fallback-pull residual)
+        inline std::uint64_t serve_ticks() {
+            struct timespec ts; clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+            return (std::uint64_t)ts.tv_sec * 1000000000ull + (std::uint64_t)ts.tv_nsec;
+        }
+    }
 
     template<typename T, std::size_t NDIM>
     class FunctionImpl;
@@ -1016,10 +1047,39 @@ template<size_t NDIM>
 
         dcT coeffs; ///< The coefficients
 
+        // --- neighbor halo (KE-matrix differentiate redesign, Variant B; gated by MAD_KEMAT_HALO in
+        //     SCF::kinetic_energy_matrix). Pre-staged REMOTE same-level neighbor coeffs so the derivative
+        //     operator's find_neighbor() serves them locally instead of a cross-rank sock_it_to_me.
+        //     Value: has_data() => leaf (case a); empty => interior marker (case b, triggers descent);
+        //     absent => walk-up (case c) => find_neighbor falls back to the pull. See kemat_redesign.md §9.
+        //     mutable: populated/read via const paths (like sock_it_to_me). Built and read across a fence,
+        //     so concurrent access is inserts-only (worker tasks) then reads-only (diff) -> lock-free.
+        mutable ConcurrentHashMap<keyT, coeffT> neighbor_halo_;
+        mutable bool neighbor_halo_enabled_ = false;
+
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
+        // --- neighbor halo API (Variant B); all const (modify mutable members), like sock_it_to_me ---
+        void halo_enable()  const { neighbor_halo_enabled_ = true; }
+        bool halo_enabled() const { return neighbor_halo_enabled_; }
+        void halo_clear()   const { neighbor_halo_enabled_ = false; neighbor_halo_.clear(); }
+        /// AM handler: insert pushed neighbor nodes into the local halo (runs as a worker-thread task).
+        void receive_halo(const std::vector<std::pair<keyT,coeffT> >& buf) const {
+            for (const auto& kv : buf) {
+                typename ConcurrentHashMap<keyT,coeffT>::accessor acc;
+                (void) neighbor_halo_.insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+        /// probe the halo; on hit copy the coeff (empty for an interior marker) and return true.
+        bool halo_probe(const keyT& key, coeffT& out) const {
+            typename ConcurrentHashMap<keyT,coeffT>::const_accessor acc;
+            if (neighbor_halo_.find(acc, key)) { out = acc->second; return true; }
+            return false;
+        }
+
         Timer timer_accumulate;
         Timer timer_change_tensor_type;
         Timer timer_lr_result;

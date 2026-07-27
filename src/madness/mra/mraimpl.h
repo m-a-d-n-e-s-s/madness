@@ -945,15 +945,22 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
         typedef std::pair<keyT,coeffT> argT;
-        for (const auto& [key, node]: f->coeffs) {
-            if (node.has_coeff()) {
-                Future<argT> left  = D->find_neighbor(f, key,-1);
-                argT center(key,node.coeff());
-                Future<argT> right = D->find_neighbor(f, key, 1);
-                world.taskq.add(*this, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
-            }
-            else {
-                coeffs.replace(key,nodeT(coeffT(),true)); // Empty internal node
+        if (D->parallel_submit_) {
+            // Conjecture 1: spawn the do_diff1 tasks in parallel across the task pool (identical tasks,
+            // only the submission loop is parallelized). See DerivativeBase::submit_diff_tasks.
+            D->submit_diff_tasks(f, this);
+        }
+        else {
+            for (const auto& [key, node]: f->coeffs) {
+                if (node.has_coeff()) {
+                    Future<argT> left  = D->find_neighbor(f, key,-1);
+                    argT center(key,node.coeff());
+                    Future<argT> right = D->find_neighbor(f, key, 1);
+                    world.taskq.add(*this, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                }
+                else {
+                    coeffs.replace(key,nodeT(coeffT(),true)); // Empty internal node
+                }
             }
         }
         if (fence) world.gop.fence();
@@ -2985,15 +2992,26 @@ namespace madness {
     void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key,
                                              const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
+        // serving-side thread-CPU for the differentiation profiler (MAD_DIFF_PROFILE); one bucket per
+        // sock_it_to_me body (a tree-walk-up forward counts its own issue cost; the forwarded call is
+        // timed separately when it runs). See diffprof in funcimpl.h.
+        const bool sp = diffprof::serve_enabled;
+        std::uint64_t st0 = sp ? diffprof::serve_ticks() : 0;
+        struct ServeGuard {
+            bool on; std::uint64_t t0;
+            ~ServeGuard() { if (on) { diffprof::serve_ns += (diffprof::serve_ticks()-t0); ++diffprof::serve_n; } }
+        } _sg{sp, st0};
         if (coeffs.probe(key)) {
             const nodeT& node = coeffs.find(key).get()->second;
             Future< std::pair<keyT,coeffT> > result(ref);
             if (node.has_coeff()) {
                 //madness::print("sock found it with coeff",key);
+                if (sp) ++diffprof::serve_hit_leaf;        // (a) same-level leaf or (c) walk-up terminal
                 result.set(std::pair<keyT,coeffT>(key,node.coeff()));
             }
             else {
                 //madness::print("sock found it without coeff",key);
+                if (sp) ++diffprof::serve_hit_interior;    // (b) refine-down: interior node, returns empty
                 result.set(std::pair<keyT,coeffT>(key,coeffT()));
             }
         }
@@ -3001,10 +3019,14 @@ namespace madness {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
             //PROFILE_BLOCK(sitome_send); // Too fine grain for routine profiling
-	    if (coeffs.is_local(parent)) 
+	    if (coeffs.is_local(parent)) {
+	      if (sp) ++diffprof::serve_miss_fwd;            // (c) walk-up hop, local forward
 	      woT::send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
-	    else
+	    }
+	    else {
+	      if (sp) { ++diffprof::serve_miss_fwd; ++diffprof::serve_miss_fwd_remote; }  // (c) cross-rank forward
 	      woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
+	    }
         }
     }
 
