@@ -53,8 +53,21 @@
 #include <array>
 #include <iostream>
 #include <type_traits>
+#include <cstdlib>
 
 namespace madness {
+
+    /// Gate for the up-front single-owner redistribution of the BSH-apply operand
+    /// (opt-in via env MAD_BSH_REDIST, read once; default off -> unchanged behavior).
+    /// When on, SCF::apply_bsh_macrotask redistributes each operand function onto a
+    /// single owner rank up front so the macrotask auto_copy becomes a single-owner
+    /// fetch (see copy_coeffs_different_world). Proof-of-concept: the redistribute is
+    /// slated to be replaced by an allgather collective.
+    inline bool bsh_redist_on() {
+        static const bool e = [](){ const char* s = std::getenv("MAD_BSH_REDIST"); return s && std::atoi(s) != 0; }();
+        return e;
+    }
+
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
 
@@ -1171,8 +1184,15 @@ template<size_t NDIM>
 
             // copy coeffs from (a subset of) other's world
 
+            // if other's whole tree lives on one rank (single-owner pmap), fetch
+            // only from that owner: one blob instead of an all-ranks poll whose N-1
+            // empty round-trips would otherwise queue behind the owner's compute.
+            const ProcessID single_owner = other.get_pmap()->single_owner();
+            if (single_owner >= 0) {
+                copy_remote_coeffs_from_pid<Q>(single_owner, other);
+
             // if other's data is distributed, we need to fetch from all ranks
-            if (other.get_coeffs().is_distributed()) {
+            } else if (other.get_coeffs().is_distributed()) {
                 for (ProcessID pid=0; pid<other.world.size(); ++pid) {
                     copy_remote_coeffs_from_pid<Q>(pid, other);
                 }

@@ -1747,6 +1747,15 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
         const CalculationParameters&> argtupleT;
         using resultT = std::vector<real_function_3d>;
 
+        // A' proof-of-concept (MAD_BSH_REDIST): pin the task for function j to slot
+        // j % nsubworld, matching the up-front redistribute of Vpsi[j] to rank j%N.
+        // The framework then runs the task on that rank (static owner path) so the
+        // auto_copy fetches the single-owner operand locally. -1 => dynamic (default).
+        long owner_hint(const madness::Batch& batch, const long nsubworld) const {
+            if (!madness::bsh_redist_on() || nsubworld <= 0) return -1;
+            return batch.input[0].begin % nsubworld;
+        }
+
         // called in the universe (full argtuple -> full-size result) and in each subworld
         // (batched argtuple -> batch-size result); sizing from the input vector fits both.
         resultT allocator(World &world, const argtupleT &argtuple) const {
@@ -1800,13 +1809,46 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
     // subworlds; framework-handled auto_copy). preset() is a no-op stub -> set_policy().
     factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
     const long nw = plan.nworld > 0 ? plan.nworld : param.bsh_apply_nworld();
-    if (nw > 0) factory.set_nworld(nw);
+    // A' proof-of-concept: the static owner path needs one subworld per rank
+    // (nsubworld == nranks) so owner_hint slot j%N maps to rank j%N.
+    if (bsh_redist_on()) factory.set_nworld(world.size());
+    else if (nw > 0) factory.set_nworld(nw);
     // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
     // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
     if (param.print_level() >= 10) factory.set_printlevel(5);
     MacroTask macrotask(world, apply_task, factory);
     const bool instr = param.print_level() >= 10;
     const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
+    // A' proof-of-concept: redistribute Vpsi so function j lands entirely on rank j%N
+    // (its owner-pinned subworld). Done UP FRONT -- no convolution running -- so the
+    // data movement runs at transport speed, and the subsequent auto_copy becomes a
+    // single local fetch (see copy_coeffs_different_world single-owner branch).
+    // redistribute() streams (erase-after-send), so peak stays ~S/N per rank.
+    if (bsh_redist_on()) {
+        const long N = std::max<long>(1, world.size());
+        const double t0 = wall_time();
+        // copy(f, pmap) gives each function its OWN single-owner pmap instance and moves
+        // its nodes to rank j%N (unlike distribute(), which moves ALL functions sharing
+        // the default pmap together -> whole-vector-to-one-rank bug). fence=false batches
+        // every function's node moves into one collective fence.
+        vecfuncT Vpsi_owned(Vpsi.size());
+        for (size_t j = 0; j < Vpsi.size(); ++j) {
+            auto pmap = std::shared_ptr<WorldDCPmapInterface<Key<3>>>(
+                new WorldDCSingleOwnerPmap<Key<3>>(ProcessID(long(j) % N)));
+            Vpsi_owned[j] = copy(Vpsi[j], pmap, false);
+        }
+        world.gop.fence();
+        Vpsi = Vpsi_owned;                 // hand the owner-localized operand to the macrotask
+        world.gop.fence();                 // release the originals before compute
+        const double t1 = wall_time();
+        if (instr) {
+            double rss = madness::get_rss_usage_in_GB();
+            world.gop.max(rss);
+            if (world.rank() == 0)
+                printf("  [BSH redistribute: Vpsi -> single-owner (%zu funcs) in %.2fs | peakRSS max=%.2fGB/rank]\n",
+                       Vpsi.size(), t1 - t0, rss);
+        }
+    }
     vecfuncT new_psi = macrotask(Vpsi, eps, param);
     Vpsi.clear();
     world.gop.fence();

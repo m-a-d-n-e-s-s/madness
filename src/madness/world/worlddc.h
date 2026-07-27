@@ -43,6 +43,7 @@
 #include <functional>
 #include <set>
 #include <unordered_set>
+#include <cstdlib>
 
 
 #include <madness/world/parallel_archive.h>
@@ -144,6 +145,14 @@ namespace madness
             return Distributed;
         }
 
+        /// If every key maps to a single rank, return that rank; else -1.
+        /// Lets cross-world copy fetch from one owner instead of polling all ranks
+        /// (see FunctionImpl::copy_coeffs_different_world). Default: not single-owner.
+        virtual ProcessID single_owner() const
+        {
+            return -1;
+        }
+
         /// Registers object for receipt of redistribute callbacks
 
         /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
@@ -168,7 +177,11 @@ namespace madness
         /// @param[in] newpmap The new process map
         void redistribute(World &world, const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
         {
-            print_data_sizes(world, "before redistributing");
+            // print_data_sizes is a collective (fence + global_size + gop.sum + I/O);
+            // unconditionally it makes per-container redistribute() pathological when
+            // called in a loop. Gate behind MAD_REDIST_VERBOSE (default off).
+            static const bool redist_verbose = [](){ const char* s = std::getenv("MAD_REDIST_VERBOSE"); return s && std::atoi(s) != 0; }();
+            if (redist_verbose) print_data_sizes(world, "before redistributing");
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -193,7 +206,7 @@ namespace madness
             }
             world.gop.fence();
             ptrs.clear();
-            newpmap->print_data_sizes(world, "after redistributing");
+            if (redist_verbose) newpmap->print_data_sizes(world, "after redistributing");
         }
 
         /// Counts global number of entries in all containers associated with this process map
@@ -286,6 +299,25 @@ namespace madness
         {
             return RankReplicated;
         }
+    };
+
+    /// A pmap that places every key on one fixed rank (all ranks agree on the owner).
+    ///
+    /// Used to redistribute a function's whole tree onto a single owner rank so a
+    /// cross-world copy is a single (local, if owner==me) fetch rather than an
+    /// all-ranks poll. Stays `Distributed`; single-owner-ness is exposed via
+    /// single_owner() for copy_coeffs_different_world.
+    /// \ingroup worlddc
+    template <typename keyT>
+    class WorldDCSingleOwnerPmap : public WorldDCPmapInterface<keyT>
+    {
+    private:
+        ProcessID owner_;
+
+    public:
+        WorldDCSingleOwnerPmap(ProcessID owner) : owner_(owner) {}
+        ProcessID owner(const keyT & /*key*/) const override { return owner_; }
+        ProcessID single_owner() const override { return owner_; }
     };
 
     /// node-replicated map will return the lowest rank on the node as owner
