@@ -6,11 +6,11 @@ companion to the general driver guide ([`README.md`](README.md)); for the engine
 and its current capability matrix see
 [`../molresponse/README.md`](../molresponse/README.md).
 
-> **Engines.** `madqc --wf=response` has two response engines. `engine v2`
-> (default) is the production path; `engine v3` is the next-generation unified
-> solver (opt-in). The recipes below target **v3**; set `engine v2` to use the
-> production engine. Validate new results against v2 (same input → matching
-> `calc_info.json`).
+> **Engine.** `madqc --wf=response` runs the unified **molresponse_v3** engine —
+> it is the default and the only engine (the older `engine v2` / MolresponseLib
+> was removed; a deck that still names it errors out). The recipes below target
+> v3; no engine line is needed. See
+> [`../molresponse/MIGRATION_FROM_V2.md`](../molresponse/MIGRATION_FROM_V2.md).
 
 ---
 

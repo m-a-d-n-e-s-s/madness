@@ -79,3 +79,24 @@ only (no SCF path). A real parallel story needs:
 - `best_usable_fd_source_key` — single source of truth for restart selection.
 - The subworld fan-out layer (doc 32) — `DisplacementDriver`'s displaced solves
   are exactly the independent-states pattern it distributes.
+
+## CC2 / OEP / TDHF chaining — the deferred review finding
+
+The pre-release review flagged that CC2/TDHF/OEP **chaining** (feeding one method's
+result into the next) still rides the build-time `shared_ptr` side-channel rather
+than a typed interface. This is deliberately **out of the response path** and is
+**design work, not a response-release bug**:
+
+- **The response path is immune.** The response driver reloads its ground state
+  from the on-disk archive via the adapter, so it never depends on the fragile
+  in-memory handoff; a response run is unaffected regardless of chaining.
+- **The fix is StepContext (change 1 above), applied to CC2/OEP.** CC2, OEP, and
+  TDHF would migrate off the hidden `reference->calc()` capture exactly as the
+  response driver does: obtain the `reference`/`molecule` from the `StepContext`
+  the workflow threads task-to-task, and publish their own outputs into it for the
+  next stage. No new mechanism is needed — StepContext already carries the named
+  artifacts (`molecule`, `reference`, `archives`) these methods hand off.
+- **Scope.** Implementing this belongs to the madqc chaining workstream (this
+  roadmap), not the molresponse response release. It is recorded here as the
+  design that closes the finding; the code lands when the chaining workstream is
+  taken up.

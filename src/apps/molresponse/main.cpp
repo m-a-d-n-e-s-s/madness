@@ -11,7 +11,7 @@
 
 #include "orchestrator/response_workflow.hpp"
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>

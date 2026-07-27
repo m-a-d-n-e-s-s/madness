@@ -5,7 +5,7 @@
 // Stage 1): identical semantics, but namespaced and without the v2 header's
 // global-scope `using` declarations.
 
-#include <nlohmann/json.hpp>
+#include "madness/external/nlohmann_json/json.hpp"
 #include <fstream>
 #include <madness/world/world.h>
 #include <sstream>

@@ -31,7 +31,8 @@
 #include <madness/chem/ParameterManager.hpp>   // Params
 #include <madness/chem/ResponseParameters.hpp>
 #include <madness/chem/SCF.h>
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
+#include <madness/world/worldprofile.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -155,8 +156,12 @@ struct molresponse_v3_lib {
       add(r);
     }
 
-    // 3. Build the workflow input + settings; run the archive-free core.
+    // 3. Build the workflow input + settings; run the core with the ground
+    //    state already loaded. archive_file is still passed through: the GS
+    //    fingerprint gate hashes it (restart safety), and the F2 subworld
+    //    fan-out needs it to load per-subworld ground states.
     ResponseWorkflowInput in;
+    in.archive_file = archive;
     in.protocols = protocol;
     in.plan = merge_plans(plans);
     // excited.tda=false → Full (X,Y) ES bundle (default TDA).
@@ -169,6 +174,31 @@ struct molresponse_v3_lib {
     // above to resolve the ground archive relative to this cwd.)
     in.settings.calc_dir = ".";
     in.settings.max_iters = static_cast<int>(rp.maxiter());
+    // Deck `subworlds N` -> the F2 state-parallel fan-out (same path as the
+    // standalone --fd-subworlds flag; archive_file above makes it live).
+    in.settings.fd_subworlds = std::max(0, rp.subworlds());
+    if (world.rank() == 0 && in.settings.fd_subworlds > 0) {
+      print("response: deck subworlds =", in.settings.fd_subworlds,
+            "(F2 state-parallel fan-out requested)");
+      // Review io HIGH (early warning, not a hard gate): on a MULTI-NODE run
+      // the subworlds write native archives at subworld-rank-count, but
+      // property assembly reloads them at universe scale — the native np-guard
+      // then aborts AFTER the full solve. Warn up front so the user isn't
+      // surprised late; the HDF5 backend gathers to one client and reloads at
+      // any np. (Single-node subworlds, where writer==reader np, are fine.)
+#ifdef MADNESS_HAS_HDF5
+      const bool hdf5_on = hdf5_io_enabled();
+#else
+      const bool hdf5_on = false;
+#endif
+      if (!hdf5_on)
+        print("response: WARNING — subworlds with the NATIVE backend will hit "
+              "the cross-np archive guard at property assembly on a multi-node "
+              "run (states saved per-subworld, reloaded at universe scale). Use "
+              "`response { io { backend hdf5 } }` for multi-node subworld runs, "
+              "or set MADRESPONSE_ALLOW_NP_MISMATCH=1 if the archives are known "
+              "portable. Single-node subworld runs are unaffected.");
+    }
     in.settings.policy.dconv_user = rp.dconv();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
@@ -184,8 +214,24 @@ struct molresponse_v3_lib {
 #endif
     }
 
+    // Pass the RESOLVED fock path through (review finding: "" here made every
+    // per-rung re-prepare and every subworld GS reload RECOMPUTE the Fock
+    // instead of loading moldft's per-protocol entries — silently diverging
+    // from the standalone CLI path this adapter is supposed to match).
     ResponseWorkflowOutput out =
-        run_response_with_ground(world, gs, L, /*fock_json=*/"", in);
+        run_response_with_ground(world, gs, L, fock_json, in);
+
+    // perf-model (doc 29): emit the per-phase profile when asked — same
+    // contract as the standalone binary (molresponse/main.cpp), so madqc-driven
+    // runs are profileable too. COLLECTIVE (all ranks). No-op unless built with
+    // -DENABLE_WORLD_PROFILE=ON AND env MADQC_PROFILE_JSON is set.
+    if (const char *pj = std::getenv("MADQC_PROFILE_JSON")) {
+      std::ostringstream pctx;
+      pctx << "{\"n_threads\":" << (ThreadPool::size() + 1)
+           << ",\"k\":" << FunctionDefaults<3>::get_k()
+           << ",\"thresh\":" << FunctionDefaults<3>::get_thresh() << "}";
+      WorldProfile::dump_json(world, pj, pctx.str());
+    }
 
     // 4. Map Output → Results. Stash v3 timing/diagnostics under metadata so
     //    they ride into the workflow's calc_info.json.
