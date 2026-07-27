@@ -29,6 +29,7 @@
 
 #include <madness/tensor/tensor.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <numeric>
 #include <string>
@@ -91,26 +92,34 @@ assign_display_names(const madness::Tensor<double> &omega, double tol) {
   std::vector<std::string> names(static_cast<size_t>(M));
   if (M == 0) return names;
 
-  // Partition consecutive slots into groups where the energy gap <= tol.
-  std::vector<std::pair<long, long>> groups;  // [begin, end) per group
-  long begin = 0;
-  for (long i = 1; i < M; ++i) {
-    if (omega(i) - omega(i - 1) > tol) {
-      groups.emplace_back(begin, i);
-      begin = i;
-    }
-  }
-  groups.emplace_back(begin, M);
+  // Group by ENERGY order, not slot order. The caller may pass omega in
+  // dominance-sort (slot) order rather than ascending (review MED: save_es_roots
+  // runs before the once-per-ramp sort_state_by_omega), so grouping consecutive
+  // SLOTS mislabels/splits near-degenerate clusters. Sort slot indices by
+  // ascending omega, group in that order, and map each name back to its slot.
+  // (Backward-compatible: for already-ascending omega the permutation is
+  // identity and the result is unchanged.)
+  std::vector<long> order(static_cast<size_t>(M));
+  for (long i = 0; i < M; ++i) order[static_cast<size_t>(i)] = i;
+  std::stable_sort(order.begin(), order.end(),
+                   [&](long a, long b) { return omega(a) < omega(b); });
 
   int state_number = 1;
-  for (const auto &g : groups) {
-    const long n = g.second - g.first;
+  long gi = 0;
+  while (gi < M) {
+    long gj = gi + 1;
+    while (gj < M &&
+           omega(order[static_cast<size_t>(gj)]) -
+                   omega(order[static_cast<size_t>(gj - 1)]) <= tol)
+      ++gj;
+    const long n = gj - gi;
     for (long k = 0; k < n; ++k) {
       std::string name = "S" + std::to_string(state_number);
       if (n > 1) name += std::string("_") + static_cast<char>('a' + k);
-      names[static_cast<size_t>(g.first + k)] = name;
+      names[static_cast<size_t>(order[static_cast<size_t>(gi + k)])] = name;
     }
     ++state_number;
+    gi = gj;
   }
   return names;
 }

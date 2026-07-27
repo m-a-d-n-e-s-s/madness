@@ -1,6 +1,6 @@
 // test_hdf5_smoke.cpp — P1 build-wiring validation for the io-hdf5 thread.
 // Pure HDF5 C API: create a file, write a dataset, read it back, verify bitwise.
-// Deliberately NO MADNESS function code — that is P2 (docs/30_io_hdf5_survey_and_plan.md).
+// Deliberately NO MADNESS function code — that is P2 (madqc/HDF5_IO.md).
 #include <hdf5.h>
 #include <cstdio>
 #include <vector>

@@ -23,7 +23,7 @@
 // ESSolver and the upcoming FDSolver share this driver — the FD/ES
 // axis is entirely inside the solver's step() body.
 //
-// See docs/12_solver_architecture_sketch.md and
+// See
 // solvers/convergence_policy.hpp.
 // =========================================================================
 

@@ -37,11 +37,13 @@
 #include "response_state.hpp"
 #include "state_metrics.hpp"              // measure_state (per-state mem/iters)
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -65,6 +67,47 @@ inline const char *shell_tag() {
   if constexpr (std::is_same_v<Shell, ClosedShell>) return "closed_shell";
   else if constexpr (std::is_same_v<Shell, OpenShell>) return "open_shell";
   else return "unknown";
+}
+
+/// np-guard for FD/VBC archive loads (the analog of load_es_roots' guard —
+/// same nio=1 primitive, same documented heap-corruption reproduction on a
+/// np mismatch). Only np-locked backends are guarded: the HDF5 blob is
+/// gathered to one client at write time, so it reloads at any np.
+/// writer_nproc == 0 = legacy entry with no recorded count — proceed (same-np
+/// is the common case; the caller's rank-0 print surfaces the assumption).
+/// All inputs are rank-uniform (broadcast by the caller), so the throw is
+/// collective and cannot deadlock.
+inline void check_writer_nproc(madness::World &world, IoBackend backend,
+                               int writer_nproc, const char *who,
+                               const std::string &archive) {
+  if (io_backend_np_portable(backend)) return;
+  if (writer_nproc == 0 || writer_nproc == static_cast<int>(world.size()))
+    return;  // no recorded count (legacy) or an exact match — nothing to guard.
+
+  // Cross-process-count load of a native nio=1 parallel archive. This is
+  // np-PORTABLE: the archive stores nio in-file and ParallelInputArchive
+  // redistributes the tree across the current world on read. Verified
+  // bit-identical np=2 -> np=1 on the FD/ES bundles (max reldiff 0). The former
+  // hard block predated the atomic-write + collective-throw I/O fixes that
+  // resolved the actual crashes (truncated archives, mismatched collectives);
+  // with those in, cross-np native restart is safe. Proceed by default so runs
+  // are resource-count agnostic. MADRESPONSE_STRICT_NP=1 restores the hard error
+  // (e.g. as a backstop if a future nio>1 writer is introduced).
+  const char *strict = std::getenv("MADRESPONSE_STRICT_NP");
+  if (strict && strict[0] == '1') {
+    throw std::runtime_error(
+        std::string(who) + ": archive " + archive + " was written with " +
+        std::to_string(writer_nproc) + " process(es) but is being loaded with " +
+        std::to_string(world.size()) +
+        " — MADRESPONSE_STRICT_NP=1 forbids cross-process-count native restart. "
+        "Re-run with " + std::to_string(writer_nproc) +
+        " rank(s), unset MADRESPONSE_STRICT_NP, or use the HDF5 backend.");
+  }
+  if (world.rank() == 0)
+    std::fprintf(stderr,
+        "[NP] %s: %s written with %d rank(s), loading with %d — native nio=1 "
+        "archive is np-portable (redistributed on read); proceeding.\n",
+        who, archive.c_str(), writer_nproc, static_cast<int>(world.size()));
 }
 
 } // namespace detail_fd_save_load
@@ -120,7 +163,10 @@ void save_fd_state(madness::World &world,
   const std::string archive_path     = dir + "/" + archive_basename;
 
   // (1) Collective binary save — same per-state primitive ES uses per-root.
-  state.responses[0].save(world, archive_path);
+  // The returned backend is recorded in the metadata entry so load opens the
+  // SAME physical file family (a stale twin from a backend toggle can never
+  // shadow this state). save() also removed the other backend's twin.
+  const IoBackend backend = state.responses[0].save(world, archive_path);
 
   // (1b) Collective per-state metrics (coeffs/bytes/rss/iters/wall) — every rank.
   StateMetrics metrics =
@@ -162,6 +208,13 @@ void save_fd_state(madness::World &world,
         {"bsh_residual", bsh_res},
         {"seed",         seed},   // initial-guess origin: source/fd_restart/es_root
         {"archive",      archive_basename},
+        // Which physical file family holds the archive ("native"/"hdf5") —
+        // loaders open THIS backend; bare .h5-existence detect is legacy-only.
+        {"backend",      io_backend_tag(backend)},
+        // #processes that wrote it. Native nio=1 parallel archives are
+        // np-locked (worlddc assumes #writers == #readers; a mismatch silently
+        // corrupts the container) — loaders refuse a native np-mismatch.
+        {"writer_nproc", static_cast<int>(world.size())},
         {"metrics",      metrics.to_json()},
     };
     meta.set_fd_state(pdesc, key, fkey, entry);
@@ -230,38 +283,56 @@ load_fd_state(madness::World &world,
   const std::string archive_path     = dir + "/" + archive_basename;
 
   // Rank-0 reads the metadata entry (required); broadcasts the small
-  // numeric diagnostics. The archive load below is collective.
-  double bsh_res        = 0.0;
-  int    iter_at_save   = 0;
-  int    converged_int  = 0;   // bool via int for gop.broadcast
+  // numeric diagnostics. Errors are collected into `err` and re-thrown on
+  // EVERY rank after the broadcast — a rank-0-only throw before a collective
+  // deadlocks any caller that catches. The archive load below is collective.
+  double      bsh_res        = 0.0;
+  int         iter_at_save   = 0;
+  int         converged_int  = 0;   // bool via int for gop.broadcast
+  int         writer_nproc   = 0;   // 0 = legacy entry (no recorded count)
+  std::string backend_tag;          // "" = legacy entry -> auto-detect
+  std::string err;
   if (world.rank() == 0) {
     const std::string meta_path = dir + "/response_metadata.json";
-    if (!std::filesystem::exists(meta_path)) {
-      throw std::runtime_error(
-          "load_fd_state: missing " + meta_path);
+    try {
+      if (!std::filesystem::exists(meta_path)) {
+        throw std::runtime_error("load_fd_state: missing " + meta_path);
+      }
+      auto meta = ResponseMetadata::load_or_create(meta_path);
+      const auto &j = meta.json();
+      if (!j["fd_states"].contains(pdesc) ||
+          !j["fd_states"][pdesc].contains(key) ||
+          !j["fd_states"][pdesc][key].contains(fkey)) {
+        throw std::runtime_error(
+            "load_fd_state: no fd_states/" + pdesc + "/" + key + "/" + fkey +
+            " in " + meta_path);
+      }
+      const auto &e = j["fd_states"][pdesc][key][fkey];
+      bsh_res       = e.value("bsh_residual", 0.0);
+      iter_at_save  = e.value("iter", 0);
+      converged_int = e.value("converged", false) ? 1 : 0;
+      writer_nproc  = e.value("writer_nproc", 0);
+      backend_tag   = e.value("backend", std::string{});
+    } catch (const std::exception &ex) {
+      err = ex.what();
     }
-    auto meta = ResponseMetadata::load_or_create(meta_path);
-    const auto &j = meta.json();
-    if (!j["fd_states"].contains(pdesc) ||
-        !j["fd_states"][pdesc].contains(key) ||
-        !j["fd_states"][pdesc][key].contains(fkey)) {
-      throw std::runtime_error(
-          "load_fd_state: no fd_states/" + pdesc + "/" + key + "/" + fkey +
-          " in " + meta_path);
-    }
-    const auto &e = j["fd_states"][pdesc][key][fkey];
-    bsh_res       = e.value("bsh_residual", 0.0);
-    iter_at_save  = e.value("iter", 0);
-    converged_int = e.value("converged", false) ? 1 : 0;
   }
+  world.gop.broadcast_serializable(err, 0);
+  if (!err.empty()) throw std::runtime_error(err);  // collective throw
   world.gop.broadcast(bsh_res,       0);
   world.gop.broadcast(iter_at_save,  0);
   world.gop.broadcast(converged_int, 0);
+  world.gop.broadcast(writer_nproc,  0);
+  world.gop.broadcast_serializable(backend_tag, 0);
+
+  const IoBackend backend = io_backend_from_tag(backend_tag);
+  detail_fd_save_load::check_writer_nproc(world, backend, writer_nproc,
+                                          "load_fd_state", archive_basename);
 
   // Collective binary load — same primitive ES uses per-root.
   State s;
   s.responses.resize(1);
-  s.responses[0] = Storage::load(world, archive_path);
+  s.responses[0] = Storage::load(world, archive_path, backend);
 
   s.last_bsh_residual     = {bsh_res};
   s.last_density_residual = {};      // not persisted; first-iter recomputes
@@ -276,15 +347,19 @@ load_fd_state(madness::World &world,
                    "  archive=", archive_basename,
                    "  bsh_res_at_save=", bsh_res,
                    "  iter_at_save=", iter_at_save,
-                   "  converged_at_save=", converged_int != 0);
+                   "  converged_at_save=", converged_int != 0,
+                   "  backend=", io_backend_tag(backend));
   }
   return s;
 }
 
-/// Result of try_load_fd_state. When `exact == false`, the caller is
-/// responsible for re-projecting `state` to the active (k, thresh) — the
-/// natural place is the first `prepare(...)` call inside iterate_protocol,
-/// which already does this for every step.
+/// Result of try_load_fd_state. The loader itself re-projects a non-exact
+/// (coarser-rung) source to the ACTIVE (k, thresh) before returning, so every
+/// consumer — restart seeding, the VBC build, alpha/beta property assembly —
+/// receives functions at the active key and inner() is always well-defined
+/// (mixing k is a hard MADNESS abort). `exact` / `source_protocol_key` remain
+/// the honest provenance record: re-projecting a coarser state UP makes it
+/// representable at the active k but adds NO accuracy.
 template <typename Type, typename Shell>
 struct FDRestartResult {
   typename FDSolver<Type, Shell>::State state;
@@ -325,15 +400,24 @@ try_load_fd_state(madness::World &world,
   // verdict didn't sanction. It also excludes `diverged` snapshots (never seed a
   // blown-up state) and accepts coarser PARTIALS, not just converged ones.
   std::string source_key;
+  std::string backend_tag;   // chosen entry's recorded backend ("" = legacy)
+  int         writer_nproc = 0;
   if (world.rank() == 0) {
     const std::string meta_path = dir + "/response_metadata.json";
     if (std::filesystem::exists(meta_path)) {
       auto meta = ResponseMetadata::load_or_create(meta_path);
       source_key = best_usable_fd_source_key(meta.json(), pdesc, fkey,
                                              active_thresh, active_k, active_key);
+      if (!source_key.empty()) {
+        const auto &e = meta.json()["fd_states"][pdesc][source_key][fkey];
+        backend_tag  = e.value("backend", std::string{});
+        writer_nproc = e.value("writer_nproc", 0);
+      }
     }
   }
   world.gop.broadcast_serializable(source_key, 0);
+  world.gop.broadcast_serializable(backend_tag, 0);
+  world.gop.broadcast(writer_nproc, 0);
 
   if (source_key.empty()) {
     if (world.rank() == 0) {
@@ -344,13 +428,17 @@ try_load_fd_state(madness::World &world,
     return std::nullopt;
   }
 
-  // Collective load.
+  // Collective load, at the entry's recorded backend (np-guarded for native).
   const std::string archive_basename = response_filename(pdesc, source_key, freq);
   const std::string archive_path     = dir + "/" + archive_basename;
 
+  const IoBackend backend = io_backend_from_tag(backend_tag);
+  detail_fd_save_load::check_writer_nproc(world, backend, writer_nproc,
+                                          "try_load_fd_state", archive_basename);
+
   FDRestartResult<Type, Shell> r;
   r.state.responses.resize(1);
-  r.state.responses[0] = Storage::load(world, archive_path);
+  r.state.responses[0] = Storage::load(world, archive_path, backend);
   r.state.last_bsh_residual    .clear();
   r.state.last_density_residual.clear();
   r.state.rho_alpha_prev       .clear();
@@ -359,13 +447,25 @@ try_load_fd_state(madness::World &world,
   r.source_protocol_key = source_key;
   r.exact = (source_key == active_key);
 
+  // k-CONSISTENCY (review fix, confirmed HIGH): a coarser-rung archive comes
+  // off disk at its SAVED k, not the active one. Re-project HERE — collective,
+  // all ranks — so the contract "loader returns active-key functions" holds
+  // for every consumer at once (assemble_beta used to contract a coarse
+  // fallback straight into inner() and abort with "functions have different k").
+  if (!r.exact) {
+    for (auto *blk : r.state.responses[0].blocks())
+      for (auto &fn : *blk) fn = madness::project(fn, active_k, active_thresh);
+    world.gop.fence();
+  }
+
   if (world.rank() == 0) {
     madness::print("[LOAD] try_load_fd_state: pert=", pdesc,
                    "  freq=", freq,
                    "  source_protocol_key=", source_key,
                    "  active=", active_key,
                    "  exact=", r.exact,
-                   "  archive=", archive_basename);
+                   "  archive=", archive_basename,
+                   "  backend=", io_backend_tag(backend));
   }
   return r;
 }

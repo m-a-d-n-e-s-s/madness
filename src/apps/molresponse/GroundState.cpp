@@ -7,7 +7,11 @@
 
 #include "broadcast_json.hpp"
 
+#include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include <vector>
 
 namespace molresponse_v3 {
 
@@ -53,17 +57,64 @@ GroundState GroundState::from_archive(World& world,
     // SCF::load_mos's archive lookup).
     params.get_parameter("prefix").set_user_defined_value(prefix);
 
-    // For open-shell: infer nopen from nmo_alpha and total electrons.
     if (world.rank() == 0) {
         print("ARCHIVE_HEADER: spin_restricted=", header.spin_restricted,
               " nmo_alpha=", header.nmo_alpha, " L=", header.L,
               " k=", header.k, " xc=", header.xc);
     }
-    if (!header.spin_restricted) {
-        int nelec = static_cast<int>(molecule.total_nuclear_charge());
-        int nopen = 2 * static_cast<int>(header.nmo_alpha) - nelec;
-        if (nopen < 0) nopen = 0;
-        params.set_user_defined_value("nopen", nopen);
+
+    // Electron bookkeeping (review io finding): set_derived_values computes
+    // nalpha/nbeta from Z + charge + nopen, and SCF::load_mos reads EXACTLY
+    // param.nmo_alpha() orbitals — with the neutral default a charged species
+    // silently DROPS its HOMO (anion) or mis-derives nopen. The archive side
+    // knows the truth: closed shell nelec = 2*nmo_alpha exactly; open shell
+    // takes nalpha/nbeta from the moldft calc_info.json sibling.
+    const double Z = molecule.total_nuclear_charge();
+    if (header.spin_restricted) {
+        const double charge = Z - 2.0 * static_cast<double>(header.nmo_alpha);
+        params.set_user_defined_value("charge", charge);
+        if (world.rank() == 0 && std::abs(charge) > 1e-6)
+            print("ARCHIVE_HEADER: inferred total charge =", charge,
+                  " (nelec =", 2 * header.nmo_alpha, ")");
+    } else {
+        // rank 0 reads the sibling calc_info.json; broadcast (na, nb, found).
+        long na = -1, nb = -1;
+        if (world.rank() == 0) {
+            const auto ci = std::filesystem::path(prefix + ".calc_info.json");
+            std::ifstream in(ci);
+            if (in) {
+                try {
+                    nlohmann::json j;
+                    in >> j;
+                    na = j.value("calcinfo_nalpha", -1);
+                    nb = j.value("calcinfo_nbeta", -1);
+                } catch (const std::exception &) { na = nb = -1; }
+            }
+        }
+        std::vector<long> nab{na, nb};
+        world.gop.broadcast_serializable(nab, 0);
+        na = nab[0]; nb = nab[1];
+        if (na > 0 && nb >= 0) {
+            const double charge = Z - static_cast<double>(na + nb);
+            params.set_user_defined_value("charge", charge);
+            params.set_user_defined_value("nopen", static_cast<int>(na - nb));
+            if (world.rank() == 0)
+                print("ARCHIVE_HEADER: open-shell from calc_info: nalpha=", na,
+                      " nbeta=", nb, " nopen=", na - nb,
+                      " inferred charge=", charge);
+        } else {
+            // Legacy fallback: neutral assumption (pre-fix behavior), loudly.
+            int nelec = static_cast<int>(Z);
+            int nopen = 2 * static_cast<int>(header.nmo_alpha) - nelec;
+            if (nopen < 0) nopen = 0;
+            params.set_user_defined_value("nopen", nopen);
+            if (world.rank() == 0)
+                print("ARCHIVE_HEADER: WARNING — no ", prefix,
+                      ".calc_info.json next to the archive; ASSUMING NEUTRAL "
+                      "(nopen=", nopen, "). A charged open-shell restart needs "
+                      "that file (moldft writes it) or the loaded orbital set "
+                      "will be wrong.");
+        }
     }
 
     // Step 3: Construct SCF (calls set_derived_values internally)
@@ -82,12 +133,27 @@ GroundState GroundState::from_archive(World& world,
 GroundState::ArchiveHeader
 GroundState::read_archive_header(World& world,
                                   const std::string& archive_path) {
+    // NB: this parse MIRRORS SCF::save_mos / load_mos's field order
+    // (madness/chem/SCF.cc, archive version 4) — it re-reads the header
+    // because SCF::load_mos offers no header-only entry point. If moldft's
+    // restartdata format drifts, update BOTH in lockstep; the guard below
+    // turns silent field-order drift into an actionable error. The header
+    // values are broadcast by the parallel archive, so the throw is
+    // collective.
     ArchiveHeader h;
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>
         ar(world, archive_path.c_str());
 
     ar & h.version;
-    MADNESS_CHECK(h.version == 4);
+    if (h.version != 4) {
+        throw std::runtime_error(
+            "GroundState::read_archive_header: " + archive_path +
+            " has archive version " + std::to_string(h.version) +
+            ", but this reader mirrors moldft's version-4 layout "
+            "(SCF::save_mos, madness/chem/SCF.cc). Regenerate the ground-state "
+            "archive with a matching moldft, or update read_archive_header to "
+            "the new field order.");
+    }
     ar & h.energy;
     ar & h.spin_restricted;
     ar & h.L;
@@ -118,14 +184,19 @@ void GroundState::prepare(World& world, double vtol,
     auto target_k = FunctionDefaults<3>::get_k();
     auto thresh = FunctionDefaults<3>::get_thresh();
 
-    // Re-project orbitals if k changed from what they currently are
-    if (current_k_ != target_k) {
+    // Reload pristine MOs when the orbitals we hold cannot represent the
+    // target protocol: a k change (projection needs the original-k source),
+    // OR a TIGHTER thresh than the orbitals currently carry — re-truncating
+    // an already-truncated function cannot restore the discarded precision,
+    // so a thresh-only climb without the reload silently drags the coarse
+    // rung's error into the fine rung (review io finding, verified).
+    const bool need_pristine =
+        (current_k_ != target_k) ||
+        (current_thresh_ >= 0.0 && thresh < current_thresh_);
+    if (need_pristine) {
         // Reload pristine MOs at original_k_ from the archive, then project to
-        // target. The reload runs on every protocol climb, restoring the
-        // invariant that scf_->amo is at original_k_ before the reproject below
-        // (an in-place projection would otherwise leave it at a coarser k and a
-        // later climb back up would not conform). GroundState is only built via
-        // from_archive, so the checkpoint to reload from always exists.
+        // target. GroundState is only built via from_archive, so the
+        // checkpoint to reload from always exists.
         scf_->load_mos(world);
         if (original_k_ != target_k) {
             reconstruct(world, scf_->amo);
@@ -151,6 +222,7 @@ void GroundState::prepare(World& world, double vtol,
             truncate(world, scf_->bmo, thresh);
         }
     }
+    current_thresh_ = thresh;
 
     // Build QProjectors from current orbitals
     q_alpha_ = QProjector<double, 3>(scf_->get_amo());

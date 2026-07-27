@@ -26,7 +26,7 @@
 #include "../solvers/convergence_policy.hpp"
 #include "../solvers/response_metadata.hpp"
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
         policy.explosion_guard = std::stod(parser.value("explosion-guard"));
       if (parser.key_exists("no-explosion-guard"))
         policy.explosion_guard = 1.0e30;
-      // --step-restrict=orbital|state  (default per-orbital).
+      // --step-restrict=orbital|state  (default per-state; see ConvergencePolicy).
       if (parser.key_exists("step-restrict") &&
           parser.value("step-restrict") == "state")
         policy.step_restrict_mode =
@@ -402,6 +402,23 @@ int main(int argc, char **argv) {
           ctx.es_maxrotn = std::stod(parser.value("maxrotn"));
         if (parser.key_exists("es-guess"))
           ctx.es_guess = parse_es_guess_mode(parser.value("es-guess"));
+        // --tpa-residue [--tpa-prefactor=X]: corrected single-residue 2PA
+        // contraction (kernels/tpa.hpp tpa_moment_residue) instead of the
+        // legacy beta-reuse candidate.
+        if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;
+        if (parser.key_exists("tpa-prefactor"))
+          ctx.tpa_prefactor = std::stod(parser.value("tpa-prefactor"));
+        if (parser.key_exists("tpa-decompose")) ctx.tpa_decompose = true;
+        if (parser.key_exists("tpa-diag-only")) ctx.tpa_diag_only = true;
+        // --tpa-roots=0,2 : per-root filter (parallel verification; read-only)
+        if (parser.key_exists("tpa-roots")) {
+          std::stringstream rss(parser.value("tpa-roots"));
+          std::string rtok;
+          while (std::getline(rss, rtok, ','))
+            if (!rtok.empty()) ctx.tpa_roots.push_back(std::stoi(rtok));
+          // concurrent per-root processes share one calc dir: no persistence
+          ResponseMetadata::read_only() = true;
+        }
           // accepts: random | solid[_harmonics] | virtual[_ao]
         if (parser.key_exists("lock-converged"))
           ctx.es_lock_converged = true;
@@ -437,6 +454,11 @@ int main(int argc, char **argv) {
           assemble_beta(ctx, plan, protocol.back());
         else if (es_roots == 0)
           assemble_alpha(ctx, plan, protocol.back());
+
+        // --tpa: two-photon-absorption assembly after the ES bundle + derived
+        // dipole FD at omega_f/2 converge (validates kernels/tpa.hpp vs Dalton).
+        if (es_roots > 0 && parser.key_exists("tpa"))
+          assemble_tpa(ctx, plan, protocol.back());
 
         // ---- Validate at the top protocol ----------------------------------
         const std::string top_key = protocol_key_at(protocol.back());

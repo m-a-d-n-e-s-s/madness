@@ -30,7 +30,7 @@
 #include "../solvers/node_subworlds.hpp"       // make_node_aligned_subworld
 #include "../solvers/response_metadata.hpp"
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/misc/info.h>                 // commandlineparser
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>

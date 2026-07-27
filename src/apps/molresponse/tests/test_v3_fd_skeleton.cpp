@@ -17,7 +17,6 @@
 
 #include "../GroundState.hpp"
 #include "../Perturbations.hpp"
-#include "../ResponseKernel.hpp"       // alpha_factor
 #include "../ResponseProtocol.hpp"
 #include "../kernels/full.hpp"
 #include "../kernels/static.hpp"
@@ -45,6 +44,18 @@
 
 using namespace madness;
 using namespace molresponse_v3;
+
+// Polarizability occupancy / y-channel prefactor. Was
+// ResponseKernel::alpha_factor(ResponseType, bool); that legacy header has
+// been retired, and this is its only consumer, so the tiny factor lives here.
+//   spin_factor = 2 (restricted / RHF) or 1 (unrestricted / UHF, per channel)
+//   y_factor    = 1 for Full (y solved separately) or 2 for Static/TDA (y=x implied)
+//   factor      = -(spin_factor * y_factor)
+static double alpha_factor(bool is_full, bool restricted) {
+  const double spin_factor = restricted ? 2.0 : 1.0;
+  const double y_factor    = is_full ? 1.0 : 2.0;
+  return -(spin_factor * y_factor);
+}
 
 // -------------------------------------------------------------------------
 // Reference table — one entry per (fixture, type, omega, axis).
@@ -229,7 +240,7 @@ static double run_static_closed_shell(
 
   // alpha_axis,axis = af · <V_pert · phi0 | x_alpha>
   // af = -4 for restricted static.
-  const double af = alpha_factor(ResponseType::Static, true);
+  const double af = alpha_factor(/*is_full=*/false, /*restricted=*/true);
   auto src_final = dipole_perturbation(world, gs, axis);
   const double ip = inner(src_final, sf.responses[0].x_alpha);
   return af * ip;
@@ -319,7 +330,7 @@ static double run_full_closed_shell(
 
   // alpha_axis,axis = af · (<src | x_alpha> + <src | y_alpha>)
   // af = -2 for restricted Full.
-  const double af = alpha_factor(ResponseType::Full, true);
+  const double af = alpha_factor(/*is_full=*/true, /*restricted=*/true);
   auto src_final = dipole_perturbation(world, gs, axis);
   const double ip_x = inner(src_final, sf.responses[0].x_alpha);
   const double ip_y = inner(src_final, sf.responses[0].y_alpha);
@@ -415,7 +426,7 @@ static double run_static_open_shell(
 
   // alpha = af · (<src_α | x_α> + <src_β | x_β>)
   // af = -2 for unrestricted Static.
-  const double af = alpha_factor(ResponseType::Static, false);
+  const double af = alpha_factor(/*is_full=*/false, /*restricted=*/false);
   auto sa = dipole_perturbation(world, gs, axis);
   auto sb = dipole_perturbation_beta(world, gs, axis);
   const double ip_a = inner(sa, sf.responses[0].x_alpha);
@@ -518,7 +529,7 @@ static double run_full_open_shell(
 
   // alpha = af · ( <src_α | x_α> + <src_α | y_α> + <src_β | x_β> + <src_β | y_β> )
   // af = -1 for unrestricted Full.
-  const double af = alpha_factor(ResponseType::Full, false);
+  const double af = alpha_factor(/*is_full=*/true, /*restricted=*/false);
   auto sa = dipole_perturbation(world, gs, axis);
   auto sb = dipole_perturbation_beta(world, gs, axis);
   const double ip_xa = inner(sa, sf.responses[0].x_alpha);

@@ -20,7 +20,7 @@
 // fold those into ::step. The driver itself stays minimal — one loop,
 // one convergence check, no policy.
 //
-// See docs/12_solver_architecture_sketch.md.
+// See solvers/convergence_policy.hpp.
 // =========================================================================
 
 namespace molresponse_v3::solvers {

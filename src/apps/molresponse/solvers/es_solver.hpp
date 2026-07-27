@@ -356,6 +356,10 @@ public:
     State out;
     out.iter  = in.iter + 1;
     out.roots = in.roots;
+    // Root identity travels with the state: dropping it here erased every
+    // root_id on the first step and made restarts silently relabel roots
+    // (the locked variant always carried it — this is the same contract).
+    out.stable_index = in.stable_index;
     const int M = n_roots_;
 
     // ---- per-phase wall timing (diagnostic, --es-time) --------------------
@@ -432,7 +436,8 @@ public:
         }
         if (gs_.g0_alpha.empty())
           gs_.g0_alpha = exch::build_g0(
-              world_, gs_, madness::FunctionDefaults<3>::get_thresh() * 0.1);
+              world_, gs_, madness::FunctionDefaults<3>::get_thresh() * 0.1,
+              policy_.exchange_tile);  // untiled n_occ² wave crashes at n_occ≥34
         auto gflat = tda_batch::compute_gamma_flat(world_, gs_, out.roots,
                                                    rho_alpha, gs_.g0_alpha);
         for (int s = 0; s < M; ++s) gamma[s] = std::move(gflat[s]);
@@ -490,7 +495,8 @@ public:
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
-                                       policy_.cluster_unmix_factor);
+                                       policy_.cluster_unmix_factor,
+                                       &world_);  // subworld-safe sygvp
     auto &omega_new = diag_result.omega;
     auto &U         = diag_result.U;
     out.omega = omega_new;
@@ -615,6 +621,7 @@ public:
     State out;
     out.iter  = in.iter + 1;
     out.roots = in.roots;
+    out.stable_index = in.stable_index;  // root identity travels with the state
     const int M = n_roots_;
     const double thr = madness::FunctionDefaults<3>::get_thresh();
 
@@ -660,7 +667,8 @@ public:
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
-                                       policy_.cluster_unmix_factor);
+                                       policy_.cluster_unmix_factor,
+                                       &world_);  // subworld-safe sygvp
     auto &omega_new = diag_result.omega;
     auto &U         = diag_result.U;
     out.omega = omega_new;
@@ -805,7 +813,8 @@ public:
     auto A     = rs::inner(act_roots, lambda);
     auto S_mat = rs::metric(act_roots, act_roots);
     auto dr    = rs::diagonalize(A, S_mat, /*thresh_degenerate=*/-1.0,
-                                 policy_.cluster_unmix_factor);
+                                 policy_.cluster_unmix_factor,
+                                 &world_);  // subworld-safe sygvp
     auto &omega_act = dr.omega;
     auto &U         = dr.U;
     print_rot_slots(out.iter, dr);

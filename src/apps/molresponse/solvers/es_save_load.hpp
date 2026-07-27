@@ -48,11 +48,12 @@
 #include "../ResponseProtocol.hpp"   // protocol_key(thresh, k)
 #include "../kernels/tags.hpp"
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 
 #include <algorithm>
+#include <cstdlib>       // std::getenv (MADRESPONSE_STRICT_NP)
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -101,10 +102,14 @@ void save_es_roots(madness::World &world,
   }
   world.gop.fence();
 
-  // Per-root binary archives — collective.
+  // Per-root binary archives — collective. All roots share one backend (the
+  // opt-in is stable across a save); it is recorded in roots.json so the
+  // loader opens the same file family (stale-twin discipline, see
+  // response_state.hpp).
+  IoBackend backend = IoBackend::Native;
   for (int s = 0; s < n_roots; ++s) {
     const std::string path = dir + "/" + detail_save_load::root_file(s);
-    state.roots[s].save(world, path);
+    backend = state.roots[s].save(world, path);
   }
 
   // Per-root coefficient counts + worst-task bundle RSS — collective on
@@ -151,6 +156,10 @@ void save_es_roots(madness::World &world,
     // so load_es_roots can verify it (see the np-guard there). world.size() is a
     // local query, safe on rank 0.
     j["writer_nproc"] = world.size();
+    // Which file family holds the per-root archives ("native"/"hdf5"); the
+    // loader opens THIS backend (bare .h5 existence detect is legacy-only)
+    // and skips the np-guard for hdf5 (single-client blob, np-portable).
+    j["backend"] = io_backend_tag(backend);
     const int k_now = madness::FunctionDefaults<3>::get_k();
     j["k"]            = k_now;
     j["thresh"]       = thresh;
@@ -222,6 +231,7 @@ void save_es_roots(madness::World &world,
           {"type",             detail_save_load::type_tag<Type>()},
           {"shell",            detail_save_load::shell_tag<Shell>()},
           {"n_roots",          n_roots},
+          {"backend",          io_backend_tag(backend)},
           {"bundle_dir",       bundle_path.filename().string()},
           {"converged",        converged},
           {"diverged",         state.diverged},
@@ -269,62 +279,88 @@ load_es_roots(madness::World &world, const std::string &dir) {
   int n_roots = 0;
   int iter_at_save = 0;
   int writer_nproc = 0;   // #processes that wrote the per-root archives (0 = legacy)
+  std::string backend_tag;  // recorded backend ("" = legacy -> auto-detect)
   madness::Tensor<double> omega_recorded;
   std::vector<double> bsh_residual_recorded;
   std::vector<double> drho_residual_recorded;
   std::vector<int> stable_index_recorded;
 
+  // Rank 0 decides the load status; the status is broadcast BEFORE anyone
+  // throws so a bad/missing/mismatched roots.json fails COLLECTIVELY. A
+  // rank-0-only throw here would leave every other rank blocked in the
+  // broadcasts below (multi-rank hang) — same discipline as the np-guard
+  // further down.
+  std::string load_error;
   if (world.rank() == 0) {
-    std::ifstream in(dir + "/roots.json");
-    if (!in) {
-      throw std::runtime_error("load_es_roots: cannot open " + dir +
-                               "/roots.json");
-    }
-    nlohmann::json j;
-    in >> j;
+    try {
+      std::ifstream in(dir + "/roots.json");
+      if (!in) {
+        throw std::runtime_error("load_es_roots: cannot open " + dir +
+                                 "/roots.json");
+      }
+      nlohmann::json j;
+      in >> j;
 
-    const std::string saved_type  = j.value("type",  std::string{});
-    const std::string saved_shell = j.value("shell", std::string{});
-    const std::string want_type   = detail_save_load::type_tag<Type>();
-    const std::string want_shell  = detail_save_load::shell_tag<Shell>();
-    if (saved_type != want_type || saved_shell != want_shell) {
-      throw std::runtime_error(
-          "load_es_roots: saved type/shell = " + saved_type + "/" +
-          saved_shell + ", requested = " + want_type + "/" + want_shell);
-    }
+      const std::string saved_type  = j.value("type",  std::string{});
+      const std::string saved_shell = j.value("shell", std::string{});
+      const std::string want_type   = detail_save_load::type_tag<Type>();
+      const std::string want_shell  = detail_save_load::shell_tag<Shell>();
+      if (saved_type != want_type || saved_shell != want_shell) {
+        throw std::runtime_error(
+            "load_es_roots: saved type/shell = " + saved_type + "/" +
+            saved_shell + ", requested = " + want_type + "/" + want_shell);
+      }
 
-    n_roots      = j.value("n_roots", 0);
-    iter_at_save = j.value("iter", 0);
-    writer_nproc = j.value("writer_nproc", 0);   // 0 = legacy bundle (no count)
-    MADNESS_CHECK(n_roots > 0);
-    if (!j.contains("roots") || !j["roots"].is_array() ||
-        static_cast<int>(j["roots"].size()) != n_roots) {
-      throw std::runtime_error(
-          "load_es_roots: roots[] array missing or wrong length in " +
-          dir + "/roots.json");
-    }
+      n_roots      = j.value("n_roots", 0);
+      iter_at_save = j.value("iter", 0);
+      writer_nproc = j.value("writer_nproc", 0);   // 0 = legacy bundle (no count)
+      backend_tag  = j.value("backend", std::string{});
+      if (n_roots <= 0) {
+        throw std::runtime_error("load_es_roots: n_roots <= 0 in " + dir +
+                                 "/roots.json");
+      }
+      if (!j.contains("roots") || !j["roots"].is_array() ||
+          static_cast<int>(j["roots"].size()) != n_roots) {
+        throw std::runtime_error(
+            "load_es_roots: roots[] array missing or wrong length in " +
+            dir + "/roots.json");
+      }
 
-    omega_recorded         = madness::Tensor<double>(n_roots);
-    bsh_residual_recorded  .assign(n_roots, 0.0);
-    drho_residual_recorded .assign(n_roots, 0.0);
-    stable_index_recorded  .assign(n_roots, 0);
-    for (int s = 0; s < n_roots; ++s) {
-      const auto &e = j["roots"][s];
-      const int slot = e.value("slot", -1);
-      MADNESS_CHECK(slot == s);
-      omega_recorded(s)         = e.value("omega", 0.0);
-      bsh_residual_recorded[s]  = e.value("bsh_residual", 0.0);
-      drho_residual_recorded[s] = e.value("density_residual", 0.0);
-      // Stable identity: legacy files predate it — fall back to slot so
-      // the loaded bundle still carries a well-formed identity vector.
-      stable_index_recorded[s]  = e.value("stable_index", s);
+      omega_recorded         = madness::Tensor<double>(n_roots);
+      bsh_residual_recorded  .assign(n_roots, 0.0);
+      drho_residual_recorded .assign(n_roots, 0.0);
+      stable_index_recorded  .assign(n_roots, 0);
+      for (int s = 0; s < n_roots; ++s) {
+        const auto &e = j["roots"][s];
+        const int slot = e.value("slot", -1);
+        if (slot != s) {
+          throw std::runtime_error(
+              "load_es_roots: roots[" + std::to_string(s) + "].slot = " +
+              std::to_string(slot) + " (expected " + std::to_string(s) +
+              ") in " + dir + "/roots.json");
+        }
+        omega_recorded(s)         = e.value("omega", 0.0);
+        bsh_residual_recorded[s]  = e.value("bsh_residual", 0.0);
+        drho_residual_recorded[s] = e.value("density_residual", 0.0);
+        // Stable identity: legacy files predate it — fall back to slot so
+        // the loaded bundle still carries a well-formed identity vector.
+        stable_index_recorded[s]  = e.value("stable_index", s);
+      }
+    } catch (const std::exception &e) {
+      load_error = e.what();
+    } catch (...) {
+      load_error = "load_es_roots: unknown error reading " + dir +
+                   "/roots.json";
     }
   }
+  world.gop.broadcast_serializable(load_error, 0);
+  if (!load_error.empty()) throw std::runtime_error(load_error);  // collective
 
   // Broadcast the metadata to every rank.
   world.gop.broadcast(n_roots, 0);
   world.gop.broadcast(iter_at_save, 0);
   world.gop.broadcast(writer_nproc, 0);
+  world.gop.broadcast_serializable(backend_tag, 0);
   if (world.rank() != 0) {
     omega_recorded         = madness::Tensor<double>(n_roots);
     bsh_residual_recorded  .assign(n_roots, 0.0);
@@ -343,14 +379,29 @@ load_es_roots(madness::World &world, const std::string &dir) {
   // heap-OOB, reproduced by --es-analyze-only --es-load-only at a different np).
   // Fail cleanly instead. writer_nproc==0 is a legacy bundle with no recorded
   // count — proceed with a warning (same-np is the common case).
-  if (writer_nproc != 0 && writer_nproc != world.size()) {
-    throw std::runtime_error(
-        "load_es_roots: ES bundle in " + dir + " was written with " +
-        std::to_string(writer_nproc) + " process(es) but is being loaded with " +
-        std::to_string(world.size()) +
-        " — cross-process-count ES restart is unsupported. Re-run with " +
-        std::to_string(writer_nproc) +
-        " rank(s), or delete the bundle to recompute it.");
+  // Cross-process-count ES restart. The nio=1 per-root archives are np-portable
+  // (ParallelInputArchive redistributes on read; verified bit-identical np=2->1
+  // on the FD/ES bundles). The former hard block + the "parked ES heap-OOB"
+  // predated the atomic-write + collective-throw I/O fixes that resolved the
+  // real crashes; with those in, cross-np ES restart is safe. Proceed by default
+  // (resource-count agnostic); MADRESPONSE_STRICT_NP=1 restores the hard error.
+  const IoBackend backend = io_backend_from_tag(backend_tag);
+  if (!io_backend_np_portable(backend) &&
+      writer_nproc != 0 && writer_nproc != world.size()) {
+    const char *strict = std::getenv("MADRESPONSE_STRICT_NP");
+    if (strict && strict[0] == '1') {
+      throw std::runtime_error(
+          "load_es_roots: ES bundle in " + dir + " was written with " +
+          std::to_string(writer_nproc) + " process(es) but loaded with " +
+          std::to_string(world.size()) +
+          " — MADRESPONSE_STRICT_NP=1 forbids cross-process-count native "
+          "restart. Re-run with " + std::to_string(writer_nproc) +
+          " rank(s), unset MADRESPONSE_STRICT_NP, or use the HDF5 backend.");
+    }
+    if (world.rank() == 0)
+      madness::print("[LOAD] ES bundle in", dir, "written with", writer_nproc,
+                     "rank(s), loading with", world.size(),
+                     "— native nio=1 is np-portable; proceeding.");
   }
   if (writer_nproc == 0 && world.rank() == 0) {
     madness::print("[LOAD] WARNING: ES bundle in", dir,
@@ -359,13 +410,14 @@ load_es_roots(madness::World &world, const std::string &dir) {
                    "process(es) — a mismatch may still crash.");
   }
 
-  // Per-root binary archives — collective.
+  // Per-root binary archives — collective, at the recorded backend.
   State s;
   s.roots.reserve(n_roots);
   for (int b = 0; b < n_roots; ++b) {
     const std::string path = dir + "/" + detail_save_load::root_file(b);
     s.roots.push_back(
-        std::remove_reference_t<decltype(s.roots[0])>::load(world, path));
+        std::remove_reference_t<decltype(s.roots[0])>::load(world, path,
+                                                            backend));
   }
 
   s.omega                 = std::move(omega_recorded);

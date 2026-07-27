@@ -45,7 +45,7 @@
 #include "../ResponsePropertyPlanner.hpp" // ResponsePlan, FDRequest, ESRequest, ...
 #include "../solvers/response_metadata.hpp" // ResponseMetadata::freq_key
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -411,11 +411,21 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
   const int         k   = default_k_for_thresh(thresh);
   const std::string key = protocol_key(thresh, k);
 
+  // A DIVERGED exact-key entry must NOT resume the blown-up state — but it
+  // should still re-seed from the nearest COARSER converged neighbor when one
+  // exists (doc-15 reconcile table), not fall back to a bare x0=0 Fresh solve
+  // and throw away the coarse-to-fine ladder. Restart re-seeds; Fresh only
+  // when there is no usable coarser source. (Safe against a persistently-
+  // diverging channel: a deterministic re-solve from the same coarser seed
+  // saves identical metadata, which run()'s progress-aware no-progress guard
+  // then quarantines — no infinite Restart loop.)
   if (node.kind == CalcKind::ES) {
     if (const auto *e = detail_calc::es_entry(meta, key)) {
       if (detail_calc::entry_converged(*e)) return NodeAction::Skip;
-      return detail_calc::entry_diverged(*e) ? NodeAction::Fresh
-                                             : NodeAction::Resume;
+      if (detail_calc::entry_diverged(*e))
+        return detail_calc::has_coarser_converged_es(meta, thresh, k)
+                   ? NodeAction::Restart : NodeAction::Fresh;
+      return NodeAction::Resume;
     }
     return detail_calc::has_coarser_converged_es(meta, thresh, k)
                ? NodeAction::Restart
@@ -425,8 +435,10 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
   if (node.kind == CalcKind::VBC) {
     if (const auto *e = detail_calc::vbc_entry(meta, node.id, key)) {
       if (detail_calc::entry_converged(*e)) return NodeAction::Skip;
-      return detail_calc::entry_diverged(*e) ? NodeAction::Fresh
-                                             : NodeAction::Resume;
+      if (detail_calc::entry_diverged(*e))
+        return detail_calc::has_coarser_converged_vbc(meta, node.id, thresh, k)
+                   ? NodeAction::Restart : NodeAction::Fresh;
+      return NodeAction::Resume;
     }
     return detail_calc::has_coarser_converged_vbc(meta, node.id, thresh, k)
                ? NodeAction::Restart
@@ -438,7 +450,11 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
   const std::string fkey = ResponseMetadata::freq_key(node.freq);
   if (const auto *e = detail_calc::fd_entry(meta, pert, key, fkey)) {
     if (detail_calc::entry_converged(*e)) return NodeAction::Skip;
-    if (detail_calc::entry_diverged(*e))  return NodeAction::Fresh;
+    if (detail_calc::entry_diverged(*e))
+      // Re-seed from the nearest coarser NON-diverged source (best_usable
+      // excludes the diverged exact entry itself); Fresh only if none exists.
+      return best_usable_fd_source_key(meta, pert, fkey, thresh, k, key).empty()
+                 ? NodeAction::Fresh : NodeAction::Restart;
     // Honest-climb: budget exhausted at this rung -> done here, climb (see
     // the doc block above). `iter` is the last attempt's count (save-side).
     if (max_iters > 0 && e->value("iter", 0) >= max_iters)

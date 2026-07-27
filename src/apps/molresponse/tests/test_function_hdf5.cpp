@@ -16,7 +16,7 @@
 #include "../solvers/function_hdf5_io.hpp"
 
 #include <madness/chem/molecule.h>
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/misc/info.h>  // commandlineparser
 #include <madness/mra/mra.h>
 

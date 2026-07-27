@@ -118,6 +118,10 @@ private:
     std::shared_ptr<SCF> scf_;
     int original_k_;
     int current_k_ = 0;  // k that orbitals are currently projected to
+    // Truncation the orbitals currently CARRY (-1 = pristine, never
+    // truncated). A tighter-thresh climb must reload pristine MOs — merely
+    // re-truncating cannot restore precision already discarded (review fix).
+    double current_thresh_ = -1.0;
 
     // Cached response-specific data (rebuilt per protocol step)
     real_function_3d v_local_;

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# LiH response regression test — molresponse_v3 scope (R-1 re-enable):
+# alpha (xyz), static beta (SHG process at omega=0), and SINGLE-COMPONENT
+# vibrational Raman (atom 0, z) via requested_properties. The old v2
+# full-tensor per-atom Raman reference is retired (archived at
+# madness_studies/refs/raman_v2_h2o_full_tensor.json); v3's full tensor is
+# deferred to the state-parallel workstream. Reference regenerated from a
+# validated v3 run (vbc gate job, 2026-07-10).
 
 import argparse
 import json
@@ -8,19 +15,43 @@ import subprocess
 import sys
 
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from test_utilities import cleanup
+from test_utilities import cleanup, skip_on_small_machines
 
 
-def response_rows_to_map(rows):
-    mapped = {}
-    for row in rows:
-        key = (
-            row["property"],
-            tuple(row["component"]),
-            round(float(row["freqB"]), 12),
-            None if "freqC" not in row else round(float(row["freqC"]), 12),
+def response_rows_to_map(props):
+    """Flatten the v3 response_properties OBJECT (property -> protocol_key ->
+    row(s)) into comparable {key: value} pairs. Alpha rows expand per tensor
+    element; beta/raman rows are one value each. v2-shaped (flat array) files
+    are rejected so a stale reference reads as a shape error, not a silent
+    pass. (Same mapper as test_molresponse_h2o_alpha_beta_z.py.)"""
+    if not isinstance(props, dict):
+        raise ValueError(
+            "response_properties is not the v3 object shape — stale v2 "
+            "reference? Regenerate the .ref.json from a v3 run."
         )
-        mapped[key] = None if "value" not in row else float(row["value"])
+    mapped = {}
+    for prop, by_key in props.items():
+        for pkey, rows in by_key.items():
+            if not isinstance(rows, list):
+                rows = [rows]
+            for row in rows:
+                if "alpha" in row:  # tensor row
+                    dirs = row.get("directions", "")
+                    omega = round(float(row.get("omega", 0.0)), 12)
+                    m = row["alpha"]
+                    for i, r in enumerate(m):
+                        for j, v in enumerate(r):
+                            di = dirs[i] if i < len(dirs) else str(i)
+                            dj = dirs[j] if j < len(dirs) else str(j)
+                            mapped[(prop, pkey, di, dj, omega)] = float(v)
+                elif "beta" in row:  # beta / raman row
+                    key = (
+                        prop, pkey,
+                        row.get("A"), row.get("B"), row.get("C"),
+                        round(float(row.get("freq_b", 0.0)), 12),
+                        round(float(row.get("freq_c", 0.0)), 12),
+                    )
+                    mapped[key] = float(row["beta"])
     return mapped
 
 
@@ -53,7 +84,8 @@ def run_cmd(cmd, env=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="LiH response regression test (alpha/beta/raman, xyz directions)"
+        description="LiH response regression test (alpha xyz / static beta / "
+                    "single-component raman, molresponse_v3)"
     )
     parser.add_argument(
         "--reference_directory",
@@ -62,6 +94,14 @@ if __name__ == "__main__":
         help="directory containing test input and reference output",
     )
     args = parser.parse_args()
+
+    try:
+        if skip_on_small_machines():
+            print("Skipping this verylong test on small machines")
+            sys.exit(77)
+    except Exception:
+        print("Unable to evaluate machine size from MAD_NUM_THREADS, skipping test")
+        sys.exit(77)
 
     print("Testing @BINARY@/@TESTCASE@")
     print("reference files found in directory:", args.reference_directory)
@@ -141,6 +181,15 @@ if __name__ == "__main__":
         print("Response type mismatch:", got_rsp["type"], ref_rsp["type"])
         success = False
 
+    # The run must not have silently dropped planned beta/raman work
+    # (review fix: stop_reason 'complete_with_dropped_beta').
+    diag = got_rsp.get("metadata", {}).get("v3_diagnostics", {})
+    stop_reason = diag.get("stop_reason", "")
+    if stop_reason != "complete":
+        print("Scheduler stop_reason not clean:", stop_reason,
+              "dropped:", diag.get("dropped_beta"))
+        success = False
+
     got_rows = response_rows_to_map(got_rsp["properties"]["response_properties"])
     ref_rows = response_rows_to_map(ref_rsp["properties"]["response_properties"])
 
@@ -159,9 +208,14 @@ if __name__ == "__main__":
                 print("Missing response value for key:", key, gval, rval)
                 success = False
                 continue
-            if abs(gval - rval) > 1e-4:
+            # Tolerance: 1e-4 absolute floor + 5e-4 RELATIVE. Solver
+            # run-to-run reproducibility at the deck's dconv 1e-4 is ~1e-4
+            # relative (cross-node thread-order noise shifts the stopping
+            # iteration), so a flat 1e-4 abs on beta ~O(10) false-fails.
+            if abs(gval - rval) > max(1e-4, 5e-4 * abs(rval)):
                 print("Response value mismatch for key:", key, gval, rval)
                 success = False
 
     print("final success:", success)
+
     sys.exit(0 if success else 1)

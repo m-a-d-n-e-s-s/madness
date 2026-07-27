@@ -40,6 +40,7 @@
 #include "../kernels/full.hpp"
 #include "../kernels/static.hpp"
 #include "../kernels/tags.hpp"
+#include "../kernels/tpa.hpp"
 #include "../solvers/build_response_ground_state.hpp"
 #include "../solvers/convergence_policy.hpp"
 #include "../solvers/fd_problem.hpp"
@@ -91,10 +92,44 @@ struct ExecutorSettings {
   // in-between frequencies (not just a single root's vector).
   bool              seed_derived_from_es_root = false;
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
-  // closed-shell path (random guess, 10 warmup iters, 2x oversample, KAIN).
+  // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
+  // --tpa-residue: contract the 2PA moment with the corrected single-residue
+  // form (tpa::tpa_moment_residue — X_f in the residue slot against V^{bc}
+  // built from the two photon responses) instead of the legacy beta-reuse
+  // candidate. --tpa-prefactor scales the residue moment (normalization C_N).
+  bool              tpa_residue           = false;
+  double            tpa_prefactor         = 1.0;
+  // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
+  // variant of the residue and print the per-element E3/1e split + the
+  // phase- and normalization-invariant fraction f = E3/total (compare vs the
+  // patched-DALTON 'E3 CONTRIBUTION TO SMOM' ledger, TPA_SCOPING §5n).
+  bool              tpa_decompose         = false;
+  // --tpa-diag-only: print the cross-code diagnostics (norms, transition
+  // dipoles, alpha(w/2)) from the loaded states and SKIP the contraction and
+  // all metadata writes — a fast read-only pass over a converged calc dir.
+  bool              tpa_diag_only         = false;
+  // --tpa-roots=0,2 : restrict the TPA loop to these root indices (0-based).
+  // Enables poor-man's macrotasking: N independent single-rank processes, one
+  // per root, on one node. When set, the metadata/property write is SKIPPED
+  // (read-only pass) so concurrent per-root processes cannot race.
+  std::vector<int>  tpa_roots;
   int               es_tda_warmup_iters   = 10;
-  double            es_warmup_oversample  = 2.0;
+  // Warmup oversampling: keep the lowest n_roots of ceil(factor*n_roots)
+  // partially-converged warmup trials. 3.0 (was 2.0) because on the PRODUCTION
+  // ladder (moldft climbing to 1e-6/k8) the extra cut-line margin lets the
+  // downselect keep h2o's true 4th state 0.4097 au and match Dalton
+  // d-aug-cc-pVQZ to 0.03% (ladder job 2084168), vs a 2.4% missing-state error
+  // at 2.0 (job 2083837, which reported the 5th state 0.420 in its place).
+  // KNOWN LIMITATION (follow-up): the underlying cause is the TDA warmup
+  // MISORDERING the near-degenerate 0.40/0.41 cluster at the coarse rung — a
+  // 1e-4/k6-only run still misorders it (the true 4th sits just above the
+  // 4-root cut) and does not fully tighten that root in 25 iters. Oversampling
+  // only buys margin, it can't fix an ordering inversion at the cut; the real
+  // fix is an energy-ordered guess (ESGuessMode::VirtualAO, the NWChem
+  // CIS-diagonal path) or more warmup iters. Cost of 3.0 is warmup-only
+  // (coarse rung, es_tda_warmup_iters iters).
+  double            es_warmup_oversample  = 3.0;
   int               es_kain_maxsub        = 8;
   double            es_maxrotn            = 0.5;
   // Delay KAIN onset in the MAIN ES solve by this many iters (pure BSH +
@@ -276,8 +311,9 @@ void reproject_state(State &st, int k, double thresh) {
 /// Solve (pert, freq) at a single protocol `thresh`. `action` is the reconcile
 /// verdict: Fresh starts from the perturbation guess (never loads, so a
 /// diverged archive can't poison the solve); Restart/Resume load the nearest
-/// converged-or-partial seed via try_load_fd_state and re-project it in the
-/// first prepare(). Saves the result (+ metrics) through save_fd_state.
+/// converged-or-partial seed via try_load_fd_state (which re-projects a
+/// coarser source to the active key). Saves the result (+ metrics) through
+/// save_fd_state.
 template <typename Type, typename Shell>
 NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
                          double freq, double thresh, NodeAction action,
@@ -524,6 +560,18 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver solver(world, std::move(problem), main_policy, ctx.print_level);
   solver.set_gamma_tensor(ctx.es_gamma_tensor);  // Inc-3c: tensor-layer γ gate
+  // Review HIGH: the locked step variant (lock_converged, the production
+  // default) uses the per-root REFERENCE γ path and ignores gamma_tensor_, so
+  // --es-tensor is a silent no-op unless --no-lock-converged is also set. Warn
+  // loudly rather than let a user believe the untiled-crash mitigation is
+  // active when it is not. (Teaching the locked variant to use the tensor path
+  // is tracked as a follow-up.)
+  if (ctx.es_gamma_tensor && ctx.es_lock_converged && world.rank() == 0)
+    madness::print(
+        "[ES-TENSOR] WARNING: --es-tensor was requested but lock_converged is "
+        "on (the default) — the locked step uses the REFERENCE gamma path, so "
+        "the tensor (Inc-3c) path is NOT active. Pass --no-lock-converged to "
+        "actually use --es-tensor (e.g. to avoid the untiled n_occ>=34 crash).");
 
   // Single-step guard (as in solve_fd_protocol): re-prepare the ground state
   // only on an actual protocol change; otherwise just re-project the roots.
@@ -948,8 +996,18 @@ public:
   /// pass: each pass reloads the aggregate metadata, re-schedules (so actions
   /// reflect current disk), runs the first non-empty wave, fences, then
   /// expands any newly-converged ES bundle into concrete DerivedFD nodes.
-  /// Terminates when the schedule is empty (all Skip) or the same wave repeats
-  /// with no progress (a node that cannot converge does not spin the loop).
+  /// Terminates when the schedule is empty (all Skip). A wave that repeats
+  /// with no progress is QUARANTINED (its nodes leave the schedule; trace
+  /// records a stall_event) and the loop continues with independent work —
+  /// stop_reason is 'complete_with_stalled' + diag.stalled_nodes when
+  /// anything was quarantined, so a stuck node neither spins the loop nor
+  /// starves unrelated perturbation channels (review fix). On exit the plan
+  /// is audited against the metadata: planned VBC nodes that never converged
+  /// at their top rung (gated out by unconverged prerequisites, or stalled)
+  /// are reported via stop_reason 'complete_with_dropped_beta' (or
+  /// '..._stalled_and_dropped_beta') + diag.dropped_beta, and recorded under
+  /// run_summary/dropped_work in the metadata — a run with silently dropped
+  /// beta/raman work is never labelled plain 'complete' (review fix).
   /// Returns the R1c scheduler trace (doc 16 L3) -> Output.diagnostics: the
   /// wave-by-wave reconcile actions (id/thresh/action per item), stop_reason,
   /// and pass count. Built identically on every rank (schedule() is
@@ -973,6 +1031,8 @@ public:
     int pass = 0;
 
     std::string last_sig;
+    std::string last_progress;           // fingerprint of the saved solve state
+    std::set<std::string> stalled_ids;   // quarantined no-progress nodes
     for (;;) {
       world.gop.fence();
       auto meta = ResponseMetadata::load_or_create(meta_path);
@@ -982,22 +1042,129 @@ public:
       // max_iters flows into reconcile so a budget-exhausted rung climbs the
       // ladder (honest-climb) instead of Resume-looping into the no-progress halt.
       auto waves = schedule(dag_, ramp, meta.json(), policy_.max_iters_per_step);
+      // Review fix (confirmed HIGH — front-wave starvation): quarantine nodes
+      // that stopped making progress instead of halting the WHOLE run. Only
+      // the front wave ever executes, so a deterministically-stuck node (e.g.
+      // a diverging ES bundle) used to starve every independent item queued
+      // in later waves. Stalled nodes are excluded from scheduling, recorded
+      // in the trace, and reported honestly in stop_reason at the end.
+      for (auto &w : waves) {
+        w.erase(std::remove_if(w.begin(), w.end(),
+                               [&](const WorkItem &it) {
+                                 return stalled_ids.count(it.node->id) > 0;
+                               }),
+                w.end());
+      }
+      waves.erase(std::remove_if(waves.begin(), waves.end(),
+                                 [](const auto &w) { return w.empty(); }),
+                  waves.end());
       if (waves.empty()) {
-        if (world.rank() == 0)
-          madness::print("[CALC] run: nothing left to schedule — done");
-        diag["stop_reason"] = "complete";
+        // Review fix (confirmed MEDIUM — silent beta drop): an empty schedule
+        // does NOT mean every planned node executed. Honest-climb can walk a
+        // stubborn FD prerequisite up the whole ladder unconverged; the
+        // dependent VBC node is then gated out of every wave (gated nodes are
+        // invisible to schedule()), and the beta/raman it feeds is dropped
+        // without a trace. Audit the plan against the on-disk metadata: any
+        // VBC node without a converged entry at its top rung never delivered.
+        nlohmann::json dropped = nlohmann::json::array();
+        for (const auto &n : dag_) {
+          if (n.kind != CalcKind::VBC || n.protocols.empty()) continue;
+          const std::string top = protocol_key_at(n.protocols.back());
+          const auto &j = meta.json();
+          const bool has_entry = j.contains("vbc_states") &&
+                                 j["vbc_states"].contains(n.id) &&
+                                 j["vbc_states"][n.id].contains(top);
+          if (has_entry && j["vbc_states"][n.id][top].value("converged", false))
+            continue;
+          // NB: solve_vbc is one-shot and always saves converged=true, so a
+          // present VBC entry is caught by the `continue` above — the
+          // "built ... not converged" arm is currently unreachable for VBC and
+          // kept only as defensive coverage if VBC ever gains partial saves
+          // (review LOW).
+          const char *reason =
+              stalled_ids.count(n.id)
+                  ? "stalled (quarantined by the no-progress guard)"
+                  : has_entry
+                        ? "built at the top rung but not converged"
+                        : "prerequisites never converged (gated out of every wave)";
+          dropped.push_back({{"id", n.id},
+                             {"top_protocol_key", top},
+                             {"reason", reason}});
+        }
+        // Dropped VBC ⇒ the beta/raman rows it feeds cannot be assembled.
+        // Record the audit in the metadata (rank 0, through the layer) even
+        // when empty, so a later completing run CLEARS a stale drop list.
+        if (world.rank() == 0) {
+          auto meta_out = ResponseMetadata::load_or_create(meta_path);
+          meta_out.set_dropped_work(dropped);
+          meta_out.save();
+        }
+
+        if (stalled_ids.empty() && dropped.empty()) {
+          if (world.rank() == 0)
+            madness::print("[CALC] run: nothing left to schedule — done");
+          diag["stop_reason"] = "complete";
+        } else {
+          if (world.rank() == 0 && !stalled_ids.empty()) {
+            madness::print("[CALC] run: all remaining work is STALLED —",
+                           (int)stalled_ids.size(),
+                           "node(s) made no progress and were quarantined:");
+            for (const auto &id : stalled_ids) madness::print("    stalled:", id);
+          }
+          if (world.rank() == 0 && !dropped.empty()) {
+            madness::print("[CALC] run: WARNING —", (int)dropped.size(),
+                           "planned VBC/beta node(s) were never solved "
+                           "(beta/raman rows will be missing):");
+            for (const auto &d : dropped)
+              madness::print("    dropped:", d.value("id", std::string("?")),
+                             "—", d.value("reason", std::string("?")));
+          }
+          if (dropped.empty())
+            diag["stop_reason"] = "complete_with_stalled";
+          else if (stalled_ids.empty())
+            diag["stop_reason"] = "complete_with_dropped_beta";
+          else
+            diag["stop_reason"] = "complete_with_stalled_and_dropped_beta";
+          if (!stalled_ids.empty()) diag["stalled_nodes"] = stalled_ids;
+          if (!dropped.empty())     diag["dropped_beta"]  = dropped;
+        }
         break;
       }
 
       const std::string sig = wave_signature(waves.front());
-      if (sig == last_sig) {
+      // Progress fingerprint: the saved solve state. ONLY the front wave runs
+      // each pass, so if the front wave repeats (sig == last_sig) AND the saved
+      // state is byte-identical to the previous pass, the last attempt changed
+      // NOTHING → genuinely stuck → quarantine. If the state changed (a Resume
+      // that advanced iter/residual), it is still converging — give it another
+      // pass. Fixes the false-quarantine of a multi-pass ES/VBC Resume (and the
+      // legacy max_iters==0 "Resume forever" FD mode), whose reconcile branches
+      // don't honest-climb the schedule shape the way the FD/max_iters branch
+      // does, so the bare id@protocol signature repeats even mid-convergence.
+      const auto &mj = meta.json();
+      std::string progress;
+      for (const char *k : {"fd_states", "excited_states", "vbc_states"})
+        if (mj.contains(k)) progress += mj[k].dump();
+      if (sig == last_sig && progress == last_progress) {
+        // No progress on this wave: quarantine its nodes and try the rest of
+        // the schedule. The run only stops when nothing unquarantined remains.
         if (world.rank() == 0)
           madness::print("[CALC] run: no progress on wave {", sig,
-                         "} — stopping (unconverged or unhandled nodes)");
-        diag["stop_reason"] = "no_progress";
-        break;
+                         "} (saved state unchanged) — quarantining",
+                         (int)waves.front().size(),
+                         "node(s) and continuing with independent work");
+        nlohmann::json srec = {{"pass", pass}, {"wave", sig},
+                               {"quarantined", nlohmann::json::array()}};
+        for (const auto &it : waves.front()) {
+          stalled_ids.insert(it.node->id);
+          srec["quarantined"].push_back(it.node->id);
+        }
+        diag["stall_events"].push_back(std::move(srec));
+        last_sig.clear(); last_progress.clear();  // fresh window for the next wave
+        continue;
       }
       last_sig = sig;
+      last_progress = progress;
 
       // R1c: record this wave (id/thresh/action per item) + protocol markers.
       // A wave is one protocol level, so wthresh = the front item's threshold.
@@ -1052,12 +1219,38 @@ public:
         if (!fan_items.empty()) {
           // F2f: groups_per_node = policy_.fd_subworlds (1 = node-aligned; larger
           // = sub-node / NUMA packing for small systems). G = total subworlds.
+          // Guard the pool construction with the same collective-error discipline
+          // as the fan_out() call below (review: it was unprotected). This
+          // converts a SYMMETRIC/post-collective failure — World ctor, bad_alloc,
+          // a Split all ranks fail — into a clean collective abort instead of a
+          // hang. (An ASYMMETRIC throw inside make_subworld_pool's own internal
+          // collectives — ranks_per_host gather/broadcast, Split, gop.fence — is
+          // inherently unrecoverable in MPI: the non-throwing ranks are already
+          // blocked inside those collectives and never reach the max() below.)
           NodeSubworldInfo info;
-          auto sub = make_subworld_pool(world, policy_.fd_subworlds, &info);
+          std::shared_ptr<madness::World> sub;
+          std::string pool_err;
+          try {
+            sub = make_subworld_pool(world, policy_.fd_subworlds, &info);
+          } catch (const std::exception &e) { pool_err = e.what(); }
+            catch (...) { pool_err = "unknown exception in make_subworld_pool"; }
+          int pool_bad = pool_err.empty() ? 0 : 1;
+          world.gop.max(pool_bad);
+          if (pool_bad) {
+            if (!pool_err.empty())
+              madness::print("[SUBWORLD-POOL-ERROR] universe rank", world.rank(),
+                             ":", pool_err);
+            MADNESS_EXCEPTION("subworld pool construction failed (see "
+                              "[SUBWORLD-POOL-ERROR]); aborting collectively", 0);
+          }
           const int G = info.n_subworlds;
           if (G <= 1) {
             // One subworld total (single node, P=1) ⇒ no real partition (subworld
             // == universe). Literal G=0 path, no redundant GS reload (doc 32 §7).
+            if (world.rank() == 0)
+              madness::print("SUBWORLD_FANOUT skipped: n_subworlds=", G,
+                             " (nodes=", info.n_nodes, " groups_per_node=",
+                             info.groups_per_node, ") — universe path");
             sub.reset();
             for (const auto &it : fan_items) exec.run_protocol(it);
           } else {
@@ -1074,19 +1267,67 @@ public:
                              "  fan_items=", (int)fan_items.size());
             // S1 pmap discipline: point the default pmap at the subworld so
             // everything built inside is subworld-local; restore BEFORE reset.
+            // Exception safety: a subworld-local throw must NOT skip the pmap
+            // restore or the universe fence below — the failing ranks would
+            // reach the driver's top-level catch and finalize while every
+            // other rank blocks in the fence forever. Catch, restore, fence,
+            // then agree collectively and abort together. (A throw that leaves
+            // SIBLING ranks of the same subworld inside a subworld collective
+            // is inherently unrecoverable in MPI — this handles the
+            // synchronized-failure cases: archive open, shard save, guards.)
+            std::string fan_err;
             madness::FunctionDefaults<3>::set_default_pmap(*sub);
-            fan_out(*sub, mine, wthresh, info.gid, lp);
-            sub->gop.fence();
+            try {
+              fan_out(*sub, mine, wthresh, info.gid, lp);
+              sub->gop.fence();
+            } catch (const std::exception &e) {
+              fan_err = e.what();
+            } catch (...) {
+              fan_err = "unknown exception in subworld fan-out";
+            }
             madness::FunctionDefaults<3>::set_default_pmap(world);
             sub.reset();
+            if (!fan_err.empty())
+              madness::print("[FANOUT-ERROR] universe rank", world.rank(),
+                             "(gid", info.gid, "):", fan_err);
+            int fan_bad = fan_err.empty() ? 0 : 1;
+            world.gop.max(fan_bad);
+            if (fan_bad) {
+              world.gop.fence();
+              MADNESS_EXCEPTION(
+                  "subworld fan-out failed on at least one subworld "
+                  "(see [FANOUT-ERROR]); aborting collectively", 0);
+            }
           }
           world.gop.fence();
           // F2b/F2g: collapse the per-group FD+VBC metadata shards into the
           // canonical file (universe rank 0; through the metadata layer). Only
-          // when we actually sharded (G > 1).
-          if (world.rank() == 0 && G > 1)
-            ResponseMetadata::merge_state_shards(calc_dir_, G);
+          // when we actually sharded (G > 1). The merge itself can throw
+          // (corrupt shard, ENOSPC) — that must be collective too, not a
+          // rank-0-only unwind that strands everyone else at the fence.
+          int merge_bad = 0;
+          if (world.rank() == 0 && G > 1) {
+            try {
+              ResponseMetadata::merge_state_shards(calc_dir_, G);
+            } catch (const std::exception &e) {
+              merge_bad = 1;
+              madness::print("[SHARD-MERGE-ERROR]", e.what());
+            }
+          }
+          world.gop.max(merge_bad);
+          if (merge_bad)
+            MADNESS_EXCEPTION("per-wave shard merge failed on rank 0 "
+                              "(see [SHARD-MERGE-ERROR])", 0);
           world.gop.fence();
+        } else if (policy_.fd_subworlds > 0 && !rest.empty() &&
+                   world.rank() == 0) {
+          // Review MED: this wave is ES-only (ES is deliberately excluded from
+          // fan-out — it stays single-World), so the requested `subworlds` had
+          // no effect on it. Say so, or the knob looks silently ignored.
+          madness::print("SUBWORLD_FANOUT skipped: wave is ES-only (",
+                         (int)rest.size(),
+                         "item(s)); ES runs single-World, `subworlds` applies "
+                         "only to FD/VBC waves");
         }
         for (const auto &it : rest) exec.run_protocol(it);   // ES: universe
       }
@@ -1210,6 +1451,13 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
   World &world = ctx.world;
   GroundState &gs = ctx.gs;
   if (plan.vbc.empty()) return;
+  // Same ClosedShell-only reader constraint as assemble_alpha — refuse loudly.
+  if (!gs.is_spin_restricted()) {
+    if (world.rank() == 0)
+      print("[ASSEMBLE] open-shell beta/raman assembly is not implemented — "
+            "SKIPPED (ClosedShell-only readers; see REVIEW_FINDINGS).");
+    return;
+  }
 
   set_response_protocol(world, ctx.L, thresh);
   const double t0 = FunctionDefaults<3>::get_thresh();
@@ -1252,8 +1500,13 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
     a["source_protocol_key"] = sk;
     if (!sk.empty() && acc_meta["fd_states"][chan][sk].contains(fk)) {
       const auto &e = acc_meta["fd_states"][chan][sk][fk];
-      a["converged"]    = e.value("converged", false);
-      a["accepted"]     = e.value("accepted", false);
+      // Same semantics as alpha's row_accuracy (review fix): `converged` is the
+      // honest STRICT verdict — an accepted-at-maxiter source (metadata
+      // converged forced true to unblock the VBC gate) reports converged=false
+      // + accepted=true here, never a silently over-stated accuracy claim.
+      const bool acc = e.value("accepted", false);
+      a["converged"]    = e.value("converged", false) && !acc;
+      a["accepted"]     = acc;
       a["bsh_residual"] = e.value("bsh_residual", 0.0);
     }
     return a;
@@ -1313,6 +1566,21 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
           row["vbc_accuracy"] = {{"converged", v.value("converged", false)},
                                  {"diverged", v.value("diverged", false)}};
         }
+        // Aggregate row verdict (review MED): mirror alpha's row-level
+        // converged/max_bsh_residual so the .out summary and the website viewer
+        // get ONE honest flag per beta/raman row instead of only the per-leg
+        // sub-structures. The row is converged iff all three FD legs met the
+        // strict target (VBC itself is non-iterative, so its always-true
+        // verdict adds no signal — the FD legs carry the real accuracy).
+        {
+          bool all_conv = true; double max_res = 0.0;
+          for (const auto &leg : row["row_accuracy"]) {
+            all_conv = all_conv && leg.value("converged", false);
+            max_res  = std::max(max_res, leg.value("bsh_residual", 0.0));
+          }
+          row["converged"]        = all_conv;
+          row["max_bsh_residual"] = max_res;
+        }
         rows.emplace_back(pkey, std::move(row));
       }
       world.gop.fence();
@@ -1323,6 +1591,348 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
     auto meta = ResponseMetadata::load_or_create(
         ctx.calc_dir + "/response_metadata.json");
     for (const auto &[pk, row] : rows) meta.add_property(pk, key, row);
+    meta.save();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// assemble_tpa — Tier-B two-photon-absorption assembly (post-solve, off the
+// critical path; mirrors assemble_beta). Needs a converged ES bundle + the
+// derived dipole FD at omega_f/2 (both produced by the resonant/ES plan). For
+// each root f: load X_f + the three mu_a responses at omega_f/2, contract via
+// tpa::tpa_moment (the beta-residue with a homogeneous C-channel), record the
+// S tensor + delta^|| under properties/tpa. ClosedShell/TDA only.
+// The residue form is a CANDIDATE validated against refs/dalton_tpa.json.
+// ---------------------------------------------------------------------------
+/// Load the ES bundle of EsType and return per-root (omega, X_f as XY). Full
+/// (RPA) carries the real de-excitation Y; TDA sets Y=0. Templated so the
+/// EsType Storage (X-only vs X,Y) is handled at compile time.
+template <typename EsType>
+inline bool load_tpa_es_xy(madness::World &world, const std::string &calc_dir,
+                           std::vector<double> &omega_out,
+                           std::vector<ResponseStateXY<ClosedShell>> &Xf_out) {
+  auto es = try_load_es_bundle<EsType, ClosedShell>(world, calc_dir);
+  if (!es) return false;
+  auto &state = es->state;
+  const long nr = state.omega.dim(0);
+  for (long f = 0; f < nr; ++f) {
+    omega_out.push_back(state.omega(f));
+    ResponseStateXY<ClosedShell> Xf;
+    Xf.x_alpha = state.roots[f].x_alpha;
+    if constexpr (std::is_same_v<EsType, Full>) {
+      Xf.y_alpha = state.roots[f].y_alpha;               // RPA de-excitation
+    } else {
+      Xf.y_alpha = madness::copy(world, Xf.x_alpha);      // TDA: y = 0
+      madness::scale(world, Xf.y_alpha, 0.0);
+    }
+    Xf_out.push_back(std::move(Xf));
+  }
+  return true;
+}
+
+inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
+                         double thresh) {
+  using namespace madness;
+  World &world = ctx.world;
+  GroundState &gs = ctx.gs;
+  if (plan.es.empty()) return;
+  if (!gs.is_spin_restricted()) {
+    if (world.rank() == 0)
+      print("[TPA] open-shell TPA not implemented — SKIPPED (ClosedShell only).");
+    return;
+  }
+
+  set_response_protocol(world, ctx.L, thresh);
+  const double t0 = FunctionDefaults<3>::get_thresh();
+  {
+    auto coulop = poperatorT(
+        CoulombOperatorPtr(world, gs.params().lo(), 0.001 * t0));
+    gs.prepare(world, 0.001 * t0, coulop, ctx.fock_json);
+  }
+  const double c_xc = gs.hf_exchange_coefficient();
+  const double lo   = gs.params().lo();
+  auto g0 = build_response_ground_state_closed_shell(world, gs, c_xc, lo);
+  const std::string key = protocol_key();
+
+  // Dispatch on the ES method recorded in the bundle metadata (tda vs full/RPA).
+  // Dalton's TPA reference is full RPA; --es-full gives the matching v3 bundle.
+  int es_full = 0;
+  if (world.rank() == 0) {
+    auto meta = ResponseMetadata::load_or_create(
+        ctx.calc_dir + "/response_metadata.json");
+    const auto &j = meta.json();
+    if (j.contains("excited_states") && j["excited_states"].contains(key))
+      es_full = (j["excited_states"][key].value("type", "tda") == "full") ? 1 : 0;
+  }
+  world.gop.broadcast(es_full, 0);
+
+  std::vector<double> omegas;
+  std::vector<ResponseStateXY<ClosedShell>> Xfs;
+  const double t_es0 = madness::wall_time();
+  const bool loaded =
+      es_full ? load_tpa_es_xy<Full>(world, ctx.calc_dir, omegas, Xfs)
+              : load_tpa_es_xy<TDA>(world, ctx.calc_dir, omegas, Xfs);
+  if (world.rank() == 0)
+    printf("[TPA timing] ES bundle load: %.1f s\n", madness::wall_time() - t_es0);
+    fflush(stdout);
+  if (!loaded) {
+    if (world.rank() == 0)
+      print("[TPA] no ES bundle under", ctx.calc_dir, "— SKIPPED");
+    return;
+  }
+  const long nroots = static_cast<long>(omegas.size());
+  if (world.rank() == 0)
+    print("[TPA] ES method:", es_full ? "Full (RPA)" : "TDA");
+
+  std::array<real_function_3d, 3> mu_op{dipole_operator(world, 0),
+                                        dipole_operator(world, 1),
+                                        dipole_operator(world, 2)};
+
+  if (world.rank() == 0)
+    print("\n=== TPA assembly  protocol_key=", key, "  n_roots=", nroots, " ===");
+
+  std::vector<nlohmann::json> rows;
+  // rank-0 table data (S tensor + observables per root) for the Dalton-style print.
+  std::vector<int>                     tbl_f;
+  std::vector<double>                  tbl_w;
+  std::vector<madness::Tensor<double>> tbl_S;
+  std::vector<tpa::Observables>        tbl_o;
+  for (long f = 0; f < nroots; ++f) {
+    if (!ctx.tpa_roots.empty() &&
+        std::find(ctx.tpa_roots.begin(), ctx.tpa_roots.end(),
+                  static_cast<int>(f)) == ctx.tpa_roots.end())
+      continue;   // --tpa-roots filter (parallel per-root verification)
+    const double wf = omegas[f];
+    const double wf_half = 0.5 * wf;
+    const ResponseStateXY<ClosedShell> &Xf = Xfs[f];   // real Y for RPA, 0 for TDA
+
+    std::array<ResponseStateXY<ClosedShell>, 3> mu_resp;
+    bool ok = true;
+    const double t_fd0 = madness::wall_time();
+    for (int a = 0; a < 3; ++a) {
+      auto r = detail_exec::load_fd_as_xy<ClosedShell>(
+          world, ctx.calc_dir, Perturbation::dipole(a), wf_half);
+      if (!r) { ok = false; break; }
+      mu_resp[a] = std::move(*r);
+    }
+    if (world.rank() == 0)
+      printf("[TPA timing] root %ld/%ld: 3 FD loads @ w=%.5f: %.1f s\n",
+             f + 1, nroots, wf_half, madness::wall_time() - t_fd0);
+             fflush(stdout);
+    if (!ok) {
+      if (world.rank() == 0)
+        print("[TPA] root", f, " omega_f=", wf,
+              " — missing dipole FD @", wf_half, " — skip");
+      continue;
+    }
+
+    // ---- cross-code diagnostics (PrintLevel >= Normal or --tpa-diag-only):
+    // vector norms, transition dipoles/oscillators, and alpha(omega_f/2) from
+    // the SAME loaded states the contraction uses — line-for-line comparable
+    // with the patched-DALTON QRSMONORM + QRLRVE output (TPA_SCOPING §5n/§5o).
+    if (static_cast<int>(ctx.print_level) >= 1 || ctx.tpa_diag_only) {
+      const double xx = inner(Xf.x_alpha, Xf.x_alpha);
+      const double yy = inner(Xf.y_alpha, Xf.y_alpha);
+      if (world.rank() == 0)
+        printf("  [TPA diag] root %ld  omega=%.8f (%.3f eV)\n"
+               "    Xf norms: |x|=%.10f  |y|=%.10f  x2-y2=%.10f "
+               "(DALTON C(EXCI): Z2-Y2=0.5 => ours/DALTON = sqrt2)\n",
+               f, wf, wf * 27.211386245988, std::sqrt(xx), std::sqrt(yy),
+               xx - yy);
+      std::array<vecfuncT, 3> mu_amo;
+      for (int a = 0; a < 3; ++a) mu_amo[a] = mul(world, mu_op[a], g0.amo, true);
+      // transition dipole + oscillator (Parker-normalized: M = -sqrt2 * t)
+      for (int a = 0; a < 3; ++a) {
+        const double t = inner(mu_amo[a], Xf.x_alpha) + inner(mu_amo[a], Xf.y_alpha);
+        if (world.rank() == 0 && std::abs(t) > 1e-6)
+          printf("    transition dipole %c: t=%+.8f  M=-sqrt2*t=%+.8f  "
+                 "osc=(2/3)w*2t^2=%.6f\n",
+                 "xyz"[a], t, -std::sqrt(2.0) * t,
+                 (2.0 / 3.0) * wf * 2.0 * t * t);
+      }
+      // alpha(omega_f/2) full 3x3 from the loaded FD states (validated formula)
+      for (int a = 0; a < 3; ++a) {
+        const double nx = inner(mu_resp[a].x_alpha, mu_resp[a].x_alpha);
+        const double ny = inner(mu_resp[a].y_alpha, mu_resp[a].y_alpha);
+        if (world.rank() == 0)
+          printf("    N^%c(w/2) norms: |x|=%.10f  |y|=%.10f\n", "xyz"[a],
+                 std::sqrt(nx), std::sqrt(ny));
+      }
+      if (world.rank() == 0) printf("    alpha(w=%.6f):", wf_half);
+      for (int a = 0; a < 3; ++a) {
+        const double al = -2.0 * (inner(mu_resp[a].x_alpha, mu_amo[a]) +
+                                  inner(mu_resp[a].y_alpha, mu_amo[a]));
+        if (world.rank() == 0) printf("  %c%c=%.6f", "xyz"[a], "xyz"[a], al);
+      }
+      if (world.rank() == 0) printf("   (DALTON: QRLRVE <<A;A>> at same w)\n");
+    }
+    if (ctx.tpa_diag_only) continue;   // diagnostics only — no contraction,
+                                       // no metadata writes (read-only pass)
+
+    madness::Tensor<double> S;
+    std::vector<std::string> src_files;
+    if (ctx.tpa_residue) {
+      // PRODUCTION composition (TPA_SCOPING §5m + §5q, verified 6/6 vs DALTON
+      // d-aug-QZ 2026-07-22 via verify_e3_k6.py):
+      //   S = C_N * ( S_1e + S_E3corr ),   C_N = sqrt(2)
+      // S_1e: mu-operator terms of V^{bc} only (tpa_moment_residue_1e; cheap).
+      // S_E3corr: corrected two-electron composition (tpa_e3_residue; DALTON
+      // units WITH the sqrt2 — divided out here so C_N is applied exactly
+      // once and ctx.tpa_prefactor stays a pure A/B knob on top).
+      // BOTH orderings are computed off-diagonal: the composition is
+      // analytically b<->c symmetric, so the asymmetry is a built-in
+      // correctness assertion (DALTON's E3 shows the same invariance).
+      if (world.rank() == 0) {
+        print("[TPA] contraction: single-residue, S = sqrt2*(1e + E3corr),"
+              " prefactor =", ctx.tpa_prefactor);
+        fflush(stdout);
+      }
+      const auto S_1e =
+          tpa::tpa_moment_residue_1e(world, g0, Xf, mu_resp, mu_op, 1.0);
+      madness::Tensor<double> S_e3c(3L, 3L);
+      double max_asym = 0.0;
+      for (int b3 = 0; b3 < 3; ++b3) {
+        for (int c3 = b3; c3 < 3; ++c3) {
+          if (world.rank() == 0) {
+            printf("  [TPA e3corr] root %ld pair %c%c%s ...\n", f,
+                   "xyz"[b3], "xyz"[c3],
+                   (b3 != c3 ? " (both orderings)" : ""));
+            fflush(stdout);
+          }
+          const double ebc = tpa::tpa_e3_residue(
+              world, g0, mu_resp[static_cast<size_t>(b3)],
+              mu_resp[static_cast<size_t>(c3)], Xf);
+          double e = ebc;
+          if (b3 != c3) {
+            const double ecb = tpa::tpa_e3_residue(
+                world, g0, mu_resp[static_cast<size_t>(c3)],
+                mu_resp[static_cast<size_t>(b3)], Xf);
+            max_asym = std::max(max_asym, std::abs(ebc - ecb));
+            e = 0.5 * (ebc + ecb);
+          }
+          S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
+        }
+      }
+      S = madness::copy(S_1e);
+      S += S_e3c;
+      S.scale(std::sqrt(2.0) * ctx.tpa_prefactor);
+      if (world.rank() == 0)
+        printf("  [TPA] root %ld assembled: S = sqrt2*(1e + E3corr)   "
+               "b<->c max asym = %.2e\n", f, max_asym);
+      if (ctx.tpa_decompose) {
+        // A/B diagnostics vs the LEGACY vbc-based contraction (old E3
+        // composition, kept for comparison): table stays in prefactor-1
+        // "ours" units so verify_e3_k6.py's x sqrt(2) recovers DALTON.
+        auto S_full = tpa::tpa_moment_residue(world, g0, Xf, mu_resp, mu_op,
+                                              1.0);
+        real_function_3d zop = madness::copy(mu_op[0]); zop.scale(0.0);
+        std::array<real_function_3d, 3> zops{zop, madness::copy(zop),
+                                             madness::copy(zop)};
+        auto S_e3 = tpa::tpa_moment_residue(world, g0, Xf, mu_resp, zops,
+                                            1.0);
+        if (world.rank() == 0) {
+          double max_1e_dev = 0.0;   // direct 1e vs (legacy full - legacy E3)
+          for (int b3 = 0; b3 < 3; ++b3)
+            for (int c3 = 0; c3 < 3; ++c3)
+              max_1e_dev = std::max(
+                  max_1e_dev, std::abs(S_1e(b3, c3) - (S_full(b3, c3) -
+                                                       S_e3(b3, c3))));
+          printf("  [TPA decompose] root %ld (E3old, E3corr, 1e, total)   "
+                 "b<->c max asym = %.2e   1e direct-vs-derived max dev = %.2e\n",
+                 f, max_asym, max_1e_dev);
+          const char *nm[6] = {"xx", "yy", "zz", "xy", "xz", "yz"};
+          const int ii[6] = {0, 1, 2, 0, 0, 1}, jj[6] = {0, 1, 2, 1, 2, 2};
+          for (int e = 0; e < 6; ++e) {
+            const double tot = S_full(ii[e], jj[e]), e3 = S_e3(ii[e], jj[e]);
+            printf("    %s: E3=%+.6f  E3corr=%+.6f  1e=%+.6f  tot=%+.6f  "
+                   "totcorr=%+.6f\n",
+                   nm[e], e3, S_e3c(ii[e], jj[e]), tot - e3, tot,
+                   tot - e3 + S_e3c(ii[e], jj[e]));
+                   fflush(stdout);
+          }
+        }
+      }
+    } else {
+      // Legacy candidate: build the 3 axis sources (the TPA analogue of beta's
+      // VBC quadratic source), SAVE them to disk (mirrors beta/Raman
+      // vbc_states — reusable + inspectable/isosurface-able), then contract.
+      auto vbc_b = tpa::tpa_sources(world, g0, Xf, mu_resp, mu_op);
+      for (int b = 0; b < 3; ++b) {
+        const std::string src = ctx.calc_dir + "/tpa_src__root" +
+            std::to_string(f) + "__" + std::string(1, "xyz"[b]) + "__" + key;
+        vbc_b[b].save(world, src);
+        src_files.push_back(std::filesystem::path(src).filename().string());
+      }
+      S = tpa::tpa_moment(world, g0, Xf, mu_resp, mu_op, vbc_b);
+    }
+    const auto obs = tpa::observables(S, wf);
+
+    if (world.rank() == 0) {
+      nlohmann::json Sj = nlohmann::json::array();
+      for (int a = 0; a < 3; ++a) {
+        nlohmann::json ra = nlohmann::json::array();
+        for (int b = 0; b < 3; ++b) ra.push_back(S(a, b));
+        Sj.push_back(ra);
+      }
+      rows.push_back({{"es_root_id", static_cast<int>(f)},
+                      {"omega", wf},
+                      {"omega_ev", wf * 27.211386245988},
+                      {"source_files", src_files},
+                      {"writer_nproc", static_cast<int>(world.size())},
+                      {"S", Sj},
+                      {"Df", obs.Df}, {"Dg", obs.Dg},
+                      {"D_linear", obs.D_linear}, {"D_circular", obs.D_circular},
+                      {"R", obs.R},
+                      {"sigma_linear_gm", obs.sigma_linear_gm},
+                      {"sigma_circular_gm", obs.sigma_circular_gm},
+                      {"delta_parallel", obs.D_linear}});
+      tbl_f.push_back(static_cast<int>(f)); tbl_w.push_back(wf);
+      tbl_S.push_back(S); tbl_o.push_back(obs);
+    }
+    world.gop.fence();
+  }
+
+  // Dalton-style output (matches rspvec.F QRSMO): tensor S table + the
+  // Monson-McClain Df/Dg/D(lin,circ)/sigma/R summary. No point-group symmetry
+  // in MRA, so one manifold (no Sym column). Diffable against Dalton .out.
+  if (world.rank() == 0 && !tbl_f.empty()) {
+    const double H2EV = 27.211386245988;
+    printf("\n                  +--------------------------------+\n");
+    printf("                  | Two-photon transition tensor S |\n");
+    printf("                  +--------------------------------+\n");
+    printf("     -----------------------------------------------------------------\n");
+    printf("      No  Energy(eV)     Sxx     Syy     Szz     Sxy     Sxz     Syz\n");
+    printf("     -----------------------------------------------------------------\n");
+    for (size_t r = 0; r < tbl_f.size(); ++r)
+      printf("     %3d   %8.2f  %8.3f%8.3f%8.3f%8.3f%8.3f%8.3f\n",
+             tbl_f[r] + 1, tbl_w[r] * H2EV, tbl_S[r](0, 0), tbl_S[r](1, 1),
+             tbl_S[r](2, 2), tbl_S[r](0, 1), tbl_S[r](0, 2), tbl_S[r](1, 2));
+    printf("     -----------------------------------------------------------------\n");
+    printf("\n     D = 2*Df+4*Dg (Linear);  D = -2*Df+6*Dg (Circular)\n");
+    printf("     Df = sum_ij S_ii*S_jj /30;   Dg = sum_ij S_ij^2 /30\n");
+    printf("     sigma = D*(E/2)^2*AU_TO_GM (GM, 0.1 eV FWHM);  R = (-Df+3Dg)/(Df+2Dg)\n");
+    printf("\n                   +-----------------------------------+\n");
+    printf("                   |   Two-photon absorption summary   |\n");
+    printf("                   +-----------------------------------+\n");
+    printf("      No Energy(eV) Polarization      Df         Dg          D        sigma      R\n");
+    printf("     ---------------------------------------------------------------------------------\n");
+    for (size_t r = 0; r < tbl_f.size(); ++r) {
+      const auto &o = tbl_o[r];
+      printf("     %3d %8.2f  Linear    %10.3E %10.3E %10.3E %10.3E %6.2f\n",
+             tbl_f[r] + 1, tbl_w[r] * H2EV, o.Df, o.Dg, o.D_linear, o.sigma_linear_gm, o.R);
+      printf("     %3d %8.2f  Circular  %10.3E %10.3E %10.3E %10.3E %6.2f\n",
+             tbl_f[r] + 1, tbl_w[r] * H2EV, o.Df, o.Dg, o.D_circular, o.sigma_circular_gm, o.R);
+    }
+    printf("     ---------------------------------------------------------------------------------\n");
+    fflush(stdout);
+  }
+
+  // Root-filtered runs are read-only (concurrent per-root processes must not
+  // race on the metadata file); full runs record properties/tpa as before.
+  if (world.rank() == 0 && !rows.empty() && ctx.tpa_roots.empty()) {
+    auto meta = ResponseMetadata::load_or_create(
+        ctx.calc_dir + "/response_metadata.json");
+    for (auto &row : rows) meta.add_property("tpa", key, row);
     meta.save();
   }
 }
@@ -1344,6 +1954,18 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
   using namespace madness;
   World &world = ctx.world;
   GroundState &gs = ctx.gs;
+
+  // Review finding (confirmed HIGH): the assembly readers below are hardcoded
+  // to the ClosedShell archive layout; an open-shell state deserializes
+  // MISALIGNED (crash or garbage alpha). The open-shell SOLVES are fine and
+  // saved — refuse the assembly loudly instead of fabricating numbers.
+  if (!gs.is_spin_restricted()) {
+    if (world.rank() == 0)
+      print("[ASSEMBLE] open-shell property assembly is not implemented yet — "
+            "response states are solved and saved, but alpha assembly is "
+            "SKIPPED (ClosedShell-only readers; see REVIEW_FINDINGS).");
+    return;
+  }
 
   // Dipole directions + frequencies present in the plan.
   std::set<int>    axes;
@@ -1424,13 +2046,10 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
           world, ctx.calc_dir, Perturbation::dipole(ax[i]), w);
       if (!Xi) { present = false; break; }   // metadata usable but archive gone
 
-      // k-CONSISTENCY (the real fix): reproject the loaded state to the common
-      // assembly (k, thresh) so inner() is well-defined no matter which protocol
-      // the source came from. Reprojecting a coarser state UP makes it
-      // representable at k_now but adds NO accuracy — the per-row verdict recorded
-      // above stays tied to the source protocol, not k_now.
-      for (auto &fn : Xi->x_alpha) fn = madness::project(fn, k_now, thresh);
-      for (auto &fn : Xi->y_alpha) fn = madness::project(fn, k_now, thresh);
+      // k-CONSISTENCY: try_load_fd_state re-projects any coarser source to the
+      // active (k, thresh) inside the loader, so Xi is at k_now here — inner()
+      // below is well-defined no matter which protocol the source came from.
+      // The per-row verdict recorded above stays tied to the source protocol.
 
       for (size_t j = 0; j < ax.size(); ++j)
         alpha(static_cast<long>(i), static_cast<long>(j)) =

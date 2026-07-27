@@ -129,15 +129,14 @@ build_es_problem_full(madness::World &world, GroundState &gs, int n_roots,
 
 // ----- Initial-guess adapters ------------------------------------------
 
-/// Adapt the legacy ESSolverGuess output (vector<RealResponseState>)
-/// into the new per-root storage (vector<ResponseStateX<ClosedShell>>).
-/// Trial-function shape is selected by `mode`; see ESGuessMode docs in
-/// ESSolverGuess.hpp.
+/// Assemble the ESSolverGuess output (vector<ResponseStateX<ClosedShell>>)
+/// into the solver's per-root State. Trial-function shape is selected by
+/// `mode`; see ESGuessMode docs in ESSolverGuess.hpp.
 inline ESSolver<TDA, ClosedShell>::State
 build_initial_guess_tda_closed_shell(
     madness::World &world, GroundState &gs, long n_roots,
     ESGuessMode mode = ESGuessMode::SolidHarmonics) {
-  std::vector<RealResponseState> guess;
+  std::vector<ResponseStateX<ClosedShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
       guess = make_initial_guess_tda_rhf(world, gs, n_roots);
@@ -165,15 +164,30 @@ build_initial_guess_tda_closed_shell(
     s.roots[r].x_alpha = guess[r].x_alpha;
   }
   s.iter = 0;
+
+  // Reject a degenerate bundle LOUDLY before it reaches the solver: a
+  // duplicate/linearly-dependent trial survives Gram-Schmidt as a ~zero
+  // vector and feeds a singular overlap S into rs::diagonalize (rank-
+  // deficient subspace, garbage omega). norm2 is collective — all ranks.
+  for (long r = 0; r < n_roots; ++r) {
+    const double nr = madness::norm2(world, s.roots[r].x_alpha);
+    if (nr < 1.0e-6) {
+      throw std::runtime_error(
+          "build_initial_guess_tda_closed_shell: guess root " +
+          std::to_string(r) + " has norm " + std::to_string(nr) +
+          " after orthonormalization — degenerate/duplicate trial bundle "
+          "(need " + std::to_string(n_roots) + " independent trials).");
+    }
+  }
   return s;
 }
 
-/// Adapter for OpenShell TDA — both α and β response components populated.
+/// OpenShell TDA — both α and β response components populated.
 inline ESSolver<TDA, OpenShell>::State
 build_initial_guess_tda_open_shell(
     madness::World &world, GroundState &gs, long n_roots,
     ESGuessMode mode = ESGuessMode::SolidHarmonics) {
-  std::vector<RealResponseState> guess;
+  std::vector<ResponseStateX<OpenShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
       guess = make_initial_guess_tda_uhf(world, gs, n_roots);
@@ -190,6 +204,8 @@ build_initial_guess_tda_open_shell(
       break;
   }
 
+  MADNESS_CHECK(static_cast<long>(guess.size()) >= n_roots);
+
   ESSolver<TDA, OpenShell>::State s;
   s.roots.resize(n_roots);
   for (long r = 0; r < n_roots; ++r) {
@@ -197,6 +213,21 @@ build_initial_guess_tda_open_shell(
     s.roots[r].x_beta  = guess[r].x_beta;
   }
   s.iter = 0;
+
+  // Same degenerate-bundle guard as the closed-shell adapter (collective).
+  for (long r = 0; r < n_roots; ++r) {
+    const double na = madness::norm2(world, s.roots[r].x_alpha);
+    const double nb = s.roots[r].x_beta.empty()
+                          ? 0.0 : madness::norm2(world, s.roots[r].x_beta);
+    if (std::sqrt(na * na + nb * nb) < 1.0e-6) {
+      throw std::runtime_error(
+          "build_initial_guess_tda_open_shell: guess root " +
+          std::to_string(r) +
+          " is ~zero after orthonormalization — degenerate/duplicate "
+          "trial bundle (need " + std::to_string(n_roots) +
+          " independent trials).");
+    }
+  }
   return s;
 }
 

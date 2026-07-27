@@ -19,7 +19,7 @@
 //
 // OPT-IN: compiled only when MADNESS_HAS_HDF5 is defined (the io-hdf5 thread's
 // -DMADNESS_ENABLE_HDF5=ON path). The native archive remains the default; this
-// header is a no-op in a normal build. See docs/30_io_hdf5_survey_and_plan.md.
+// header is a no-op in a normal build. See madqc/HDF5_IO.md.
 //
 // On-disk layout (<stem>.mad.h5):
 //   /meta   attrs: schema, k, thresh, ndim, tree_state, initial_level,
@@ -46,6 +46,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -149,6 +150,9 @@ void save_function_hdf5(const Function<T, NDIM>& f, const std::string& path) {
   static_assert(std::is_same<T, double>::value,
                 "function_hdf5_io Layer A is double-only for now (complex = follow-up)");
   namespace h = detail_function_hdf5;
+  h::H5ErrorScope h5guard;  // review MED: the structured path lacked this — a
+                            // failed H5 call can recurse in the default handler
+                            // and SIGSEGV; install the non-recursive handler.
 
   const auto impl = f.get_impl();
   World& world = impl->world;
@@ -222,6 +226,8 @@ Function<T, NDIM> load_function_hdf5(World& world, const std::string& path) {
   static_assert(std::is_same<T, double>::value,
                 "function_hdf5_io Layer A is double-only for now (complex = follow-up)");
   namespace h = detail_function_hdf5;
+  h::H5ErrorScope h5guard;  // review MED: non-recursive H5 error handler (as
+                            // the blob path has) so a failed read can't SIGSEGV.
   MADNESS_CHECK(world.size() == 1);
 
   hid_t file = H5Fopen(path.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -338,7 +344,12 @@ inline void write_byte_dataset(const std::string& path,
   H5Dclose(ds);
   if (plist >= 0) H5Pclose(plist);
   H5Sclose(sp);
-  H5Fclose(file);
+  // Close status matters: HDF5 buffers metadata until close, so a failed
+  // close means the file on disk may be incomplete. Callers rename a tmp
+  // over the real name only after this returns cleanly.
+  herr_t cst = H5Fclose(file);
+  MADNESS_CHECK_THROW(cst >= 0,
+      "write_byte_dataset: H5Fclose failed (flush error — file incomplete?)");
 }
 inline void read_byte_dataset(const std::string& path,
                               std::vector<unsigned char>& buf) {
@@ -390,8 +401,25 @@ void save_parallel_archive_hdf5(World& world, const std::string& path,
     cb(par);  // 2067: thread-parallel serialize + MPI_Gatherv to rank 0's buf
     par.flush();
   }
-  if (world.rank() == 0)
-    detail_function_hdf5::write_byte_dataset(path, buf, deflate_level);
+  // Rank 0 writes; the H5 throw must become a COLLECTIVE failure (broadcast the
+  // error before anyone throws) — a rank-0-only unwind here skips the fence
+  // below while every other rank blocks in it forever (review io HIGH).
+  std::string save_err;
+  if (world.rank() == 0) {
+    // Atomic install (tmp + rename), same contract as the JSON indexes: the
+    // auto-detect/metadata-preferred .h5 must never be a truncated in-place
+    // write — a kill mid-save would otherwise brick restart despite valid
+    // data. write_byte_dataset throws on any failed write/close, so the
+    // rename only installs a fully flushed file.
+    try {
+      const std::string tmp = path + ".tmp";
+      detail_function_hdf5::write_byte_dataset(tmp, buf, deflate_level);
+      std::filesystem::rename(tmp, path);
+    } catch (const std::exception& e) { save_err = e.what(); }
+      catch (...) { save_err = "save_parallel_archive_hdf5: unknown error for " + path; }
+  }
+  world.gop.broadcast_serializable(save_err, 0);
+  if (!save_err.empty()) throw std::runtime_error(save_err);  // collective
   world.gop.fence();
 }
 
@@ -400,7 +428,17 @@ void save_parallel_archive_hdf5(World& world, const std::string& path,
 template <class LoadCb>
 void load_parallel_archive_hdf5(World& world, const std::string& path, LoadCb&& cb) {
   std::vector<unsigned char> buf;  // only the io-node (rank 0) needs the bytes
-  if (world.rank() == 0) detail_function_hdf5::read_byte_dataset(path, buf);
+  // Rank 0 reads; a failed H5 read must fail COLLECTIVELY — the throw used to
+  // fire on rank 0 alone, before the collective cb(par) deserialize every
+  // other rank enters unconditionally, hanging them forever (review io HIGH).
+  std::string load_err;
+  if (world.rank() == 0) {
+    try { detail_function_hdf5::read_byte_dataset(path, buf); }
+    catch (const std::exception& e) { load_err = e.what(); }
+    catch (...) { load_err = "load_parallel_archive_hdf5: unknown error for " + path; }
+  }
+  world.gop.broadcast_serializable(load_err, 0);
+  if (!load_err.empty()) throw std::runtime_error(load_err);  // collective
   archive::VectorInputArchive var(buf);
   archive::ParallelInputArchive<archive::VectorInputArchive> par(world, var, 1);
   cb(par);  // 2328

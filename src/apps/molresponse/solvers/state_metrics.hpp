@@ -25,7 +25,7 @@
 // protocol boundaries, not for the hot iteration loop.
 // ===========================================================================
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/world/MADworld.h>
 
 #include <unistd.h>

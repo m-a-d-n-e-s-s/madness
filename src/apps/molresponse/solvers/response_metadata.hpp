@@ -36,14 +36,17 @@
 // live next to the solver code that owns the types.
 // =========================================================================
 
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 namespace molresponse_v3 {
@@ -125,25 +128,100 @@ public:
     j_["io"] = {{"backend", backend}, {"hdf5_compiled", hdf5_compiled}};
   }
 
-  /// Append a property record to properties/<name>/<protocol_key>[]. The
+  /// Stamp the ground-state archive identity this calc dir's response states
+  /// were built against (restart safety — the GS fingerprint gate). `hex` is
+  /// the FNV-1a-64 of the archive part bytes; a later run with a different
+  /// archive (regenerated orbitals => possible phase flips) must not reuse
+  /// the cached response vectors.
+  void set_ground_state(const std::string &archive, const std::string &hex,
+                        std::uint64_t bytes, int nparts) {
+    j_["ground_state"] = {{"archive", archive},
+                          {"fnv1a64", hex},
+                          {"bytes", bytes},
+                          {"nparts", nparts}};
+  }
+
+  /// The stamped GS fingerprint, or "" if this metadata predates the stamp.
+  std::string ground_state_fingerprint() const {
+    if (j_.contains("ground_state") && j_["ground_state"].is_object())
+      return j_["ground_state"].value("fnv1a64", "");
+    return {};
+  }
+
+  /// Upsert a property record into properties/<name>/<protocol_key>[]. The
   /// caller stamps it with whatever provenance is meaningful (es_root_id,
   /// fd_freq, the value, etc. — see doc 13's matching contract).
+  ///
+  /// Identity contract (review fix — append-only rows made restarts accumulate
+  /// duplicate/stale rows): a record's identity within (name, protocol_key) is
+  /// the tuple of its identity fields (see property_identity). A re-run that
+  /// re-assembles the same row REPLACES the old one; rows with different
+  /// identities append; history across DIFFERENT protocols is preserved by the
+  /// protocol_key level. Records carrying none of the identity fields keep the
+  /// legacy append behaviour.
   void add_property(const std::string &name,
                     const std::string &protocol_key,
                     const nlohmann::json &record) {
     auto &arr = j_["properties"][name][protocol_key];
     if (!arr.is_array()) arr = nlohmann::json::array();
+    const nlohmann::json id = property_identity(record);
+    if (!id.empty())
+      for (auto &existing : arr)
+        if (property_identity(existing) == id) { existing = record; return; }
     arr.push_back(record);
   }
 
-  /// Atomic write. Throws on filesystem error.
+  /// The identity fields of a property record: alpha rows key on
+  /// (omega, directions); beta/raman rows on (A, B, C, freq_b, freq_c);
+  /// ES-derived rows on (es_root_id, fd_freq). Doubles round-trip exactly
+  /// through nlohmann::json, so equality on re-assembled rows is exact.
+  static nlohmann::json property_identity(const nlohmann::json &record) {
+    static constexpr const char *keys[] = {"omega",  "directions", "A",
+                                           "B",      "C",          "freq_b",
+                                           "freq_c", "es_root_id", "fd_freq"};
+    nlohmann::json id = nlohmann::json::object();
+    for (const char *k : keys)
+      if (record.contains(k)) id[k] = record[k];
+    return id;
+  }
+
+  /// Record planned work the run ended WITHOUT executing (review fix: honest-
+  /// climb + hard VBC prerequisite gates could silently drop beta/raman work
+  /// while stop_reason claimed 'complete'). Full-replace upsert: run() writes
+  /// the current list on every exit, so a later run that completes the work
+  /// clears it (empty array = nothing dropped).
+  void set_dropped_work(const nlohmann::json &items) {
+    j_["run_summary"]["dropped_work"] = items;
+  }
+
+  /// Process-wide read-only switch. Concurrent per-root verification
+  /// processes (--tpa-roots) share one calc dir; with this set every save()
+  /// is a no-op so siblings cannot race on the index (in-memory mutations
+  /// like the derived-FD expansion still happen and are read back normally).
+  static bool &read_only() { static bool ro = false; return ro; }
+
+  /// Atomic write. Throws on filesystem error — INCLUDING a failed write or
+  /// close (ENOSPC etc.): an unchecked stream would let the rename install a
+  /// truncated tmp over a good index. The bad tmp is removed on failure.
   void save() const {
-    const std::string tmp = path_ + ".tmp";
+    if (read_only()) return;
+    // pid-unique tmp: with a fixed name, concurrent writers rename each
+    // other's tmp away and the loser dies on ENOENT (seen 2026-07-22 with
+    // 4 per-root TPA processes).
+    const std::string tmp = path_ + ".tmp." + std::to_string(::getpid());
     {
       std::ofstream out(tmp);
       if (!out) throw std::runtime_error(
           "ResponseMetadata: cannot open for write: " + tmp);
       out << j_.dump(2) << "\n";
+      out.close();
+      if (out.fail()) {
+        std::error_code ec;
+        std::filesystem::remove(tmp, ec);
+        throw std::runtime_error(
+            "ResponseMetadata: write to " + tmp +
+            " failed (disk full?) — keeping the previous " + path_);
+      }
     }
     std::filesystem::rename(tmp, path_);
   }
@@ -162,36 +240,51 @@ public:
   /// guards). Idempotent: a missing shard is skipped, so re-running is safe.
   static void merge_state_shards(const std::string &calc_dir, int n_groups) {
     auto canon = load_or_create(calc_dir + "/response_metadata.json");
-    for (int g = 0; g < n_groups; ++g) {
-      const std::string sp =
-          calc_dir + "/response_metadata.group" + std::to_string(g) + ".json";
-      if (!std::filesystem::exists(sp)) continue;
-      std::ifstream in(sp);
-      if (!in) continue;
-      nlohmann::json sj;
-      in >> sj;
-      // NB: iterate the lvalue member (sj["fd_states"]), NOT a .value(...)
-      // temporary — .items() on a temporary json dangles.
-      if (sj.contains("fd_states") && sj["fd_states"].is_object())
-        for (const auto &pert : sj["fd_states"].items())
-          for (const auto &pk : pert.value().items())
-            for (const auto &fk : pk.value().items())
-              canon.set_fd_state(pert.key(), pk.key(), fk.key(), fk.value());
-      // F2g: VBC quadratic-source states (vbc_states/<id>/<protocol_key>).
-      if (sj.contains("vbc_states") && sj["vbc_states"].is_object())
-        for (const auto &id : sj["vbc_states"].items())
-          for (const auto &pk : id.value().items())
-            canon.set_vbc_state(id.key(), pk.key(), pk.value());
-      // Protocol registry is informational; union any keys the canonical lacks.
-      if (sj.contains("protocols") && sj["protocols"].is_object())
-        for (const auto &p : sj["protocols"].items())
-          if (!canon.j_["protocols"].contains(p.key()))
-            canon.j_["protocols"][p.key()] = p.value();
-    }
+    for (int g = 0; g < n_groups; ++g)
+      merge_shard_into(canon, calc_dir + "/response_metadata.group" +
+                                  std::to_string(g) + ".json");
     canon.save();
     for (int g = 0; g < n_groups; ++g)
       std::filesystem::remove(
           calc_dir + "/response_metadata.group" + std::to_string(g) + ".json");
+  }
+
+  /// F2 restart safety: merge any per-group shards STRANDED by an interrupted
+  /// run. The normal path (merge_state_shards above) collapses shards right
+  /// after each fan-out wave — but a kill between fan-out and merge leaves
+  /// response_metadata.group<g>.json files behind, and a restart reading only
+  /// the canonical file would silently re-solve states that are already on
+  /// disk. Discovers shards by name (the interrupted run's G is unknown and
+  /// may differ from this run's), merges through the same typed-setter union,
+  /// and removes them. Returns the number of shards merged; 0 = nothing to
+  /// do. Rank-0 only (caller guards); idempotent.
+  static int merge_stale_state_shards(const std::string &calc_dir) {
+    namespace fs = std::filesystem;
+    const std::string prefix = "response_metadata.group";
+    const std::string suffix = ".json";
+    std::vector<std::string> shards;
+    std::error_code ec;
+    for (const auto &e : fs::directory_iterator(calc_dir, ec)) {
+      if (ec || !e.is_regular_file()) continue;
+      const std::string name = e.path().filename().string();
+      if (name.size() <= prefix.size() + suffix.size()) continue;
+      if (name.compare(0, prefix.size(), prefix) != 0) continue;
+      if (name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
+        continue;
+      const std::string gid =
+          name.substr(prefix.size(), name.size() - prefix.size() - suffix.size());
+      if (gid.empty() ||
+          gid.find_first_not_of("0123456789") != std::string::npos)
+        continue;  // not a shard (e.g. a stray .json.tmp or foreign file)
+      shards.push_back(e.path().string());
+    }
+    if (shards.empty()) return 0;
+    std::sort(shards.begin(), shards.end());
+    auto canon = load_or_create(calc_dir + "/response_metadata.json");
+    for (const auto &sp : shards) merge_shard_into(canon, sp);
+    canon.save();
+    for (const auto &sp : shards) fs::remove(sp);
+    return static_cast<int>(shards.size());
   }
 
   /// Canonical frequency key for fd_states / archive naming. f%.5f matches
@@ -204,6 +297,49 @@ public:
   }
 
 private:
+  /// The single shard->canonical union both merge entries share. FD and VBC
+  /// states are DISJOINT across subworlds, so this is conflict-free; done
+  /// through the typed setters (never a raw write). Missing/unreadable shard
+  /// files are skipped (idempotence).
+  static void merge_shard_into(ResponseMetadata &canon, const std::string &sp) {
+    if (!std::filesystem::exists(sp)) return;
+    std::ifstream in(sp);
+    if (!in) return;
+    nlohmann::json sj;
+    // Shards are written atomically (save() tmp+rename), so a parse failure
+    // means external damage — quarantine it (keep the evidence, unblock every
+    // future startup) rather than throwing the whole run down.
+    try {
+      in >> sj;
+    } catch (const std::exception &) {
+      in.close();
+      std::error_code ec;
+      std::filesystem::rename(sp, sp + ".corrupt", ec);
+      std::fprintf(stderr,
+                   "ResponseMetadata: shard %s unparsable — quarantined as "
+                   "%s.corrupt (its states will be re-solved)\n",
+                   sp.c_str(), sp.c_str());
+      return;
+    }
+    // NB: iterate the lvalue member (sj["fd_states"]), NOT a .value(...)
+    // temporary — .items() on a temporary json dangles.
+    if (sj.contains("fd_states") && sj["fd_states"].is_object())
+      for (const auto &pert : sj["fd_states"].items())
+        for (const auto &pk : pert.value().items())
+          for (const auto &fk : pk.value().items())
+            canon.set_fd_state(pert.key(), pk.key(), fk.key(), fk.value());
+    // F2g: VBC quadratic-source states (vbc_states/<id>/<protocol_key>).
+    if (sj.contains("vbc_states") && sj["vbc_states"].is_object())
+      for (const auto &id : sj["vbc_states"].items())
+        for (const auto &pk : id.value().items())
+          canon.set_vbc_state(id.key(), pk.key(), pk.value());
+    // Protocol registry is informational; union any keys the canonical lacks.
+    if (sj.contains("protocols") && sj["protocols"].is_object())
+      for (const auto &p : sj["protocols"].items())
+        if (!canon.j_["protocols"].contains(p.key()))
+          canon.j_["protocols"][p.key()] = p.value();
+  }
+
   nlohmann::json j_;
   std::string    path_;
 };
