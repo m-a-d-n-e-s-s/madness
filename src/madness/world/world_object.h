@@ -336,11 +336,24 @@ namespace madness {
 
     } // namespace detail
 
-    /// Base class for WorldObject, useful for introspection
+    /// Base class for WorldObject
+    /// Provides a protected world reference to the derived class
+    /// and get_world() method to access it.
+    /// Should not be used directly, but rather through WorldObject<Derived>.
     struct WorldObjectBase {
-      virtual ~WorldObjectBase() = default;
+    protected:
+        World& world; ///< The \c World this object belongs to. (Think globally, act locally).
+
+        explicit WorldObjectBase(World& w) : world(w) {}
     public:
-        virtual World& get_world() const = 0;
+
+        virtual ~WorldObjectBase() = default;
+
+        /// Get the world to which this object belongs.
+        /// \return A reference to the world.
+        World& get_world() const {
+            return world;
+        }
     };
 
     /// Implements most parts of a globally addressable object (via unique ID).
@@ -359,7 +372,7 @@ namespace madness {
     /// -# Derived class must have at least one virtual function for serialization
     ///    of derived class pointers to be cast to the appropriate type.
     ///
-    /// Note that \c world is exposed for convenience as a public data member.
+    /// Note that the world is exposed through \c WorldObjectBase::get_world().
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
@@ -369,7 +382,7 @@ namespace madness {
         typedef WorldObject<Derived> objT;
 
         // copy ctor must be enabled to permit RVO; in C++17 will not need this
-        WorldObject(const WorldObject& other) : world(other.world) { abort(); }
+        WorldObject(const WorldObject& other) : WorldObjectBase(other.world) { abort(); }
         // no copy
         WorldObject& operator=(const WorldObject&) = delete;
 
@@ -379,8 +392,6 @@ namespace madness {
 
         /// \todo Description needed.
         typedef detail::voidT voidT;
-
-        World& world; ///< The \c World this object belongs to. (Think globally, act locally).
 
         // The order here matters in a multi-threaded world
         volatile bool ready; ///< True if ready to rock 'n roll.
@@ -703,7 +714,7 @@ namespace madness {
         /// -# to enable processing of future messages.
         /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
-                : world(world)
+                : WorldObjectBase(world)
                 , ready(false)
                 , me(world.rank())
                 , objid(world.register_ptr(static_cast<Derived*>(this))) {};
@@ -713,13 +724,6 @@ namespace madness {
         const uniqueidT& id() const {
             return objid;
         }
-
-
-        /// Returns a reference to the \c world.
-        World& get_world() const {
-            return const_cast<WorldObject<Derived>*>(this)->world;
-        }
-
 
         /// \todo Brief description needed.
 
@@ -1555,7 +1559,7 @@ namespace madness {
 #endif  // MADNESS_WORLDOBJECT_FUTURE_TRACE
 
     namespace archive {
-        
+
         /// Specialization of \c ArchiveLoadImpl for globally-addressable objects.
 
         /// \tparam Derived The derived class of \c WorldObject in a curiously
