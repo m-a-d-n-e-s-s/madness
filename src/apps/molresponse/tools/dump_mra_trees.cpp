@@ -36,10 +36,12 @@
 #include "../kernels/tags.hpp"         // Static / Full / TDA, ClosedShell
 #include "../kernels/static.hpp"       // Kernels<Static,ClosedShell>::compute_density
 #include "../kernels/full.hpp"         // Kernels<Full,ClosedShell>::compute_density
+#include "../kernels/tda.hpp"          // Kernels<TDA,ClosedShell>::compute_density (ES tdens)
 #include "../solvers/fd_save_load.hpp" // try_load_fd_state<Type,Shell>
+#include "../solvers/es_save_load.hpp" // load_es_roots<TDA,ClosedShell> (ES bundle)
 
 #include <madness/chem/atomutil.h>
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 #include <madness/misc/info.h>
 #include <madness/mra/funcplot.h>
 #include <madness/mra/mra.h>
@@ -463,6 +465,17 @@ void write_amr(World& world, Function<double, 3> f, const std::string& path,
   const int nlev = int(Lmax - Lmin + 1);
   std::vector<int> per_level(nlev, 0);
   for (const auto& b : blocks) per_level[b.n - Lmin]++;
+  // Review MED: the rebase guarantees a populated level 0 (Lmin), but an
+  // INTERIOR level can still be empty if the leaf depths have a gap — that can
+  // trip the same vtkXMLUniformGridAMRReader metadata path as an empty level 0.
+  // Warn here; the full fix (compact to only populated levels with the correct
+  // per-level refinement ratio) needs ParaView validation and belongs to the
+  // viz/pymra thread.
+  for (int lev = 1; lev + 1 < nlev; ++lev)
+    if (per_level[lev] == 0)
+      print("[--amr] WARNING: interior AMR level", lev, "(MADNESS n =",
+            Lmin + lev, ") has NO leaf boxes; the .vthb may fail to load in "
+            "some readers. Report to the viz thread if ParaView rejects it.");
 
   vtkNew<vtkOverlappingAMR> amr;
   amr->Initialize(nlev, per_level.data());
@@ -537,7 +550,7 @@ inline void write_amr_from_function(World&, const Function<double, 3>&,
 // per leaf. Unlike --amr (which point-SAMPLES each leaf onto an m^3 grid), this is the
 // function's native multiresolution basis, so a reader can reconstruct the MADNESS
 // expansion exactly at any point/zoom. "Don't roll a new serializer"
-// (native_mra_reader_proposal.md): we write through the same writer io-hdf5 built.
+// we write through the same writer io-hdf5 built.
 //
 // The structured writer is double-only and MADNESS_CHECKs world.size()==1 (the local
 // container == the whole tree only at NP=1) and t.size()==k^3 per coeff node (so the
@@ -751,6 +764,99 @@ void dump_fd_states(World& world, double L, const std::string& calc_dir,
     print("DUMP_MRA_FD  calc_dir=", calc_dir, "  points_dumped=", npoints);
 }
 
+// Walk response_metadata.json excited_states and dump every converged CLOSED-SHELL
+// TDA excited-state's response orbitals (x_i) + transition density into `out_dir`,
+// alongside the ground + FD dumps. Mirrors dump_fd_states: the ES loader
+// (load_es_roots) and all export writers already exist. Collective.
+void dump_es_roots(World& world, double L, const std::string& calc_dir,
+                   const std::string& out_dir, int max_orbitals,
+                   const vecfuncT& gs_amo, const Molecule& mol, bool cube,
+                   int cube_npoints, double cube_pad, bool htg, bool amr,
+                   int amr_m, bool coeffs) {
+  const std::string meta_path = calc_dir + "/response_metadata.json";
+  if (!std::filesystem::exists(meta_path)) {
+    if (world.rank() == 0)
+      print("  [ES] no response_metadata.json in", calc_dir, "-- nothing to dump");
+    return;
+  }
+  nlohmann::json j;
+  { std::ifstream ifs(meta_path); ifs >> j; }
+  if (!j.contains("excited_states")) {
+    if (world.rank() == 0) print("  [ES] no excited_states in", meta_path);
+    return;
+  }
+  const auto protocols = j.value("protocols", nlohmann::json::object());
+
+  int nroots = 0;
+  for (auto& [key, blk] : j["excited_states"].items()) {
+    if (!protocols.contains(key)) continue;
+    const double thresh = protocols[key].value("thresh", 0.0);
+    const int    k      = protocols[key].value("k", 0);
+    if (thresh <= 0.0 || k <= 0) continue;
+    set_response_protocol(world, L, thresh, k);
+
+    ESSolver<TDA, ClosedShell>::State state;
+    try {
+      state = load_es_roots<TDA, ClosedShell>(world, calc_dir + "/es__" + key);
+    } catch (const std::exception& e) {
+      if (world.rank() == 0) print("  [ES] skip", key, "--", e.what());
+      continue;
+    }
+
+    // GS orbitals reprojected to the ES k for the transition density (same
+    // discipline as dump_fd_point's rho1: reproject a LOCAL copy).
+    const int    kfd = FunctionDefaults<3>::get_k();
+    const double tfd = FunctionDefaults<3>::get_thresh();
+    vecfuncT amo_k;
+    amo_k.reserve(gs_amo.size());
+    for (const auto& o : gs_amo)
+      amo_k.push_back(o.k() == kfd ? o : project(o, kfd, tfd, false));
+    world.gop.fence();
+    ResponseGroundState rgs;
+    rgs.amo = amo_k;
+
+    const int nr = static_cast<int>(state.roots.size());
+    for (int f = 0; f < nr; ++f) {
+      const auto& root = state.roots[f];
+      // Name to pymra.web's field contract: es_<state>__<protocol>_<comp>
+      // (web.py _RE_ES). Comp suffixes _x<i>/_tdens are appended below, matching
+      // the FD path's fd_<pert>_<dir>__<protocol>__f<omega>_<comp> convention.
+      const std::string label = "es_" + std::to_string(f) + "__" + key;
+      const std::size_t no =
+          (max_orbitals >= 0)
+              ? std::min<std::size_t>(root.x_alpha.size(),
+                                      static_cast<std::size_t>(max_orbitals))
+              : root.x_alpha.size();
+      for (std::size_t i = 0; i < no; ++i) {
+        const std::string stem = out_dir + "/" + label + "_x" + std::to_string(i);
+        dump_function_trees(world, root.x_alpha[i], stem, htg);
+        if (cube)
+          write_cube_file(world, root.x_alpha[i], mol, stem + ".cube",
+                          cube_npoints, cube_pad);
+        if (amr) write_amr_from_function(world, root.x_alpha[i], stem + ".vthb", amr_m);
+        if (coeffs) write_coeffs_hdf5(world, root.x_alpha[i], stem + ".mad.h5");
+        const double nrm = root.x_alpha[i].norm2();  // collective
+        if (world.rank() == 0) print("  dumped", label, "x", i, " norm2=", nrm);
+      }
+      // Transition density (TDA, closed-shell): the single-source-of-truth
+      // Kernels density of the root against the ground state.
+      real_function_3d tdens =
+          Kernels<TDA, ClosedShell>::compute_density(world, rgs, root);
+      const std::string tstem = out_dir + "/" + label + "_tdens";
+      dump_function_trees(world, tdens, tstem, htg);
+      if (cube)
+        write_cube_file(world, tdens, mol, tstem + ".cube", cube_npoints, cube_pad);
+      if (amr) write_amr_from_function(world, tdens, tstem + ".vthb", amr_m);
+      if (coeffs) write_coeffs_hdf5(world, tdens, tstem + ".mad.h5");
+      const double tn = tdens.norm2();  // collective
+      if (world.rank() == 0) print("  dumped", label, "tdens  norm2=", tn);
+      ++nroots;
+    }
+  }
+  if (world.rank() == 0)
+    print("DUMP_MRA_ES  calc_dir=", calc_dir, "  roots_dumped=", nroots);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -807,6 +913,9 @@ int main(int argc, char** argv) {
       // from a calc dir (response_metadata.json) into the same out dir, so one
       // mra_tree.py run yields a combined ground + response overlap matrix.
       const bool dump_fd = parser.key_exists("fd");
+      // ES excited-state response orbitals + transition densities from the same
+      // calc dir (response_metadata.json excited_states + es__<key>/ bundles).
+      const bool dump_es = parser.key_exists("es");
       const std::string fd_calc_dir =
           parser.key_exists("fd-calc-dir")
               ? parser.value_raw("fd-calc-dir")
@@ -897,6 +1006,14 @@ int main(int argc, char** argv) {
         dump_fd_states(world, header.L, fd_calc_dir, out_dir, max_orbitals, mos,
                        gs.molecule(), cube, cube_npoints, cube_pad, htg, amr,
                        amr_m, coeffs);
+        world.gop.fence();
+      }
+
+      // ES excited-state orbitals + transition densities (same calc dir as --fd).
+      if (dump_es) {
+        dump_es_roots(world, header.L, fd_calc_dir, out_dir, max_orbitals, mos,
+                      gs.molecule(), cube, cube_npoints, cube_pad, htg, amr,
+                      amr_m, coeffs);
         world.gop.fence();
       }
     }

@@ -146,7 +146,13 @@ inline DiagonalizeResult
 diagonalize(const madness::Tensor<double> &A_in,
             const madness::Tensor<double> &S_in,
             double thresh_degenerate = -1.0,
-            double cluster_factor    = 100.0) {
+            double cluster_factor    = 100.0,
+            madness::World *world_ptr = nullptr) {
+  // world_ptr: the world whose ranks are calling this (sygvp broadcasts on
+  // it). nullptr keeps the legacy World::get_default() — WRONG inside a
+  // subworld (kernels review: cross-communicator broadcast is a hang/cross-
+  // talk landmine). Subworld-capable callers MUST pass their world; new call
+  // sites should always pass it explicitly.
   using madness::Slice;
   using madness::_;
 
@@ -190,7 +196,8 @@ diagonalize(const madness::Tensor<double> &A_in,
 
   // ---- 2b. Generalized eigenproblem -------------------------------------
   madness::Tensor<double> U_small, evals;
-  madness::sygvp(madness::World::get_default(), A, S, 1, U_small, evals);
+  madness::sygvp(world_ptr ? *world_ptr : madness::World::get_default(),
+                 A, S, 1, U_small, evals);
 
   const long nmo = A.dim(0);
 
@@ -255,34 +262,18 @@ diagonalize(const madness::Tensor<double> &A_in,
     ilo = ihi + 1;
   }
 
-  // ---- 5.5 Final ascending sort (port of legacy sort_eigenvalues) ------
-  // After dominance-swap + cluster-unmix canonicalize eigenvector phases
-  // and degenerate-subspace orientation, impose a STABLE ascending-omega
-  // order. Without this, the greedy dominance bubble (step 3) can flip
-  // slot assignment between iters for near-degenerate roots (U ~ 45°
-  // mixed → the swap test is numerically unstable), which corrupts
-  // per-slot KAIN history and drives the iteration into oscillation.
-  // Legacy ExcitedResponse.cpp:1122 applies exactly this as excited_eig's
-  // final step. std::stable_sort preserves the dominance order within
-  // exactly-equal clusters (cleaner than legacy's 1e-8 matching loop).
-  {
-    std::vector<long> order(nmo);
-    for (long i = 0; i < nmo; ++i) order[i] = i;
-    std::stable_sort(order.begin(), order.end(),
-                     [&](long a, long b) { return evals[a] < evals[b]; });
-    madness::Tensor<double> evals_s(nmo);
-    madness::Tensor<double> U_sorted(U_small.dim(0), U_small.dim(1));
-    std::vector<long> perm_s(nmo);
-    for (long i = 0; i < nmo; ++i) {
-      const long src = order[i];
-      evals_s(i)     = evals(src);
-      U_sorted(_, i) = U_small(_, src);
-      perm_s[i]      = perm[src];
-    }
-    evals   = evals_s;
-    U_small = U_sorted;
-    perm    = perm_s;
-  }
+  // NOTE (no step 5.5): an earlier revision re-imposed ascending-omega
+  // order here (port of legacy sort_eigenvalues). That re-sort exactly
+  // INVERTS the dominance permutation of step 3 (perm collapses back to
+  // identity, so the [ROT-SLOTS] REORDERED diagnostic could never fire),
+  // voids the step-4 phase fix (a swapped pair can end with U(i,i) < 0
+  // un-refixed), and rotates step 5's polar-unmix blocks off their slots.
+  // Near-degenerate roots — whose cluster windows scale with thresh and
+  // are widest at the coarse rung — then swap slots and flip signs every
+  // iteration, poisoning the per-slot KAIN history. Slot order here is
+  // DOMINANCE order (continuity with the caller's input slots); callers
+  // wanting ascending-omega output canonicalize once at the end via
+  // ESSolver::sort_state_by_omega (iterate_protocol's post-ramp hook).
 
   // ---- 6. Transform U back to original size if reduced -----------------
   madness::Tensor<double> U;
@@ -294,6 +285,36 @@ diagonalize(const madness::Tensor<double> &A_in,
     U = madness::Tensor<double>(size_l, size_l);
     madness::mxm(size_l, size_l, size_l,
                  U.ptr(), l_vecs.ptr(), temp_U.ptr());
+
+    // U was expanded back to size_l but the eigenproblem ran at size_s, so
+    // omega / omega_ascending / perm are SHORT. Pad them to size_l so the
+    // caller can index omega(s) for every slot (previously out-of-bounds →
+    // garbage BSH shift). The padded slots are the near-null-space
+    // directions of S dropped in step 2a; they carry the largest retained
+    // eigenvalue as a bounded placeholder (the next orthonormalize +
+    // rotation re-seeds those slots), and perm maps them to themselves.
+    {
+      const double pad = evals(static_cast<long>(size_s) - 1);
+      madness::Tensor<double> evals_full(static_cast<long>(size_l));
+      madness::Tensor<double> asc_full(static_cast<long>(size_l));
+      for (std::size_t i = 0; i < size_s; ++i) {
+        evals_full(static_cast<long>(i)) = evals(static_cast<long>(i));
+        asc_full(static_cast<long>(i))   = omega_ascending(static_cast<long>(i));
+      }
+      for (std::size_t i = size_s; i < size_l; ++i) {
+        evals_full(static_cast<long>(i)) = pad;
+        asc_full(static_cast<long>(i))   = pad;
+        perm.push_back(static_cast<long>(i));
+      }
+      evals           = std::move(evals_full);
+      omega_ascending = std::move(asc_full);
+      if ((world_ptr ? *world_ptr : madness::World::get_default()).rank() == 0) {
+        madness::print("[DIAG] WARNING: rank-deficient subspace overlap —",
+                       num_sv, "of", size_l,
+                       "slots dropped from the eigenproblem; their omega is a",
+                       "placeholder copy of the top retained eigenvalue.");
+      }
+    }
   } else {
     U = std::move(U_small);
   }

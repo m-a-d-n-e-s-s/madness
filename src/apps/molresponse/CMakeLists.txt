@@ -53,6 +53,19 @@ add_mad_executable(test_kernel_equivalence
 add_mad_executable(test_step_restriction
                    "tests/test_step_restriction.cpp"
                    "MADchem")
+# k-CONSISTENCY regression (review fix, confirmed HIGH): try_load_fd_state must
+# re-project a coarser-rung source to the active (k, thresh) inside the loader,
+# so beta assembly can never contract mixed-k functions ("functions have
+# different k" abort). Synthetic state, no ground-state fixture needed.
+add_mad_executable(test_fd_kfallback_load
+                   "tests/test_fd_kfallback_load.cpp"
+                   "MADchem")
+# Slot-identity contract of rs::diagonalize (dominance order, phase fix,
+# rank-deficient dim padding) — guards against re-introducing the
+# ascending-omega re-sort that caused the coarse-rung slot churn.
+add_mad_executable(test_diagonalize_slots
+                   "tests/test_diagonalize_slots.cpp"
+                   "MADchem")
 # Inc 1 of the ES node-φ state-parallel design (docs/21): node-aligned subworld
 # creation (one subworld per physical node via Split_type SHARED) + map test.
 add_mad_executable(test_node_subworlds
@@ -92,6 +105,14 @@ add_mad_executable(test_fd_subworld_fanout
 # Loads converged orbitals and dumps the adaptive octree per orbital; never solves.
 add_mad_executable(dump_mra_trees
                    "tools/dump_mra_trees.cpp;GroundState.cpp"
+                   "MADchem")
+# tpa_from_dalton: contraction-only 2PA harness — reads DALTON's own converged
+# vectors (RSPVEC: EXCITLAB X_f + DIPLEN N^A(w_f/2); molden.inp: occupied MOs),
+# projects them to MRA, and passes them through tpa_sources/tpa_moment with ZERO
+# solves. Equation-vs-vector discriminator against DALTON's printed S tensors
+# (TPA_SCOPING.md §5k). No HDF5 needed (text molden + Fortran-binary RSPVEC).
+add_mad_executable(tpa_from_dalton
+                   "tools/tpa_from_dalton.cpp;GroundState.cpp"
                    "MADchem")
 # Native HTG export is optional: only when -DMADNESS_ENABLE_VTK=ON found VTK.
 # Guarded by MADNESS_HAS_VTK in the source; a no-VTK build is unchanged.
@@ -135,7 +156,35 @@ if(MADNESS_ENABLE_HDF5)
       target_compile_definitions(${_hdf5_tgt} PRIVATE MADNESS_HAS_HDF5)
     endif()
   endforeach()
+  # dalton-cis-seed thread: converter that turns pymra per-occ-orbital .mad.h5
+  # response functions into a TDA excited-state seed bundle (save_es_roots,
+  # converged=false) the ES node Resumes from. HDF5-only (uses load_function_hdf5).
+  add_mad_executable(seed_es_from_hdf5 "tools/seed_es_from_hdf5.cpp;GroundState.cpp" "MADchem")
+  target_include_directories(seed_es_from_hdf5 PRIVATE ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(seed_es_from_hdf5 PRIVATE ${HDF5_LIBRARIES})
+  target_compile_definitions(seed_es_from_hdf5 PRIVATE MADNESS_HAS_HDF5)
+  # dalton-cis-seed (b): overlap-based pinning — identify which converged ES root
+  # matches the operator-selected seed by |<seed|root>| (character, not energy).
+  add_mad_executable(es_overlap "tools/es_overlap.cpp;GroundState.cpp" "MADchem")
+  target_include_directories(es_overlap PRIVATE ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(es_overlap PRIVATE ${HDF5_LIBRARIES})
+  target_compile_definitions(es_overlap PRIVATE MADNESS_HAS_HDF5)
 endif()
+
+# dalton-cis-seed (c): native DALTON reader — reads RSPVEC + molden.inp directly,
+# projects x_i onto MRA, and emits the ES seed bundle without a Python/HDF5
+# intermediate. Writes the NATIVE save_es_roots bundle (converged=false) that the
+# ES node Resumes from — no HDF5 at runtime, and every HDF5 path in
+# response_state.hpp is #ifdef MADNESS_HAS_HDF5 guarded, so this compiles in a
+# plain (non-HDF5) build. Kept OUT of the MADNESS_ENABLE_HDF5 block so it is
+# always available (enabling HDF5 here drags parallel-HDF5's Intel-MPI include
+# path in and breaks the xeonmax toolchain — see es_bench MPI notes).
+add_mad_executable(seed_from_dalton "tools/seed_from_dalton.cpp;GroundState.cpp" "MADchem")
+
+# dalton-cis-seed (GS): project the occupied DALTON/molden MOs and write a
+# moldft version-4 .restartdata (native path only, no HDF5). Ground-state analogue
+# of seed_from_dalton; moldft --restart resumes from it (SCF::load_mos).
+add_mad_executable(seed_moldft_from_dalton "tools/seed_moldft_from_dalton.cpp;GroundState.cpp" "MADchem")
 
 add_dependencies(applications-madness molresponse)
 
@@ -147,7 +196,8 @@ install(TARGETS molresponse
 if (BUILD_TESTING)
   # Tier 1 — "unit": pure logic, no fixtures, no MPI launcher required.
   foreach(_t test_calc_manager test_protocol_key test_response_metadata
-             test_response_property_planner test_state_metrics)
+             test_response_property_planner test_state_metrics
+             test_diagonalize_slots)
     add_test(NAME madness/test/molresponse/${_t}/run COMMAND ${_t})
     set_property(TEST madness/test/molresponse/${_t}/run
                  PROPERTY LABELS "unit;response;short" APPEND)
@@ -159,7 +209,8 @@ if (BUILD_TESTING)
   # multi-rank coverage of these paths lives in the es_bench state-parallel
   # gates. Serial runs still validate the numerics end-to-end.
   foreach(_t test_exchange_ctx test_node_subworlds test_node_phi
-             test_subspace_allreduce test_es_build_subworld test_step_restriction)
+             test_subspace_allreduce test_es_build_subworld test_step_restriction
+             test_fd_kfallback_load)
     add_test(NAME madness/test/molresponse/${_t}/run COMMAND ${_t})
     set_property(TEST madness/test/molresponse/${_t}/run
                  PROPERTY LABELS "response-small;response;medium" APPEND)
