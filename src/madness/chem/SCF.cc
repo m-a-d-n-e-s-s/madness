@@ -702,34 +702,6 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
 
-    // Load-balance diagnostic (kemat_redesign.md §12): per-rank count of owned source-function nodes and
-    // LEAVES (has_coeff). do_diff1 work happens at leaves; this reveals whether rank 0 is empty (Run 5's
-    // 0% occupancy) and whether it is empty of leaves specifically -> tests the cost-model-mismatch
-    // hypothesis (lbcost weights interior 8:1 over leaves). Measurement-only, reuses MAD_DIFF_PROFILE.
-    if (real_derivative_3d::dp_enabled_) {
-        long my_nodes = 0, my_leaves = 0;
-        for (int i = 0; i < n; ++i) {
-            for (const auto& item : v[i].get_impl()->get_coeffs()) {
-                ++my_nodes;
-                if (item.second.has_coeff()) ++my_leaves;
-            }
-        }
-        std::vector<long> npr(world.size(), 0), lpr(world.size(), 0);
-        npr[world.rank()] = my_nodes;
-        lpr[world.rank()] = my_leaves;
-        world.gop.sum(npr.data(), world.size());
-        world.gop.sum(lpr.data(), world.size());
-        if (world.rank() == 0) {
-            long tn = 0, tl = 0;
-            for (int p = 0; p < world.size(); ++p) { tn += npr[p]; tl += lpr[p]; }
-            printf("    [KEmat loadbal] per-rank owned source nodes / leaves (%d funcs, totals nodes %ld leaves %ld):\n",
-                   n, tn, tl);
-            for (int p = 0; p < world.size(); ++p)
-                printf("      rank %d: nodes %ld (%.1f%%)  leaves %ld (%.1f%%)\n", p,
-                       npr[p], tn ? 100.0 * npr[p] / tn : 0.0, lpr[p], tl ? 100.0 * lpr[p] / tl : 0.0);
-        }
-    }
-
     if (tile_KEmat) {
         // Process one gradient direction at a time: peak live memory 2n (v + one dv)
         // instead of 4n (v + dvx + dvy + dvz). Within each direction, apply is tiled
@@ -737,13 +709,10 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
         for (int axis = 0; axis < 3; ++axis) {
             START_TIMER(world);
             vecfuncT dv(n);
-            // Separate differentiate (apply) from compress within the same phase so the profiler
-            // can attribute wall time to each. Optional per-node breakdown via MAD_DIFF_PROFILE.
-            const bool diff_prof = real_derivative_3d::dp_enabled_;
-            if (diff_prof) real_derivative_3d::dp_reset();
+            // Separate differentiate (apply) from compress within the same phase, timing each.
             // Variant B: stage the halo for this axis over ALL source functions, one fence, then
             // differentiate (tiles read the shared cache). Timed inside the differentiate region so the
-            // A/B wall is honest. Cleared after dp_report to free the transient surface (~200-900 MB/axis).
+            // A/B wall is honest. Cleared after the apply to free the transient surface (~200-900 MB/axis).
             double t_halo = 0.0;
             if (kemat_halo) {
                 double h0 = wall_time();
@@ -783,10 +752,6 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
                        t_apply_enq, t_diff_fence, t_comp_enq, t_comp_fence);
                 if (kemat_halo) printf("      halo stage+fence %.3fs\n", t_halo);
             }
-            if (diff_prof) {
-                char tag[32]; snprintf(tag, sizeof(tag), "axis %d", axis);
-                real_derivative_3d::dp_report(world, tag, t_diff);
-            }
             if (kemat_halo) for (int i = 0; i < n; ++i) v[i].get_impl()->halo_clear();
             START_TIMER(world);
             r += matrix_inner(r.distribution(), dv, dv, true);
@@ -795,10 +760,7 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
             END_TIMER(world, "KEmat inner product");
         }
     } else {
-        // No-tiling reference: all 3 axes applied before a single fence (peak mem ~4n). Same
-        // MAD_DIFF_PROFILE breakdown as the tiled path, reported once for the whole (3-axis) apply.
-        const bool diff_prof = real_derivative_3d::dp_enabled_;
-        if (diff_prof) real_derivative_3d::dp_reset();
+        // No-tiling reference: all 3 axes applied before a single fence (peak mem ~4n).
         // Variant B: all 3 axes applied before one fence, so stage all 3 axes into each function's
         // (axis-independent: key->coeff) halo up front. Timed separately (t_halo).
         double t_halo = 0.0;
@@ -824,7 +786,6 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
                    t_diff, t_apply_enq, t_diff_fence);
             if (kemat_halo) printf("      halo stage+fence %.3fs (3 axes)\n", t_halo);
         }
-        if (diff_prof) real_derivative_3d::dp_report(world, "notile (3 axes)", t_diff);
         if (kemat_halo) for (int i = 0; i < n; ++i) v[i].get_impl()->halo_clear();
         START_TIMER(world);
         compress(world, dvx, false);
@@ -2187,10 +2148,7 @@ tensorT SCF::make_fock_matrix(World& world, const vecfuncT& psi,
         END_TIMER(world, "KE compute loadbal");
 
         START_TIMER(world);
-        // §12 rank-0-idle probe: MAD_LB_DEBUG=1 turns on load_balance's built-in printstuff (prints the
-        // full partition map + per-proc accumulated costs) so we can see WHY key0 lands on rank 0 alone.
-        const bool lb_dbg = (std::getenv("MAD_LB_DEBUG") != nullptr);
-        std::shared_ptr<WorldDCPmapInterface<Key<3> > > newpmap = lb.load_balance(param.loadbalparts(), lb_dbg);
+        std::shared_ptr<WorldDCPmapInterface<Key<3> > > newpmap = lb.load_balance(param.loadbalparts());
         FunctionDefaults<3>::set_pmap(newpmap);
 
         world.gop.fence();
@@ -2353,7 +2311,7 @@ void SCF::loadbal(World& world, functionT& arho, functionT& brho,
     world.gop.fence();
 
     FunctionDefaults<3>::redistribute(world, lb.load_balance(
-            param.loadbalparts(), std::getenv("MAD_LB_DEBUG")!=nullptr)); // 6.0 needs retuning after param.vnucextra
+            param.loadbalparts())); // 6.0 needs retuning after param.vnucextra
 
     world.gop.fence();
 }

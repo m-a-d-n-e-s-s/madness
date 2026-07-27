@@ -34,13 +34,7 @@
 
 #include <iostream>
 #include <iomanip>
-#include <sstream>
 #include <fstream>
-#include <atomic>
-#include <chrono>
-#include <cstdlib>
-#include <cstdint>
-#include <ctime>
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/print.h>
@@ -97,22 +91,6 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
 
-        // --- differentiation profiler, env MAD_DIFF_PROFILE (measurement only, no behavior change) ---
-        // do_diff* runs async on worker threads, so accumulators must be atomic (unlike the
-        // single-threaded MAD_MACROTASK_RUN_PHASES accumulators). Time is measured with
-        // CLOCK_THREAD_CPUTIME_ID (per-thread CPU, ns) around specific code regions, so it is
-        // preemption-free (does NOT advance while a thread is descheduled) AND excludes the thread
-        // pool's idle spin (which happens in the pool wait loop, outside these regions). Buckets:
-        //   core     = transform_dir contractions (the dense k x k stencil multiply)
-        //   prolong  = parent_to_child prolongation of coarser-level inputs
-        //   rank     = scale + reduce_rank
-        //   dispatch = do_diff1 body (traversal/level-mismatch decision + fetch issue + task spawn);
-        //              excludes do_diff2* (separate tasks) so it does not overlap core/prolong/rank.
-        // Summed over threads (atomics) then over ranks (gop.sum). dp_report() computes compute
-        // occupancy = Sum(buckets) / (wall * nthreads * nranks): the fraction of available thread-time
-        // spent EXECUTING differentiation code. The gap to 1.0 is idle spin + barrier wait + fetch-
-        // serving (sock_it_to_me, uninstrumented) + scheduler. Statics are per-instantiation <T,NDIM>.
-        static inline bool dp_enabled_ = (std::getenv("MAD_DIFF_PROFILE") != nullptr);
         // Parallelize diff()'s serial per-leaf task-submission loop across the task pool (see
         // submit_diff_tasks below): attacks the serial main-thread spawn floor (large at high thread
         // counts) and overlaps the neighbor-fetch issue latency. Per-INSTANCE (not global) and default
@@ -120,109 +98,6 @@ namespace madness {
         // it on many trees (the kinetic-energy matrix over n orbitals) opt in per operator. Bit-identical
         // either way (same tasks, only the spawn is parallelized).
         bool parallel_submit_ = false;
-        static inline std::atomic<std::uint64_t> dp_core_ns_{0};      ///< transform_dir contractions (thread-CPU)
-        static inline std::atomic<std::uint64_t> dp_prolong_ns_{0};   ///< parent_to_child prolongation (thread-CPU)
-        static inline std::atomic<std::uint64_t> dp_rank_ns_{0};      ///< scale + reduce_rank (thread-CPU)
-        static inline std::atomic<std::uint64_t> dp_dispatch_ns_{0};  ///< do_diff1 dispatch/traversal (thread-CPU)
-        static inline std::atomic<std::uint64_t> dp_n_diff2i_{0};     ///< interior terminal stencils
-        static inline std::atomic<std::uint64_t> dp_n_diff2b_{0};     ///< boundary terminal stencils
-        static inline std::atomic<std::uint64_t> dp_n_recurse_{0};    ///< do_diff1 level-mismatch descents
-        static inline std::atomic<std::uint64_t> dp_n_fetch_local_{0};   ///< same-rank neighbor fetches
-        static inline std::atomic<std::uint64_t> dp_n_fetch_remote_{0};  ///< off-rank neighbor fetches
-        static inline std::atomic<std::uint64_t> dp_n_fetch_zerobc_{0};  ///< out-of-domain (zero-BC) neighbors
-        static inline std::atomic<std::uint64_t> dp_n_halo_hit_{0};      ///< Variant B: served from halo cache (a/b)
-        static inline std::atomic<std::uint64_t> dp_n_halo_miss_{0};     ///< Variant B: halo miss -> pull fallback (c)
-
-        /// per-thread CPU time in ns (CLOCK_THREAD_CPUTIME_ID): preemption-free, excludes idle spin.
-        static std::uint64_t dp_ticks() {
-            struct timespec ts;
-            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-            return (std::uint64_t)ts.tv_sec * 1000000000ull + (std::uint64_t)ts.tv_nsec;
-        }
-        static void dp_reset() {
-            dp_core_ns_=0; dp_prolong_ns_=0; dp_rank_ns_=0; dp_dispatch_ns_=0;
-            dp_n_diff2i_=0; dp_n_diff2b_=0; dp_n_recurse_=0;
-            dp_n_fetch_local_=0; dp_n_fetch_remote_=0; dp_n_fetch_zerobc_=0;
-            dp_n_halo_hit_=0; dp_n_halo_miss_=0;         // Variant B halo (MAD_KEMAT_HALO)
-            diffprof::serve_ns=0; diffprof::serve_n=0;   // sock_it_to_me serving (funcimpl.h)
-            diffprof::serve_hit_leaf=0; diffprof::serve_hit_interior=0;      // a/b/c resolution split
-            diffprof::serve_miss_fwd=0; diffprof::serve_miss_fwd_remote=0;
-        }
-        /// collective: sum counters across ranks and print on rank 0. wall_seconds is the
-        /// differentiate-phase wall time (0 to skip occupancy). tag labels the phase (e.g. "axis 0").
-        static void dp_report(World& world, const char* tag, double wall_seconds = 0.0) {
-            std::uint64_t core=dp_core_ns_, prolong=dp_prolong_ns_, rank=dp_rank_ns_, disp=dp_dispatch_ns_;
-            std::uint64_t n2i=dp_n_diff2i_, n2b=dp_n_diff2b_, nrec=dp_n_recurse_;
-            std::uint64_t fl=dp_n_fetch_local_, fr=dp_n_fetch_remote_, fz=dp_n_fetch_zerobc_;
-            std::uint64_t serve=diffprof::serve_ns, serven=diffprof::serve_n;
-            std::uint64_t shl=diffprof::serve_hit_leaf, shi=diffprof::serve_hit_interior;
-            std::uint64_t smf=diffprof::serve_miss_fwd, smfr=diffprof::serve_miss_fwd_remote;
-            std::uint64_t hh=dp_n_halo_hit_, hm=dp_n_halo_miss_;
-            // Per-rank USEFUL occupancy (operator+serve), computed LOCALLY before the global sum, then
-            // reduced to min/max across ranks: the load-imbalance spread. mean == aggregate useful
-            // occupancy. max >> mean => one rank is the straggler others barrier-wait on (imbalance-bound);
-            // max ~= mean => balanced, so the idle is intra-rank (stall/barrier), not imbalance.
-            int nthreads = ThreadPool::size()+1; // workers + main thread
-            double my_useful_ms = (core+prolong+rank+disp+serve)*1e-6;
-            double my_occ = (wall_seconds>0.0) ? my_useful_ms/(wall_seconds*1e3*nthreads) : 0.0;
-            double occ_max=my_occ, occ_min=my_occ;
-            world.gop.max(occ_max); world.gop.min(occ_min);
-            // full per-rank occupancy vector (nranks small): each rank writes its slot, sum gathers it.
-            std::vector<double> per_rank(world.size(), 0.0);
-            per_rank[world.rank()] = my_occ;
-            world.gop.sum(per_rank.data(), world.size());
-            std::uint64_t buf[18] = {core,prolong,rank,disp,n2i,n2b,nrec,fl,fr,fz,serve,serven,shl,shi,smf,smfr,hh,hm};
-            world.gop.sum(buf, 18);
-            if (world.rank()==0) {
-                const double toms = 1e-6;
-                double op_ms   = (buf[0]+buf[1]+buf[2]+buf[3])*toms;   // operator thread-CPU (this rank's own diff)
-                double serve_ms= buf[10]*toms;                        // serving peers' fetches (sock_it_to_me)
-                double useful_ms = op_ms + serve_ms;                  // all useful diff-related CPU (no spin)
-                madness::print("  [MAD_DIFF_PROFILE]", tag, "thread-CPU, summed over", world.size(), "ranks)");
-                madness::print("     core(transform_dir)", buf[0]*toms, "ms   prolong(p2c)", buf[1]*toms,
-                               "ms   scale+reduce_rank", buf[2]*toms, "ms   dispatch(do_diff1)", buf[3]*toms, "ms");
-                madness::print("     serve(sock_it_to_me)", serve_ms, "ms  (", buf[11], "calls )");
-                madness::print("     terminal nodes: diff2i", buf[4], " diff2b", buf[5],
-                               "   do_diff1 descents", buf[6]);
-                madness::print("     fetches: local", buf[7], " remote", buf[8], " zero-bc", buf[9]);
-                // Variant B halo (MAD_KEMAT_HALO): hits served locally (a+b); misses fall back to pull
-                // (c walk-up + any local). With halo on, remote fetches above == the residual remote pull.
-                if (buf[16] + buf[17] > 0)
-                    madness::print("     halo: hit", buf[16], " miss->pull", buf[17],
-                                   " (hit-rate", (buf[16]+buf[17] ? 100.0*buf[16]/(buf[16]+buf[17]) : 0.0), "%)");
-                // Resolution split (serving side): each sock_it_to_me hop is exactly one of these, so
-                // buf[12]+buf[13]+buf[14] == serve calls. A walk-up chain = k>=1 miss_fwd hops + 1 leaf,
-                // so #walk-up-fetches == #chains <= miss_fwd; thus (c) upper bound = miss_fwd and (a)
-                // lower bound = hit_leaf - miss_fwd. remote = walk-up hops whose parent is off-rank =
-                // the pull traffic that survives under Variant B (push covers a+b; only c falls back).
-                {
-                    double rtot = double(buf[12]+buf[13]+buf[14]);
-                    if (rtot > 0.0) {
-                        std::uint64_t a_lb = buf[12] > buf[14] ? buf[12]-buf[14] : 0;
-                        madness::print("     fetch resolution: same-level(a)>=", a_lb, "(", 100.0*a_lb/rtot,
-                                       "%)  refine-down(b)", buf[13], "(", 100.0*buf[13]/rtot,
-                                       "%)  walk-up(c)<=", buf[14], "(", 100.0*buf[14]/rtot,
-                                       "%)  of which remote", buf[15]);
-                    }
-                }
-                if (wall_seconds > 0.0) {
-                    double denom = wall_seconds*1e3*nthreads*world.size();
-                    double op_occ    = denom>0.0 ? op_ms/denom : 0.0;
-                    double useful_occ= denom>0.0 ? useful_ms/denom : 0.0;
-                    madness::print("     operator CPU", op_ms, "ms   serve CPU", serve_ms,
-                                   "ms   wall", wall_seconds*1e3, "ms");
-                    madness::print("     occupancy: operator", op_occ, "  +serve(useful)", useful_occ,
-                                   "  => idle/barrier", (1.0-useful_occ),
-                                   "(", nthreads, "threads x", world.size(), "ranks )");
-                    madness::print("     per-rank useful occupancy: min", occ_min, " mean", useful_occ,
-                                   " max", occ_max, "  (imbalance = max-min", occ_max-occ_min, ")");
-                    std::ostringstream oss; oss << "     per-rank occ [";
-                    for (int rr=0; rr<world.size(); ++rr) oss << (rr?" ":"") << std::fixed << std::setprecision(2) << per_rank[rr];
-                    oss << "]";
-                    madness::print(oss.str());
-                }
-            }
-        }
 
         DerivativeBase(World& world, std::size_t axis, int k, BoundaryConditions<NDIM> bc)
             : WorldObject< DerivativeBase<T, NDIM> >(world)
@@ -279,16 +154,10 @@ namespace madness {
                       const argT& center,
                       const argT& right) const {
             MADNESS_ASSERT(axis<NDIM);
-            // dispatch/traversal thread-CPU: covers the level-mismatch decision, the recursive
-            // forward_do_diff1 (incl. any synchronous find_neighbor), and task spawns. Excludes the
-            // do_diff2* stencil work (those run as separate tasks), so no overlap with core/prolong/rank.
-            const bool prof = dp_enabled_;
-            std::uint64_t t0 = prof ? dp_ticks() : 0;
 
 //            if (left.second.size()==0 || right.second.size()==0) {
             if ((!left.second.has_data()) || (!right.second.has_data())) {
                 // One of the neighbors is below us in the tree ... recur down
-                if (prof) ++dp_n_recurse_;
                 df->get_coeffs().replace(key,nodeT(coeffT(),true));
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
@@ -305,7 +174,6 @@ namespace madness {
             else {
                 forward_do_diff1(f, df, key, left, center, right);
             }
-            if (prof) dp_dispatch_ns_ += (dp_ticks() - t0);
         }
 
         virtual void do_diff2b(const implT* f, implT* df, const keyT& key,
@@ -402,7 +270,6 @@ namespace madness {
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
             keyT neigh = neighbor(key, step);
             if (neigh.is_invalid()) {
-                if (dp_enabled_) ++dp_n_fetch_zerobc_;
                 return Future<argT>(argT(neigh,coeffT(vk,f->get_tensor_args()))); // Zero bc
             }
             else {
@@ -411,18 +278,14 @@ namespace madness {
                 if (f->halo_enabled()) {
                     coeffT c;
                     if (f->halo_probe(neigh, c)) {
-                        if (dp_enabled_) ++dp_n_halo_hit_;
                         return Future<argT>(argT(neigh, c));
                     }
-                    if (dp_enabled_) ++dp_n_halo_miss_;
                 }
                 Future<argT> result;
 		if (f->get_coeffs().is_local(neigh)) {
-		  if (dp_enabled_) ++dp_n_fetch_local_;
 		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
 		}
 		else {
-		  if (dp_enabled_) ++dp_n_fetch_remote_;
 		  f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
 		}
                 return result;
@@ -523,15 +386,11 @@ namespace madness {
 
             coeffT d;
 
-            const bool prof = baseT::dp_enabled_;
-            std::uint64_t t0 = prof ? baseT::dp_ticks() : 0;
-            std::uint64_t t1 = 0;  // set after prolongation, before contraction
             //left boundary
             if (l[this->axis] == 0) {
 
                 coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,1));
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
-                if (prof) t1 = baseT::dp_ticks();
 
                 d= transform_dir(tensor_right,left_rmt,this->axis);
                 d+=transform_dir(tensor_center,left_r0t,this->axis);
@@ -540,12 +399,10 @@ namespace madness {
 
                 coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
-                if (prof) t1 = baseT::dp_ticks();
 
                 d= transform_dir(tensor_left,right_rpt,this->axis);
                 d+=transform_dir(tensor_center,right_r0t,this->axis);
             }
-            std::uint64_t t2 = prof ? baseT::dp_ticks() : 0;
 
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev);
             if (is_second) fac *= fac;
@@ -554,15 +411,6 @@ namespace madness {
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
-
-            if (prof) {
-                std::uint64_t t3 = baseT::dp_ticks();
-                baseT::dp_prolong_ns_ += (t1-t0);
-                baseT::dp_core_ns_    += (t2-t1);
-                baseT::dp_rank_ns_    += (t3-t2);
-                ++baseT::dp_n_diff2b_;
-            }
-
 
             // This is the boundary contribution (formally in BoundaryDerivative)
             int bc_left  = this->bc(this->axis,0);
@@ -647,17 +495,13 @@ namespace madness {
 //            df->get_coeffs().replace(key,nodeT(d,false));
 //
 //#else
-            const bool prof = baseT::dp_enabled_;
-            std::uint64_t t0 = prof ? baseT::dp_ticks() : 0;
             coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
             coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
             coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,1));
-            std::uint64_t t1 = prof ? baseT::dp_ticks() : 0;
 
             coeffT d= transform_dir(tensor_left,rpt,this->axis);
             d+=transform_dir(tensor_center,r0t,this->axis);
             d+=transform_dir(tensor_right,rmt,this->axis);
-            std::uint64_t t2 = prof ? baseT::dp_ticks() : 0;
 
             double fac = FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level());
             if (is_second) fac *= fac;
@@ -666,14 +510,6 @@ namespace madness {
             d.scale(fac);
             d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
-
-            if (prof) {
-                std::uint64_t t3 = baseT::dp_ticks();
-                baseT::dp_prolong_ns_ += (t1-t0);
-                baseT::dp_core_ns_    += (t2-t1);
-                baseT::dp_rank_ns_    += (t3-t2);
-                ++baseT::dp_n_diff2i_;
-            }
 //#endif
 
         }
