@@ -1,5 +1,0 @@
-
-real	25m8.389s
-user	1190m23.950s
-sys	1m58.320s
-slurmstepd: error: *** JOB 1951668 ON xm015 CANCELLED AT 2026-05-12T16:25:46 DUE TO TIME LIMIT ***

@@ -1,5 +1,0 @@
-
-real	21m12.346s
-user	1003m13.284s
-sys	1m44.645s
-slurmstepd: error: *** JOB 1942684 ON xm008 CANCELLED AT 2026-05-09T15:29:30 DUE TO TIME LIMIT ***
