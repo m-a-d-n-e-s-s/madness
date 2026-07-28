@@ -293,7 +293,7 @@ struct composite_product_op_NS {
 
     void accumulate_into_result(const keyT& key, const coeffT& coeff) const {
         result->get_coeffs().task(key, &nodeT::accumulate, coeff,
-                                  result->get_coeffs(), key, result->get_tensor_args());
+                                  result->get_coeffs(), key, result->get_tensor_args(), false);
     }
 
     void leaf_action(const keyT& key, const coeffT& coeff) const {
@@ -560,7 +560,7 @@ void composite_product_apply(FunctionImpl<T, NDIM>* result,
     if (fence) {
         world.gop.fence();
         result->flo_unary_op_node_inplace(
-            typename FunctionImpl<T, NDIM>::do_consolidate_buffer(result->get_tensor_args()),
+            typename FunctionImpl<T, NDIM>::do_consolidate_buffer(result->get_tensor_args(),false),
             true);
         result->sum_down(true);
         result->set_tree_state(reconstructed);
@@ -635,7 +635,7 @@ T composite_inner_apply(World& world,
 
     // consolidate the buffer at key0 and read the scalar
     acc.flo_unary_op_node_inplace(
-        typename FunctionImpl<T, NDIM>::do_consolidate_buffer(acc.get_tensor_args()), true);
+        typename FunctionImpl<T, NDIM>::do_consolidate_buffer(acc.get_tensor_args(), false), true);
 
     T scalar = T(0);
     if (world.rank() == acc.get_coeffs().owner(acc.get_cdata().key0)) {

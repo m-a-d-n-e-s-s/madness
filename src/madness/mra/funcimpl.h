@@ -414,12 +414,15 @@ namespace madness {
 
         /// Accumulate inplace and if necessary connect node to parent
         void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
-                          const Key<NDIM>& key, const TensorArgs& args) {
+                        const Key<NDIM>& key, const TensorArgs& args, const bool do_svd_add) {
             if (has_coeff()) {
-                coeff().add_SVD(t,args.thresh);
+                if (do_svd_add) coeff().add_SVD(t,args.thresh);
+                else coeff().gaxpy(1.0,t,1.0);
+
                 if (buffer.rank()<coeff().rank()) {
                     if (buffer.has_data()) {
-                        buffer.add_SVD(coeff(),args.thresh);
+                        if (do_svd_add) buffer.add_SVD(coeff(),args.thresh);
+                        else buffer.gaxpy(1.0,coeff(),1.0);
                     } else {
                         buffer=copy(coeff());
                     }
@@ -441,9 +444,10 @@ namespace madness {
             }
         }
 
-        void consolidate_buffer(const TensorArgs& args) {
+        void consolidate_buffer(const TensorArgs& args, const bool do_svd_add) {
             if ((coeff().has_data()) and (buffer.has_data())) {
-                coeff().add_SVD(buffer,args.thresh);
+                if (do_svd_add) coeff().add_SVD(buffer,args.thresh);
+                else coeff().gaxpy(1.0,buffer,1.0);
             } else if (buffer.has_data()) {
                 coeff()=buffer;
             }
@@ -784,7 +788,7 @@ namespace madness {
         accumulate_op(const accumulate_op& other) = default;
         void operator()(const Key<NDIM>& key, const coeffT& coeff, const bool& is_leaf) const {
             if (coeff.has_data())
-                impl->get_coeffs().task(key, &nodeT::accumulate, coeff, impl->get_coeffs(), key, impl->get_tensor_args());
+                impl->get_coeffs().task(key, &nodeT::accumulate, coeff, impl->get_coeffs(), key, impl->get_tensor_args(), false);
         }
         template <typename Archive> void serialize (Archive& ar) {
             ar & impl;
@@ -1280,21 +1284,21 @@ template<size_t NDIM>
             if (fence) sum_down(fence);
         }
 
-        /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
-
-        /// first step in an inplace gaxpy operation for reconstructed functions; assuming the same
-        /// distribution for this and other
-
-        /// on output, *this = alpha* *this + beta * other
-        /// @param[in]	alpha	prefactor for this
-        /// @param[in]	beta	prefactor for other
-        /// @param[in]	other	the other function, reconstructed
-        template<typename Q, typename R>
-        void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
-            MADNESS_ASSERT(get_pmap() == other.get_pmap());
-            this->set_tree_state(redundant_after_merge);
-            other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
-        }
+//        /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
+//
+//        /// first step in an inplace gaxpy operation for reconstructed functions; assuming the same
+//        /// distribution for this and other
+//
+//        /// on output, *this = alpha* *this + beta * other
+//        /// @param[in]	alpha	prefactor for this
+//        /// @param[in]	beta	prefactor for other
+//        /// @param[in]	other	the other function, reconstructed
+//        template<typename Q, typename R>
+//        void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
+//            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+//            this->set_tree_state(redundant_after_merge);
+//            other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
+//        }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
 
@@ -2521,7 +2525,7 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) result->get_coeffs().task(key, &nodeT::accumulate,
-                    alpha*node.coeff(), result->get_coeffs(), key, result->targs);
+                    alpha*node.coeff(), result->get_coeffs(), key, result->targs, true);
                 return true;
             }
 
@@ -2531,44 +2535,44 @@ template<size_t NDIM>
         };
 
 
-        /// merge the coefficient boxes of this into other's tree
-
-        /// no comm, and the tree should be in an consistent state by virtue
-        /// of FunctionNode::gaxpy_inplace
-        template<typename Q, typename R>
-        struct do_merge_trees {
-            typedef Range<typename dcT::const_iterator> rangeT;
-            FunctionImpl<Q,NDIM>* other;
-            T alpha;
-            R beta;
-            do_merge_trees() : other(0) {}
-            do_merge_trees(const T alpha, const R beta, FunctionImpl<Q,NDIM>& other)
-                : other(&other), alpha(alpha), beta(beta) {}
-
-            /// return the norm of the difference of this node and its "mirror" node
-            bool operator()(typename rangeT::iterator& it) const {
-
-                const keyT& key = it->first;
-                const nodeT& fnode = it->second;
-
-                // if other's node exists: add this' coeffs to it
-                // otherwise insert this' node into other's tree
-                typename dcT::accessor acc;
-                if (other->get_coeffs().find(acc,key)) {
-                    nodeT& gnode=acc->second;
-                    gnode.gaxpy_inplace(beta,fnode,alpha);
-                } else {
-                    nodeT gnode=fnode;
-                    gnode.scale(alpha);
-                    other->get_coeffs().replace(key,gnode);
-                }
-                return true;
-            }
-
-            template <typename Archive> void serialize(const Archive& ar) {
-                MADNESS_EXCEPTION("no serialization of do_merge_trees",1);
-            }
-        };
+//        /// merge the coefficient boxes of this into other's tree
+//
+//        /// no comm, and the tree should be in an consistent state by virtue
+//        /// of FunctionNode::gaxpy_inplace
+//        template<typename Q, typename R>
+//        struct do_merge_trees {
+//            typedef Range<typename dcT::const_iterator> rangeT;
+//            FunctionImpl<Q,NDIM>* other;
+//            T alpha;
+//            R beta;
+//            do_merge_trees() : other(0) {}
+//            do_merge_trees(const T alpha, const R beta, FunctionImpl<Q,NDIM>& other)
+//                : other(&other), alpha(alpha), beta(beta) {}
+//
+//            /// return the norm of the difference of this node and its "mirror" node
+//            bool operator()(typename rangeT::iterator& it) const {
+//
+//                const keyT& key = it->first;
+//                const nodeT& fnode = it->second;
+//
+//                // if other's node exists: add this' coeffs to it
+//                // otherwise insert this' node into other's tree
+//                typename dcT::accessor acc;
+//                if (other->get_coeffs().find(acc,key)) {
+//                    nodeT& gnode=acc->second;
+//                    gnode.gaxpy_inplace(beta,fnode,alpha);
+//                } else {
+//                    nodeT gnode=fnode;
+//                    gnode.scale(alpha);
+//                    other->get_coeffs().replace(key,gnode);
+//                }
+//                return true;
+//            }
+//
+//            template <typename Archive> void serialize(const Archive& ar) {
+//                MADNESS_EXCEPTION("no serialization of do_merge_trees",1);
+//            }
+//        };
 
 
         /// map this on f
@@ -2783,12 +2787,16 @@ template<size_t NDIM>
 
             // threshold for rank reduction / SVD truncation
             TensorArgs targs;
+            // if you are positive, make low-rank tensor addition fast by assuming all tensors are SVD
+            // i.e. left and right vectors are orthogonal
+            bool do_svd_add=false;
 
             // constructor takes target precision
             do_consolidate_buffer() = default;
-            do_consolidate_buffer(const TensorArgs& targs) : targs(targs) {}
+            do_consolidate_buffer(const TensorArgs& targs, bool do_svd_add)
+                : targs(targs), do_svd_add(do_svd_add) {}
             bool operator()(typename rangeT::iterator& it) const {
-                it->second.consolidate_buffer(targs);
+                it->second.consolidate_buffer(targs, do_svd_add);
                 return true;
             }
             template <typename Archive> void serialize(const Archive& ar) {}
@@ -4189,7 +4197,7 @@ template<size_t NDIM>
             bool have_eri() const {return eri;}
 
             void accumulate_into_result(const Key<NDIM>& key, const coeffT& coeff) const {
-                result->get_coeffs().task(key, &nodeT::accumulate, coeff, result->get_coeffs(), key, result->targs);
+                result->get_coeffs().task(key, &nodeT::accumulate, coeff, result->get_coeffs(), key, result->targs, false);
             }
 
             // ctor
@@ -4474,7 +4482,7 @@ template<size_t NDIM>
 
             void accumulate_into_result(const keyT& key, const coeffT& coeff) const {
                 result->get_coeffs().task(key, &nodeT::accumulate, coeff,
-                                          result->get_coeffs(), key, result->targs);
+                                          result->get_coeffs(), key, result->targs, false);
             }
 
             Vphi_ij_u_op_NS() : result(), eri(), target_precision(0.0), oversampling(1) {}
@@ -4707,7 +4715,7 @@ template<size_t NDIM>
             // - the operation constructs sum coefficients on all scales -> sum down to get a well-defined tree-state
             if (fence) {
                 world.gop.fence();
-                flo_unary_op_node_inplace(do_consolidate_buffer(get_tensor_args()),true);
+                flo_unary_op_node_inplace(do_consolidate_buffer(get_tensor_args(), false),true);
                 sum_down(true);
                 set_tree_state(reconstructed);
             }
@@ -4845,7 +4853,7 @@ template<size_t NDIM>
             world.gop.fence();
 
             // consolidate accumulated buffer at key0 into actual coefficients
-            acc.flo_unary_op_node_inplace(do_consolidate_buffer(acc.get_tensor_args()), true);
+            acc.flo_unary_op_node_inplace(do_consolidate_buffer(acc.get_tensor_args(), false), true);
 
             // read scalar from first element of the vk-shaped tensor at key0 (inner mode convention)
             T inner_val = T(0);
@@ -5183,10 +5191,10 @@ template<size_t NDIM>
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
                 // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
                 if (args.dest == world.rank()) {
-                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest, true);
                 }
                 else {
-                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, true, TaskAttributes::hipri());
                 }
             }
         }
@@ -5219,7 +5227,7 @@ template<size_t NDIM>
                 //double cpu1=cpu_time();
                 //timer_lr_result.accumulate(cpu1-cpu0);
 
-                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs, true,
                                                 TaskAttributes::hipri());
 
                 //woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
@@ -5257,7 +5265,7 @@ template<size_t NDIM>
                 timer_lr_result.accumulate(cpu1-cpu0);
 
                 // accumulate also expects result in SVD form
-                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs, true,
                                                 TaskAttributes::hipri());
 //                woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
@@ -7218,9 +7226,9 @@ template<size_t NDIM>
             result_coeff.reduce_rank(get_thresh());
 
             if (coeffs.is_local(key))
-                coeffs.send(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args());
+                coeffs.send(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args(), false);
             else
-                coeffs.task(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args(), TaskAttributes::hipri());
+                coeffs.task(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args(), false, TaskAttributes::hipri());
         }
 
         /// Return the inner product with an external function on a specified function node.

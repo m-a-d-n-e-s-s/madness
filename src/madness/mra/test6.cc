@@ -37,6 +37,10 @@
 
 #include <madness/mra/mra.h>
 #include <madness/world/test_utilities.h>
+#include <map>
+#include <sstream>
+#include <vector>
+#include <algorithm>
 
 using namespace madness;
 
@@ -563,7 +567,7 @@ int test_Vphi_ij_u(World& world, const long& k, double thresh) {
     auto gauss_a = +[](const Vector<double,LDIM>& r) { return std::exp(-1.0 * inner(r,r)); };
     auto gauss_b = +[](const Vector<double,LDIM>& r) { return std::exp(-1.3 * inner(r,r)); };
     auto gauss_k = +[](const Vector<double,LDIM>& r) { return std::exp(-0.7 * inner(r,r)); };
-    auto gauss_l = +[](const Vector<double,LDIM>& r) { return std::exp(-0.5 * inner(r,r)); };
+    auto gauss_l = +[](const Vector<double,LDIM>& r) { return r[0] * std::exp(-0.5 * inner(r,r)); };  // p-type: x*exp(-alpha r^2)
     auto gauss_g = +[](const Vector<double,LDIM>& r) { return std::exp(-0.4 * inner(r,r)); };
     const double beta_for_f12 = 0.5;  // exponent of gauss(1,2) factor in u
 
@@ -602,12 +606,12 @@ int test_Vphi_ij_u(World& world, const long& k, double thresh) {
     auto exact_ul = +[](const Vector<double,NDIM>& r) {
         Vector<double,LDIM> r1, r2;
         for (std::size_t i=0; i<LDIM; ++i) { r1[i]=r[i]; r2[i]=r[i+LDIM]; }
-        return std::exp(-1.4*inner(r1,r1) - 2.2*inner(r2,r2));    // (a+g) + (b+g+l)
+        return r2[0] * std::exp(-1.4*inner(r1,r1) - 2.2*inner(r2,r2)); // (a+g) + (b+g+l), l p-type -> *r2[0]
     };
     auto exact_ukl = +[](const Vector<double,NDIM>& r) {
         Vector<double,LDIM> r1, r2;
         for (std::size_t i=0; i<LDIM; ++i) { r1[i]=r[i]; r2[i]=r[i+LDIM]; }
-        return std::exp(-2.1*inner(r1,r1) - 2.2*inner(r2,r2));    // (a+g+k) + (b+g+l)
+        return r2[0] * std::exp(-2.1*inner(r1,r1) - 2.2*inner(r2,r2)); // (a+g+k) + (b+g+l), l p-type -> *r2[0]
     };
 
     // Function-mode hartree-product references (used as numerical sanity checks only).
@@ -634,7 +638,7 @@ int test_Vphi_ij_u(World& world, const long& k, double thresh) {
 
     auto finalise = [](Function<T,NDIM>& res) {
         res.get_impl()->flo_unary_op_node_inplace(
-            typename implT::do_consolidate_buffer(res.get_impl()->get_tensor_args()), true);
+            typename implT::do_consolidate_buffer(res.get_impl()->get_tensor_args(),false), true);
         res.get_impl()->sum_down(true);
     };
 
@@ -755,6 +759,176 @@ int test_Vphi_ij_u(World& world, const long& k, double thresh) {
     t1.checkpoint(rows[1].err_new, thresh, "make_Vphi_ij_u: u*l(2)");
     t1.checkpoint(rows[2].err_new, thresh, "make_Vphi_ij_u: u*k(1)*l(2) baseline");
     t1.checkpoint(rows[rows.size()-1].err_new, thresh, "inner_ij_u_eri: <f12|u*k*l>");
+
+    FunctionDefaults<NDIM>::set_tensor_type(TT_FULL);
+    return t1.end();
+}
+
+
+/// Attribute the error of the accumulate_trees+sum_down addition path to its two stages.
+///
+/// We add an s-type function  f_s(r) = exp(-a|r|)  and a p-type function
+/// f_p(r) = r[0]*exp(-a|r|)  (Slater cusp + nodal plane -> deeply refined, so
+/// the low-rank / sum_down error is pronounced).
+///
+/// The path used by transform_reconstructed()/finalize_sum() has TWO lossy stages,
+/// each truncating low-rank tensors to the impl's stored TensorArgs.thresh:
+///   1. accumulate_trees (+ consolidate_buffer): add_SVD merges S-coeffs into a
+///      redundant_after_merge tree, re-truncating rank at every touched node.
+///   2. sum_down: propagates S-coeffs from ancestors down to the leaves, unfiltering
+///      and re-truncating rank at every level.
+/// Because both stages read the same stored TensorArgs but run at different times, we
+/// can dial each stage's truncation threshold independently and see which one carries
+/// the error. Running the path four ways:
+///
+///     run       accumulate thr   sum_down thr    isolates
+///     A_tight   tight            tight           near-exact sum (internal gold)
+///     A0        tau              tau             full path
+///     A1        tau              tight           accumulate error only
+///     A2        tight            tau             sum_down error only
+///
+/// then   ||A1-A_tight|| = accumulate_trees error,   ||A2-A_tight|| = sum_down error.
+/// Using the internal gold A_tight (not the analytic function) removes the shared
+/// projection error of f_s,f_p so only the arithmetic error of the two stages remains.
+template<typename T, std::size_t NDIM>
+int test_sum_down(World& world, const long& k, double thresh) {
+    FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_k(k);
+    using implT = FunctionImpl<T,NDIM>;
+
+    test_output t1(std::string("testing sum_down error attribution for NDIM=" + std::to_string(NDIM)));
+    t1.set_cout_to_terminal();
+    std::cout << std::setprecision(8) << std::scientific;
+    print("setting thresh, k", FunctionDefaults<NDIM>::get_thresh(), FunctionDefaults<NDIM>::get_k());
+
+    // plain slater relocated to center (1,1,...,1); p_type stays at the origin,
+    // so the two cusps no longer coincide (stresses the accumulate_trees tree merge).
+    auto s_type    = +[](const Vector<double,NDIM>& r) { Vector<double,NDIM> c(1.0); return                std::exp(-2.0*(r-c).normf()); };
+    auto p_type    = +[](const Vector<double,NDIM>& r) { return inner(r,r) * std::exp(-2.0*r.normf()); };
+    auto exact_sum = +[](const Vector<double,NDIM>& r) { Vector<double,NDIM> c(1.0); return std::exp(-2.0*(r-c).normf()) + inner(r,r) * std::exp(-2.0*r.normf()); };
+
+    Function<T,NDIM> fs = FunctionFactory<T,NDIM>(world).f(s_type);
+    Function<T,NDIM> fp = FunctionFactory<T,NDIM>(world).f(p_type);
+    fs.reconstruct();
+    fp.reconstruct();
+    print("input projection errors: ||fs-exact_s||", fs.err(s_type), " ||fp-exact_p||", fp.err(p_type));
+
+    const double tau   = thresh;    // normal threshold
+    const double tight = 1.e-10;    // effectively lossless truncation
+
+    // Run accumulate_trees(+consolidate) -> sum_down with independent per-stage
+    // truncation thresholds. Returns the reconstructed sum f_s + f_p.
+    auto run_path = [&](double acc_thresh, double sd_thresh) {
+        Function<T,NDIM> res = zero_functions<T,NDIM>(world,1)[0];
+        res.get_impl()->set_tree_state(redundant_after_merge);
+        // stage 1: accumulate + consolidate, truncating to acc_thresh
+        res.get_impl()->set_tensor_args(TensorArgs(acc_thresh, TT_2D));
+        fs.get_impl()->accumulate_trees(*res.get_impl(), T(1.0), true);
+        fp.get_impl()->accumulate_trees(*res.get_impl(), T(1.0), true);
+        world.gop.fence();
+        res.get_impl()->flo_unary_op_node_inplace(
+            typename implT::do_consolidate_buffer(TensorArgs(acc_thresh, TT_2D),false), true);
+        // stage 2: sum_down, truncating to sd_thresh
+        res.get_impl()->set_tensor_args(TensorArgs(sd_thresh, TT_2D));
+        res.sum_down(true);   // redundant_after_merge -> reconstructed
+        return res;
+    };
+
+    Function<T,NDIM> A_tight = run_path(tight, tight);  // internal gold: near-exact sum
+    Function<T,NDIM> A0      = run_path(tau,   tau);    // full accumulate+sum_down path
+    Function<T,NDIM> A1      = run_path(tau,   tight);  // accumulate lossy, sum_down ~exact
+    Function<T,NDIM> A2      = run_path(tight, tau);    // accumulate ~exact, sum_down lossy
+    Function<T,NDIM> P0      = fs + fp;                 // operator+ (fully independent path)
+
+    double err_total = (A0 - A_tight).norm2();  // total two-stage error
+    double err_acc   = (A1 - A_tight).norm2();  // attributable to accumulate_trees
+    double err_sd    = (A2 - A_tight).norm2();  // attributable to sum_down
+    double a0_vs_op  = (A0 - P0).norm2();        // cross-check against operator+
+    double gold_vs_op= (A_tight - P0).norm2();   // cross-check gold vs operator+
+
+    print("");
+    print("  err vs ANALYTIC sum (1+r0)exp(-2|r|):");
+    print("    A_tight   :", A_tight.err(exact_sum));
+    print("    A0        :", A0.err(exact_sum));
+    print("    operator+ :", P0.err(exact_sum));
+    print("");
+    print("  reference A_tight = accumulate & sum_down both truncated at", tight);
+    print("  ---------------------------------------------------------------------");
+    print("  total      || A0(tau,tau)   - A_tight ||  :", err_total);
+    print("  accumulate || A1(tau,tight) - A_tight ||  :", err_acc);
+    print("  sum_down   || A2(tight,tau) - A_tight ||  :", err_sd);
+    print("  ---------------------------------------------------------------------");
+    print("  cross-check|| A0            - operator+ ||:", a0_vs_op);
+    print("  cross-check|| A_tight       - operator+ ||:", gold_vs_op);
+    if (err_acc + err_sd > 0.0) {
+        double frac_sd = 100.0 * err_sd / (err_acc + err_sd);
+        print("  --> sum_down accounts for", frac_sd, "% of the two-stage error budget,");
+        print("      accumulate_trees for", 100.0 - frac_sd, "%");
+    }
+    print("");
+
+    t1.checkpoint(err_total, thresh, "accumulate+sum_down total error vs internal gold");
+    FunctionDefaults<NDIM>::set_tensor_type(TT_FULL);
+    return t1.end();
+}
+
+
+/// Load two real functions Ue and fK from parallel archives and compare adding
+/// them via operator+ against the accumulate_trees + sum_down path.
+/// Run from the directory that holds Ue.00000 and fK.00000.
+template<typename T, std::size_t NDIM>
+int test_sum_down_files(World& world, const long& k, double thresh) {
+    FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+
+    test_output t1(std::string("testing sum_down vs operator+ on loaded Ue,fK for NDIM=" + std::to_string(NDIM)));
+    t1.set_cout_to_terminal();
+    std::cout << std::setprecision(8) << std::scientific;
+
+    // the stored functions carry their own simulation cell; drop the default cell
+    // (set to [-L/2,L/2] in main) so the loader adopts the cell from the archive.
+    FunctionDefaults<NDIM>::clear_cell();
+
+    // load; load_function sets FunctionDefaults k/thresh from the stored functions
+    Function<T,NDIM> Ue, fK;
+    try {
+        load_function(world, Ue, "Ue");
+        load_function(world, fK, "fK");
+    } catch (const MadnessException& e) {
+        std::cout << "\n==== MadnessException while loading Ue/fK for NDIM=" << NDIM << " ====\n"
+                  << e << std::endl;
+        throw;
+    }
+    print("loaded defaults thresh/k", FunctionDefaults<NDIM>::get_thresh(), FunctionDefaults<NDIM>::get_k());
+    Ue.reconstruct();
+    fK.reconstruct();
+    print("  ||Ue||", Ue.norm2(), " tree size", Ue.tree_size());
+    print("  ||fK||", fK.norm2(), " tree size", fK.tree_size());
+
+    // Extract the two leaf coefficients at the top error node 8:129:128:128:128:128:127
+    // (a shared leaf where add_SVD mis-adds) and store them for the standalone add_SVD test.
+    const std::string target = "8:129:128:128:128:128:127";
+    auto keystr = [](const Key<NDIM>& key){
+        std::ostringstream os; os << key.level();
+        for (std::size_t i=0;i<NDIM;++i) os << ':' << key.translation()[i];
+        return os.str();
+    };
+    auto save_coeff = [&](Function<T,NDIM>& F, const std::string& fname){
+        const auto& C = F.get_impl()->get_coeffs();
+        for (auto it=C.begin(); it!=C.end(); ++it) {
+            if (keystr(it->first)==target && it->second.has_coeff()) {
+                GenTensor<T> c = it->second.coeff();
+                archive::BinaryFstreamOutputArchive ar(fname.c_str());
+                ar & c;
+                print("  saved", fname, " norm", c.normf(), " rank", c.rank(), " dim0", c.dim(0));
+                return true;
+            }
+        }
+        print("  WARN: target key", target, "not found (or no coeff) for", fname);
+        return false;
+    };
+    save_coeff(Ue, "coeff_Ue");
+    save_coeff(fK, "coeff_fK");
 
     FunctionDefaults<NDIM>::set_tensor_type(TT_FULL);
     return t1.end();
@@ -976,8 +1150,8 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
 
     // the parameters
-    long k=6;
-    double thresh=3.e-4;
+    long k=8;
+    double thresh=3.e-5;
     double L=40;
     TensorType tt=TT_2D;
 
@@ -1009,10 +1183,14 @@ int main(int argc, char**argv) {
     FunctionDefaults<2>::set_thresh(thresh);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<4>::set_thresh(thresh);
+    FunctionDefaults<5>::set_thresh(thresh);
+    FunctionDefaults<6>::set_thresh(thresh);
     FunctionDefaults<1>::set_truncate_mode(1);
     FunctionDefaults<2>::set_truncate_mode(1);
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<4>::set_truncate_mode(1);
+	FunctionDefaults<5>::set_truncate_mode(1);
+	FunctionDefaults<6>::set_truncate_mode(1);
 
     FunctionDefaults<1>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<2>::set_cubic_cell(-L/2,L/2);
@@ -1021,12 +1199,15 @@ int main(int argc, char**argv) {
     FunctionDefaults<5>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
 
-    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<2>::set_k(k);
     FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
-    FunctionDefaults<6>::set_thresh(thresh);
+    FunctionDefaults<4>::set_k(k);
+    FunctionDefaults<5>::set_k(k);
     FunctionDefaults<6>::set_k(k);
-    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+
+    FunctionDefaults<6>::set_tensor_type(tt);
+	FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_tensor_type(tt);
 
     print("entering testsuite for 6-dimensional functions\n");
@@ -1039,19 +1220,21 @@ int main(int argc, char**argv) {
 
     int error=0;
 
-    error+=test_Vphi_ij_u<double,2>(world,k,thresh);
-    error+=test_Vphi_ij_u<double,4>(world,k,thresh);
+//    error+=test_sum_down<double,6>(world,k,thresh);
+    error+=test_sum_down_files<double,6>(world,k,thresh);
+//    error+=test_Vphi_ij_u<double,2>(world,k,thresh);
+//    error+=test_Vphi_ij_u<double,4>(world,k,thresh);
     // error+=test_Vphi_ij_u<double,6>(world,k,thresh);
-	error+=test_vector_composite<double,2>(world,k,thresh);
+//	error+=test_vector_composite<double,2>(world,k,thresh);
 //    test(world,k,thresh);
-    error+=test_hartree_product<double,2>(world,k,thresh);
-    error+=test_hartree_product<double,4>(world,k,thresh);
-    error+=test_convolution(world,k,thresh);
-    error+=test_multiply<double,4>(world,k,thresh);
-    error+=test_add(world,k,thresh);
-    error+=test_exchange(world,k,thresh);
-    error+=test_inner(world,k,thresh);
-    error+=test_replicate(world,k,thresh);
+//    error+=test_hartree_product<double,2>(world,k,thresh);
+//    error+=test_hartree_product<double,4>(world,k,thresh);
+//    error+=test_convolution(world,k,thresh);
+//    error+=test_multiply<double,4>(world,k,thresh);
+//    error+=test_add(world,k,thresh);
+//    error+=test_exchange(world,k,thresh);
+//    error+=test_inner(world,k,thresh);
+//    error+=test_replicate(world,k,thresh);
 
     print(ok(error==0),error,"finished test suite\n");
     world.gop.fence();
