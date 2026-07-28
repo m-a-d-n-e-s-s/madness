@@ -33,6 +33,8 @@ for this release.
   [DALTON warm-start](docs/guides/dalton_warm_start.md).
 - **[`docs/guides/example_output.md`](docs/guides/example_output.md)** — what a run
   prints and writes (real output).
+- **[`docs/guides/records_and_metadata.md`](docs/guides/records_and_metadata.md)** —
+  the results/metadata schema, restart, and provenance: the interface to script against.
 - **[`docs/guides/formalism.md`](docs/guides/formalism.md)** — the shared response
   formalism the guides specialize.
 - **[`docs/guides/parallelism.md`](docs/guides/parallelism.md)** — subworld /
