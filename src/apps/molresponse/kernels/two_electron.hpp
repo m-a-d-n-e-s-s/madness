@@ -34,7 +34,6 @@
 
 #include <madness/chem/projector.h>
 #include <madness/mra/mra.h>
-#include <madness/world/worldprofile.h>  // PROFILE_BLOCK (perf-model meters; no-op unless WORLD_PROFILE_ENABLE)
 
 #include <initializer_list>
 #include <vector>
@@ -70,7 +69,6 @@ apply_gamma_raw(madness::World &world,
                   const vecfuncT &apply_to,
                   std::initializer_list<ExchangePair> pairs,
                   double c_xc, double lo) {
-  PROFILE_BLOCK(rs_exchange_gamma);  // exchange/γ build (J + K); the meter exchange-thread reports Tx/tile counts into
   using namespace madness;
   auto out = mul(world, J, apply_to, true);
   if (c_xc > 0.0) {

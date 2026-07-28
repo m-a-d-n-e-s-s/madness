@@ -148,19 +148,6 @@ int main(int argc, char **argv) {
 
       ResponseWorkflowOutput out = run_response(world, in);
 
-      // perf-model (doc 29): emit the per-phase profile when asked. COLLECTIVE
-      // (all ranks). No-op unless built with -DENABLE_WORLD_PROFILE=ON AND env
-      // MADQC_PROFILE_JSON is set (zero-effect-when-off contract). The context
-      // records run-time facts the offline fit cannot recover (n_threads is the
-      // wall divisor for cpu->wall; k/thresh pin the shape).
-      if (const char *pj = std::getenv("MADQC_PROFILE_JSON")) {
-        std::ostringstream ctx;
-        ctx << "{\"n_threads\":" << (ThreadPool::size() + 1)
-            << ",\"k\":" << FunctionDefaults<3>::get_k()
-            << ",\"thresh\":" << FunctionDefaults<3>::get_thresh() << "}";
-        WorldProfile::dump_json(world, pj, ctx.str());
-      }
-
       if (world.rank() == 0) {
         const std::string top = protocol_key_at(in.protocols.back());
         const auto &p = out.properties;

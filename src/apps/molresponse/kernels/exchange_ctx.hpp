@@ -31,7 +31,6 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
-#include <madness/world/worldprofile.h>  // PROFILE_BLOCK — perf-model meters; no-op unless WORLD_PROFILE_ENABLE
 
 #include <algorithm>
 #include <vector>
@@ -125,7 +124,6 @@ contract_row(madness::World &world, const vecfuncT &a, const vecfuncT &T,
 inline vecfuncT
 build_g0(madness::World &world, const ResponseGroundState &gs, double vtol,
          int tile = 0) {
-  PROFILE_BLOCK(rs_ext_g0_build);   // φ·φ tensor build (once/protocol); doc 33 Inc-3d
   return build_pair_tensor(world, gs.coulop, gs.amo, gs.amo, vtol, tile);
 }
 
@@ -142,7 +140,6 @@ build_ctx_static_cs(madness::World &world, const ResponseGroundState &gs,
                     const ResponseStateX<ClosedShell> &state,
                     const madness::real_function_3d &rho, double vtol,
                     int tile = 0) {
-  PROFILE_BLOCK(rs_ext_ctx_build);  // per-iter J + Tx convolutions; doc 33 Inc-3d
   ResponseExchangeCtx ctx;
   ctx.J  = madness::apply(*gs.coulop, rho);
   ctx.Tx = build_pair_tensor(world, gs.coulop, gs.amo, state.x_alpha, vtol, tile);
@@ -155,7 +152,6 @@ inline ResponseStateX<ClosedShell>
 assemble_theta_static_cs(madness::World &world, const ResponseGroundState &gs,
                          const ResponseStateX<ClosedShell> &state,
                          const vecfuncT &g0, const ResponseExchangeCtx &ctx) {
-  PROFILE_BLOCK(rs_ext_assemble);   // per-iter contractions + E0x + Q; doc 33 Inc-3d
   const double thr  = madness::FunctionDefaults<3>::get_thresh();
   const double vtol = thr * 0.1;
   const std::size_t n = gs.amo.size();
@@ -193,7 +189,6 @@ build_ctx_full_cs(madness::World &world, const ResponseGroundState &gs,
                   const ResponseStateXY<ClosedShell> &state,
                   const madness::real_function_3d &rho, double vtol,
                   int tile = 0) {
-  PROFILE_BLOCK(rs_ext_ctx_build);  // per-iter J + Tx/Ty convolutions; doc 33 Inc-3d
   ResponseExchangeCtx ctx;
   ctx.J  = madness::apply(*gs.coulop, rho);
   // Inc-3a: build Tx and Ty fused (was two build_pair_tensor calls = two waves);
@@ -219,7 +214,6 @@ inline ResponseStateXY<ClosedShell>
 assemble_theta_full_cs(madness::World &world, const ResponseGroundState &gs,
                        const ResponseStateXY<ClosedShell> &state,
                        const vecfuncT &g0, const ResponseExchangeCtx &ctx) {
-  PROFILE_BLOCK(rs_ext_assemble);   // per-iter contractions + E0x + Q; doc 33 Inc-3d
   const double thr  = madness::FunctionDefaults<3>::get_thresh();
   const double vtol = thr * 0.1;
   const std::size_t n = gs.amo.size();

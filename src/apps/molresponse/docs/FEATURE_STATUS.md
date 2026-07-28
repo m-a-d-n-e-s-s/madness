@@ -31,7 +31,6 @@ detail is in the [feature guides](guides/).
 | DALTON warm-start | ✅ Stable | `seed_from_dalton` / `seed_moldft_from_dalton` tools | Seed the excited-state solve (and SCF) from a DALTON calculation — fewer iterations and correct root selection; can skip the coarse protocol rung | [excited_states](guides/excited_states.md) |
 | HDF5 restart / I/O | 🟡 Experimental (opt-in, closed-shell) | deck `response.hdf5 true` or `io { backend hdf5 }` (build `-DMADNESS_ENABLE_HDF5=ON`) | Interop/inspection with HDF5 tooling; auto-detecting readers; backend stamped per entry in metadata | [`madqc/HDF5_IO.md`](../../madqc/HDF5_IO.md) |
 | MRA visualization export | ✅ Stable (NP=1) | build `-DMADNESS_ENABLE_VTK`; `dump_mra_trees --htg/--amr/--coeffs` | Inspect trees + response orbitals/ρ⁽¹⁾ in ParaView; native `.mad.h5` coefficient archive | — |
-| Performance cost model | 🟡 Experimental | build `-DENABLE_WORLD_PROFILE`; `perf_model_fit.py` | Per-phase profile (incl. exchange meters) → predict wall-time / find bottlenecks | — |
 
 ## Response properties
 

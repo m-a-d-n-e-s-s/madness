@@ -28,7 +28,6 @@
 #include <madness/chem/projector.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
-#include <madness/world/worldprofile.h>  // PROFILE_BLOCK (perf-model meters; no-op unless WORLD_PROFILE_ENABLE)
 
 namespace molresponse_v3 {
 
@@ -148,7 +147,7 @@ struct Kernels<Static, ClosedShell> {
     auto bsh_ops = common_ops::make_bsh_operators(world, g0.aeps,
                                                   omega, g0.lo);
     auto new_x   = apply(world, bsh_ops, rhs);
-    { PROFILE_BLOCK(rs_projection); new_x = g0.Qa(new_x); }  // FD Q·v projection meter
+    new_x = g0.Qa(new_x);
     truncate(world, new_x);
     return State{std::move(new_x)};
   }
@@ -295,7 +294,7 @@ struct Kernels<Static, OpenShell> {
     auto bsh_a = common_ops::make_bsh_operators(world, g0.aeps,
                                                 omega, g0.lo);
     auto new_xa = apply(world, bsh_a, rhs_a);
-    { PROFILE_BLOCK(rs_projection); new_xa = g0.Qa(new_xa); }  // FD Q·v projection meter
+    new_xa = g0.Qa(new_xa);
     truncate(world, new_xa);
 
     // beta
@@ -307,7 +306,7 @@ struct Kernels<Static, OpenShell> {
     auto bsh_b = common_ops::make_bsh_operators(world, g0.beps,
                                                 omega, g0.lo);
     auto new_xb = apply(world, bsh_b, rhs_b);
-    { PROFILE_BLOCK(rs_projection); new_xb = g0.Qb(new_xb); }  // FD Q·v projection meter
+    new_xb = g0.Qb(new_xb);
     truncate(world, new_xb);
 
     return State{std::move(new_xa), std::move(new_xb)};
