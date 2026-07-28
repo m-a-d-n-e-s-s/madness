@@ -50,6 +50,11 @@ add_mad_executable(test_run_response
 add_mad_executable(test_kernel_equivalence
                    "tests/test_kernel_equivalence.cpp;GroundState.cpp"
                    "MADchem")
+# Pins the three algebraic identities (M1/M2/M3) behind the state-grouped
+# reformulation of the 2PA two-electron residue. Research-branch only.
+add_mad_executable(test_tpa_regroup_identities
+                   "tests/test_tpa_regroup_identities.cpp;GroundState.cpp"
+                   "MADchem")
 add_mad_executable(test_step_restriction
                    "tests/test_step_restriction.cpp"
                    "MADchem")
