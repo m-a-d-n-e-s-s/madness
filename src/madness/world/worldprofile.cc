@@ -34,6 +34,7 @@
 #include <madness/world/MADworld.h>
 #include <madness/world/atomicint.h>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <ostream>
 
@@ -419,7 +420,16 @@ namespace madness {
                                    double overhead, const std::string& path,
                                    const std::string& context_json) {
         std::ofstream o(path);
-        if (!o) return;
+        if (!o) {
+            // Review LOW: don't drop the profile silently — a bad path / full
+            // disk left the user thinking profiling ran when the file never
+            // opened. No return channel here, so at least say so.
+            std::fprintf(stderr,
+                "WorldProfile: could not open '%s' for the profile dump — "
+                "profile NOT written (check the path/permissions/disk).\n",
+                path.c_str());
+            return;
+        }
         o.setf(std::ios::scientific);
         o.precision(8);
         o << "{\"schema_version\":1,\"world_size\":" << world.size()

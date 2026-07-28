@@ -6,6 +6,8 @@
 #include <madness/chem/oep.h>
 #include <madness/mra/QCCalculationParametersBase.h>
 
+#include <type_traits>
+
 using namespace madness;
 using path = std::filesystem::path;
 
@@ -63,6 +65,45 @@ struct OptimizationParameters : public QCCalculationParametersBase {
   [[nodiscard]] bool get_geometry_tolerence() const {
     return get<bool>("geometry_tolerence");
   }
+};
+
+/// Deck-level `io` block (roadmap change 5): run-wide I/O configuration.
+/// `backend` selects the restart-archive family every task that persists
+/// MRA state writes (today: response; moldft & friends as they adopt it) —
+/// it generalizes the response-only `response.hdf5` knob, which is kept as
+/// a working alias. Future parallel-HDF5 knobs (collective I/O, per-dataset
+/// compression) belong in this block, not per-task.
+struct IOParameters : public QCCalculationParametersBase {
+  static constexpr const char *tag = "io";
+  IOParameters(const IOParameters &other) = default;
+
+  IOParameters(World &world, const commandlineparser &parser)
+      : IOParameters() {
+    read_input_and_commandline_options(world, parser, tag);
+  }
+  IOParameters() {
+    initialize<std::string>(
+        "backend", "native",
+        "restart-archive backend for tasks that support it: native "
+        "(MADNESS parallel archives) or hdf5 (single .h5 blobs; requires a "
+        "-DMADNESS_ENABLE_HDF5=ON build)",
+        {"native", "hdf5"});
+  }
+
+  std::string get_tag() const override { return std::string(tag); }
+
+  using QCCalculationParametersBase::read_input_and_commandline_options;
+
+  void print() const {
+    madness::print("------------IO Parameters---------------");
+    madness::print("Backend: ", get<std::string>("backend"));
+    madness::print("-------------------------------------------");
+  }
+
+  [[nodiscard]] std::string backend() const {
+    return get<std::string>("backend");
+  }
+  [[nodiscard]] bool hdf5() const { return backend() == "hdf5"; }
 };
 
 template <typename... Groups> class ParameterManager {
@@ -147,11 +188,18 @@ private:
     (
         [&] {
           if (j.contains(Groups::tag)) {
-            // if (world_.rank() == 0) {
-            //   // madness::print("Group: ", Groups::tag,
-            //   //                " JSON: ", j.at(Groups::tag).dump(4));
-            // }
             std::get<Groups>(groups_).from_json(j.at(Groups::tag));
+          }
+          // Layer command-line overrides (--group=key=val) ON TOP of the JSON,
+          // exactly as initFromText gets them through the file+CLI parser.
+          // Without this, JSON-format decks silently ignored CLI overrides
+          // (review MED). Applies to defaults too when the tag is absent.
+          // Only the QCCalculationParametersBase-derived groups have the
+          // override machinery — Molecule (also in the tuple) does not, so
+          // guard with if constexpr.
+          if constexpr (std::is_base_of_v<QCCalculationParametersBase, Groups>) {
+            std::get<Groups>(groups_).read_commandline_options(world_, parser_,
+                                                               Groups::tag);
           }
         }(),
         ...);
@@ -195,4 +243,5 @@ private:
 using Params =
     ParameterManager<CalculationParameters, ResponseParameters,
                      Nemo::NemoCalculationParameters, OptimizationParameters,
-                     OEP_Parameters, CCParameters, TDHFParameters, Molecule>;
+                     OEP_Parameters, CCParameters, TDHFParameters, Molecule,
+                     IOParameters>;

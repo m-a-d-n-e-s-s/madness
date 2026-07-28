@@ -20,7 +20,7 @@
 //                  raman_spectra, vibrational_analysis} }
 
 #include <madness/constants.h>
-#include <nlohmann/json.hpp>
+#include <madness/external/nlohmann_json/json.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -268,6 +268,24 @@ inline void write_response_section(std::ostream &os, const nlohmann::json &t) {
     os << std::defaultfloat;
   }
 
+  // Scheduler outcome (v3): surface a non-clean stop_reason so a run that
+  // quarantined stalled nodes or silently-dropped planned beta/raman work is
+  // never mistaken for a complete one when skimming the .out summary.
+  if (t.contains("metadata") && t["metadata"].contains("v3_diagnostics")) {
+    const auto &d = t["metadata"]["v3_diagnostics"];
+    const std::string sr = d.value("stop_reason", std::string());
+    if (!sr.empty() && sr != "complete") {
+      os << "    *** scheduler stop_reason: " << sr << "\n";
+      if (d.contains("stalled_nodes"))
+        for (const auto &id : d["stalled_nodes"])
+          os << "        stalled : " << id.get<std::string>() << "\n";
+      if (d.contains("dropped_beta"))
+        for (const auto &e : d["dropped_beta"])
+          os << "        dropped : " << e.value("id", std::string("?"))
+             << "  (" << e.value("reason", std::string("?")) << ")\n";
+    }
+  }
+
   // Vibrational frequencies, if a Raman/vibrational analysis is present.
   if (props.contains("vibrational_analysis") &&
       props["vibrational_analysis"].contains("frequencies")) {
@@ -301,8 +319,16 @@ inline void write_results_summary(std::ostream &os,
     const std::string type = t.value("type", std::string());
     const std::string model = t.value("model", std::string());
 
+    // A failed task is recorded in two shapes: the Workflow driver emits
+    // {"type":"task_failed","error":...} while other paths set
+    // {"status":"failed","error":...}. Recognize both (raman brief defect 4).
+    const bool failed =
+        (t.value("status", std::string()) == "failed") || (type == "task_failed");
+
     std::string title;
-    if (type == "response")
+    if (failed)
+      title = "TASK  (FAILED)";
+    else if (type == "response")
       title = "RESPONSE";
     else if (model == "scf" || t.contains("scf_eigenvalues_a"))
       title = "SCF  (model = " + (model.empty() ? "scf" : model) + ")";
@@ -316,9 +342,11 @@ inline void write_results_summary(std::ostream &os,
     os << "\n  Task " << i++ << " : " << title << "\n";
     os << "  " << rule('-') << "\n";
 
-    if (t.value("status", std::string()) == "failed") {
-      os << "    *** FAILED: " << t.value("error", std::string("(no detail)"))
-         << "\n";
+    if (failed) {
+      os << "    *** FAILED";
+      if (t.contains("task_index"))
+        os << " (task " << t["task_index"] << ")";
+      os << ": " << t.value("error", std::string("(no detail)")) << "\n";
       continue;
     }
 

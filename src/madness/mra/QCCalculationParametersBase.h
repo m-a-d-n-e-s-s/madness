@@ -22,7 +22,7 @@
 #include "madness/world/archive.h"
 #include "madness/world/world.h"
 #include "madness/mra/commandlineparser.h"
-#include <nlohmann/json.hpp>
+#include "madness/external/nlohmann_json/json.hpp"
 
 
 namespace madness {
@@ -352,14 +352,18 @@ namespace madness {
     public:
         bool file_exists(World& world, std::string filename) const;
 
+        /// Apply `--<tag>=key=val` command-line overrides on top of the current
+        /// values. Public so ParameterManager::initFromJson can layer CLI
+        /// overrides after from_json (the text path gets them via the ctor's
+        /// read_input_and_commandline_options; JSON decks otherwise ignored them).
+        void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
     private:
         /// read the parameters from file
 
         /// only world.rank()==0 reads the input file and broadcasts to all other nodes,
         /// so we don't need to serialize the ParameterMap
         void read_input(World& world, const std::string filename, const std::string tag);
-
-        void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
 
     protected:
         bool print_debug = false;

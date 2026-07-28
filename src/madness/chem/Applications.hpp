@@ -4,9 +4,40 @@
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
 #include <madness/chem/Results.h>
+#include <filesystem>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <system_error>
+#include <type_traits>
 
 namespace madness {
 enum class NextAction { Ok, ReloadOnly, Restart, Redo };
+
+class SCF; // forward decl for StepContext::reference
+
+/// Typed artifacts handed from one workflow step to the next, threaded through
+/// Workflow::run and Driver::execute (madqc ARCHITECTURE_ROADMAP change 1).
+///
+/// This replaces the cwd/mad.in side channels for downstream geometry + archive
+/// discovery. The build-time shared_ptr capture of the ground-state reference
+/// remains a supported compatibility path — a producer that can expose a live
+/// SCF publishes it here (`reference`), and a consumer prefers it when present.
+///
+/// Producers set fields in publish_to_context(); consumers read them in
+/// consume_context(). Everything is optional: an unset field means "no upstream
+/// value — fall back to the build-time / input value".
+struct StepContext {
+  /// The molecule the next step should use (possibly optimized/displaced).
+  std::optional<Molecule> molecule;
+  /// Live ground-state reference engine, if an upstream SCF step exposed one.
+  std::shared_ptr<SCF> reference;
+  /// Named archive/output paths (absolute), e.g. "restartdata" -> path.
+  std::map<std::string, std::filesystem::path> archives;
+  /// Free-form JSON for artifacts not yet first-class.
+  nlohmann::json blob = nlohmann::json::object();
+};
 
 // Scoped CWD: changes the current directory to the given one, and restores when
 // the object goes out of scope
@@ -29,6 +60,15 @@ public:
 
   // run: write all outputs under the given directory
   virtual void run(const std::filesystem::path &workdir) = 0;
+
+  /// Consume artifacts published by an upstream step. Called BEFORE run().
+  /// Default no-op; override to read the shared StepContext (e.g. a response
+  /// step preferring the upstream ground-state reference / geometry).
+  virtual void consume_context(const StepContext & /*ctx*/) {}
+
+  /// Publish this step's typed outputs into the shared StepContext for
+  /// downstream steps. Called AFTER run(). Default no-op.
+  virtual void publish_to_context(StepContext & /*ctx*/) {}
 
   // optional hook to return a JSON fragment of this app's main results
   [[nodiscard]] virtual nlohmann::json results() const = 0;
@@ -127,8 +167,12 @@ public:
       nlohmann::json j;
       NextAction action;
       if (has_results(ckpt)) {
-        j = read_results(ckpt); // which results are we readin
         try {
+          // Parse INSIDE the try: a truncated/corrupt checkpoint (e.g. a
+          // process killed mid-write) makes read_results throw, and that
+          // throw must degrade to Redo rather than escaping past this catch
+          // and bricking the restart.
+          j = read_results(ckpt); // which results are we reading
           auto &[scf_r, properties, convergence, optr] = scf_results;
           scf_r.from_json(j["scf"]);
           properties.from_json(j["properties"]);
@@ -137,6 +181,7 @@ public:
 
         } catch (...) {
           print("Failed to parse checkpoint file: ", ckpt);
+          j = nlohmann::json(); // drop any partially-parsed data
           scf_results = empty_results;
           action = madness::NextAction::Redo;
         }
@@ -153,6 +198,19 @@ public:
                 "molecule; ignoring checkpoint and recomputing.");
         scf_results = empty_results;
         action = madness::NextAction::Redo;
+      }
+      // If we are restarting from an existing archive, the SCF engine must be
+      // told to load its MOs from <prefix>.restartdata. This flag has to be set
+      // on params_ BEFORE the engine is constructed — set_calc_workdir() below
+      // builds the SCF (via calc()->initialize_(), which freezes params into
+      // mad.in), so a flag set afterwards (as the old moldft_lib::run did, on a
+      // discarded local copy) never reaches the constructor and "Restart"
+      // silently recomputed from scratch. (raman thread brief, defect 3)
+      if (action == madness::NextAction::Restart) {
+        params_.get<CalculationParameters>().set_user_defined_value("restart",
+                                                                    true);
+        if (world_.rank() == 0)
+          print("Restart requested: loading MOs from restartdata archive");
       }
       world_.gop.fence();
       set_calc_workdir(pm.dir());
@@ -188,7 +246,10 @@ public:
 
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
-        scf_results = lib_.run(world_, params_, madness::NextAction::Restart);
+        // Restart vs Redo is now carried by the 'restart' flag set on params_
+        // above (Restart => load restartdata; Redo => fresh). Pass the real
+        // action through rather than a hardcoded Restart.
+        scf_results = lib_.run(world_, params_, action);
       } else {
         lib_.calc(world_, params_); // just set up the calc without running
       }
@@ -207,21 +268,77 @@ public:
       results_["scf_total_energy"] = results_["scf"]["scf_total_energy"];
       results_["scf_eigenvalues_a"] = results_["scf"]["scf_eigenvalues_a"];
       results_["scf_fock_a"] = results_["scf"]["scf_fock_a"];
+      // Open-shell: mirror the beta channel too (review MED — SCFResults emits
+      // scf_eigenvalues_b/scf_fock_b in the nested object, but only the alpha
+      // channel was surfaced at top level, so the .out summary never showed
+      // beta). Guarded on presence: closed-shell runs omit them.
+      if (results_["scf"].contains("scf_eigenvalues_b"))
+        results_["scf_eigenvalues_b"] = results_["scf"]["scf_eigenvalues_b"];
+      if (results_["scf"].contains("scf_fock_b"))
+        results_["scf_fock_b"] = results_["scf"]["scf_fock_b"];
       results_["convergence_info"] = results_["convergence"];
       results_["metadata"] = {{"mpi_size", world_.size()}};
 
-      // write the checkpoint file
+      // write the checkpoint file atomically (tmp write + rename) so a crash
+      // or ENOSPC mid-write cannot truncate a previously-good checkpoint and
+      // brick the next restart. See defect-1 in the raman thread brief.
       if (world_.rank() == 0) {
-        std::ofstream ofs(ckpt);
-        ofs << results_.dump(4);
-        ofs.close();
-        print("Written checkpoint file: ", ckpt);
+        const std::string tmp = ckpt + ".tmp";
+        bool ok = true;
+        {
+          std::ofstream ofs(tmp);
+          ofs << results_.dump(4);
+          ofs.flush();
+          ok = static_cast<bool>(ofs);
+        }
+        if (ok) {
+          std::error_code ec;
+          std::filesystem::rename(tmp, ckpt, ec);
+          if (ec) ok = false;
+        }
+        if (ok) {
+          print("Written checkpoint file: ", ckpt);
+        } else {
+          std::error_code ec;
+          std::filesystem::remove(tmp, ec);
+          print("ERROR: failed to write checkpoint file (disk full?): ", ckpt);
+        }
       }
     }
   }
 
   // std::shared_ptr<SCFApplicationT> scf_app =
   // std::dynamic_pointer_cast<SCFApplicationT>(reference_.shared_from_this());
+
+  /// Publish this SCF step's typed outputs for downstream steps: the live
+  /// engine (only when it is an SCF — nemo's Calc is Nemo and stays on the
+  /// build-time capture path), the converged molecule, and the restartdata
+  /// archive path. See StepContext / ARCHITECTURE_ROADMAP change 1.
+  void publish_to_context(StepContext &ctx) override {
+    if constexpr (std::is_same_v<Calc, SCF>) {
+      ctx.reference = calc(); // shared_ptr<SCF>
+    }
+    if (results_.contains("molecule")) {
+      try {
+        Molecule m;
+        m.from_json(results_["molecule"]);
+        ctx.molecule = std::move(m);
+      } catch (...) {
+        // leave ctx.molecule unset -> downstream falls back to input geometry
+      }
+    }
+    // Record the restartdata archive location (absolute) so a downstream step
+    // can restart from this ground state without relying on the cwd.
+    try {
+      const auto &cp = params_.get<CalculationParameters>();
+      const std::filesystem::path dir =
+          calc()->work_dir.empty() ? std::filesystem::current_path()
+                                    : std::filesystem::path(calc()->work_dir);
+      ctx.archives["restartdata"] = dir / (cp.prefix() + ".restartdata");
+    } catch (...) {
+      // best-effort; absence just means downstream restart discovery falls back
+    }
+  }
 
   nlohmann::json results() const override { return results_; }
 
@@ -282,6 +399,17 @@ public:
       std::cout << "Response Parameters:" << std::endl;
       params_.get<ResponseParameters>().print("response");
     }
+  }
+
+  /// Prefer the ground-state reference published by the upstream SCF step over
+  /// the one captured at build time. Also adopt an upstream (optimized/
+  /// displaced) geometry so response runs AT the geometry the chain computed.
+  /// (ARCHITECTURE_ROADMAP change 1 acceptance.)
+  void consume_context(const StepContext &ctx) override {
+    if (ctx.reference)
+      reference_ = ctx.reference;
+    if (ctx.molecule)
+      params_.get<Molecule>() = *ctx.molecule;
   }
 
   /**
@@ -696,7 +824,6 @@ struct moldft_lib {
   // params get's changed by SCF constructor
   SCFResultsTuple run(World &world, const Params &params,
                       const NextAction next_action_) {
-    auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
     const auto &params_copy = params;
 
@@ -712,11 +839,10 @@ struct moldft_lib {
       return last_results_;
     }
 
-    if (NextAction::Restart == next_action_) {
-      // Handle restart logic
-      auto cr = std::get<2>(last_results_);
-      moldft_params.set_user_defined_value("restart", true);
-    }
+    // NOTE: for NextAction::Restart, the SCF engine is already told to load
+    // MOs from restartdata by the caller (SCFApplication::run sets the
+    // 'restart' flag on params_ BEFORE the engine is constructed). Setting it
+    // here on a local copy was dead code — the engine was already built.
     auto scf = calc(world, params_copy);
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user

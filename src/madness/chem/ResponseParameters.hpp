@@ -43,6 +43,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
                          "opt-in HDF5-backed response-state restart I/O (writes .h5 "
                          "archives; readers auto-detect). Requires a build with "
                          "-DMADNESS_ENABLE_HDF5=ON; closed-shell states only.");
+        initialize<int>("subworlds", 0,
+                        "fan independent FD response states across this many "
+                        "node-aligned subworlds (F2 state-parallel path); 0 = "
+                        "single-World reference path. Use <= nodes, and note "
+                        "PMIx on some clusters caps tasks/node at 2.");
         initialize<bool>("beta.shg", true,
                          "compute only SHG beta triplets (omegaB=omegaC, "
                          "omegaA=-(omegaB+omegaC))");
@@ -118,6 +123,10 @@ public:
     }
     [[nodiscard]] bool hdf5() const {
         return get<bool>("hdf5");
+    }
+
+    [[nodiscard]] int subworlds() const {
+        return get<int>("subworlds");
     }
     [[nodiscard]] bool step_restrict() const {
         return get<bool>("step_restrict");
