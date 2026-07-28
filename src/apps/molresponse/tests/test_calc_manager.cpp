@@ -7,7 +7,7 @@
 #include "../calc/calc_manager.hpp"
 #include "../ResponsePropertyPlanner.hpp"
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cstdio>

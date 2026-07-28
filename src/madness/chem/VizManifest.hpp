@@ -12,7 +12,7 @@
 // data, so it adds no cost to the compute path and is safe to call after run().
 
 #include <madness/chem/ResultsSummary.hpp> // qcapp::summary_detail::molecule_formula
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>

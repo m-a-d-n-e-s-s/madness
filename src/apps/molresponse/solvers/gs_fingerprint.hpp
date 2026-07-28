@@ -23,7 +23,7 @@
 // the `unit` ctest tier). The collective wrapper (rank-0 compute + broadcast
 // + all-ranks abort) lives in orchestrator/response_workflow.hpp.
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <cstdint>
 #include <cstdio>

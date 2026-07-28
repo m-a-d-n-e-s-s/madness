@@ -41,7 +41,7 @@
 #include "../solvers/es_save_load.hpp" // load_es_roots<TDA,ClosedShell> (ES bundle)
 
 #include <madness/chem/atomutil.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/misc/info.h>
 #include <madness/mra/funcplot.h>
 #include <madness/mra/mra.h>

@@ -8,7 +8,7 @@
 #include <madness/constants.h>
 #include <madness/world/madness_exception.h>
 #include <madness/chem/molecule.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include <optional>
 #include <string>

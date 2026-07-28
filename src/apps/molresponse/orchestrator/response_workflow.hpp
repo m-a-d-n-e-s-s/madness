@@ -23,7 +23,7 @@
 #include "../solvers/gs_fingerprint.hpp"    // GS-archive restart-safety gate
 #include "../solvers/response_metadata.hpp"
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 

@@ -31,7 +31,7 @@
 #include <madness/chem/ParameterManager.hpp>   // Params
 #include <madness/chem/ResponseParameters.hpp>
 #include <madness/chem/SCF.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/world/worldprofile.h>
 
 #include <algorithm>

@@ -37,7 +37,7 @@
 #include "response_state.hpp"
 #include "state_metrics.hpp"              // measure_state (per-state mem/iters)
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 

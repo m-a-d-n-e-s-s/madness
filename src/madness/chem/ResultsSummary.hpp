@@ -20,7 +20,7 @@
 //                  raman_spectra, vibrational_analysis} }
 
 #include <madness/constants.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cmath>

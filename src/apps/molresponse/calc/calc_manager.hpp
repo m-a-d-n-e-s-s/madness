@@ -45,7 +45,7 @@
 #include "../ResponsePropertyPlanner.hpp" // ResponsePlan, FDRequest, ESRequest, ...
 #include "../solvers/response_metadata.hpp" // ResponseMetadata::freq_key
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cmath>

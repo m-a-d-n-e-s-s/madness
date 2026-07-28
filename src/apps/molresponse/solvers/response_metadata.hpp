@@ -36,7 +36,7 @@
 // live next to the solver code that owns the types.
 // =========================================================================
 
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cstdint>

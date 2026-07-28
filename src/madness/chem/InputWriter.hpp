@@ -1,6 +1,6 @@
 #pragma once
 #include <madchem.h>
-#include <madness/external/nlohmann_json/json.hpp>
+#include <nlohmann/json.hpp>
 
 /// Write out the “molecule” block from a JSON object, in MADNESS .inp format
 void write_molecule_json_to_input_file(nlohmann::json const& molecule_json,
