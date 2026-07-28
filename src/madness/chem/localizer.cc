@@ -3,7 +3,6 @@
 //
 
 #include<madness/chem/localizer.h>
-#include <tbb/parallel_for.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/function_factory.h>
 #include <madness/tensor/jacobi.h>
@@ -422,20 +421,32 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             return qij * (1.0 + breaksym * a); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break symmetry
         };
 
-        auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
-            W = tbb::parallel_reduce(tbb::blocked_range(0,nmo), 0.0, [&](tbb::blocked_range<int> r, double W){
-                for (int i = r.begin(); i < r.end(); ++i) {
-                    for (int a = 0; a < natom; ++a) {
-                        Q(i, a) = QQ(C, i, i, a);
-                        W += Q(i, a) * Q(i, a);
-                    }
-                }
-                return W;
-            },std::plus<double>());
+        // Both loops below are fanned out over rows of the MO index with the MADNESS
+        // task queue. This is a *local* fan-out (no collective is involved), which is
+        // what makes it legal inside this rank-0-only block; it must therefore be
+        // awaited with Future::get() and never with a collective gop.fence().
+        // Rows are independent in both loops: row i of the gradient writes only
+        // g(i,j<i) and g(j<i,i), and those index sets are disjoint across i.
+        // W is deliberately *not* accumulated inside the fan-out -- a parallel
+        // reduction would make it depend on scheduling order. Summing it from Q
+        // afterwards costs O(nmo*nsets), negligible next to building Q, and keeps
+        // every value here bitwise reproducible.
+        typedef Range<int> rangeT;
+        auto makeGW = [&world, &Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
+            auto q_row = [&Q, &natom, &QQ, &C](const rangeT::iterator& it) -> bool {
+                const int i = it;
+                for (int a = 0; a < natom; ++a) Q(i, a) = QQ(C, i, i, a);
+                return true;
+            };
+            MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), q_row).get());
 
+            W = 0.0;
+            for (int i = 0; i < nmo; ++i)
+                for (int a = 0; a < natom; ++a) W += Q(i, a) * Q(i, a);
 
-            // for (int i = 0; i < nmo; ++i) {
-            tbb::parallel_for(0,nmo,[&](int i){
+            // the gradient is O(nmo^2*nao) and the hot spot of localize_new
+            auto grad_row = [&Q, &natom, &QQ, &C, &g](const rangeT::iterator& it) -> bool {
+                const int i = it;
                 for (int j = 0; j < i; ++j) {
                     double Qiiij = 0.0, Qijjj = 0.0;
                     for (int a = 0; a < natom; ++a) {
@@ -444,15 +455,11 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                         Qiiij += Qija * Q(i, a);
                     }
                     g(i, j) = -(Qiiij - Qijjj);
-                }}
-            );
-
-            for (int i = 0; i < nmo ; ++i) {
-                for (int j = 0; j < i; ++j) {
                     g(j, i) = -g(i, j);
                 }
-            }
-           // }
+                return true;
+            };
+            MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), grad_row).get());
         };
 
         tensorT xprev; // previous search direction

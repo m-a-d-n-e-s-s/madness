@@ -1213,9 +1213,10 @@ template<size_t NDIM>
 
             // copy coeffs from (a subset of) other's world
 
-            // if other's whole tree lives on one rank (single-owner pmap), fetch
-            // only from that owner: one blob instead of an all-ranks poll whose N-1
-            // empty round-trips would otherwise queue behind the owner's compute.
+            // if other's whole tree lives on one rank (single-owner pmap), fetch only
+            // from that owner -- one blob instead of an all-ranks poll whose N-1 empty
+            // round-trips otherwise queue behind the owner's compute (serve-starvation).
+            // When owner==me the fetch is a local task (no serialize/AM at all).
             const ProcessID single_owner = other.get_pmap()->single_owner();
             if (single_owner >= 0) {
                 copy_remote_coeffs_from_pid<Q>(single_owner, other);
