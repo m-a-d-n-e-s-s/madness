@@ -140,7 +140,8 @@ int main(int argc, char** argv) {
 
     {
         // Read RSPVEC
-        auto [info, entries] = read_rspvec(rspvec_path);
+        auto rspvec_read = read_rspvec(rspvec_path);
+        const auto &entries = rspvec_read.second;   // plain names: a lambda may not capture a structured binding (C++17)
         for (int ri : root_list) {
             if (ri < 0 || ri >= static_cast<int>(entries.size())) {
                 if (world.rank() == 0)

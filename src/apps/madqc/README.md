@@ -7,7 +7,6 @@ calculation steps), runs them, and writes both a machine-readable result file
 
 This is the **user guide**. To *extend* madqc with a new workflow, see
 [`WORKFLOWS.md`](WORKFLOWS.md). For the Seawulf build/run loop, see
-[`SEAWULF_INTERACTIVE_WORKFLOW.md`](SEAWULF_INTERACTIVE_WORKFLOW.md).
 
 ---
 
@@ -109,6 +108,100 @@ end
 
 A JSON input deck with the same group keys is also accepted (the driver
 auto-detects JSON vs. plain text).
+
+### Example decks for the other workflows
+
+Each deck below has been run as written. Note the **fixed `k`**: the correlated
+and OEP paths take the reference at a single resolution, so these decks set `k`
+explicitly rather than giving `protocol` a ladder to climb. (Handing a downstream
+correlated method a reference that climbed the ladder mixes resolutions and
+aborts; use the ladder for `scf`/`response`, a fixed `k` here.)
+
+**`--wf=nemo`** — HF/DFT with regularized, nuclear-cusp-free orbitals:
+
+```text
+dft
+    xc       hf
+    k        7
+    maxiter  10
+    econv    1e-5
+    dconv    1e-3
+end
+nemo
+end
+molecule
+    units atomic
+    He 0.0 0.0 0.0
+end
+```
+
+**`--wf=cis`** — configuration-interaction-singles excited states (`tdhf` group):
+
+```text
+dft
+    xc       hf
+    k        6
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+tdhf
+    thresh                     1e-3
+    maxiter                    10
+    nexcitations               2
+    guess_excitations          2
+    guess_excitation_operators dipole+
+end
+molecule
+    units atomic
+    He 0.0 0.0 0.0
+end
+```
+
+**`--wf=cc2`** (and `--wf=mp2`, same `cc2` group) — correlated energies:
+
+```text
+dft
+    xc       hf
+    k        5
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+cc2
+    freeze 1
+end
+molecule
+    units atomic
+    He 0.0 0.0 0.0
+end
+```
+
+**`--wf=oep`** — optimized effective potential:
+
+```text
+dft
+    xc       hf
+    k        7
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+oep
+    model       oaep
+    oep_maxiter 3
+end
+molecule
+    units atomic
+    Be 0.0 0.0 0.0
+end
+```
+
+Every knob in a group is discoverable with `madqc --print_parameters=<group>`
+(`dft`, `nemo`, `tdhf`, `cc2`, `oep`, `response`). The same settings can be given
+on the command line instead of in a deck, e.g.
+`madqc --molecule=he --wf=cc2 --dft="k=5; econv=1.e-4" --cc2="freeze 1"`, which is
+the form the scripted tests in this directory use.
 
 ### Input block ↔ parameter group mapping
 

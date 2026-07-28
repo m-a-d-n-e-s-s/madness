@@ -175,7 +175,9 @@ int main(int argc, char **argv) {
 
   {
     // ---- read DALTON files -------------------------------------------------
-    auto [info, entries] = read_rspvec(rspvec_path);
+    auto rspvec_read = read_rspvec(rspvec_path);
+    const auto &info = rspvec_read.first;
+    const auto &entries = rspvec_read.second;   // plain names: a lambda may not capture a structured binding (C++17)
     DaltonMoldenResult molden = read_molden(molden_path);
     const int n_ao = molden.n_ao, n_mo = molden.n_mo;
     const int n_occ = parser.key_exists("n-occ")
