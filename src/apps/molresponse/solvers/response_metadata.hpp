@@ -46,7 +46,6 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
-#include <unistd.h>
 #include <vector>
 
 namespace molresponse_v3 {
@@ -205,10 +204,13 @@ public:
   /// truncated tmp over a good index. The bad tmp is removed on failure.
   void save() const {
     if (read_only()) return;
-    // pid-unique tmp: with a fixed name, concurrent writers rename each
-    // other's tmp away and the loser dies on ENOENT (seen 2026-07-22 with
-    // 4 per-root TPA processes).
-    const std::string tmp = path_ + ".tmp." + std::to_string(::getpid());
+    // Fixed tmp name, deliberately: a stranded tmp from a killed save is
+    // CONSUMED by the next save() rather than accumulating (enforced by
+    // test_response_metadata "re-save consumed/replaced the stranded tmp").
+    // Concurrent writers on one file are not supported by contract — the
+    // read_only() switch above is how processes that share a calc dir avoid
+    // writing at all.
+    const std::string tmp = path_ + ".tmp";
     {
       std::ofstream out(tmp);
       if (!out) throw std::runtime_error(
