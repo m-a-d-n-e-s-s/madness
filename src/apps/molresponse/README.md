@@ -16,7 +16,7 @@ limit rather than being extrapolated in a Gaussian basis.
 | **Vibrational Raman** (single component) | ✅ supported | [guides/raman.md](docs/guides/raman.md) |
 | **Excited states** (TDA / Full RPA) | ✅ supported (closed shell) | [guides/excited_states.md](docs/guides/excited_states.md) |
 | **Two-photon absorption** | 🟡 preliminary (closed-shell singlets) | [guides/two_photon_absorption.md](docs/guides/two_photon_absorption.md) |
-| **DALTON warm-start** (seed ES/SCF from DALTON) | ✅ supported | [guides/excited_states.md](docs/guides/excited_states.md) |
+| **DALTON warm-start** (seed ES/SCF from DALTON) | ✅ supported | [guides/dalton_warm_start.md](docs/guides/dalton_warm_start.md) |
 | Resonance Raman · full-tensor Raman · open-shell | 🔬 future | — |
 
 **Scope:** closed-shell. Open-shell excited states and full-RPA are out of scope
@@ -29,7 +29,10 @@ for this release.
   [hyperpolarizability](docs/guides/hyperpolarizability.md) ·
   [raman](docs/guides/raman.md) ·
   [excited states](docs/guides/excited_states.md) ·
-  [two-photon absorption](docs/guides/two_photon_absorption.md).
+  [two-photon absorption](docs/guides/two_photon_absorption.md) ·
+  [DALTON warm-start](docs/guides/dalton_warm_start.md).
+- **[`docs/guides/example_output.md`](docs/guides/example_output.md)** — what a run
+  prints and writes (real output).
 - **[`docs/guides/formalism.md`](docs/guides/formalism.md)** — the shared response
   formalism the guides specialize.
 - **[`docs/guides/parallelism.md`](docs/guides/parallelism.md)** — subworld /
