@@ -60,6 +60,9 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
             (algorithm_ == large_memory) ||
             (algorithm_ == fetch_compute);
 
+    // EXCH_OP split (printlevel>=4): attribute the "HF exchange" timer's exchange-operator part into
+    // make_redundant (input prep + fences) / K_macrotask (mtask) / truncate (result). model §14.3.
+    const double t_op_a = wall_time();
     if (needs_reconstructed_inputs) {
         reconstruct(world, mo_bra, false);
         reconstruct(world, mo_ket, false);
@@ -116,6 +119,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         auto size = get_size(world, Kf);
         if (world.rank() == 0) print("total size of Kf before truncation", size);
     }
+    const double t_op_c = wall_time();   // before truncate
     truncate(world, Kf);
     if (printdebug()) {
         auto size=get_size(world,Kf);
@@ -125,6 +129,12 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     double wall1=wall_time();
     elapsed_process_cpu_time=process_cpu1-process_cpu0;
     elapsed_time=wall1-wall0;
+    if (printtimings_detail() and world.rank()==0) {
+        printf("EXCH_OP k=%ld nmo=%lu | make_redundant=%.3f K_macrotask=%.3f truncate=%.3f (op total %.3f s)\n",
+               long(FunctionDefaults<NDIM>::get_k()), (unsigned long)vket.size(),
+               wall0 - t_op_a, t_op_c - wall0, wall1 - t_op_c, wall1 - t_op_a);
+        fflush(stdout);
+    }
 
     if (printtimings_detail()) print_timer(world);
     return Kf;
@@ -229,6 +239,9 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // for this algorithm so cross-rank ket fetches become single-owner reads via is_replicated.
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
+    // KMACRO split (printlevel>=4): ctor(taskq build) / mtask(run: store+span+finalize) / postfence /
+    // costsync / stats. mtask − span (profiler) − finalize (RUN_PHASES) = store + framework. model §14.3.
+    const double t_km_ctor = wall_time();
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
                  : MacroTask(world, xtask, taskq_factory);
 
@@ -237,8 +250,11 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     if (mtask.get_taskq()) mtask.get_taskq()->cloud.set_batch_debug(printdebug());
 
     // deferred execution if a taskq is provided by the user
+    const double t_km0 = wall_time();
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
+    const double t_km1 = wall_time();
     world.gop.fence();
+    const double t_km2 = wall_time();
 
     // cost-aware load balancing (opt-in, sym_p2p): synchronize this call's per-task costs across
     // ranks so every rank holds an identical cost matrix for the NEXT call's deterministic
@@ -254,10 +270,17 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
             MacroTaskExchangeSimple::sym_commit_cost_global();  // EMA-blend into the next-call reference
         }
     }
+    const double t_km3 = wall_time();
 
     statistics=gather_statistics();
     statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
     statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();
+    if (printtimings_detail() and world.rank()==0) {
+        printf("KMACRO k=%ld | ctor=%.3f mtask=%.3f postfence=%.3f costsync=%.3f stats=%.3f\n",
+               long(FunctionDefaults<NDIM>::get_k()),
+               t_km0 - t_km_ctor, t_km1 - t_km0, t_km2 - t_km1, t_km3 - t_km2, wall_time() - t_km3);
+        fflush(stdout);
+    }
 
     return Kf;
 }

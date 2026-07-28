@@ -1601,6 +1601,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         if (run_hfex_serialization_probe) probe_hfex_serialization(world, amo);
 
         vecfuncT Kamo;
+        // HFEX_SPLIT: attribute the "HF exchange" timer into exchange-operator K(amo) vs the SCF-side
+        // energy inner(Kamo,amo) vs the Vpsi scale (model §14 — the low-protocol 3× is partly NOT
+        // exchange). rank-0 print, gated on print_level>3.
+        const bool hfex_split = (param.print_level() > 3);
+        const double t_hfx0 = hfex_split ? wall_time() : 0.0;
         if (param.hfex_shuffle_mos() && amo.size() > 1) {
             // Permute MO order before exchange to vary load balance / batching.
             // Fixed seed → deterministic and identical across ranks (no broadcast needed).
@@ -1624,7 +1629,9 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         } else {
             Kamo = K(amo);
         }
+        const double t_hfx1 = hfex_split ? wall_time() : 0.0;   // after K(amo)
         tensorT excv = inner(world, Kamo, amo);
+        const double t_hfx2 = hfex_split ? wall_time() : 0.0;   // after inner(Kamo,amo)
         double exchf = 0.0;
         for (unsigned long i = 0; i < amo.size(); ++i) {
             exchf -= 0.5 * excv[i] * occ[i];
@@ -1632,6 +1639,12 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         if (!xc.is_spin_polarized()) exchf *= 2.0;
         Vpsi=-xc.hf_exchange_coefficient()* Kamo;
         Kamo.clear();
+        if (hfex_split && world.rank() == 0) {
+            printf("HFEX_SPLIT k=%ld nmo=%lu | Kop=%.3f inner=%.3f vpsi+rest=%.3f (total %.3f s)\n",
+                   long(FunctionDefaults<3>::get_k()), (unsigned long)amo.size(),
+                   t_hfx1 - t_hfx0, t_hfx2 - t_hfx1, wall_time() - t_hfx2, wall_time() - t_hfx0);
+            fflush(stdout);
+        }
         END_TIMER(world, "HF exchange");
         exc = exchf * xc.hf_exchange_coefficient() + exc;
     }

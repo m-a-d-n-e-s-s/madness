@@ -650,6 +650,7 @@ public:
 	World& get_subworld() {return *subworld_ptr;}
 	long get_nsubworld() const {return nsubworld;}
 	void set_printlevel(const long p) {printlevel=p;}
+	long get_printlevel() const {return printlevel;}   // public accessor (printtimings_detail is private)
 
 	// --- Phase-0 (A6) run()-loop phase instrumentation, env MAD_MACROTASK_RUN_PHASES ---
 	// The per-task exchange profiler only brackets operator(); the ~110ms/tile inter-operator()
@@ -734,6 +735,7 @@ public:
 
 	/// run all tasks
 	void run_all() {
+		const double t_runall_entry = wall_time();   // RUNALL_PRELOOP: replicate + setup fences + pmap, before task loop
 
 		if (printdebug()) print_taskq();
 		if (printtimings_detail()) {
@@ -823,6 +825,7 @@ public:
 			universe.gop.set_forbid_fence(previous_forbid_fence);
 		};
 
+		const double t_preloop_done = wall_time();   // end of run_all pre-loop (replicate+fences+pmap)
 		try {
 	//		if (printdebug()) print("I am subworld",subworld.id());
 			double tasktime=0.0;
@@ -959,6 +962,8 @@ public:
 	        }
 	        if (printtimings_detail()) {
 	            printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
+	            printf(" run_all pre-loop (replicate+fences+pmap) %5.2fs [%s]\n",
+	                   t_preloop_done - t_runall_entry, (taskq.empty() ? "?" : taskq.front()->get_name().c_str()));
 	            // label by task name: this "finalize gaxpy" print is SHARED by every macrotask
             // taskq (BSH apply, HF exchange, ...); without the name it is ambiguous which
             // taskq a value belongs to (mis-read twice). The name makes BSH-vs-exchange
@@ -1437,6 +1442,11 @@ public:
         auto argtuple = std::tie(args...);
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
 
+        // MTASK_SETUP split (printtimings_detail, rank0): the per-call framework startup that is INVISIBLE
+        // to the per-task profiler (it all happens before the first task's operator() → the mtask−span gap,
+        // model §14.4). partition+assign / argtuple+batch store / task-create. Amortizable by a persistent
+        // taskq (redesign target).
+        const double t_ms0 = wall_time();
         // partition the argument vector into batches
         auto partitioner=task.partitioner;
         if (not partitioner) partitioner.reset(new MacroTaskPartitioner);
@@ -1451,6 +1461,7 @@ public:
         shuffle_partition_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
+        const double t_ms1 = wall_time();   // partition + owner-assign + shuffle
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         // StoreFunctionBatched: additionally serialize the inputs as owner-pinned
@@ -1458,6 +1469,7 @@ public:
         store_batches_or_noop(task, world, taskq_ptr->get_subworld(), taskq_ptr->cloud, argtuple, taskq_ptr->get_nsubworld(), 0);
         // Optional diagnostic dump (owner_map_ + batch record routing) on rank 0.
         log_owner_layout_or_noop(task, world, taskq_ptr->cloud, taskq_ptr->get_nsubworld(), 0);
+        const double t_ms2 = wall_time();   // cloud.store(argtuple) + store_batches
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
@@ -1469,6 +1481,10 @@ public:
 	                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, owner_slot)));
 	        }
         taskq_ptr->add_tasks(vtask);
+        const double t_ms3 = wall_time();   // allocator + output records + task create + add_tasks
+        if (world.rank()==0 and taskq_ptr->get_printlevel()>=5)
+            printf("MTASK_SETUP | partition_assign=%.3f store_argtuple+batches=%.3f task_create=%.3f (setup %.3f s)\n",
+                   t_ms1 - t_ms0, t_ms2 - t_ms1, t_ms3 - t_ms2, t_ms3 - t_ms0);
         if (immediate_execution) taskq_ptr->run_all();
 
         return result;
