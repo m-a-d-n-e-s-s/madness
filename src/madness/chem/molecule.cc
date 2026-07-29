@@ -308,8 +308,10 @@ void Molecule::read(std::istream& f) {
 
     std::string s, tag;
     while (std::getline(f,s)) {
-        std::istringstream ss(s);
-        ss >> tag;
+        // strip comments, then skip blank lines -- the deck madqc writes for
+        // its per-task run directories has a blank line inside the block
+        std::istringstream ss(s.substr(0, s.find_first_of('#')));
+        if (not (ss >> tag)) continue;
         // check if tag is a keyword to be ignored
         bool ignore=false;
         for (auto& p : parameters.get_all_parameters()) {
