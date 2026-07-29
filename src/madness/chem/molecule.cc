@@ -46,6 +46,8 @@
 #include <madness/misc/misc.h>
 #include <iomanip>
 #include <set>
+#include <sstream>
+#include <stdexcept>
 
 namespace madness {
 static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
@@ -129,6 +131,19 @@ void Molecule::print_parameters() {
   madness::print("  H                     0           1.4265081         -0.85202867 ");
   madness::print("  H                     0          -1.4265081         -0.85202867 ");
   madness::print("end\n");
+}
+
+std::string Molecule::GeometryParameters::input_tag(const commandlineparser &parser) {
+  for (const std::string &tag : {"geometry", "molecule"}) {
+    std::ifstream f(parser.value("input"));
+    try {
+      madness::position_stream_to_word(f, tag, '#', true, true);
+      return tag;
+    } catch (const std::exception &) {
+      // group not present in this file (or no such file) -- try the alias
+    }
+  }
+  return "geometry";
 }
 
 void Molecule::get_structure() {
@@ -261,10 +276,29 @@ void Molecule::read_file(const std::string& filename) {
     this->read(f);
 }
 
+/// position the stream at the head of the block holding the coordinates
+
+/// The block is spelled `molecule` (the structure library, the madqc decks, and
+/// the inner block of legacy nested `geometry{ molecule{} }` decks) or
+/// `geometry` (the moldft/nemo/cc2 decks) -- scan forward for whichever comes
+/// first. The stream must NOT be rewound: read_structure_from_library() has
+/// already positioned it on the requested structure, and an earlier `molecule`
+/// line in the library belongs to a different structure.
+static void position_stream_at_coordinates(std::istream& f) {
+  std::string line, word;
+  while (std::getline(f, line)) {
+    std::stringstream sline(line.substr(0, line.find_first_of('#')));
+    while (sline >> word) {
+      if (word == "geometry" or word == "molecule") return;
+    }
+  }
+  throw std::runtime_error("failed to locate the coordinate block (`geometry` or `molecule`)");
+}
+
 void Molecule::read(std::istream& f) {
   atoms.clear();
   rcut.clear();
-  madness::position_stream(f, "molecule", false); // do not rewind
+  position_stream_at_coordinates(f);
   double scale = 1.0;                             // Default is atomic units
   if (parameters.units() == "angstrom") {
     scale = 1e-10 / madness::constants::atomic_unit_of_length;
@@ -281,6 +315,8 @@ void Molecule::read(std::istream& f) {
         for (auto& p : parameters.get_all_parameters()) {
             if (tag==p.first) ignore=true;
         }
+        // the header of a nested block (legacy `geometry{ molecule{} }` decks)
+        if (tag=="geometry" or tag=="molecule") ignore=true;
         if (ignore) continue;
         if (tag == "end") {
             goto finished;

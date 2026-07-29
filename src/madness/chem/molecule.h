@@ -144,7 +144,12 @@ class Molecule {
     GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
-        read_input_and_commandline_options(world, parser, "molecule");
+        // read the data group the input file actually uses, then apply
+        // `--geometry=...`/`--molecule=...` overrides for the other spelling
+        // as well (a no-op if that key is absent)
+        const std::string tag = input_tag(parser);
+        read_input_and_commandline_options(world, parser, tag);
+        read_commandline_options(world, parser, tag == "geometry" ? "molecule" : "geometry");
         set_derived_values(parser);
 
       } catch (std::exception &e) {
@@ -182,10 +187,23 @@ class Molecule {
     }
 
     void set_global_convenience_options(const commandlineparser &parser) {
-      if (parser.key_exists("molecule")) {
-        set_user_defined_value("source_name", parser.value("molecule"));
+      // `--geometry=<name>` is the documented spelling (see the help text of
+      // moldft/nemo/cc2/madqc); `--molecule=<name>` is accepted as an alias.
+      for (const std::string &key : {"geometry", "molecule"}) {
+        if (parser.key_exists(key)) {
+          set_user_defined_value("source_name", parser.value(key));
+        }
       }
     }
+
+    /// name of the data group carrying the geometry in the input file
+
+    /// The group is spelled `geometry` (canonical -- the moldft/nemo/cc2 decks)
+    /// or `molecule` (alias -- the madqc decks and the structure library).
+    /// Returns whichever the input file contains, preferring the canonical name
+    /// and falling back to it when the file has neither (or does not exist), so
+    /// that the missing-data-group diagnostic names the documented spelling.
+    static std::string input_tag(const commandlineparser &parser);
 
     void set_derived_values(const commandlineparser &parser) {
       // check if we use an xyz file, the structure library or the input file
