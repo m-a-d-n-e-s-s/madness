@@ -352,6 +352,12 @@ namespace madness {
     public:
         bool file_exists(World& world, std::string filename) const;
 
+        /// Apply `--<tag>=key=val` command-line overrides on top of the current
+        /// values. Public so ParameterManager::initFromJson can layer CLI
+        /// overrides after from_json (the text path gets them via the ctor's
+        /// read_input_and_commandline_options; JSON decks otherwise ignored them).
+        void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
     private:
         /// read the parameters from file
 
@@ -359,13 +365,11 @@ namespace madness {
         /// so we don't need to serialize the ParameterMap
         void read_input(World& world, const std::string filename, const std::string tag);
 
-        void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
-
     protected:
         bool print_debug = false;
         bool ignore_unknown_keys = true;
         bool ignore_unknown_keys_silently = false;
-        bool throw_if_datagroup_not_found = true;
+        bool throw_if_datagroup_not_found = false;
 
         /// ctor for testing
         QCCalculationParametersBase() {}

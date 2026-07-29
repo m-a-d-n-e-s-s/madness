@@ -15,6 +15,16 @@
 
 namespace madness {
 
+namespace {
+bool is_missing_datagroup_exception(const std::exception& ex) {
+    constexpr const char* kPrefix = "position_stream: failed to locate ";
+    const char* what = ex.what();
+    if (what == nullptr) return false;
+    const std::string message(what);
+    return message.rfind(kPrefix, 0) == 0;
+}
+} // namespace
+
 
 
 
@@ -84,9 +94,20 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
             errmsg=e.what();
             throw;
         } catch (std::exception& e) {
-            std::stringstream ss;
-            ss << "could not read data group >>" << tag << "<< in file " << filename;
-            errmsg=ss.str();
+            const bool is_missing_group = is_missing_datagroup_exception(e);
+            if (is_missing_group && !throw_if_datagroup_not_found) {
+                // Missing groups are optional for multi-workflow inputs.
+                // Keep defaults silently unless this parameter group is required.
+            } else if (is_missing_group) {
+                std::stringstream ss;
+                ss << "could not read data group >>" << tag << "<< in file " << filename;
+                errmsg=ss.str();
+            } else {
+                std::stringstream ss;
+                ss << "error while reading data group >>" << tag << "<< in file "
+                   << filename << ": " << e.what();
+                errmsg=ss.str();
+            }
         }
     }
 	world.gop.broadcast_serializable(*this, 0);

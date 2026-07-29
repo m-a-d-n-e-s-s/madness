@@ -189,6 +189,7 @@ public:
 
 class SCF {
 public:
+    std::filesystem::path work_dir;
     std::shared_ptr<PotentialManager> potentialmanager;
     std::shared_ptr<GTHPseudopotential<double> > gthpseudopotential;
     Molecule molecule;
@@ -227,7 +228,9 @@ public:
 
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
-        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {}
+        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {
+            work_dir = std::filesystem::current_path();
+        }
 
     /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
     SCF(World& world, const CalculationParameters& param, const Molecule& molecule);
@@ -524,6 +527,14 @@ public:
         if (xsq == coords_sum) {
             return calc.current_energy;
         }
+	    // if not at protocol[0] and thresh changed, reset to protocol[0]
+	    auto proto0 = calc.param.protocol()[0];
+	    if(FunctionDefaults<3>::get_thresh() != proto0){
+	    	if(world.rank()==0){
+	    		print("thresh changed from protocol[0], resetting to protocol[0]");
+	    	}
+	    calc.set_protocol<3>(world, proto0);
+	    }
         calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(), 3));
         coords_sum = xsq;
 

@@ -56,6 +56,7 @@
 #include<madness/chem/pcm.h>
 #include<madness/chem/AC.h>
 #include<madness/chem/pointgroupsymmetry.h>
+#include "Results.h"
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
@@ -70,7 +71,7 @@ class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
 
-	NemoBase(World& w) : world(w) {}
+	explicit NemoBase(World& w) : world(w) {}
 
     virtual ~NemoBase() {}
 
@@ -155,8 +156,8 @@ public:
     };
 
     void construct_nuclear_correlation_factor(const Molecule& molecule,
-			const std::shared_ptr<PotentialManager> pm,
-			const std::pair<std::string,double> ncf_parameter) {
+			const std::shared_ptr<PotentialManager>& pm,
+			const std::pair<std::string,double>& ncf_parameter) {
 
 	    // construct the nuclear correlation factor:
 	    if (not ncf) {
@@ -363,6 +364,7 @@ public:
 
 
 public:
+	std::filesystem::path work_dir;
 
 	/// ctor
 
@@ -424,7 +426,7 @@ public:
 	bool provides_gradient() const {return true;}
 
 	/// returns the molecular hessian matrix at structure x
-	Tensor<double> hessian(const Tensor<double>& x);
+	VibrationalResults hessian(const Tensor<double>& x);
 
 	/// construct the fock operator based on the calculation parameters (K or XC?)
 	virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
@@ -457,9 +459,9 @@ public:
 	/// @param[in]  iatom   the atom A to be moved
 	/// @param[in]  iaxis   the coordinate X of iatom to be moved
 	/// @return     \ket{i^X} or \ket{F^\perp}
-	vecfuncT solve_cphf(const size_t iatom, const int iaxis, const Tensor<double> fock,
+	vecfuncT solve_cphf(const size_t iatom, const int iaxis, const Tensor<double>& fock,
 	        const vecfuncT& guess, const vecfuncT& rhsconst,
-	        const Tensor<double> incomplete_hessian, const vecfuncT& parallel,
+	        const Tensor<double>& incomplete_hessian, const vecfuncT& parallel,
 	        const SCFProtocol& p, const std::string& xc_data) const;
 
 	/// solve the CPHF equation for all displacements

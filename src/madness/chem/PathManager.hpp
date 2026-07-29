@@ -6,7 +6,13 @@ namespace madness {
     std::filesystem::path baseDir;
     std::string label;
 
-    PathManager(std::filesystem::path base, std::string lbl) : baseDir(std::move(base)), label(std::move(lbl)) {}
+    // Resolve baseDir to absolute at construction (cwd is the parent here — every
+    // Application builds its PathManager before its ScopedCWD), so dir()/file()
+    // and any work_dir set from them are cwd-independent. This is what lets a
+    // reference work_dir survive a later chdir into another task's run dir
+    // (the v3 madqc adapter + CC2/TDHF/OEP cross-task archive lookups).
+    PathManager(std::filesystem::path base, std::string lbl)
+        : baseDir(std::filesystem::absolute(std::move(base))), label(std::move(lbl)) {}
 
     std::filesystem::path dir() const { return baseDir / label; }
 

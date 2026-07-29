@@ -91,44 +91,44 @@ Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager c
   this->update_rcut_with_eprec(eprec);
 }
 
-  Molecule::Molecule(World& world, const commandlineparser& parser) :atoms(), rcut(), core_pot(), field(3L), parameters(world,parser)
-{
-    try {
-        if (world.rank()==0) {
-            get_structure();
-            if (parameters.core_type() != "none") {
-                read_core_file(parameters.core_type());
-            }
-        }
-        world.gop.broadcast_serializable(*this, 0);
-        MADNESS_CHECK(parameters.field().size()==3);
-        for (int i=0; i<3; ++i) field(i)=parameters.field()[i];
-    } catch (...) {
-        std::cout << "\n\nsomething went wrong in the geometry input" << std::endl;
-        std::cout << "geometry parameters " << std::endl << std::endl;
-        parameters.print("geometry","end");
-        throw madness::MadnessException("faulty geometry input",0,1,__LINE__,__FUNCTION__,__FILE__);
+Molecule::Molecule(World &world, const commandlineparser &parser)
+    : atoms(), rcut(), core_pot(), field(3L), parameters(world, parser) {
+  try {
+    if (world.rank() == 0) {
+      get_structure();
+      if (parameters.core_type() != "none") {
+        read_core_file(parameters.core_type());
+      }
     }
+    world.gop.broadcast_serializable(*this, 0);
+    MADNESS_CHECK(parameters.field().size() == 3);
+    for (int i = 0; i < 3; ++i)
+      field(i) = parameters.field()[i];
+  } catch (...) {
+    std::cout << "\n\nsomething went wrong in the molecule input" << std::endl;
+    std::cout << "molecule parameters " << std::endl << std::endl;
+    parameters.print("molecule", "end");
+    throw madness::MadnessException("faulty molecule input", 0, 1, __LINE__, __FUNCTION__, __FILE__);
+  }
 }
 
 
 void Molecule::print_parameters() {
-    GeometryParameters param;
-    madness::print("default parameters for the geometry input:\n");
-    param.print("geometry","end");
-    madness::print("");
-    madness::print("");
+  GeometryParameters param;
+  madness::print("default parameters for the geometry input:\n");
+  param.print("molecule", "end");
+  madness::print("");
+  madness::print("");
 
-
-    madness::print("If the molecular geometry is provided in the input file you need to specify");
-    madness::print("the coordinates inside the geometry block\n");
-    madness::print("Example:\n");
-    madness::print("geometry");
-    madness::print("  units  atomic ");
-    madness::print("  O                     0                   0          0.21300717 ");
-    madness::print("  H                     0           1.4265081         -0.85202867 ");
-    madness::print("  H                     0          -1.4265081         -0.85202867 ");
-    madness::print("end\n");
+  madness::print("If the molecular geometry is provided in the input file you need to specify");
+  madness::print("the coordinates inside the molecule block\n");
+  madness::print("Example:\n");
+  madness::print("molecule");
+  madness::print("  units  atomic ");
+  madness::print("  O                     0                   0          0.21300717 ");
+  madness::print("  H                     0           1.4265081         -0.85202867 ");
+  madness::print("  H                     0          -1.4265081         -0.85202867 ");
+  madness::print("end\n");
 }
 
 void Molecule::get_structure() {
@@ -159,13 +159,12 @@ void Molecule::get_structure() {
             MADNESS_EXCEPTION("failed to get geometry",1);
         }
 
-    } else {
-        std::cout << "could not determine molecule" << std::endl;
-        std::cout << " source_type " << sourcetype << std::endl;
-        std::cout << " source_name " << sourcename << std::endl;
-        MADNESS_EXCEPTION("failed to get geometry",1);
-    }
-
+  } else {
+    std::cout << "could not determine molecule" << std::endl;
+    std::cout << " source_type " << sourcetype << std::endl;
+    std::cout << " source_name " << sourcename << std::endl;
+    MADNESS_EXCEPTION("failed to get molecule", 1);
+  }
 
     // set derived parameters for the molecule
 
@@ -265,9 +264,13 @@ void Molecule::read_file(const std::string& filename) {
 void Molecule::read(std::istream& f) {
   atoms.clear();
   rcut.clear();
-  madness::position_stream(f, "molecule", false);  // do not rewind
-  double scale = 1.0;                              // Default is atomic units
-  if (parameters.units() == "angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
+  madness::position_stream(f, "molecule", false); // do not rewind
+  double scale = 1.0;                             // Default is atomic units
+  if (parameters.units() == "angstrom") {
+    scale = 1e-10 / madness::constants::atomic_unit_of_length;
+    // TODO: change the units parameter to atomic?
+    parameters.set_user_defined_value("units", std::string("atomic")); // Calculations are done in atomic units
+  }
 
     std::string s, tag;
     while (std::getline(f,s)) {
@@ -473,21 +476,29 @@ nlohmann::json Molecule::to_json() const {
 void Molecule::insert_symbols_and_geometry(json& mol_json) const {
   mol_json["symbols"] = {};
   mol_json["geometry"] = {};
+  auto scale = 1.0;
+  if (parameters.units() == "angstrom") {
+    scale = 1e-10 / madness::constants::atomic_unit_of_length;
+  }
 
   for (size_t i = 0; i < natom(); ++i) {
     mol_json["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
-    mol_json["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+    mol_json["geometry"].push_back({atoms[i].x / scale, atoms[i].y / scale, atoms[i].z / scale});
   }
 }
 
 void Molecule::from_json(const json& mol_json) {
   atoms.clear();
   rcut.clear();
-
-  parameters.from_json(mol_json["parameters"]);
+  if (mol_json.contains("parameters") == true)
+    parameters.from_json(mol_json["parameters"]);
 
   double scale = 1.0;
-  if (parameters.units() == "angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
+  if (parameters.units() == "angstrom") {
+    scale = 1e-10 / madness::constants::atomic_unit_of_length;
+    parameters.set_user_defined_value("units", std::string("atomic")); // Calculations are done in atomic units
+  }
+
   auto symbols = mol_json["symbols"];
   auto geometry = mol_json["geometry"];
 
@@ -511,21 +522,20 @@ void Molecule::print(std::ostream& os, const bool defined_only) const {
     std::string p =parameters.print_to_string({"defined"});
     os.flush();
 
-    std::stringstream sstream;
-    sstream << "geometry" << std::endl;
-    sstream << p << std::endl;
-    sstream << "molecule" << std::endl;
-    for (size_t i=0; i<natom(); ++i) {
-        sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
-        sstream << std::setw(20) << std::setprecision(8) << atoms[i].x
-                << std::setw(20) << atoms[i].y
-                << std::setw(20) << atoms[i].z;
-        if (atoms[i].atomic_number == 0) sstream << "     " << atoms[i].q;
-        sstream << std::endl;
-    }
-    sstream << "end" << std::endl;
-    sstream << "end" << std::endl;
-    os << sstream.str();
+  std::stringstream sstream;
+  sstream << "molecule" << std::endl;
+  sstream << p << std::endl;
+  //sstream << "geometry" << std::endl;
+  for (size_t i = 0; i < natom(); ++i) {
+    sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
+    sstream << std::setw(20) << std::setprecision(8) << atoms[i].x << std::setw(20) << atoms[i].y << std::setw(20)
+            << atoms[i].z;
+    if (atoms[i].atomic_number == 0)
+      sstream << "     " << atoms[i].q;
+    sstream << std::endl;
+  }
+  sstream << "end" << std::endl;
+  os << sstream.str();
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
@@ -536,45 +546,58 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
 }
 
 double Molecule::nuclear_repulsion_energy() const {
-    double sum = 0.0;
-    unsigned int z1, z2;
-    for (size_t i=0; i<atoms.size(); ++i) {
-        if (atoms[i].pseudo_atom){
-            z1 = atoms[i].q;}
-        else{
-            z1 = atoms[i].atomic_number;}
-        if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
-        for (size_t j=i+1; j<atoms.size(); ++j) {
-            if (atoms[j].pseudo_atom){
-                z2 = atoms[j].q;}
-            else{
-                z2 = atoms[j].atomic_number;}
-            if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
-            sum += z1 * z2 / inter_atomic_distance(i,j);
-        }
+  double sum = 0.0;
+  unsigned int z1, z2;
+  for (size_t i = 0; i < atoms.size(); ++i) {
+    if (atoms[i].pseudo_atom) {
+      z1 = atoms[i].q;
+    } else {
+      z1 = atoms[i].atomic_number;
     }
-    return sum;
+    if (core_pot.is_defined(z1))
+      z1 -= core_pot.n_core_orb(z1) * 2;
+    for (size_t j = i + 1; j < atoms.size(); ++j) {
+      if (atoms[j].pseudo_atom) {
+        z2 = atoms[j].q;
+      } else {
+        z2 = atoms[j].atomic_number;
+      }
+      if (core_pot.is_defined(z2))
+        z2 -= core_pot.n_core_orb(z2) * 2;
+      sum += z1 * z2 / inter_atomic_distance(i, j);
+    }
+  }
+  return sum;
 }
 
 double Molecule::nuclear_dipole(int axis) const {
-    double sum = 0.0;
-    for (size_t atom = 0; atom < atoms.size(); ++atom) {
-        unsigned int z;
-        if (atoms[atom].pseudo_atom){
-            z = atoms[atom].q;}
-        else{
-            z = atoms[atom].atomic_number;}
-        if (core_pot.is_defined(z)) z -= core_pot.n_core_orb(z) * 2;
-        double r;
-        switch (axis) {
-            case 0: r = atoms[atom].x; break;
-            case 1: r = atoms[atom].y; break;
-            case 2: r = atoms[atom].z; break;
-            default: MADNESS_EXCEPTION("invalid axis", 0);
-        }
-        sum += r*z;
+  double sum = 0.0;
+  for (size_t atom = 0; atom < atoms.size(); ++atom) {
+    unsigned int z;
+    if (atoms[atom].pseudo_atom) {
+      z = atoms[atom].q;
+    } else {
+      z = atoms[atom].atomic_number;
     }
-    return sum;
+    if (core_pot.is_defined(z))
+      z -= core_pot.n_core_orb(z) * 2;
+    double r;
+    switch (axis) {
+    case 0:
+      r = atoms[atom].x;
+      break;
+    case 1:
+      r = atoms[atom].y;
+      break;
+    case 2:
+      r = atoms[atom].z;
+      break;
+    default:
+      MADNESS_EXCEPTION("invalid axis", 0);
+    }
+    sum += r * z;
+  }
+  return sum;
 }
 
 Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axis) const{

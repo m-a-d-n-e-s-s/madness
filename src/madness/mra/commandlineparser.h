@@ -10,11 +10,25 @@
 namespace madness {
 /// very simple command line parser
 
-/// parser reads out key/value pairs from the command line of the from  --key=val or --key
-/// currently no error handling, feel free to add.
+/// parser reads out key/value pairs from the command line of the form
+/// `--key=val` or `--key`. By default values are case-folded so that
+/// chemistry-style enum knobs (e.g. `--xc=HF`, `--localize=BOYS`) match
+/// the lowercased `allowed_values` of `QCCalculationParametersBase`-derived
+/// classes.
+///
+/// Two accessors are exposed for retrieving values:
+///   * `value(key)`     — case-folded value (back-compat). Use for enum-like
+///                        chemistry parameters.
+///   * `value_raw(key)` — original-case value. Use for **paths and free-form
+///                        identifiers** (archive filenames, JSON paths, …).
+///
+/// The bare-positional input-file form (e.g. `madness_app /Some/Path/in.in`)
+/// is also case-preserving — both `value("input")` and `value_raw("input")`
+/// return the path with original case.
 struct commandlineparser {
 
-    std::map<std::string, std::string> keyval;
+    std::map<std::string, std::string> keyval;        // case-folded values
+    std::map<std::string, std::string> keyval_raw;    // original-case values
 
     commandlineparser() {
         set_defaults();
@@ -36,16 +50,24 @@ struct commandlineparser {
             sa >> key;
             val=a.substr(key.size());
             if (key=="input") set_keyval("user_defined_input_file","1");
+            if (key=="prefix") set_keyval("user_defined_prefix","1");
 
-            // special treatment for file names: keep captal/lower case
-            if (key=="file") set_keyval_keep_case(key,val);
-            else set_keyval(key,val);
+            // Path-like keys: keep case in BOTH maps so the back-compat
+            // `value("input"|"file")` form also returns the original case
+            // (already true today for "file"; extending to "input" so the
+            // bare-positional form `app /Some/Path/in.in` survives).
+            if (key=="file" || key=="input") {
+                set_keyval_keep_case(key,val);
+            } else {
+                set_keyval(key,val);
+            }
         }
     }
 
     /// set default values from the command line
     void set_defaults() {
         keyval["input"]="input";
+        keyval["prefix"]="mad";
 //        keyval["geometry"]="input_file";
     }
 
@@ -65,12 +87,32 @@ struct commandlineparser {
         return keyval.find(tolower(key))->second;
     }
 
+    /// Original-case value lookup — use for paths and free-form identifiers
+    /// (archive filenames, JSON paths, etc.). For enum-like chemistry knobs
+    /// matched against `allowed_values`, prefer `value(key)` instead.
+    std::string value_raw(const std::string key) const {
+        std::string msg = "key not found: " + key;
+        MADNESS_CHECK_THROW(key_exists(key), msg.c_str());
+        auto it = keyval_raw.find(tolower(key));
+        if (it == keyval_raw.end()) {
+            // Defensive fallback for keys set via the default-constructor
+            // path (defaults), which only seed `keyval`. Return the
+            // case-folded version rather than throwing.
+            return keyval.find(tolower(key))->second;
+        }
+        return it->second;
+    }
+
     void set_keyval(const std::string key, const std::string value) {
-        keyval[tolower(key)]= trim_blanks(tolower(value));
+        const std::string trimmed = trim_blanks(value);
+        keyval[tolower(key)]    = tolower(trimmed);
+        keyval_raw[tolower(key)] = trimmed;
     }
 
     void set_keyval_keep_case(const std::string key, const std::string value) {
-        keyval[tolower(key)]= trim_blanks(value);
+        const std::string trimmed = trim_blanks(value);
+        keyval[tolower(key)]    = trimmed;
+        keyval_raw[tolower(key)] = trimmed;
     }
 
 public:
