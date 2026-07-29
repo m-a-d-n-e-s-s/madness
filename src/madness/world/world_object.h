@@ -341,18 +341,40 @@ namespace madness {
     /// and get_world() method to access it.
     /// Should not be used directly, but rather through WorldObject<Derived>.
     struct WorldObjectBase {
-    protected:
-        World& world; ///< The \c World this object belongs to. (Think globally, act locally).
+    private:
+        uniqueidT objid; ///< Unique object ID.
 
-        explicit WorldObjectBase(World& w) : world(w) {}
+    protected:
+
+        /// Construct a new WorldObjectBase.
+        /// Protected, should only be called from WorldObject constructor.
+        /// \param[in] w The world to which this object belongs.
+        template <typename DerivedT>
+        explicit WorldObjectBase(World& w, DerivedT* this_ptr)
+        : objid(w.register_ptr(this_ptr))
+        { }
+
     public:
 
-        virtual ~WorldObjectBase() = default;
+        virtual ~WorldObjectBase() {
+            if(initialized()) {
+              this->get_world().unregister_ptr(objid);
+            }
+        }
+
+        /// Returns the globally unique object ID.
+        const uniqueidT& id() const {
+            return objid;
+        }
 
         /// Get the world to which this object belongs.
         /// \return A reference to the world.
         World& get_world() const {
-            return world;
+            auto* world = World::world_from_id(objid.get_world_id());
+            if (!world) {
+                MADNESS_EXCEPTION("WorldObjectBase::get_world() failed to find world", objid.get_world_id());
+            }
+            return *world;
         }
     };
 
@@ -382,7 +404,7 @@ namespace madness {
         typedef WorldObject<Derived> objT;
 
         // copy ctor must be enabled to permit RVO; in C++17 will not need this
-        WorldObject(const WorldObject& other) : WorldObjectBase(other.world) { abort(); }
+        WorldObject(const WorldObject& other) : WorldObjectBase(other) { abort(); }
         // no copy
         WorldObject& operator=(const WorldObject&) = delete;
 
@@ -396,7 +418,6 @@ namespace madness {
         // The order here matters in a multi-threaded world
         volatile bool ready; ///< True if ready to rock 'n roll.
         ProcessID me; ///< Rank of self.
-        uniqueidT objid; ///< Sense of self.
 
 
         inline static Spinlock pending_mutex; ///< \todo Description needed.
@@ -603,7 +624,8 @@ namespace madness {
                 detail::run_function(result, task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, a9);
             else {
-                detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world));
+                World& world = this->get_world();
+                detail::info<memfnT> info(this->id(), me, memfn, result.remote_ref(world));
                 world.am.send(dest, & objT::template handler<memfnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>,
                         new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9));
             }
@@ -649,7 +671,9 @@ namespace madness {
                 const TaskAttributes& attr) const
         {
             typename taskT::futureT result;
-            detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world), attr);
+            World& world = this->get_world();
+            const ProcessID me = world.rank();
+            detail::info<memfnT> info(this->id(), me, memfn, result.remote_ref(world), attr);
             world.am.send(dest, & objT::template spawn_remote_task_handler<taskT>,
                     new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9), RMI::ATTR_UNORDERED);
 
@@ -681,7 +705,7 @@ namespace madness {
                 pendingT& nv = const_cast<pendingT&>(pending);
                 for (pendingT::iterator it=nv.begin(); it!=nv.end();) {
                     detail::PendingMsg& p = *it;
-                    if (p.id == objid) {
+                    if (p.id == this->id()) {
                         tmp.push_back(p);
                         it = nv.erase(it);
                     }
@@ -714,16 +738,10 @@ namespace madness {
         /// -# to enable processing of future messages.
         /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
-                : WorldObjectBase(world)
+                : WorldObjectBase(world, static_cast<Derived*>(this))
                 , ready(false)
-                , me(world.rank())
-                , objid(world.register_ptr(static_cast<Derived*>(this))) {};
+                , me(world.rank()) {};
 
-
-        /// Returns the globally unique object ID.
-        const uniqueidT& id() const {
-            return objid;
-        }
 
         /// \todo Brief description needed.
 
@@ -1012,7 +1030,7 @@ namespace madness {
             typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
             typedef TaskFn<typename task_helper::wrapperT> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn), attr);
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn), attr);
             else
                 return send_task<taskT>(dest, memfn, voidT::value, voidT::value,
                         voidT::value, voidT::value, voidT::value, voidT::value,
@@ -1038,7 +1056,7 @@ namespace madness {
             typedef TaskFn<typename task_helper::wrapperT,
                     typename detail::task_arg<a1T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), voidT::value,
@@ -1068,7 +1086,7 @@ namespace madness {
                     typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1101,7 +1119,7 @@ namespace madness {
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1138,7 +1156,7 @@ namespace madness {
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1179,7 +1197,7 @@ namespace madness {
                     typename detail::task_arg<a4T>::type,
                     typename detail::task_arg<a5T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1223,7 +1241,7 @@ namespace madness {
                     typename detail::task_arg<a5T>::type,
                     typename detail::task_arg<a6T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1271,7 +1289,7 @@ namespace madness {
                     typename detail::task_arg<a6T>::type,
                     typename detail::task_arg<a7T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1322,7 +1340,7 @@ namespace madness {
                     typename detail::task_arg<a7T>::type,
                     typename detail::task_arg<a8T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1380,7 +1398,7 @@ namespace madness {
                     typename detail::task_arg<a8T>::type,
                     typename detail::task_arg<a9T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1390,10 +1408,9 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world));
+              World& world = this->get_world(); // checks whether world exists
               MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
               MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
-              world.unregister_ptr(this->id());
             }
         }
 
