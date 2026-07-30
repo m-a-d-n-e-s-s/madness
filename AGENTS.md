@@ -77,6 +77,35 @@ Each test is also a normal binary under
 `src/examples/periodic` tests at `<build-dir>/src/examples/periodic/<name>`)
 and can be invoked directly for debugging.
 
+### QC example decks (`qctest`)
+
+`src/examples/qc/` holds complete, CI-verified `madqc` calculations — one
+directory per case: the input deck, a one-line `run.sh`, a declarative
+`check.json` of result keys plus tolerances, and a `reference/` run. They are
+registered with `add_qctest(<case> madqc "qctest;<tier>;applications")`
+(`cmake/modules/AddQCTests.cmake`) and driven by `bin/run_qctest.py`.
+
+**Read a deck from there before writing a madqc input by hand** — those decks
+provably ran, unlike prose documentation of parameter knobs.
+`src/examples/qc/README.md` indexes the cases and records the deck gotchas
+(`protocol` ladder vs. fixed `k`, per-workflow group blocks, …).
+
+```
+ctest -L qctest                                   # all cases
+ctest -L qctest -LE verylong                      # skip the expensive ones
+cmake --build . --target check-qctest-madness
+```
+
+Each case also carries a cost tier, measured not guessed: `short` < 10 s,
+`medium` < 30 s, `long` < 2 min, `verylong` beyond. `short` and `medium` run as
+part of `check-short-madness`, so those two tiers are a budget on every CI run —
+keep slow calculations out of them.
+
+Adding a case needs no code: four data files and one `add_qctest` line.
+References are regenerated with `bin/run_qctest.py --case <dir> --update`, which
+is a numerical claim and needs justifying in the commit message — not a way to
+make a red test green.
+
 ### Smoke test
 
 `testsuite` in `src/madness/mra` is the broad numerical-library regression

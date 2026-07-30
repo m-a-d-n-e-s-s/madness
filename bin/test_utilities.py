@@ -48,7 +48,9 @@ class madjsoncompare:
         diff='is different'
         if (type(value1)==float):
             diff=abs(value1-value2)
-            success=diff<tolerance
+            # <=, so that a tolerance of 0 means "must match exactly" for floats
+            # as it already does for ints and strings
+            success=diff<=tolerance
         elif (type(value1)==int):
             diff=0
             success=(value1==value2)

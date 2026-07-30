@@ -1,0 +1,19 @@
+# Hartree-Fock on helium -- the smallest complete `scf` deck.
+#
+# Start here. `scf` is the default workflow, so `--wf=scf` is optional; the run
+# takes seconds and every other case in this directory is a variation on it.
+#
+# Run:   ./run.sh          (or: madqc scf_he_hf.in)
+
+dft
+    xc       hf
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

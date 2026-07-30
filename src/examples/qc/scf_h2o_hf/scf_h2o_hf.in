@@ -1,0 +1,21 @@
+# Hartree-Fock single point on water, the default `scf` workflow.
+#
+# The `protocol` ladder is the idiomatic choice for scf/response: the SCF is
+# solved at 1e-4 and the solution is used to start 1e-6.  Correlated (mp2/cc2)
+# and oep decks must instead fix `k` -- see cc2_he_corr for why.
+#
+# Run:   ./run.sh          (or: madqc --wf=scf scf_h2o_hf.in)
+
+dft
+    xc          hf
+    protocol    [1e-4, 1e-6]
+    dconv       1e-4
+end
+
+molecule
+    eprec   1e-6
+    units   atomic
+    O   0.0             0.0             0.0
+    H   0.0             1.421178283    -1.064386617
+    H   0.0            -1.421178283    -1.064386617
+end

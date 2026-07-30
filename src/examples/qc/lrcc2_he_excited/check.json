@@ -1,0 +1,12 @@
+{
+  "description": "LR-CC2 for helium: CC2 ground state, an excitation, and the MP2 energy",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 1, "cc2_correlation_energy"], "tol": 1e-4},
+    {"key": ["tasks", 1, "cc2_total_energy"], "tol": 1e-4},
+    {"key": ["tasks", 1, "excitations", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "nfreeze"], "tol": 0},
+    {"key": ["tasks", 2, "mp2_correlation_energy"], "tol": 1e-4},
+    {"key": ["tasks", 2, "model"], "tol": 0}
+  ]
+}

@@ -1,0 +1,37 @@
+# Configuration-interaction-singles excited states of helium.
+#
+# The CIS workflow is `--wf=cis` but its parameter group is `tdhf` -- the group
+# tag and the workflow name differ here. Excitations land in
+# tasks[1].excitations[] as {irrep, omega, oscillator_strength_*}.
+#
+# Fixed `k` rather than a `protocol` ladder: the excited-state solver takes the
+# reference at one resolution.
+#
+# Note for anyone regenerating the reference: excitations are compared by
+# position in the list, and the two states here come out dark-then-bright
+# (oscillator strengths ~1e-26 and ~0.087). Tightening the settings can reorder
+# nearly-degenerate states, which reads as a numerical failure rather than a
+# reordering -- check the oscillator strengths before concluding a regression.
+#
+# Run:   ./run.sh          (or: madqc --wf=cis cis_he_singlets.in)
+
+dft
+    xc       hf
+    k        6
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+
+tdhf
+    thresh                     1e-3
+    maxiter                    10
+    nexcitations               2
+    guess_excitations          2
+    guess_excitation_operators dipole+
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end

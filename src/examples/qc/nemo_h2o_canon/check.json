@@ -1,0 +1,9 @@
+{
+  "description": "Water, nemo orbitals, localize=canon; energy must match the other two localizers",
+  "requires": {"threads": 8},
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-4},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-4},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

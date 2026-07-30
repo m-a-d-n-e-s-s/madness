@@ -1,0 +1,5 @@
+# The reference/*.out files are checked-in documentation -- what a correct run of
+# each deck looks like, for humans and agents to read. They are never compared by
+# the harness. The top-level .gitignore excludes `*.out` as build output, which
+# would silently drop them from `git add`; re-include them here.
+!*/reference/*.out

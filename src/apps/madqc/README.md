@@ -8,6 +8,11 @@ calculation steps), runs them, and writes both a machine-readable result file
 This is the **user guide**. To *extend* madqc with a new workflow, see
 [`WORKFLOWS.md`](WORKFLOWS.md). For the Seawulf build/run loop, see
 
+For **runnable** decks, prefer
+[`src/examples/qc/`](../../examples/qc/README.md) over the examples quoted in
+this file: each case there is a complete deck plus its reference results, run in
+CI under the `qctest` label, so it cannot drift out of date.
+
 ---
 
 ## Quick start

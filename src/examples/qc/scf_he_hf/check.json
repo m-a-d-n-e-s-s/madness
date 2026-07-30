@@ -1,0 +1,8 @@
+{
+  "description": "Hartree-Fock on helium; the minimal scf deck",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-4},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

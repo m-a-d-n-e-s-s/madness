@@ -1,0 +1,29 @@
+# The scf_he_hf deck run on two MPI ranks -- same physics, same numbers.
+#
+# Nothing in the deck selects MPI; the rank count lives in run.sh. This case
+# exists to check that the distributed path reproduces the serial energy, and to
+# show the thread budget: with nranks > 1 each rank also spawns a MADNESS comm
+# thread, and the MPI implementation usually wants a core for its own progress
+# thread, so MAD_NUM_THREADS is workers *per rank*, not a total.
+#
+# This case needs >= 16 hwthreads (check.json gates on it, so smaller machines
+# SKIP rather than fail). 2 ranks x (3 workers + 1 comm) is 8 MADNESS threads and
+# the MPI progress threads need room beyond that: on an 8-core machine the run
+# oversubscribes and does not finish -- 7 s on a 96-core node became a timeout on
+# an 8-core laptop.
+#
+# Run:   ./run.sh                    (2 ranks x 3 workers)
+#        NP=4 MAD_NUM_THREADS=2 ./run.sh
+
+dft
+    xc       hf
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

@@ -29,16 +29,33 @@ endif()
     add_test(NAME test_workflow_builders COMMAND test_workflow_builders)
 
     # integration tests
-    add_scripted_tests(test_nemo_energy.py madqc "medium;applications")
-    add_scripted_tests(test_nemo_localization.py madqc "verylong;applications")
-    add_scripted_tests(test_moldft_energy.py madqc "medium;applications")
-    add_scripted_tests(test_moldft_energy_mpi_parallel.py madqc "short;applications")
-    add_scripted_tests(test_cc2_callable.py madqc "short;applications")
-    add_scripted_tests(test_oep_energy.py madqc "long;applications")
-    add_scripted_tests(test_cis_energy_he.py madqc "medium;applications")
+    #
+    # The "run a deck, compare result keys" tests below moved to qctest cases in
+    # src/examples/qc (label `qctest`, see that README). Each one is now an input
+    # deck a user can copy, run and diff, instead of CLI flags embedded in a
+    # Python file, and the assertions are declared in check.json:
+    #
+    #   test_moldft_energy.py            -> scf_he_hf
+    #   test_moldft_energy_mpi_parallel  -> scf_he_hf_mpi
+    #   test_nemo_energy.py              -> nemo_he_hf
+    #   test_nemo_localization.py        -> nemo_h2o_{canon,boys,new}
+    #   test_cis_energy_he.py            -> cis_he_singlets
+    #   test_oep_energy.py               -> oep_be_oaep
+    #   test_mp2_helium.py               -> mp2_he_corr
+    #   test_lrcc2_helium.py             -> lrcc2_he_excited
+    #   test_cc2_callable.py             -> dropped, not ported: every numeric
+    #       value in its reference was 0.0 (maxiter=1 with freeze 1 freezes
+    #       helium's only orbital), so all four of its numeric assertions
+    #       compared 0.0 against 0.0 and could not fail. A `calc_type cc2`
+    #       ground state costs 1833 s, and lrcc2_he_excited covers it anyway.
+    #
+    # Retiring these also retires their references: test_mp2_helium's
+    # mp2_correlation_energy was stale by 1e-4 against a current run.
+    #
+    # What stays here are the tests of *behavior* rather than of numbers -- they
+    # chain runs or compare structures that a declarative check.json cannot
+    # express.
     add_scripted_tests(test_cis_symmetry_h2o.py madqc "verylong;applications")
-    add_scripted_tests(test_mp2_helium.py madqc "verylong;applications")
-    add_scripted_tests(test_lrcc2_helium.py madqc "verylong;applications")
     add_scripted_tests(test_molresponse_h2o_alpha_beta_z.py madqc "verylong;applications")
     # Phase-0 driver-hardening gate (raman thread): SCF restart + corrupt-
     # checkpoint recovery. Heavier (3 sequential madqc runs); enable + run on

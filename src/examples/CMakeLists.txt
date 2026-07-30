@@ -23,5 +23,8 @@ endforeach()
 
 if(NOT (MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY) AND LAPACK_FOUND)
 	add_subdirectory(periodic)
+	# quantum-chemistry example decks (label `qctest`); needs the madqc target
+	# from src/apps, which src/CMakeLists.txt processes before this directory
+	add_subdirectory(qc)
 endif()
 
