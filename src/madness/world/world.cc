@@ -41,6 +41,7 @@
 #include <madness/world/worldam.h>
 #include <madness/world/world_task_queue.h>
 #include <madness/world/worldgop.h>
+#include <madness/world/thread_binding.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -207,6 +208,12 @@ namespace madness {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin(nthread);        // Must have thread pool before any AM arrives
+
+        // Throw now if the launcher pinned this rank to fewer hardware threads
+        // than it is about to use -- still single-threaded and before RMI starts,
+        // so a collective on comm is safe here.
+        check_thread_binding(comm, static_cast<int>(ThreadPool::size()) + 1);
+
         if(comm.Get_size() > 1) {
             RMI::begin(comm);           // Must have RMI while still running single threaded
             // N.B. sync everyone up before messages start flying
