@@ -186,12 +186,18 @@ class Molecule {
       return std::string("molecule");
     }
 
+    /// source_name is a path (xyz file / input file) -- never case-fold it
+    std::set<std::string> case_sensitive_keys() const override {
+      return {"source_name"};
+    }
+
     void set_global_convenience_options(const commandlineparser &parser) {
       // `--geometry=<name>` is the documented spelling (see the help text of
       // moldft/nemo/cc2/madqc); `--molecule=<name>` is accepted as an alias.
+      // value_raw, not value: this may be a path, and paths are case-sensitive.
       for (const std::string &key : {"geometry", "molecule"}) {
         if (parser.key_exists(key)) {
-          set_user_defined_value("source_name", parser.value(key));
+          set_user_defined_value("source_name", parser.value_raw(key));
         }
       }
     }
@@ -264,9 +270,29 @@ class Molecule {
       //                }
       //            }
 
+      // Resolve a relative xyz path to an absolute one *now*, while the process
+      // is still in the directory the user invoked it from: madqc chdir's into a
+      // per-task run directory before the task re-reads its geometry, and it
+      // propagates source_name through the deck it writes there, so a relative
+      // path would then resolve against the task directory and not be found.
+      // Only "xyz" is rewritten -- for "inputfile" the name must keep comparing
+      // equal to parser.value("input") in derive_source_type_from_name(), and
+      // "library" names are not paths.
+      if (source_type() == "xyz") {
+        const std::string abs = absolute_path(source_name());
+        if (abs != source_name()) set_user_defined_value("source_name", abs);
+      }
+
       if (source_type() == "xyz") set_derived_value("units", std::string("angstrom"));
       if (units() == "bohr" or units() == "au") set_derived_value("units", std::string("atomic"));
     }
+
+    /// make a relative path absolute, relative to the current working directory
+
+    /// Returns \p path unchanged if it is already absolute or cannot be resolved
+    /// here -- the reader then reports the name as given, which is the more
+    /// useful diagnostic.
+    static std::string absolute_path(const std::string &path);
 
     std::string source_type() const { return get<std::string>("source_type"); }
     std::string source_name() const { return get<std::string>("source_name"); }

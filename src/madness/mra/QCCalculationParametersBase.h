@@ -14,6 +14,7 @@
 #include <iomanip>
 #include <typeindex>
 #include <map>
+#include <set>
 #include <fstream>
 #include <typeinfo>
 // #include <madness/external/gtest/include/gtest/internal/gtest-type-util.h>
@@ -409,13 +410,28 @@ namespace madness {
         }
 
     public:
+        /// keys whose string values must NOT be case-folded
+
+        /// String parameter values are lowercased on the way in so that enum-like
+        /// knobs match their lowercased \c allowed_values (`xc=HF`, `units=Bohr`).
+        /// That is wrong for free-form values such as paths and filenames, which
+        /// are case-sensitive on the filesystem. Derived classes list those keys
+        /// here and they are then stored verbatim -- the parameter-store analogue
+        /// of \c commandlineparser::set_keyval_keep_case.
+        virtual std::set<std::string> case_sensitive_keys() const { return {}; }
+
+        bool keeps_case(const std::string& key) const {
+            const auto keys = case_sensitive_keys();
+            return keys.find(key) != keys.end();
+        }
+
         template <typename T>
         void set_derived_value(const std::string& key, const T& value) {
             QCParameter& parameter = get_parameter(key);
             if (not check_type_silent<T>(parameter)) {
                 throw std::runtime_error("type error in set_derived_value for key " + key);
             }
-            parameter.set_derived_value(tostring(value));
+            parameter.set_derived_value(to_stored_string(key, value));
         }
 
         ParameterContainerT get_all_parameters() const {
@@ -529,7 +545,16 @@ namespace madness {
                 throw std::runtime_error("type error in set_user_defined_value");
             }
 
-            parameter.set_user_defined_value(tostring(value));
+            parameter.set_user_defined_value(to_stored_string(key, value));
+        }
+
+        /// stringify \p value for storage, honoring case_sensitive_keys()
+        template <typename T>
+        std::string to_stored_string(const std::string& key, const T& value) const {
+            if constexpr (std::is_same<T, std::string>::value) {
+                if (keeps_case(key)) return value;
+            }
+            return tostring(value);
         }
 
         friend bool operator==(const QCCalculationParametersBase& p1,

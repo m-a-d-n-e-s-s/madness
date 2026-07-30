@@ -45,6 +45,8 @@
 #include<madness/chem/atomutil.h>
 #include <madness/misc/misc.h>
 #include <iomanip>
+#include <climits>
+#include <cstdlib>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -131,6 +133,13 @@ void Molecule::print_parameters() {
   madness::print("  H                     0           1.4265081         -0.85202867 ");
   madness::print("  H                     0          -1.4265081         -0.85202867 ");
   madness::print("end\n");
+}
+
+std::string Molecule::GeometryParameters::absolute_path(const std::string &path) {
+  if (path.empty() or path.front() == '/') return path;
+  char resolved[PATH_MAX];
+  if (::realpath(path.c_str(), resolved) != nullptr) return std::string(resolved);
+  return path;
 }
 
 std::string Molecule::GeometryParameters::input_tag(const commandlineparser &parser) {
