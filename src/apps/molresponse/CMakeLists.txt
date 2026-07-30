@@ -55,6 +55,11 @@ add_mad_executable(test_kernel_equivalence
 add_mad_executable(test_tpa_regroup_identities
                    "tests/test_tpa_regroup_identities.cpp;GroundState.cpp"
                    "MADchem")
+# Builds the state-free (p,q) source and compares it family-by-family against
+# beta's V^{bc}. Research-branch only.
+add_mad_executable(test_tpa_pq_vs_vbc
+                   "tests/test_tpa_pq_vs_vbc.cpp;GroundState.cpp"
+                   "MADchem")
 add_mad_executable(test_step_restriction
                    "tests/test_step_restriction.cpp"
                    "MADchem")
