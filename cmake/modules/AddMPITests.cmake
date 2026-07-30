@@ -12,6 +12,9 @@
 #                              Example: MADNESS_MPI_NODE_OPTIONS="--bind-to none" ctest -R mpi
 #                              Example: MADNESS_MPI_NODE_OPTIONS="--hostfile /path/to/hostfile --map-by node" ctest -R mpi
 #                              If not set, mpiexec will use its default behavior
+#   MAD_CHECK_BINDING        - Defaulted to OFF for these tests, since mpiexec's default
+#                              binding (one core per rank) makes MADNESS' start-up binding
+#                              check abort.  Set it explicitly to keep the check enabled.
 
 # Add MPI tests for a single test
 # Usage: add_mpi_tests(component test_name "2;4;8" "libs" "labels")
@@ -60,6 +63,14 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "  separate_arguments(MPI_OPTIONS_LIST UNIX_COMMAND \"\${MPI_OPTIONS}\")\n")
     file(APPEND ${_wrapper_script_template} "else()\n")
     file(APPEND ${_wrapper_script_template} "  set(MPI_OPTIONS_LIST \"\")\n")
+    file(APPEND ${_wrapper_script_template} "endif()\n")
+    file(APPEND ${_wrapper_script_template} "# Disable the start-up CPU-binding check (see thread_binding.h).  On a machine\n")
+    file(APPEND ${_wrapper_script_template} "# with more cores than ranks mpiexec pins each rank to a single core by default,\n")
+    file(APPEND ${_wrapper_script_template} "# which the check rejects -- correctly for production, but these unit tests are\n")
+    file(APPEND ${_wrapper_script_template} "# about correctness, not throughput.  An explicit MAD_CHECK_BINDING in the\n")
+    file(APPEND ${_wrapper_script_template} "# environment wins, so 'MAD_CHECK_BINDING=ON ctest -L mpi' still exercises it.\n")
+    file(APPEND ${_wrapper_script_template} "if(NOT DEFINED ENV{MAD_CHECK_BINDING})\n")
+    file(APPEND ${_wrapper_script_template} "  set(ENV{MAD_CHECK_BINDING} \"OFF\")\n")
     file(APPEND ${_wrapper_script_template} "endif()\n")
     file(APPEND ${_wrapper_script_template} "# Execute MPI command\n")
     file(APPEND ${_wrapper_script_template} "message(STATUS \"Running: ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} \${MPI_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \\\"\$<TARGET_FILE:${_test_name}>\\\" ${MPIEXEC_POSTFLAGS_STR}\")\n")
