@@ -8,10 +8,26 @@
 #   - Tests can run on single or multiple nodes depending on MPI configuration
 #
 # Environment Variables (runtime - can be set when running ctest):
-#   MADNESS_MPI_NODE_OPTIONS - Specify MPI execution options
+#   MADNESS_MPI_NODE_OPTIONS - Specify MPI execution options; replaces the default
+#                              options entirely (see below).
 #                              Example: MADNESS_MPI_NODE_OPTIONS="--bind-to none" ctest -R mpi
 #                              Example: MADNESS_MPI_NODE_OPTIONS="--hostfile /path/to/hostfile --map-by node" ctest -R mpi
-#                              If not set, mpiexec will use its default behavior
+#   MAD_CHECK_BINDING        - Defaulted to OFF for these tests, see below.  Set it
+#                              explicitly to keep MADNESS' start-up binding check enabled.
+#
+# Default launch options
+#   mpiexec pins each rank to a single core when a machine has more cores than ranks,
+#   so the 2-rank unit tests end up running all their MADNESS threads on one core.
+#   That is not just slow, it is crippling: on a 96-core node test_vectormacrotask
+#   takes 206 s pinned versus 14 s unpinned, and test_eval does not finish at all.
+#   These tests are about correctness, not placement, so unless the user overrides
+#   MADNESS_MPI_NODE_OPTIONS we launch them unbound.  The flag spelling is
+#   vendor-specific, hence the version-string sniffing; unknown vendors get no flag.
+#
+#   MAD_CHECK_BINDING is defaulted to OFF on top of that: unbinding fixes the
+#   per-rank oversubscription, but the check also compares the *aggregate* thread
+#   demand of all ranks on the host against the cores available, and that still
+#   trips whenever MAD_NUM_THREADS is left at its default of (ncores - 1).
 
 # Add MPI tests for a single test
 # Usage: add_mpi_tests(component test_name "2;4;8" "libs" "labels")
@@ -38,7 +54,42 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
   if(NOT TARGET ${_test_name})
     message(WARNING "Test target ${_test_name} does not exist. Make sure it is created before calling add_mpi_tests.")
   endif()
-  
+
+  # Default launch options: run unbound, so the ranks' threads get the whole node.
+  # Only Open MPI and MPICH-family launchers are spelled out; anything else (Intel
+  # MPI, Cray, vendor wrappers) keeps mpiexec's own defaults rather than risking an
+  # unrecognized flag, and can be tuned through MADNESS_MPI_NODE_OPTIONS.
+  # Probed once per configure, not once per test.
+  if(NOT DEFINED MADNESS_MPI_DEFAULT_OPTIONS)
+    # Ask the launcher itself rather than trusting MPI_<lang>_LIBRARY_VERSION_STRING,
+    # which FindMPI leaves empty in some configurations.  Open MPI's mpiexec reports
+    # "mpiexec (OpenRTE) 4.1.8" or "(Open MPI) 5.x"; MPICH/Hydra reports "HYDRA".
+    execute_process(COMMAND ${MPIEXEC_EXECUTABLE} --version
+                    OUTPUT_VARIABLE _mad_mpiexec_version
+                    ERROR_VARIABLE _mad_mpiexec_version
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_STRIP_TRAILING_WHITESPACE)
+    set(_mad_mpi_version "${_mad_mpiexec_version} ${MPI_C_LIBRARY_VERSION_STRING} ${MPI_CXX_LIBRARY_VERSION_STRING}")
+    string(REGEX REPLACE "[\r\n]+" " " _mad_mpi_version "${_mad_mpi_version}")
+    if(_mad_mpi_version MATCHES "Intel")
+      # Intel MPI is Hydra-based but does not take -bind-to; pinning there is driven
+      # by I_MPI_PIN / I_MPI_PIN_DOMAIN, which we leave to the user.
+      set(MADNESS_MPI_DEFAULT_OPTIONS "")
+      message(STATUS "add_mpi_tests: Intel MPI detected; launching MPI tests without "
+                     "binding flags -- export I_MPI_PIN=0 if they run pinned to one core")
+    elseif(_mad_mpi_version MATCHES "Open MPI|OpenRTE|Open RTE")
+      set(MADNESS_MPI_DEFAULT_OPTIONS "--bind-to none")
+    elseif(_mad_mpi_version MATCHES "MPICH|HYDRA|Hydra")
+      set(MADNESS_MPI_DEFAULT_OPTIONS "-bind-to none")
+    else()
+      set(MADNESS_MPI_DEFAULT_OPTIONS "")
+      message(STATUS "add_mpi_tests: unrecognized MPI (\"${_mad_mpi_version}\"), "
+                     "launching MPI tests without binding flags; "
+                     "set MADNESS_MPI_NODE_OPTIONS if the tests run pinned to one core")
+    endif()
+    message(STATUS "add_mpi_tests: default mpiexec options: \"${MADNESS_MPI_DEFAULT_OPTIONS}\"")
+  endif()
+
   foreach(NPROC ${_nprocs})
     # Create test name
     set(_mpi_test_name "${_test_name}_mpi${NPROC}")
@@ -59,7 +110,16 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "  # Convert MPI_OPTIONS to list\n")
     file(APPEND ${_wrapper_script_template} "  separate_arguments(MPI_OPTIONS_LIST UNIX_COMMAND \"\${MPI_OPTIONS}\")\n")
     file(APPEND ${_wrapper_script_template} "else()\n")
-    file(APPEND ${_wrapper_script_template} "  set(MPI_OPTIONS_LIST \"\")\n")
+    file(APPEND ${_wrapper_script_template} "  # Default: launch unbound, otherwise every rank's threads share a single core\n")
+    file(APPEND ${_wrapper_script_template} "  separate_arguments(MPI_OPTIONS_LIST UNIX_COMMAND \"${MADNESS_MPI_DEFAULT_OPTIONS}\")\n")
+    file(APPEND ${_wrapper_script_template} "endif()\n")
+    file(APPEND ${_wrapper_script_template} "# Disable the start-up CPU-binding check (see thread_binding.h).  On a machine\n")
+    file(APPEND ${_wrapper_script_template} "# with more cores than ranks mpiexec pins each rank to a single core by default,\n")
+    file(APPEND ${_wrapper_script_template} "# which the check rejects -- correctly for production, but these unit tests are\n")
+    file(APPEND ${_wrapper_script_template} "# about correctness, not throughput.  An explicit MAD_CHECK_BINDING in the\n")
+    file(APPEND ${_wrapper_script_template} "# environment wins, so 'MAD_CHECK_BINDING=ON ctest -L mpi' still exercises it.\n")
+    file(APPEND ${_wrapper_script_template} "if(NOT DEFINED ENV{MAD_CHECK_BINDING})\n")
+    file(APPEND ${_wrapper_script_template} "  set(ENV{MAD_CHECK_BINDING} \"OFF\")\n")
     file(APPEND ${_wrapper_script_template} "endif()\n")
     file(APPEND ${_wrapper_script_template} "# Execute MPI command\n")
     file(APPEND ${_wrapper_script_template} "message(STATUS \"Running: ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} \${MPI_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \\\"\$<TARGET_FILE:${_test_name}>\\\" ${MPIEXEC_POSTFLAGS_STR}\")\n")
