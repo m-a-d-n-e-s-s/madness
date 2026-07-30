@@ -61,6 +61,8 @@ struct BSHApplyPlan {
     long        nworld   = 0;    ///< macrotask: #subworlds (0 = auto = nproc)
     long        batch    = 0;    ///< macrotask: orbitals/task (0 = partitioner default);
                                  ///< set per-protocol via choose_bsh_batch()
+    bool        redistribute = false;  ///< macrotask: pre-localize the operand to single-owner
+                                 ///< batches up front (choose_bsh_redistribute); tight protocol only
     std::string reason;
 };
 
@@ -137,6 +139,22 @@ inline BSHApplyPlan choose_bsh_apply_plan(const BSHApplyContext& c) {
 /// Caller must still cap the result at floor(nmo / nsubworld). `thresh` is the CURRENT protocol.
 /// PROVISIONAL constants (APPLY_FRACTION, B_HI, the ranks/node boundary) -- calibrated from a
 /// single inter-node point (w213); see docs/bsh_apply_macrotask.md "Batch size in the model".
+/// Whether to pre-redistribute the macrotask operand onto single-owner batches before the
+/// apply (so the framework's auto_copy gather becomes a local, straggler-free fetch). Only
+/// meaningful for the Macrotask backend -- the caller gates on that.
+///
+/// Fires ONLY at tight protocol (thresh <= 1e-7). There the naive one-sided auto_copy gather
+/// degenerates into serve-starvation -- a single owner rank throttles all concurrent pulls
+/// (measured 114 s at valinomycin 1e-8, k10) -- and the coalesced redistribute + local
+/// fast-path collapse it (Apply BSH 265 -> 169 s multinode, -36%; -29% single-node C40 OOM).
+/// At loose/medium protocol (thresh > 1e-7) the gather is small and NOT serve-starved, so the
+/// redistribute's transport + materialization overhead is a NET LOSS (measured: k8 +65% cross-
+/// run) and its ceiling is ~1% of wall behind transient system jitter -- so it is gated OFF.
+/// Same 1e-7 boundary as choose_bsh_batch (the loose/tight protocol divide).
+inline bool choose_bsh_redistribute(double thresh) {
+    return thresh <= 1.0e-7;
+}
+
 inline long choose_bsh_batch(const BSHApplyContext& c, double thresh, long b_lo = 4) {
     if (thresh > 1.0e-7) return b_lo;          // loose/medium: working set tiny, amortize freely
 

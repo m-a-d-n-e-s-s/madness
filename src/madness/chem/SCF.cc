@@ -1834,13 +1834,24 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
         const CalculationParameters&> argtupleT;
         using resultT = std::vector<real_function_3d>;
 
-        // A' proof-of-concept (MAD_BSH_REDIST): pin the task for function j to slot
-        // j % nsubworld, matching the up-front redistribute of Vpsi[j] to rank j%N.
-        // The framework then runs the task on that rank (static owner path) so the
-        // auto_copy fetches the single-owner operand locally. -1 => dynamic (default).
+        // Cost-balanced task placement (active iff plan.redistribute): owner_[j] is the rank that
+        // redistribute_to_batches moved Vpsi[j] to, so running the task for function j on
+        // slot owner_[j] makes the framework's auto_copy fetch the operand LOCALLY (the
+        // copy_coeffs_different_world single-owner fast-path). owner_ MUST equal the vector
+        // passed to redistribute_to_batches, or the task lands on a rank that does not hold
+        // its operand and the fetch goes remote. It is replicated (identical on every rank:
+        // function_costs is one allreduce, assign_cost_aware is deterministic), so every
+        // rank computes the same slot here. nsubworld==nranks, so owner_[j] is a valid slot.
+        // Empty owner_ (redistribute not active) => owner_hint returns -1 (dynamic scheduling).
+        std::vector<ProcessID> owner_;
         long owner_hint(const madness::Batch& batch, const long nsubworld) const {
-            if (!madness::bsh_redist_on() || nsubworld <= 0) return -1;
-            return batch.input[0].begin % nsubworld;
+            // owner_ is populated iff the redistribute ran (plan.redistribute); empty => the
+            // task is unpinned (dynamic scheduling, no single-owner operand to fetch locally).
+            if (owner_.empty() || nsubworld <= 0) return -1;
+            const long b = batch.input[0].begin;
+            if (b >= 0 && b < static_cast<long>(owner_.size()))
+                return static_cast<long>(owner_[b]) % nsubworld;
+            return b % nsubworld;   // fallback (not reached once owner_ is populated)
         }
 
         // called in the universe (full argtuple -> full-size result) and in each subworld
@@ -1885,6 +1896,18 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
 
     START_TIMER(world);
     ApplyTask apply_task;
+    // Cost-balanced owner assignment (LPT greedy on global coefficient count), computed UP
+    // FRONT from Vpsi's ORIGINAL distribution. It drives BOTH the redistribute below and the
+    // task placement (apply_task.owner_ -> owner_hint); they MUST share one assignment or a
+    // task lands on a rank that does not hold its operand and the auto_copy goes remote. The
+    // assignment is replicated (function_costs = one allreduce; assign_cost_aware = deterministic).
+    std::vector<double>     bsh_cost;
+    std::vector<ProcessID>  bsh_owner;
+    if (plan.redistribute) {
+        bsh_cost  = function_costs(world, Vpsi);
+        bsh_owner = assign_cost_aware(bsh_cost, world.size());
+        apply_task.owner_ = bsh_owner;
+    }
     // batch (orbitals/task -> memory/task) on the partitioner; nworld (subworlds) on the
     // factory. plan overrides the explicit params when set (>0); 0 = framework default.
     const long maxb = plan.batch > 0 ? plan.batch : param.bsh_apply_max_batch();
@@ -1896,9 +1919,10 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
     // subworlds; framework-handled auto_copy). preset() is a no-op stub -> set_policy().
     factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
     const long nw = plan.nworld > 0 ? plan.nworld : param.bsh_apply_nworld();
-    // A' proof-of-concept: the static owner path needs one subworld per rank
-    // (nsubworld == nranks) so owner_hint slot j%N maps to rank j%N.
-    if (bsh_redist_on()) factory.set_nworld(world.size());
+    // Owner-pinned macrotask needs one subworld per rank (nsubworld == nranks) so the
+    // static owner path fires and owner_hint slot owner_[j] maps to physical rank owner_[j]
+    // (where redistribute_to_batches placed Vpsi[j]) -> the auto_copy fetch is local.
+    if (plan.redistribute) factory.set_nworld(world.size());
     else if (nw > 0) factory.set_nworld(nw);
     // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
     // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
@@ -1906,34 +1930,22 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
     MacroTask macrotask(world, apply_task, factory);
     const bool instr = param.print_level() >= 10;
     const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
-    // A' proof-of-concept: redistribute Vpsi so function j lands entirely on rank j%N
-    // (its owner-pinned subworld). Done UP FRONT -- no convolution running -- so the
-    // data movement runs at transport speed, and the subsequent auto_copy becomes a
-    // single local fetch (see copy_coeffs_different_world single-owner branch).
-    // redistribute() streams (erase-after-send), so peak stays ~S/N per rank.
-    if (bsh_redist_on()) {
-        const long N = std::max<long>(1, world.size());
+    // Redistribute Vpsi so function j lands entirely on rank bsh_owner[j] (its owner-pinned
+    // subworld), UP FRONT -- no convolution running -- so the data movement runs at transport
+    // speed and the subsequent macrotask auto_copy becomes a single local fetch (see
+    // copy_coeffs_different_world single-owner branch). The assignment is the SAME one pinned
+    // onto apply_task.owner_ above, so task placement and operand location agree (local fetch).
+    // redistribute_to_batches uses the coalesced alltoallv transport (one bulk AM per
+    // (src,dst,chunk), erase-after-copy => memory-streaming, no 2x transient copy).
+    if (plan.redistribute) {
         const double t0 = wall_time();
-        // copy(f, pmap) gives each function its OWN single-owner pmap instance and moves
-        // its nodes to rank j%N (unlike distribute(), which moves ALL functions sharing
-        // the default pmap together -> whole-vector-to-one-rank bug). fence=false batches
-        // every function's node moves into one collective fence.
-        vecfuncT Vpsi_owned(Vpsi.size());
-        for (size_t j = 0; j < Vpsi.size(); ++j) {
-            auto pmap = std::shared_ptr<WorldDCPmapInterface<Key<3>>>(
-                new WorldDCSingleOwnerPmap<Key<3>>(ProcessID(long(j) % N)));
-            Vpsi_owned[j] = copy(Vpsi[j], pmap, false);
-        }
-        world.gop.fence();
-        Vpsi = Vpsi_owned;                 // hand the owner-localized operand to the macrotask
-        world.gop.fence();                 // release the originals before compute
-        const double t1 = wall_time();
+        redistribute_to_batches(world, Vpsi, bsh_owner);   // in-place, memory-streaming
         if (instr) {
             double rss = madness::get_rss_usage_in_GB();
             world.gop.max(rss);
             if (world.rank() == 0)
                 printf("  [BSH redistribute: Vpsi -> single-owner (%zu funcs) in %.2fs | peakRSS max=%.2fGB/rank]\n",
-                       Vpsi.size(), t1 - t0, rss);
+                       Vpsi.size(), wall_time() - t0, rss);
         }
     }
     vecfuncT new_psi = macrotask(Vpsi, eps, param);
@@ -2108,6 +2120,14 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
                 plan.batch = choose_bsh_batch(ctx, FunctionDefaults<3>::get_thresh());  // topology+protocol-aware
             if (param.print_level() >= 2 and world.rank() == 0)
                 print("BSH apply [auto]:", ap.reason);
+        }
+        // Pre-localize the operand before a Macrotask apply ONLY at tight protocol, where the
+        // naive auto_copy gather serve-starves; gated OFF at loose/medium (net loss there).
+        // Applies to both "auto" (backend resolved above) and explicit "macrotask" mode.
+        if (backend == BSHBackend::Macrotask) {
+            plan.redistribute = choose_bsh_redistribute(FunctionDefaults<3>::get_thresh());
+            if (plan.redistribute and param.print_level() >= 2 and world.rank() == 0)
+                print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
         }
         new_psi = (backend == BSHBackend::Macrotask)
                       ? apply_bsh_macrotask(world, Vpsi, eps, param, plan)
