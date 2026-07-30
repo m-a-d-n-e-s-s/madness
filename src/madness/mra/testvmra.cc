@@ -140,6 +140,66 @@ void test_add(World& world) {
 }
 
 
+/// Tests vmra redistribute_to_batches: localize each whole function onto rank owner[j] via
+/// the coalesced alltoallv transport. Verifies (1) the single-owner pmap is installed, (2)
+/// every box of function j ends up on owner[j] and nowhere else, (3) the global box count is
+/// conserved, and (4) coefficients are unchanged (norm2 invariant).
+template <typename T, std::size_t NDIM>
+void test_redistribute_to_batches(World& world) {
+    if (world.rank()==0) print("\nentering test_redistribute_to_batches, NDIM =", NDIM);
+    const double thresh=1.e-6;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) { cell(i,0)=-10.0; cell(i,1)=10.0; }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const std::size_t nvec=7;
+    std::vector<Function<T,NDIM> > v(nvec);
+    for (std::size_t i=0; i<nvec; ++i) {
+        const double s = 0.3*double(i+1);   // distinct functions -> real, differing trees
+        v[i]=FunctionFactory<T,NDIM>(world).functor([s](const Vector<double,NDIM>& r) {
+            return std::exp(-inner(r,r))*std::cos(s*r[0]); });
+    }
+    reconstruct(world, v);
+    world.gop.fence();
+
+    // invariants BEFORE
+    std::vector<double> norm_before(nvec);
+    std::vector<long> count_before(nvec);
+    for (std::size_t j=0; j<nvec; ++j) {
+        norm_before[j]=v[j].norm2();
+        long global=long(v[j].get_impl()->get_coeffs().size());
+        world.gop.sum(global);
+        count_before[j]=global;
+    }
+    world.gop.fence();
+
+    auto owner = assign_round_robin(nvec, world.size());
+    redistribute_to_batches(world, v, owner);
+
+    // invariants AFTER
+    for (std::size_t j=0; j<nvec; ++j) {
+        // (1) single-owner pmap installed and reporting owner[j]
+        MADNESS_CHECK(v[j].get_impl()->get_pmap()->single_owner()==owner[j]);
+        // (2) all boxes on owner[j], none elsewhere
+        long local=long(v[j].get_impl()->get_coeffs().size());
+        long global=local; world.gop.sum(global);
+        if (world.rank()==owner[j]) MADNESS_CHECK(local==global);
+        else                        MADNESS_CHECK(local==0);
+        // (3) box count conserved
+        MADNESS_CHECK(global==count_before[j]);
+        // (4) coefficients unchanged
+        double nrm=v[j].norm2();
+        MADNESS_CHECK(std::abs(nrm-norm_before[j]) < 1.e-10*(1.0+norm_before[j]));
+    }
+    world.gop.fence();
+    if (world.rank()==0) print("test_redistribute_to_batches OK");
+}
+
 
 template <typename T, typename R, int NDIM, bool sym>
 void test_inner(World& world) {
@@ -662,6 +722,8 @@ int main(int argc, char**argv) {
 
         test_add<double,3>(world);
         test_add<std::complex<double>,3 >(world);
+
+        test_redistribute_to_batches<double,3>(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);

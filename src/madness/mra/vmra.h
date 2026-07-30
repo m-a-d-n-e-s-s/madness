@@ -123,6 +123,7 @@
 #include <madness/mra/derivative.h>
 #include <madness/tensor/distributed_matrix.h>
 #include <cstdio>
+#include <algorithm>
 
 namespace madness {
 
@@ -1409,6 +1410,126 @@ namespace madness {
       }
       if (fence) world.gop.fence();
       return r;
+    }
+
+    /// Assignment factory: round-robin functions across ranks (owner[j] = j % nranks).
+    /// Balanced when nfunc >> nranks. For redistribute_to_batches.
+    inline std::vector<ProcessID> assign_round_robin(std::size_t nfunc, int nranks) {
+        MADNESS_CHECK(nranks > 0);
+        std::vector<ProcessID> owner(nfunc);
+        for (std::size_t j = 0; j < nfunc; ++j) owner[j] = ProcessID(j % std::size_t(nranks));
+        return owner;
+    }
+
+    /// Assignment factory: contiguous function ranges per rank. For redistribute_to_batches.
+    inline std::vector<ProcessID> assign_contiguous(std::size_t nfunc, int nranks) {
+        MADNESS_CHECK(nranks > 0);
+        std::vector<ProcessID> owner(nfunc);
+        const std::size_t per = (nfunc + std::size_t(nranks) - 1) / std::size_t(nranks);
+        for (std::size_t j = 0; j < nfunc; ++j)
+            owner[j] = ProcessID(std::min<std::size_t>(per ? j / per : 0, std::size_t(nranks) - 1));
+        return owner;
+    }
+
+    /// Assignment factory: cost-balanced (LPT greedy) --- assign each function, in
+    /// descending cost order, to the currently least-loaded rank. Minimizes the per-rank
+    /// max load (the BSH-apply straggler) far better than round-robin when functions differ
+    /// in convolution cost (e.g. compact core vs diffuse valence orbitals). Deterministic:
+    /// given a cost[] that is identical on every rank (feed it a global reduction, e.g.
+    /// function_costs), the sort and greedy pick are reproducible, so owner[] agrees across
+    /// ranks (redistribute_to_batches also checks this collectively). For redistribute_to_batches.
+    /// @param[in] cost   per-function cost proxy (>= 0); e.g. global coefficient count
+    inline std::vector<ProcessID> assign_cost_aware(const std::vector<double>& cost, int nranks) {
+        MADNESS_CHECK(nranks > 0);
+        const std::size_t nfunc = cost.size();
+        std::vector<ProcessID> owner(nfunc);
+        std::vector<std::size_t> order(nfunc);
+        for (std::size_t j = 0; j < nfunc; ++j) order[j] = j;
+        // descending cost; ascending index breaks ties -> stable and reproducible
+        std::stable_sort(order.begin(), order.end(),
+                         [&](std::size_t a, std::size_t b) { return cost[a] > cost[b]; });
+        std::vector<double> load(std::size_t(std::max(1, nranks)), 0.0);
+        for (std::size_t k = 0; k < nfunc; ++k) {
+            int best = 0;                                    // least-loaded rank; smallest
+            for (int r = 1; r < nranks; ++r)                 // rank index breaks ties
+                if (load[std::size_t(r)] < load[std::size_t(best)]) best = r;
+            const std::size_t j = order[k];
+            owner[j] = ProcessID(best);
+            load[std::size_t(best)] += std::max(1.0, cost[j]);  // floor: zero-cost funcs still rotate
+        }
+        return owner;
+    }
+
+    /// Per-function cost proxy for assign_cost_aware: the GLOBAL coefficient count of each
+    /// function. Collective --- one allreduce over a length-v.size() vector --- so the result
+    /// is bit-identical on every rank and safe to feed a deterministic assignment. The count
+    /// is a proxy for convolution cost (cost per box is ~constant, so cost ~ number of source
+    /// boxes ~ coefficient count at uniform k); it does not predict result-tree refinement.
+    template <typename T, std::size_t NDIM>
+    std::vector<double> function_costs(World& world, const std::vector<Function<T, NDIM>>& v) {
+        std::vector<double> cost(v.size(), 0.0);
+        for (std::size_t j = 0; j < v.size(); ++j) cost[j] = double(v[j].size_local());
+        if (!v.empty()) world.gop.sum(cost.data(), cost.size());
+        return cost;
+    }
+
+    /// Batch-localizing redistribute: move each function v[j] so its whole tree lives on rank
+    /// owner[j] ("localize batches of whole functions onto ranks"). Uses the coalesced
+    /// alltoallv transport in WorldContainer (one bulk AM per (src,dst,chunk),
+    /// erase-after-copy => memory-streaming), so it is fast for large operands without a 2x
+    /// transient copy. The move is non-mutating and state-preserving.
+    ///
+    /// Because Key<NDIM> is function-agnostic, each function gets its OWN single-owner pmap
+    /// (a shared key->rank pmap could not distinguish functions). The downstream single-owner
+    /// read path (FunctionImpl::copy_coeffs_different_world) then fetches each function as one
+    /// blob from its owner.
+    ///
+    /// @param[in,out] v       functions to localize (mutated in place)
+    /// @param[in] owner       owner[j] == destination rank for function j; MUST be identical
+    ///                        on every rank (checked collectively)
+    /// @param[in] cap_bytes   soft cap on the serialized size of one message (0 => ~1 MiB
+    ///                        default); large buckets are chunked to stay on the eager path
+    ///                        and to bound the transient serialize buffer
+    /// @param[in] rotate      stagger destinations across ranks to reduce incast
+    template <typename T, std::size_t NDIM>
+    void redistribute_to_batches(World& world,
+                                 std::vector<Function<T, NDIM>>& v,
+                                 const std::vector<ProcessID>& owner,
+                                 std::size_t cap_bytes = 0,
+                                 bool rotate = true) {
+        MADNESS_CHECK(owner.size() == v.size());
+        if (v.empty()) return;
+
+        // cross-rank agreement guard: owner[] must match on every rank (a diverging
+        // assignment silently corrupts ownership).
+        {
+            long h = 0;
+            for (std::size_t j = 0; j < owner.size(); ++j) h += long(owner[j]) * long(j + 1);
+            long hmax = h, hmin = h;
+            world.gop.max(hmax);
+            world.gop.min(hmin);
+            MADNESS_CHECK(hmax == hmin);
+        }
+
+        // chunk cap in #boxes, from a byte cap and an upper-bound box-size estimate.
+        if (cap_bytes == 0) cap_bytes = 1024 * 1024; // ~1 MiB, under the default RMI buffer
+        std::size_t box_bytes = sizeof(T);
+        for (std::size_t d = 0; d < NDIM; ++d) box_bytes *= std::size_t(2 * FunctionDefaults<NDIM>::get_k());
+        const std::size_t cap_boxes = std::max<std::size_t>(1, cap_bytes / std::max<std::size_t>(box_bytes, 1));
+
+        // Two-barrier protocol (see worlddc.h redistribute_coalesced_*): phase1 iterates the
+        // ConcurrentHashMap, so it must run in a quiescent window; the fence between phase1
+        // and phase2 is REQUIRED for correctness (no concurrent insert_batch during iterate).
+        world.gop.fence();
+        for (std::size_t j = 0; j < v.size(); ++j) {
+            auto pmap = std::shared_ptr<WorldDCPmapInterface<Key<NDIM>>>(
+                new WorldDCSingleOwnerPmap<Key<NDIM>>(owner[j]));
+            v[j].get_impl()->get_coeffs().redistribute_coalesced_phase1(pmap);
+        }
+        world.gop.fence();
+        for (std::size_t j = 0; j < v.size(); ++j)
+            v[j].get_impl()->get_coeffs().redistribute_coalesced_phase2(cap_boxes, rotate);
+        world.gop.fence();
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]
