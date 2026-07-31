@@ -34,6 +34,17 @@
 #include <sstream>
 
 namespace madness {
+
+    /// message thrown when a tag cannot be found
+
+    /// MadnessException keeps the message as a bare `const char*`, so it must
+    /// have static storage duration -- passing a local std::string's c_str()
+    /// leaves what() dangling. Callers that classify the exception by its
+    /// message prefix (QCCalculationParametersBase, to tell a missing data
+    /// group from a malformed one) rely on what() being readable, and the
+    /// caller knows the tag it asked for anyway.
+    static constexpr const char* not_found_msg = "position_stream: failed to locate the requested tag";
+
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind) {
         if (rewind) f.seekg(0);
         std::string s;
@@ -41,8 +52,7 @@ namespace madness {
             std::string::size_type loc = s.find(tag, 0);
             if(loc != std::string::npos) return f;
         }
-        std::string errmsg = std::string("position_stream: failed to locate ") + tag;
-        MADNESS_EXCEPTION(errmsg.c_str(),0);
+        MADNESS_EXCEPTION(not_found_msg,0);
     }
 
     /// position the input stream to tag, which must be a word (not part of a word)
@@ -72,12 +82,11 @@ namespace madness {
             }
         }
 
-        std::string errmsg = std::string("position_stream: failed to locate ") + tag;
         if (silent) {
-            throw MadnessException(errmsg.c_str(),0,0,__LINE__,__FUNCTION__,__FILE__); \
+            throw MadnessException(not_found_msg,0,0,__LINE__,__FUNCTION__,__FILE__);
         } else {
-            printf("%s\n",errmsg.c_str());
-            MADNESS_EXCEPTION(errmsg.c_str(),0);
+            printf("position_stream: failed to locate %s\n",tag.c_str());
+            MADNESS_EXCEPTION(not_found_msg,0);
         }
         return f;
     }

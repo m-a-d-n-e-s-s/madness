@@ -1,0 +1,41 @@
+# MP2 correlation energy for helium.
+#
+# Same `cc2` parameter group as the CC2 workflow -- MP2 is `calc_type mp2`
+# within it, and `--wf=mp2` is an alias for the same chain. Results land in
+# tasks[1] as mp2_correlation_energy / mp2_total_energy.
+#
+# Fixed `k`: the correlated step needs the reference at a single resolution, so
+# there is no `protocol` ladder here (a reference that climbed the ladder mixes
+# resolutions and aborts in the tensor layer).
+#
+# Reference provenance: mp2_correlation_energy = -0.0373696920703866, generated
+# 2026-07-30 on node26. The 2025 value in the retired
+# test_mp2_helium.py reference (-0.0374699766577594) came from identical settings
+# and is stale by 1e-4 -- code drift in the correlated step, not a settings
+# difference; the SCF energies agree to 6e-8. Do not "restore" the old number.
+#
+# The 1e-4 tolerance on the correlated quantities is a judgement call, not a
+# measurement: SCF energies here reproduce across macOS/clang/Accelerate and
+# Linux/GNU-13/MKL to 5e-16, but no 6D correlated run has been compared across
+# architectures. If it proves too tight the symptom is a spurious failure on a
+# new platform, which beats missing a regression -- widen it then, deliberately.
+#
+# Run:   ./run.sh          (or: madqc --wf=mp2 mp2_he_corr.in)
+
+dft
+    xc       hf
+    k        5
+    maxiter  10
+    econv    1e-5
+    dconv    1e-3
+end
+
+cc2
+    freeze     0
+    calc_type  mp2
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end

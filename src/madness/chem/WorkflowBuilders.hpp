@@ -1,0 +1,176 @@
+#pragma once
+
+#include <algorithm>
+#include <array>
+#include <string>
+#include <string_view>
+
+#include <CCLib.hpp>
+#include <Drivers.hpp>
+#include <MoldftLib.hpp>
+#include <ParameterManager.hpp>
+#include <madness/mra/funcdefaults.h>
+
+namespace madness::workflow_builders {
+
+enum class WorkflowKind {
+  Scf,
+  Nemo,
+  Response,
+  Mp2Cc2,
+  Cis,
+  Oep,
+  Optimize,
+  Unknown
+};
+
+inline constexpr std::array<const char *, 7> runnable_workflows = {
+    "scf", "nemo", "response", "mp2", "cc2", "cis", "oep"};
+
+inline WorkflowKind workflow_kind_from_name(std::string_view user_workflow) {
+  if (user_workflow == "scf")
+    return WorkflowKind::Scf;
+  if (user_workflow == "nemo")
+    return WorkflowKind::Nemo;
+  if (user_workflow == "response")
+    return WorkflowKind::Response;
+  if (user_workflow == "mp2" || user_workflow == "cc2")
+    return WorkflowKind::Mp2Cc2;
+  if (user_workflow == "cis")
+    return WorkflowKind::Cis;
+  if (user_workflow == "oep")
+    return WorkflowKind::Oep;
+  if (user_workflow == "optimize")
+    return WorkflowKind::Optimize;
+  return WorkflowKind::Unknown;
+}
+
+inline const std::string &runnable_workflow_list() {
+  static const std::string list = []() {
+    std::string out;
+    for (size_t i = 0; i < runnable_workflows.size(); ++i) {
+      if (i > 0)
+        out += ", ";
+      out += runnable_workflows[i];
+    }
+    return out;
+  }();
+  return list;
+}
+
+inline void add_scf_workflow_drivers(World &world, Params &pm,
+                                     qcapp::Workflow &wf) {
+  auto reference = std::make_shared<SCFApplication<moldft_lib>>(world, pm);
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+}
+
+inline void add_nemo_workflow_drivers(World &world, Params &pm,
+                                      qcapp::Workflow &wf) {
+  pm.get<CalculationParameters>().set_derived_value("k", 8);
+  auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+}
+
+// NOTE (M1 decoupling, Stage 2): the response workflow no longer has a MADchem
+// driver. The v2 engine (ResponseApplication<molresponse_lib> via
+// MolresponseLib.hpp) was removed; the v3 engine lives in the APP layer
+// (madqc.cpp builds ResponseApplication<molresponse_v3_lib>) because MADchem
+// must not depend on molresponse_v3 (circular lib dependency — see
+// molresponse_v3/madqc_adapter.hpp). The Response enum + name table stay so
+// workflow_kind_from_name/runnable_workflows keep listing it.
+
+inline void add_cc2_workflow_drivers(World &world, Params &pm,
+                                     qcapp::Workflow &wf) {
+  TensorType tt = TT_2D;
+  FunctionDefaults<6>::set_tensor_type(tt);
+
+  auto &calc_param = pm.get<CalculationParameters>();
+  auto &cc_param = pm.get<CCParameters>();
+  auto &molecule = pm.get<Molecule>();
+
+  calc_param.set_derived_value("k", 5);
+  calc_param.set_derived_value("print_level", 2);
+  calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d") * 0.01);
+
+  calc_param.set_derived_values(molecule);
+  cc_param.set_derived_values();
+
+  auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
+  auto ref_calc = reference->calc();
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+      std::make_unique<CC2Application>(world, pm, ref_calc)));
+}
+
+inline void add_cis_workflow_drivers(World &world, Params &pm,
+                                     qcapp::Workflow &wf) {
+  auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
+  auto ref_calc = reference->calc();
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+      std::make_unique<TDHFApplication>(world, pm, ref_calc)));
+}
+
+inline void add_oep_workflow_drivers(World &world, Params &pm,
+                                     qcapp::Workflow &wf) {
+  auto &cparam = pm.get<CalculationParameters>();
+  auto convergence_crit =
+      cparam.get<std::vector<std::string>>("convergence_criteria");
+  if (std::find(convergence_crit.begin(), convergence_crit.end(),
+                "each_energy") == convergence_crit.end()) {
+    convergence_crit.emplace_back("each_energy");
+  }
+  cparam.set_derived_value("convergence_criteria", convergence_crit);
+
+  auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
+  auto ref_calc = reference->calc();
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+  wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+      std::make_unique<OEPApplication>(world, pm, ref_calc)));
+}
+
+inline void add_workflow_drivers(World &world, Params &pm,
+                                 const std::string &user_workflow,
+                                 qcapp::Workflow &wf) {
+  switch (workflow_kind_from_name(user_workflow)) {
+  case WorkflowKind::Scf:
+    add_scf_workflow_drivers(world, pm, wf);
+    break;
+  case WorkflowKind::Nemo:
+    add_nemo_workflow_drivers(world, pm, wf);
+    break;
+  case WorkflowKind::Response:
+    // App-layer workflow (engine v3 in madqc.cpp); MADchem hosts no response
+    // driver since the v2 engine's removal (M1 Stage 2).
+    throw std::runtime_error(
+        "response workflow: no MADchem driver — the v2 engine was removed; "
+        "run it through madqc (engine v3), which builds the v3 driver in the "
+        "app layer");
+  case WorkflowKind::Mp2Cc2:
+    add_cc2_workflow_drivers(world, pm, wf);
+    break;
+  case WorkflowKind::Cis:
+    add_cis_workflow_drivers(world, pm, wf);
+    break;
+  case WorkflowKind::Oep:
+    add_oep_workflow_drivers(world, pm, wf);
+    break;
+  case WorkflowKind::Optimize: {
+    std::string msg =
+        "The optimize workflow is currently disabled. Please use the dft + "
+        "gopt() application instead.\n";
+    MADNESS_EXCEPTION(msg.c_str(), 1);
+    break;
+  }
+  case WorkflowKind::Unknown:
+  default: {
+    std::string msg =
+        "Unknown workflow: " + user_workflow + "\nAvailable workflows are: " +
+        runnable_workflow_list();
+    MADNESS_EXCEPTION(msg.c_str(), 1);
+    break;
+  }
+  }
+}
+
+} // namespace madness::workflow_builders

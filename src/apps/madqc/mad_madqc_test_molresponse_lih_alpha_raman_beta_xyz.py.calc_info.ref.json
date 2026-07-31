@@ -1,0 +1,3787 @@
+{
+    "tasks": [
+        {
+            "convergence": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-06
+            },
+            "convergence_info": {
+                "converged_for_dconv": 0.0001,
+                "converged_for_thresh": 1e-06
+            },
+            "metadata": {
+                "mpi_size": 2
+            },
+            "model": "scf",
+            "molecule": {
+                "geometry": [
+                    [
+                        0.0,
+                        0.0,
+                        -1.5176490010301067
+                    ],
+                    [
+                        0.0,
+                        0.0,
+                        1.5176490010301067
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": true,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "input.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "Li",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": 0.0,
+                "final_geometry": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "max_gradient": 0.0,
+                "max_step": 0.0,
+                "nsteps": 0
+            },
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        1.0066298797872269e-14,
+                        9.682012631364927e-15,
+                        -2.703486951731416
+                    ]
+                },
+                "energy": -7.98736300460279,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            },
+            "scf": {
+                "is_opt": false,
+                "model": "scf",
+                "molecule": {
+                    "geometry": [
+                        [
+                            0.0,
+                            0.0,
+                            -1.5176490010301067
+                        ],
+                        [
+                            0.0,
+                            0.0,
+                            1.5176490010301067
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": true,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "input.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "Li",
+                        "H"
+                    ]
+                },
+                "properties": {
+                    "dipole": {
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            1.0066298797872269e-14,
+                            9.682012631364927e-15,
+                            -2.703486951731416
+                        ]
+                    },
+                    "energy": -7.98736300460279,
+                    "gradient": {
+                        "ndim": -1,
+                        "size": 0
+                    }
+                },
+                "scf_eigenvalues_a": {
+                    "dims": [
+                        2
+                    ],
+                    "ndim": 1,
+                    "size": 2,
+                    "vals": [
+                        -2.4460426639960975,
+                        -0.30131763187203653
+                    ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_fock_a": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_total_energy": 0.0
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    2
+                ],
+                "ndim": 1,
+                "size": 2,
+                "vals": [
+                    -2.4460426639960975,
+                    -0.30131763187203653
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        },
+        {
+            "metadata": {
+                "engine": "molresponse_v3",
+                "excited_states": {},
+                "fd_states": {
+                    "dipole_x": {
+                        "1e-04_k6": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_x__1e-04_k6__f0.00000",
+                                "bsh_residual": 7.478244348588216e-06,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 13,
+                                "metrics": {
+                                    "bytes": 2239488,
+                                    "coeffs": 279936,
+                                    "iters": 13,
+                                    "rss_gb": 1.0535621643066406,
+                                    "wall_s": 14.250791072845459
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        },
+                        "1e-06_k8": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_x__1e-06_k8__f0.00000",
+                                "bsh_residual": 0.00036893801122904793,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 2,
+                                "metrics": {
+                                    "bytes": 13565952,
+                                    "coeffs": 1695744,
+                                    "iters": 2,
+                                    "rss_gb": 1.3968963623046875,
+                                    "wall_s": 5.308057069778442
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        }
+                    },
+                    "dipole_y": {
+                        "1e-04_k6": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_y__1e-04_k6__f0.00000",
+                                "bsh_residual": 7.478272971041593e-06,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 13,
+                                "metrics": {
+                                    "bytes": 2239488,
+                                    "coeffs": 279936,
+                                    "iters": 13,
+                                    "rss_gb": 1.0859527587890625,
+                                    "wall_s": 14.87935185432434
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        },
+                        "1e-06_k8": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_y__1e-06_k8__f0.00000",
+                                "bsh_residual": 0.0003689380114811104,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 2,
+                                "metrics": {
+                                    "bytes": 13565952,
+                                    "coeffs": 1695744,
+                                    "iters": 2,
+                                    "rss_gb": 1.4186439514160156,
+                                    "wall_s": 5.431882858276367
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        }
+                    },
+                    "dipole_z": {
+                        "1e-04_k6": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-04_k6__f0.00000",
+                                "bsh_residual": 0.00018296758826136431,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 12,
+                                "metrics": {
+                                    "bytes": 2737152,
+                                    "coeffs": 342144,
+                                    "iters": 12,
+                                    "rss_gb": 1.1128196716308594,
+                                    "wall_s": 15.635243892669678
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        },
+                        "1e-06_k8": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "dipole_z__1e-06_k8__f0.00000",
+                                "bsh_residual": 0.0002219230842154338,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 3,
+                                "metrics": {
+                                    "bytes": 15269888,
+                                    "coeffs": 1908736,
+                                    "iters": 3,
+                                    "rss_gb": 1.5077323913574219,
+                                    "wall_s": 8.76377820968628
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        }
+                    },
+                    "nuc_0_z": {
+                        "1e-04_k6": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "nuc_0_z__1e-04_k6__f0.00000",
+                                "bsh_residual": 0.0003305748913782751,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 10,
+                                "metrics": {
+                                    "bytes": 11916288,
+                                    "coeffs": 1489536,
+                                    "iters": 10,
+                                    "rss_gb": 1.2665901184082031,
+                                    "wall_s": 23.222936153411865
+                                },
+                                "seed": "zero",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        },
+                        "1e-06_k8": {
+                            "f0.00000": {
+                                "accepted": false,
+                                "archive": "nuc_0_z__1e-06_k8__f0.00000",
+                                "bsh_residual": 0.0004903643272056519,
+                                "converged": true,
+                                "diverged": false,
+                                "freq": 0.0,
+                                "iter": 2,
+                                "metrics": {
+                                    "bytes": 15269888,
+                                    "coeffs": 1908736,
+                                    "iters": 2,
+                                    "rss_gb": 1.7287139892578125,
+                                    "wall_s": 8.837884902954102
+                                },
+                                "seed": "fd_restart",
+                                "shell": "closed_shell",
+                                "type": "static"
+                            }
+                        }
+                    }
+                },
+                "ground_state": {
+                    "archive": "../../task_0/moldft/lih.restartdata",
+                    "bytes": 7588652,
+                    "fnv1a64": "fa21a9f7b1a749a7",
+                    "nparts": 1
+                },
+                "io": {
+                    "backend": "native",
+                    "hdf5_compiled": false
+                },
+                "properties": {
+                    "alpha": {
+                        "1e-06_k8": [
+                            {
+                                "alpha": [
+                                    [
+                                        25.422626631610786,
+                                        9.195682409979256e-14,
+                                        -1.3857760425284305e-12
+                                    ],
+                                    [
+                                        1.143989417085045e-13,
+                                        25.422626631622464,
+                                        -5.8141130798716745e-12
+                                    ],
+                                    [
+                                        -1.5295056887687508e-14,
+                                        -4.167759887208078e-14,
+                                        22.146940121005088
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "xyz",
+                                "max_bsh_residual": 0.0003689380114811104,
+                                "omega": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "direction": "x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "direction": "y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "beta": {
+                        "1e-06_k8": [
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": -2.236505663825994e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": -5.943191121529634e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": 190.13175569686643,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -2.0280651940804417e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -3.401319156881577e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -6.075857874524168e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": 190.1316929374872,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": 3.6446323389858806e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": -1.0793477747976826e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -2.0328373966788105e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -3.287768494952825e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -1.03908953820763e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": -1.2322920461826925e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": -9.990954374580752e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": 190.13175569726138,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": -2.6460170859755736e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": 190.1316929378705,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": -4.803658454496095e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": 190.13169293747941,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": 1.8379178387560095e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": -1.075994255561163e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": -2.591373296482527e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": 190.13169293786726,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": -4.7975883201479626e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": -2.1949734564652434e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": -9.580361504113455e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 315.5946951785108,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    },
+                    "raman": {
+                        "1e-06_k8": [
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": -6.963538857843683,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": 2.179896887999232e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": -3.1205566241166118e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": 3.227236186619151e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": -6.963538857849342,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": -1.3235777862538531e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": 1.5753284093866782e-13,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": 7.011969130332751e-13,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": -13.549232911022209,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    }
+                },
+                "protocols": {
+                    "1e-04_k6": {
+                        "index": -1,
+                        "k": 6,
+                        "thresh": 0.0001
+                    },
+                    "1e-06_k8": {
+                        "index": -1,
+                        "k": 8,
+                        "thresh": 1e-06
+                    }
+                },
+                "run_summary": {
+                    "dropped_work": []
+                },
+                "schema_version": 1,
+                "v3_diagnostics": {
+                    "passes": 4,
+                    "schedule": [
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_x@f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_y@f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:dipole_z@f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "fd:nuc_0_z@f0.00000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 0,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_x__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_x__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_x__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_x__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_y__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_y__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_y__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_y__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                },
+                                {
+                                    "action": "fresh",
+                                    "id": "vbc:dipole_z__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 0.0001
+                                }
+                            ],
+                            "k": 6,
+                            "pass": 1,
+                            "protocol_index": 0,
+                            "thresh": 0.0001
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_x@f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_y@f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "fd:dipole_z@f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "fd:nuc_0_z@f0.00000",
+                                    "thresh": 1e-06
+                                }
+                            ],
+                            "k": 8,
+                            "pass": 2,
+                            "protocol_index": 1,
+                            "thresh": 1e-06
+                        },
+                        {
+                            "items": [
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_x__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_x__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_x__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_y__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_y__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_y__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__dipole_x@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__dipole_y@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__dipole_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_x__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_y__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                },
+                                {
+                                    "action": "restart",
+                                    "id": "vbc:dipole_z__nuc_0_z@f0.00000_f0.00000",
+                                    "thresh": 1e-06
+                                }
+                            ],
+                            "k": 8,
+                            "pass": 3,
+                            "protocol_index": 1,
+                            "thresh": 1e-06
+                        }
+                    ],
+                    "stop_reason": "complete"
+                },
+                "v3_timing": {
+                    "assemble": {
+                        "cpu_s": 14.149122160490151,
+                        "wall_s": 14.149194955825806
+                    },
+                    "plan_build": {
+                        "cpu_s": 7.445968185493257e-05,
+                        "wall_s": 6.890296936035156e-05
+                    },
+                    "solve": {
+                        "cpu_s": 385.7652911458772,
+                        "wall_s": 385.7673740386963
+                    }
+                },
+                "vbc_states": {
+                    "vbc:dipole_x__dipole_x@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_x__dipole_x_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 6359040,
+                                "coeffs": 794880,
+                                "iters": 0,
+                                "rss_gb": 1.2501678466796875,
+                                "wall_s": 7.388041019439697
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_x__dipole_x_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 39190528,
+                                "coeffs": 4898816,
+                                "iters": 0,
+                                "rss_gb": 1.73480224609375,
+                                "wall_s": 14.885586977005005
+                            }
+                        }
+                    },
+                    "vbc:dipole_x__dipole_y@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_x__dipole_y_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4257792,
+                                "coeffs": 532224,
+                                "iters": 0,
+                                "rss_gb": 1.2538299560546875,
+                                "wall_s": 6.724130153656006
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_x__dipole_y_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 28180480,
+                                "coeffs": 3522560,
+                                "iters": 0,
+                                "rss_gb": 1.7446098327636719,
+                                "wall_s": 13.543316125869751
+                            }
+                        }
+                    },
+                    "vbc:dipole_x__dipole_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_x__dipole_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4700160,
+                                "coeffs": 587520,
+                                "iters": 0,
+                                "rss_gb": 1.2567596435546875,
+                                "wall_s": 7.205739974975586
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_x__dipole_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 31064064,
+                                "coeffs": 3883008,
+                                "iters": 0,
+                                "rss_gb": 1.7563285827636719,
+                                "wall_s": 14.418145895004272
+                            }
+                        }
+                    },
+                    "vbc:dipole_x__nuc_0_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_x__nuc_0_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 15980544,
+                                "coeffs": 1997568,
+                                "iters": 0,
+                                "rss_gb": 1.2732696533203125,
+                                "wall_s": 9.916017055511475
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_x__nuc_0_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 58589184,
+                                "coeffs": 7323648,
+                                "iters": 0,
+                                "rss_gb": 1.9766197204589844,
+                                "wall_s": 14.559062957763672
+                            }
+                        }
+                    },
+                    "vbc:dipole_y__dipole_x@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_y__dipole_x_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4257792,
+                                "coeffs": 532224,
+                                "iters": 0,
+                                "rss_gb": 1.2813262939453125,
+                                "wall_s": 6.68360710144043
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_y__dipole_x_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 28180480,
+                                "coeffs": 3522560,
+                                "iters": 0,
+                                "rss_gb": 1.7570610046386719,
+                                "wall_s": 13.449610948562622
+                            }
+                        }
+                    },
+                    "vbc:dipole_y__dipole_y@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_y__dipole_y_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 6359040,
+                                "coeffs": 794880,
+                                "iters": 0,
+                                "rss_gb": 1.2842559814453125,
+                                "wall_s": 7.157387971878052
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_y__dipole_y_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 39190528,
+                                "coeffs": 4898816,
+                                "iters": 0,
+                                "rss_gb": 1.7659187316894531,
+                                "wall_s": 14.639556884765625
+                            }
+                        }
+                    },
+                    "vbc:dipole_y__dipole_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_y__dipole_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4700160,
+                                "coeffs": 587520,
+                                "iters": 0,
+                                "rss_gb": 1.2871856689453125,
+                                "wall_s": 6.941237926483154
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_y__dipole_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 31064064,
+                                "coeffs": 3883008,
+                                "iters": 0,
+                                "rss_gb": 1.7700042724609375,
+                                "wall_s": 14.188378810882568
+                            }
+                        }
+                    },
+                    "vbc:dipole_y__nuc_0_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_y__nuc_0_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 15980544,
+                                "coeffs": 1997568,
+                                "iters": 0,
+                                "rss_gb": 1.3120498657226563,
+                                "wall_s": 9.667500972747803
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_y__nuc_0_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 58589184,
+                                "coeffs": 7323648,
+                                "iters": 0,
+                                "rss_gb": 2.0071144104003906,
+                                "wall_s": 14.571585178375244
+                            }
+                        }
+                    },
+                    "vbc:dipole_z__dipole_x@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__dipole_x_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4700160,
+                                "coeffs": 587520,
+                                "iters": 0,
+                                "rss_gb": 1.2957572937011719,
+                                "wall_s": 6.947000980377197
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__dipole_x_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 31064064,
+                                "coeffs": 3883008,
+                                "iters": 0,
+                                "rss_gb": 1.7731666564941406,
+                                "wall_s": 13.942199945449829
+                            }
+                        }
+                    },
+                    "vbc:dipole_z__dipole_y@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__dipole_y_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 4700160,
+                                "coeffs": 587520,
+                                "iters": 0,
+                                "rss_gb": 1.2964897155761719,
+                                "wall_s": 6.8536741733551025
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__dipole_y_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 31064064,
+                                "coeffs": 3883008,
+                                "iters": 0,
+                                "rss_gb": 1.7823333740234375,
+                                "wall_s": 14.116413116455078
+                            }
+                        }
+                    },
+                    "vbc:dipole_z__dipole_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 6359040,
+                                "coeffs": 794880,
+                                "iters": 0,
+                                "rss_gb": 1.2964897155761719,
+                                "wall_s": 7.660973072052002
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__dipole_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 37355520,
+                                "coeffs": 4669440,
+                                "iters": 0,
+                                "rss_gb": 1.7923088073730469,
+                                "wall_s": 15.466174840927124
+                            }
+                        }
+                    },
+                    "vbc:dipole_z__nuc_0_z@f0.00000_f0.00000": {
+                        "1e-04_k6": {
+                            "archive": "vbc_dipole_z__nuc_0_z_f0.00000_f0.00000__1e-04_k6",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 23500800,
+                                "coeffs": 2937600,
+                                "iters": 0,
+                                "rss_gb": 1.3122940063476563,
+                                "wall_s": 10.318885803222656
+                            }
+                        },
+                        "1e-06_k8": {
+                            "archive": "vbc_dipole_z__nuc_0_z_f0.00000_f0.00000__1e-06_k8",
+                            "converged": true,
+                            "diverged": false,
+                            "metrics": {
+                                "bytes": 81133568,
+                                "coeffs": 10141696,
+                                "iters": 0,
+                                "rss_gb": 2.0613632202148438,
+                                "wall_s": 16.394248962402344
+                            }
+                        }
+                    }
+                }
+            },
+            "properties": {
+                "raman_spectra": null,
+                "response_properties": {
+                    "alpha": {
+                        "1e-06_k8": [
+                            {
+                                "alpha": [
+                                    [
+                                        25.422626631610786,
+                                        9.195682409979256e-14,
+                                        -1.3857760425284305e-12
+                                    ],
+                                    [
+                                        1.143989417085045e-13,
+                                        25.422626631622464,
+                                        -5.8141130798716745e-12
+                                    ],
+                                    [
+                                        -1.5295056887687508e-14,
+                                        -4.167759887208078e-14,
+                                        22.146940121005088
+                                    ]
+                                ],
+                                "converged": true,
+                                "directions": "xyz",
+                                "max_bsh_residual": 0.0003689380114811104,
+                                "omega": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "direction": "x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "direction": "y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "direction": "z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "beta": {
+                        "1e-06_k8": [
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": -2.236505663825994e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": -5.943191121529634e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_x",
+                                "beta": 190.13175569686643,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -2.0280651940804417e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -3.401319156881577e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_y",
+                                "beta": -6.075857874524168e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": 190.1316929374872,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": 3.6446323389858806e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "dipole_z",
+                                "beta": -1.0793477747976826e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -2.0328373966788105e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -3.287768494952825e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_x",
+                                "beta": -1.03908953820763e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": -1.2322920461826925e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": -9.990954374580752e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_y",
+                                "beta": 190.13175569726138,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": -2.6460170859755736e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": 190.1316929378705,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "dipole_z",
+                                "beta": -4.803658454496095e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": 190.13169293747941,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": 1.8379178387560095e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_x",
+                                "beta": -1.075994255561163e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": -2.591373296482527e-14,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": 190.13169293786726,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_y",
+                                "beta": -4.7975883201479626e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": -2.1949734564652434e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": -9.580361504113455e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "dipole_z",
+                                "beta": 315.5946951785108,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    },
+                    "raman": {
+                        "1e-06_k8": [
+                            {
+                                "A": "x",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": -6.963538857843683,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": 2.179896887999232e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_x",
+                                "C": "nuc_0_z",
+                                "beta": -3.1205566241166118e-12,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": 3.227236186619151e-15,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": -6.963538857849342,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_y",
+                                "C": "nuc_0_z",
+                                "beta": -1.3235777862538531e-11,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "x",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": 1.5753284093866782e-13,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.00036893801122904793,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_x",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "y",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": 7.011969130332751e-13,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0003689380114811104,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_y",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            },
+                            {
+                                "A": "z",
+                                "B": "dipole_z",
+                                "C": "nuc_0_z",
+                                "beta": -13.549232911022209,
+                                "freq_b": 0.0,
+                                "freq_c": 0.0,
+                                "row_accuracy": [
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0002219230842154338,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "dipole_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    },
+                                    {
+                                        "accepted": false,
+                                        "bsh_residual": 0.0004903643272056519,
+                                        "converged": true,
+                                        "freq": 0.0,
+                                        "input": "nuc_0_z",
+                                        "source_protocol_key": "1e-06_k8"
+                                    }
+                                ],
+                                "vbc_accuracy": {
+                                    "converged": true,
+                                    "diverged": false
+                                }
+                            }
+                        ]
+                    }
+                },
+                "vibrational_analysis": null
+            },
+            "type": "response"
+        }
+    ]
+}

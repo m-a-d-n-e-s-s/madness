@@ -100,8 +100,13 @@ int main(int argc, char** argv) {
 
                 // compute initial hessian
                 if (nemo->get_calc_param().ginitial_hessian()) {
-                    Tensor<double> hess = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-                    geom.set_hessian(hess);
+                    auto vib = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
+                    if (vib.hessian) {
+                        geom.set_hessian(*vib.hessian);
+                    }
+                    else if (world.rank() == 0) {
+                        print("Warning: requested initial Hessian but none was returned.");
+                    }
                 }
 
                 print_header2("Starting geometry optimization");

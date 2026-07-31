@@ -1,0 +1,36 @@
+# LR-CC2: CC2 ground state plus an excited state, for helium.
+#
+# `calc_type lrcc2` runs the CC2 ground state and then linear-response CC2 on
+# top, so the results span three tasks: scf, cc2 (with excitations[]), and the
+# MP2 energy computed along the way.
+#
+# `iter_max 2` caps the CC2 iterations; a production run would leave it at the
+# default. It does NOT make this case cheap: the constant-part construction
+# dominates and is not bounded by iter_max, so the run still takes ~30 min on 20
+# threads. That is why this case is tagged `verylong` -- do not be tempted to
+# retier it on the assumption that the iteration cap bounds the cost.
+#
+# Fixed `k`, no `protocol` ladder: the correlated step takes the reference at a
+# single resolution, and one that climbed the ladder mixes resolutions and aborts
+# in the tensor layer.
+#
+# Run:   ./run.sh          (or: madqc --wf=cc2 lrcc2_he_excited.in)
+
+dft
+    xc       hf
+    k        5
+    maxiter  10
+    econv    1e-5
+    dconv    1e-3
+end
+
+cc2
+    freeze     0
+    calc_type  lrcc2
+    iter_max   2
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end

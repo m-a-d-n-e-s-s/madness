@@ -1,0 +1,22 @@
+# Hartree-Fock on helium with regularized (nuclear-cusp-free) orbitals.
+#
+# The `nemo` workflow needs its own -- possibly empty -- group block to be
+# selected from a deck; `--wf=nemo` alone is not enough.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_he_hf.in)
+
+dft
+    xc       hf
+    k        7
+    maxiter  10
+    econv    1e-5
+    dconv    1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end

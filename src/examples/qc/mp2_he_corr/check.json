@@ -1,0 +1,11 @@
+{
+  "description": "MP2 correlation energy for helium",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 1, "mp2_correlation_energy"], "tol": 1e-4},
+    {"key": ["tasks", 1, "mp2_total_energy"], "tol": 1e-4},
+    {"key": ["tasks", 1, "correlation_energy"], "tol": 1e-4},
+    {"key": ["tasks", 1, "nfreeze"], "tol": 0},
+    {"key": ["tasks", 1, "model"], "tol": 0}
+  ]
+}

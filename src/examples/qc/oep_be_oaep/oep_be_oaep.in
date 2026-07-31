@@ -1,0 +1,30 @@
+# Optimized effective potential (OAEP model) for beryllium.
+#
+# The OEP workflow runs the HF reference first, then constructs the local
+# potential whose Kohn-Sham orbitals reproduce the HF density. tasks[1] carries
+# the OEP diagnostics: drho (density difference from the reference), the
+# virial-based exchange energies Ex_vir / Ex_conv, and devir14 / devir17.
+#
+# `oep_maxiter 3` truncates the potential iteration to keep the case affordable;
+# the diagnostics are meaningful but not converged. Fixed `k` -- the OEP step,
+# like the correlated ones, takes the reference at a single resolution.
+#
+# Run:   ./run.sh          (or: madqc --wf=oep oep_be_oaep.in)
+
+dft
+    xc       hf
+    k        7
+    maxiter  3
+    econv    1e-4
+    dconv    1e-3
+end
+
+oep
+    model        oaep
+    oep_maxiter  3
+end
+
+molecule
+    units   atomic
+    Be  0.0  0.0  0.0
+end

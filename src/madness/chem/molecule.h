@@ -144,7 +144,12 @@ class Molecule {
     GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
-        read_input_and_commandline_options(world, parser, "geometry");
+        // read the data group the input file actually uses, then apply
+        // `--geometry=...`/`--molecule=...` overrides for the other spelling
+        // as well (a no-op if that key is absent)
+        const std::string tag = input_tag(parser);
+        read_input_and_commandline_options(world, parser, tag);
+        read_commandline_options(world, parser, tag == "geometry" ? "molecule" : "geometry");
         set_derived_values(parser);
 
       } catch (std::exception &e) {
@@ -168,11 +173,9 @@ class Molecule {
       initialize<std::string>("units", "atomic", "coordinate units", {"atomic", "angstrom", "bohr", "au"});
       initialize<std::vector<double>>("field", {0.0, 0.0, 0.0}, "external electric field");
       initialize<bool>("no_orient", false,
-                       "if true the molecule coordinates will not be "
-                       "reoriented and/or symmetrized");
+                       "if true the coordinates will not be reoriented and/or symmetrized");
       initialize<double>("symtol", -1.e-2,
-                         "distance threshold for determining the "
-                         "symmetry-equivalent atoms; negative: old algorithm");
+                         "distance threshold");
 
       initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
       initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
@@ -180,14 +183,33 @@ class Molecule {
     }
 
     std::string get_tag() const override {
-      return std::string("geometry");
+      return std::string("molecule");
+    }
+
+    /// source_name is a path (xyz file / input file) -- never case-fold it
+    std::set<std::string> case_sensitive_keys() const override {
+      return {"source_name"};
     }
 
     void set_global_convenience_options(const commandlineparser &parser) {
-      if (parser.key_exists("geometry")) {
-        set_user_defined_value("source_name", parser.value("geometry"));
+      // `--geometry=<name>` is the documented spelling (see the help text of
+      // moldft/nemo/cc2/madqc); `--molecule=<name>` is accepted as an alias.
+      // value_raw, not value: this may be a path, and paths are case-sensitive.
+      for (const std::string &key : {"geometry", "molecule"}) {
+        if (parser.key_exists(key)) {
+          set_user_defined_value("source_name", parser.value_raw(key));
+        }
       }
     }
+
+    /// name of the data group carrying the geometry in the input file
+
+    /// The group is spelled `geometry` (canonical -- the moldft/nemo/cc2 decks)
+    /// or `molecule` (alias -- the madqc decks and the structure library).
+    /// Returns whichever the input file contains, preferring the canonical name
+    /// and falling back to it when the file has neither (or does not exist), so
+    /// that the missing-data-group diagnostic names the documented spelling.
+    static std::string input_tag(const commandlineparser &parser);
 
     void set_derived_values(const commandlineparser &parser) {
       // check if we use an xyz file, the structure library or the input file
@@ -248,9 +270,29 @@ class Molecule {
       //                }
       //            }
 
+      // Resolve a relative xyz path to an absolute one *now*, while the process
+      // is still in the directory the user invoked it from: madqc chdir's into a
+      // per-task run directory before the task re-reads its geometry, and it
+      // propagates source_name through the deck it writes there, so a relative
+      // path would then resolve against the task directory and not be found.
+      // Only "xyz" is rewritten -- for "inputfile" the name must keep comparing
+      // equal to parser.value("input") in derive_source_type_from_name(), and
+      // "library" names are not paths.
+      if (source_type() == "xyz") {
+        const std::string abs = absolute_path(source_name());
+        if (abs != source_name()) set_user_defined_value("source_name", abs);
+      }
+
       if (source_type() == "xyz") set_derived_value("units", std::string("angstrom"));
       if (units() == "bohr" or units() == "au") set_derived_value("units", std::string("atomic"));
     }
+
+    /// make a relative path absolute, relative to the current working directory
+
+    /// Returns \p path unchanged if it is already absolute or cannot be resolved
+    /// here -- the reader then reports the name as given, which is the more
+    /// useful diagnostic.
+    static std::string absolute_path(const std::string &path);
 
     std::string source_type() const { return get<std::string>("source_type"); }
     std::string source_name() const { return get<std::string>("source_name"); }

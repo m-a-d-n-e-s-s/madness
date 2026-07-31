@@ -1428,6 +1428,8 @@ namespace madness {
             /// \return A const reference to the result future.
             const Future<bool>& result() const { return completion_status_; }
 
+            using TaskInterface::run;
+
             /// Task run work.
 
             /// Sets the result future based on the status of all iterations.
@@ -1496,6 +1498,8 @@ namespace madness {
 
             /// Virtual destructor.
             virtual ~ForEachTask() = default;
+
+            using TaskInterface::run;
 
             /// Run the task.
 
@@ -1583,6 +1587,8 @@ namespace madness {
                 status_ += status;
                 DependencyInterface::notify();
             }
+
+            using TaskInterface::run;
 
             /// Task run work.
 

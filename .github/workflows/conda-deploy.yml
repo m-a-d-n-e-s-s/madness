@@ -81,7 +81,7 @@ jobs:
       env:
         MPI_VARIANT: ${{ matrix.mpi }}
       run: |
-        conda build conda-recipe/ \
+        conda-build conda-recipe/ \
           --no-anaconda-upload \
           --output-folder "${{ github.workspace }}/conda-dist/"
 

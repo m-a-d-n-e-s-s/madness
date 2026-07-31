@@ -173,10 +173,11 @@ void test(World &world) {
     out.close();
     // fun.print_tree();
   }
-
+  world.gop.fence();
   {
     std::ifstream in("fun.dat", std::ios::in);
     functionT fun2 = read_function<dataT, D>(world, in);
+    world.gop.fence();
     double norm = fun2.norm2();
     if (world.rank() == 0)
       std::cout << "norm = " << norm << std::endl;

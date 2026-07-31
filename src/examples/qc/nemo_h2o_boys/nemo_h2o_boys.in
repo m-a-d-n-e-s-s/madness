@@ -1,0 +1,30 @@
+# Water with regularized (nemo) orbitals, localization scheme `boys`.
+#
+# One of three cases -- nemo_h2o_canon / nemo_h2o_boys / nemo_h2o_new -- that run
+# the same molecule through the three `localize` settings. Localization is a
+# unitary rotation among occupied orbitals, so the TOTAL ENERGY MUST BE THE SAME
+# in all three; that invariance is what these cases exist to protect. The orbital
+# eigenvalues are not invariant (for a localized set they are diagonal Fock
+# elements, not eigenvalues), so only the energy is compared across cases.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_h2o_boys.in)
+
+dft
+    xc        hf
+    k         8
+    localize  boys
+    maxiter   10
+    econv     1e-5
+    dconv     1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    O   0.0             0.0             0.0
+    H   0.0             1.421178283    -1.064386617
+    H   0.0            -1.421178283    -1.064386617
+end

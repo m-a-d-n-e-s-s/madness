@@ -1,0 +1,204 @@
+{
+    "io": {
+        "backend": "native",
+        "hdf5_compiled": false
+    },
+    "tasks": [
+        {
+            "convergence": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "convergence_info": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "metadata": {
+                "mpi_size": 1
+            },
+            "model": "scf",
+            "molecule": {
+                "geometry": null,
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 0.0001,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "tbd",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": null
+            },
+            "optimization_results": {
+                "final_energy": 0.0,
+                "final_geometry": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "max_gradient": 0.0,
+                "max_step": 0.0,
+                "nsteps": 0
+            },
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        3.133934185589667e-08,
+                        1.750768750566011e-10,
+                        -0.7616551741452142
+                    ]
+                },
+                "energy": -76.068170696752,
+                "gradient": {
+                    "dims": [
+                        9
+                    ],
+                    "ndim": 1,
+                    "size": 9,
+                    "vals": [
+                        1.6002420011318463e-07,
+                        -2.8970958965146565e-10,
+                        -0.0028614239294380006,
+                        4.6920249907600464e-09,
+                        0.00010188818983714043,
+                        -3.19667093975351e-05,
+                        5.14299647313976e-09,
+                        -0.0001018881729022425,
+                        -3.196663542248679e-05
+                    ]
+                }
+            },
+            "scf": {
+                "is_opt": false,
+                "model": "scf",
+                "molecule": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "properties": {
+                    "dipole": {
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            3.133934185589667e-08,
+                            1.750768750566011e-10,
+                            -0.7616551741452142
+                        ]
+                    },
+                    "energy": -76.068170696752,
+                    "gradient": {
+                        "dims": [
+                            9
+                        ],
+                        "ndim": 1,
+                        "size": 9,
+                        "vals": [
+                            1.6002420011318463e-07,
+                            -2.8970958965146565e-10,
+                            -0.0028614239294380006,
+                            4.6920249907600464e-09,
+                            0.00010188818983714043,
+                            -3.19667093975351e-05,
+                            5.14299647313976e-09,
+                            -0.0001018881729022425,
+                            -3.196663542248679e-05
+                        ]
+                    }
+                },
+                "scf_eigenvalues_a": {
+                    "dims": [
+                        5
+                    ],
+                    "ndim": 1,
+                    "size": 5,
+                    "vals": [
+                        -20.55461260737046,
+                        -1.0155393090921754,
+                        -1.0155393071139094,
+                        -0.6508237912808945,
+                        -0.5114346819915134
+                    ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_fock_a": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_total_energy": -76.068170696752
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    5
+                ],
+                "ndim": 1,
+                "size": 5,
+                "vals": [
+                    -20.55461260737046,
+                    -1.0155393090921754,
+                    -1.0155393071139094,
+                    -0.6508237912808945,
+                    -0.5114346819915134
+                ]
+            },
+            "scf_eigenvalues_b": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": -76.068170696752
+        }
+    ]
+}

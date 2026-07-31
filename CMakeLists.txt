@@ -48,6 +48,7 @@ include(AddMADExecutable)
 include(AddUnittests)
 include(AddMPITests)
 include(AddScriptedTests)
+include(AddQCTests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -717,8 +718,16 @@ if(BUILD_TESTING)
   include(FindOrFetchGTest)  # provides the MADgtest target (discover-or-fetch)
   add_custom_target_subproject(madness unittests)
   add_custom_target_subproject(madness scripted_tests)
+  # the qctest cases in src/examples/qc are driven by bin/run_qctest.py; a build
+  # without ENABLE_PYTHON has not looked for an interpreter yet (see
+  # external/pybind11.cmake), so ask for one here -- QUIET, since the cases are
+  # simply not registered without it
+  find_package(Python3 COMPONENTS Interpreter QUIET)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_custom_target_subproject(madness check-short COMMAND ${CMAKE_CTEST_COMMAND} -L \"short|medium\" -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
+  # quantum-chemistry example decks only (src/examples/qc); tiers still apply, so
+  # short/medium cases are additionally covered by check-short above
+  add_custom_target_subproject(madness check-qctest COMMAND ${CMAKE_CTEST_COMMAND} -L qctest -V USES_TERMINAL)
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)

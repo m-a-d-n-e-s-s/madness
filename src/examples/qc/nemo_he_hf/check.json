@@ -1,0 +1,9 @@
+{
+  "description": "Hartree-Fock on helium with regularized (nemo) orbitals",
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-4},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-4},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

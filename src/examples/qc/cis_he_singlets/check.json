@@ -1,0 +1,11 @@
+{
+  "description": "CIS excited states of helium; two excitations, one dark one bright",
+  "checks": [
+    {"key": ["tasks", 1, "excitations", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "excitations", 0, "irrep"], "tol": 0},
+    {"key": ["tasks", 1, "excitations", 1, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "excitations", 1, "irrep"], "tol": 0},
+    {"key": ["tasks", 1, "excitations", 1, "oscillator_strength_length"], "tol": 1e-4},
+    {"key": ["tasks", 1, "model"], "tol": 0}
+  ]
+}

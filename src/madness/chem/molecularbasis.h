@@ -560,7 +560,7 @@ public:
 
     /// Returns the atomic alpha eigenvectors for atom iat
     const Tensor<double>& get_avec(const Molecule& molecule, size_t iat) const {
-      MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
+      MADNESS_ASSERT(iat<molecule.natom());
       const Atom& atom = molecule.get_atom(iat);
       const int atn = atom.atomic_number;
       MADNESS_ASSERT(is_supported(atn));
@@ -569,7 +569,7 @@ public:
 
     /// Returns the atomic alpha eigenvalues for atom iat
     const Tensor<double>& get_aeps(const Molecule& molecule, size_t iat) const {
-      MADNESS_ASSERT(iat>=0 && iat<molecule.natom());
+      MADNESS_ASSERT(iat<molecule.natom());
       const Atom& atom = molecule.get_atom(iat);
       const int atn = atom.atomic_number;
       MADNESS_ASSERT(is_supported(atn));
@@ -578,7 +578,6 @@ public:
 
     /// Returns the number of the atom the ibf'th basis function is on
     int basisfn_to_atom(const Molecule& molecule, size_t ibf) const {
-        MADNESS_ASSERT(ibf >= 0);
         size_t n = 0;
         for (size_t i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?
@@ -598,7 +597,6 @@ public:
 
     /// Returns the ibf'th atomic basis function
     AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, size_t ibf) const {
-        MADNESS_ASSERT(ibf >= 0);
         size_t n = 0;
         for (size_t i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?

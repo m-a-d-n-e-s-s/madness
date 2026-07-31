@@ -34,8 +34,13 @@
 #define MADNESS_MRA_IBDEUX_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <limits>
 #include <map>
 #include <queue>
+#include <string>
 #include <madness/world/atomicint.h>
 #include <madness/world/worlddc.h>
 
@@ -304,6 +309,71 @@ namespace madness {
                     }
                 }
             }
+        }
+
+        /// Per-rank cost bar chart under the given pmap.
+        ///
+        /// Walks the aggregator tree locally; each entry with total_cost >= 0
+        /// contributes its total_cost to bucket pmap->owner(key). Buckets are
+        /// summed across ranks and rank 0 prints a horizontal bar chart with
+        /// total/avg/max/avg/max/min ratios.
+        ///
+        /// Call BEFORE load_balance() with the old pmap to see the per-key
+        /// distribution that the partitioner is about to act on; call AFTER
+        /// with the returned pmap to see how the bin-packed subtrees fell out.
+        /// Both invocations sum to the same total work, so the bars are
+        /// directly comparable.
+        void print_cost_per_rank(const std::string& label,
+                                 const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
+                                 std::ostream& os = std::cout) {
+            const int nproc = world.size();
+            std::vector<double> cost(nproc, 0.0);
+
+            const_iteratorT end = tree.end();
+            for (const_iteratorT it = tree.begin(); it != end; ++it) {
+                double c = it->second.get_total_cost();
+                if (c < 0.0) continue;
+                cost[pmap->owner(it->first)] += c;
+            }
+            world.gop.sum(cost.data(), nproc);
+            world.gop.fence();
+            if (world.rank() != 0) return;
+
+            double total = 0.0;
+            double mx = 0.0;
+            double mn = std::numeric_limits<double>::max();
+            for (double c : cost) {
+                total += c;
+                if (c > mx) mx = c;
+                if (c < mn) mn = c;
+            }
+            const double avg = (nproc > 0) ? total / nproc : 0.0;
+            const int barwidth = 40;
+
+            std::ios::fmtflags saved_flags = os.flags();
+            std::streamsize saved_prec = os.precision();
+
+            os << "=== Load balance summary: " << label << " ===\n";
+            os << std::fixed << std::setprecision(2)
+               << "  total=" << total
+               << "  avg=" << avg
+               << "  max/avg=" << (avg > 0.0 ? mx / avg : 0.0);
+            if (mn > 0.0) os << "  max/min=" << mx / mn;
+            os << "\n";
+            for (int p = 0; p < nproc; ++p) {
+                int n = (mx > 0.0) ? static_cast<int>(std::lround(barwidth * cost[p] / mx)) : 0;
+                if (n < 0) n = 0;
+                if (n > barwidth) n = barwidth;
+                os << "  rank " << std::setw(3) << p << " |"
+                   << std::string(n, '#')
+                   << std::string(barwidth - n, ' ')
+                   << "| " << std::setw(10) << cost[p]
+                   << "  (" << (avg > 0.0 ? cost[p] / avg : 0.0) << "x avg)\n";
+            }
+            os << "================================" << std::endl;
+
+            os.flags(saved_flags);
+            os.precision(saved_prec);
         }
 
         struct CostPerProc {

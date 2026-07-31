@@ -56,13 +56,13 @@ set(MADCHEM_HEADERS
     ParameterManager.hpp
     ResponseParameters.hpp
     PathManager.hpp
-    MolresponseLib.hpp
     Applications.hpp
     Drivers.hpp
+    ResultsSummary.hpp
+    VizManifest.hpp
     SCFTargetAdapter.hpp
     InputWriter.hpp
     CCLib.hpp
-    MoldftLib.hpp
     projector.h
     Results.h
     QCPropertyInterface.h

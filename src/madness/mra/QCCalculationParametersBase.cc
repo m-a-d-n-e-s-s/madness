@@ -15,6 +15,16 @@
 
 namespace madness {
 
+namespace {
+bool is_missing_datagroup_exception(const std::exception& ex) {
+    constexpr const char* kPrefix = "position_stream: failed to locate ";
+    const char* what = ex.what();
+    if (what == nullptr) return false;
+    const std::string message(what);
+    return message.rfind(kPrefix, 0) == 0;
+}
+} // namespace
+
 
 
 
@@ -84,9 +94,20 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
             errmsg=e.what();
             throw;
         } catch (std::exception& e) {
-            std::stringstream ss;
-            ss << "could not read data group >>" << tag << "<< in file " << filename;
-            errmsg=ss.str();
+            const bool is_missing_group = is_missing_datagroup_exception(e);
+            if (is_missing_group && !throw_if_datagroup_not_found) {
+                // Missing groups are optional for multi-workflow inputs.
+                // Keep defaults silently unless this parameter group is required.
+            } else if (is_missing_group) {
+                std::stringstream ss;
+                ss << "could not read data group >>" << tag << "<< in file " << filename;
+                errmsg=ss.str();
+            } else {
+                std::stringstream ss;
+                ss << "error while reading data group >>" << tag << "<< in file "
+                   << filename << ": " << e.what();
+                errmsg=ss.str();
+            }
         }
     }
 	world.gop.broadcast_serializable(*this, 0);
@@ -127,6 +148,11 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 	// read input lines
 	while (std::getline(f,line)) {
 
+		// keep an original-case copy: values of case_sensitive_keys() (paths and
+		// other free-form identifiers) must not be folded, or a deck cannot
+		// round-trip them -- see case_sensitive_keys()
+		std::string line_raw = line;
+
 		// all in lower case
 		std::transform(line.begin(), line.end(), line.begin(), ::tolower);
 
@@ -134,6 +160,9 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 		std::size_t last = line.find_first_of('#');
 		line=line.substr(0,last);
         std::replace_copy(line.begin(), line.end(), line.begin(),'=', ' ');
+
+		line_raw=line_raw.substr(0,line_raw.find_first_of('#'));
+        std::replace_copy(line_raw.begin(), line_raw.end(), line_raw.begin(),'=', ' ');
 
 		std::stringstream sline(line);
 
@@ -160,7 +189,10 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 		}
 
 		std::string word,line1;
-		while (sline >> word) {line1+=word+" ";}
+		// for case-sensitive keys take the value from the original-case line
+		std::stringstream svalues(keeps_case(key) ? line_raw : line);
+		svalues >> word;                       // drop the key
+		while (svalues >> word) {line1+=word+" ";}
 		// trim result
 		last = line1.find_last_not_of(' ');
 		line1=line1.substr(0, last+1);

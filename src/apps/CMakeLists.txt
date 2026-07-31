@@ -5,9 +5,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(plot)
 add_subdirectory(tdse)
 add_subdirectory(moldft)
-#add_subdirectory(molresponse)
-add_subdirectory(molresponse_v2)
-add_subdirectory(madqc_v2)
+# molresponse v1, the frozen legacy baseline, and the v2 engine were REMOVED
+# (M1: v3 is standalone; parity + full-tensor Raman references archived in
+# madness_studies/refs/parity_baseline_v2 before deletion).
+add_subdirectory(molresponse)
+add_subdirectory(madqc)
 add_subdirectory(pno)
 add_subdirectory(nemo)
 add_subdirectory(cis)

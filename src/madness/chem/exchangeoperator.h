@@ -111,6 +111,10 @@ public:
 
     ExchangeImpl& set_macro_task_info(const std::vector<std::string>& info) {
         macro_task_info.from_vector_of_strings(info);
+        if (world.rank() == 0 && printdebug()) {
+            print("set macrotaskinfo to");
+            print(macro_task_info);
+        }
         return *this;
     }
 
@@ -576,38 +580,36 @@ private:
                             total_fetch_spawn_time += (t2 - t0);
                         }
 
-                        if (itile>=0) {
-                            double t0=cpu_time();
-                            fetching_world->gop.set_forbid_fence(true);
-                            if (itile<tiles.size()-1) {
-                                // fetch data into fetching_world while computing in executing_world
-                                print("fetching tile",tiles[itile+1].ilo,"into world",fetching_world->id()," at time ",wall_time());
-                                std::tie(tmp_mo_bra2,tmp_mo_ket2)=fetch_data(*fetching_world,tiles[itile+1]);
-                            }
-                            fetching_world->gop.set_forbid_fence(false);
-                            double t2=cpu_time();
-                            // uncomment the next line to enforce that fetching is finished before executing
-                            // fetching_world->gop.fence();
-                            double t1=cpu_time();
-                            total_fetch_time += (t1 - t0);
-                            total_fetch_spawn_time += (t2 - t0);
-
-                            print("executing tile",tile.ilo,"in world",executing_world->id());
-                            double dpu0=cpu_time();
-                            Kf[0]+=execute(*executing_world,poisson1,phi1,tmp_mo_bra1,tmp_mo_ket1);
-                            double dpu1=cpu_time();
-                            print("time to execute tile",tile.ilo,"in world",executing_world->id(),dpu1-dpu0,"seconds");
-                            total_execution_time += dpu1-dpu0;
-
-                            fetching_world->gop.fence();
-
-                            // change roles of the two worlds
-                            std::swap(poisson1,poisson2);
-                            std::swap(phi1,phi2);
-                            std::swap(tmp_mo_bra2,tmp_mo_bra1);
-                            std::swap(tmp_mo_ket2,tmp_mo_ket1);
-                            std::swap(executing_world,fetching_world);
+                        double t0=cpu_time();
+                        fetching_world->gop.set_forbid_fence(true);
+                        if (itile<tiles.size()-1) {
+                            // fetch data into fetching_world while computing in executing_world
+                            print("fetching tile",tiles[itile+1].ilo,"into world",fetching_world->id()," at time ",wall_time());
+                            std::tie(tmp_mo_bra2,tmp_mo_ket2)=fetch_data(*fetching_world,tiles[itile+1]);
                         }
+                        fetching_world->gop.set_forbid_fence(false);
+                        double t2=cpu_time();
+                        // uncomment the next line to enforce that fetching is finished before executing
+                        // fetching_world->gop.fence();
+                        double t1=cpu_time();
+                        total_fetch_time += (t1 - t0);
+                        total_fetch_spawn_time += (t2 - t0);
+
+                        print("executing tile",tile.ilo,"in world",executing_world->id());
+                        double dpu0=cpu_time();
+                        Kf[0]+=execute(*executing_world,poisson1,phi1,tmp_mo_bra1,tmp_mo_ket1);
+                        double dpu1=cpu_time();
+                        print("time to execute tile",tile.ilo,"in world",executing_world->id(),dpu1-dpu0,"seconds");
+                        total_execution_time += dpu1-dpu0;
+
+                        fetching_world->gop.fence();
+
+                        // change roles of the two worlds
+                        std::swap(poisson1,poisson2);
+                        std::swap(phi1,phi2);
+                        std::swap(tmp_mo_bra2,tmp_mo_bra1);
+                        std::swap(tmp_mo_ket2,tmp_mo_ket1);
+                        std::swap(executing_world,fetching_world);
                     }
                 } // objects living in the two worlds must be destroyed before the worlds are freed
 
