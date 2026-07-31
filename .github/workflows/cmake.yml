@@ -44,7 +44,7 @@ jobs:
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
         -DCMAKE_PREFIX_PATH="/usr/local/opt/bison;/usr/local/opt/libxc"
         -DBUILD_SHARED_LIBS=OFF
-        -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
+        -DMPIEXEC_PREFLAGS='--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMPI_CXX_SKIP_MPICXX=ON
