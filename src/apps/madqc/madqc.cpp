@@ -259,6 +259,18 @@ int main(int argc, char **argv) {
                         {{"backend", "native"}, {"hdf5_compiled", false}});
 #endif
 
+      // Echo the effective input of the whole run before any work starts: the
+      // molecule, then each driver's own parameter group. This is the only
+      // record of what was actually computed (defaults and derived values
+      // included) for a run whose deck sets just a handful of keys.
+      if (world.rank() == 0) {
+        print_header1("Calculation parameters");
+        pm.get<Molecule>().print();
+        wf.print_parameters(world);
+        print("");
+        print_header1("Starting calculations");
+      }
+
       std::string prefix = pm.prefix();
       wf.run(prefix);
 

@@ -142,11 +142,22 @@ public:
   }
 
   // print parameters
+  /// Print the *effective* parameters of this step (user-defined, derived and
+  /// default values, as annotated by QCCalculationParametersBase::print), not
+  /// the static template of available keys — Library::print_parameters() is the
+  /// latter and is what `--print_parameters=<group>` is for.
   void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      std::cout << "SCF Parameters:" << std::endl;
+    if (world.rank() != 0)
+      return;
+    if constexpr (std::is_same_v<Calc, SCF>) {
+      params_.get<CalculationParameters>().print(
+          CalculationParameters::tag, "end");
+    } else {
+      // Nemo-based engines carry an additional nemo block inside dft
+      params_.get<CalculationParameters>().print(CalculationParameters::tag);
+      params_.get<Nemo::NemoCalculationParameters>().print();
+      print("end");
     }
-    lib_.print_parameters();
   }
 
   // sets the calc working directory and runs the calculation
@@ -395,10 +406,8 @@ public:
 
   // print parameters
   void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      std::cout << "Response Parameters:" << std::endl;
-      params_.get<ResponseParameters>().print("response");
-    }
+    if (world.rank() == 0)
+      params_.get<ResponseParameters>().print(ResponseParameters::tag, "end");
   }
 
   /// Prefer the ground-state reference published by the upstream SCF step over
@@ -458,9 +467,8 @@ public:
 
   // print_parameters
   void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      std::cout << "CC2 Parameters:" << std::endl;
-    }
+    if (world.rank() == 0)
+      params_.get<CCParameters>().print(CCParameters::tag, "end");
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -521,9 +529,8 @@ public:
 
   // print_parameters
   void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      std::cout << "TDHF Parameters:" << std::endl;
-    }
+    if (world.rank() == 0)
+      params_.get<TDHFParameters>().print(TDHFParameters::tag, "end");
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -599,9 +606,8 @@ public:
 
   // print_parameters
   void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      std::cout << "OEP Parameters:" << std::endl;
-    }
+    if (world.rank() == 0)
+      params_.get<OEP_Parameters>().print(OEP_Parameters::tag, "end");
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -851,9 +857,9 @@ struct moldft_lib {
       print(" MADNESS Hartree-Fock and Density Functional Theory Program");
       print(" ----------------------------------------------------------\n");
       print("\n");
-      //   scf->molecule.print();
+      scf->molecule.print();
       print("\n");
-      //    scf->param.print("dft");
+      scf->param.print(CalculationParameters::tag);
     }
     // Come up with an initial OK data map
     if (world.size() > 1) {

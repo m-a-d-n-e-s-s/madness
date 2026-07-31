@@ -110,7 +110,6 @@ template <typename... Groups> class ParameterManager {
   std::tuple<Groups...> groups_;
   commandlineparser parser_;
   nlohmann::json all_input_json_;
-  std::string prefix_;
 
   World &world_;
 
@@ -138,13 +137,6 @@ public:
     std::string inputfile = parser.value("input");
     std::string prefix_from_input = commandlineparser::remove_extension(
         commandlineparser::base_name(inputfile));
-    if (user_defined_prefix) {
-      prefix_ = parser_.value("prefix");
-    } else if (prefix_from_input != "input") {
-      prefix_ = prefix_from_input;
-    } else {
-      prefix_ = parser_.value("prefix");
-    }
 
     const path &filename = parser_.value("input");
 
@@ -156,9 +148,22 @@ public:
       // plain-text file
       initFromText(filename);
     }
+
+    // Prefix precedence, highest first: --prefix on the command line, then a
+    // `prefix` in the deck's dft block, then the input file's base name, then
+    // the "mad" default. This must be layered in AFTER the deck is parsed:
+    // set_derived_value does not override an already-defined value, so a
+    // deck-level prefix survives while the file-name fallback still applies
+    // when the deck is silent. CalculationParameters::prefix() is the single
+    // source of truth (see prefix() below) — computing it up front into a
+    // separate member shadowed the deck value.
+    auto &cparam = get<CalculationParameters>();
     if (user_defined_prefix) {
-      get<CalculationParameters>().set_user_defined_value("prefix", prefix_);
+      cparam.set_user_defined_value("prefix", parser_.value("prefix"));
+    } else if (prefix_from_input != "input") {
+      cparam.set_derived_value("prefix", prefix_from_input);
     }
+
     set_derived_values();
   }
 
@@ -178,7 +183,10 @@ public:
   template <typename G> const G &get() const { return std::get<G>(groups_); }
   template <typename G> G &get() { return std::get<G>(groups_); }
   template <typename G> void set(const G &g) { std::get<G>(groups_) = g; }
-  std::string prefix() const { return prefix_; }
+  /// The run-level output prefix. Delegates to CalculationParameters so a
+  /// `prefix` set in the deck (or later via set_derived_value) is honored by
+  /// everything that names files or directories from it.
+  std::string prefix() const { return get<CalculationParameters>().prefix(); }
 
   /// pretty-print everything
   void print_all() const { (print_group_if_defined<Groups>(), ...); }
