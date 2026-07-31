@@ -58,19 +58,11 @@ include(FetchContent)
 # Check compiler feature support ===============================================
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
-if (NOT(CMAKE_CXX_STANDARD EQUAL 17 OR CMAKE_CXX_STANDARD EQUAL 20))
-  message(FATAL_ERROR "C++ 2017 ISO Standard or higher is required to compile MADNESS")
-endif()
-# C++20 is only configurable via compile features with cmake 3.12 and older
-if (CMAKE_CXX_STANDARD EQUAL 20 AND CMAKE_VERSION VERSION_LESS 3.12.0)
-  message(FATAL_ERROR "C++ 2020 ISO Standard requires CMake version 3.12 or higher")
-endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if (CMAKE_CXX_STANDARD LESS 17)
+  message(FATAL_ERROR "MADNESS requires C++17 or later (CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}; pass -DCMAKE_CXX_STANDARD=17)")
+endif()
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO Standard version")
-
-# workaround for cmake bug: CheckCXXSourceCompiles does not respect CXX_STANDARD
-# see https://github.com/OPM/opm-common/blob/master/cmake/Modules/FindCXX11Features.cmake
-add_options(CXX ALL_BUILDS ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
 include(GNUInstallDirs)
