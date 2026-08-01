@@ -690,6 +690,16 @@ void SCF::make_smoothed_nuclear_potential(World& world) {
     START_TIMER(world);
     potentialmanager->make_smoothed_nuclear_potential(world);
     potentialmanager->unuclear().print_size("unuc");
+
+    // Diagnostics for the smoothed density.  These depend only on the molecule, the
+    // exponent a and the current protocol level -- NOT on the electronic density -- so
+    // they are computed once here rather than in every SCF iteration.  In particular
+    // <s;G s> costs a full Coulomb convolution of a very sharply peaked function, which
+    // is the single most expensive piece of the smoothed-Coulomb machinery.
+    const real_function_3d& sdens = potentialmanager->smooth_density();
+    smoothed_strace = sdens.trace();
+    smoothed_ss_projected = inner(sdens, potentialmanager->unuclear());
+    smoothed_ss_numeric = inner(sdens, apply(*coulop, sdens));
     END_TIMER(world, "Project unuclear");
 }
 
@@ -2959,25 +2969,32 @@ void SCF::solve(World& world) {
         functionT unuc = potentialmanager->unuclear();
         functionT sdens = potentialmanager->smooth_density();
 
-        // s + e, a locally charge-neutral density
-        functionT spe = sdens - rho;
-        auto Gspe = apply(*coulop, spe);
-
-        // 1/2 <s+e; s+e>
-        double e_approx = 0.5 * inner(spe, Gspe);
-        // <n-s; e> -- short ranged, one localized contribution per atom
-        double e_n_corr = inner(vnuc+unuc, rho);
+        // s + e, a locally charge-neutral density.  One convolution; the intermediates are
+        // released immediately because sdens is sharply peaked (width ~1/sqrt(2a)) and its
+        // tree is correspondingly deep.
+        double e_approx, e_n_corr;
+        {
+            functionT spe = sdens - rho;
+            functionT Gspe = apply(*coulop, spe);
+            // 1/2 <s+e; s+e>
+            e_approx = 0.5 * inner(spe, Gspe);
+            spe.clear(false);
+            Gspe.clear(false);
+            // <n-s; e> -- short ranged, one localized contribution per atom
+            e_n_corr = inner(vnuc+unuc, rho);
+        }
         // -sqrt(a/2pi) sum_i Z_i^2, the Gaussian self-interaction removed from 1/2<s;s>
         double nrep_corr = molecule.nuclear_repulsion_correction();
 
         double e_total = e_approx + e_n_corr - nrep_corr;
 
-        // Diagnostics.  <s;s> has a closed form (eq. 19+22), so comparing the analytic
-        // value against the numerically convolved one is an exact, reference-free measure
-        // of the combined projection + convolution error.
-        double strace = sdens.trace();
-        double s_s_projected = inner(sdens, unuc);                  // <s; u(r;s)>, u projected
-        double s_s_numeric = inner(sdens, apply(*coulop, sdens));   // <s; G s>,    u convolved
+        // Diagnostics, computed once per protocol level in make_smoothed_nuclear_potential().
+        // <s;s> has a closed form (eq. 19+22), so comparing the projected-analytic value
+        // against the numerically convolved one is an exact, reference-free measure of the
+        // combined projection + convolution error.
+        const double strace = smoothed_strace;
+        const double s_s_projected = smoothed_ss_projected;
+        const double s_s_numeric = smoothed_ss_numeric;
         END_TIMER(world, "E_approx");
 
         if (world.rank() == 0 and (param.print_level() > 1)) {

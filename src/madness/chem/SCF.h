@@ -224,7 +224,11 @@ public:
     /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
 
-    real_function_3d sdens;
+    /// smoothed-nuclear-density diagnostics, computed once per protocol level in
+    /// make_smoothed_nuclear_potential() because they do not depend on the electron density
+    double smoothed_strace = 0.0;        ///< int s = sum_i Z_i
+    double smoothed_ss_projected = 0.0;  ///< <s; u(r;s)> with u projected analytically
+    double smoothed_ss_numeric = 0.0;    ///< <s; G s>    with the potential convolved
 
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
