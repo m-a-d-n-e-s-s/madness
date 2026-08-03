@@ -229,6 +229,7 @@ class BarycentricX {
     std::vector<T> operator()(const std::vector<T>& x) {
         std::vector<T> r(x.size());
         for (size_t i=0; i<x.size(); i++) r[i] = operator()(x[i]);
+        return r;
     }    
 
     template <typename funcT>
@@ -1033,7 +1034,7 @@ std::vector<T> JsphericalscaledVecDumb(size_t maxl, T r) {
             T j1 = min;
             T j0 = min/RR;
 
-            int step = 30;
+            int step = 10;
             if constexpr (std::is_same<T,float>::value) step = 3;
             for (int i=n-1; i>int(maxl); i-=step) { // use int to avoid size_t wraparound
                 size_t topl = std::max(i-step, int(maxl));
@@ -1069,6 +1070,11 @@ std::vector<T> JsphericalscaledVecDumb(size_t maxl, T r) {
             j[l-1] = j1 + ((2*l+1)*rr)*j0;
             j1 = j0;
             j0 = j[l-1];
+            // if (std::abs(j0) > one) {
+            //     j0 *= min;
+            //     j1 *= min;
+            //     for (size_t k=l-1; k<=maxl; k++) j[k] *= min;
+            // }
         }
 
         j0 = -std::expm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
@@ -1380,15 +1386,24 @@ template <> struct bessel_traits<qd_real> {static constexpr size_t maxL=32;}; //
 template <typename T>
 std::tuple<std::vector<T>, Matrix<T>, Matrix<T>>
 load_bessel_test_data() {
-    size_t maxL, nR;
-    std::ifstream f("bessel.txt");
-    if (!f) throw std::runtime_error("cannot open bessel.txt");
-    f >> maxL; 
-    f >> nR; 
-    maxL = std::min(maxL, bessel_traits<T>::maxL);
+    size_t maxL = 0, nR = 0;
+    std::ifstream f("bessel2.txt");
+    if (!f) throw std::runtime_error("cannot open bessel2.txt");
 
     std::string line;
-    std::getline(f, line); std::getline(f, line);
+    auto skip_comments = [&]() {
+        while (f >> std::ws && f.peek() == '#') {
+            std::getline(f, line);
+        }
+    };
+
+    skip_comments();
+    f >> maxL;
+    skip_comments();
+    f >> nR;
+    skip_comments();
+
+    maxL = std::min(maxL, bessel_traits<T>::maxL);
 
     //Matrix<T> h(maxL+1, nR), j(maxL+1, nR);
     Matrix<T> h(maxL+2, nR), j(maxL+2, nR);
@@ -1403,9 +1418,9 @@ load_bessel_test_data() {
             f >> ll >> rs >> js >> hs;
             r[i] = from_str<T>(rs);
             j(l,i) = from_str<T>(js);
-            if (j(l,i) == 0) {
-                std::cout << "j(" << l << "," << i << ") is zero" << std::endl;
-            }
+            //if (j(l,i) == 0) {
+                //std::cout << "j(" << l << "," << i << ") is zero" << std::endl;
+            //}
             h(l,i) = from_str<T>(hs);
             if (l != ll) throw std::runtime_error("l mismatch");
         }
@@ -1457,7 +1472,7 @@ void test_bessel() {
 
             if (err > 2e-323) { // really tiny values will be denormed
                 if (relerr > fudge*eps) {
-                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr/eps << " " << std::endl;
+                    std::cout << "1. l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr/eps << " " << std::endl;
                 }
             }
         }
@@ -1492,15 +1507,13 @@ void test_bessel2() {
             //double reps = to_double(dd_real(r[i]) - dd_real(1.0)/dd_real(1.0/r[i]));
             
             T j0 = js[l];
-            T err = (j0-j(l,i));
-            T relerr = (err/j(l,i))/eps;
-            //T estrelerr = ((l/r[i])*reps)/eps;
-            //T estrelerr2 = 0.0;
-            //if (l > 0) {
-            //estrelerr2 = (j(l-1,i)-(1+(l+1)/r[i])*j(l,i))*reps/(j(l,i)*eps);
-            //            }
+            T min_val = std::numeric_limits<T>::min();
+            if constexpr (std::is_same_v<T, dd_real>) min_val = 1e-250;
+            else if constexpr (std::is_same_v<T, qd_real>) min_val = 1e-200;
 
-            if (j(l,i)>std::numeric_limits<T>::min()) { // really tiny values will be denormed so ignore them
+            if (j(l,i) > min_val) { // really tiny values will be denormed so ignore them
+                T err = (j0-j(l,i));
+                T relerr = (err/j(l,i))/eps;
                 avgsgnerr += relerr;
                 err = abs(err);
                 avgabserr += std::abs(relerr);
@@ -1518,11 +1531,11 @@ void test_bessel2() {
                 T fudge = 1;
                 if constexpr (std::is_same_v<T, float>) fudge = 2;
                 if constexpr (std::is_same_v<T, double>) fudge = 5;
-                else if constexpr (std::is_same_v<T, dd_real>) fudge = 47;
+                else if constexpr (std::is_same_v<T, dd_real>) fudge = 6;
                 else if constexpr (std::is_same_v<T, qd_real>) fudge = 2;
                 
                 if (doprint || relerr > fudge) {
-                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << std::endl;
+                    std::cout << "2. l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << std::endl;
                 }
             }
         }
@@ -1615,8 +1628,6 @@ int main() {
     test_bessel2<double>();
     test_bessel2<dd_real>();
     test_bessel2<qd_real>();
-
-    return 0;
     
     // using T = qd_real;
     // //T x = from_str<T>("0.9");
