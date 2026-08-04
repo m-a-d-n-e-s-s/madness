@@ -1138,10 +1138,23 @@ namespace madness {
     }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
+    ///
+    /// Box pairs whose estimated contribution falls below the tolerance are skipped instead
+    /// of being multiplied. Both inputs are made redundant; the screening reads their
+    /// norm_tree and dnorm_tree.
+    ///
     /// Leaves both inputs in redundant form. Function is a shallow handle, so this is visible
     /// to the caller: logically const, not bitwise const. Converting back is not free, so a
     /// caller that reuses the operands afterwards must do it itself.
     ///
+    /// @param[in] tol  target absolute accuracy of the product; the safety margin is applied
+    ///                 internally (FunctionImpl::MUL_SCREENING_SAFETY), so pass the accuracy
+    ///                 wanted, not a pre-scaled value. tol=0 multiplies exactly. The criterion
+    ///                 estimates the neglected cross terms rather than bounding them: the error
+    ///                 tracks tol up to a measured O(1-20) constant and decays as ~tol^0.75
+    ///                 rather than ~tol (see test_mul_sparse.cc). The meaning differs from the
+    ///                 earlier norm_tree-based screen, so a previously tuned value needs
+    ///                 re-checking.
     /// @param[in] do_make_redundant  if false, both inputs must already be redundant
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
@@ -1174,7 +1187,8 @@ namespace madness {
     /// \param world    the world
     /// \param f        first vector of functions
     /// \param g        second vector of functions
-    /// \param tol      threshold for multiplication
+    /// \param tol      target absolute accuracy of each product; see mul_sparse for the
+    ///                 semantics, including the internal safety margin and tol=0
     /// \param fence    force fence (will always fence if necessary)
     /// \param symm     if true, only compute f(i) * g(j) for j<=i
     /// \return         fg(i,j) = f(i) * g(j), as a vector of vectors
@@ -1221,6 +1235,8 @@ namespace madness {
     }
 
     /// Multiplies two vectors of functions q[i] = a[i] * b[i]
+
+    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,

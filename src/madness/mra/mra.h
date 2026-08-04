@@ -1921,6 +1921,8 @@ namespace madness {
 
     /// Sparse multiplication; the scalar interface redirects to the vector one in vmra.h
 
+    /// @param[in] tol  target absolute accuracy of the product; see the vector mul_sparse in
+    ///                 vmra.h for the semantics, including the internal safety margin and tol=0
     /// @param[in] do_make_redundant  if false, both inputs must already be redundant
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
@@ -1934,6 +1936,8 @@ namespace madness {
     }
 
     /// Same as \c operator* but with optional fence
+
+    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true,
