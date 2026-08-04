@@ -3010,6 +3010,17 @@ template<size_t NDIM>
             vright.reserve(vrightin.size());
             vrc.reserve(vrightin.size());
 
+            // fetched at most once and shared by every right function; do_mul only reads it
+            Tensor<L> lc_shared;
+            bool lc_shared_set = false;
+            auto left_coeffs = [&]() -> const Tensor<L>& {
+                if (!lc_shared_set) {
+                    lc_shared = lc.size() ? lc : lit->second.coeff().full_tensor_copy();
+                    lc_shared_set = true;
+                }
+                return lc_shared;
+            };
+
             for (unsigned int i=0; i<vrightin.size(); ++i) {
                 FunctionImpl<T,NDIM>* result = vresultin[i];
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
@@ -3036,10 +3047,9 @@ template<size_t NDIM>
 
                 // the neglected cross terms are below threshold: multiply here (requires redundant form)
                 if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
-                    // lc/rc must keep their size for the recursion logic, so copy into separate tensors
-                    Tensor<L> lc_data = (lc.size() == 0) ? lit->second.coeff().full_tensor_copy() : lc;
+                    // lc/rc must keep their size for the recursion logic, so pass separate tensors
                     Tensor<R> rc_data = (rc.size() == 0) ? rit->second.coeff().full_tensor_copy() : rc;
-                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc_data, std::make_pair(key,rc_data));
+                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, left_coeffs(), std::make_pair(key,rc_data));
                 }
                 else {  // Interior node
                     result->coeffs.replace(key, nodeT(coeffT(),true));
@@ -3053,10 +3063,12 @@ template<size_t NDIM>
                 Tensor<L> lss;
                 if (lc.size() || l_is_leaf) {
                     Tensor<L> ld(cdata.v2k);
-                    ld(cdata.s0) = (lc.size() ? lc : lit->second.coeff().full_tensor_copy())(___);
+                    ld(cdata.s0) = left_coeffs()(___);
                     lss = left->unfilter(ld);
                 }
 
+                // invariant across the child loop below, so look it up once per right function
+                std::vector<char> r_unfiltered(vresult.size(), 0);
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
                     riterT rit = vright[i]->coeffs.find(key).get();
@@ -3064,6 +3076,7 @@ template<size_t NDIM>
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = (vrc[i].size() ? vrc[i] : rit->second.coeff().full_tensor_copy())(___);
                         vrss[i] = vright[i]->unfilter(rd);
+                        r_unfiltered[i] = 1;
                     }
                 }
 
@@ -3078,8 +3091,7 @@ template<size_t NDIM>
 
                     std::vector< Tensor<R> > vv(vresult.size());
                     for (unsigned int i=0; i<vresult.size(); ++i) {
-                        riterT rit = vright[i]->coeffs.find(key).get();
-                        if (vrc[i].size() || !rit->second.has_children())
+                        if (r_unfiltered[i])
                             vv[i] = copy(vrss[i](cp));
                     }
 
