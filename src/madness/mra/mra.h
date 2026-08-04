@@ -134,6 +134,11 @@ namespace madness {
     /// \ingroup mra
     /// \addtogroup function
 
+    /// Header magic for Function::store/load; bump whenever FunctionNode::serialize changes.
+    ///   7776769  original (Mellow Mushroom Pizza tel.# in Knoxville, +1 for cell in header)
+    ///   7776770  FunctionNode gained _dnorm_tree
+    static constexpr long FUNCTION_ARCHIVE_MAGIC = 7776770;
+
     /// A multiresolution adaptive numerical function
     template <typename T, std::size_t NDIM>
     class Function : public archive::ParallelSerializableObject {
@@ -1596,9 +1601,11 @@ namespace madness {
             long magic = 0l, id = 0l, ndim = 0l, k = 0l;
             Tensor<double> cell;
             ar & magic & id & ndim & k & cell;
-            MADNESS_ASSERT(magic == 7776769); // Mellow Mushroom Pizza tel.# in Knoxville (+1 for cell in header)
-            MADNESS_ASSERT(id == TensorTypeData<T>::id);
-            MADNESS_ASSERT(ndim == NDIM);
+            // CHECK not ASSERT: ASSERT is compiled out when ASSERTION_TYPE=disable
+            MADNESS_CHECK_THROW(magic == FUNCTION_ARCHIVE_MAGIC,
+                "Function archive was written by an incompatible MADNESS version; regenerate it.");
+            MADNESS_CHECK(id == TensorTypeData<T>::id);
+            MADNESS_CHECK(ndim == NDIM);
 
             // if simulation cell is set it must match the cell from function on file.
             // if simulation cell is not set set it to the one found on file
@@ -1630,7 +1637,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             // For type checking, etc.
-            ar & long(7776769) & long(TensorTypeData<T>::id) & long(NDIM) & long(k()) & impl->get_cell();
+            ar & long(FUNCTION_ARCHIVE_MAGIC) & long(TensorTypeData<T>::id) & long(NDIM) & long(k()) & impl->get_cell();
 
             impl->store(ar);
         }
