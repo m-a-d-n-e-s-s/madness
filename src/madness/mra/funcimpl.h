@@ -126,6 +126,11 @@ namespace madness {
     /// criterion, so nodes carrying it are descended rather than screened.
     static constexpr double NORM_TREE_UNCOMPUTED = 1e300;
 
+    /// Safety margin on the tolerance of the screened multiplication: the criterion estimates
+    /// the neglected cross terms rather than bounding them. Tightening is cheap and buys
+    /// accuracy, hence the extra factor. Applied once, in mulXXvec.
+    static constexpr double MUL_SCREENING_SAFETY = 0.1;
+
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, std::size_t NDIM>
     class FunctionNode {
@@ -3360,7 +3365,8 @@ template<size_t NDIM>
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
             if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
+                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult,
+                          tol*MUL_SCREENING_SAFETY);
             if (fence)
                 world.gop.fence();
         }
