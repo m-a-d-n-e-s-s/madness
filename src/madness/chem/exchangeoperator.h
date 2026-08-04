@@ -315,7 +315,6 @@ private:
                                                             const vecfuncT& bra_batch,      // is batched
                                                             const vecfuncT& vf_batch        // is batched
         ) const {
-            double mul_tol = 0.0;
             double symmetric = true;
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
             return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
@@ -333,7 +332,6 @@ private:
                                                     const vecfuncT& ket_batch,
                                                     const vecfuncT& bra_batch,
                                                     const vecfuncT& vf_batch) const {
-            double mul_tol = 0.0;
             double symmetric = false;
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
             return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
@@ -418,7 +416,6 @@ private:
 
             double cpu0, cpu1;
             World& world = vket.front().world();
-            mul_tol = 0.0;
 
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size());
