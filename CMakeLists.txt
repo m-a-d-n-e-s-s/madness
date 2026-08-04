@@ -187,7 +187,7 @@ set(MADNESS_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL
     "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
-  add_definitions(-DUSE_GENTENSOR)
+  add_definitions(-DENABLE_GENTENSOR)
 endif()
 set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "enable generic tensors")
 
@@ -698,8 +698,10 @@ add_dependencies(everything madness-libraries)
 
 include_directories(${PROJECT_SOURCE_DIR}/src ${PROJECT_BINARY_DIR}/src)
 # make nlohmann/json.hpp visible to every in-tree target's sources (the MAD*-obj
-# object libraries do not inherit usage requirements through target linkage)
-include_directories($<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)
+# object libraries do not inherit usage requirements through target linkage);
+# SYSTEM so this external prefix is searched after in-tree -I paths and cannot
+# shadow bundled headers (e.g. a conda prefix that also ships gtest)
+include_directories(SYSTEM $<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>)
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE TRUE)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 include(CTest)

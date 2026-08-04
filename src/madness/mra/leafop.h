@@ -55,6 +55,81 @@ class GenTensor;
 template<typename T, std::size_t NDIM>
 class SeparatedConvolution;
 
+
+/// Abstract base for leaf_ops with the four-hook interface used by
+/// composite_product_op_NS (do_pre_screening, pre_screening,
+/// special_refinement_needed, post_screening).
+///
+/// This base is intentionally non-templated on the convolution-op type or the
+/// special-box helper, so that polymorphic dispatch is possible across all
+/// concrete leaf_ops the composite operator can take.
+///
+/// NOTE: the leaf_op concept used by `multiply`, `hartree_product`, `apply`
+/// (the *_leaf_op, op_leaf_op, hartree_leaf_op types in funcimpl.h) is a
+/// different concept — those are operator()-based callables with key/coeff
+/// signatures and are not unified here.
+template <typename T, std::size_t NDIM>
+struct LeafOpBase {
+    virtual ~LeafOpBase() = default;
+
+    /// if true, the op uses pre_screening(key) before computing coeffs.
+    virtual bool do_pre_screening() const { return false; }
+
+    /// true ⇒ the current key is already a leaf; do not refine further.
+    /// Only called when do_pre_screening() == true.
+    virtual bool pre_screening(const Key<NDIM>& /*key*/) const { return false; }
+
+    /// true ⇒ force refinement at the current key (e.g. cusp / special-box).
+    virtual bool special_refinement_needed(const Key<NDIM>& /*key*/) const { return false; }
+
+    /// true ⇒ the computed coefficients are sufficiently small/converged that
+    /// the current key can be a leaf node.
+    virtual bool post_screening(const Key<NDIM>& /*key*/,
+                                const GenTensor<T>& /*coeff*/) const { return false; }
+};
+
+
+/// Value-type adapter that satisfies the existing concept used by
+/// composite_product_op_NS (do_pre_screening, pre_screening,
+/// special_refinement_needed, post_screening, serialize) by forwarding to a
+/// LeafOpBase<T,NDIM> through a pointer.
+///
+/// Lifetime: the caller must keep the LeafOpBase alive for the duration of
+/// the composite_product / composite_inner call.  This matches MADNESS's
+/// existing convention (Leaf_op holds a raw FunctionImpl pointer the same way).
+template <typename T, std::size_t NDIM>
+struct LeafOpRef {
+    const LeafOpBase<T, NDIM>* base = nullptr;
+
+    LeafOpRef() = default;
+    explicit LeafOpRef(const LeafOpBase<T, NDIM>& b) : base(&b) {}
+    LeafOpRef(const LeafOpRef&) = default;
+    LeafOpRef& operator=(const LeafOpRef&) = default;
+
+    bool do_pre_screening() const {
+        return base ? base->do_pre_screening() : false;
+    }
+    bool pre_screening(const Key<NDIM>& key) const {
+        return base ? base->pre_screening(key) : false;
+    }
+    bool special_refinement_needed(const Key<NDIM>& key) const {
+        return base ? base->special_refinement_needed(key) : false;
+    }
+    bool post_screening(const Key<NDIM>& key, const GenTensor<T>& coeff) const {
+        return base ? base->post_screening(key, coeff) : false;
+    }
+
+    /// Pointer serialization: archive the bit pattern via uintptr_t.  This is
+    /// only meaningful for in-process tasks (the leaf_op must live in the same
+    /// address space across the task boundary), which matches the existing
+    /// MADNESS convention (Leaf_op already holds a raw FunctionImpl pointer).
+    template <typename Archive> void serialize(Archive& ar) {
+        std::uintptr_t bits = reinterpret_cast<std::uintptr_t>(base);
+        ar & bits;
+        base = reinterpret_cast<const LeafOpBase<T, NDIM>*>(bits);
+    }
+};
+
 /// helper structure for the Leaf_op
 /// The class has an operator which decides if a given key belongs to a special box (needs further refinement up to a special level)
 /// this is the default class which always gives back false
@@ -258,7 +333,7 @@ public:
 };
 
 template<typename T, std::size_t NDIM, typename opT, typename specialboxT>
-class Leaf_op {
+class Leaf_op : public LeafOpBase<T, NDIM> {
 public:
     /// the function which the operators use (in most cases this function is also the function that will be constructed)
     const FunctionImpl<T, NDIM> *f;
@@ -270,8 +345,8 @@ public:
     specialboxT specialbox;
 
     /// pre or post screening (see if this is the general_leaf_op or the leaf_op_other)
-    virtual bool
-    do_pre_screening() const {
+    bool
+    do_pre_screening() const override {
         return false;
     }
 
@@ -313,8 +388,8 @@ public:
     /// the decision if the current box  will be a leaf box is made from information of another function
     /// this is needed for on demand function
     /// not that the on-demand function that is being constructed is not the function in this class
-    virtual bool
-    pre_screening(const Key<NDIM>& key) const {
+    bool
+    pre_screening(const Key<NDIM>& key) const override {
         MADNESS_EXCEPTION("pre-screening was called for leaf_op != leaf_op_other", 1);
         return false;
     }
@@ -325,8 +400,8 @@ public:
     /// the function will use the opartor op in order to screen, if op is a NULL pointer the result is always: false
     /// @param[in] key: the key to the current box
     /// @param[in] coeff: Coefficients of the current box
-    virtual bool
-    post_screening(const Key<NDIM>& key, const GenTensor<T>& coeff) const {
+    bool
+    post_screening(const Key<NDIM>& key, const GenTensor<T>& coeff) const override {
         if (op == NULL) return false;
         if (key.level() < this->f->get_initial_level()) return false;
         sanity();
@@ -369,7 +444,7 @@ public:
     /// second check: Is the box special according to the specialbox operator (see class description of Specialbox_op)
     /// @param[in] the key of the box
     bool
-    special_refinement_needed(const Key<NDIM>& key) const {
+    special_refinement_needed(const Key<NDIM>& key) const override {
         if (key.level() > f->get_special_level()) return false;
         else if (specialbox.check_special_points(key, f)) return true;
         else if (specialbox(key, f)) return true;
@@ -397,7 +472,7 @@ class Leaf_op_other : public Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>
     /// if f at box(key) is a leaf then return true
 public:
     bool
-    do_pre_screening() const {
+    do_pre_screening() const override {
         return true;
     }
 
@@ -412,7 +487,7 @@ public:
             : Leaf_op<T, NDIM, SeparatedConvolution<double, NDIM>, Specialbox_op<T, NDIM> >(other.f) {}
 
     bool
-    pre_screening(const Key<NDIM>& key) const {
+    pre_screening(const Key<NDIM>& key) const override {
         MADNESS_ASSERT(this->f->get_coeffs().is_local(key));
         return (not this->f->get_coeffs().find(key).get()->second.has_children());
     }
@@ -424,7 +499,7 @@ public:
 
     /// this should never be called for this leaf_op since the function in this class as already constructed
     bool
-    post_screening(const Key<NDIM>& key, const GenTensor<T>& G) const {
+    post_screening(const Key<NDIM>& key, const GenTensor<T>& G) const override {
         MADNESS_EXCEPTION("post-determination was called for leaf_op_other", 1);
         return false;
     }
@@ -438,7 +513,7 @@ public:
 
     /// this should never be called for this leaf_op since the function in this class as already constructed
     bool
-    special_refinement_needed(const Key<NDIM>& key) const {
+    special_refinement_needed(const Key<NDIM>& key) const override {
         MADNESS_EXCEPTION("special_refinement_needed was called for leaf_op_other", 1);
         return false;
     }

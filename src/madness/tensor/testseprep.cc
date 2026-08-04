@@ -15,7 +15,7 @@ std::string ok(const bool b) {if (b) return "ok   "; return "fail ";};
 bool is_large(const double& val, const double& eps) {
 	return (val>eps);
 }
-#if HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
 
 int testGenTensor_ctor(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 

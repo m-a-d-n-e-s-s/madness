@@ -21,6 +21,9 @@ set(MADCHEM_HEADERS
     distpm.h
     electronic_correlation_factor.h
     ESInterface.h
+    b_matrix.h
+    exchange_commutator.h
+    operator_diagnostics.h
     exchangeoperator.h
     gaussian.h
     gth_pseudopotential.h
@@ -86,6 +89,10 @@ set(MADCHEM_SOURCES
     correlationfactor.cc
     diamagneticpotentialfactor.cc
     distpm.cc
+    b_matrix.cc
+    electronic_correlation_factor.cc
+    exchange_commutator.cc
+    operator_diagnostics.cc
     exchangeoperator.cc
     gaussian.cc
     gth_pseudopotential.cc
@@ -165,7 +172,7 @@ if(BUILD_TESTING)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc)
-  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc test_operator_diagnostics.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
@@ -179,7 +186,7 @@ if(BUILD_TESTING)
 
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
-    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator test_bmatrix)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()

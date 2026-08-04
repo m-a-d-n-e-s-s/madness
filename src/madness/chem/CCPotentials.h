@@ -321,13 +321,6 @@ public:
                               const std::vector<real_function_3d>& U1,
                               const real_function_3d& U2);
 
-    /// Static version of make_constant_part_mp2 to be called from macrotask.
-    static madness::real_function_6d
-    make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
-                                     const std::vector<real_function_3d>& mo_bra,
-                                     const CCParameters& parameters, const real_function_3d& Rsquare,
-                                     const std::vector<real_function_3d>& U1,
-                                     const std::vector<std::string> argument);
 
     /// Compute the constant part of MP2, CC2 or LR-CC2
     ///
@@ -340,18 +333,15 @@ public:
     static madness::real_function_6d
     make_constant_part_macrotask(World& world, const CCPair& pair,
                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                                 const LowRankFunction<double,6>& exchange_op,
                                  const Info& info);
 
+    /// quick 3D-only Ue / GUe / GQUe references for all pairs (no 6D work)
 
-    /// Static function to iterate the mp2 pairs from macrotask
-    static madness::real_function_6d
-    update_pair_mp2_macrotask(World& world, const CCPair& pair, const CCParameters& parameters,
-                              const std::vector<madness::Vector<double, 3>>& all_coords_vec,
-                              const std::vector<real_function_3d>& mo_ket,
-                              const std::vector<real_function_3d>& mo_bra,
-                              const std::vector<real_function_3d>& U1,
-                              const real_function_3d& U2, const real_function_6d& mp2_coupling);
-
+    /// reuses CorrelationFactor::compute_3d_references; meant to be called right
+    /// before the constant-part macrotask to compare the 3D references cheaply.
+    static void print_3d_references(World& world, const std::vector<CCPair>& pair_vec,
+                                    const Info& info);
 
     /// iterate a pair for MP2, CC2, LRCC2 on constant singles
     static CCPair iterate_pair_macrotask(World& world,
@@ -384,23 +374,13 @@ public:
     /// \f$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> \f$
     /// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
     /// @param[in] tj, second function in the ket ...
+    /// @param exchange_op
     /// @param[in] pointer to bsh operator (in order to screen)
     /// @param[out] the regularization potential (unprojected), see equation above
     std::vector<CCPairFunction<double, 6>>
     static apply_Vreg(World& world, const CCFunction<double, 3>& ti, const CCFunction<double, 3>& tj,
                       const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
-                      const Info& info, const std::vector<std::string>& argument, const double bsh_eps);
-
-    /// Static version of apply_Vreg to be used from a macrotask. Will eventually replace former.
-    madness::real_function_6d
-    static
-    apply_Vreg_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                         const std::vector<real_function_3d>& mo_bra,
-                         const CCParameters& parameters, const real_function_3d& Rsquare,
-                         const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                         const FuncType& x_type, const FuncType& y_type,
-                         const std::vector<std::string> argument,
-                         const real_convolution_6d* Gscreen = NULL);
+                      const Info& info, LowRankFunction<double, 6> exchange_op, const std::vector<std::string>& argument, const double bsh_eps);
 
     /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
     /// singles equation is: (F-ei)|ti> = - V(ti)
@@ -440,23 +420,25 @@ public:
     apply_transformed_Ue(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
                          const real_convolution_6d* Gscreen = NULL) const;
 
-    /// Static version of apply_transformed_Ue for the use in a macrotask.
-    /// Will eventually replace the former.
-    real_function_6d
-    static apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                                          const CCParameters& parameters, const real_function_3d& Rsquare,
-                                          const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
-                                          const FuncType& x_type, const FuncType& y_type,
-                                          const real_convolution_6d* Gscreen = NULL);
-
     real_function_6d
     static apply_Ue(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                     const Info& info, const real_convolution_6d* Gscreen);
 
 
+    /// return Kf12|xy>
     static real_function_6d
+    apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFunction<double,3>& y, const Info& info,
+        const CCParameters& param);
+
+    static std::vector<CCPairFunction<double, 6>>
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+               const LowRankFunction<double,6>& exchange_op,
                const Info& info, const real_convolution_6d* Gscreen);
+
+    static std::vector<CCPairFunction<double, 6>>
+    apply_f12_coupling(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
+               const Info& info, const real_convolution_6d* Gscreen);
+
     static CCPairFunction<double, 6>
     apply_commutator_F_Qt_f12(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                               const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
@@ -482,18 +464,6 @@ public:
     apply_exchange_commutator(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
                               const real_convolution_6d* Gscreen = NULL) const;
 
-    real_function_6d
-    static apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
-                                               const std::vector<real_function_3d>& mo_bra,
-                                               const real_function_3d& Rsquare,
-                                               const size_t& i, const size_t& j, const CCParameters& parameters,
-                                               const FuncType& x_type, const FuncType& y_type,
-                                               const real_convolution_6d* Gscreen = NULL);
-
-    /// This applies the exchange commutator, see apply_exchange_commutator function for information
-    real_function_6d
-    apply_exchange_commutator1(const CCFunction<double, 3>& x, const CCFunction<double, 3>& y,
-                               const real_convolution_6d* Gscreen = NULL) const;
 
     /// Helper Function which performs the operation \f$ <xy|g12f12|ab> \f$
     /// @param[in] function x, if nuclear correlation is used make sure this is the correct bra function

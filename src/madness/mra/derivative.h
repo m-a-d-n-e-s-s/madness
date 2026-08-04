@@ -405,7 +405,7 @@ namespace madness {
                        const argT& center,
                        const argT& right) const
         {
-//#if !HAVE_GENTENSOR
+//#ifndef ENABLE_GENTENSOR
 //            coeffT d = madness::inner(rp,
 //                                       df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
 //                                       1, 0);

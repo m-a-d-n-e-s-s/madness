@@ -278,9 +278,9 @@ int main(int argc, char **argv) {
       // machine-readable <prefix>.calc_info.json remains the source of truth.
       if (world.rank() == 0) {
         qcapp::write_results_summary(std::cout, wf.results());
-        std::ofstream report(prefix + ".out");
+        std::ofstream report(prefix + ".summary.out");
         qcapp::write_results_summary(report, wf.results());
-        print("Wrote results summary :", prefix + ".out");
+        print("Wrote results summary :", prefix + ".summary.out");
 
         // Index any visualization artifacts (cube/dx/line plots) the run
         // produced into <prefix>.viz_manifest.json for gecko/ParaView/VMD.

@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
 
     int result=0;
     result+=test_exchange<double>(world);
-#ifndef HAVE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
     result+=test_exchange<double_complex>(world);
 #endif
 

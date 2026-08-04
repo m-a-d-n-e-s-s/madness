@@ -44,21 +44,21 @@ struct test_output {
 
     void checkpoint(double error, double tol,
                     std::string message, double time=-1.0) {
-		checkpoint(error<tol,message,time);
+		checkpoint(error<tol,message, error);
     }
 
     void checkpoint(double value, double reference, double tol,
                     std::string message, double time=-1.0) {
         double error=fabs(value-reference);
-		checkpoint(error,tol,message,time);
+		checkpoint(error,tol,message, error);
     }
 
 	void checkpoint(int value, int reference, std::string message, double time=-1.0) {
          bool success=(value==reference);
-         checkpoint(success,message,time);
+         checkpoint(success,message);
     }
 
-    void checkpoint(bool success, std::string message, double time=-1.0) {
+    void checkpoint(bool success, std::string message, double error=-1.0) {
         bool use_logger=cout_set_to_logger;
         set_cout_to_terminal(false);
         final_success = success and final_success;
@@ -67,7 +67,7 @@ struct test_output {
 	    if (do_print) std::cout << "  " << ltrim_to_length(message,66);
         double time1=cpu_time()-time_last_checkpoint;
         time_last_checkpoint=cpu_time();
-        print_success_fail(std::cout,success,time1,-1.0);
+        print_success_fail(std::cout,success,time1,error);
         if (not success) {
             print_and_clear_log();
         }
