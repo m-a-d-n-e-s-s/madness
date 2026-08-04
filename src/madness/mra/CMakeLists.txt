@@ -8,7 +8,7 @@ set(MADMRA_HEADERS
     funcdefaults.h  key.h  mra.h  power.h  qmprop.h  twoscale.h lbdeux.h
     mraimpl.h  funcplot.h  function_common_data.h function_factory.h
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
-    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
+    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h)
 set(MADMRA_SOURCES
