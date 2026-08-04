@@ -343,7 +343,7 @@ namespace madness {
     struct WorldObjectBase {
     private:
         uniqueidT objid; ///< Unique object ID.
-
+        World& world; ///< Reference to the world to which this object belongs.
     protected:
 
         /// Construct a new WorldObjectBase.
@@ -351,7 +351,7 @@ namespace madness {
         /// \param[in] w The world to which this object belongs.
         template <typename DerivedT>
         explicit WorldObjectBase(World& w, DerivedT* this_ptr)
-        : objid(w.register_ptr(this_ptr))
+        : world(w), objid(w.register_ptr(this_ptr))
         { }
 
     public:
