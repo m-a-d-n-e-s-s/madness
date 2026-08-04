@@ -893,8 +893,12 @@ namespace madness {
         /// world.gop.fence() to assure global completion before using the function
         /// for other purposes.
         ///
-        /// Must be already compressed.
-        void make_redundant(bool fence = true) {
+        /// Since the transformation does not discard information we define this
+        /// as const ... "logical constness" not "bitwise constness".
+        ///
+        /// Note redundant form stores sum coefficients at every level, so it is larger than
+        /// reconstructed form; a caller that keeps the function alive may want to convert back.
+        void make_redundant(bool fence = true) const {
             change_tree_state(redundant, fence);
         }
 
@@ -1726,6 +1730,9 @@ namespace madness {
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
             for (unsigned int i=0; i<right.size(); ++i) {
                 result[i].set_impl(left,false);
+                // set_impl copies left's state, which is redundant here, but the kernel builds
+                // a reconstructed tree (interior nodes carry no coefficients)
+                result[i].get_impl()->set_tree_state(reconstructed);
                 vresult[i] = result[i].impl.get();
                 vright[i] = right[i].get_impl().get();
             }
@@ -1912,28 +1919,26 @@ namespace madness {
         return mul(alpha, f, true);
     }
 
-    /// Sparse multiplication --- left and right must be reconstructed and if tol!=0 have tree of norms already created
+    /// Sparse multiplication; the scalar interface redirects to the vector one in vmra.h
+
+    /// @param[in] do_make_redundant  if false, both inputs must already be redundant
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence=true) {
+    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol,
+               bool fence=true, bool do_make_redundant=true) {
         PROFILE_FUNC;
         left.verify();
         right.verify();
-        MADNESS_ASSERT(left.is_reconstructed() and right.is_reconstructed());
-        if (VERIFY_TREE) left.verify_tree();
-        if (VERIFY_TREE) right.verify_tree();
-
-        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        result.set_impl(left, false);
-        result.get_impl()->mulXX(left.get_impl().get(), right.get_impl().get(), tol, fence);
-        return result;
+        std::vector< Function<R,NDIM> > vright(1,right);
+        return mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_make_redundant)[0];
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    /// Same as \c operator* but with optional fence
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
-        return mul_sparse(left,right,0.0,fence);
+    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true,
+        bool do_make_redundant=true, double tol=0.0) {
+        return mul_sparse(left,right,tol,fence,do_make_redundant);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values
@@ -1976,8 +1981,7 @@ namespace madness {
 
     /// This so that we don't have to have friend functions in a different header.
     ///
-    /// If using sparsity (tol != 0) you must have created the tree of norms
-    /// already for both left and right.
+    /// left and right must be in redundant state, with tree norms available.
     template <typename L, typename R, std::size_t D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true) {

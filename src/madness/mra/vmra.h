@@ -1131,28 +1131,37 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& v,
         bool fence=true) {
         PROFILE_BLOCK(Vmul);
-        a.reconstruct(false);
-        reconstruct(world, v, false);
+        make_redundant(world, v, false);
+        a.make_redundant(false);
         world.gop.fence();
         return vmulXX(a, v, 0.0, fence);
     }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
+    /// Leaves both inputs in redundant form. Function is a shallow handle, so this is visible
+    /// to the caller: logically const, not bitwise const. Converting back is not free, so a
+    /// caller that reuses the operands afterwards must do it itself.
+    ///
+    /// @param[in] do_make_redundant  if false, both inputs must already be redundant
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul_sparse(World& world,
                const Function<T,NDIM>& a,
                const std::vector< Function<R,NDIM> >& v,
                double tol,
-               bool fence=true) {
+               bool fence=true,
+               bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulsp);
-        a.reconstruct(false);
-        reconstruct(world, v, false);
-        world.gop.fence();
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].norm_tree(false);
+        if (do_make_redundant) {
+            make_redundant(world, v, false);
+            a.make_redundant(false);
+            world.gop.fence();
+        } else if (!v.empty()) {
+            MADNESS_CHECK_THROW(a.get_impl()->get_tree_state() == TreeState::redundant,
+                                "mul_sparse: left input must be redundant when do_make_redundant=false");
+            MADNESS_CHECK_THROW(get_tree_state(v) == TreeState::redundant,
+                                "mul_sparse: right inputs must be redundant when do_make_redundant=false");
         }
-        a.norm_tree();
         return vmulXX(a, v, tol, fence);
     }
 
@@ -1179,11 +1188,8 @@ namespace madness {
                       bool symm = false) {
         PROFILE_BLOCK(Vmulsp);
         bool same=(&f == &g);
-        reconstruct(world, f, false);
-        if (not same) reconstruct(world, g, false);
-        world.gop.fence();
-        for (auto& ff : f) ff.norm_tree(false);
-        if (not same) for (auto& gg : g) gg.norm_tree(false);
+        make_redundant(world, f, false);
+        if (not same) make_redundant(world, g, false);
         world.gop.fence();
 
         std::vector<std::vector<Function<R,NDIM> > >result(f.size());
@@ -1220,15 +1226,13 @@ namespace madness {
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true) {
+        bool fence=true,
+        bool do_make_redundant=true,
+        double tol=0.0) {
         PROFILE_BLOCK(Vmulvv);
-        reconstruct(world, a, true);
-        reconstruct(world, b, true);
-//        if (&a != &b) reconstruct(world, b, true); // fails if type(a) != type(b)
-
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false);
+            q[i] = mul(a[i], b[i], false, do_make_redundant, tol);
         }
         if (fence) world.gop.fence();
         return q;
