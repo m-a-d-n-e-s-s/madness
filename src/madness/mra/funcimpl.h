@@ -4694,8 +4694,11 @@ template<size_t NDIM>
 //        void compress(bool nonstandard, bool keepleaves, bool redundant, bool fence);
         void compress(const TreeState newstate, bool fence);
 
+        /// s coefficients plus the (snorm_tree, dnorm_tree) pair propagated up by compress
+        typedef std::pair<coeffT, std::pair<double,double> > compressT;
+
         /// Invoked on node where key is local
-        Future<std::pair<coeffT,double> > compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
+        Future<compressT> compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
         		bool redundant1);
 
         private:
@@ -4729,22 +4732,21 @@ template<size_t NDIM>
 
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
 
-        /// also compute the norm tree for all nodes
+        /// also propagates norm_tree and dnorm_tree for all nodes
         /// @param[in] key 	this's key
-        /// @param[in] v 	sum coefficients of the child nodes
+        /// @param[in] v 	sum coefficients and propagated norms of the child nodes
         /// @param[in] nonstandard  keep the sum coefficients with the wavelet coefficients
-        /// @param[in] redundant    keep only the sum coefficients, discard the wavelet coefficients
-        /// @return 		the sum coefficients
-        std::pair<coeffT,double> compress_op(const keyT& key, const std::vector< Future<std::pair<coeffT,double>> >& v, bool nonstandard);
+        /// @return 		the sum coefficients and propagated norms
+        compressT compress_op(const keyT& key, const std::vector< Future<compressT> >& v, bool nonstandard);
 
 
         /// similar to compress_op, but insert only the sum coefficients in the tree
 
-        /// also compute the norm tree for all nodes
+        /// also propagates norm_tree and dnorm_tree for all nodes
         /// @param[in] key  this's key
-        /// @param[in] v    sum coefficients of the child nodes
-        /// @return         the sum coefficients
-        std::pair<coeffT,double> make_redundant_op(const keyT& key,const std::vector< Future<std::pair<coeffT,double> > >& v);
+        /// @param[in] v    sum coefficients and propagated norms of the child nodes
+        /// @return         the sum coefficients and propagated norms
+        compressT make_redundant_op(const keyT& key,const std::vector< Future<compressT> >& v);
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence);
