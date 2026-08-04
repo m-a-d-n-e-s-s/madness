@@ -227,6 +227,31 @@ int test_self_consistency(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T5: dot routes through the screened kernel; check it against the analytic sum
+int test_dot(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T5: dot vs the analytic sum of products");
+    t.set_do_print(world.rank() == 0);
+
+    std::vector<Function<double,D>> a, b;
+    Function<double,D> ref = copy(pairs[0].fg);
+    a.push_back(pairs[0].f);  b.push_back(pairs[0].g);
+    for (std::size_t i = 1; i < pairs.size(); ++i) {
+        a.push_back(pairs[i].f);
+        b.push_back(pairs[i].g);
+        ref += pairs[i].fg;
+    }
+
+    for (double tol : {0.0, 1.e-6}) {
+        Function<double,D> q = dot(world, a, b, true, true, tol);
+        const double err = (q - ref).norm2();
+        const double bound = (tol == 0.0) ? EXACT_FLOOR : C_MAX * tol;
+        if (world.rank() == 0)
+            printf("  T5 dot tol %.1e  err %.3e  bound %.1e\n", tol, err, bound);
+        t.checkpoint(err, bound, "T5 dot tol=" + fmt_tol(tol));
+    }
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -245,6 +270,7 @@ int main(int argc, char** argv) {
         success += test_tree_state(world, pairs);
         success += test_screening_accuracy(world, pairs);
         success += test_self_consistency(world, pairs);
+        success += test_dot(world, pairs);
     }
 
     world.gop.fence();

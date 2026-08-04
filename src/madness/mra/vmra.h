@@ -1246,9 +1246,16 @@ namespace madness {
         bool do_make_redundant=true,
         double tol=0.0) {
         PROFILE_BLOCK(Vmulvv);
+        if (do_make_redundant) {
+            // prepare once, not once per pair: mul_sparse fences whenever it prepares.
+            // Redundant inputs make the second call a no-op, so no aliasing check is needed.
+            make_redundant(world, a, false);
+            make_redundant(world, b, false);
+            world.gop.fence();
+        }
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false, do_make_redundant, tol);
+            q[i] = mul(a[i], b[i], false, false, tol);
         }
         if (fence) world.gop.fence();
         return q;
@@ -1605,14 +1612,18 @@ namespace madness {
     }
 
     /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
+
+    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
     template <typename T, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(T,R), NDIM>
     dot(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true) {
+        bool fence=true,
+        bool do_make_redundant=true,
+        double tol=0.0) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true),fence);
+        return sum(world,mul(world,a,b,true,do_make_redundant,tol),fence);
     }
 
 
