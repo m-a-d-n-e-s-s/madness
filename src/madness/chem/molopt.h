@@ -323,6 +323,14 @@ public:
 
       target.energy_and_gradient(molecule, e, g);
 
+      // Project out translations and rotations before testing convergence --
+      // the raw gradient carries a spurious net force/torque of the order of
+      // the gradient accuracy, which would keep max-g above gtol forever
+      Tensor<double> P = make_projector(molecule);
+      g = inner(P, g);
+      if (print_level > 1)
+        print("gradient after projection", g);
+
       double de = e - ep;
       double dxmax = dx.absmax();
       double gmax = g.absmax();
@@ -360,14 +368,6 @@ public:
           molecule.print();
         break;
       }
-
-      // Construct projector
-      Tensor<double> P = make_projector(molecule);
-
-      // Project the gradient before updating Hessian
-      g = inner(P, g);
-      if (print_level > 1)
-        print("gradient after projection", g);
 
       if (iter > 0) {
         if ((g - gp).absmax() < 2.0 * gradient_precision) {
@@ -457,6 +457,14 @@ public:
 
       target.energy_and_gradient(molecule, e, g);
 
+      // Project out translations and rotations before testing convergence --
+      // the raw gradient carries a spurious net force/torque of the order of
+      // the gradient accuracy, which would keep max-g above gtol forever
+      Tensor<double> P = make_projector(molecule);
+      g = inner(P, g);
+      if (print_level > 1)
+        print("gradient after projection", g);
+
       double de = e - ep;
       double dxmax = dx.absmax();
       results.max_gradient = g.absmax();
@@ -494,14 +502,6 @@ public:
           molecule.print();
         break;
       }
-
-      // Construct projector
-      Tensor<double> P = make_projector(molecule);
-
-      // Project the gradient before updating Hessian
-      g = inner(P, g);
-      if (print_level > 1)
-        print("gradient after projection", g);
 
       if (iter > 0) {
         if ((g - gp).absmax() < 2.0 * gradient_precision) {
