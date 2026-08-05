@@ -12,12 +12,14 @@ knob + io provenance) already landed.
   a positional `task_<i>/` dir; its `summary()` JSON is appended to `tasks[]`.
   Data *can* now flow through the Driver interface: change 1 landed, and
   `Workflow::run` threads one `StepContext` task-to-task (`Drivers.hpp:124`).
-- Migration of the consumers onto that context is **partial — one of four**.
-  `ResponseApplication::consume_context` (`Applications.hpp:417`) takes the
-  upstream reference and geometry from the context; CC2, TDHF and OEP still take
-  their ground state from the **build-time side-channel**, where the builder
-  captures `reference->calc()` (a live `shared_ptr<SCF/Nemo>`) before adding the
-  downstream driver. See the deferred finding at the bottom.
+- **All four consumers now read the context**, but only the response step *adopts*
+  what it is handed. CC2, TDHF and OEP are **verify-only**: each calls
+  `check_context_matches_reference`, which throws if the context disagrees with
+  what the step was constructed with, because their engines are built from a
+  reference captured at workflow-assembly time and cannot be re-pointed
+  (`STEP_CONTEXT.md` has the constructor-by-constructor detail). They still take
+  their actual ground state from the **build-time side-channel**, where the builder
+  captures `reference->calc()` before adding the downstream driver.
 - Geometry optimization WORKS today but only *inside* one SCF driver
   (`dft gopt=1` → `moldft_lib` → `MolOpt::optimize_app`; writes `_opt.xyz`,
   emits `optimization_results`). The `optimize` WORKFLOW is a stub (enum +
@@ -30,11 +32,41 @@ knob + io provenance) already landed.
 ## The five changes (ordered by enablement)
 
 ### 1. StepContext dataflow (M) — the enabling change
-**Status: mechanism LANDED; consumer migration partial (response only).** The
-struct is `Applications.hpp:31`, the threading is `Drivers.hpp:124-129`, and
+**Status: LANDED. All four consumers read the context; three are verify-only.** The
+struct is `Applications.hpp`, the threading is `Drivers.hpp:124-129`, and
 `SinglePointDriver::execute` runs consume → run → publish (`Drivers.hpp:66-69`).
-What is left is moving CC2/TDHF/OEP off the build-time capture — see the deferred
-finding at the bottom. Nothing downstream in this roadmap is blocked on that.
+`nemo_reference` was added alongside `reference` so the nemo-based ground state
+(what the cc2/cis/oep chains use) can be published at all — `SCF` and `Nemo` share
+no base class. What is left is deferring engine construction from the builders into
+`run()`, which is what would let those three *adopt* rather than merely verify; see
+the deferred finding at the bottom. Nothing else in this roadmap is blocked on it.
+
+Two restart defects were fixed alongside, and two more were found and left:
+
+- FIXED: `nemo_lib::run` now assigns `SCFResults::scf_molecule`. It never did, so
+  every nemo/cc2/cis/oep `calc_info.json` reported an empty molecule and
+  `checkpoint_geometry_matches` compared 0 atoms against N — no nemo-path
+  checkpoint was ever reusable. Measured effect: a second `--wf=cis` run in the
+  same directory went 22.2 s → 5.9 s.
+- FIXED: the results-reuse branch of `SCFApplication::run` no longer leaves a bare
+  engine. `NextAction::Ok` now calls a new `Library::reload` hook (nemo goes through
+  its own `no_compute` path in `Nemo::value`, which loads the MOs, builds the ncf
+  and records `coords_sum`; moldft calls `SCF::load_mos`). Without it, reusing
+  results hands cc2/cis/oep a reference with no orbitals.
+- OPEN: **`Ok` is unreachable on both paths**, so that reload hook is dormant.
+  On nemo, `valid()` tests `at_protocol` as
+  `converged_for_thresh == protocol().back()`, but `Nemo::value` drives its
+  `SCFProtocol` from `econv`, so the two never agree (measured: 1e-4 vs 1e-6).
+  On moldft, `valid()` looks for `params.prefix() + ".restartdata.00000"` while the
+  engine — constructed from the `mad.in` that `moldft_lib::initialize_` writes —
+  writes `mad.restartdata.00000`, so `archive_exists` is always false. Reuse still
+  happens via `Restart`, which reloads the MOs; fixing these two would make the
+  cheaper `Ok` path live and is the natural next restart cleanup.
+- NOTE: chained builders now request `save` so the ground-state archive exists for
+  reuse (mirroring what the response builder already did). A deck that sets
+  `save 0` explicitly still wins, and then reuse yields a reference with no
+  orbitals — which `check_context_matches_reference` reports rather than crashing
+  in `compute_fock_matrix`.
 
 Extend `Driver::execute(workdir)` to `execute(workdir, StepContext&)` where
 `StepContext` carries named artifacts: `molecule` (possibly optimized),
@@ -125,12 +157,14 @@ than a typed interface. This is deliberately **out of the response path** and is
   TDHF would migrate off the hidden `reference->calc()` capture exactly as the
   response driver does: obtain the `reference`/`molecule` from the `StepContext`
   the workflow threads task-to-task, and publish their own outputs into it for the
-  next stage. No new mechanism is needed — StepContext already carries the named
-  artifacts (`molecule`, `reference`, `archives`) these methods hand off, and is
-  live in the tree; only these three consumers are unmigrated.
+  next stage. StepContext already carries the named artifacts these methods hand
+  off (`molecule`, `reference`/`nemo_reference`, `archives`) and all three now read
+  it — but read-only: they *verify* the context and throw on disagreement, because
+  the reference is baked into the engine at construction. Adoption needs the
+  deferred-construction change below, not more consume_context code.
 - **It is more than adding `consume_context` overrides.** Their builders take the
   reference by calling `reference->calc()` while assembling the workflow
-  (`WorkflowBuilders.hpp:99,108,126`), and that call constructs the engine, which
+  (`WorkflowBuilders.hpp:105,116,136`), and that call constructs the engine, which
   freezes the parameters by writing and re-reading `mad.in`. A context value read
   later cannot affect an engine already built, so the migration has to defer
   engine construction to `run()`.
