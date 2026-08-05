@@ -358,7 +358,11 @@ namespace madness {
 
         virtual ~WorldObjectBase() {
             if(initialized()) {
-              this->get_world().unregister_ptr(objid);
+                auto* world_ptr = World::world_from_id(objid.get_world_id());
+                MADNESS_ASSERT_NOEXCEPT(world_ptr != nullptr &&  "WorldObjectBase::~WorldObjectBase() failed to find world");
+                MADNESS_ASSERT_NOEXCEPT(world_ptr == &world &&
+                    "WorldObjectBase::~WorldObjectBase() cached world differs from world in object ID");
+                world.unregister_ptr(objid);
             }
         }
 
@@ -370,11 +374,7 @@ namespace madness {
         /// Get the world to which this object belongs.
         /// \return A reference to the world.
         World& get_world() const {
-            auto* world = World::world_from_id(objid.get_world_id());
-            if (!world) {
-                MADNESS_EXCEPTION("WorldObjectBase::get_world() failed to find world", objid.get_world_id());
-            }
-            return *world;
+            return world;
         }
     };
 
