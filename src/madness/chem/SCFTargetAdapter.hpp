@@ -1,48 +1,49 @@
-// SCFTarget.hpp
+// SCFTargetAdapter.hpp
 #pragma once
-#include <filesystem>
 
-#include <madness/chem/Applications.hpp>
 #include <madness/chem/molecule.h>
+#include <madness/tensor/tensor.h>
 
-struct SCFTarget {
-  World& world_;
-  std::function<std::unique_ptr<Application>(Params)> factory_;
-  Params params_;
+namespace madness {
+
+/// Adapts an engine that exposes `value(x)` / `gradient(x)` to the target
+/// protocol MolOpt expects: `energy_and_gradient(const Molecule&, double&,
+/// Tensor<double>&)` plus `value(const Tensor<double>&)`.
+///
+/// SCF already has such an adapter in `MolecularEnergy` (SCF.h), which is what
+/// the in-SCF `dft gopt` path uses. `Nemo` and everything derived from it
+/// implement `MolecularOptimizationTargetInterface` (`value(x)`, `gradient(x)`,
+/// `molecule()`) but not MolOpt's Molecule-based signature, so this fills that gap
+/// without touching the engines -- which is what lets one OptimizeApplication
+/// drive both moldft and nemo.
+///
+/// This replaces the earlier `SCFTarget`, which built a fresh Application per
+/// geometry through a factory and read a result schema (`res.at("energy")` /
+/// `res.at("gradient")`) that no Application ever produced. Driving the engine
+/// directly is both correct and much cheaper: one solve per geometry rather than a
+/// full Application run with its own directory and checkpointing.
+template <typename Engine> struct EngineOptTarget {
+  World &world;
+  Engine &engine;
   double last_energy = 0.0;
-  madness::Tensor<double> last_gradient;
+  Tensor<double> last_gradient;
 
-  SCFTarget(World& w,
-            std::function<std::unique_ptr<Application>(Params)> factory,
-            Params p)
-      : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
+  EngineOptTarget(World &w, Engine &e) : world(w), engine(e) {}
 
-  // Called by MolOpt at each geometry:
-  void energy_and_gradient(Molecule& mol, double& energy,
-                           madness::Tensor<double>& grad) {
-    // 1) inject new coords into params
-    params_.set(mol);
+  /// Called by MolOpt::line_search.
+  double value(const Tensor<double> &x) { return engine.value(x); }
 
-    // 2) build & run the SCF+grad application
-    auto app = factory_(params_);
-    app->run(std::filesystem::current_path());
-    auto res = app->results();
-
-    // 3) extract energy + gradient
-    energy = res.at("energy").get<double>();
-    grad = tensor_from_json<double>(res.at("gradient"));
-
+  /// Called by MolOpt at each geometry. value() runs first so the engine is solved
+  /// at this geometry before the gradient is taken; both engines treat a repeated
+  /// geometry as a no-op, so this costs no extra solve.
+  void energy_and_gradient(const Molecule &mol, double &energy,
+                           Tensor<double> &gradient) {
+    const Tensor<double> x = mol.get_all_coords().flat();
+    energy = engine.value(x);
+    gradient = engine.gradient(x);
     last_energy = energy;
-    last_gradient = grad;
-  }
-
-  // Called by MolOpt::line_search
-  double value(const madness::Tensor<double>& x) {
-    Molecule mol = params_.get<Molecule>();
-    mol.set_all_coords(x.reshape(mol.natom(), 3));
-    double e;
-    madness::Tensor<double> g;
-    energy_and_gradient(mol, e, g);
-    return e;
+    last_gradient = gradient;
   }
 };
+
+} // namespace madness

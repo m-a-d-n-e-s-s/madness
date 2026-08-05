@@ -1,0 +1,38 @@
+# Geometry optimization of LiH as its own workflow: `--wf=optimize`.
+#
+# This is the composable form of a geometry optimization -- one task that drives
+# MolOpt over a reference engine and publishes the optimized geometry into the
+# StepContext, as opposed to `dft gopt 1`, which optimizes inside a single SCF
+# task (see scf_lih_gopt for that form; the two produce the same geometry).
+#
+# The reference engine is chosen by `optimization method` -- moldft here, nemo in
+# optimize_lih_nemo. Everything else in this deck is identical between the two,
+# which is the point: both engines are driven by the same optimizer through the
+# same code path.
+#
+# The `optimization` group is what governs the optimizer. Any threshold left unset
+# is derived from the wavefunction accuracy (protocol().back(), Dalton-style), so
+# the 1e-6 rung is what puts gtol at 1e-5; a deck that sets `gtol` explicitly wins
+# over that. See `madqc --print_parameters=optimization`.
+#
+# Starts 0.015 bohr inside the HF minimum, which the optimizer closes in two steps.
+#
+# Run:   ./run.sh          (or: madqc --wf=optimize optimize_lih_moldft.in)
+
+optimization
+    method      moldft
+    maxiter     10
+end
+
+dft
+    xc          hf
+    protocol    [1e-4, 1e-6]
+    dconv       1e-4
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.05
+end

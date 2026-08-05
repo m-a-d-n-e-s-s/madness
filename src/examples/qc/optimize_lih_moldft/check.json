@@ -1,0 +1,13 @@
+{
+  "description": "Geometry optimization of LiH as its own workflow (--wf=optimize, moldft reference)",
+  "checks": [
+    {"key": ["tasks", 0, "optimization_results", "nsteps"], "tol": 0},
+    {"key": ["tasks", 0, "optimization_results", "final_energy"], "tol": 1e-6},
+    {"key": ["tasks", 0, "optimization_results", "max_gradient"], "tol": 5e-6, "allow_zero": true},
+    {"key": ["tasks", 0, "optimization_results", "final_geometry", "geometry", 0, 2], "tol": 1e-3},
+    {"key": ["tasks", 0, "optimization_results", "final_geometry", "geometry", 1, 2], "tol": 1e-3},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-6},
+    {"key": ["tasks", 0, "metadata", "method"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

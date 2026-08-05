@@ -24,8 +24,8 @@ enum class WorkflowKind {
   Unknown
 };
 
-inline constexpr std::array<const char *, 7> runnable_workflows = {
-    "scf", "nemo", "response", "mp2", "cc2", "cis", "oep"};
+inline constexpr std::array<const char *, 8> runnable_workflows = {
+    "scf", "nemo", "response", "mp2", "cc2", "cis", "oep", "optimize"};
 
 inline WorkflowKind workflow_kind_from_name(std::string_view user_workflow) {
   if (user_workflow == "scf")
@@ -69,6 +69,28 @@ inline void add_nemo_workflow_drivers(World &world, Params &pm,
   pm.get<CalculationParameters>().set_derived_value("k", 8);
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+}
+
+/// First-class geometry optimization (ARCHITECTURE_ROADMAP change 2). One task
+/// that drives MolOpt over a reference engine, chosen by
+/// `optimization { method moldft|nemo }`. The in-SCF `dft gopt` path still
+/// exists and is unchanged; this is the composable form, which publishes the
+/// optimized geometry into the StepContext for a later step.
+inline void add_optimize_workflow_drivers(World &world, Params &pm,
+                                          qcapp::Workflow &wf) {
+  const std::string method = pm.get<OptimizationParameters>().get_method();
+  if (method == "nemo") {
+    pm.get<CalculationParameters>().set_derived_value("k", 8);
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_shared<OptimizeApplication<nemo_lib>>(world, pm)));
+  } else if (method == "moldft") {
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_shared<OptimizeApplication<moldft_lib>>(world, pm)));
+  } else {
+    // The parameter declares its allowed values, so this is unreachable via the
+    // deck; it guards against a new value being added without a driver.
+    MADNESS_EXCEPTION("optimize workflow: unknown optimization.method", 1);
+  }
 }
 
 // NOTE (M1 decoupling, Stage 2): the response workflow no longer has a MADchem
@@ -155,13 +177,9 @@ inline void add_workflow_drivers(World &world, Params &pm,
   case WorkflowKind::Oep:
     add_oep_workflow_drivers(world, pm, wf);
     break;
-  case WorkflowKind::Optimize: {
-    std::string msg =
-        "The optimize workflow is currently disabled. Please use the dft + "
-        "gopt() application instead.\n";
-    MADNESS_EXCEPTION(msg.c_str(), 1);
+  case WorkflowKind::Optimize:
+    add_optimize_workflow_drivers(world, pm, wf);
     break;
-  }
   case WorkflowKind::Unknown:
   default: {
     std::string msg =

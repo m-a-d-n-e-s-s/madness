@@ -55,11 +55,19 @@ Select with `--wf=<name>` (aliases: `--workflow`, `-w`). Default: `scf`.
 | `mp2` / `cc2` | SCF → correlated | MP2 / CC2 correlation energies and excitations |
 | `cis`   | SCF → CIS | Configuration-interaction-singles excited states (`tdhf` engine) |
 | `oep`   | SCF → OEP | Optimized effective potential |
+| `optimize` | optimization | Geometry optimization on a `moldft` or `nemo` reference; select with `optimization method` |
 
 Every multi-step workflow runs the ground-state SCF first, then hands the
-reference wavefunction to the downstream method. Geometry optimization is
-available through the `gopt` knob in the `dft` group (the standalone
-`optimize` workflow is currently disabled).
+reference wavefunction to the downstream method.
+
+Geometry optimization comes in two forms. `--wf=optimize` is its own task: it
+drives the optimizer over a reference engine chosen by `optimization method`
+(`moldft` or `nemo`), honours the `optimization` parameter group, writes
+`<prefix>_opt.xyz`, and publishes the optimized geometry for a later step.
+Alternatively `gopt 1` in the `dft` group optimizes *inside* an SCF task, which is
+the older path and remains supported; both drive the same optimizer and give the
+same geometry. Working decks for all of it:
+`src/examples/qc/optimize_lih_{moldft,nemo}` and `src/examples/qc/scf_lih_gopt`.
 
 ---
 
