@@ -18,7 +18,7 @@ For molresponse state-level subgroup-parallel design notes, see `src/apps/molres
 workflow_builders::add_workflow_drivers(world, pm, user_workflow, wf);
 ```
 
-3. `WorkflowBuilders.hpp` maps workflow names (`scf`, `nemo`, `response`, `mp2/cc2`, `cis`, `oep`) to driver wiring.
+3. `WorkflowBuilders.hpp` maps workflow names (`scf`, `nemo`, `response`, `mp2/cc2`, `cis`, `oep`, `optimize`) to driver wiring.
 4. `wf.run(prefix)` executes the assembled pipeline.
 
 Workflow names are also centralized in `WorkflowBuilders.hpp`:
@@ -53,6 +53,16 @@ inline void add_myworkflow_drivers(World& world, Params& pm, qcapp::Workflow& wf
 5. If there is a standalone compatibility executable, keep it thin and call the same builder helper (no duplicated orchestration logic).
 6. Add at least one integration test under `src/apps/madqc/` using the new `--wf=<name>` route.
 7. Update `src/apps/madqc/test_workflow_builders.cpp` with the new workflow name and expected kind mapping.
+
+## Choosing an engine inside one workflow
+
+`add_optimize_workflow_drivers` is the pattern for a workflow that runs on more
+than one reference engine: the Application is templated on the Library policy
+(`OptimizeApplication<moldft_lib>` / `<nemo_lib>`) and the builder picks the
+instantiation from a parameter (`optimization method`). Engine-specific steps stay
+behind `if constexpr (std::is_same_v<Calc, SCF>)` inside the Application — for the
+optimizer that is the target adapter (`MolecularEnergy` vs `EngineOptTarget`) and
+the SCF-only protocol preparation. Prefer this over two near-duplicate builders.
 
 ## Workflow Design Rules
 

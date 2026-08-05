@@ -20,31 +20,35 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     read_input_and_commandline_options(world, parser, tag);
   }
   OptimizationParameters() {
-    initialize<int>("maxiter", 20, "optimization maxiter");
-
+    // Which reference method the geometry optimization is run on. `method` used
+    // to be read by get_method() without ever being initialized.
+    initialize<std::string>("method", "moldft",
+                            "reference method the geometry is optimized on",
+                            {"moldft", "nemo"});
+    initialize<int>("maxiter", 20, "maximum number of geometry steps");
     initialize<bool>("initial_hessian", false,
                      "compute inital hessian for optimization");
-    initialize<std::string>("algopt", "bfgs", "algorithm used for optimization",
-                            {"bfgs", "cg"});
-    initialize<double>("value_precision", 1.e-5, "value precision");
-    initialize<double>("gradient_precision", 1.e-4, "gradient precision");
-    initialize<bool>("geometry_tolerence", false, "geometry tolerance");
+    initialize<std::string>("algopt", "bfgs", "hessian update used by MolOpt",
+                            {"bfgs", "sr1"});
+    initialize<double>("maxstep", 0.1,
+                       "maximum step in any cartesian coordinate (a.u.)");
+    // Convergence thresholds and assumed precisions. The defaults below are
+    // only fallbacks: OptimizeApplication derives all five from the wavefunction
+    // threshold (protocol().back()) with set_derived_value, which beats a default
+    // but yields to anything the deck sets -- so a deck can tighten or loosen any
+    // one of them, and otherwise they track the accuracy of the calculation.
+    initialize<double>("etol", 1.e-5, "convergence: energy change");
+    initialize<double>("gtol", 1.e-4, "convergence: maximum gradient element");
+    initialize<double>("xtol", 1.e-4, "convergence: maximum cartesian step");
+    initialize<double>("value_precision", 1.e-5, "assumed precision of the energy");
+    initialize<double>("gradient_precision", 1.e-4,
+                       "assumed precision of the gradient");
   }
 
   std::string get_tag() const override { return std::string(tag); }
 
   using QCCalculationParametersBase::read_input_and_commandline_options;
-
-  void print() const {
-    madness::print("------------Optimization Parameters---------------");
-    madness::print("Maxiter: ", get<int>("maxiter"));
-    madness::print("Initial Hessian: ", get<bool>("initial_hessian"));
-    madness::print("Algorithm: ", get<std::string>("algopt"));
-    madness::print("Value Precision: ", get<double>("value_precision"));
-    madness::print("Gradient Precision: ", get<double>("gradient_precision"));
-    madness::print("Geometry Tolerance: ", get<bool>("geometry_tolerence"));
-    madness::print("-------------------------------------------");
-  }
+  using QCCalculationParametersBase::print;
 
   [[nodiscard]] std::string get_method() const {
     return get<std::string>("method");
@@ -56,14 +60,15 @@ struct OptimizationParameters : public QCCalculationParametersBase {
   [[nodiscard]] std::string get_algopt() const {
     return get<std::string>("algopt");
   }
+  [[nodiscard]] double get_maxstep() const { return get<double>("maxstep"); }
+  [[nodiscard]] double get_etol() const { return get<double>("etol"); }
+  [[nodiscard]] double get_gtol() const { return get<double>("gtol"); }
+  [[nodiscard]] double get_xtol() const { return get<double>("xtol"); }
   [[nodiscard]] double get_value_precision() const {
     return get<double>("value_precision");
   }
   [[nodiscard]] double get_gradient_precision() const {
     return get<double>("gradient_precision");
-  }
-  [[nodiscard]] bool get_geometry_tolerence() const {
-    return get<bool>("geometry_tolerence");
   }
 };
 

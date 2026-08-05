@@ -74,7 +74,7 @@ void help(const std::string &wf) {
         "scf)");
   print("\nAvailable workflows: " + workflow_builders::runnable_workflow_list());
   print("Parameter groups (for --print_parameters): dft, nemo, response, cc2, "
-        "cis, oep, geometry");
+        "cis, oep, optimization, geometry");
   print("");
   if (wf == "scf") {
     print("madqc --wf=scf");
@@ -109,6 +109,17 @@ void help(const std::string &wf) {
     print("Optimized effective potential code for DFT");
     print("\nexamples: ");
     print("madqc --wf=oep --geometry=h2o");
+  } else if (wf == "optimize") {
+    print("madqc --wf=optimize");
+    print("Geometry optimization on a moldft or nemo reference");
+    print("\nexamples: ");
+    print("madqc --wf=optimize --geometry=h2o");
+    print("madqc --wf=optimize --geometry=lih --optimization=\"method=nemo\"");
+    print("madqc --wf=optimize --geometry=h2o --optimization=\"gtol=1.e-4; "
+          "maxiter=10\"");
+    print("\nthe reference method is selected with optimization.method "
+          "(moldft|nemo);");
+    print("see  madqc --print_parameters=optimization  for all knobs");
   }
 }
 
@@ -138,13 +149,16 @@ void print_parameters(World &world, const commandlineparser &parser,
   } else if (group == "oep") {
     print("Available parameters for data group: oep");
     pm.get<OEP_Parameters>().print();
+  } else if (group == "optimization") {
+    print("Available parameters for data group: optimization");
+    pm.get<OptimizationParameters>().print(OptimizationParameters::tag, "end");
   } else if (group == "geometry") {
     Molecule::GeometryParameters geometryparam;
     geometryparam.print("geometry", "end");
   } else {
     std::string msg = "Unknown data group: " + group +
                       "\nAvailable data group are: dft, nemo, response, cc2, "
-                      "cis, oep, geometry\n";
+                      "cis, oep, optimization, geometry\n";
     print(msg);
   }
 }
