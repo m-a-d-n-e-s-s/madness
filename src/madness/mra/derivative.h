@@ -237,6 +237,28 @@ namespace madness {
             }
         }
 
+        /// Push f's remote same-level neighbor coefficients to the ranks that will need them.
+
+        /// Node M is the neighbor of M-1 and M+1, so its owner pushes it to the owners of those keys
+        /// without being asked, one batched message per destination. Requires `halo_enable()` and a
+        /// fence first, then a fence before differentiating; `halo_clear()` frees the result.
+        void stage_halo(const implT* f) const {
+            MADNESS_CHECK(f->halo_enabled());
+            const dcT& coeffs = f->get_coeffs();
+            std::map<ProcessID, std::vector<argT> > out;
+            for (const auto& [key, node] : coeffs) {
+                for (int step : {-1, 1}) {
+                    keyT consumer = neighbor(key, step);
+                    if (consumer.is_invalid()) continue;              // domain boundary: no consumer there
+                    ProcessID d = coeffs.owner(consumer);
+                    if (d == world.rank()) continue;                  // local consumer: the pull is cheap
+                    out[d].push_back(argT(key, node.has_coeff() ? node.coeff() : coeffT()));
+                }
+            }
+            for (auto& kv : out)
+                f->task(kv.first, &implT::receive_halo, kv.second, TaskAttributes::hipri());
+        }
+
         Future<argT>
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
             keyT neigh = neighbor(key, step);
@@ -244,6 +266,11 @@ namespace madness {
                 return Future<argT>(argT(neigh,coeffT(vk,f->get_tensor_args()))); // Zero bc
             }
             else {
+                // hit: same-level leaf or interior node. miss: neighbor is coarser, walk up below.
+                if (f->halo_enabled()) {
+                    coeffT c;
+                    if (f->halo_probe(neigh, c)) return Future<argT>(argT(neigh, c));
+                }
                 Future<argT> result;
 		if (f->get_coeffs().is_local(neigh))
 		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));

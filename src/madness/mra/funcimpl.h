@@ -1011,10 +1011,52 @@ template<size_t NDIM>
 
         dcT coeffs; ///< The coefficients
 
+        /// Neighbor coefficients pre-staged by a caller of the derivative operator; null unless staged.
+
+        /// Reproduces what `sock_it_to_me` returns for the same key: coefficients for a same-level
+        /// leaf, empty for an interior node, absent when the neighbor is coarser and `find_neighbor`
+        /// must walk up. Allocated lazily, so functions that never stage a halo do not carry the table.
+        mutable std::unique_ptr<ConcurrentHashMap<keyT,coeffT> > neighbor_halo_;
+
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
+        /// Allocate the neighbor halo.
+
+        /// Every rank must call this and fence before any rank stages: a push arrives as a task and
+        /// cannot allocate the halo itself without racing this call.
+        void halo_enable() const {
+            if (!neighbor_halo_) neighbor_halo_.reset(new ConcurrentHashMap<keyT,coeffT>());
+        }
+
+        /// Is a neighbor halo staged on this function?
+        bool halo_enabled() const { return static_cast<bool>(neighbor_halo_); }
+
+        /// Discard the neighbor halo, freeing the staged coefficients.
+        void halo_clear() const { neighbor_halo_.reset(); }
+
+        /// How many neighbor nodes are staged on this rank; zero if no halo.
+        std::size_t halo_size() const { return neighbor_halo_ ? neighbor_halo_->size() : 0; }
+
+        /// Insert pushed neighbor nodes into the halo; runs as a task, concurrently with other pushes.
+        void receive_halo(const std::vector<std::pair<keyT,coeffT> >& buf) const {
+            MADNESS_CHECK(neighbor_halo_);   // halo_enable() and a fence must precede staging
+            for (const auto& kv : buf) {
+                typename ConcurrentHashMap<keyT,coeffT>::accessor acc;
+                (void) neighbor_halo_->insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+
+        /// Look up a staged neighbor; on a hit copy its coefficients, which are empty for an interior node.
+        bool halo_probe(const keyT& key, coeffT& out) const {
+            if (!neighbor_halo_) return false;
+            typename ConcurrentHashMap<keyT,coeffT>::const_accessor acc;
+            if (neighbor_halo_->find(acc, key)) { out = acc->second; return true; }
+            return false;
+        }
+
         Timer timer_accumulate;
         Timer timer_change_tensor_type;
         Timer timer_lr_result;
