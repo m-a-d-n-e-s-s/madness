@@ -8,12 +8,16 @@ knob + io provenance) already landed.
 
 ## Where we are (as-built)
 
-- `qcapp::Workflow` is a **linear list of independent single points**: each
-  `Driver` runs in a positional `task_<i>/` dir; its `summary()` JSON is
-  appended to `tasks[]`. No data flows through the Driver interface.
-- The working SCF→{response, cc2, cis, oep} pipelines pass data via a
-  **build-time side-channel**: the builder captures `reference->calc()`
-  (a live `shared_ptr<SCF/Nemo>`) before adding the downstream driver.
+- `qcapp::Workflow` is a **linear list of single points**: each `Driver` runs in
+  a positional `task_<i>/` dir; its `summary()` JSON is appended to `tasks[]`.
+  Data *can* now flow through the Driver interface: change 1 landed, and
+  `Workflow::run` threads one `StepContext` task-to-task.
+- Migration of the consumers onto that context is **partial — one of four**.
+  `ResponseApplication::consume_context` takes the upstream reference and
+  geometry from the context; CC2, TDHF and OEP still take their ground state from
+  the **build-time side-channel**, where the builder captures `reference->calc()`
+  (a live `shared_ptr<SCF/Nemo>`) before adding the downstream driver. See the
+  deferred finding at the bottom.
 - Geometry optimization WORKS today but only *inside* one SCF driver
   (`dft gopt=1` → `moldft_lib` → `MolOpt::optimize_app`; writes `_opt.xyz`,
   emits `optimization_results`). The `optimize` WORKFLOW is a stub (enum +
@@ -33,6 +37,12 @@ JSON. `Workflow::run` threads it task-to-task. Replaces the hidden shared_ptr
 capture (which stays as a compatibility path until builders migrate).
 *Acceptance:* SCF→response runs unchanged, but the response driver obtains the
 reference from the context; a third stage can consume stage 2's outputs.
+
+**Status: mechanism LANDED; consumer migration partial (response only).** The
+struct is in `Applications.hpp`, the threading in `Drivers.hpp`, and
+`SinglePointDriver::execute` runs consume → run → publish. What is left is moving
+CC2/TDHF/OEP off the build-time capture — see the deferred finding at the bottom.
+Nothing downstream in this roadmap is blocked on that.
 
 ### 2. First-class `optimize` workflow (M)
 **Status: LANDED.** `--optimize --wf=<scf|nemo>` is one task,
