@@ -91,6 +91,11 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
 
+        /// Spawn `diff`'s per-node tasks from the task pool instead of the main thread.
+
+        /// The same tasks are produced, so the result is unchanged. Per instance and off by default,
+        /// since it only pays off when many functions are differentiated at once.
+        bool parallel_submit_ = false;
 
         DerivativeBase(World& world, std::size_t axis, int k, BoundaryConditions<NDIM> bc)
             : WorldObject< DerivativeBase<T, NDIM> >(world)
@@ -280,6 +285,38 @@ namespace madness {
             }
         }
 
+
+        /// Body of `FunctionImpl::diff`'s submission loop, as a functor for `taskq.for_each`.
+        struct submit_op {
+            typedef Range<typename dcT::const_iterator> rangeT;
+            const DerivativeBase<T,NDIM>* D;
+            const implT* f;
+            implT* df;
+            submit_op(const DerivativeBase<T,NDIM>* D=nullptr, const implT* f=nullptr, implT* df=nullptr)
+                : D(D), f(f), df(df) {}
+            bool operator()(typename rangeT::iterator& it) const {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    Future<argT> left  = D->find_neighbor(f, key, -1);
+                    argT center(key, node.coeff());
+                    Future<argT> right = D->find_neighbor(f, key, 1);
+                    df->world.taskq.add(*df, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                }
+                else {
+                    df->get_coeffs().replace(key, nodeT(coeffT(), true)); // empty internal node
+                }
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {}
+        };
+
+        /// Parallel form of `FunctionImpl::diff`'s submission loop; the caller owns the fence.
+        void submit_diff_tasks(const implT* f, implT* df) const {
+            typedef Range<typename dcT::const_iterator> rangeT;
+            df->world.taskq.template for_each<rangeT, submit_op>(
+                rangeT(f->get_coeffs().begin(), f->get_coeffs().end()), submit_op(this, f, df));
+        }
 
         template <typename Archive> void serialize(const Archive& ar) const {
             throw "NOT IMPLEMENTED";

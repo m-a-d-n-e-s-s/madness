@@ -1,6 +1,6 @@
-/// Unit tests for the derivative operator's neighbor-halo pre-staging.
+/// Unit tests for the derivative operator's neighbor-halo pre-staging and pool submission.
 ///
-/// Staging may not change results, so the reference is the derivative taken by the plain path and
+/// Neither may change results, so the reference is the derivative taken by the plain path and
 /// agreement with it is required to round-off, not to a tolerance.
 ///
 /// The operands are cusped so the tree is deep and unevenly refined, which is what makes
@@ -57,13 +57,15 @@ static std::vector<Function<double,D>> make_operands(World& world) {
     return v;
 }
 
-/// Differentiate v along every axis, optionally staging the halo first.
+/// Differentiate v along every axis, optionally staging the halo and/or submitting in parallel.
 static std::vector<Function<double,D>>
 differentiate(World& world,
               std::vector<std::shared_ptr<Derivative<double,D>>>& grad,
               const std::vector<Function<double,D>>& v,
-              bool halo,
+              bool halo, bool parallel_submit,
               std::size_t& staged) {
+    for (std::size_t axis = 0; axis < D; ++axis) grad[axis]->parallel_submit_ = parallel_submit;
+
     if (halo) {
         for (const auto& f : v) f.get_impl()->halo_enable();
         world.gop.fence();
@@ -85,26 +87,37 @@ differentiate(World& world,
     return dv;
 }
 
-/// The staged halo against the plain path.
+/// The halo and the parallel submission, separately and together, against the plain path.
 static int test_equivalence(World& world, const std::vector<Function<double,D>>& v) {
-    test_output t("the neighbor halo reproduces the plain derivative");
+    test_output t("neighbor halo and parallel submission reproduce the plain derivative");
     t.set_cout_to_logger();
     std::vector<std::shared_ptr<Derivative<double,D>>> grad = gradient_operator<double,D>(world);
 
     std::size_t staged = 0;
-    std::vector<Function<double,D>> ref = differentiate(world, grad, v, false, staged);
-    std::vector<Function<double,D>> dv  = differentiate(world, grad, v, true,  staged);
+    std::vector<Function<double,D>> ref = differentiate(world, grad, v, false, false, staged);
 
-    double err = 0.0;
-    for (std::size_t i = 0; i < ref.size(); ++i)
-        err = std::max(err, (dv[i] - ref[i]).norm2());
-    if (world.rank() == 0)
-        printf("  halo                     max |d - d_ref| = %.3e   staged nodes %zu\n", err, staged);
-    t.checkpoint(err, EXACT, "halo matches the plain derivative");
+    struct cell { bool halo, submit; const char* name; };
+    const std::vector<cell> cells = {
+        {true,  false, "halo"},
+        {false, true,  "parallel submit"},
+        {true,  true,  "halo + parallel submit"},
+    };
 
-    // a halo that moved nothing would pass the comparison above without exercising anything.
-    // On one rank every consumer is local and nothing is pushed, by design.
-    if (world.size() > 1) t.checkpoint(staged > 0, "halo staged a non-empty halo");
+    for (const cell& c : cells) {
+        staged = 0;
+        std::vector<Function<double,D>> dv = differentiate(world, grad, v, c.halo, c.submit, staged);
+        double err = 0.0;
+        for (std::size_t i = 0; i < ref.size(); ++i)
+            err = std::max(err, (dv[i] - ref[i]).norm2());
+        if (world.rank() == 0)
+            printf("  %-24s max |d - d_ref| = %.3e   staged nodes %zu\n", c.name, err, staged);
+        t.checkpoint(err, EXACT, std::string(c.name) + " matches the plain derivative");
+
+        // a halo that moved nothing would pass the comparison above without exercising anything.
+        // On one rank every consumer is local and nothing is pushed, by design.
+        if (c.halo && world.size() > 1)
+            t.checkpoint(staged > 0, std::string(c.name) + " staged a non-empty halo");
+    }
     return t.end();
 }
 

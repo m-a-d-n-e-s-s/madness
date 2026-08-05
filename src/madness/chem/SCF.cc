@@ -692,6 +692,8 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     START_TIMER(world);
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
+    // these operators serve only this matrix, which is the many-tree case the pool submission helps
+    for (int axis = 0; axis < 3; ++axis) gradop[axis]->parallel_submit_ = true;
     START_TIMER(world);
     // Pre-stage the neighbor coefficients the ranks owe each other, so differentiating serves them
     // locally instead of fetching one at a time. The halo is keyed by node, so one covers all axes.
