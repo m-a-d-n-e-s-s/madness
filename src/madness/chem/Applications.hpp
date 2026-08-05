@@ -989,6 +989,15 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // `prefix` must be carried explicitly. It is the one parameter that is
+        // DERIVED from information the engine cannot recompute -- the name of
+        // the original input file (ParameterManager.hpp) -- and this round trip
+        // keeps only user-defined values. Without it the engine falls back to
+        // the "mad" default and writes mad.restartdata, while valid() looks for
+        // <prefix>.restartdata.00000: archive_exists is then always false and
+        // the restart can never fire. Everything else that set_derived_values()
+        // computes is re-derived identically by the SCF ctor.
+        in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
         write_json_to_input_file(in, {"dft"}, ofs);
         mol.print_defined_only(ofs);
