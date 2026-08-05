@@ -133,6 +133,12 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
   calc_param.set_derived_value("k", 5);
   calc_param.set_derived_value("print_level", 2);
   calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d") * 0.01);
+  // Chained workflows need the ground-state archive on disk: it is what lets the
+  // reference step's results be reused without leaving the downstream step with
+  // an orbital-less engine (SCFApplication::run, NextAction::Ok -> reload). The
+  // response builder in madqc.cpp does the same. A deck that sets `save 0`
+  // explicitly still wins -- set_derived_value yields to user-defined values.
+  calc_param.set_derived_value("save", true);
 
   calc_param.set_derived_values(molecule);
   cc_param.set_derived_values();
@@ -146,6 +152,8 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
 
 inline void add_cis_workflow_drivers(World &world, Params &pm,
                                      qcapp::Workflow &wf) {
+  // see add_cc2_workflow_drivers: the chain needs the ground-state archive
+  pm.get<CalculationParameters>().set_derived_value("save", true);
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   auto ref_calc = reference->calc();
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
@@ -163,6 +171,8 @@ inline void add_oep_workflow_drivers(World &world, Params &pm,
     convergence_crit.emplace_back("each_energy");
   }
   cparam.set_derived_value("convergence_criteria", convergence_crit);
+  // see add_cc2_workflow_drivers: the chain needs the ground-state archive
+  cparam.set_derived_value("save", true);
 
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   auto ref_calc = reference->calc();
