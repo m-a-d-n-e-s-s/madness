@@ -81,6 +81,37 @@ def should_skip(requires):
     return None
 
 
+# Run artifacts that let a warm workdir short-circuit the calculation. ctest's
+# per-case scratch directory is created once at configure time and reused by
+# every later run (cmake/modules/AddQCTests.cmake), so without this a second
+# `ctest -L qctest` reuses the first run's state: madqc finds a valid
+# <label>.calc_info.json, returns NextAction::Ok and skips the SCF entirely. The
+# case still passes -- against its own previous output -- in a fraction of the
+# time, which would hide a regression from anyone iterating locally.
+#
+# The checkpoint is the actual lever (SCFApplication::run keys the skip on
+# has_results); the archives are cleared too so the engine's own restart cannot
+# warm-start either.
+STATE_GLOBS = ("*.calc_info.json", "*.restartdata*", "*.restartaodata")
+
+
+def clear_previous_state(workdir):
+    """Delete run artifacts left by an earlier run in this workdir.
+
+    Files only, recursively, matching known MADNESS run-artifact names -- never
+    whole directories, since a manual run may share the cwd with the user's own
+    files.
+    """
+    removed = 0
+    for pattern in STATE_GLOBS:
+        for stale in sorted(workdir.rglob(pattern)):
+            if stale.is_file():
+                stale.unlink()
+                removed += 1
+    if removed:
+        print(f"cleared {removed} artifact(s) from a previous run in {workdir}")
+
+
 def stage(case, workdir):
     """Copy the case into workdir, skipping the reference (which must stay read-only)."""
     if case == workdir:
@@ -173,6 +204,10 @@ def main():
     ap.add_argument("--case", required=True, help="path to the qctest case directory")
     ap.add_argument("--update", action="store_true",
                     help="overwrite the checked-in reference with this run's results")
+    ap.add_argument("--keep-state", action="store_true",
+                    help="do not clear checkpoints/restart archives left by an earlier "
+                         "run in the work directory; for a case that deliberately "
+                         "exercises restart from warm state")
     args = ap.parse_args()
 
     case = Path(args.case).resolve()
@@ -190,6 +225,9 @@ def main():
     if reason:
         print(f"SKIPPED: {reason}")
         return SKIP
+
+    if not args.keep_state:
+        clear_previous_state(workdir)
 
     runscript = stage(case, workdir)
     if not runscript.is_file():
