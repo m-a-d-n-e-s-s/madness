@@ -1,12 +1,12 @@
-# Geometry optimization of LiH as its own workflow: `--wf=optimize`.
+# Geometry optimization of LiH as its own task: `--optimize --wf=scf`.
 #
 # This is the composable form of a geometry optimization -- one task that drives
 # MolOpt over a reference engine and publishes the optimized geometry into the
 # StepContext, as opposed to `dft gopt 1`, which optimizes inside a single SCF
 # task (see scf_lih_gopt for that form; the two produce the same geometry).
 #
-# The reference engine is chosen by `optimization method` -- moldft here, nemo in
-# optimize_lih_nemo. Everything else in this deck is identical between the two,
+# The reference engine is whatever `--wf` names -- scf (i.e. moldft) here, nemo in
+# nemo_lih_optimize. Everything else in this deck is identical between the two,
 # which is the point: both engines are driven by the same optimizer through the
 # same code path.
 #
@@ -17,10 +17,9 @@
 #
 # Starts 0.015 bohr inside the HF minimum, which the optimizer closes in two steps.
 #
-# Run:   ./run.sh          (or: madqc --wf=optimize optimize_lih_moldft.in)
+# Run:   ./run.sh          (or: madqc --optimize --wf=scf scf_lih_optimize.in)
 
 optimization
-    method      moldft
     maxiter     10
 end
 

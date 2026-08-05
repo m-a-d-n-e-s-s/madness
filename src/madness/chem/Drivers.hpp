@@ -210,68 +210,186 @@ private:
   nlohmann::json provenance_ = nlohmann::json::object();
 };
 
+/**
+ * @brief Geometry optimization as its own task (madqc ARCHITECTURE_ROADMAP change 2).
+ *
+ * Drives MolOpt over the reference engine the Library policy supplies, so the same
+ * code optimizes on moldft (`Calc = SCF`) and nemo (`Calc = Nemo`). Selected by
+ * `--optimize` together with `--wf=<scf|nemo>`, which names the reference method.
+ *
+ * A Driver rather than an Application, deliberately: numerical gradients are to be
+ * computed from displaced sub-runs, each with its own directory and calc_info (see
+ * GeometryTarget), and owning sub-runs is a Driver's job. The same seam serves
+ * roadmap changes 3 and 4.
+ *
+ * Not restartable as a step: the optimizer keeps no checkpoint of its own (hessian
+ * and step history), so an interrupted optimization restarts from the input
+ * geometry. The SCF underneath still restarts per geometry as usual.
+ */
+template <typename Library> class OptimizeDriver : public Driver {
+public:
+  using Calc = typename Library::Calc;
+
+  OptimizeDriver(World &world, const Params &params)
+      : world_(world), params_(params) {}
+
+  void print_parameters(World &world) const override {
+    if (world.rank() != 0)
+      return;
+    params_.get<OptimizationParameters>().print(OptimizationParameters::tag,
+                                                "end");
+    if constexpr (std::is_same_v<Calc, madness::SCF>) {
+      params_.get<CalculationParameters>().print(CalculationParameters::tag,
+                                                 "end");
+    } else {
+      params_.get<CalculationParameters>().print(CalculationParameters::tag);
+      params_.get<madness::Nemo::NemoCalculationParameters>().print();
+      madness::print("end");
+    }
+  }
+
+  void execute(const std::filesystem::path &workdir,
+               madness::StepContext &ctx) override {
+    // An upstream step may have moved the molecule; honour it before the engine is
+    // built, since construction freezes the geometry.
+    if (ctx.molecule && ctx.molecule->natom() > 0)
+      params_.get<madness::Molecule>() = *ctx.molecule;
+
+    madness::PathManager pm(workdir, Library::label());
+    pm.create();
+    world_.gop.fence();
+    {
+      madness::ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0)
+        madness::print("Running geometry optimization on", Library::label(), "in",
+                       pm.dir().string());
+
+      // Tie the geometry thresholds to the accuracy of the wavefunction, the same
+      // Dalton-style rules the in-SCF gopt path uses -- but as *derived* values, so
+      // anything the deck sets in the `optimization` group wins.
+      auto &op = params_.get<OptimizationParameters>();
+      const double wf_thresh =
+          params_.get<CalculationParameters>().protocol().back();
+      op.set_derived_value("etol", std::max(1.0e-7, 2.0 * wf_thresh));
+      op.set_derived_value("gtol", std::max(1.0e-5, 2.0 * wf_thresh));
+      op.set_derived_value("xtol", std::max(1.0e-5, 2.0 * wf_thresh));
+      op.set_derived_value("value_precision", std::max(1.0e-7, 2.0 * wf_thresh));
+      op.set_derived_value("gradient_precision", std::max(1.0e-6, wf_thresh));
+
+      MADNESS_CHECK_THROW(
+          !op.get_initial_hessian(),
+          "optimization: initial_hessian is not implemented for the optimizer -- "
+          "MolOpt starts from a mass-weighted diagonal guess. Remove the key "
+          "rather than have it silently ignored");
+
+      auto engine = lib_.calc(world_, params_);
+      engine->work_dir = pm.dir();
+
+      if constexpr (std::is_same_v<Calc, madness::SCF>) {
+        // The same preparation moldft_lib::run does before handing the engine to
+        // MolOpt. It is not optional: MolecularEnergy::value only calls
+        // set_protocol when FunctionDefaults' thresh differs from protocol[0], so
+        // when they already agree nothing would build the nuclear potential / data
+        // map and the first geometry segfaults in the initial guess. Nemo needs no
+        // equivalent -- Nemo::value sets its own protocol on every call.
+        // `template` disambiguator: Calc is a template parameter here.
+        if (world_.size() > 1) {
+          engine->template set_protocol<3>(world_, 1e-4);
+          engine->make_nuclear_potential(world_);
+          engine->initial_load_bal(world_);
+        }
+        engine->template set_protocol<3>(world_,
+                                         engine->param.protocol()[0]);
+      } else {
+        // Nemo carries work_dir both on itself and on its inner SCF; downstream
+        // consumers read one or the other, so set both.
+        engine->get_calc()->work_dir = pm.dir();
+      }
+
+      // The engine as an OptimizationTargetInterface: MolecularEnergy wraps an SCF,
+      // Nemo is one itself. `scf_target` must outlive the optimization -- it holds
+      // an SCF&.
+      std::unique_ptr<madness::MolecularEnergy> scf_target;
+      madness::OptimizationTargetInterface *engine_target = nullptr;
+      if constexpr (std::is_same_v<Calc, madness::SCF>) {
+        scf_target = std::make_unique<madness::MolecularEnergy>(world_, *engine);
+        engine_target = scf_target.get();
+      } else {
+        engine_target = engine.get();
+      }
+      MADNESS_CHECK_THROW(engine_target->provides_gradient(),
+                          "the reference engine provides no analytic gradient; "
+                          "numerical gradients from displaced sub-runs are not "
+                          "implemented yet (see GeometryTarget)");
+
+      // THE SEAM: swap in a displaced-sub-run target here to get numerical
+      // gradients; everything below is unchanged by that choice.
+      madness::AnalyticTarget target(*engine_target);
+
+      madness::MolOpt opt(op.get_maxiter(), op.get_maxstep(), op.get_etol(),
+                          op.get_gtol(), op.get_xtol(), op.get_value_precision(),
+                          op.get_gradient_precision(),
+                          (world_.rank() == 0) ? 1 : 0, op.get_algopt());
+
+      madness::OptimizationResults opt_res;
+      if constexpr (std::is_same_v<Calc, madness::SCF>) {
+        opt_res = opt.optimize_app(engine->molecule, target);
+      } else {
+        opt_res = opt.optimize_app(engine->molecule(), target);
+      }
+
+      // Leave the engine AT the optimized geometry and pick up the final energy and
+      // gradient there (mirrors the in-SCF gopt path).
+      double energy = 0.0;
+      madness::Tensor<double> gradient;
+      target.energy_and_gradient(opt_res.final_geometry, energy, gradient);
+      opt_res.final_energy = energy;
+
+      madness::PropertyResults prop_res;
+      prop_res.energy = energy;
+      prop_res.gradient = gradient;
+
+      summary_["model"] = "optimize";
+      summary_["optimization_results"] = opt_res.to_json();
+      summary_["molecule"] = opt_res.final_geometry.to_json();
+      summary_["properties"] = prop_res.to_json();
+      summary_["metadata"] = {{"mpi_size", world_.size()},
+                              {"method", Library::label()}};
+
+      if (world_.rank() == 0) {
+        const std::string geomfile =
+            params_.get<CalculationParameters>().prefix() + "_opt.xyz";
+        std::ofstream ofs(geomfile);
+        opt_res.final_geometry.print(ofs);
+        ofs.close();
+        madness::print("optimized geometry written to", geomfile);
+        opt_res.final_geometry.print();
+      }
+      final_geometry_ = opt_res.final_geometry;
+    }
+
+    // Hand the optimized geometry to whatever runs next -- the point of making this
+    // a first-class step.
+    if (final_geometry_.natom() > 0)
+      ctx.molecule = final_geometry_;
+    if constexpr (std::is_same_v<Calc, madness::SCF>)
+      ctx.reference = lib_.calc(world_, params_);
+    try {
+      const auto &cp = params_.get<CalculationParameters>();
+      ctx.archives["restartdata"] = pm.dir() / (cp.prefix() + ".restartdata");
+    } catch (...) {
+      // best effort, as in SCFApplication
+    }
+  }
+
+  nlohmann::json summary() const override { return summary_; }
+
+private:
+  World &world_;
+  Params params_;
+  Library lib_;
+  nlohmann::json summary_;
+  madness::Molecule final_geometry_;
+};
+
 } // namespace qcapp
-// class OptimizeDriver : public Driver {
-// public:
-//   OptimizeDriver(World &w, std::function<std::unique_ptr<Application>(Params)> factory, Params p)
-//       : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
-
-//   void print_parameters(World &world) const override {
-//     if (world.rank() == 0) {
-//       params_.print_all();
-//     }
-//   }
-
-//   void execute(const std::filesystem::path &workdir) override {
-//     // 1) make our single "opt" folder
-//     std::filesystem::create_directories(workdir);
-//     PathManager pm(workdir, "opt");
-//     pm.create();
-
-//     // 2) switch into it
-//     ScopedCWD guard(pm.dir());
-//     if (world_.rank() == 0)
-//       std::cout << "Running geometry optimization in " << pm.dir() << "\n";
-
-//     // 3) build MolOpt from Params
-//     auto &op = params_.get<OptimizationParameters>();
-//     MolOpt optimizer(op.get_maxiter(), 0.1, op.get_value_precision(), op.get_geometry_tolerence(), 1e-3, 1e-5,
-//                      op.get_gradient_precision(), 1, op.get_algopt());
-//     // seed the Hessian
-//     optimizer.initialize_hessian(params_.get<Molecule>());
-
-//     // 4) build our target adaptor
-//     SCFTarget target(world_, factory_, params_);
-
-//     // 5) run the optimization
-//     auto mol0 = params_.get<Molecule>();
-//     Molecule optimized_mol = optimizer.optimize(mol0, target);
-
-//     OptimizationResults results;
-//     results.final_geometry = optimized_mol;
-//     results.final_energy = target.last_energy;
-//     // 6) update params (if you plan further drivers)
-//     params_.set(optimized_mol);
-
-//     // 7) record final results
-//     summary_ = {
-//         {"type", "optimization"}, {"final_energy", target.last_energy}
-//         // you could add geometry, gradient norms, etc.
-//     };
-
-//     // 8) optionally dump optimized geometry
-//     if (world_.rank() == 0) {
-//       auto geom_j = optimized_mol.to_json();
-//       std::ofstream f("optimized_geometry.json");
-//       f << std::setw(2) << geom_j << "\n";
-//     }
-//   }
-
-//   [[nodiscard]] nlohmann::json summary() const override { return summary_; }
-
-// private:
-//   World &world_;
-//   std::function<std::unique_ptr<Application>(Params)> factory_;
-//   Params params_;
-//   nlohmann::json summary_;
-// };
