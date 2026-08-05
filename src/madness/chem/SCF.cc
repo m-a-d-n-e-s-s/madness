@@ -1414,7 +1414,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     // compute Vpsi and truncation
     START_TIMER(world);
-    const bool tile_Vpsi = true;
+    // Tiling bounds the products' transient memory, which only threatens at high precision, and
+    // costs nmo/ntile fences plus a truncation of every product. The untiled path was the default
+    // for years; take it below the tight protocols.
+    const bool tile_Vpsi = FunctionDefaults<3>::get_thresh() < 1.e-7;
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
