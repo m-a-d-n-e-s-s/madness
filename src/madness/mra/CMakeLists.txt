@@ -8,7 +8,7 @@ set(MADMRA_HEADERS
     funcdefaults.h  key.h  mra.h  power.h  qmprop.h  twoscale.h lbdeux.h
     mraimpl.h  funcplot.h  function_common_data.h function_factory.h
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
-    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
+    displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h)
 set(MADMRA_SOURCES
@@ -38,7 +38,7 @@ if(BUILD_TESTING)
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc
       testgaxpyext.cc testvmra.cc test_vectormacrotask.cc test_cloud.cc test_tree_state.cc testsolver.cc
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
-      test_keybox.cc test_eval.cc)
+      test_keybox.cc test_eval.cc test_mul_sparse.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
