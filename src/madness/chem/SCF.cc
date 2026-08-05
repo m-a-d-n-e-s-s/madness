@@ -1425,14 +1425,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 size_t iend = std::min(ilo+ntile,amo.size());
                 vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
                 auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
-
-                //truncate tmpVpsi
                 truncate(world, tmpVpsi);
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    Vpsi[i] += tmpVpsi[i-ilo];
-                }
+                // one gaxpy per tile instead of two fences per orbital, as the untiled branch does
+                vecfuncT Vpsi_tile(Vpsi.begin()+ilo, Vpsi.begin()+iend);
+                gaxpy(world, 1.0, Vpsi_tile, 1.0, tmpVpsi);
             }
             END_TIMER(world, "V*psi");
         } else {
