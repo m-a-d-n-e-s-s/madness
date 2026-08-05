@@ -72,6 +72,8 @@ void help(const std::string &wf) {
   print("  --print_parameters=<group>  : print all parameters and exit");
   print("  --workflow=<name>           : specify the workflow to run (default: "
         "scf)");
+  print("  --optimize                  : optimize the geometry of the "
+        "workflow's reference (scf|nemo)");
   print("\nAvailable workflows: " + workflow_builders::runnable_workflow_list());
   print("Parameter groups (for --print_parameters): dft, nemo, response, cc2, "
         "cis, oep, optimization, geometry");
@@ -110,16 +112,17 @@ void help(const std::string &wf) {
     print("\nexamples: ");
     print("madqc --wf=oep --geometry=h2o");
   } else if (wf == "optimize") {
-    print("madqc --wf=optimize");
-    print("Geometry optimization on a moldft or nemo reference");
+    print("madqc --optimize --wf=<scf|nemo>");
+    print("Geometry optimization: --wf names the reference method, --optimize "
+          "asks for its");
+    print("geometry to be optimized. (`--wf=optimize` is not a workflow.)");
     print("\nexamples: ");
-    print("madqc --wf=optimize --geometry=h2o");
-    print("madqc --wf=optimize --geometry=lih --optimization=\"method=nemo\"");
-    print("madqc --wf=optimize --geometry=h2o --optimization=\"gtol=1.e-4; "
+    print("madqc --optimize --wf=scf --geometry=h2o");
+    print("madqc --optimize --wf=nemo --geometry=lih");
+    print("madqc --optimize --wf=scf --geometry=h2o --optimization=\"gtol=1.e-4; "
           "maxiter=10\"");
-    print("\nthe reference method is selected with optimization.method "
-          "(moldft|nemo);");
-    print("see  madqc --print_parameters=optimization  for all knobs");
+    print("\nsee  madqc --print_parameters=optimization  for all knobs.");
+    print("the older in-SCF form is still available as  --dft=\"gopt=1\".");
   }
 }
 
@@ -213,6 +216,9 @@ int main(int argc, char **argv) {
       // deck flag (and stamp the provenance below) for the response workflow —
       // a stray `response.hdf5`/`io backend hdf5` in a cc2/cis/oep/moldft deck
       // must NOT flip the global flag or mis-stamp backend=hdf5 (review LOW).
+      // `--optimize` turns the workflow's reference into an optimization task
+      // (WorkflowBuilders::add_optimize_workflow_drivers).
+      const bool optimize_geometry = parser.key_exists("optimize");
       const bool is_response_wf =
           workflow_builders::workflow_kind_from_name(user_workflow) ==
           workflow_builders::WorkflowKind::Response;
@@ -236,8 +242,16 @@ int main(int argc, char **argv) {
       // WorkflowBuilders cannot reference v3 (circular lib dependency), and the
       // v2 engine was removed (M1 decoupling Stage 2). molresponse_v3 is THE
       // response engine; `engine v2` in old decks fails loudly below.
-      if (workflow_builders::workflow_kind_from_name(user_workflow) ==
-          workflow_builders::WorkflowKind::Response) {
+      if (is_response_wf && optimize_geometry) {
+        // The response step would have to run at the optimized geometry, which
+        // needs the downstream consumer work of ARCHITECTURE_ROADMAP change 2.
+        throw std::runtime_error(
+            "--optimize is not supported for --wf=response; optimize the "
+            "geometry first (--optimize --wf=scf) and run the response "
+            "calculation on the result");
+      }
+
+      if (is_response_wf) {
         const std::string engine = pm.get<ResponseParameters>().engine();
         if (engine == "v2") {
           if (world.rank() == 0)
@@ -257,7 +271,8 @@ int main(int argc, char **argv) {
             std::make_unique<ResponseApplication<molresponse_v3_lib>>(
                 world, pm, reference->calc())));
       } else {
-        workflow_builders::add_workflow_drivers(world, pm, user_workflow, wf);
+        workflow_builders::add_workflow_drivers(world, pm, user_workflow, wf,
+                                                optimize_geometry);
       }
 
       // io provenance for ALL tasks (today only response writes MRA restart

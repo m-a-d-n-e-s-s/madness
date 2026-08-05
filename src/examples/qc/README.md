@@ -54,8 +54,8 @@ Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 25 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_gopt` | `scf` | LiH | geometry optimization inside an SCF task (`dft gopt`) | 38 s | long |
-| `optimize_lih_moldft` | `optimize` | LiH | the `optimize` workflow on a moldft reference | 37 s | long |
-| `optimize_lih_nemo` | `optimize` | LiH | the same, on a nemo reference | 77 s | long |
+| `scf_lih_optimize` | `scf` + `--optimize` | LiH | geometry optimization as its own task, moldft reference | 37 s | long |
+| `nemo_lih_optimize` | `nemo` + `--optimize` | LiH | the same, on a nemo reference | 77 s | long |
 | `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 48 s | long |
 | `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 50 s | long |
 | `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 51 s | long |
@@ -77,11 +77,12 @@ means *per job*, not per rank.
 
 The three optimization cases cover the two forms a geometry optimization takes.
 `scf_lih_gopt` uses `dft gopt`, which optimizes *inside* one SCF task;
-`optimize_lih_{moldft,nemo}` use `--wf=optimize`, the composable form that is its
-own task and publishes the optimized geometry for a later step. The moldft pair
+`scf_lih_optimize` and `nemo_lih_optimize` use `--optimize --wf=<scf|nemo>`, the
+composable form that is its own task and publishes the optimized geometry for a
+later step. The moldft pair
 agree to the last digit of the geometry (r = 3.035071 bohr), which is the check
 that the first-class optimizer really drives the same MolOpt as the in-SCF path;
-`optimize_lih_nemo` lands 1.3e-3 bohr away, the difference between a regularized
+`nemo_lih_optimize` lands 1.3e-3 bohr away, the difference between a regularized
 and a plain SCF reference at these thresholds. The nemo case is also the
 regression test for a wavefunction that is *not* re-solved as the nuclei move —
 `Nemo::value` skips the SCF when the orbitals are already converged to the

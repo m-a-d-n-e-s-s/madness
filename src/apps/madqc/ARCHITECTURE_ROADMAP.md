@@ -35,32 +35,40 @@ capture (which stays as a compatibility path until builders migrate).
 reference from the context; a third stage can consume stage 2's outputs.
 
 ### 2. First-class `optimize` workflow (M)
-**Status: LANDED.** `--wf=optimize` is one task, `OptimizeApplication<Library>`
-(`Applications.hpp`), driving `MolOpt` over the reference engine the Library policy
-supplies — the same code optimizes on moldft (`Calc = SCF`) and nemo
-(`Calc = Nemo`), selected by `optimization { method moldft|nemo }`. It reads the
+**Status: LANDED.** `--optimize --wf=<scf|nemo>` is one task,
+`qcapp::OptimizeDriver<Library>` (`Drivers.hpp`), driving `MolOpt` over the reference
+engine the Library policy supplies — the same code optimizes on moldft
+(`Calc = SCF`) and nemo (`Calc = Nemo`). `--wf` names the reference method and
+`--optimize` asks for its geometry to be optimized; naming the engine in the
+`optimization` group as well was removed, and `--wf=optimize` now answers with a
+migration message. It reads the
 `optimization` group (which nothing read before), derives any threshold the deck
 leaves unset from `protocol().back()`, writes `<prefix>_opt.xyz`, and publishes the
 optimized geometry into the StepContext. Covered by
-`src/examples/qc/optimize_lih_{moldft,nemo}`; the moldft case reproduces the
+`src/examples/qc/{scf,nemo}_lih_optimize`; the moldft case reproduces the
 in-SCF `dft gopt` geometry to the last digit (r = 3.035071 bohr), and the two
 engines agree on the minimum to 1.3e-3 bohr.
 
 Three deviations from the original plan, each deliberate:
 
-- It is an **Application behind the existing `SinglePointDriver`**, not a bespoke
-  `OptimizeDriver`. That reuses the per-task directory, results aggregation and the
-  consume/publish hooks as they are, and touches no orchestration code. The
-  commented `OptimizeDriver` in `Drivers.hpp` predates StepContext; change 3 below
-  is the reason to revisit this, since per-step property drivers need a hook that
-  routes each accepted step onward.
-- `SCFTarget` was **replaced rather than repaired**. Its design — a fresh
-  Application per geometry through a factory — meant a whole Application run, with
-  its own directory and checkpointing, per energy evaluation.
-  `EngineOptTarget<Engine>` (`SCFTargetAdapter.hpp`) instead adapts an engine's own
-  `value(x)`/`gradient(x)` to MolOpt's Molecule-based protocol: one solve per
-  geometry. moldft needs no adapter — `MolecularEnergy` already is one — so the
-  result-schema question the plan raised does not arise at all.
+- It is a **Driver**, not an Application. Numerical gradients are to be computed
+  from *displaced sub-runs* — one sub-run per ±h Cartesian displacement, each in its
+  own directory with its own `calc_info`, so displacements are restartable and can
+  later be spread across subworlds — and owning sub-runs is a Driver's job. The
+  gradient source is chosen at one point, `GeometryTarget` in
+  `SCFTargetAdapter.hpp`: `AnalyticTarget` today, a `DisplacedEnergyTarget` later,
+  which will run one `SCFApplication<Library>` per displacement under
+  `task_<i>/step_<k>/disp_<...>/` and so inherit that class's checkpoint and
+  `checkpoint_geometry_matches` guard for free. Its energies must come from
+  `results["properties"]["energy"]` — **not** `scf_total_energy`, which the plain
+  `scf` path leaves at 0.0. This is the same seam changes 3 and 4 need.
+- `SCFTarget` was **replaced rather than repaired**, but its idea returns for the
+  numerical path above: an Application per displaced geometry is exactly right when
+  the point is a restartable sub-run, and exactly wrong for walking one engine
+  along a path. So the analytic target drives the engine directly — both engines
+  reach `MolOpt` through `OptimizationTargetInterface`, which `MolecularEnergy`
+  (for an SCF) and `Nemo` (itself) already implement — and the per-geometry
+  Application returns only where sub-runs are wanted.
 - A **bug had to be fixed for nemo to work**: nothing dropped
   `converged_for_thresh` when the nuclei moved, so `Nemo::value`'s `skip_solve`
   short-circuited the SCF at every new geometry and the optimizer walked a frozen

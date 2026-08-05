@@ -20,11 +20,9 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     read_input_and_commandline_options(world, parser, tag);
   }
   OptimizationParameters() {
-    // Which reference method the geometry optimization is run on. `method` used
-    // to be read by get_method() without ever being initialized.
-    initialize<std::string>("method", "moldft",
-                            "reference method the geometry is optimized on",
-                            {"moldft", "nemo"});
+    // No `method` here: the reference method comes from --wf=<scf|nemo>, and
+    // --optimize says to optimize its geometry. Naming it twice invites the two
+    // to disagree.
     initialize<int>("maxiter", 20, "maximum number of geometry steps");
     initialize<bool>("initial_hessian", false,
                      "compute inital hessian for optimization");
@@ -33,7 +31,7 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     initialize<double>("maxstep", 0.1,
                        "maximum step in any cartesian coordinate (a.u.)");
     // Convergence thresholds and assumed precisions. The defaults below are
-    // only fallbacks: OptimizeApplication derives all five from the wavefunction
+    // only fallbacks: OptimizeDriver derives all five from the wavefunction
     // threshold (protocol().back()) with set_derived_value, which beats a default
     // but yields to anything the deck sets -- so a deck can tighten or loosen any
     // one of them, and otherwise they track the accuracy of the calculation.
@@ -50,9 +48,6 @@ struct OptimizationParameters : public QCCalculationParametersBase {
   using QCCalculationParametersBase::read_input_and_commandline_options;
   using QCCalculationParametersBase::print;
 
-  [[nodiscard]] std::string get_method() const {
-    return get<std::string>("method");
-  }
   [[nodiscard]] int get_maxiter() const { return get<int>("maxiter"); }
   [[nodiscard]] bool get_initial_hessian() const {
     return get<bool>("initial_hessian");

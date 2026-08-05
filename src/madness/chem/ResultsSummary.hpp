@@ -14,6 +14,8 @@
 //                  "metadata", "molecule" }
 //   * CIS/TDHF : { "model":"cis", "excitations":[{omega,irrep,
 //                  oscillator_strength_length,...}], "nfreeze" }
+//   * optimize : { "model":"optimize", "optimization_results":{nsteps,
+//                  final_energy, max_gradient, final_geometry}, "properties" }
 //   * MP2/CC2  : { "model":"mp2"|"cc2", "correlation_energy",
 //                  "<model>_total_energy", "excitations"? }
 //   * Response : { "type":"response", "properties":{response_properties:[...],
@@ -302,6 +304,45 @@ inline void write_response_section(std::ostream &os, const nlohmann::json &t) {
 } // namespace summary_detail
 
 /// Write a human-readable chemistry report for an aggregated calc_info JSON.
+/// Geometry optimization task (`model == "optimize"`): what an optimization run is
+/// actually asked about -- did it converge, in how many steps, to what geometry and
+/// energy. Without this the report showed "Task 0 : TASK" and nothing else.
+inline void write_optimization_section(std::ostream &os,
+                                       const nlohmann::json &t) {
+  const auto &o = t.contains("optimization_results") ? t["optimization_results"]
+                                                     : nlohmann::json::object();
+  if (t.contains("metadata") && t["metadata"].contains("method"))
+    os << "    Reference        : " << t["metadata"]["method"].get<std::string>()
+       << "\n";
+  if (o.contains("nsteps"))
+    os << "    Geometry steps   : " << o["nsteps"].get<int>() << "\n";
+  if (o.contains("final_energy"))
+    os << "    Final energy     : " << std::fixed << std::setprecision(9)
+       << std::setw(18) << o["final_energy"].get<double>() << " Ha\n";
+  if (o.contains("max_gradient"))
+    os << "    Max gradient     : " << std::scientific << std::setprecision(2)
+       << o["max_gradient"].get<double>() << " Ha/bohr\n"
+       << std::defaultfloat;
+  // The optimized geometry is the result; print it in the same atomic units the
+  // deck uses.
+  if (o.contains("final_geometry") && o["final_geometry"].contains("geometry")) {
+    const auto &g = o["final_geometry"]["geometry"];
+    const auto &sym = o["final_geometry"].contains("symbols")
+                          ? o["final_geometry"]["symbols"]
+                          : nlohmann::json::array();
+    os << "    Optimized geometry (a.u.):\n";
+    for (size_t a = 0; a < g.size(); ++a) {
+      os << "      " << std::setw(4)
+         << (a < sym.size() ? sym[a].get<std::string>() : std::string("?"));
+      for (const auto &c : g[a])
+        os << std::fixed << std::setprecision(8) << std::setw(15)
+           << c.get<double>();
+      os << "\n";
+    }
+    os << std::defaultfloat;
+  }
+}
+
 inline void write_results_summary(std::ostream &os,
                                   const nlohmann::json &calc_info) {
   using namespace summary_detail;
@@ -336,6 +377,8 @@ inline void write_results_summary(std::ostream &os,
       title = "EXCITED STATES  (model = " + model + ")";
     else if (t.contains("correlation_energy"))
       title = "CORRELATION  (model = " + model + ")";
+    else if (model == "optimize")
+      title = "GEOMETRY OPTIMIZATION";
     else
       title = "TASK";
 
@@ -354,6 +397,8 @@ inline void write_results_summary(std::ostream &os,
       write_response_section(os, t);
     } else if (model == "scf" || t.contains("scf_eigenvalues_a")) {
       write_scf_section(os, t);
+    } else if (model == "optimize") {
+      write_optimization_section(os, t);
     } else {
       if (t.contains("correlation_energy"))
         write_correlation_section(os, t);
