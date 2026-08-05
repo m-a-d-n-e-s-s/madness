@@ -743,8 +743,11 @@ NextAction valid(World &world, const SCFResultsTuple &results,
 
   // State in resultout the threshold refinement.
   //
+  // "at least as good as requested", not "exactly equal": these are thresholds,
+  // and exact float equality on them made a run converged to 1e-6 look invalid
+  // against a request for 1e-6 whenever the two were computed differently.
   const bool at_protocol =
-      (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
+      (cr.converged_for_thresh <= vthresh && cr.converged_for_dconv <= vdconv);
 
   const auto pjson = sr.properties.to_json();
   const bool energy_ok = pjson.contains("energy");
@@ -954,8 +957,11 @@ struct moldft_lib {
 
     scf->do_plots(world);
 
-    conv_res.set_converged_thresh(FunctionDefaults<3>::get_thresh());
-    conv_res.set_converged_dconv(scf->param.dconv());
+    // report what the SCF actually achieved, not what was requested -- taking
+    // these from FunctionDefaults/param made an unconverged run checkpoint as
+    // converged, so the next invocation skipped it.
+    conv_res.set_converged_thresh(scf->converged_for_thresh);
+    conv_res.set_converged_dconv(scf->converged_for_dconv);
     prop_res.energy = energy;
     prop_res.dipole = dip;
     prop_res.gradient = grad;

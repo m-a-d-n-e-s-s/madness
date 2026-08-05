@@ -314,7 +314,10 @@ public:
 		unsigned int nmo = 0;
 
 		ar & nmo;
-		MADNESS_ASSERT(nmo >= nmo_from_input);
+		// must hold in release builds too: too few orbitals in the archive
+		// otherwise silently yields a short mo vector further down
+		MADNESS_CHECK_THROW(nmo >= nmo_from_input,
+				"restart archive holds fewer orbitals than requested");
 		ar & eps & occ & localize_sets;
 		mo.resize(nmo);
 		for (unsigned int i = 0; i < mo.size(); ++i)

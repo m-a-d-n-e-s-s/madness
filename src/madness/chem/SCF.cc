@@ -381,9 +381,10 @@ void SCF::load_mos(World& world) {
 
     if (not (mol == molecule)) {
         if (world.rank() == 0) {
-            print("Warning: Molecule in archive does not match the current molecule");
-            print("Restarting from this molecular geometry");
-            molecule.print();
+            print("Warning: molecule in archive does not match the requested molecule");
+            print("using the orbitals as a guess for the requested geometry; the");
+            print("geometry stored in the archive was");
+            mol.print();
         }
     }
 
@@ -439,7 +440,10 @@ void SCF::load_mos(World& world) {
         converged_for_thresh= converged_for_thresh1;
         current_energy=current_energy1;
     }
-    molecule=mol;
+    // NB: the requested geometry wins. Restarting must never silently move the
+    // molecule to the one stored in the archive -- during a geometry
+    // optimization that would compute the energy at a geometry the optimizer
+    // did not ask for.
 }
 
 
@@ -466,7 +470,10 @@ void SCF::get_initial_orbitals(World& world) {
                 }
                 return false;
             }
-            MADNESS_CHECK_THROW(amo.size()==size_t(param.nalpha()),"inconsistent restart data");
+            // load_mos reads nmo_alpha orbitals (occupied + virtuals), so this
+            // must compare against nmo_alpha -- comparing against nalpha made
+            // every restart with nvalpha>0 throw.
+            MADNESS_CHECK_THROW(amo.size()==size_t(param.nmo_alpha()),"inconsistent restart data");
 
         } else if (fromwhere=="restartao") {
             reset_aobasis("sto-3g");
@@ -2407,10 +2414,17 @@ void SCF::solve(World& world) {
 
             // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
             if (converged || iter == param.maxiter() - 1) {
+                // record what we converged *to*, on every rank and independent of
+                // the print level: the restart logic keys off these two fields.
+                // The values are the thresholds of this protocol level, not
+                // param.econv()/param.dconv() -- at a loose level the latter
+                // over-claims, at the final level it under-claims.
+                if (converged) {
+                    converged_for_thresh=FunctionDefaults<3>::get_thresh();
+                    converged_for_dconv=dconv;
+                }
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
-                    converged_for_thresh=param.econv();
-                    converged_for_dconv=param.dconv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors
