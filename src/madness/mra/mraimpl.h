@@ -954,6 +954,11 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
         typedef std::pair<keyT,coeffT> argT;
+        if (D->parallel_submit_) {
+            D->submit_diff_tasks(f, this);   // same tasks, spawned from the pool instead of here
+            if (fence) world.gop.fence();
+            return;
+        }
         for (const auto& [key, node]: f->coeffs) {
             if (node.has_coeff()) {
                 Future<argT> left  = D->find_neighbor(f, key,-1);

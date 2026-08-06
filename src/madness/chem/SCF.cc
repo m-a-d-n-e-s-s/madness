@@ -692,12 +692,23 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     START_TIMER(world);
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
+    // these operators serve only this matrix, which is the many-tree case the pool submission helps
+    for (int axis = 0; axis < 3; ++axis) gradop[axis]->parallel_submit_ = true;
     START_TIMER(world);
+    // Pre-stage the neighbor coefficients the ranks owe each other, so differentiating serves them
+    // locally instead of fetching one at a time. The halo is keyed by node, so one covers all axes.
+    for (int i = 0; i < n; ++i) v[i].get_impl()->halo_enable();
+    world.gop.fence();
+    for (int axis = 0; axis < 3; ++axis)
+        for (int i = 0; i < n; ++i) gradop[axis]->stage_halo(v[i].get_impl().get());
+    world.gop.fence();
     vecfuncT dvx = apply(world, *(gradop[0]), v, false);
     vecfuncT dvy = apply(world, *(gradop[1]), v, false);
     vecfuncT dvz = apply(world, *(gradop[2]), v, false);
     world.gop.fence();
     END_TIMER(world, "KEmat differentiate");
+    // all three axes' surfaces are live here, since all three are applied before the fence above
+    for (int i = 0; i < n; ++i) v[i].get_impl()->halo_clear();
     START_TIMER(world);
     compress(world, dvx, false);
     compress(world, dvy, false);
@@ -1414,7 +1425,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     // compute Vpsi and truncation
     START_TIMER(world);
-    const bool tile_Vpsi = true;
+    // Tiling bounds the products' transient memory, which only threatens at high precision, and
+    // costs nmo/ntile fences plus a truncation of every product. The untiled path was the default
+    // for years; take it below the tight protocols.
+    const bool tile_Vpsi = FunctionDefaults<3>::get_thresh() < 1.e-7;
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
@@ -1425,14 +1439,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 size_t iend = std::min(ilo+ntile,amo.size());
                 vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
                 auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
-
-                //truncate tmpVpsi
                 truncate(world, tmpVpsi);
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    Vpsi[i] += tmpVpsi[i-ilo];
-                }
+                // one gaxpy per tile instead of two fences per orbital, as the untiled branch does
+                vecfuncT Vpsi_tile(Vpsi.begin()+ilo, Vpsi.begin()+iend);
+                gaxpy(world, 1.0, Vpsi_tile, 1.0, tmpVpsi);
             }
             END_TIMER(world, "V*psi");
         } else {

@@ -91,6 +91,11 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
 
+        /// Spawn `diff`'s per-node tasks from the task pool instead of the main thread.
+
+        /// The same tasks are produced, so the result is unchanged. Per instance and off by default,
+        /// since it only pays off when many functions are differentiated at once.
+        bool parallel_submit_ = false;
 
         DerivativeBase(World& world, std::size_t axis, int k, BoundaryConditions<NDIM> bc)
             : WorldObject< DerivativeBase<T, NDIM> >(world)
@@ -237,6 +242,28 @@ namespace madness {
             }
         }
 
+        /// Push f's remote same-level neighbor coefficients to the ranks that will need them.
+
+        /// Node M is the neighbor of M-1 and M+1, so its owner pushes it to the owners of those keys
+        /// without being asked, one batched message per destination. Requires `halo_enable()` and a
+        /// fence first, then a fence before differentiating; `halo_clear()` frees the result.
+        void stage_halo(const implT* f) const {
+            MADNESS_CHECK(f->halo_enabled());
+            const dcT& coeffs = f->get_coeffs();
+            std::map<ProcessID, std::vector<argT> > out;
+            for (const auto& [key, node] : coeffs) {
+                for (int step : {-1, 1}) {
+                    keyT consumer = neighbor(key, step);
+                    if (consumer.is_invalid()) continue;              // domain boundary: no consumer there
+                    ProcessID d = coeffs.owner(consumer);
+                    if (d == world.rank()) continue;                  // local consumer: the pull is cheap
+                    out[d].push_back(argT(key, node.has_coeff() ? node.coeff() : coeffT()));
+                }
+            }
+            for (auto& kv : out)
+                f->task(kv.first, &implT::receive_halo, kv.second, TaskAttributes::hipri());
+        }
+
         Future<argT>
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
             keyT neigh = neighbor(key, step);
@@ -244,6 +271,11 @@ namespace madness {
                 return Future<argT>(argT(neigh,coeffT(vk,f->get_tensor_args()))); // Zero bc
             }
             else {
+                // hit: same-level leaf or interior node. miss: neighbor is coarser, walk up below.
+                if (f->halo_enabled()) {
+                    coeffT c;
+                    if (f->halo_probe(neigh, c)) return Future<argT>(argT(neigh, c));
+                }
                 Future<argT> result;
 		if (f->get_coeffs().is_local(neigh))
 		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
@@ -253,6 +285,38 @@ namespace madness {
             }
         }
 
+
+        /// Body of `FunctionImpl::diff`'s submission loop, as a functor for `taskq.for_each`.
+        struct submit_op {
+            typedef Range<typename dcT::const_iterator> rangeT;
+            const DerivativeBase<T,NDIM>* D;
+            const implT* f;
+            implT* df;
+            submit_op(const DerivativeBase<T,NDIM>* D=nullptr, const implT* f=nullptr, implT* df=nullptr)
+                : D(D), f(f), df(df) {}
+            bool operator()(typename rangeT::iterator& it) const {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    Future<argT> left  = D->find_neighbor(f, key, -1);
+                    argT center(key, node.coeff());
+                    Future<argT> right = D->find_neighbor(f, key, 1);
+                    df->world.taskq.add(*df, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                }
+                else {
+                    df->get_coeffs().replace(key, nodeT(coeffT(), true)); // empty internal node
+                }
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {}
+        };
+
+        /// Parallel form of `FunctionImpl::diff`'s submission loop; the caller owns the fence.
+        void submit_diff_tasks(const implT* f, implT* df) const {
+            typedef Range<typename dcT::const_iterator> rangeT;
+            df->world.taskq.template for_each<rangeT, submit_op>(
+                rangeT(f->get_coeffs().begin(), f->get_coeffs().end()), submit_op(this, f, df));
+        }
 
         template <typename Archive> void serialize(const Archive& ar) const {
             throw "NOT IMPLEMENTED";
