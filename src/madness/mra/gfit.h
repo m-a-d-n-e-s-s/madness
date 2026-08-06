@@ -346,9 +346,9 @@ public:
 		// First, we define 'diffuse' via tcut.
             	double max_infinite_dim_spacing = 0;
             	for(int d=0; d!=NDIM; ++d) {
-              		if (lattice_ranges.infinite()[d])
+              		if (lattice_ranges[d].infinite())
                 		max_infinite_dim_spacing =
-                    			std::max(max_lattice_spacing, cell_width(d));
+                    			std::max(max_infinite_dim_spacing, cell_width(d));
             	}
 		double tcut = 0.25 / max_infinite_dim_spacing / max_infinite_dim_spacing;
 		// Now we use tcut to determine the cutoff point.
