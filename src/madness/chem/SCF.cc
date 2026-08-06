@@ -696,9 +696,7 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     for (int axis = 0; axis < 3; ++axis) gradop[axis]->parallel_submit_ = true;
     START_TIMER(world);
     // Pre-stage the neighbor coefficients the ranks owe each other, so differentiating serves them
-    // locally instead of fetching one at a time. The halo is keyed by node, so one covers all axes.
-    for (int i = 0; i < n; ++i) v[i].get_impl()->halo_enable();
-    world.gop.fence();
+    // locally instead of fetching one at a time. One table per function holds all three axes.
     for (int axis = 0; axis < 3; ++axis)
         for (int i = 0; i < n; ++i) gradop[axis]->stage_halo(v[i].get_impl().get());
     world.gop.fence();

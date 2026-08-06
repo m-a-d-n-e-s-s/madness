@@ -67,8 +67,6 @@ differentiate(World& world,
     for (std::size_t axis = 0; axis < D; ++axis) grad[axis]->parallel_submit_ = parallel_submit;
 
     if (halo) {
-        for (const auto& f : v) f.get_impl()->halo_enable();
-        world.gop.fence();
         for (std::size_t axis = 0; axis < D; ++axis)
             for (const auto& f : v) grad[axis]->stage_halo(f.get_impl().get());
         world.gop.fence();
@@ -121,6 +119,21 @@ static int test_equivalence(World& world, const std::vector<Function<double,D>>&
     return t.end();
 }
 
+/// The plain path must not allocate the table: a probe on a function with no halo has to answer
+/// without creating one, or every differentiated function would carry ~32 kB it never uses.
+static int test_no_halo_no_allocation(World& world, const std::vector<Function<double,D>>& v) {
+    test_output t("differentiating without staging allocates no halo");
+    t.set_cout_to_logger();
+    std::vector<std::shared_ptr<Derivative<double,D>>> grad = gradient_operator<double,D>(world);
+
+    const Function<double,D>& f = v[0];
+    t.checkpoint(f.get_impl()->halo_enabled() == false, "no halo before differentiating");
+    Function<double,D> df = (*grad[0])(f, true);
+    t.checkpoint(df.norm2() > 0.0, "derivative is non-trivial");
+    t.checkpoint(f.get_impl()->halo_enabled() == false, "no halo after differentiating");
+    return t.end();
+}
+
 /// A staged halo must be inert for a lone derivative too, not just for the vector form the
 /// kinetic-energy matrix uses.
 static int test_single_function(World& world, const std::vector<Function<double,D>>& v) {
@@ -131,8 +144,6 @@ static int test_single_function(World& world, const std::vector<Function<double,
     const Function<double,D>& f = v[0];
     Function<double,D> ref = (*grad[0])(f, true);
 
-    f.get_impl()->halo_enable();
-    world.gop.fence();
     grad[0]->stage_halo(f.get_impl().get());
     world.gop.fence();
     Function<double,D> df = (*grad[0])(f, true);
@@ -156,8 +167,6 @@ static int test_clear(World& world, const std::vector<Function<double,D>>& v) {
     const Function<double,D>& f = v[0];
     Function<double,D> ref = (*grad[0])(f, true);
 
-    f.get_impl()->halo_enable();
-    world.gop.fence();
     grad[0]->stage_halo(f.get_impl().get());
     world.gop.fence();
     f.get_impl()->halo_clear();
@@ -183,6 +192,7 @@ int main(int argc, char** argv) {
     int success = 0;
     {
         std::vector<Function<double,D>> v = make_operands(world);
+        success += test_no_halo_no_allocation(world, v);   // first: needs a function that never staged
         success += test_equivalence(world, v);
         success += test_single_function(world, v);
         success += test_clear(world, v);
