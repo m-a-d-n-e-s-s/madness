@@ -52,6 +52,7 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     ParameterManager.hpp
     ResponseParameters.hpp
+    Restart.h
     PathManager.hpp
     Applications.hpp
     Drivers.hpp

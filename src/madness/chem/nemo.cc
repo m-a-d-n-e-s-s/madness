@@ -146,6 +146,13 @@ Nemo::Nemo(World &world, const commandlineparser &parser)
     : NemoBase(world), calc(std::make_shared<SCF>(world, parser)),
       nemo_param(world, parser), coords_sum(-1.0), ac(world, calc) {
 
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
+
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
   symmetry_projector = projector_irrep(get_calc_param().pointgroup())
@@ -162,6 +169,13 @@ Nemo::Nemo(World &world, const CalculationParameters &param,
            const Molecule &molecule)
     : NemoBase(world), calc(std::make_shared<SCF>(world, param, molecule)),
       nemo_param(nemo_param), coords_sum(-1.0), ac(world, calc) {
+
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);

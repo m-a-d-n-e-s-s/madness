@@ -40,6 +40,7 @@
 #include <madness/world/worldmem.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
+#include <madness/chem/Restart.h>
 #include <madchem.h>
 
 #if defined(__has_include)
@@ -282,19 +283,25 @@ void SCF::save_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     auto archivename=param.prefix()+".restartdata";
     archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, archivename.c_str(), param.get<int>("nio"));
-    // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
-    /*
-     * After spin restricted
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      */
-    unsigned int version = 4;
-    ar & version;
-    ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
-    // Reorder so it doesn't affect orbital data
+
+    // The header layout lives in RestartMetadata (chem/Restart.h) -- do not
+    // open-code it here. Adding a field there is enough; this call and
+    // load_mos() below both follow.
+    RestartMetadata meta;
+    meta.current_energy = current_energy;
+    meta.spin_restricted = param.spin_restricted();
+    meta.L = param.L();
+    meta.k = FunctionDefaults<3>::get_k();
+    meta.molecule = molecule;
+    meta.xc = param.xc();
+    meta.localize = param.localize_method();
+    meta.converged_for_thresh = converged_for_thresh;
+    meta.converged_for_dconv = converged_for_dconv;
+    meta.representation = restart_representation;
+    meta.ncf = restart_ncf;
+    meta.eprec = molecule.parameters.eprec();
+    meta.madness_version = MADNESS_PACKAGE_VERSION;
+    meta.write(ar);
 
     ar & (unsigned int) (amo.size());
     ar & aeps & aocc & aset;
@@ -324,61 +331,44 @@ void SCF::load_mos(World& world) {
 
     bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
 
-    // const double thresh = FunctionDefaults<3>::get_thresh();
-    bool spinrest = false;
-
     amo.clear();
     bmo.clear();
 
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+".restartdata");
 
-    /*
-      File format:
-          unsigned int version;
-          double current energy;
-      bool spinrestricted --> if true only alpha orbitals are present
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      std::string localize;
-      double converged_for_thresh
-      unsigned int nmo_alpha;
-      Tensor<double> aeps;
-      Tensor<double> aocc;
-      vector<int> aset;
-      for i from 0 to nalpha-1:
-      .   Function<double,3> amo[i]
-      repeat for beta if !spinrestricted
-     */
-    // Local copies for a basic check
-    double L=0;
-    int k1=0;                    // Ignored for restarting, used in response only
-    double converged_for_thresh1=1.e10;
-    double current_energy1=1.e10;
-    unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version=0;
+    // The header, then one block of orbitals per spin. RestartMetadata::read
+    // accepts version 4 and 5, so archives written before the header carried a
+    // representation tag or converged_for_dconv still load; the fields they lack
+    // come back as "unknown"/1e10 rather than as a claim the archive never made.
+    RestartMetadata meta;
+    meta.read(ar);
 
-    ar & archive_version;
-
-    // Some basic checks
-    std::string errmsg= "incompatible archive versions: "+std::to_string(archive_version) +
-                     " vs. input parameter: "+std::to_string(version);
-    MADNESS_CHECK_THROW(archive_version ==version, errmsg.c_str());
-
-    // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-    // EPS, SWAP, ... sigh
-    ar & current_energy1 & spinrest;
-    // Reorder
-    Molecule mol;
-    ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
-
+    // NOTE: xc and localize are deliberately NOT copied back into param. The old
+    // code appeared to do so with `ar & param.xc()`, but those getters return by
+    // value and the input operator& takes const T&, so every one of those reads
+    // landed in a temporary and was discarded. Making it look intentional here
+    // rather than reviving a behaviour nobody has depended on.
+    if (not meta.representation_matches(restart_representation)) {
+        // Print before throwing: MadnessException keeps the char* it is handed
+        // without copying (world/madness_exception.h), so a c_str() from a local
+        // string dangles by the time anything prints it -- the message comes out
+        // empty. The detail is the whole value of this check, so emit it here.
+        if (world.rank() == 0) {
+            print("ERROR: restartdata holds '"+madness::to_string(meta.representation)+
+                  "' functions, but this calculation wants '"+madness::to_string(restart_representation)+
+                  "'. moldft orbitals (psi) and nemo orbitals (F = psi/R) are not");
+            print("interchangeable; point the run at the right archive, or set a");
+            print("different prefix so the two engines stop sharing a filename.");
+        }
+        MADNESS_EXCEPTION("restartdata representation does not match this calculation", 1);
+    }
 
     // more basic checks
-    errmsg= "inconsistent box size in restartdata file: "+ std::to_string(L) +
+    std::string errmsg= "inconsistent box size in restartdata file: "+ std::to_string(meta.L) +
                      " vs. input parameter: "+std::to_string(param.L());
-    MADNESS_CHECK_THROW(L==param.L(), errmsg.c_str());
+    MADNESS_CHECK_THROW(meta.L==param.L(), errmsg.c_str());
 
+    const Molecule& mol = meta.molecule;
     if (not (mol == molecule)) {
         if (world.rank() == 0) {
             print("Warning: molecule in archive does not match the requested molecule");
@@ -434,11 +424,15 @@ void SCF::load_mos(World& world) {
 
     // if everything worked out, set convergence parameters
     if (needs_redo) {
+        // reprojected in k or re-truncated, so the stored convergence no longer
+        // describes the orbitals we now hold
         converged_for_thresh=1.e10;
+        converged_for_dconv=1.e10;
         current_energy=1.e10;
     } else {
-        converged_for_thresh= converged_for_thresh1;
-        current_energy=current_energy1;
+        converged_for_thresh= meta.converged_for_thresh;
+        converged_for_dconv= meta.converged_for_dconv;
+        current_energy=meta.current_energy;
     }
     // NB: the requested geometry wins. Restarting must never silently move the
     // molecule to the one stored in the archive -- during a geometry
