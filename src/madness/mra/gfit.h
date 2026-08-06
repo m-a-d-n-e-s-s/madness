@@ -48,6 +48,7 @@
 #include "../tensor/tensor_lapack.h"
 #include "../world/madness_exception.h"
 #include "../world/print.h"
+#include <madness/mra/kernelrange.h>
 #include <madness/mra/operatorinfo.h>
 
 
@@ -320,6 +321,58 @@ public:
                            cnew*exp(-expnt[i-1]*lo*lo);
             double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
                            cnew*exp(-expnt[i-1]*hi*hi);
+            if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
+            npt--;
+            coeff[i-1] = coeff[i-1] + cnew;
+        }
+        coeff = coeff(Slice(0,npt-1));
+        expnt = expnt(Slice(0,npt-1));
+    }
+
+    // c: coefficients of Gaussian fit to truncate
+    // e: exponents of Gaussian fit to truncate
+    // ranges: LatticeRanges of dimensions
+    // lo: Smallest length-scale to be represented accurately
+    // hi_fin: Largest length-scale finite dimensions must represent accurately
+    // eps: Numerical parameter that controls how accurate the truncation must be for finite dimensions
+    void truncate_mixed_expansion(Tensor<double>& c, Tensor<double> & e, const std::array<LatticeRange, NDIM>& ranges, double lo, double hi_fin, double eps) {
+	int last_index_must_not_change = 0;
+	if (ranges.is_infinite().any()) {
+		// We have some infinite dimensions. The lattice sum of diffuse Gaussians is constant.
+		// Determine what lattice sums are constant, knowing that it's equivalent to
+		// gauge-changing an operator.
+		// First, we define 'diffuse' via tcut.
+            	double max_infinite_dim_lattice_spacing = 0;
+            	for(int d=0; d!=NDIM; ++d) {
+              	if (lattice_ranges[d])
+                	max_lattice_spacing =
+                    	std::max(max_lattice_spacing, cell_width(d));
+            	}
+		double tcut = 0.25 / max_infinite_dim_spacing / max_infinite_dim_spacing;
+		// Now we use tcut to determine the cutoff point.
+ 		for (int i=0; i<e.dim(0); ++i) {
+			if (e(i) < tcut) {
+				last_index_infinite_must_not_change = i - 1;
+				if (is_infinite.all()) {
+					c = c(Slice(0, last_index_must_not_change + 1));
+					e = e(Slice(0, last_index_must_not_change + 1));
+				}
+			}
+		}
+		if (ranges.is_infinite().all()) return;
+	}
+	// If we made it here, finite ranges exist. Finite ranges have a different truncation
+	// criteria than infinite ranges. Here, we prune small coefficients, based on what
+	// is needed to represent the finite range lengths. This will change coefficients of
+	// a Gaussian, but one that's too diffuse for infinite dimensions to care.
+        double mid = lo + (hi_fin-lo)*0.5;
+        long npt=coeff.size();
+        for (long i=npt-1; i>last_index_must_not_change; --i) {
+            double cnew = c[i]*exp(-(e[i]-e[i-1])*mid*mid);
+            double errlo = c[i]*exp(-e[i]*lo*lo) -
+                           cnew*exp(-e[i-1]*lo*lo);
+            double errhi = c[i]*exp(-e[i]*hi_fin*hi_fin) -
+                           cnew*exp(-e[i-1]*hi_fin*hi_fin);
             if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
             npt--;
             coeff[i-1] = coeff[i-1] + cnew;

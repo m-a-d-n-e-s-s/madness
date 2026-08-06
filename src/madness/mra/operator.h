@@ -240,6 +240,7 @@ namespace madness {
               break;
             }
           }
+	  auto hi_fin = hi;
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
@@ -251,18 +252,7 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
-            // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
-            double max_lattice_spacing = 0;
-            for(int d=0; d!=NDIM; ++d) {
-              if (lattice_ranges[d])
-                max_lattice_spacing =
-                    std::max(max_lattice_spacing, cell_width(d));
-            }
-            // WARNING: discardG0 = true ignores the coefficients of truncated
-            //          terms
-            fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                            /* discardG0 = */ true);
+            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, info.lo, hi_fin, info.thresh,
             info.truncate_lowexp_gaussians = true;
           }
 
@@ -2028,6 +2018,7 @@ namespace madness {
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
       const auto lattice_summed_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return static_cast<bool>(b);});
       const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+      auto hi_fin = hi;
       if (lattice_summed_any) {
         hi *= 100;
       }
@@ -2037,18 +2028,7 @@ namespace madness {
       Tensor<double> expnt = fit.exponents();
 
       if (infinite_any) {
-        // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
-        // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
-        double max_lattice_spacing = 0;
-        for(int d=0; d!=3; ++d) {
-          if (lattice_ranges[d])
-            max_lattice_spacing =
-                std::max(max_lattice_spacing, cell_width(d));
-        }
-        // WARNING: discardG0 = true ignores the coefficients of truncated
-        //          terms
-        fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                        /* discardG0 = */ false);
+        fit.truncate_periodic_expansion(coeff, expnt, lattice_ranges, lo, hi_fin, eps);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
                                                  lattice_ranges, k);
