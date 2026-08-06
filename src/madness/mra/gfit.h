@@ -337,14 +337,16 @@ public:
     // eps: Numerical parameter that controls how accurate the truncation must be for finite dimensions
     void truncate_mixed_expansion(Tensor<double>& c, Tensor<double> & e, const std::array<LatticeRange, NDIM>& lattice_ranges, const Tensor<double>& cell_width, double lo, double hi_fin, double eps) {
 	int last_index_must_not_change = 0;
-	if (ranges.is_infinite().any()) {
+	const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+	const auto infinite_all = std::all_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+	if (infinite_any) {
 		// We have some infinite dimensions. The lattice sum of diffuse Gaussians is constant.
 		// Determine what lattice sums are constant, knowing that it's equivalent to
 		// gauge-changing an operator.
 		// First, we define 'diffuse' via tcut.
             	double max_infinite_dim_spacing = 0;
             	for(int d=0; d!=NDIM; ++d) {
-              		if (lattice_ranges.is_infinite()[d])
+              		if (lattice_ranges.infinite()[d])
                 		max_infinite_dim_spacing =
                     			std::max(max_lattice_spacing, cell_width(d));
             	}
@@ -352,14 +354,14 @@ public:
 		// Now we use tcut to determine the cutoff point.
  		for (int i=0; i<e.dim(0); ++i) {
 			if (e(i) < tcut) {
-				last_index_infinite_must_not_change = i - 1;
-				if (lattice_ranges.is_infinite.all()) {
+				last_index_must_not_change = i - 1;
+				if (infinite_all) {
 					c = c(Slice(0, last_index_must_not_change + 1));
 					e = e(Slice(0, last_index_must_not_change + 1));
 				}
 			}
 		}
-		if (lattice_ranges.is_infinite().all()) return;
+		if (infinite_all) return;
 	}
 	// If we made it here, finite ranges exist. Finite ranges have a different truncation
 	// criteria than infinite ranges. Here, we prune small coefficients, based on what

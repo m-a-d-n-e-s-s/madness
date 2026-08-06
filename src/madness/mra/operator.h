@@ -252,7 +252,7 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, info.lo, hi_fin, info.thresh,
+            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
           }
 
