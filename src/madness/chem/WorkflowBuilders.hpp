@@ -66,7 +66,13 @@ inline void add_scf_workflow_drivers(World &world, Params &pm,
 
 inline void add_nemo_workflow_drivers(World &world, Params &pm,
                                       qcapp::Workflow &wf) {
-  pm.get<CalculationParameters>().set_derived_value("k", 8);
+  // NB: no set_derived_value("k", 8) here. Pinning k defeated the thresh->k
+  // derivation in SCF::set_protocol, so a nemo workflow ran the whole protocol
+  // at one polynomial order. That was a workaround for nemo not surviving a k
+  // change -- the nemos, the AO basis and the nuclear correlation factor were
+  // not reprojected -- which NemoBase::set_protocol now handles. A deck that
+  // wants a fixed k still says so explicitly, and that wins over any derived
+  // value. moldft's builder above sets no k either.
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 }
