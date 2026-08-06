@@ -742,7 +742,7 @@ namespace madness {
           for (size_t d = 0; d != NDIM; ++d) {
             if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
               // If displacing past bmax_default *to the left* keeps us in the box...
-              for (size_t disp = Displacements<NDIM>::bmax_default(); disp == 0; --disp) {
+              for (size_t disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
                 probing_displacement_vec[d] = -disp;
                 auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
                 if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
@@ -755,7 +755,7 @@ namespace madness {
               break;
             } else if (center_[d] + Displacements<NDIM>::bmax_default() + 1 <= box_[d].second) {
               // If displacing past bmax_default *to the right* keeps us in the box...
-              for (size_t disp = Displacements<NDIM>::bmax_default(); disp == 0; --disp) {
+              for (size_t disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
                 probing_displacement_vec[d] = +disp;
                 auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
                 if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
