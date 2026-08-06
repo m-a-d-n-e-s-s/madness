@@ -92,22 +92,6 @@ public:
         infer_thresholds(current_prec);
     }
 
-    /// start at the first rung that is tighter than an already-achieved precision
-
-    /// @param[in] achieved  the threshold a restart is converged to
-    /// @return    false if the ladder holds nothing tighter, i.e. nothing to do
-    bool set_start_from_achieved(const double achieved) {
-        for (std::size_t i=0; i<protocol.size(); ++i) {
-            if (protocol[i] < achieved*0.999) {
-                set_start_index(i);
-                return true;
-            }
-        }
-        // every rung is already covered by what the restart achieved
-        converged=true;
-        return false;
-    }
-
     /// drop the last rung, i.e. stop one step short of the full precision
 
     /// used for cheap pre-iterations; never empties the ladder
