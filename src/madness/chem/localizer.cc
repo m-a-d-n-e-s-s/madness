@@ -79,7 +79,7 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
     } else if (method == "boys") {
         dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
