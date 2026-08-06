@@ -363,13 +363,24 @@ void SCF::load_mos(World& world) {
         MADNESS_EXCEPTION("restartdata representation does not match this calculation", 1);
     }
 
-    // more basic checks
-    std::string errmsg= "inconsistent box size in restartdata file: "+ std::to_string(meta.L) +
-                     " vs. input parameter: "+std::to_string(param.L());
-    MADNESS_CHECK_THROW(meta.L==param.L(), errmsg.c_str());
+    // more basic checks. Print before throwing: MadnessException stores the bare
+    // `const char*` without copying it (madness_exception.h), so a c_str() from a
+    // local std::string dangles and the message comes out empty -- which is what
+    // this check did until now.
+    if (meta.L!=param.L()) {
+        if (world.rank() == 0)
+            print("inconsistent box size in restartdata file:", meta.L,
+                  "vs. input parameter:", param.L());
+        MADNESS_EXCEPTION("inconsistent box size in restartdata file", 1);
+    }
 
+    // compare_geometry, not Molecule::operator==: the latter also compares rcut
+    // and the whole MolecularParameters object, including each parameter's
+    // precedence, so a deserialized molecule differs from a freshly parsed one
+    // even when every atom sits at the same place -- and this warning fired on
+    // every restart. What matters here is the atoms, in order.
     const Molecule& mol = meta.molecule;
-    if (not (mol == molecule)) {
+    if (compare_geometry(mol, molecule) != GeometryMatch::same) {
         if (world.rank() == 0) {
             print("Warning: molecule in archive does not match the requested molecule");
             print("using the orbitals as a guess for the requested geometry; the");
@@ -441,63 +452,100 @@ void SCF::load_mos(World& world) {
 }
 
 
-/// get the initial orbitals for a calculation
+/// get the initial orbitals for a calculation, from the source the plan names
 
-/// the ordering of initial orbitals is
-/// 1. from restartdata
-/// 2. from aobasis
-/// 3. from NWChem
-/// 4. from initial_guess()
-void SCF::get_initial_orbitals(World& world) {
+/// The precedence ladder that used to live here is gone: which source to use is
+/// decided once, up front, by plan_restart() (RestartPlan.h), from the archive's
+/// header rather than from file existence plus a handful of booleans. All this
+/// does is carry the decision out.
+///
+/// The one thing that cannot be decided from a header is whether the orbitals
+/// themselves load. If they do not, an automatic plan falls back to the initial
+/// guess -- loudly, since a header that parsed and a body that did not is a
+/// damaged archive -- while an explicitly requested source throws, because a
+/// silent fresh start is exactly what someone asking to resume a long run does
+/// not want.
+void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
 
-    auto get_initial_orbitals1=[&](World& world, std::string fromwhere) {
-        if (world.rank()==0) print("try restarting calculation from "+fromwhere);
-        bool success=false;
-        if (fromwhere=="restartdata") {
-            try {
-                load_mos(world);
-                success=true;
-            } catch (...) {
-                // could not load MOs, but user has requested so explicitly
-                if (param.restart()) {
-                    MADNESS_EXCEPTION("No initial orbitals found in restartdata",1);
-                }
-                return false;
-            }
+    auto from_initial_guess=[&](World& world) {
+        if (world.rank()==0) print("starting from the atomic initial guess");
+        reset_aobasis(param.aobasis());
+        ao = project_ao_basis(world, aobasis);
+        make_nuclear_potential(world);
+        initial_guess(world);
+    };
+
+    auto load_from=[&](World& world, const RestartSource source) {
+        if (world.rank()==0) print("reading initial orbitals from "+madness::to_string(source));
+        if (source==RestartSource::restartdata) {
+            load_mos(world);
             // load_mos reads nmo_alpha orbitals (occupied + virtuals), so this
             // must compare against nmo_alpha -- comparing against nalpha made
             // every restart with nvalpha>0 throw.
             MADNESS_CHECK_THROW(amo.size()==size_t(param.nmo_alpha()),"inconsistent restart data");
 
-        } else if (fromwhere=="restartao") {
+        } else if (source==RestartSource::restartao) {
             reset_aobasis("sto-3g");
             ao = project_ao_basis(world, aobasis);
-            success=restart_aos(world);
+            if (not restart_aos(world))
+                MADNESS_EXCEPTION("could not read the AO projections from restartaodata",1);
 
-        } else if (fromwhere=="NWChem") {
-            initial_guess_from_nwchem(world);
-            // will throw if it doesn't work
-            success=true;
-
-        } else if (fromwhere=="initial_guess") {
-            reset_aobasis(param.aobasis());
-            ao = project_ao_basis(world, aobasis);
-            make_nuclear_potential(world);
-            initial_guess(world);
-            success=true;
+        } else if (source==RestartSource::nwchem) {
+            initial_guess_from_nwchem(world);   // throws if it does not work
 
         } else {
-            throw std::runtime_error("Unknown source of initial orbitals: "+fromwhere);
+            MADNESS_EXCEPTION("unhandled restart source",1);
         }
-        if (success and world.rank()==0) print("   --- successfully started from ",fromwhere);
-        return success;
     };
 
-    bool success=false;
-    if (!success and param.restart()) success=get_initial_orbitals1(world,"restartdata");
-    if (!success and param.restartao()) success=get_initial_orbitals1(world,"restartao");
-    if (!success and param.nwfile()!="none") success=get_initial_orbitals1(world,"NWChem");
-    if (!success) get_initial_orbitals1(world,"initial_guess");
+    if (not plan.needs_load()) {
+        from_initial_guess(world);
+        return;
+    }
+
+    if (plan.mode!=RestartMode::automatic) {
+        load_from(world,plan.source);        // no fallback: the user was explicit
+        return;
+    }
+
+    std::string errmsg;
+    int loaded=1;
+    try {
+        load_from(world,plan.source);
+    } catch (const std::exception& e) {
+        loaded=0;
+        errmsg=(e.what()!=nullptr) ? e.what() : "no message";
+    }
+
+    // Agree across ranks before doing anything else. A rank that loaded while
+    // another fell back would build a different set of Functions from here on and
+    // the two would diverge on the next collective -- a hang, which is worse than
+    // a wrong answer because it leaves nothing to debug. This cannot rescue a
+    // failure that happened *inside* a collective (the ranks are already out of
+    // step by then), but it does keep an asymmetric read failure from spreading.
+    world.gop.min(loaded);
+
+    if (loaded==0) {
+        if (world.rank()==0) {
+            print("WARNING: could not read the initial orbitals from",
+                  madness::to_string(plan.source));
+            if (not errmsg.empty()) print("WARNING:", errmsg);
+            print("WARNING: falling back to the atomic initial guess. If this archive"
+                  " should be readable, that is a bug or a damaged file.");
+        }
+        // The plan was built on the assumption that those orbitals would load. They
+        // did not, so the rungs it wanted to skip are not covered by anything: an
+        // atomic guess dropped straight onto the finest rung is both wasteful and a
+        // poor starting point. Start over at rung 0.
+        plan.source=RestartSource::initial_guess;
+        plan.iterate=true;
+        plan.protocol_start=0;
+        // and put FunctionDefaults back on rung 0 before building the guess, so the
+        // orbitals and k agree: the caller set the protocol to the rung the plan
+        // wanted to resume at, and nothing reprojects the first rung it runs.
+        set_protocol<3>(world,param.protocol()[0]);
+        from_initial_guess(world);
+    }
 }
 
 
@@ -739,7 +787,10 @@ bool SCF::restart_aos(World& world) {
             print("\nRestarting from AO projections on disk\n");
         }
         catch (...) {
-            // print("\nAO restart file open/reading failed --- starting from atomic guess instead\n");
+            // Say so. This used to be silent (the print was commented out), which
+            // made a wrong prefix or a truncated AO file indistinguishable from
+            // "there was nothing to read".
+            print("\nreading", param.prefix()+".restartaodata", "failed\n");
             OK = false;
         }
     }
@@ -1005,7 +1056,11 @@ void SCF::initial_guess_from_nwchem(World& world) {
 void SCF::initial_guess(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    MADNESS_CHECK_THROW(not param.restart(),"no restart in SCF::initial_guess");
+    // No guard on `restart` any more: reaching the atomic guess is a legitimate
+    // outcome of any restart mode except the explicit ones, which throw rather
+    // than fall back (see SCF::get_initial_orbitals). The nwchem guard stays --
+    // with an nwfile named, `aobasis` was read from that file (SCF.cc, the ctor),
+    // so an atomic guess here would be built in the wrong basis.
     MADNESS_CHECK_THROW(param.nwfile()=="none","no nwchem in SCF::initial_guess");
 
     // recalculate initial guess density matrix without core orbitals

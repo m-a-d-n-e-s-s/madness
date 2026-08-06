@@ -545,7 +545,16 @@ namespace madness {
                 throw std::runtime_error("type error in set_user_defined_value");
             }
 
-            parameter.set_user_defined_value(to_stored_string(key, value));
+            // Name the key in the allowed-values message. QCParameter does not
+            // know its own key, so an out-of-range value used to report only the
+            // value and the list of alternatives, leaving the reader to guess
+            // which keyval it came from -- an input may set several that have
+            // allowed values.
+            try {
+                parameter.set_user_defined_value(to_stored_string(key, value));
+            } catch (const std::invalid_argument& e) {
+                throw std::invalid_argument("in keyword `" + key + "`: " + e.what());
+            }
         }
 
         /// stringify \p value for storage, honoring case_sensitive_keys()

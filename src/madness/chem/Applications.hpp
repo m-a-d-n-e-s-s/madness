@@ -210,19 +210,13 @@ public:
         scf_results = empty_results;
         action = madness::NextAction::Redo;
       }
-      // If we are restarting from an existing archive, the SCF engine must be
-      // told to load its MOs from <prefix>.restartdata. This flag has to be set
-      // on params_ BEFORE the engine is constructed — set_calc_workdir() below
-      // builds the SCF (via calc()->initialize_(), which freezes params into
-      // mad.in), so a flag set afterwards (as the old moldft_lib::run did, on a
-      // discarded local copy) never reaches the constructor and "Restart"
-      // silently recomputed from scratch. (raman thread brief, defect 3)
-      if (action == madness::NextAction::Restart) {
-        params_.get<CalculationParameters>().set_user_defined_value("restart",
-                                                                    true);
-        if (world_.rank() == 0)
-          print("Restart requested: loading MOs from restartdata archive");
-      }
+      // NB: nothing needs to be pushed into params_ for a restart. The engine
+      // decides for itself where its orbitals come from (plan_restart, called
+      // from MolecularEnergy::value and Nemo::value), reading the archive's
+      // header rather than a flag set from out here. What used to live at this
+      // point -- set_user_defined_value("restart", true) before the engine was
+      // constructed, because a flag set afterwards never reached the ctor -- is
+      // therefore gone along with the boolean it set.
       world_.gop.fence();
       set_calc_workdir(pm.dir());
       auto params_copy = params_;
@@ -257,9 +251,11 @@ public:
 
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
-        // Restart vs Redo is now carried by the 'restart' flag set on params_
-        // above (Restart => load restartdata; Redo => fresh). Pass the real
-        // action through rather than a hardcoded Restart.
+        // Both actions mean the same thing here -- run the engine. Restart vs
+        // Redo used to select where the orbitals came from; that is now the
+        // engine's own decision (plan_restart, from the archive header), so the
+        // distinction survives only as a diagnostic. The action is still passed
+        // through for the log rather than hardcoding one.
         scf_results = lib_.run(world_, params_, action);
       } else {
         lib_.calc(world_, params_); // just set up the calc without running
@@ -848,10 +844,9 @@ struct moldft_lib {
       return last_results_;
     }
 
-    // NOTE: for NextAction::Restart, the SCF engine is already told to load
-    // MOs from restartdata by the caller (SCFApplication::run sets the
-    // 'restart' flag on params_ BEFORE the engine is constructed). Setting it
-    // here on a local copy was dead code — the engine was already built.
+    // NOTE: NextAction::Restart needs nothing done here. The engine reads the
+    // restartdata header itself and decides whether to load, iterate or skip
+    // (plan_restart); NextAction only says whether the engine has to run at all.
     auto scf = calc(world, params_copy);
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
