@@ -46,6 +46,7 @@
 #include <madness/mra/mra.h>
 
 #include<madness/chem/CalculationParameters.h>
+#include<madness/chem/Restart.h>
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
@@ -229,6 +230,19 @@ public:
     double converged_for_dconv=1.e10;    ///< mos are converged for this density
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
     bool initial_localization_done=false; ///< the first localization of this calculation is loosened
+
+    /// what amo/bmo actually hold, recorded in the restartdata header
+    ///
+    /// Representation::mo for moldft's orbitals. Nemo drives an SCF rather than
+    /// deriving from one and stores the regularized F = psi/R in amo, so it sets
+    /// this to Representation::nemo (and restart_ncf) on the SCF it owns.
+    /// Without it both engines
+    /// write the same filename, with the same version tag, holding different
+    /// functions -- and loading one as the other is silently wrong.
+    Representation restart_representation=Representation::mo;
+
+    /// nuclear correlation factor behind restart_representation, e.g. "slater:2.0"
+    std::string restart_ncf;
 
     /// set while an optimizer drives this SCF, to keep the raw derivative table
     /// out of the log next to MolOpt's projected one -- see SCF::derivatives
