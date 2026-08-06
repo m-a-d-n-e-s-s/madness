@@ -246,9 +246,9 @@ namespace madness {
 
         /// Node M is the neighbor of M-1 and M+1, so its owner pushes it to the owners of those keys
         /// without being asked, one batched message per destination. This is the axis-specific
-        /// staging policy for `FunctionImpl`'s halo table. The pushes arrive as tasks, so a fence
-        /// must separate staging from differentiating; `halo_clear()` frees the result.
-        void stage_halo(const implT* f) const {
+        /// staging policy for `FunctionImpl`'s halo table; `halo_clear()` frees the result. The
+        /// pushes arrive as tasks, so the fence is what separates staging from differentiating.
+        void stage_halo(const implT* f, bool fence = true) const {
             const dcT& coeffs = f->get_coeffs();
             std::map<ProcessID, std::vector<argT> > out;
             for (const auto& [key, node] : coeffs) {
@@ -262,6 +262,7 @@ namespace madness {
             }
             for (auto& kv : out)
                 f->task(kv.first, &implT::receive_halo, kv.second, TaskAttributes::hipri());
+            if (fence) world.gop.fence();
         }
 
         Future<argT>

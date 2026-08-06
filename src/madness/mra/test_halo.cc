@@ -67,9 +67,7 @@ differentiate(World& world,
     for (std::size_t axis = 0; axis < D; ++axis) grad[axis]->parallel_submit_ = parallel_submit;
 
     if (halo) {
-        for (std::size_t axis = 0; axis < D; ++axis)
-            for (const auto& f : v) grad[axis]->stage_halo(f.get_impl().get());
-        world.gop.fence();
+        stage_halo(world, grad, v);
         staged = 0;
         for (const auto& f : v) staged += f.get_impl()->halo_size();
     }
@@ -81,7 +79,7 @@ differentiate(World& world,
     }
     world.gop.fence();
 
-    if (halo) for (const auto& f : v) f.get_impl()->halo_clear();
+    if (halo) clear_halo(v);
     return dv;
 }
 
@@ -144,8 +142,7 @@ static int test_single_function(World& world, const std::vector<Function<double,
     const Function<double,D>& f = v[0];
     Function<double,D> ref = (*grad[0])(f, true);
 
-    grad[0]->stage_halo(f.get_impl().get());
-    world.gop.fence();
+    grad[0]->stage_halo(f.get_impl().get());   // fences by default
     Function<double,D> df = (*grad[0])(f, true);
     const std::size_t staged = f.get_impl()->halo_size();
     f.get_impl()->halo_clear();
@@ -168,7 +165,6 @@ static int test_clear(World& world, const std::vector<Function<double,D>>& v) {
     Function<double,D> ref = (*grad[0])(f, true);
 
     grad[0]->stage_halo(f.get_impl().get());
-    world.gop.fence();
     f.get_impl()->halo_clear();
     t.checkpoint(f.get_impl()->halo_enabled() == false, "halo is disabled after clear");
 
