@@ -2205,7 +2205,10 @@ void SCF::solve(World& world) {
             localize_tolloc_scale = 100.0;
             initial_localization_done = true;
         }
-        const bool tile_localize = true;
+        // Tiling the transform bounds the transient memory of the rotated orbitals, which only
+        // threatens at high precision. Below that it costs a fence per orbital and a truncation of
+        // every tile. Take the untiled path except at the tight protocols.
+        const bool tile_localize = FunctionDefaults<3>::get_thresh() < 1.e-7;
         if (tile_localize) {
             if (param.do_localize() && do_this_iter) {
                 START_TIMER(world);
