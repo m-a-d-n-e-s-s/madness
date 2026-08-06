@@ -252,7 +252,7 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, info.lo, hi_fin, info.thresh,
+            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, info.lo, hi_fin, info.thresh,
             info.truncate_lowexp_gaussians = true;
           }
 
@@ -2028,7 +2028,7 @@ namespace madness {
       Tensor<double> expnt = fit.exponents();
 
       if (infinite_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, lattice_ranges, lo, hi_fin, eps);
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, lo, hi_fin, eps);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
                                                  lattice_ranges, k);
