@@ -419,16 +419,25 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             return qij * (1.0 + breaksym * a); // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break symmetry
         };
 
-        auto makeGW = [&Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
-            W = 0.0;
-            for (int i = 0; i < nmo; ++i) {
-                for (int a = 0; a < natom; ++a) {
-                    Q(i, a) = QQ(C, i, i, a);
-                    W += Q(i, a) * Q(i, a);
-                }
-            }
+        // The fan-out is local, so it must be awaited with Future::get(), never gop.fence(). Rows
+        // are disjoint: row i writes only g(i,j<i) and g(j<i,i). W is summed outside the fan-out to
+        // keep it independent of scheduling order.
+        typedef Range<int> rangeT;
+        auto makeGW = [&world, &Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
+            auto q_row = [&Q, &natom, &QQ, &C](const rangeT::iterator& it) -> bool {
+                const int i = it;
+                for (int a = 0; a < natom; ++a) Q(i, a) = QQ(C, i, i, a);
+                return true;
+            };
+            MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), q_row).get());
 
-            for (int i = 0; i < nmo; ++i) {
+            W = 0.0;
+            for (int i = 0; i < nmo; ++i)
+                for (int a = 0; a < natom; ++a) W += Q(i, a) * Q(i, a);
+
+            // the gradient is O(nmo^2*natom) and the hot spot of localize_new
+            auto grad_row = [&Q, &natom, &QQ, &C, &g](const rangeT::iterator& it) -> bool {
+                const int i = it;
                 for (int j = 0; j < i; ++j) {
                     double Qiiij = 0.0, Qijjj = 0.0;
                     for (int a = 0; a < natom; ++a) {
@@ -436,10 +445,12 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                         Qijjj += Qija * Q(j, a);
                         Qiiij += Qija * Q(i, a);
                     }
-                    g(j, i) = Qiiij - Qijjj;
-                    g(i, j) = -g(j, i);
+                    g(i, j) = -(Qiiij - Qijjj);
+                    g(j, i) = -g(i, j);
                 }
-            }
+                return true;
+            };
+            MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), grad_row).get());
         };
 
         tensorT xprev; // previous search direction
