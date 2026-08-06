@@ -152,15 +152,28 @@ public:
         return *this;
     }
 
+    /// true if the current rung is the last one
+    bool on_last_rung() const {return index+1==protocol.size();}
+
     /// infer thresholds for a given rung of the ladder
 
     /// The rung sets the representation threshold. econv and dconv are the
-    /// user's, but never tighter than the rung can support -- the same
-    /// relaxation SCF::solve applies to dconv.
+    /// user's, but never tighter than the rung can support.
+    ///
+    /// dconv needs care. The BSH residual cannot fall much below the threshold
+    /// the orbitals are represented at, and nemo tests `bsh_norm < dconv`
+    /// strictly, so a dconv equal to the rung's threshold is unreachable and the
+    /// rung burns maxiter without converging. Intermediate rungs therefore use
+    /// the long-standing 0.1*sqrt(thresh) relaxation -- 1e-3 at thresh 1e-4,
+    /// 1e-4 at thresh 1e-6 -- which is comfortably looser than the rung; they
+    /// are only a stepping stone, so there is nothing to gain from converging
+    /// them tightly. The last rung is the answer, so it honours the user's dconv
+    /// (never demanding tighter than the representation supports).
     void infer_thresholds(const double prec) {
         thresh=prec;
         econv=std::max(prec,user_econv);
-        dconv=std::max(prec,user_dconv);
+        if (on_last_rung()) dconv=std::max(prec,user_dconv);
+        else dconv=std::max(user_dconv,std::min(1.e-3,sqrt(prec)*0.1));
     }
 
     /// compare two positive doubles to be equal
