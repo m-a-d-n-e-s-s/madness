@@ -92,7 +92,13 @@ def should_skip(requires):
 # The checkpoint is the actual lever (SCFApplication::run keys the skip on
 # has_results); the archives are cleared too so the engine's own restart cannot
 # warm-start either.
-STATE_GLOBS = ("*.calc_info.json", "*.restartdata*", "*.restartaodata")
+# The patterns deliberately do NOT anchor on a leading dot. Not every engine
+# names its state <prefix>.<thing>: oep writes `<label>.oep_calc_info.json` and
+# `restartdata_OEP.00000`, and the dotted forms ("*.calc_info.json",
+# "*.restartdata*") match neither. That left the oep case warm-starting from the
+# previous run's -- or worse, from a run killed midway, whose half-written
+# archive is exactly the kind of thing that produces an intermittent failure.
+STATE_GLOBS = ("*calc_info.json", "*restartdata*", "*restartaodata")
 
 
 def clear_previous_state(workdir):
