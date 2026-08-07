@@ -1,0 +1,7 @@
+<map id="madness::BinSorter&lt; T, inserterT &gt;" name="madness::BinSorter&lt; T, inserterT &gt;">
+<area shape="rect" id="Node000001" title="A parallel bin sort across MPI processes." alt="" coords="39,167,188,207"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1WorldObject.html" title=" " alt="" coords="5,79,221,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,133,116,166,111,166,111,133"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1WorldObjectBase.html" title="Base class for WorldObject, useful for introspection." alt="" coords="13,5,213,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="116,44,116,79,111,79,111,44"/>
+</map>

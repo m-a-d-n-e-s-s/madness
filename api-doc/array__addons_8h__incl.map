@@ -1,0 +1,31 @@
+<map id="array_addons.h" name="array_addons.h">
+<area shape="rect" id="Node000001" title="Supplements to the std::array class, such as I/O operations, for convenience." alt="" coords="497,5,619,31"/>
+<area shape="rect" id="Node000002" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="295,167,498,192"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="524,33,483,52,445,81,421,117,406,154,401,152,416,114,441,77,481,47,522,28"/>
+<area shape="rect" id="Node000004" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="135,79,319,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="511,33,321,78,320,73,509,28"/>
+<area shape="rect" id="Node000008" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers." alt="" coords="456,86,660,111"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="561,31,561,72,555,72,555,31"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="685,86,741,111"/>
+<area shape="poly" id="edge14_Node000001_Node000013" title=" " alt="" coords="582,28,679,77,676,82,580,33"/>
+<area shape="rect" id="Node000014" title=" " alt="" coords="765,86,845,111"/>
+<area shape="poly" id="edge15_Node000001_Node000014" title=" " alt="" coords="598,28,753,76,761,79,760,84,752,81,597,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="329,240,465,265"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="399,192,399,226,394,226,394,192"/>
+<area shape="poly" id="edge7_Node000004_Node000002" title=" " alt="" coords="269,116,360,158,358,163,267,121"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="5,167,71,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="183,121,80,164,78,159,181,116"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="95,167,159,192"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="205,121,155,160,152,156,201,117"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="184,167,271,192"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="230,119,230,153,225,153,225,119"/>
+<area shape="poly" id="edge9_Node000008_Node000002" title=" " alt="" coords="536,114,433,163,431,158,533,109"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="523,167,593,192"/>
+<area shape="poly" id="edge10_Node000008_Node000009" title=" " alt="" coords="561,112,561,153,555,153,555,112"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="617,167,688,192"/>
+<area shape="poly" id="edge11_Node000008_Node000010" title=" " alt="" coords="574,109,630,156,626,160,570,114"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="712,167,783,192"/>
+<area shape="poly" id="edge12_Node000008_Node000011" title=" " alt="" coords="587,109,708,159,706,164,585,114"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="807,167,899,192"/>
+<area shape="poly" id="edge13_Node000008_Node000012" title=" " alt="" coords="602,109,797,161,796,166,600,114"/>
+</map>

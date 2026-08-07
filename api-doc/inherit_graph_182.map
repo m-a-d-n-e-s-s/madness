@@ -1,0 +1,35 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,501,199,541"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,5,426,45"/>
+<area shape="poly" id="edge168_Node000000_Node000001" title=" " alt="" coords="101,487,107,401,116,346,128,286,146,224,171,163,204,106,245,55,270,38,273,43,248,59,208,109,176,165,151,226,133,287,121,346,113,402,106,487"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Function.html" title=" " alt="" coords="264,70,433,125"/>
+<area shape="poly" id="edge169_Node000000_Node000002" title=" " alt="" coords="104,487,116,415,141,322,159,272,182,223,210,177,245,135,262,122,265,126,249,139,215,180,187,226,164,274,146,324,121,417,109,488"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,149,426,189"/>
+<area shape="poly" id="edge170_Node000000_Node000003" title=" " alt="" coords="106,487,121,426,147,349,165,308,188,269,214,232,245,199,270,184,272,188,248,203,218,235,192,272,170,311,152,351,126,427,112,488"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,213,426,253"/>
+<area shape="poly" id="edge171_Node000000_Node000004" title=" " alt="" coords="111,487,129,438,157,377,195,316,219,288,245,263,270,248,272,253,248,267,222,292,199,319,161,380,134,440,116,489"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,277,426,317"/>
+<area shape="poly" id="edge172_Node000000_Node000005" title=" " alt="" coords="117,488,138,451,167,408,203,364,245,327,270,313,272,318,248,332,207,368,171,411,143,454,121,490"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,341,426,381"/>
+<area shape="poly" id="edge173_Node000000_Node000006" title=" " alt="" coords="128,489,179,439,211,413,245,391,270,379,273,384,248,396,214,418,183,443,132,493"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="254,405,443,445"/>
+<area shape="poly" id="edge174_Node000000_Node000007" title=" " alt="" coords="156,493,246,455,279,443,281,448,248,460,158,498"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="254,469,443,509"/>
+<area shape="poly" id="edge175_Node000000_Node000008" title=" " alt="" coords="212,504,253,499,254,504,212,510"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1CCFunction.html" title="structure for a CC Function 3D which holds an index and a type" alt="" coords="267,533,430,573"/>
+<area shape="poly" id="edge176_Node000000_Node000009" title=" " alt="" coords="212,533,267,540,267,545,212,538"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1CCPair.html" title=" " alt="" coords="283,598,414,623"/>
+<area shape="poly" id="edge177_Node000000_Node000010" title=" " alt="" coords="157,545,248,583,290,595,289,600,246,588,155,550"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1CCPairFunction.html" title="a 6D function, either in full or low rank form, possibly including an 2&#45;particle function" alt="" coords="255,648,442,688"/>
+<area shape="poly" id="edge178_Node000000_Node000011" title=" " alt="" coords="136,549,186,591,248,632,277,645,275,650,245,637,183,596,132,553"/>
+<area shape="rect" id="Node000012" href="$structmadness_1_1CC__vecfunction.html" title="A helper structure which holds a map of functions." alt="" coords="253,713,444,738"/>
+<area shape="poly" id="edge179_Node000000_Node000012" title=" " alt="" coords="123,552,144,587,173,626,208,665,248,698,274,710,272,715,245,702,204,669,168,630,140,590,118,555"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1ElectronPair.html" title="enhanced POD for the pair functions" alt="" coords="265,762,432,787"/>
+<area shape="poly" id="edge180_Node000000_Node000013" title=" " alt="" coords="117,553,136,598,164,650,202,703,224,727,248,747,272,760,269,764,245,752,220,731,198,706,160,653,131,600,112,555"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1Function.html" title="A multiresolution adaptive numerical function." alt="" coords="271,812,426,852"/>
+<area shape="poly" id="edge181_Node000000_Node000014" title=" " alt="" coords="114,554,131,607,158,672,197,739,221,770,248,797,273,812,270,816,245,801,217,773,193,742,153,674,126,608,109,555"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1MolecularOrbitals.html" title=" " alt="" coords="247,876,451,916"/>
+<area shape="poly" id="edge182_Node000000_Node000015" title=" " alt="" coords="111,555,124,620,149,702,167,746,190,788,217,827,248,862,265,874,262,878,245,866,212,831,185,791,162,748,144,704,119,621,105,556"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1WorldContainer.html" title="Makes a distributed container with specified attributes." alt="" coords="247,940,450,980"/>
+<area shape="poly" id="edge183_Node000000_Node000016" title=" " alt="" coords="108,555,118,631,140,730,159,783,182,835,212,883,248,926,264,938,261,942,245,930,208,887,178,838,154,785,135,732,112,632,103,555"/>
+</map>

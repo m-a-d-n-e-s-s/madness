@@ -1,0 +1,19 @@
+<map id="misc.h" name="misc.h">
+<area shape="rect" id="Node000001" title="Header to declare stuff which has not yet found a home." alt="" coords="300,5,365,31"/>
+<area shape="rect" id="Node000002" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="85,79,269,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="311,33,228,75,225,70,309,28"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="293,86,373,111"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="335,31,335,72,330,72,330,31"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="397,86,455,111"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="348,29,403,75,400,79,345,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,71,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="145,121,72,162,69,157,142,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="95,167,159,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="167,120,144,156,140,154,162,117"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="184,167,271,192"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="191,117,215,154,210,156,187,120"/>
+<area shape="rect" id="Node000006" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="295,167,498,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="230,116,352,159,350,164,228,121"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="329,240,465,265"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="399,192,399,226,394,226,394,192"/>
+</map>
