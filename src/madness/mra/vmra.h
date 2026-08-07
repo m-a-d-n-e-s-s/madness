@@ -372,6 +372,32 @@ namespace madness {
     }
 
 
+    /// Pre-stages the neighbor coefficients that differentiating v with each of grad will need
+
+    /// Differentiating then serves those neighbors locally instead of fetching them one at a time.
+    /// One halo per function holds every operator's pushes, so it pays when several functions are
+    /// differentiated together. `clear_halo` frees them afterwards.
+    template <typename T, std::size_t NDIM>
+    void stage_halo(World& world,
+                    const std::vector< std::shared_ptr< Derivative<T,NDIM> > >& grad,
+                    const std::vector< Function<T,NDIM> >& v,
+                    bool fence=true)
+    {
+        for (const auto& f : v) MADNESS_CHECK(f.is_reconstructed());
+        for (const auto& D : grad)
+            for (const auto& f : v) D->stage_halo(f.get_impl().get(), false);
+        if (fence) world.gop.fence();
+    }
+
+    /// Discards the neighbor halos staged on v
+
+    /// Requires a quiescent window: it frees tables the derivative may still be reading.
+    template <typename T, std::size_t NDIM>
+    void clear_halo(const std::vector< Function<T,NDIM> >& v)
+    {
+        for (const auto& f : v) f.get_impl()->halo_clear();
+    }
+
     /// Applies a derivative operator to a vector of functions
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >

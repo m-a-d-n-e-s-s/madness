@@ -245,10 +245,10 @@ namespace madness {
         /// Push f's remote same-level neighbor coefficients to the ranks that will need them.
 
         /// Node M is the neighbor of M-1 and M+1, so its owner pushes it to the owners of those keys
-        /// without being asked, one batched message per destination. Requires `halo_enable()` and a
-        /// fence first, then a fence before differentiating; `halo_clear()` frees the result.
-        void stage_halo(const implT* f) const {
-            MADNESS_CHECK(f->halo_enabled());
+        /// without being asked, one batched message per destination. This is the axis-specific
+        /// staging policy for `FunctionImpl`'s halo table; `halo_clear()` frees the result. The
+        /// pushes arrive as tasks, so the fence is what separates staging from differentiating.
+        void stage_halo(const implT* f, bool fence = true) const {
             const dcT& coeffs = f->get_coeffs();
             std::map<ProcessID, std::vector<argT> > out;
             for (const auto& [key, node] : coeffs) {
@@ -262,6 +262,7 @@ namespace madness {
             }
             for (auto& kv : out)
                 f->task(kv.first, &implT::receive_halo, kv.second, TaskAttributes::hipri());
+            if (fence) world.gop.fence();
         }
 
         Future<argT>
@@ -272,10 +273,8 @@ namespace madness {
             }
             else {
                 // hit: same-level leaf or interior node. miss: neighbor is coarser, walk up below.
-                if (f->halo_enabled()) {
-                    coeffT c;
-                    if (f->halo_probe(neigh, c)) return Future<argT>(argT(neigh, c));
-                }
+                coeffT c;
+                if (f->halo_probe(neigh, c)) return Future<argT>(argT(neigh, c));
                 Future<argT> result;
 		if (f->get_coeffs().is_local(neigh))
 		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
