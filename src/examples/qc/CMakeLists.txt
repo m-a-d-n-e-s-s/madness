@@ -19,6 +19,9 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  10 s
   add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #  25 s
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  38 s
+  # the only gopt case: asserts the optimizer projects translations/rotations
+  # out of the gradient before testing convergence (see README)
+  add_qctest(scf_lih_gopt      madqc "qctest;long;applications")      #  38 s
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
