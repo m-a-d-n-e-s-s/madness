@@ -473,6 +473,7 @@ public:
 	virtual ~MacroTaskBase() {};
 
 	double priority=1.0;
+	long owner_slot=-1;   ///< the subworld that should run this task; -1 means any
 	enum Status {Running, Waiting, Complete, Unknown} stat=Unknown;
 
 	void set_complete() {stat=Complete;}
@@ -501,6 +502,10 @@ public:
 
     double get_priority() const {return priority;}
     void set_priority(const double p) {priority=p;}
+    long get_owner_slot() const {return owner_slot;}
+    void set_owner_slot(const long owner) {owner_slot=owner;}
+    /// an unowned task may be run by any subworld, an owned one only by its own
+    bool is_owned_by(const long slot) const {return (owner_slot<0) or (owner_slot==slot);}
 
     friend std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
     	if (s==MacroTaskBase::Status::Running) os << "Running";
@@ -714,6 +719,33 @@ public:
 		World& subworld=get_subworld();
 //		if (printdebug()) print("I am subworld",subworld.id());
 		double tasktime=0.0;
+
+		// If every task names an owner and there is one subworld per rank, each rank can walk
+		// the queue and run its own tasks: the assignment is already decided, so the pull
+		// scheduler's round trip per task buys nothing. Falls through to the dynamic loop
+		// whenever any task is unowned, which is the case for every task that does not use
+		// the owner_hint hook.
+		const long requester_slot = universe.rank() % std::max<long>(1, nsubworld);
+		const bool all_tasks_owned = (not taskq.empty()) and std::all_of(taskq.begin(), taskq.end(),
+				[](const std::shared_ptr<MacroTaskBase>& t) { return t->get_owner_slot() >= 0; });
+
+		if (all_tasks_owned and (nsubworld==universe.size())) {
+			for (long element=0; element<long(taskq.size()); ++element) {
+				std::shared_ptr<MacroTaskBase> task=taskq[element];
+				if (not task->is_owned_by(requester_slot)) continue;
+				double cpu0=cpu_time();
+				if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+				task->run(subworld,cloud, taskq, element, printdebug(), policy);
+				double cpu1=cpu_time();
+				tasktime+=(cpu1-cpu0);
+				if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+			}
+			if (printdebug() and subworld.rank()==0) {
+				printf("rank %3d (subworld %3lu) finished its task queue at time %6.1fs (own tasktime %4.1fs)\n",
+				       universe.rank(), static_cast<unsigned long>(subworld.id()), wall_time(), tasktime);
+			}
+		} else {
+
 		if (printprogress() and universe.rank()==0) std::cout << "progress in percent: " << std::flush;
 		while (true) {
 			long element=get_scheduled_task_number(subworld);
@@ -742,6 +774,7 @@ public:
 				std::cout << int(in_percentile(element)*10) << " " << std::flush;
 			}
 		}
+		}   // both the owned-walk and the pull loop converge here
         universe.gop.set_forbid_fence(false);
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
@@ -877,6 +910,143 @@ class MacroTask {
     struct is_vector<std::vector<Q>> : std::true_type {
     };
 
+    // ---- optional task hooks ----
+    //
+    // A task opts into a piece of framework machinery by declaring the corresponding
+    // member; each hook is a constrained overload plus a variadic no-op, so a task that
+    // declares nothing binds the no-op and behaves exactly as before. Detection is by
+    // overload resolution on a trailing int/... parameter, hence the literal 0 at every
+    // call site.
+    //
+    // The hooks that reach into the argument tuple are wrapped in a tuple_size guard:
+    // std::get<2>(argtuple) inside a decltype is a hard error, not a substitution
+    // failure, for a task with fewer arguments.
+
+    /// which rank should run this batch; -1 leaves the choice to the queue
+    template<typename Q>
+    static auto owner_hint_or_default(const Q& task, const Batch& batch, const long nsubworld, int)
+        -> decltype(task.owner_hint(batch, nsubworld)) {
+        return task.owner_hint(batch, nsubworld);
+    }
+
+    template<typename Q>
+    static long owner_hint_or_default(const Q&, const Batch&, const long, ...) {
+        return -1;
+    }
+
+    /// let the task assign batches to owners before the tasks are created
+    template<typename Q>
+    static auto prepare_owner_assignment_or_noop(Q& task,
+            const MacroTaskPartitioner::partitionT& partition, const long nsubworld, int)
+        -> decltype(task.prepare_owner_assignment(partition, nsubworld), void()) {
+        task.prepare_owner_assignment(partition, nsubworld);
+    }
+
+    template<typename Q>
+    static void prepare_owner_assignment_or_noop(Q&, const MacroTaskPartitioner::partitionT&, const long, ...) {}
+
+    /// let the task reorder the partition, e.g. for locality or to de-synchronize fetches
+    template<typename Q>
+    static auto shuffle_partition_or_noop(Q& task,
+            MacroTaskPartitioner::partitionT& partition, const long nsubworld, int)
+        -> decltype(task.shuffle_partition_by_owner(partition, nsubworld), void()) {
+        task.shuffle_partition_by_owner(partition, nsubworld);
+    }
+
+    template<typename Q>
+    static void shuffle_partition_or_noop(Q&, MacroTaskPartitioner::partitionT&, const long, ...) {}
+
+    /// let the task store its inputs as owner-pinned cloud batches
+    template<typename Q, typename ArgTuple>
+    static auto store_batches_or_noop(Q& task, World& world, World& subworld, Cloud& cloud,
+            const ArgTuple& argtuple, const long nsubworld, int)
+        -> decltype(task.store_batches(world, subworld, cloud, argtuple, nsubworld), void()) {
+        task.store_batches(world, subworld, cloud, argtuple, nsubworld);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void store_batches_or_noop(Q&, World&, World&, Cloud&, const ArgTuple&, const long, ...) {}
+
+    /// pre-compute: promote the previous prefetch and issue the next task's, so its
+    /// transfer overlaps this task's compute
+    template<typename Q, typename ArgTuple>
+    static auto cloud_kbatch_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_hint, const bool has_next, int)
+        -> decltype(task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next), void()) {
+        task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void cloud_kbatch_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const bool, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static void cloud_kbatch_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_hint, const bool has_next, int) {
+        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
+            cloud_kbatch_pipeline_advance_dispatch(task, subworld, argtuple, next_hint, has_next, 0);
+        }
+    }
+
+    /// pre-compute, symmetric case: takes both of the next task's ranges, so the task can
+    /// prefetch only the operand it does not already hold
+    template<typename Q, typename ArgTuple>
+    static auto sym_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int)
+        -> decltype(task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next), void()) {
+        task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next);
+    }
+
+    template<typename Q, typename ArgTuple>
+    static void sym_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const Batch_1D&, const bool, ...) {}
+
+    template<typename Q, typename ArgTuple>
+    static void sym_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
+            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int) {
+        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
+            sym_pipeline_advance_dispatch(task, subworld, argtuple, next_col, next_row, has_next, 0);
+        }
+    }
+
+    /// accumulate the batch result into a task-local buffer instead of the universe result
+    template<typename Q, typename ResT>
+    static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
+        -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
+        task.accumulate_locally(subworld, result_subworld);
+    }
+
+    template<typename Q, typename ResT>
+    static void accumulate_locally_or_noop(Q&, World&, const ResT&, ...) {}
+
+    /// whether the task wants its local buffers reduced within a node before the universe
+    template<typename Q>
+    static auto wants_node_local_reduction_or_default(const Q& task, int)
+        -> decltype(task.wants_node_local_reduction()) {
+        return task.wants_node_local_reduction();
+    }
+
+    template<typename Q>
+    static bool wants_node_local_reduction_or_default(const Q&, ...) { return false; }
+
+    /// reduce the task-local buffers within a node
+    template<typename Q>
+    static auto finalize_stage1_or_noop(Q& task, World& subworld, World* nodeworld, int)
+        -> decltype(task.finalize_stage1(subworld, nodeworld), void()) {
+        task.finalize_stage1(subworld, nodeworld);
+    }
+
+    template<typename Q>
+    static void finalize_stage1_or_noop(Q&, World&, World*, ...) {}
+
+    /// reduce across nodes into the universe result
+    template<typename Q, typename ResT>
+    static auto finalize_stage2_or_noop(Q& task, World& subworld, World* nodeworld, ResT& universe_result, int)
+        -> decltype(task.finalize_stage2(subworld, nodeworld, universe_result), void()) {
+        task.finalize_stage2(subworld, nodeworld, universe_result);
+    }
+
+    template<typename Q, typename ResT>
+    static void finalize_stage2_or_noop(Q&, World&, World*, ResT&, ...) {}
+
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
@@ -946,17 +1116,25 @@ public:
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
 
+        // let the task assign batches to owners from the whole partition, then reorder it
+        prepare_owner_assignment_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
+        shuffle_partition_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
+
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
+        // additionally store the inputs as owner-pinned cloud batches, if the task wants them
+        store_batches_or_noop(task, world, taskq_ptr->get_subworld(), taskq_ptr->cloud, argtuple,
+                              taskq_ptr->get_nsubworld(), 0);
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
         // create tasks and add them to the taskq
         MacroTaskBase::taskqT vtask;
         for (const auto& batch_prio : partition) {
+            const long owner_slot = owner_hint_or_default(task, batch_prio.first, taskq_ptr->get_nsubworld(), 0);
             vtask.push_back(
-                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
+                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, owner_slot)));
         }
         taskq_ptr->add_tasks(vtask);
         if (immediate_execution) taskq_ptr->run_all();
@@ -1028,7 +1206,8 @@ private:
     	}
 
         MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
-                          const recordlistT &inputrecords, const recordlistT &outputrecords)
+                          const recordlistT &inputrecords, const recordlistT &outputrecords,
+                          const long owner_slot = -1)
   	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
     		if constexpr (is_tuple<resultT>::value) {
     			static_assert(check_tuple_is_valid_task_result<resultT,0>(),
@@ -1038,6 +1217,7 @@ private:
     		}
             this->task.batch=batch_prio.first;
             this->priority=batch_prio.second;
+            this->set_owner_slot(owner_slot);
         }
 
 
