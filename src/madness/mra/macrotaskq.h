@@ -488,6 +488,15 @@ public:
 		const bool debug, const MacroTaskInfo policy) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
+	/// Finalize, for tasks that accumulate their own output.
+
+	/// run_all holds only base pointers, so these have to be virtual. Stage 1 reduces the
+	/// per-subworld buffers within a node, stage 2 reduces across nodes into the universe
+	/// result; a nodeworld of nullptr means one node, so stage 1 has nothing to do.
+	virtual bool wants_node_local_reduction() const { return false; }
+	virtual void finalize_stage1(World& /*subworld*/, World* /*nodeworld*/, Cloud& /*cloud*/) {}
+	virtual void finalize_stage2(World& /*subworld*/, World* /*nodeworld*/, Cloud& /*cloud*/) {}
+
     virtual void print_me(std::string s="") const {
         printf("this is task with priority %4.1f\n",priority);
     }
@@ -583,6 +592,8 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 
     World& universe;
     std::shared_ptr<World> subworld_ptr;
+	/// node-scoped World for the two-stage finalize; created on first use, reused after
+	std::shared_ptr<World> nodeworld_ptr;
 	MacroTaskBase::taskqT taskq;
 	std::mutex taskq_mutex;
 	long printlevel=0;
@@ -657,6 +668,18 @@ public:
 
 		universe.gop.fence();
 		return all_worlds;
+	}
+
+	/// a World spanning the ranks that share memory with this one
+
+	/// Collective, and worth creating only once: the two-stage finalize reduces within a
+	/// node first, so it needs a World with node scope.
+	static std::shared_ptr<World> create_node_world(World& universe) {
+		SafeMPI::Intracomm comm = universe.mpi.comm().Split_type(
+			SafeMPI::Intracomm::SHARED_SPLIT_TYPE, universe.rank());
+		std::shared_ptr<World> node_world(new World(comm));
+		universe.gop.fence();
+		return node_world;
 	}
 
 	/// run all tasks
@@ -777,6 +800,28 @@ public:
 		}   // both the owned-walk and the pull loop converge here
         universe.gop.set_forbid_fence(false);
 		universe.gop.fence();
+
+		// Drain the buffers of tasks that accumulated their own output. Two stages: reduce
+		// within a node, then across nodes into the universe result.
+		//
+		// The accumulator buffers MUST outlive the fences below, so a hook must not release
+		// or clear them: a remote gaxpy that arrives after the buffer is gone finds an impl
+		// that was released but is still registered, and throws bad_weak_ptr intermittently.
+		// Release them in cleanup(), after the universe fence. If this ever fences per
+		// subworld instead, re-audit every task that accumulates its own output.
+		const bool want_node_reduction = (not taskq.empty())
+			and taskq.front()->wants_node_local_reduction();
+		if (want_node_reduction and not nodeworld_ptr)
+			nodeworld_ptr = create_node_world(universe);
+		World* nodeworld = want_node_reduction ? nodeworld_ptr.get() : nullptr;
+		// one node means the node World is the universe, so stage 1 would only add a fence
+		if (nodeworld and nodeworld->size() == universe.size()) nodeworld = nullptr;
+
+		for (auto& t : taskq) t->finalize_stage1(subworld, nodeworld, cloud);
+		if (nodeworld) nodeworld->gop.fence();
+		for (auto& t : taskq) t->finalize_stage2(subworld, nodeworld, cloud);
+		universe.gop.fence();
+
 		universe.gop.sum(tasktime);
 		if (printprogress() and universe.rank()==0) std::cout << std::endl;
 		cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
@@ -918,21 +963,15 @@ class MacroTask {
     // overload resolution on a trailing int/... parameter, hence the literal 0 at every
     // call site.
     //
+    // Only the hooks whose signature depends on the task's own argument tuple or result
+    // type live here; the ones with a fixed signature are plain virtuals on
+    // MacroTaskOperationBase (owner_hint, accumulates_own_output, handles_own_data_movement)
+    // or on MacroTaskBase (wants_node_local_reduction, finalize_stage1, finalize_stage2),
+    // because run_all dispatches those through a base pointer.
+    //
     // The hooks that reach into the argument tuple are wrapped in a tuple_size guard:
     // std::get<2>(argtuple) inside a decltype is a hard error, not a substitution
     // failure, for a task with fewer arguments.
-
-    /// which rank should run this batch; -1 leaves the choice to the queue
-    template<typename Q>
-    static auto owner_hint_or_default(const Q& task, const Batch& batch, const long nsubworld, int)
-        -> decltype(task.owner_hint(batch, nsubworld)) {
-        return task.owner_hint(batch, nsubworld);
-    }
-
-    template<typename Q>
-    static long owner_hint_or_default(const Q&, const Batch&, const long, ...) {
-        return -1;
-    }
 
     /// let the task assign batches to owners before the tasks are created
     template<typename Q>
@@ -1132,7 +1171,7 @@ public:
         // create tasks and add them to the taskq
         MacroTaskBase::taskqT vtask;
         for (const auto& batch_prio : partition) {
-            const long owner_slot = owner_hint_or_default(task, batch_prio.first, taskq_ptr->get_nsubworld(), 0);
+            const long owner_slot = task.owner_hint(batch_prio.first, taskq_ptr->get_nsubworld());
             vtask.push_back(
                     std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, owner_slot)));
         }
@@ -1287,12 +1326,64 @@ private:
 
         }
 
+        /// Bridge the framework's virtual finalize to the task's hooks.
+
+        /// A task that does not accumulate its own output has nothing to finalize, so the
+        /// guard keeps every existing task on the queue's own accumulation path.
+        bool wants_node_local_reduction() const override {
+            return wants_node_local_reduction_or_default(task, 0);
+        }
+
+        void finalize_stage1(World& subworld, World* nodeworld, Cloud& /*cloud*/) override {
+            if (not task.accumulates_own_output()) return;
+            finalize_stage1_or_noop(task, subworld, nodeworld, 0);
+        }
+
+        void finalize_stage2(World& subworld, World* nodeworld, Cloud& cloud) override {
+            if (not task.accumulates_own_output()) return;
+            resultT result_universe = get_output(subworld, cloud);
+            finalize_stage2_or_noop(task, subworld, nodeworld, result_universe, 0);
+        }
+
+        /// the next task in taskq that this task's subworld also owns, or {-1, nullptr}
+
+        /// A task that prefetches needs to know which batch it will be asked for next. With
+        /// owner-pinned scheduling that is decidable locally: the queue order is fixed and
+        /// ownership is already assigned, so the next owned entry is just the next match.
+        std::pair<long, MacroTaskInternal*> find_next_owned_task(
+                const MacroTaskBase::taskqT& taskq, const long element) const {
+            const long owner_slot = this->get_owner_slot();
+            if (owner_slot < 0) return {-1, nullptr};
+            for (long next = element + 1; next < long(taskq.size()); ++next) {
+                if (not taskq[next]->is_owned_by(owner_slot)) continue;
+                auto next_task = std::dynamic_pointer_cast<MacroTaskInternal>(taskq[next]);
+                if (next_task) return {next, next_task.get()};
+            }
+            return {-1, nullptr};
+        }
+
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo policy) override {
         	io_redirect io(element,get_name()+"_task",debug);
+        	// The try covers the whole body, not just the compute: a throw while loading the
+        	// inputs or issuing a prefetch would otherwise escape uninstrumented and be
+        	// reported by the task backend with no task id and no what().
+        	try {
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
+
+            task.subworld_ptr=&subworld;
+            // pre-compute: let the task prefetch what the next task it owns will need, so the
+            // transfer overlaps this task's compute
+            {
+                auto [next_elem, next_ptr] = find_next_owned_task(taskq, element);
+                const bool has_next = (next_ptr != nullptr) and (next_ptr->task.batch.input.size() > 1);
+                const Batch_1D next_col = has_next ? next_ptr->task.batch.input[0] : Batch_1D();
+                const Batch_1D next_row = has_next ? next_ptr->task.batch.input[1] : Batch_1D();
+                cloud_kbatch_pipeline_advance_or_noop(task, subworld, argtuple, next_row, has_next, 0);
+                sym_pipeline_advance_or_noop(task, subworld, argtuple, next_col, next_row, has_next, 0);
+            }
 
     		std::string msg="";
 			// maybe move this block to the cloud?
@@ -1322,10 +1413,8 @@ private:
     			}
     		}
 
-    		try {
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
-    			task.subworld_ptr=&subworld;	// give the task access to the subworld
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
 			    constexpr std::size_t bufsize=256;
@@ -1349,16 +1438,32 @@ private:
 					insert_batch(result_subworld,result_batch);
 				}
 
-        		// accumulate the subworld-local results into the final, universe result
-        		resultT result_universe=get_output(subworld, cloud);       // lives in the universe
-
-        		accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        		// Accumulate the batch result. A task that accumulates its own output keeps it in
+        		// a subworld-local buffer and drains it once in finalize_stage2, instead of one
+        		// subworld->universe gaxpy per batch.
+        		if (task.accumulates_own_output()) {
+        			accumulate_locally_or_noop(task, subworld, result_subworld, 0);
+        		} else {
+        			resultT result_universe=get_output(subworld, cloud);       // lives in the universe
+        			accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
+        		}
 
         	} catch (std::exception& e) {
+        		// RSS at the moment of failure separates a memory fault (near the node ceiling,
+        		// with a bad_alloc what()) from a logic or communication bug (well below it).
+        		const double rss_at_fail = get_rss_usage_in_GB();
         		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
         		print(e.what());
+        		print("RSS at failure (current resident, GB):", rss_at_fail);
         		print_me_as_table();
         		print("\n\n");
+        		{
+        			// this task's stream may be a file or /dev/null, so repeat it on the terminal
+        			io_redirect_cout io2;
+        			print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
+        			print(e.what());
+        			print("RSS at failure (current resident, GB):", rss_at_fail);
+        		}
         		MADNESS_EXCEPTION("failing task",1);
         	}
 
@@ -1471,6 +1576,20 @@ public:
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
+    virtual ~MacroTaskOperationBase() {}
+
+    /// which subworld should run this batch; -1 leaves the choice to the queue
+
+    /// Reads whatever assignment prepare_owner_assignment computed, so the two go together:
+    /// one decides the mapping for the whole partition, this one applies it per batch.
+    virtual long owner_hint(const Batch&, const long /*nsubworld*/) const { return -1; }
+
+    /// true if the task accumulates its own results and drains them in finalize_stage2,
+    /// instead of the queue moving every batch result into the universe result itself
+    virtual bool accumulates_own_output() const { return false; }
+
+    /// true if the task moves its operand coefficients into the subworld itself
+    virtual bool handles_own_data_movement() const { return false; }
 };
 
 
