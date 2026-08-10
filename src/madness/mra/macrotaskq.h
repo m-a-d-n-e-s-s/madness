@@ -1365,7 +1365,10 @@ private:
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo policy) override {
-        	io_redirect io(element,get_name()+"_task",debug);
+        	// per-task files are a debugging aid and become thousands at fine granularity; a
+        	// failing task still reports on the terminal regardless, see the catch below
+        	const auto io_mode = debug ? io_redirect::Mode::File : io_redirect::Mode::Discard;
+        	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
         	// The try covers the whole body, not just the compute: a throw while loading the
         	// inputs or issuing a prefetch would otherwise escape uninstrumented and be
         	// reported by the task backend with no task id and no what().
