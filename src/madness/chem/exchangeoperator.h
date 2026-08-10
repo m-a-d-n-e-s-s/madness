@@ -614,15 +614,56 @@ private:
         /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
         /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
         /// \param vf_batch     the argument of the exchange operator
+        /// Streams the tile one row at a time, so only the intermediates of a single row
+        /// are live at once where computing the tile in one go holds the whole triangle.
+        /// Row i builds N_ij = P(bra[i] vf[j]) for j <= i, adds ket[i] N_ij to column j,
+        /// and adds the mirrored ket[j] N_ij to column i.
         vecfuncT compute_diagonal_batch_in_symmetric_matrix(World& subworld,
                                                             const vecfuncT& ket_batch,      // is batched
                                                             const vecfuncT& bra_batch,      // is batched
                                                             const vecfuncT& vf_batch        // is batched
         ) const {
-            double symmetric = true;
+            MADNESS_CHECK_THROW(ket_batch.size() == bra_batch.size(),
+                                "symmetric diagonal tile: ket/bra batch size mismatch");
+            MADNESS_CHECK_THROW(vf_batch.size() == bra_batch.size(),
+                                "symmetric diagonal tile: vf/bra batch size mismatch");
+
+            const long n = long(vf_batch.size());
+            vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, n);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
-            return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
-                                                     mul_tol);
+
+            for (long i = 0; i < n; ++i) {
+                double cpu0 = cpu_time();
+                const vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, mul_tol);
+                truncate(subworld, psif);
+                double cpu1 = cpu_time();
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
+
+                cpu0 = cpu_time();
+                psif = apply(subworld, *poisson.get(), psif);
+                truncate(subworld, psif);
+                cpu1 = cpu_time();
+                apply_timer += long((cpu1 - cpu0) * 1000l);
+
+                // rows overlap in the columns they touch, so this row's contribution is
+                // assembled on its own and accumulated
+                cpu0 = cpu_time();
+                vecfuncT update = zero_functions_compressed<T, NDIM>(subworld, n);
+                vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, mul_tol);
+                compress(subworld, row_contrib);
+                for (long j = 0; j <= i; ++j) update[j] += row_contrib[j];
+                for (long j = 0; j < i; ++j) {
+                    vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], vecfuncT(1, psif[j]), mul_tol);
+                    compress(subworld, mirrored);
+                    update[i] += mirrored[0];
+                }
+                gaxpy(subworld, 1.0, resultcolumn, 1.0, update);
+                cpu1 = cpu_time();
+                mul2_timer += long((cpu1 - cpu0) * 1000l);
+            }
+            // !! NO TRUNCATION AT THIS POINT !!
+            return resultcolumn;
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
