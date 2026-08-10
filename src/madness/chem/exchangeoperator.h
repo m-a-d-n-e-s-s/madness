@@ -6,11 +6,210 @@
 #include<madness/mra/macrotaskq.h>
 #include<madness/chem/SCFOperators.h>
 
+#include <algorithm>
+#include <map>
+#include <utility>
+#include <vector>
+
 namespace madness {
 
 // forward declaration
 class SCF;
 class Nemo;
+
+/// Number of batches M for the owner-pinned symmetric exchange algorithm.
+
+/// M = granularity_level * nsubworld, so the level is directly the number of batches per
+/// rank and every level is selectable regardless of nsubworld parity. Clamped to [1, n]:
+/// there cannot be more batches than orbitals, and a caller that hits the clamp is in the
+/// small-problem regime where batches stop being one-per-rank.
+///
+/// Batch k is owned by rank (k mod nsubworld), so away from the clamp every rank owns
+/// exactly `granularity_level` batches.
+inline long exchange_sym_owner_nbatch(const std::size_t n, const long nsubworld,
+                                      const long granularity_level) {
+    if (n == 0) return 0;
+    const long nsw = std::max<long>(1, nsubworld);
+    const long level = std::max<long>(1, granularity_level);
+    return std::min<long>(level * nsw, long(n));
+}
+
+/// Split a vector of length n into M = exchange_sym_owner_nbatch(...) contiguous batches.
+
+/// Sizes differ by at most 1; the first (n mod M) batches get the extra element, which
+/// avoids a runt batch of 1. Single source of truth for the symmetric owner-pinned batch
+/// boundaries — the task grid, the cloud batch storage and the owner assignment all derive
+/// from it, so they align by construction. Depends only on (n, nsubworld, granularity_level).
+inline std::vector<Batch_1D> exchange_sym_owner_split(const std::size_t n, const long nsubworld,
+                                                      const long granularity_level) {
+    std::vector<Batch_1D> out;
+    if (n == 0) return out;
+    const long nbatch = std::max<long>(1, exchange_sym_owner_nbatch(n, nsubworld, granularity_level));
+    const long bs_floor = long(n) / nbatch;
+    const long rem = long(n) - bs_floor * nbatch;
+    long begin = 0;
+    for (long b = 0; b < nbatch; ++b) {
+        const long sz = bs_floor + (b < rem ? 1 : 0);
+        out.emplace_back(begin, begin + sz);
+        begin += sz;
+    }
+    return out;
+}
+
+/// Triangular index of a batch pair, collapsing (i,j) and (j,i): a*(a+1)/2 + b.
+
+/// The indexing convention of the per-task cost vector, shared by whoever records a
+/// measured cost and by exchange_sym_cost_aware_assign, which consumes it.
+inline long exchange_sym_tri(const long i, const long j) {
+    const long a = std::max(i, j), b = std::min(i, j);
+    return a * (a + 1) / 2 + b;
+}
+
+/// Round-robin owner assignment for the symmetric algorithm's triangular task matrix.
+
+/// Pure function of (n, M): n workers (= nsubworld), M batches, batch k owned by (k mod n).
+/// Task (i,j) with 0 <= j <= i < M is eligible for worker t iff
+///   i==j: (i mod n)==t                    -- a diagonal task has a single owner
+///   i!=j: (i mod n)==t or (j mod n)==t    -- the worker owns at least one operand
+/// Eligibility is what makes the assignment fetch-free: a task always lands on a worker
+/// that already stores one of its two batches. Phase 1 round-robins eligible tasks across
+/// workers; phase 2 then rebalances off-diagonal tasks (diagonals never move) toward a
+/// task-count spread of 1.
+///
+/// Phase 2 is best effort, not a guarantee: it can only move a task to a worker the task
+/// is eligible for, so it stops early when the hottest worker holds nothing the coldest
+/// ones may take. The residual spread is 2 rather than 1 for some (n, M) — measured over
+/// n <= 128 and 1 to 3 batches per rank, never worse than 2.
+///
+/// \return map (i,j) -> owner. Deterministic, so every rank computes the same assignment
+///         without communicating.
+inline std::map<std::pair<long,long>,long>
+exchange_sym_round_robin_assign(const long n, const long M) {
+    std::map<std::pair<long,long>,long> owner;
+    if (n <= 0 or M <= 0) return owner;
+    auto eligible = [n](long i, long j, long t) -> bool {
+        if (i == j) return (i % n) == t;
+        return ((i % n) == t) or ((j % n) == t);
+    };
+    // all tasks, ascending by (i,j)
+    std::vector<std::pair<long,long>> remaining;
+    remaining.reserve(std::size_t(M) * std::size_t(M + 1) / 2);
+    for (long i = 0; i < M; ++i)
+        for (long j = 0; j <= i; ++j)
+            remaining.emplace_back(i, j);
+
+    std::vector<std::vector<std::pair<long,long>>> T(n);
+
+    // Phase 1 — round-robin placement
+    long t = 0, misses = 0;
+    while (not remaining.empty() and misses < n) {
+        long picked = -1;
+        for (long idx = 0; idx < long(remaining.size()); ++idx) {
+            if (eligible(remaining[idx].first, remaining[idx].second, t)) { picked = idx; break; }
+        }
+        if (picked >= 0) {
+            T[t].push_back(remaining[picked]);
+            remaining.erase(remaining.begin() + picked);
+            misses = 0;
+        } else {
+            ++misses;
+        }
+        t = (t + 1) % n;
+    }
+    // any leftovers; every task is eligible for someone, so this should not trigger
+    for (const auto& task : remaining) T[task.first % n].push_back(task);
+
+    // Phase 2 — rebalance until the spread is <= 1 (the iteration cap is a backstop)
+    for (long iter = 0; iter < 10000; ++iter) {
+        long big = 0, small = 0;
+        for (long p = 1; p < n; ++p) {
+            if (long(T[p].size()) > long(T[big].size())) big = p;
+            if (long(T[p].size()) < long(T[small].size())) small = p;
+        }
+        if (long(T[big].size()) - long(T[small].size()) <= 1) break;
+        bool moved = false;
+        std::vector<long> order(n);
+        for (long p = 0; p < n; ++p) order[p] = p;
+        std::sort(order.begin(), order.end(),
+                  [&T](long a, long b){ return T[a].size() > T[b].size(); });
+        for (long bi = 0; bi < n and not moved; ++bi) {
+            for (long si = n - 1; si > bi and not moved; --si) {
+                const long bt = order[bi], st = order[si];
+                if (long(T[bt].size()) - long(T[st].size()) <= 1) continue;
+                for (long idx = 0; idx < long(T[bt].size()); ++idx) {
+                    const auto& tk = T[bt][idx];
+                    if (tk.first == tk.second) continue;           // never move diagonals
+                    if (not eligible(tk.first, tk.second, st)) continue;
+                    T[st].push_back(tk);
+                    T[bt].erase(T[bt].begin() + idx);
+                    moved = true;
+                    break;
+                }
+            }
+        }
+        if (not moved) break;   // accept the residual imbalance
+    }
+
+    for (long p = 0; p < n; ++p)
+        for (const auto& tk : T[p])
+            owner[tk] = p;
+    return owner;
+}
+
+/// Cost-aware owner assignment for the symmetric algorithm's triangular task matrix.
+
+/// Same ownership and eligibility as exchange_sym_round_robin_assign, so the fetch-free
+/// invariant is preserved, but it balances per-worker total COST instead of task COUNT.
+/// Screening makes the tasks strongly inhomogeneous for large molecules, and that is what
+/// a count-based assignment cannot see. `cost` is indexed by exchange_sym_tri and holds a
+/// relative per-task cost, in practice the previous call's measured wall time; entries
+/// past its end count as zero, so an empty or short vector degrades to cost-blind.
+/// Greedy largest-cost-first onto the less loaded eligible worker, then a bounded local
+/// search that relieves the hottest worker.
+///
+/// \return map (i,j) -> owner. Deterministic given the same `cost`.
+inline std::map<std::pair<long,long>,long>
+exchange_sym_cost_aware_assign(const long n, const long M, const std::vector<double>& cost) {
+    std::map<std::pair<long,long>,long> owner;
+    if (n <= 0 or M <= 0) return owner;
+    auto C = [&](long i, long j) -> double {
+        const long t = exchange_sym_tri(i, j); return (t < long(cost.size())) ? cost[t] : 0.0;
+    };
+    std::vector<double> load(n, 0.0);
+    // diagonals first: they have no choice of owner
+    for (long i = 0; i < M; ++i) { const long r = i % n; load[r] += C(i,i); owner[{i,i}] = r; }
+    // off-diagonals, largest cost first, ties broken by (i,j) to stay deterministic
+    std::vector<std::pair<long,long>> off;
+    off.reserve(std::size_t(M) * std::size_t(M > 0 ? M - 1 : 0) / 2);
+    for (long i = 0; i < M; ++i) for (long j = 0; j < i; ++j) off.emplace_back(i, j);
+    std::sort(off.begin(), off.end(), [&](const std::pair<long,long>& A, const std::pair<long,long>& B){
+        const double ca = C(A.first,A.second), cb = C(B.first,B.second);
+        return (ca != cb) ? (ca > cb) : (A < B);
+    });
+    for (const auto& [i,j] : off) {
+        const long ri = i % n, rj = j % n;
+        const long r = (ri == rj) ? ri : (load[ri] <= load[rj] ? ri : rj);
+        owner[{i,j}] = r; load[r] += C(i,j);
+    }
+    // relieve the hottest worker by flipping its off-diagonals to their other eligible owner
+    for (long pass = 0; pass < 50; ++pass) {
+        long hot = 0; for (long p = 1; p < n; ++p) if (load[p] > load[hot]) hot = p;
+        bool improved = false;
+        for (const auto& [i,j] : off) {
+            auto it = owner.find({i,j});
+            if (it->second != hot) continue;
+            const long ri = i % n, rj = j % n;
+            if (ri == rj) continue;                          // no choice
+            const long other = (hot == ri) ? rj : ri;
+            const double c = C(i,j);
+            if (load[other] + c < load[hot]) {               // strictly lowers the hot worker
+                load[hot] -= c; load[other] += c; it->second = other; improved = true;
+            }
+        }
+        if (not improved) break;
+    }
+    return owner;
+}
 
 
 template<typename T, std::size_t NDIM>
