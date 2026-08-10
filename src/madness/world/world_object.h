@@ -343,7 +343,9 @@ namespace madness {
     struct WorldObjectBase {
     private:
         uniqueidT objid; ///< Unique object ID.
-        World& world; ///< Reference to the world to which this object belongs.
+        World& world; ///< Memoized reference to the world to which this object belongs.
+        World::liveness_handleT world_liveness; ///< Reports whether \c world is still alive.
+
     protected:
 
         /// Construct a new WorldObjectBase.
@@ -351,13 +353,15 @@ namespace madness {
         /// \param[in] w The world to which this object belongs.
         template <typename DerivedT>
         explicit WorldObjectBase(World& w, DerivedT* this_ptr)
-        : world(w), objid(w.register_ptr(this_ptr))
+        : objid(w.register_ptr(this_ptr)), world(w), world_liveness(w.liveness())
         { }
 
     public:
 
         virtual ~WorldObjectBase() {
             if(initialized()) {
+                MADNESS_ASSERT_NOEXCEPT(world_is_alive() &&
+                    "WorldObjectBase::~WorldObjectBase() the world of this object has already been destroyed");
                 auto* world_ptr = World::world_from_id(objid.get_world_id());
                 MADNESS_ASSERT_NOEXCEPT(world_ptr != nullptr &&  "WorldObjectBase::~WorldObjectBase() failed to find world");
                 MADNESS_ASSERT_NOEXCEPT(world_ptr == &world &&
@@ -371,9 +375,22 @@ namespace madness {
             return objid;
         }
 
+        /// Reports whether the world to which this object belongs still exists.
+
+        /// A \c WorldObject must not outlive its \c World, but it happens; this
+        /// makes the (otherwise silent) use-after-free detectable.
+        /// \return True if the world of this object has not been destroyed yet.
+        bool world_is_alive() const noexcept {
+            return world_liveness && world_liveness->load(std::memory_order_relaxed);
+        }
+
         /// Get the world to which this object belongs.
         /// \return A reference to the world.
+        /// \note The reference is memoized, hence only valid while that world is
+        ///       alive; this is asserted here rather than paying for a lookup of
+        ///       the world by its ID, since \c get_world() is called in hot loops.
         World& get_world() const {
+            MADNESS_ASSERT(world_is_alive());
             return world;
         }
     };

@@ -82,6 +82,7 @@ namespace madness {
                  bool fence)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
+            , alive(std::make_shared<std::atomic<bool>>(true))
             , mpi(*(new WorldMpiInterface(comm)))
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
@@ -126,6 +127,9 @@ namespace madness {
         delete &am;
         delete &mpi;
         if (this->_id != 0) worlds.remove(this);
+        // last: any WorldObject destroyed above must still see this world as alive,
+        // just like it must still be findable via world_from_id
+        alive->store(false, std::memory_order_relaxed);
     }
 
     void World::initialize_world_id_range(int global_rank) {
