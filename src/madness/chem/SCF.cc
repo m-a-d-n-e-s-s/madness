@@ -741,12 +741,17 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     START_TIMER(world);
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
+    // these operators serve only this matrix, which is the many-tree case the pool submission helps
+    for (int axis = 0; axis < 3; ++axis) gradop[axis]->parallel_submit_ = true;
     START_TIMER(world);
+    stage_halo(world, gradop, v);
     vecfuncT dvx = apply(world, *(gradop[0]), v, false);
     vecfuncT dvy = apply(world, *(gradop[1]), v, false);
     vecfuncT dvz = apply(world, *(gradop[2]), v, false);
     world.gop.fence();
     END_TIMER(world, "KEmat differentiate");
+    // all three axes' halos are live until here, since all three are applied before the fence above
+    clear_halo(v);
     START_TIMER(world);
     compress(world, dvx, false);
     compress(world, dvy, false);
@@ -1470,7 +1475,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     // compute Vpsi and truncation
     START_TIMER(world);
-    const bool tile_Vpsi = true;
+    // Tiling bounds the products' transient memory, which only threatens at high precision, and
+    // costs nmo/ntile fences plus a truncation of every product. The untiled path was the default
+    // for years; take it below the tight protocols.
+    const bool tile_Vpsi = FunctionDefaults<3>::get_thresh() < 1.e-7;
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
@@ -1481,14 +1489,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 size_t iend = std::min(ilo+ntile,amo.size());
                 vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
                 auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
-
-                //truncate tmpVpsi
                 truncate(world, tmpVpsi);
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    Vpsi[i] += tmpVpsi[i-ilo];
-                }
+                // one gaxpy per tile instead of two fences per orbital, as the untiled branch does
+                vecfuncT Vpsi_tile(Vpsi.begin()+ilo, Vpsi.begin()+iend);
+                gaxpy(world, 1.0, Vpsi_tile, 1.0, tmpVpsi);
             }
             END_TIMER(world, "V*psi");
         } else {
@@ -2242,69 +2247,59 @@ void SCF::solve(World& world) {
         //     //do_this_iter = false;
         //     param.maxsub = maxsub_save;
         // }
-        const bool tile_localize = true;
-        if (tile_localize) {
-            if (param.do_localize() && do_this_iter) {
-                START_TIMER(world);
-                Localizer localizer(world, aobasis, molecule, ao);
-                localizer.set_method(param.localize_method());
+        // The first localization starts from the atomic guess, where CG can spend hundreds of
+        // iterations chasing 1e-6 while still bouncing above it. Later iterations re-localize
+        // anyway, so loosen that one call.
+        double localize_tolloc_scale = 1.0;
+        if (param.do_localize() && do_this_iter && !initial_localization_done) {
+            localize_tolloc_scale = 100.0;
+            initial_localization_done = true;
+        }
+        // Tiling the transform bounds the transient memory of the rotated orbitals, which only
+        // threatens at high precision. Below that it only buys an extra truncation per tile.
+        // Take the untiled path except at the tight protocols.
+        const bool tile_localize = FunctionDefaults<3>::get_thresh() < 1.e-7;
+
+        // Rotate one spin's orbitals by its localization matrix. When tiled it rotates min_tile
+        // orbitals at a time, bounding the transient to that many functions rather than all of them.
+        auto rotate_orbitals = [&world, tile_localize](vecfuncT& v, const tensorT& UT) {
+            if (tile_localize) {
+                const size_t min_tile = 10;
+                const size_t ntile = std::min(v.size(), min_tile);
+                vecfuncT rotated(v.size());
+                for (size_t ilo = 0; ilo < v.size(); ilo += ntile) {
+                    const size_t iend = std::min(ilo + ntile, v.size());
+                    auto U_slice = copy(transpose(UT)(_, Slice(ilo, iend - 1)));
+                    auto tmp = transform(world, v, U_slice);
+                    truncate(world, tmp);
+                    for (size_t i = ilo; i < iend; ++i) rotated[i] = tmp[i - ilo];
+                }
+                v = rotated;
+            } else {
+                v = transform(world, v, transpose(UT));
+                truncate(world, v);
+            }
+            normalize(world, v);
+        };
+
+        if (param.do_localize() && do_this_iter) {
+            START_TIMER(world);
+            Localizer localizer(world, aobasis, molecule, ao);
+            localizer.set_method(param.localize_method());
+            localizer.set_tolloc_scale(localize_tolloc_scale);
+            {
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-
-                size_t min_tile = 10;
-                size_t ntile = std::min(amo.size(), min_tile);
-                vecfuncT new_amo = zero_functions<double,3>(world, amo.size());  
-
-                for (size_t ilo=0; ilo<amo.size(); ilo+=ntile){
-                    size_t iend = std::min(ilo+ntile,amo.size());
-                    auto U_slice = copy(transpose(UT)(_,Slice(ilo,iend-1)));
-
-                    auto tmp_amo = transform(world, amo, U_slice);
-
-                    truncate(world, tmp_amo);
-
-                    for (size_t i = ilo; i<iend; ++i){
-                        new_amo[i] += tmp_amo[i-ilo];
-                    }
-                }
-                normalize(world, new_amo);
-                amo = new_amo;
-
-                if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
-                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-                    UT.screen(trantol);
-                    bmo = transform(world, bmo, transpose(UT));
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                }
-                END_TIMER(world, "localize");
+                rotate_orbitals(amo, UT);
             }
-        } else {
-            if (param.do_localize() && do_this_iter) {
-                START_TIMER(world);
-                Localizer localizer(world, aobasis, molecule, ao);
-                localizer.set_method(param.localize_method());
-                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+            if (!param.spin_restricted() && param.nbeta() != 0) {
+                MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-                amo = transform(world, amo, transpose(UT));
-                truncate(world, amo);
-                normalize(world, amo);
-
-                if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
-                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-                    UT.screen(trantol);
-                    bmo = transform(world, bmo, transpose(UT));
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                }
-                END_TIMER(world, "localize");
+                rotate_orbitals(bmo, UT);
             }
+            END_TIMER(world, "localize");
         }
 
         START_TIMER(world);

@@ -1011,10 +1011,68 @@ template<size_t NDIM>
 
         dcT coeffs; ///< The coefficients
 
+        /// Neighbor coefficients pushed here by whoever owns them; null until something stages.
+
+        /// Values mirror what `sock_it_to_me` returns for the same key: coefficients for a same-level
+        /// leaf, empty for an interior node, absent when the neighbor is coarser and the consumer
+        /// must walk up. Which nodes get pushed is the operator's business, not the table's --- see
+        /// `DerivativeBase::stage_halo`.
+        ///
+        /// Allocated on the first push, so functions that never stage one do not carry it: a
+        /// `ConcurrentHashMap` default-constructs 1021 bins, ~32 kB per function.
+        mutable std::atomic<ConcurrentHashMap<keyT,coeffT>*> neighbor_halo_{nullptr};
+
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
+        /// Is a neighbor halo staged on this function?
+        bool halo_enabled() const {
+            return neighbor_halo_.load(std::memory_order_acquire) != nullptr;
+        }
+
+        /// Discard the neighbor halo, freeing the staged coefficients.
+
+        /// Requires a quiescent window: it frees a table that `halo_probe` may be reading.
+        void halo_clear() const {
+            delete neighbor_halo_.exchange(nullptr, std::memory_order_acq_rel);
+        }
+
+        /// How many neighbor nodes are staged on this rank; zero if no halo.
+        std::size_t halo_size() const {
+            const auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            return h ? h->size() : 0;
+        }
+
+        /// Insert pushed neighbor nodes into the halo; runs as a task, concurrently with other pushes.
+
+        /// Allocates the table on the first push, so staging needs no collective set-up.
+        void receive_halo(const std::vector<std::pair<keyT,coeffT> >& buf) const {
+            auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            if (!h) {
+                auto* fresh = new ConcurrentHashMap<keyT,coeffT>();
+                if (neighbor_halo_.compare_exchange_strong(h, fresh, std::memory_order_acq_rel,
+                                                           std::memory_order_acquire))
+                    h = fresh;
+                else
+                    delete fresh;   // lost the race; the failed CAS put the winner's table in h
+            }
+            for (const auto& kv : buf) {
+                typename ConcurrentHashMap<keyT,coeffT>::accessor acc;
+                (void) h->insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+
+        /// Look up a staged neighbor; on a hit copy its coefficients, which are empty for an interior node.
+        bool halo_probe(const keyT& key, coeffT& out) const {
+            const auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            if (!h) return false;
+            typename ConcurrentHashMap<keyT,coeffT>::const_accessor acc;
+            if (h->find(acc, key)) { out = acc->second; return true; }
+            return false;
+        }
+
         Timer timer_accumulate;
         Timer timer_change_tensor_type;
         Timer timer_lr_result;
@@ -1136,7 +1194,7 @@ template<size_t NDIM>
             this->process_pending();
         }
 
-        virtual ~FunctionImpl() { }
+        virtual ~FunctionImpl() { halo_clear(); }
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
 
@@ -2799,11 +2857,9 @@ template<size_t NDIM>
                 std::swap(ind[i],ind[j]);
             }
 
-            typename FunctionImpl<R,NDIM>::dcT::const_iterator end = right->coeffs.end();
-            for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right->coeffs.begin(); it != end; ++it) {
-                if (it->second.has_coeff()) {
-                    const Key<NDIM>& key = it->first;
-                    const GenTensor<R>& r = it->second.coeff();
+            for (const auto& [key, rnode] : right->coeffs) {
+                if (rnode.has_coeff()) {
+                    const GenTensor<R>& r = rnode.coeff();
                     double norm = r.normf();
                     double keytol = truncate_tol(tol,key);
 
@@ -2812,20 +2868,17 @@ template<size_t NDIM>
                         if (std::abs(norm*c(i)) > keytol) {
                             implT* left = vleft[i].get();
                             typename dcT::accessor acc;
-                            bool newnode = left->coeffs.insert(acc,key);
-                            if (newnode && key.level()>0) {
+                            bool new_node = left->coeffs.insert(acc,key);
+                            if (new_node) {
+                                /* Notify parent nodes that a new child exists. */
                                 Key<NDIM> parent = key.parent();
-				if (left->coeffs.is_local(parent))
-				  left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-				else
-				  left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-
+                                if (left->coeffs.is_local(parent))
+                                    left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                else
+                                    left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
                             }
                             nodeT& node = acc->second;
-                            if (!node.has_coeff())
-                                node.set_coeff(coeffT(cdata.v2k,targs));
-                            coeffT& t = node.coeff();
-                            t.gaxpy(1.0, r, c(i));
+                            node.gaxpy_inplace(1.0, rnode, c(i));
                         }
                     }
                 }
