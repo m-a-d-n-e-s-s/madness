@@ -324,6 +324,13 @@ struct MacroTaskInfo {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
 			info.cloud_distribution_policy=DistributionType::RankReplicated;
 			info.ptr_target_distribution_policy=DistributionType::Distributed;
+		} else if (name=="small_memory_owner") {
+			// for tasks that fetch their own operands: the cloud holds pointers and the
+			// queue does not copy coefficients into the subworld, see
+			// handles_own_data_movement
+			info.storage_policy=MacroTaskInfo::StorePointerToFunction;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
 		} else if (name=="large_memory") {
 			info.storage_policy=MacroTaskInfo::StoreFunction;
 			info.cloud_distribution_policy=DistributionType::RankReplicated;
@@ -336,7 +343,7 @@ struct MacroTaskInfo {
 	}
 
 	static std::vector<std::string> get_all_preset_names() {
-		return {"default","node_replicated_target","small_memory","large_memory"};
+		return {"default","node_replicated_target","small_memory","small_memory_owner","large_memory"};
 	}
 
 	/// helper function to return all presets
@@ -1377,6 +1384,8 @@ private:
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
             task.subworld_ptr=&subworld;
+            // before the prefetch hook, which fetches through it
+            task.cloud_ptr=&cloud;
             // pre-compute: let the task prefetch what the next task it owns will need, so the
             // transfer overlaps this task's compute
             {
@@ -1390,7 +1399,14 @@ private:
 
     		std::string msg="";
 			// maybe move this block to the cloud?
-    		if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
+			// A task that fetches its own operands must not have them copied in as well --
+			// that would pay for the coefficients twice, once per task instead of once per
+			// owned batch, which is the cost the owner-pinned path exists to avoid.
+			const bool need_auto_copy =
+				(policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) or
+				(policy.storage_policy==MacroTaskInfo::StorePointerToFunction
+					and not task.handles_own_data_movement());
+    		if (need_auto_copy) {
     			double cpu0=wall_time();
     			Cloud::cloudtimer timer(subworld,cloud.copy_time);
     			// the functions loaded from the cloud are pointers to the universe functions,
@@ -1474,6 +1490,7 @@ private:
 
     	// this is called after all tasks have been executed and the taskq has ended
     	void cleanup() override {
+    		task.cleanup();
     	}
 
     	template<typename T, std::size_t NDIM>
@@ -1576,6 +1593,9 @@ class MacroTaskOperationBase {
 public:
     Batch batch;
 	World* subworld_ptr=0;
+	/// set by MacroTaskInternal::run before the task body runs, so a task that moves its
+	/// own operands (see handles_own_data_movement) can fetch them from the cloud itself
+	Cloud* cloud_ptr=0;
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
@@ -1593,6 +1613,15 @@ public:
 
     /// true if the task moves its operand coefficients into the subworld itself
     virtual bool handles_own_data_movement() const { return false; }
+
+    /// release whatever the task kept across its batches, called once the queue has run
+
+    /// A task class that caches operands between its batches has to keep them in static
+    /// state, since each batch is a separate task object. This is where that state must be
+    /// dropped: it still refers to the subworld the batches were built in, and that
+    /// subworld is destroyed after the queue finishes. Clearing it later means destroying
+    /// function implementations whose world is already gone.
+    virtual void cleanup() {}
 };
 
 

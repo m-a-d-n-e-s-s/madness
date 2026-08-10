@@ -121,12 +121,18 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // that one set of batches serves every operand role and both of a task's batches are
     // owned by some rank. The asymmetric case keeps the size-driven partition.
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
-                                  /*owner_pinned=*/is_symmetric(), batch_granularity_);
+                                  /*owner_pinned=*/is_symmetric(), batch_granularity_,
+                                  world.rank());
+    // The owner-pinned path stores the orbitals as batches itself and fetches the two it
+    // needs per task, so the cloud must hold pointers rather than copy every operand into
+    // every subworld. The algorithm therefore fixes the storage policy.
+    const MacroTaskInfo policy = is_symmetric() ? MacroTaskInfo::preset("small_memory_owner")
+                                                : macro_task_info;
     if (taskq) taskq->set_printlevel(printlevel);
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
-                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info));
+                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(policy));
 
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
@@ -280,29 +286,23 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
 /// builds N_ij = P(bra[irow] vf[j]) over the whole column range and contributes to both
 /// result ranges: ket[irow] N_ij to column j, and the sum over j of ket[j] N_ij to row irow.
 /// \param subworld     the world we're computing in
-/// \param mo_ket       the orbitals to premultiply with, not batched
+/// \param ket_rows     the orbitals to premultiply with, over the bra/row range
+/// \param ket_columns  the orbitals to premultiply with, over the vf/column range
 /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
 /// \param vf_batch     the argument of the exchange operator
 template<typename T, std::size_t NDIM>
 std::pair<std::vector<Function<T, NDIM>>, std::vector<Function<T, NDIM>>>
 Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
-                                                                                          const vecfuncT& mo_ket,      // not batched
+                                                                                          const vecfuncT& ket_rows,
+                                                                                          const vecfuncT& ket_columns,
                                                                                           const vecfuncT& bra_batch,   // batched
                                                                                           const vecfuncT& vf_batch) const { // batched
-    MADNESS_CHECK(batch.input.size() == 2);
-    // input[1] is the bra/row range and input[0] the vf/column range -- the same labelling
-    // ExchangeImpl::operator() uses when it accumulates the two results back into Kf
-    const auto row_range = batch.input[1];
-    const auto column_range = batch.input[0];
-    MADNESS_CHECK_THROW(row_range.size() == long(bra_batch.size()),
-                        "symmetric offdiagonal tile: row range does not match the bra batch");
-    MADNESS_CHECK_THROW(column_range.size() == long(vf_batch.size()),
-                        "symmetric offdiagonal tile: column range does not match the vf batch");
-
-    // result[i] = sum_k ket[k] \int bra[k] vf[i], so the tile needs the ket over both of
-    // its ranges: over the rows to accumulate into the columns, and vice versa
-    const vecfuncT ket_rows = row_range.copy_batch(mo_ket);
-    const vecfuncT ket_columns = column_range.copy_batch(mo_ket);
+    // result[i] = sum_k ket[k] \int bra[k] vf[i], so the tile contributes to both of its
+    // ranges: the ket over the rows accumulates into the columns, and the other way round
+    MADNESS_CHECK_THROW(ket_rows.size() == bra_batch.size(),
+                        "symmetric offdiagonal tile: ket/bra row size mismatch");
+    MADNESS_CHECK_THROW(ket_columns.size() == vf_batch.size(),
+                        "symmetric offdiagonal tile: ket/vf column size mismatch");
 
     const long nrow = long(bra_batch.size());
     const long ncolumn = long(vf_batch.size());

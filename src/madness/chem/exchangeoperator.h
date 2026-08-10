@@ -357,6 +357,12 @@ public:
             printf(" cpu time spent in apply       %8.2fs\n", timings["apply"].template get<double>());
             printf(" cpu time spent in multiply2   %8.2fs\n", timings["multiply2"].template get<double>());
             printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
+            // only the owner-pinned path fetches operand batches, so this stays quiet for
+            // every other algorithm; zero fetches would mean that path never ran
+            const long resident = MacroTaskExchangeSimple::batch_cache_hits();
+            const long fetched = MacroTaskExchangeSimple::batch_cache_misses();
+            if (resident + fetched > 0)
+                printf(" operand batches resident/fetched %6ld /%6ld\n", resident, fetched);
         }
     }
 
@@ -448,6 +454,10 @@ public:
         j["printlevel"] = printlevel;
         j["algorithm"] = to_string(algorithm_);
         j["macro_task_info"] = macro_task_info.to_json();
+        // how often a task found its operand batch already resident instead of fetching it
+        // from its owner; zero fetches at all means the owner-pinned path did not run
+        j["batch_cache_hits"] = MacroTaskExchangeSimple::batch_cache_hits();
+        j["batch_cache_misses"] = MacroTaskExchangeSimple::batch_cache_misses();
         auto timings = gather_timings(world);
         j.update(timings);
         return j;
@@ -503,6 +513,48 @@ private:
         /// (column batch offset, row batch offset) -> owning rank, filled by
         /// prepare_owner_assignment and read by owner_hint
         std::map<std::pair<long,long>,long> owner_map_;
+        /// this process's rank in the universe, to recognise the batches it owns
+        long universe_rank_ = 0;
+
+        /// Batches fetched from the cloud, reused across the tasks that run in one subworld.
+
+        /// Static because the tasks of a subworld are separate objects: the cache has to
+        /// outlive any one of them to be reused at all. It is therefore scoped by hand to
+        /// the subworld that filled it -- see ensure_cache_world, which drops it when the
+        /// subworld changes so a batch from one subworld is never read in another.
+        static inline ExchangeBatchLRU<long, vecfuncT> batch_cache_;
+        static inline long cache_world_id_ = -1;
+        static inline std::atomic<long> batch_cache_hits_;
+        static inline std::atomic<long> batch_cache_misses_;
+
+        static void clear_local_caches() { batch_cache_.clear(); }
+
+        /// drop cached batches when the subworld changes; they belong to the old one
+        void ensure_cache_world(World& world) const {
+            if (cache_world_id_ != long(world.id())) {
+                clear_local_caches();
+                cache_world_id_ = long(world.id());
+            }
+        }
+
+        /// Fetch one owner-pinned batch, from the local cache if it is resident.
+
+        /// A miss goes straight to the owning rank over the cloud's point-to-point batch
+        /// path. Batches this rank owns are pinned, since every one of its tasks needs
+        /// them; the others are transient and bounded.
+        ///
+        /// \return a reference into the cache, valid until that entry is evicted
+        const vecfuncT& fetch_batch(World& world, Cloud& cloud, const long record) const {
+            ensure_cache_world(world);
+            if (const vecfuncT* resident = batch_cache_.find(record)) {
+                ++batch_cache_hits_;
+                return *resident;
+            }
+            ++batch_cache_misses_;
+            const bool owned = (cloud.batch_owner(record) == universe_rank_);
+            vecfuncT data = cloud.template fetch_batch_p2p<T, NDIM>(world, record, /*cache_result=*/false);
+            return batch_cache_.insert(record, std::move(data), owned);
+        }
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
 
@@ -577,11 +629,17 @@ private:
     public:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
                                 const bool symmetric, const bool owner_pinned = false,
-                                const long granularity_level = 1)
+                                const long granularity_level = 1, const long universe_rank = 0)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
-                  owner_pinned(owner_pinned), granularity_level(granularity_level) {
+                  owner_pinned(owner_pinned), granularity_level(granularity_level),
+                  universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
         }
+
+        /// how often a task's operand batch was already resident, and how often it had to be
+        /// fetched from the rank owning it. No fetches at all means the path never ran.
+        static long batch_cache_hits() { return batch_cache_hits_; }
+        static long batch_cache_misses() { return batch_cache_misses_; }
 
         /// Assign every task to the rank that will own one of its two batches.
 
@@ -647,12 +705,89 @@ private:
             return result;
         }
 
+        /// Store the orbitals as owner-pinned batches, one record per batch.
+
+        /// Called by the macrotask queue on the universe right after the argument tuple is
+        /// stored. The batch boundaries and the record keys are derived exactly as the task
+        /// side derives them, so no manifest has to be communicated.
+        ///
+        /// Every rank registers the routing for all records, which is local and needs no
+        /// communication, and then each owner **pulls** the batches it owns into its own
+        /// size-1 subworld and serializes them there. That is what spreads the ingest across
+        /// the owners: serializing centrally instead funnels the whole orbital set through
+        /// one rank's network interface.
+        ///
+        /// The symmetric case stores one set: bra == ket == vf, so the same batch serves as
+        /// column, row and ket operand.
+        void store_batches(World& world, World& subworld, Cloud& cloud, const argtupleT& argtuple,
+                           const long nsubworld) {
+            if (not owner_pinned) return;
+            // Batch k is owned by rank (k mod nsubworld), so a batch index has to name a
+            // universe rank, and that only holds with one subworld per rank. Anything else
+            // would register the routing to the wrong ranks and read the wrong coefficients,
+            // so say so rather than compute something wrong.
+            MADNESS_CHECK_THROW(nsubworld == world.size(),
+                                "owner-pinned exchange needs one subworld per rank");
+            const vecfuncT& mo_ket = std::get<2>(argtuple);
+            // one fence up front, so store_batch does not need one per function
+            world.gop.fence();
+            const long salt = exchange_batch_salt(mo_ket);
+            const std::vector<Batch_1D> split =
+                    exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level);
+
+            // A cross-world copy picks its process map from the target world, but anything
+            // on that path reading the process-wide default would route to universe ranks
+            // that do not exist in a size-1 subworld. Point the default at the subworld for
+            // the duration and restore it afterwards.
+            auto saved_pmap = FunctionDefaults<NDIM>::get_pmap();
+            FunctionDefaults<NDIM>::set_default_pmap(subworld);
+
+            std::vector<std::pair<long, vecfuncT>> owned;
+            for (long k = 0; k < long(split.size()); ++k) {
+                const Batch_1D& r = split[k];
+                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
+                cloud.register_batch_owner(record, ProcessID(k % nsubworld));
+                if (k % nsubworld == world.rank()) {
+                    vecfuncT local(r.size());
+                    for (long i = r.begin; i < r.end; ++i)
+                        local[i - r.begin] = copy(subworld, mo_ket[i], /*fence=*/false);
+                    owned.emplace_back(record, std::move(local));
+                }
+            }
+            // the source ranks' comm threads serve the pulls, so a fence on the size-1
+            // subworld drains this owner's copies
+            subworld.gop.fence();
+            for (auto& [record, batch] : owned)
+                cloud.store_batch(subworld, batch, world.rank(), record, /*fence=*/false);
+            subworld.gop.fence();
+
+            FunctionDefaults<NDIM>::set_pmap(saved_pmap);
+            world.gop.fence();
+        }
+
+        /// the owner-pinned path fetches its operand batches from the cloud itself
+        bool handles_own_data_movement() const override { return owner_pinned; }
+
+        /// Drop the cached batches while the subworld holding them is still alive.
+
+        /// Leaving it to ensure_cache_world to notice a new subworld is too late: by then the
+        /// cached functions refer to a destroyed world, and merely releasing them walks into
+        /// it.
+        void cleanup() override {
+            clear_local_caches();
+            cache_world_id_ = -1;
+        }
+
+
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vf_batch,     // will be batched (column)
                    const std::vector<Function<T, NDIM>>& bra_batch,    // will be batched (row)
                    const std::vector<Function<T, NDIM>>& vket) {       // will not be batched
 
-            World& world = vf_batch.front().world();
+            // the operands are not necessarily this world's: on the owner-pinned path the
+            // queue leaves them in the universe and the task fetches what it needs
+            MADNESS_CHECK_THROW(subworld_ptr != nullptr, "MacroTaskExchangeSimple: subworld_ptr is null");
+            World& world = *subworld_ptr;
             resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
 
             bool diagonal_block = batch.input[0] == batch.input[1];
@@ -665,17 +800,42 @@ private:
             MADNESS_CHECK(vf_range.end <= nresult);
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
+            // Owner-pinned: fetch the two batches this task needs from the cloud. Because
+            // bra == ket == vf there, one batch per range serves every operand role, so the
+            // ket over a range is just that range's batch.
+            vecfuncT bra_owned, vf_owned;
+            const vecfuncT* bra_work = &bra_batch;
+            const vecfuncT* vf_work = &vf_batch;
+            if (owner_pinned) {
+                MADNESS_CHECK_THROW(cloud_ptr != nullptr, "owner-pinned exchange: cloud_ptr is null");
+                Cloud& cloud = *cloud_ptr;
+                const long salt = exchange_batch_salt(vket);
+                // copy the handles out of the cache: the reference is only good until the
+                // entry is evicted, and the second fetch may evict the first
+                bra_owned = fetch_batch(world, cloud,
+                                        exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, bra_range));
+                vf_owned = diagonal_block
+                        ? bra_owned                     // one range, so one batch
+                        : fetch_batch(world, cloud,
+                                      exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                bra_work = &bra_owned;
+                vf_work = &vf_owned;
+            }
+
             if (symmetric and diagonal_block) {
-                auto ket_batch = bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch,
-                                                                                   vf_batch);
+                const vecfuncT ket_batch = owner_pinned ? *bra_work : bra_range.copy_batch(vket);
+                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, *bra_work,
+                                                                                   *vf_work);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
-                auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch,
-                                                                                            vf_batch);
+                const vecfuncT ket_rows = owner_pinned ? *bra_work : bra_range.copy_batch(vket);
+                const vecfuncT ket_columns = owner_pinned ? *vf_work : vf_range.copy_batch(vket);
+                auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, ket_rows,
+                                                                                            ket_columns,
+                                                                                            *bra_work, *vf_work);
 
                 for (int i = bra_range.begin; i < bra_range.end; ++i){
                     Kf[i] += resultcolumn[i - bra_range.begin];}
@@ -768,14 +928,13 @@ private:
 
         /// compute a batch of the exchange matrix, with non-identical ranges
 
-        /// \param subworld     the world we're computing in
-        /// \param cloud        where to store the results
-        /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-        /// \param ket_batch    the ket batch of orbitals, i.e. the orbitals to premultiply with
-        /// \param vf_batch     the argument of the exchange operator
+        /// The caller supplies the ket over each of the tile's two ranges: it is the one
+        /// that knows the ranges, and where those orbitals come from depends on how the
+        /// operands were supplied, which is not the kernel's concern.
         std::pair<vecfuncT, vecfuncT> compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
-                                                                                    const vecfuncT& ket, // not batched
-                                                                                    const vecfuncT& bra_batch, // batched
+                                                                                    const vecfuncT& ket_rows,    // ket over the bra/row range
+                                                                                    const vecfuncT& ket_columns, // ket over the vf/column range
+                                                                                    const vecfuncT& bra_batch,   // batched
                                                                                     const vecfuncT& vf_batch) const; // batched
 
     };
