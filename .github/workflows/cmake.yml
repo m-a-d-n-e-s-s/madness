@@ -48,7 +48,7 @@ jobs:
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMPI_CXX_SKIP_MPICXX=ON
-        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
+        -DCMAKE_CXX_STANDARD=20
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type == 'Debug' }}
         -DENABLE_GENTENSOR=${{ matrix.gentensor || 'OFF' }}
