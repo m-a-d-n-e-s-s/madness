@@ -36,13 +36,33 @@ if (NOT TARGET MADgtest)
   # normalize to a single stable name the rest of the tree links against
   add_library(MADgtest INTERFACE)
   if (TARGET GTest::gtest)         # CMake >= 3.20 casing / fetched googletest
-    target_link_libraries(MADgtest INTERFACE GTest::gtest)
+    set(MADNESS_GTEST_TARGET GTest::gtest)
   elseif (TARGET GTest::GTest)     # CMake < 3.20 module casing
-    target_link_libraries(MADgtest INTERFACE GTest::GTest)
+    set(MADNESS_GTEST_TARGET GTest::GTest)
   elseif (TARGET gtest)            # raw fetched target fallback
-    target_link_libraries(MADgtest INTERFACE gtest)
+    set(MADNESS_GTEST_TARGET gtest)
   else()
     message(FATAL_ERROR "FindOrFetchGTest: no usable gtest target after discover/fetch")
   endif()
+  target_link_libraries(MADgtest INTERFACE ${MADNESS_GTEST_TARGET})
+
+  # Carry an rpath to a preinstalled shared gtest.
+  #
+  # CMake decides whether a consumer needs an rpath entry from the imported
+  # target's IMPORTED_SONAME, not from the dylib/so on disk. Some packagers
+  # relocate the library to @rpath/@loader_path after generating their export
+  # file, leaving a bare soname behind (conda-forge's gtest is the case we hit:
+  # install_name @rpath/libgtest.<v>.dylib, IMPORTED_SONAME libgtest.<v>.dylib).
+  # CMake then emits no rpath, every test links cleanly, and every test dies at
+  # startup with "Library not loaded: @rpath/libgtest...". Adding the directory
+  # unconditionally is harmless when the rpath was not needed.
+  get_target_property(_mad_gtest_imported ${MADNESS_GTEST_TARGET} IMPORTED)
+  get_target_property(_mad_gtest_type ${MADNESS_GTEST_TARGET} TYPE)
+  if (UNIX AND _mad_gtest_imported AND _mad_gtest_type STREQUAL "SHARED_LIBRARY")
+    target_link_options(MADgtest INTERFACE
+        "LINKER:-rpath,$<TARGET_FILE_DIR:${MADNESS_GTEST_TARGET}>")
+  endif()
+  unset(_mad_gtest_imported)
+  unset(_mad_gtest_type)
 
 endif()

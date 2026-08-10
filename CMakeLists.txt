@@ -57,10 +57,10 @@ include(FetchContent)
 
 # Check compiler feature support ===============================================
 
-set(CMAKE_CXX_STANDARD 17 CACHE STRING  "C++ ISO Standard version")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING  "C++ ISO Standard version")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-if (CMAKE_CXX_STANDARD LESS 17)
-  message(FATAL_ERROR "MADNESS requires C++17 or later (CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}; pass -DCMAKE_CXX_STANDARD=17)")
+if (CMAKE_CXX_STANDARD LESS 20)
+  message(FATAL_ERROR "MADNESS requires C++20 or later (CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}; pass -DCMAKE_CXX_STANDARD=20)")
 endif()
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO Standard version")
 
