@@ -7,6 +7,7 @@
 #include<madness/chem/SCFOperators.h>
 
 #include <algorithm>
+#include <list>
 #include <map>
 #include <utility>
 #include <vector>
@@ -219,6 +220,101 @@ exchange_sym_cost_aware_assign(const long n, const long M, const std::vector<dou
     }
     return owner;
 }
+
+/// which of the three exchange operand vectors a stored batch belongs to
+enum ExchangeBatchDim { EXCHANGE_BATCH_VF = 0, EXCHANGE_BATCH_BRA = 1, EXCHANGE_BATCH_KET = 2 };
+
+/// Per-invocation salt for the exchange batch record keys, from the ket identities.
+
+/// Taken from the ket vector because that one is available in full on both sides — where
+/// the batches are stored and where a task fetches them — so both derive the same record
+/// keys without anyone communicating a manifest. Function implementation ids are handed out
+/// in collective creation order, so the salt is identical on every rank and changes when
+/// the operator is applied to freshly built functions.
+///
+/// \warning It keys on identity, not on content: two applications over the same function
+///          objects produce the same salt, so a cache keyed by it must not outlive an
+///          in-place mutation of those functions.
+template<typename T, std::size_t NDIM>
+inline long exchange_batch_salt(const std::vector<Function<T, NDIM>>& ket) {
+    std::size_t k = 0x5a17ull;
+    for (const auto& f : ket) hash_combine(k, hash_value(f.get_impl()->id()));
+    return long(k);
+}
+
+/// Deterministic cloud record key for one stored batch: (salt, dimension, range).
+
+/// Range-keyed, so the storing side and the fetching side agree on the key by construction.
+inline long exchange_batch_record_key(const long salt, const int dim, const Batch_1D& r) {
+    std::size_t k = std::size_t(salt);
+    hash_combine(k, std::size_t(dim));
+    hash_combine(k, std::size_t(r.begin));
+    hash_combine(k, std::size_t(r.end));
+    return long(k);
+}
+
+/// Bounded cache of fetched exchange batches, keyed by cloud record key.
+
+/// A rank reuses the batches it owns across all of its tasks, so those are **pinned** and
+/// never evicted; only the batches fetched from elsewhere are transient and bounded. An
+/// earlier single bound over both let the churning transients evict the reusable owned
+/// batches, which re-fetched them at every owned-batch switch. Pinning the owned ones costs
+/// a fixed share of the data (orbitals per rank) and is independent of batch granularity.
+///
+/// Entries are held in a list, so a reference returned by find() or insert() stays valid
+/// until that entry is evicted — promotion and insertion of other entries do not move it.
+template<typename keyT, typename dataT>
+class ExchangeBatchLRU {
+public:
+    /// how many non-owned entries may be resident; at least one is always allowed
+    void set_transient_capacity(const std::size_t c) { transient_capacity_ = std::max<std::size_t>(1, c); }
+    std::size_t transient_capacity() const { return transient_capacity_; }
+
+    bool contains(const keyT& key) const {
+        for (const auto& s : slots_) if (s.key == key) return true;
+        return false;
+    }
+
+    /// \return the cached batch, promoted to most-recently-used, or nullptr if absent
+    const dataT* find(const keyT& key) {
+        for (auto it = slots_.begin(); it != slots_.end(); ++it) {
+            if (it->key == key) {
+                slots_.splice(slots_.begin(), slots_, it);
+                return &slots_.front().data;
+            }
+        }
+        return nullptr;
+    }
+
+    /// Insert as most-recently-used. `pinned` marks a batch this rank owns.
+    const dataT& insert(const keyT& key, dataT&& data, const bool pinned) {
+        slots_.push_front(Slot{key, std::move(data), pinned});
+        while (n_transient() > transient_capacity_) {
+            // drop the least-recently-used transient entry; pinned ones are skipped
+            for (auto it = slots_.end(); it != slots_.begin(); ) {
+                --it;
+                if (not it->pinned) { slots_.erase(it); break; }
+            }
+        }
+        return slots_.front().data;
+    }
+
+    /// drop every entry; the capacity setting survives
+    void clear() { slots_.clear(); }
+
+    std::size_t size() const { return slots_.size(); }
+
+    std::size_t n_transient() const {
+        std::size_t c = 0;
+        for (const auto& s : slots_) if (not s.pinned) ++c;
+        return c;
+    }
+
+private:
+    struct Slot { keyT key; dataT data; bool pinned; };
+    std::list<Slot> slots_;                  // front = most recently used
+    std::size_t transient_capacity_ = 2;
+};
 
 
 template<typename T, std::size_t NDIM>
