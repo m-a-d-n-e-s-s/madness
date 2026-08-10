@@ -122,7 +122,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // owned by some rank. The asymmetric case keeps the size-driven partition.
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   /*owner_pinned=*/is_symmetric(), batch_granularity_,
-                                  world.rank());
+                                  world.rank(), accumulation_mode_);
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. The algorithm therefore fixes the storage policy.

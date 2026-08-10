@@ -317,6 +317,106 @@ private:
 };
 
 
+/// One coefficient node in transit during the exchange finalize.
+
+/// Carries the destination function index, the tree-node key and the whole node, which is
+/// the same content the per-node active message would have sent -- just batched.
+template <typename T, std::size_t NDIM>
+struct FinalizeNodeRec {
+    std::size_t f = 0;                  ///< index into the destination function vector
+    Key<NDIM> key;                      ///< tree-node key
+    FunctionNode<T, NDIM> node;         ///< the source node
+    template <typename Archive>
+    void serialize(Archive& ar) { ar & f & key & node; }
+};
+
+/// Receiving end of the exchange finalize, living in the world the transfer rides on.
+
+/// Sources push bulk chunks here with task(), so deserializing and accumulating happens on a
+/// worker and never on the communication thread. The arithmetic is the same as
+/// FunctionNode::gaxpy_inplace; the accessor write lock is what serializes two senders that
+/// reach the same key at once.
+template <typename T, std::size_t NDIM>
+class FinalizeReducer : public WorldObject<FinalizeReducer<T, NDIM>> {
+public:
+    typedef FunctionImpl<T, NDIM> implT;
+    typedef FinalizeNodeRec<T, NDIM> recT;
+
+    explicit FinalizeReducer(World& world)
+        : WorldObject<FinalizeReducer<T, NDIM>>(world) {
+        this->process_pending();
+    }
+
+    /// point at the destinations for the next drain; local, called by every rank
+    void set_targets(std::vector<implT*> dests, T beta) {
+        dests_ = std::move(dests);
+        beta_ = beta;
+    }
+
+    void accumulate_chunk(const std::vector<recT>& recs) {
+        for (const auto& r : recs) {
+            MADNESS_ASSERT(r.f < dests_.size() and dests_[r.f] != nullptr);
+            typename implT::dcT::accessor acc;
+            dests_[r.f]->get_coeffs().insert(acc, r.key);   // get-or-create, locks the key
+            acc->second.template gaxpy_inplace<T, T>(T(1.0), r.node, beta_);
+        }
+    }
+
+private:
+    std::vector<implT*> dests_;
+    T beta_ = T(1.0);
+};
+
+/// Accumulate `src_vec` into `dest_vec` in bulk, one message per destination rank per chunk.
+
+/// Replaces one active message per source tree node. The two vectors may live in different
+/// worlds -- subworld or node into universe, or subworld into node -- so routing uses the
+/// **destination** process map while the transfer rides `transport_world`, which must be the
+/// destination's world. Completion is the caller's own fence.
+///
+/// \warning Collective on `transport_world`: every rank must call it once per finalize. The
+///          fence below is a readiness barrier, so that no chunk can arrive at a rank that
+///          has not yet repointed its reducer. A rank whose `src_vec` is empty still has to
+///          reach it -- **do not add an early return for having nothing to send.**
+template <typename T, std::size_t NDIM>
+void coalesced_gaxpy(World& transport_world,
+                     FinalizeReducer<T, NDIM>& reducer,
+                     std::vector<Function<T, NDIM>>& dest_vec,
+                     std::vector<Function<T, NDIM>>& src_vec,
+                     const T beta,
+                     const std::size_t chunk_entries) {
+    typedef FunctionImpl<T, NDIM> implT;
+    typedef FinalizeNodeRec<T, NDIM> recT;
+
+    std::vector<implT*> dests(dest_vec.size(), nullptr);
+    for (std::size_t f = 0; f < dest_vec.size(); ++f)
+        dests[f] = dest_vec[f].get_impl().get();
+    reducer.set_targets(dests, beta);
+    transport_world.gop.fence();          // the readiness barrier -- see the warning above
+
+    std::map<ProcessID, std::vector<recT>> buckets;
+    const std::size_t nf = std::min(src_vec.size(), dest_vec.size());
+    for (std::size_t f = 0; f < nf; ++f) {
+        auto simpl = src_vec[f].get_impl();
+        auto dimpl = dest_vec[f].get_impl();
+        if (not simpl or not dimpl) continue;
+        const implT& dref = *dimpl;
+        for (auto it = simpl->get_coeffs().begin(); it != simpl->get_coeffs().end(); ++it) {
+            const ProcessID owner = dref.get_coeffs().owner(it->first);
+            std::vector<recT>& b = buckets[owner];
+            b.push_back(recT{f, it->first, it->second});
+            if (b.size() >= chunk_entries) {
+                reducer.task(owner, &FinalizeReducer<T, NDIM>::accumulate_chunk, b);
+                b.clear();
+            }
+        }
+    }
+    for (auto& kv : buckets)
+        if (not kv.second.empty())
+            reducer.task(kv.first, &FinalizeReducer<T, NDIM>::accumulate_chunk, kv.second);
+}
+
+
 template<typename T, std::size_t NDIM>
 class Exchange<T,NDIM>::ExchangeImpl {
     typedef Function<T, NDIM> functionT;
@@ -448,6 +548,12 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_accumulation_mode(const int mode) {
+        MADNESS_CHECK_THROW(mode == 1 or mode == 2, "exchange accumulation mode must be 1 or 2");
+        accumulation_mode_ = mode;
+        return *this;
+    }
+
     std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
 
     World& get_world() const {return world;}
@@ -504,6 +610,9 @@ private:
     /// batches per rank in the owner-pinned symmetric partition; 1 is the coarsest split
     /// and the one with the lowest peak memory
     long batch_granularity_ = 1;
+    /// how the tile results are gathered: 1 = subworld buffer then universe, 2 = also reduce
+    /// within a node first (default; degrades to 1 on a single node)
+    int accumulation_mode_ = 2;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
@@ -516,6 +625,10 @@ private:
         /// pin each task to a rank that owns one of its batches, over the owner-pinned split
         bool owner_pinned = false;
         long granularity_level = 1;
+        /// 1 = sum into a subworld buffer and drain that into the universe;
+        /// 2 = additionally reduce within a node first, so only one rank per node scatters
+        ///     across nodes. Degrades to 1 automatically when there is a single node.
+        int accumulation_mode_ = 2;
         /// (column batch offset, row batch offset) -> owning rank, filled by
         /// prepare_owner_assignment and read by owner_hint
         std::map<std::pair<long,long>,long> owner_map_;
@@ -533,7 +646,45 @@ private:
         static inline std::atomic<long> batch_cache_hits_;
         static inline std::atomic<long> batch_cache_misses_;
 
+        /// Where this subworld's tile results are summed before they leave it, and where a
+        /// node's subworlds are summed before that leaves the node. Static for the same reason
+        /// the batch cache is -- each task batch is a separate object -- and so subject to the
+        /// same two lifetime rules: the world-id guards below stop a stale read, and cleanup()
+        /// releases them while their world is still alive. Neither alone is enough.
+        static inline vecfuncT Kf_local_;
+        static inline bool Kf_local_initialized_ = false;
+        static inline long Kf_local_world_id_ = -1;
+        static inline vecfuncT Kf_node_;
+        static inline bool Kf_node_initialized_ = false;
+        static inline long Kf_node_world_id_ = -1;
+        static inline std::shared_ptr<FinalizeReducer<T, NDIM>> universe_reducer_;
+        static inline std::shared_ptr<FinalizeReducer<T, NDIM>> node_reducer_;
+        /// each drain happens once per rank, not once per task object
+        static inline bool finalize_stage1_done_ = false;
+        static inline bool finalize_universe_done_ = false;
+
         static void clear_local_caches() { batch_cache_.clear(); }
+
+        /// entries per chunk in coalesced_gaxpy, sized so one message stays modest at any k
+        static std::size_t finalize_chunk_entries() {
+            const std::size_t k = FunctionDefaults<NDIM>::get_k();
+            const std::size_t per_node = std::size_t(1) << (2 * NDIM);   // (2k)^NDIM / k^NDIM bound
+            return std::max<std::size_t>(1, (1u << 20) / (per_node * k * k * k * sizeof(T) + 1));
+        }
+
+        /// One reducer per transport world, rebuilt when that world changes. Collective:
+        /// constructing a WorldObject is, so every rank of `world` reaches this together.
+        static FinalizeReducer<T, NDIM>& get_universe_reducer(World& world) {
+            if (not universe_reducer_ or universe_reducer_->get_world().id() != world.id())
+                universe_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+            return *universe_reducer_;
+        }
+
+        static FinalizeReducer<T, NDIM>& get_node_reducer(World& world) {
+            if (not node_reducer_ or node_reducer_->get_world().id() != world.id())
+                node_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+            return *node_reducer_;
+        }
 
         /// drop cached batches when the subworld changes; they belong to the old one
         void ensure_cache_world(World& world) const {
@@ -635,10 +786,11 @@ private:
     public:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
                                 const bool symmetric, const bool owner_pinned = false,
-                                const long granularity_level = 1, const long universe_rank = 0)
+                                const long granularity_level = 1, const long universe_rank = 0,
+                                const int accumulation_mode = 2)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
-                  universe_rank_(universe_rank) {
+                  accumulation_mode_(accumulation_mode), universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
             name="MacroTaskExchangeSimple";
         }
@@ -784,6 +936,129 @@ private:
         void cleanup() override {
             clear_local_caches();
             cache_world_id_ = -1;
+            // released here, while the subworld and node world still exist
+            Kf_local_.clear();
+            Kf_local_initialized_ = false;
+            Kf_local_world_id_ = -1;
+            Kf_node_.clear();
+            Kf_node_initialized_ = false;
+            Kf_node_world_id_ = -1;
+            finalize_stage1_done_ = false;
+            finalize_universe_done_ = false;
+        }
+
+        /// true if the task sums its own tile results and drains them in the finalize, rather
+        /// than the queue moving every tile result into the universe result by itself
+        bool accumulates_own_output() const override { return owner_pinned; }
+
+        /// true if the drain goes subworld -> node -> universe rather than straight to the
+        /// universe, so only one rank per node scatters across nodes
+        /// not an override: the queue reaches this through its optional-hook detection, since
+        /// the virtual it feeds lives on the internal task rather than on this base
+        bool wants_node_local_reduction() const {
+            return owner_pinned and accumulation_mode_ == 2;
+        }
+
+        /// The result entries this tile actually wrote.
+
+        /// operator() scatters into the bra range and the vf range of a full-width Kf and
+        /// leaves everything else zero, so summing all `nresult` entries would gaxpy mostly
+        /// zeros -- a per-tile cost proportional to the whole result vector. The union of the
+        /// two input ranges is a correct superset of every entry the tile touched; a full-size
+        /// or absent range falls back to all of them.
+        std::vector<long> touched_result_indices() const {
+            std::vector<long> idx;
+            auto add_range = [&](const Batch_1D& b) {
+                const long s = b.is_full_size() ? 0 : b.begin;
+                const long e = b.is_full_size() ? long(nresult) : b.end;
+                for (long i = s; i < e and i < long(nresult); ++i) idx.push_back(i);
+            };
+            if (batch.input.empty()) {
+                for (long i = 0; i < long(nresult); ++i) idx.push_back(i);
+                return idx;
+            }
+            add_range(batch.input[0]);
+            if (batch.input.size() > 1 and not (batch.input[1] == batch.input[0])) add_range(batch.input[1]);
+            return idx;
+        }
+
+        /// sum one tile's result into this subworld's accumulator
+        void accumulate_locally(World& subworld, const vecfuncT& result_subworld) const {
+            const long wid = long(subworld.id());
+            if (not Kf_local_initialized_ or Kf_local_world_id_ != wid) {
+                Kf_local_ = zero_functions_compressed<T, NDIM>(subworld, nresult);
+                Kf_local_initialized_ = true;
+                Kf_local_world_id_ = wid;
+            }
+            // shallow handles for just the entries this tile wrote; the rest are structurally
+            // zero, so skipping them is not an approximation
+            const std::vector<long> touched = touched_result_indices();
+            vecfuncT rs_sub, kf_sub;
+            rs_sub.reserve(touched.size());
+            kf_sub.reserve(touched.size());
+            for (long i : touched) { rs_sub.push_back(result_subworld[i]); kf_sub.push_back(Kf_local_[i]); }
+            if (rs_sub.empty()) return;
+            const TreeState op_state =
+                    rs_sub[0].get_impl()->get_tensor_type() == TT_FULL ? compressed : reconstructed;
+            change_tree_state(rs_sub, op_state);
+            gaxpy(1.0, kf_sub, 1.0, rs_sub, false);   // mutates kf_sub[k] == Kf_local_[touched[k]]
+        }
+
+        /// Collectively (re)build the node-shared accumulator in the node world.
+
+        /// Must be reached by every rank of `nodeworld`, since constructing a Function is
+        /// collective; the queue drives this uniformly across the replicated task list, so the
+        /// initialized flag flips in lockstep. The process map is passed explicitly because the
+        /// process-wide default is the subworld's during the finalize -- inheriting it would map
+        /// keys to subworld rank indices for functions that live in the node world.
+        void ensure_node_accumulator(World& nodeworld) const {
+            const long wid = long(nodeworld.id());
+            if (Kf_node_initialized_ and Kf_node_world_id_ == wid) return;
+            auto node_pmap = FunctionDefaults<NDIM>::make_default_pmap(nodeworld);
+            Kf_node_.resize(nresult);
+            for (long i = 0; i < nresult; ++i)
+                Kf_node_[i] = functionT(FunctionFactory<T, NDIM>(nodeworld)
+                                                .pmap(node_pmap)
+                                                .compressed(true)
+                                                .fence(false));
+            nodeworld.gop.fence();
+            Kf_node_initialized_ = true;
+            Kf_node_world_id_ = wid;
+        }
+
+        /// reduce this subworld's accumulator into the node-shared one
+        void finalize_stage1(World& subworld, World* nodeworld) {
+            if (not nodeworld) return;                 // one node: stage 2 drains directly
+            if (finalize_stage1_done_) return;
+            finalize_stage1_done_ = true;
+            ensure_node_accumulator(*nodeworld);       // collective on the node
+            if (Kf_local_initialized_) change_tree_state(Kf_local_, compressed);
+            vecfuncT empty;
+            vecfuncT& src = Kf_local_initialized_ ? Kf_local_ : empty;
+            coalesced_gaxpy<T, NDIM>(*nodeworld, get_node_reducer(*nodeworld),
+                                     Kf_node_, src, T(1.0), finalize_chunk_entries());
+        }
+
+        /// drain into the universe result, from the node accumulator if there is one
+        void finalize_stage2(World& subworld, World* nodeworld, vecfuncT& universe_result) {
+            if (finalize_universe_done_) return;
+            finalize_universe_done_ = true;
+            if (universe_result.empty()) return;
+            World& universe = universe_result.front().world();
+            vecfuncT empty;
+            vecfuncT* src = &empty;
+            if (nodeworld) {
+                if (Kf_node_initialized_) src = &Kf_node_;
+            } else {
+                if (Kf_local_initialized_) {
+                    change_tree_state(Kf_local_, compressed);
+                    src = &Kf_local_;
+                }
+            }
+            // every rank reaches this, including ones with nothing to send -- coalesced_gaxpy
+            // is collective on the universe
+            coalesced_gaxpy<T, NDIM>(universe, get_universe_reducer(universe),
+                                     universe_result, *src, T(1.0), finalize_chunk_entries());
         }
 
 

@@ -807,6 +807,12 @@ public:
 		}   // both the owned-walk and the pull loop converge here
         universe.gop.set_forbid_fence(false);
 		universe.gop.fence();
+		// A task that accumulates its own output does so without fencing, once per batch, so
+		// its buffer still has operations in flight here. The drains below read that buffer,
+		// so the subworld has to be quiesced first -- once, not per batch, which is the whole
+		// point of accumulating locally. Without this the drain reads a partly-written buffer
+		// and the result is wrong in a way that varies from run to run.
+		subworld.gop.fence();
 
 		// Drain the buffers of tasks that accumulated their own output. Two stages: reduce
 		// within a node, then across nodes into the universe result.
