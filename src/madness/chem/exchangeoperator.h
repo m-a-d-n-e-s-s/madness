@@ -485,6 +485,9 @@ private:
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
     double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
+    /// batches per rank in the owner-pinned symmetric partition; 1 is the coarsest split
+    /// and the one with the lowest peak memory
+    long batch_granularity_ = 1;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
@@ -494,6 +497,12 @@ private:
         double lo = 1.e-4;
         double mul_tol = 1.e-7;
         bool symmetric = false;
+        /// pin each task to a rank that owns one of its batches, over the owner-pinned split
+        bool owner_pinned = false;
+        long granularity_level = 1;
+        /// (column batch offset, row batch offset) -> owning rank, filled by
+        /// prepare_owner_assignment and read by owner_hint
+        std::map<std::pair<long,long>,long> owner_map_;
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
 
@@ -501,14 +510,37 @@ private:
         /// with f and vbra being batched, result and vket being passed on as a whole
         class MacroTaskPartitionerExchange : public MacroTaskPartitioner {
         public:
-            MacroTaskPartitionerExchange(const bool symmetric) : symmetric(symmetric) {
+            MacroTaskPartitionerExchange(const bool symmetric, const bool owner_pinned = false,
+                                         const long granularity_level = 1)
+                    : symmetric(symmetric), owner_pinned(owner_pinned),
+                      granularity_level(granularity_level) {
                 max_batch_size=30;
             }
 
             bool symmetric = false;
+            /// build the grid from the owner-pinned split instead of the size-driven one,
+            /// so a task's two batches coincide with batches some rank owns
+            bool owner_pinned = false;
+            long granularity_level = 1;
 
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
+
+                if (owner_pinned) {
+                    // lower-triangular grid over one granularity-aware split, shared with
+                    // the owner assignment: input[0] = batch i (column), input[1] = batch j
+                    // (row), j <= i. Owners are assigned by prepare_owner_assignment.
+                    const std::vector<Batch_1D> batches =
+                            exchange_sym_owner_split(vsize1, long(nsubworld), granularity_level);
+                    partitionT result;
+                    for (long i = 0; i < long(batches.size()); ++i) {
+                        for (long j = 0; j <= i; ++j) {
+                            Batch batch(batches[i], batches[j], _);
+                            result.push_back(std::make_pair(batch, compute_priority(batch)));
+                        }
+                    }
+                    return result;
+                }
 
                 partitionT partition1 = do_1d_partition(vsize1, policy);
                 partitionT partition2 = do_1d_partition(vsize2, policy);
@@ -543,9 +575,60 @@ private:
         };
 
     public:
-        MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol, const bool symmetric)
-                : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric) {
-            partitioner.reset(new MacroTaskPartitionerExchange(symmetric));
+        MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
+                                const bool symmetric, const bool owner_pinned = false,
+                                const long granularity_level = 1)
+                : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
+                  owner_pinned(owner_pinned), granularity_level(granularity_level) {
+            partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
+        }
+
+        /// Assign every task to the rank that will own one of its two batches.
+
+        /// Called by the macrotask queue after partitioning and before it asks for each
+        /// task's owner. The batch boundaries come from the same split the partitioner
+        /// used, so a task's (column, row) batch offsets identify a pair of batch indices,
+        /// and exchange_sym_round_robin_assign turns that pair into an owner. Every rank
+        /// runs this over the same partition and gets the same map without communicating.
+        void prepare_owner_assignment(const MacroTaskPartitioner::partitionT& partition,
+                                      const long nsubworld) {
+            owner_map_.clear();
+            if (not owner_pinned or nsubworld <= 0) return;
+
+            const std::vector<Batch_1D> split =
+                    exchange_sym_owner_split(nresult, nsubworld, granularity_level);
+            const long M = long(split.size());
+            std::map<long,long> begin_to_index;
+            for (long k = 0; k < M; ++k) begin_to_index[split[k].begin] = k;
+
+            const std::map<std::pair<long,long>,long> assignment =
+                    exchange_sym_round_robin_assign(nsubworld, M);
+
+            for (const auto& [task_batch, priority] : partition) {
+                MADNESS_CHECK_THROW(task_batch.input.size() >= 2,
+                                    "owner-pinned exchange expects two-dimensional task batches");
+                const long column_begin = task_batch.input[0].begin;
+                const long row_begin = task_batch.input[1].begin;
+                auto ic = begin_to_index.find(column_begin);
+                auto jr = begin_to_index.find(row_begin);
+                MADNESS_CHECK_THROW(ic != begin_to_index.end() and jr != begin_to_index.end(),
+                                    "owner-pinned exchange: a task batch is not one of the split batches");
+                // the assignment is keyed on the lower triangle, so order the pair
+                const long i = std::max(ic->second, jr->second);
+                const long j = std::min(ic->second, jr->second);
+                auto it = assignment.find({i, j});
+                owner_map_[{column_begin, row_begin}] =
+                        (it != assignment.end()) ? it->second : (i % nsubworld);
+            }
+        }
+
+        /// \return the rank this task is pinned to, or -1 to leave the choice to the queue
+        long owner_hint(const Batch& task_batch, const long nsubworld) const override {
+            if (not owner_pinned or nsubworld <= 0 or owner_map_.empty()) return -1;
+            MADNESS_CHECK_THROW(task_batch.input.size() >= 2,
+                                "owner-pinned exchange expects two-dimensional task batches");
+            auto it = owner_map_.find({task_batch.input[0].begin, task_batch.input[1].begin});
+            return (it != owner_map_.end()) ? it->second : -1;
         }
 
 

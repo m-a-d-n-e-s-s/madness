@@ -117,7 +117,11 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
+    // Owner-pinned placement applies to the symmetric case only: it needs bra == ket so
+    // that one set of batches serves every operand role and both of a task's batches are
+    // owned by some rank. The asymmetric case keeps the size-driven partition.
+    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
+                                  /*owner_pinned=*/is_symmetric(), batch_granularity_);
     if (taskq) taskq->set_printlevel(printlevel);
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
