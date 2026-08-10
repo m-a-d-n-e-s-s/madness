@@ -332,6 +332,7 @@ class Exchange<T,NDIM>::ExchangeImpl {
         mul2_timer = 0l;
         apply_timer = 0l;
         elapsed_time = 0.0;
+        MacroTaskExchangeSimple::reset_batch_cache_counters();
     }
 
 public:
@@ -339,14 +340,23 @@ public:
         double t1 = double(mul1_timer) * 0.001;
         double t2 = double(apply_timer) * 0.001;
         double t3 = double(mul2_timer) * 0.001;
+        // the operand batches a task found resident vs had to fetch from their owner. Summed
+        // here rather than read off the local counters, so this reports the whole run like
+        // every other number in this object
+        double resident = double(MacroTaskExchangeSimple::batch_cache_hits());
+        double fetched = double(MacroTaskExchangeSimple::batch_cache_misses());
         world.gop.sum(t1);
         world.gop.sum(t2);
         world.gop.sum(t3);
+        world.gop.sum(resident);
+        world.gop.sum(fetched);
         nlohmann::json j;
         j["multiply1"] = t1;
         j["apply"] = t2;
         j["multiply2"] = t3;
         j["total"] = elapsed_time;
+        j["batch_cache_hits"] = long(resident);
+        j["batch_cache_misses"] = long(fetched);
         return j;
     }
 
@@ -359,8 +369,8 @@ public:
             printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
             // only the owner-pinned path fetches operand batches, so this stays quiet for
             // every other algorithm; zero fetches would mean that path never ran
-            const long resident = MacroTaskExchangeSimple::batch_cache_hits();
-            const long fetched = MacroTaskExchangeSimple::batch_cache_misses();
+            const long resident = timings["batch_cache_hits"].template get<long>();
+            const long fetched = timings["batch_cache_misses"].template get<long>();
             if (resident + fetched > 0)
                 printf(" operand batches resident/fetched %6ld /%6ld\n", resident, fetched);
         }
@@ -454,10 +464,6 @@ public:
         j["printlevel"] = printlevel;
         j["algorithm"] = to_string(algorithm_);
         j["macro_task_info"] = macro_task_info.to_json();
-        // how often a task found its operand batch already resident instead of fetching it
-        // from its owner; zero fetches at all means the owner-pinned path did not run
-        j["batch_cache_hits"] = MacroTaskExchangeSimple::batch_cache_hits();
-        j["batch_cache_misses"] = MacroTaskExchangeSimple::batch_cache_misses();
         auto timings = gather_timings(world);
         j.update(timings);
         return j;
@@ -634,12 +640,14 @@ private:
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
                   universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
+            name="MacroTaskExchangeSimple";
         }
 
         /// how often a task's operand batch was already resident, and how often it had to be
         /// fetched from the rank owning it. No fetches at all means the path never ran.
         static long batch_cache_hits() { return batch_cache_hits_; }
         static long batch_cache_misses() { return batch_cache_misses_; }
+        static void reset_batch_cache_counters() { batch_cache_hits_ = 0l; batch_cache_misses_ = 0l; }
 
         /// Assign every task to the rank that will own one of its two batches.
 
