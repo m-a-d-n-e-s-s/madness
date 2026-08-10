@@ -58,7 +58,7 @@ namespace madness {
 
     enum TreeState {
     	reconstructed,				///< s coeffs at the leaves only
-		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
+		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root, empty leaves may be present
 		nonstandard, 				///< s and d coeffs in internal nodes
     	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
         nonstandard_after_apply, 	///< s and d coeffs, state after operator application

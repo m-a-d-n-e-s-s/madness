@@ -2776,11 +2776,9 @@ template<size_t NDIM>
                 std::swap(ind[i],ind[j]);
             }
 
-            typename FunctionImpl<R,NDIM>::dcT::const_iterator end = right->coeffs.end();
-            for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right->coeffs.begin(); it != end; ++it) {
-                if (it->second.has_coeff()) {
-                    const Key<NDIM>& key = it->first;
-                    const GenTensor<R>& r = it->second.coeff();
+            for (const auto& [key, rnode] : right->coeffs) {
+                if (rnode.has_coeff()) {
+                    const GenTensor<R>& r = rnode.coeff();
                     double norm = r.normf();
                     double keytol = truncate_tol(tol,key);
 
@@ -2789,20 +2787,17 @@ template<size_t NDIM>
                         if (std::abs(norm*c(i)) > keytol) {
                             implT* left = vleft[i].get();
                             typename dcT::accessor acc;
-                            bool newnode = left->coeffs.insert(acc,key);
-                            if (newnode && key.level()>0) {
+                            bool new_node = left->coeffs.insert(acc,key);
+                            if (new_node) {
+                                /* Notify parent nodes that a new child exists. */
                                 Key<NDIM> parent = key.parent();
-				if (left->coeffs.is_local(parent))
-				  left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-				else
-				  left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-
+                                if (left->coeffs.is_local(parent))
+                                    left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                else
+                                    left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
                             }
                             nodeT& node = acc->second;
-                            if (!node.has_coeff())
-                                node.set_coeff(coeffT(cdata.v2k,targs));
-                            coeffT& t = node.coeff();
-                            t.gaxpy(1.0, r, c(i));
+                            node.gaxpy_inplace(1.0, rnode, c(i));
                         }
                     }
                 }
