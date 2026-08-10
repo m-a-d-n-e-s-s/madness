@@ -92,24 +92,32 @@ exchange_sym_round_robin_assign(const long n, const long M) {
         return ((i % n) == t) or ((j % n) == t);
     };
     // all tasks, ascending by (i,j)
-    std::vector<std::pair<long,long>> remaining;
-    remaining.reserve(std::size_t(M) * std::size_t(M + 1) / 2);
+    const std::size_t ntask = std::size_t(M) * std::size_t(M + 1) / 2;
+    std::vector<std::pair<long,long>> tasks;
+    tasks.reserve(ntask);
     for (long i = 0; i < M; ++i)
         for (long j = 0; j <= i; ++j)
-            remaining.emplace_back(i, j);
+            tasks.emplace_back(i, j);
 
     std::vector<std::vector<std::pair<long,long>>> T(n);
 
-    // Phase 1 — round-robin placement
+    // Phase 1 — round-robin placement. Each worker takes the first task, in ascending
+    // (i,j), that is still free and eligible for it. `cursor[t]` remembers how far worker
+    // t has scanned: everything before it is either taken or permanently ineligible for t,
+    // and neither condition is ever undone, so the cursor only moves forward. That makes
+    // the phase linear in the task count per worker rather than quadratic overall.
+    std::vector<char> taken(ntask, 0);
+    std::vector<std::size_t> cursor(n, 0);
+    std::size_t placed = 0;
     long t = 0, misses = 0;
-    while (not remaining.empty() and misses < n) {
-        long picked = -1;
-        for (long idx = 0; idx < long(remaining.size()); ++idx) {
-            if (eligible(remaining[idx].first, remaining[idx].second, t)) { picked = idx; break; }
-        }
-        if (picked >= 0) {
-            T[t].push_back(remaining[picked]);
-            remaining.erase(remaining.begin() + picked);
+    while (placed < ntask and misses < n) {
+        std::size_t& c = cursor[t];
+        while (c < ntask and (taken[c] or not eligible(tasks[c].first, tasks[c].second, t))) ++c;
+        if (c < ntask) {
+            taken[c] = 1;
+            T[t].push_back(tasks[c]);
+            ++placed;
+            ++c;
             misses = 0;
         } else {
             ++misses;
@@ -117,7 +125,8 @@ exchange_sym_round_robin_assign(const long n, const long M) {
         t = (t + 1) % n;
     }
     // any leftovers; every task is eligible for someone, so this should not trigger
-    for (const auto& task : remaining) T[task.first % n].push_back(task);
+    for (std::size_t idx = 0; idx < ntask; ++idx)
+        if (not taken[idx]) T[tasks[idx].first % n].push_back(tasks[idx]);
 
     // Phase 2 — rebalance until the spread is <= 1 (the iteration cap is a backstop)
     for (long iter = 0; iter < 10000; ++iter) {
