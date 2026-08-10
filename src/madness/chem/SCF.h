@@ -89,7 +89,10 @@ struct lbcost {
 
     double operator()(const Key<NDIM>& key, const FunctionNode<T, NDIM>& node) const {
         if (key.level() < 1) {
-            return 100.0 * (leaf_value + parent_value);
+            // Root is a structural catch-all with no work. The old 100x was accumulated once per
+            // function by add_tree, so on balances over many light trees key0 outweighed every real
+            // subtree and the rank holding it was starved of work.
+            return leaf_value + parent_value;
         } else if (node.is_leaf()) {
             return leaf_value;
         } else {
@@ -225,6 +228,7 @@ public:
     double converged_for_thresh=1.e10;   ///< mos are converged for this threshold
     double converged_for_dconv=1.e10;    ///< mos are converged for this density
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
+    bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)

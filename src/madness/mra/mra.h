@@ -134,6 +134,11 @@ namespace madness {
     /// \ingroup mra
     /// \addtogroup function
 
+    /// Header magic for Function::store/load; bump whenever FunctionNode::serialize changes.
+    ///   7776769  original (Mellow Mushroom Pizza tel.# in Knoxville, +1 for cell in header)
+    ///   7776770  FunctionNode gained _dnorm_tree
+    static constexpr long FUNCTION_ARCHIVE_MAGIC = 7776770;
+
     /// A multiresolution adaptive numerical function
     template <typename T, std::size_t NDIM>
     class Function : public archive::ParallelSerializableObject {
@@ -888,8 +893,12 @@ namespace madness {
         /// world.gop.fence() to assure global completion before using the function
         /// for other purposes.
         ///
-        /// Must be already compressed.
-        void make_redundant(bool fence = true) {
+        /// Since the transformation does not discard information we define this
+        /// as const ... "logical constness" not "bitwise constness".
+        ///
+        /// Note redundant form stores sum coefficients at every level, so it is larger than
+        /// reconstructed form; a caller that keeps the function alive may want to convert back.
+        void make_redundant(bool fence = true) const {
             change_tree_state(redundant, fence);
         }
 
@@ -1596,9 +1605,11 @@ namespace madness {
             long magic = 0l, id = 0l, ndim = 0l, k = 0l;
             Tensor<double> cell;
             ar & magic & id & ndim & k & cell;
-            MADNESS_ASSERT(magic == 7776769); // Mellow Mushroom Pizza tel.# in Knoxville (+1 for cell in header)
-            MADNESS_ASSERT(id == TensorTypeData<T>::id);
-            MADNESS_ASSERT(ndim == NDIM);
+            // CHECK not ASSERT: ASSERT is compiled out when ASSERTION_TYPE=disable
+            MADNESS_CHECK_THROW(magic == FUNCTION_ARCHIVE_MAGIC,
+                "Function archive was written by an incompatible MADNESS version; regenerate it.");
+            MADNESS_CHECK(id == TensorTypeData<T>::id);
+            MADNESS_CHECK(ndim == NDIM);
 
             // if simulation cell is set it must match the cell from function on file.
             // if simulation cell is not set set it to the one found on file
@@ -1630,7 +1641,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             // For type checking, etc.
-            ar & long(7776769) & long(TensorTypeData<T>::id) & long(NDIM) & long(k()) & impl->get_cell();
+            ar & long(FUNCTION_ARCHIVE_MAGIC) & long(TensorTypeData<T>::id) & long(NDIM) & long(k()) & impl->get_cell();
 
             impl->store(ar);
         }
@@ -1719,6 +1730,9 @@ namespace madness {
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
             for (unsigned int i=0; i<right.size(); ++i) {
                 result[i].set_impl(left,false);
+                // set_impl copies left's state, which is redundant here, but the kernel builds
+                // a reconstructed tree (interior nodes carry no coefficients)
+                result[i].get_impl()->set_tree_state(reconstructed);
                 vresult[i] = result[i].impl.get();
                 vright[i] = right[i].get_impl().get();
             }
@@ -1905,28 +1919,30 @@ namespace madness {
         return mul(alpha, f, true);
     }
 
-    /// Sparse multiplication --- left and right must be reconstructed and if tol!=0 have tree of norms already created
+    /// Sparse multiplication; the scalar interface redirects to the vector one in vmra.h
+
+    /// @param[in] tol  target absolute accuracy of the product; see the vector mul_sparse in
+    ///                 vmra.h for the semantics, including the internal safety margin and tol=0
+    /// @param[in] do_make_redundant  if false, both inputs must already be redundant
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence=true) {
+    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol,
+               bool fence=true, bool do_make_redundant=true) {
         PROFILE_FUNC;
         left.verify();
         right.verify();
-        MADNESS_ASSERT(left.is_reconstructed() and right.is_reconstructed());
-        if (VERIFY_TREE) left.verify_tree();
-        if (VERIFY_TREE) right.verify_tree();
-
-        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        result.set_impl(left, false);
-        result.get_impl()->mulXX(left.get_impl().get(), right.get_impl().get(), tol, fence);
-        return result;
+        std::vector< Function<R,NDIM> > vright(1,right);
+        return mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_make_redundant)[0];
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    /// Same as \c operator* but with optional fence
+
+    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
-        return mul_sparse(left,right,0.0,fence);
+    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true,
+        bool do_make_redundant=true, double tol=0.0) {
+        return mul_sparse(left,right,tol,fence,do_make_redundant);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values
@@ -1969,8 +1985,7 @@ namespace madness {
 
     /// This so that we don't have to have friend functions in a different header.
     ///
-    /// If using sparsity (tol != 0) you must have created the tree of norms
-    /// already for both left and right.
+    /// left and right must be in redundant state, with tree norms available.
     template <typename L, typename R, std::size_t D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true) {
