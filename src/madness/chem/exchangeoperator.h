@@ -7,6 +7,7 @@
 #include<madness/chem/SCFOperators.h>
 
 #include <algorithm>
+#include <fstream>
 #include <list>
 #include <map>
 #include <utility>
@@ -219,6 +220,77 @@ exchange_sym_cost_aware_assign(const long n, const long M, const std::vector<dou
         if (not improved) break;
     }
     return owner;
+}
+
+/// One task's record for the exchange profiler.
+
+/// Written only when MAD_EXCH_TASK_PROFILE is set. What it adds over the aggregate counters is
+/// **attribution**: the counters say how many batches arrived from where, this says which task
+/// waited and for how long, so a straggler can be identified rather than inferred.
+///
+/// It deliberately does not carry a per-stage breakdown of the compute (multiply / apply /
+/// multiply). That would mean timing calls inside the numerical kernels, and the aggregate split
+/// already exists in the operator's own timers.
+struct ExchTaskProfile {
+    long task_id = -1;
+    long universe_rank = 0;                 ///< keys the output file: one per process
+    unsigned long subworld_id = 0;
+    int subworld_nrank = 0;
+    double thresh = 0.0;                    ///< which protocol tier this task ran in
+    long k = 0;
+    bool diagonal = false;
+    long row_begin = 0, row_end = 0, col_begin = 0, col_end = 0;
+    double wall_start = 0.0, wall_end = 0.0;
+    double wait_for_data_wall = 0.0;        ///< task entry until its operands are in hand
+    double compute_wall = 0.0, compute_cpu = 0.0;
+    int operand_source = -1;                ///< worst of its fetches: 0 resident, 1 ahead, 2 cold
+    bool waited = false;                    ///< a cold fetch happened, so this task paid latency
+    double peak_rss_gb = 0.0;
+
+    void reset() { *this = ExchTaskProfile(); }
+    /// keep the worst source, since that is the one that set the task's wait
+    void observe_fetch_tier(const int tier) {
+        if (tier > operand_source) operand_source = tier;
+        if (tier == 2) waited = true;
+    }
+};
+
+/// Is per-task exchange profiling on? Read once per process.
+inline bool exch_task_profile_enabled() {
+    static const bool on = (std::getenv("MAD_EXCH_TASK_PROFILE") != nullptr);
+    return on;
+}
+
+/// Append one record to exch_taskprof.r<rank>.jsonl.
+
+/// The stream stays open for the life of the process: one file per rank appended across every
+/// application, which bounds the file count at the rank count however many iterations run, and
+/// avoids a per-task open/close -- expensive metadata traffic on a parallel filesystem.
+inline void exch_write_task_profile(const ExchTaskProfile& p) {
+    static std::ofstream os;
+    if (not os.is_open()) {
+        os.open("exch_taskprof.r" + std::to_string(p.universe_rank) + ".jsonl", std::ios::app);
+        if (not os.is_open()) return;
+    }
+    os << "{\"task\":" << p.task_id
+       << ",\"rank\":" << p.universe_rank
+       << ",\"subworld\":" << p.subworld_id
+       << ",\"subworld_nrank\":" << p.subworld_nrank
+       << ",\"thresh\":" << p.thresh
+       << ",\"k\":" << p.k
+       << ",\"diagonal\":" << (p.diagonal ? "true" : "false")
+       << ",\"row\":[" << p.row_begin << "," << p.row_end << "]"
+       << ",\"col\":[" << p.col_begin << "," << p.col_end << "]"
+       << ",\"wall_start\":" << p.wall_start
+       << ",\"wall\":" << (p.wall_end - p.wall_start)
+       << ",\"wait_for_data\":" << p.wait_for_data_wall
+       << ",\"compute_wall\":" << p.compute_wall
+       << ",\"compute_cpu\":" << p.compute_cpu
+       << ",\"operand_source\":" << p.operand_source
+       << ",\"waited\":" << (p.waited ? "true" : "false")
+       << ",\"peak_rss_gb\":" << p.peak_rss_gb
+       << "}\n";
+    os.flush();   // keep it readable mid-run; there is one write per task, not per node
 }
 
 /// which of the three exchange operand vectors a stored batch belongs to
@@ -696,6 +768,11 @@ private:
         static inline std::map<long,long> batch_begin_to_index_;   ///< batch offset -> index
         static inline long exchange_call_index_ = 0;
 
+        /// This task's profile record. NOT static: it belongs to the single operator() call on
+        /// this object, and the fetch writes into it through `this` during that call.
+        mutable ExchTaskProfile prof_;
+        static inline long prof_task_seq_ = 0;   ///< per-process task counter, for identity only
+
         /// Where this subworld's tile results are summed before they leave it, and where a
         /// node's subworlds are summed before that leaves the node. Static for the same reason
         /// the batch cache is -- each task batch is a separate object -- and so subject to the
@@ -774,6 +851,7 @@ private:
             ensure_cache_world(world);
             if (const vecfuncT* resident = batch_cache_.find(record)) {
                 ++batch_cache_hits_;
+                if (profile_active()) prof_.observe_fetch_tier(0);
                 return *resident;
             }
             const bool owned = (cloud.batch_owner(record) == universe_rank_);
@@ -784,10 +862,12 @@ private:
                             world, slot->fut, record, /*cache_result=*/false);
                     *slot = PrefetchSlot();
                     ++batch_prefetch_hits_;
+                    if (profile_active()) prof_.observe_fetch_tier(1);
                     return batch_cache_.insert(record, std::move(data), owned);
                 }
             }
             ++batch_cache_misses_;
+            if (profile_active()) prof_.observe_fetch_tier(2);
             vecfuncT data = cloud.template fetch_batch_p2p<T, NDIM>(world, record, /*cache_result=*/false);
             return batch_cache_.insert(record, std::move(data), owned);
         }
@@ -880,6 +960,8 @@ private:
         static long batch_cache_hits() { return batch_cache_hits_; }
         static long batch_cache_misses() { return batch_cache_misses_; }
         static long batch_prefetch_hits() { return batch_prefetch_hits_; }
+        /// per-task profiling on for this task?
+        bool profile_active() const { return owner_pinned and exch_task_profile_enabled(); }
         static std::vector<double>& cost_this_call() { return cost_this_call_; }
         /// make this call's measured costs the reference for the next one
         static void commit_cost_reference() { cost_reference_ = cost_this_call_; }
@@ -1226,6 +1308,20 @@ private:
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
             const double tile_wall_start = wall_time();
+            const bool profiling = profile_active();
+            if (profiling) {
+                prof_.reset();
+                prof_.task_id = prof_task_seq_++;
+                prof_.universe_rank = universe_rank_;
+                prof_.subworld_id = static_cast<unsigned long>(world.id());
+                prof_.subworld_nrank = world.size();
+                prof_.thresh = FunctionDefaults<NDIM>::get_thresh();
+                prof_.k = FunctionDefaults<NDIM>::get_k();
+                prof_.diagonal = diagonal_block;
+                prof_.row_begin = bra_range.begin; prof_.row_end = bra_range.end;
+                prof_.col_begin = vf_range.begin;  prof_.col_end = vf_range.end;
+                prof_.wall_start = tile_wall_start;
+            }
 
             // Owner-pinned: fetch the two batches this task needs from the cloud. Because
             // bra == ket == vf there, one batch per range serves every operand role, so the
@@ -1248,6 +1344,10 @@ private:
                 bra_work = &bra_owned;
                 vf_work = &vf_owned;
             }
+            // everything up to here was getting the operands in hand; everything after is compute
+            const double compute_wall_start = wall_time();
+            const double compute_cpu_start = process_cpu_time();
+            if (profiling) prof_.wait_for_data_wall = compute_wall_start - tile_wall_start;
 
             if (symmetric and diagonal_block) {
                 const vecfuncT ket_batch = owner_pinned ? *bra_work : bra_range.copy_batch(vket);
@@ -1278,6 +1378,15 @@ private:
             // this tile's cost, for the next call's placement. Keyed by its batch pair, so the
             // reference survives a different partition only if the pair count matches -- which
             // prepare_owner_assignment checks before using it.
+            if (profiling) {
+                prof_.compute_wall = wall_time() - compute_wall_start;
+                prof_.compute_cpu = process_cpu_time() - compute_cpu_start;
+                prof_.wall_end = wall_time();
+                prof_.peak_rss_gb = get_rss_usage_in_GB();
+                // one record per task, from the rank that ran it
+                if (world.rank() == 0) exch_write_task_profile(prof_);
+            }
+
             if (owner_pinned and not cost_this_call_.empty()) {
                 const auto ic = batch_begin_to_index_.find(vf_range.begin);
                 const auto jr = batch_begin_to_index_.find(bra_range.begin);
