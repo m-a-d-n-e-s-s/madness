@@ -445,11 +445,13 @@ public:
         // every other number in this object
         double resident = double(MacroTaskExchangeSimple::batch_cache_hits());
         double fetched = double(MacroTaskExchangeSimple::batch_cache_misses());
+        double ahead = double(MacroTaskExchangeSimple::batch_prefetch_hits());
         world.gop.sum(t1);
         world.gop.sum(t2);
         world.gop.sum(t3);
         world.gop.sum(resident);
         world.gop.sum(fetched);
+        world.gop.sum(ahead);
         nlohmann::json j;
         j["multiply1"] = t1;
         j["apply"] = t2;
@@ -457,6 +459,7 @@ public:
         j["total"] = elapsed_time;
         j["batch_cache_hits"] = long(resident);
         j["batch_cache_misses"] = long(fetched);
+        j["batch_prefetch_hits"] = long(ahead);
         return j;
     }
 
@@ -471,8 +474,10 @@ public:
             // every other algorithm; zero fetches would mean that path never ran
             const long resident = timings["batch_cache_hits"].template get<long>();
             const long fetched = timings["batch_cache_misses"].template get<long>();
-            if (resident + fetched > 0)
-                printf(" operand batches resident/fetched %6ld /%6ld\n", resident, fetched);
+            const long ahead = timings["batch_prefetch_hits"].template get<long>();
+            if (resident + fetched + ahead > 0)
+                printf(" operand batches resident/ahead/fetched %6ld /%6ld /%6ld\n",
+                       resident, ahead, fetched);
         }
     }
 
@@ -651,6 +656,23 @@ private:
         static inline long cache_world_id_ = -1;
         static inline std::atomic<long> batch_cache_hits_;
         static inline std::atomic<long> batch_cache_misses_;
+        static inline std::atomic<long> batch_prefetch_hits_;
+
+        /// One batch requested ahead of the task that will read it.
+
+        /// A strict double buffer: `next` is requested while this task computes, and every
+        /// task promotes it to `current` before computing, so **at most two requests are ever
+        /// in flight per rank**. That bound is load-bearing, not a tuning choice: an earlier
+        /// design that allowed several concurrent requests corrupted the transport on large
+        /// replies, because the outstanding replies could outnumber what the receive path was
+        /// prepared for.
+        struct PrefetchSlot {
+            bool valid = false;
+            long key = 0;
+            Future<batch_bytesT> fut;
+        };
+        static inline PrefetchSlot prefetch_current_;   ///< promoted from the previous task
+        static inline PrefetchSlot prefetch_next_;      ///< requested during this task
 
         /// Where this subworld's tile results are summed before they leave it, and where a
         /// node's subworlds are summed before that leaves the node. Static for the same reason
@@ -669,7 +691,12 @@ private:
         static inline bool finalize_stage1_done_ = false;
         static inline bool finalize_universe_done_ = false;
 
-        static void clear_local_caches() { batch_cache_.clear(); }
+        static void clear_local_caches() {
+            batch_cache_.clear();
+            // drop requests issued in a subworld that is no longer the one we are in
+            prefetch_current_ = PrefetchSlot();
+            prefetch_next_ = PrefetchSlot();
+        }
 
         /// entries per chunk in coalesced_gaxpy, sized so one message stays modest at any k
         static std::size_t finalize_chunk_entries() {
@@ -713,8 +740,18 @@ private:
                 ++batch_cache_hits_;
                 return *resident;
             }
-            ++batch_cache_misses_;
             const bool owned = (cloud.batch_owner(record) == universe_rank_);
+            // requested one task ahead, so the transfer overlapped that task's compute
+            for (PrefetchSlot* slot : {&prefetch_current_, &prefetch_next_}) {
+                if (slot->valid and slot->key == record) {
+                    vecfuncT data = cloud.template deserialize_batch_p2p<T, NDIM>(
+                            world, slot->fut, record, /*cache_result=*/false);
+                    *slot = PrefetchSlot();
+                    ++batch_prefetch_hits_;
+                    return batch_cache_.insert(record, std::move(data), owned);
+                }
+            }
+            ++batch_cache_misses_;
             vecfuncT data = cloud.template fetch_batch_p2p<T, NDIM>(world, record, /*cache_result=*/false);
             return batch_cache_.insert(record, std::move(data), owned);
         }
@@ -805,7 +842,10 @@ private:
         /// fetched from the rank owning it. No fetches at all means the path never ran.
         static long batch_cache_hits() { return batch_cache_hits_; }
         static long batch_cache_misses() { return batch_cache_misses_; }
-        static void reset_batch_cache_counters() { batch_cache_hits_ = 0l; batch_cache_misses_ = 0l; }
+        static long batch_prefetch_hits() { return batch_prefetch_hits_; }
+        static void reset_batch_cache_counters() {
+            batch_cache_hits_ = 0l; batch_cache_misses_ = 0l; batch_prefetch_hits_ = 0l;
+        }
 
         /// Assign every task to the rank that will own one of its two batches.
 
@@ -929,6 +969,41 @@ private:
 
             FunctionDefaults<NDIM>::set_pmap(saved_pmap);
             world.gop.fence();
+        }
+
+        /// Request the batch the next task will have to fetch, before computing this one.
+
+        /// Called by the queue once per task, before the task body, with the batches of the
+        /// next task this rank will run. Of that task's two batches one is normally owned here
+        /// and reads locally, so at most one is worth requesting -- and requesting exactly one
+        /// keeps the in-flight count within the bound PrefetchSlot documents.
+        ///
+        /// This is what makes the owner-pinned transport worth its machinery: without it every
+        /// task pays the full latency of its remote batch with nothing to overlap it against.
+        void sym_pipeline_advance(World& subworld, const vecfuncT& mo_ket,
+                                  const Batch_1D& next_col, const Batch_1D& next_row,
+                                  const bool has_next) const {
+            if (not owner_pinned) return;
+            ensure_cache_world(subworld);
+            // hand the previous task's request to this task, which is the one that reads it.
+            // Retiring an unconsumed request is safe rather than merely tolerated: the reply
+            // still lands, fills a result nobody reads, and the transport drops its pending
+            // entry, so the cost is one wasted transfer and nothing is left dangling.
+            prefetch_current_ = prefetch_next_;
+            prefetch_next_ = PrefetchSlot();
+            if (not has_next or cloud_ptr == nullptr) return;
+            Cloud& cloud = *cloud_ptr;
+            const long salt = exchange_batch_salt(mo_ket);
+            for (const Batch_1D& r : {next_col, next_row}) {
+                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
+                if (cloud.batch_owner(record) == universe_rank_) continue;   // reads locally
+                if (batch_cache_.contains(record)) continue;                 // already resident
+                if (prefetch_current_.valid and prefetch_current_.key == record) continue;
+                prefetch_next_.key = record;
+                prefetch_next_.fut = cloud.request_batch_bytes_async(record);
+                prefetch_next_.valid = true;
+                break;                                                      // one per task
+            }
         }
 
         /// the owner-pinned path fetches its operand batches from the cloud itself
