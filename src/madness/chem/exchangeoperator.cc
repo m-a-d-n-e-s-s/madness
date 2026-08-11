@@ -145,6 +145,12 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
         auto& costs = MacroTaskExchangeSimple::cost_this_call();
         if (not costs.empty()) {
             world.gop.sum(costs.data(), costs.size());
+            // dump before committing: this is the matrix just measured, which is what the next
+            // application will place against
+            if (world.rank() == 0 and exch_task_profile_enabled())
+                exch_write_cost_matrix(MacroTaskExchangeSimple::exchange_call_index(),
+                                       FunctionDefaults<NDIM>::get_k(),
+                                       MacroTaskExchangeSimple::cost_matrix_dimension(), costs);
             MacroTaskExchangeSimple::commit_cost_reference();
         }
     }
@@ -322,26 +328,42 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
     vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to the column range
     auto poisson = set_poisson(subworld, lo);
 
+    // per-stage wall, for the profiler only; `tick` is a no-op when it is off
+    const bool prof_on = profile_active();
+    auto tick = [&](double& acc, const double t0) { if (prof_on) acc += wall_time() - t0; };
+
     for (long irow = 0; irow < nrow; ++irow) {
         double cpu0 = cpu_time();
+        double w0 = prof_on ? wall_time() : 0.0;
         vecfuncT Nij = mul_sparse(subworld, bra_batch[irow], vf_batch, mul_tol);
+        tick(prof_.mul1_wall, w0);
+        w0 = prof_on ? wall_time() : 0.0;
         truncate(subworld, Nij);
+        tick(prof_.truncate_wall, w0);
         double cpu1 = cpu_time();
         mul1_timer += long((cpu1 - cpu0) * 1000l);
 
         cpu0 = cpu_time();
+        w0 = prof_on ? wall_time() : 0.0;
         Nij = apply(subworld, *poisson.get(), Nij);
+        tick(prof_.apply_wall, w0);
+        w0 = prof_on ? wall_time() : 0.0;
         truncate(subworld, Nij);
+        tick(prof_.truncate_wall, w0);
         cpu1 = cpu_time();
         apply_timer += long((cpu1 - cpu0) * 1000l);
 
         cpu0 = cpu_time();
         // every row contributes to every column, so the column result accumulates ...
+        w0 = prof_on ? wall_time() : 0.0;
         vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], Nij, mul_tol);
+        tick(prof_.mul2_wall, w0);
         compress(subworld, row_update);
         gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
         // ... while each row's own entry is written exactly once
+        w0 = prof_on ? wall_time() : 0.0;
         resultcolumn[irow] = dot(subworld, ket_columns, Nij, true, true, mul_tol);
+        tick(prof_.mul2_wall, w0);
         cpu1 = cpu_time();
         mul2_timer += long((cpu1 - cpu0) * 1000l);
     }

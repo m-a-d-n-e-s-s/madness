@@ -243,6 +243,11 @@ struct ExchTaskProfile {
     double wall_start = 0.0, wall_end = 0.0;
     double wait_for_data_wall = 0.0;        ///< task entry until its operands are in hand
     double compute_wall = 0.0, compute_cpu = 0.0;
+    /// wall inside each stage of the tile loop, accumulated over its rows. Honest without adding
+    /// any fence: every stage below runs with fence=true, so each completes before the next is
+    /// timed. What they do not cover -- building the per-row update vector, the compresses and the
+    /// accumulating gaxpys -- shows up as the emitted `other` residual.
+    double mul1_wall = 0.0, apply_wall = 0.0, mul2_wall = 0.0, truncate_wall = 0.0;
     int operand_source = -1;                ///< worst of its fetches: 0 resident, 1 ahead, 2 cold
     bool waited = false;                    ///< a cold fetch happened, so this task paid latency
     double peak_rss_gb = 0.0;
@@ -286,11 +291,40 @@ inline void exch_write_task_profile(const ExchTaskProfile& p) {
        << ",\"wait_for_data\":" << p.wait_for_data_wall
        << ",\"compute_wall\":" << p.compute_wall
        << ",\"compute_cpu\":" << p.compute_cpu
+       << ",\"compute_components_wall\":{"
+       <<   "\"mul1\":" << p.mul1_wall << ",\"apply\":" << p.apply_wall
+       <<   ",\"mul2\":" << p.mul2_wall << ",\"truncate\":" << p.truncate_wall
+       <<   ",\"other\":" << (p.compute_wall - p.mul1_wall - p.apply_wall
+                               - p.mul2_wall - p.truncate_wall)
+       << "}"
        << ",\"operand_source\":" << p.operand_source
        << ",\"waited\":" << (p.waited ? "true" : "false")
        << ",\"peak_rss_gb\":" << p.peak_rss_gb
        << "}\n";
     os.flush();   // keep it readable mid-run; there is one write per task, not per node
+}
+
+/// Write the measured per-task cost matrix of one application, for offline inspection.
+
+/// Behind the same flag as the rest of the profiler. One file per application per rank 0:
+/// `Ccall<NNN>_k<K>.csv`, holding `i,j,cost` over the lower-triangular batch grid, with the call
+/// index, wavelet order and batch count in a leading comment so a reader needs no other context.
+/// This is the matrix the next application's placement is derived from, so dumping it is how a
+/// straggler can be traced back to the cost that put it there.
+inline void exch_write_cost_matrix(const long call_index, const long k, const long M,
+                                   const std::vector<double>& cost) {
+    if (M <= 0 or cost.empty()) return;
+    char name[64];
+    std::snprintf(name, sizeof(name), "Ccall%03ld_k%ld.csv", call_index, k);
+    std::ofstream os(name);
+    if (not os.is_open()) return;
+    os << "# call=" << call_index << " k=" << k << " M=" << M << "\n";
+    os << "i,j,cost\n";
+    for (long i = 0; i < M; ++i)
+        for (long j = 0; j <= i; ++j) {
+            const long t = i * (i + 1) / 2 + j;
+            if (t < long(cost.size())) os << i << "," << j << "," << cost[t] << "\n";
+        }
 }
 
 /// which of the three exchange operand vectors a stored batch belongs to
@@ -967,6 +1001,9 @@ private:
         /// per-task profiling on for this task?
         bool profile_active() const { return owner_pinned and exch_task_profile_enabled(); }
         static std::vector<double>& cost_this_call() { return cost_this_call_; }
+        static long exchange_call_index() { return exchange_call_index_; }
+        /// number of batches this application split into, which squares to the cost matrix
+        static long cost_matrix_dimension() { return long(batch_begin_to_index_.size()); }
         /// make this call's measured costs the reference for the next one
         static void commit_cost_reference() { cost_reference_ = cost_this_call_; }
         static void reset_batch_cache_counters() {
@@ -1428,17 +1465,29 @@ private:
             vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, n);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
 
+            // per-stage wall, for the profiler only; `tick` is a no-op when it is off
+            const bool prof_on = profile_active();
+            auto tick = [&](double& acc, const double t0) { if (prof_on) acc += wall_time() - t0; };
+
             for (long i = 0; i < n; ++i) {
                 double cpu0 = cpu_time();
+                double w0 = prof_on ? wall_time() : 0.0;
                 const vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
                 vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, mul_tol);
+                tick(prof_.mul1_wall, w0);
+                w0 = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, w0);
                 double cpu1 = cpu_time();
                 mul1_timer += long((cpu1 - cpu0) * 1000l);
 
                 cpu0 = cpu_time();
+                w0 = prof_on ? wall_time() : 0.0;
                 psif = apply(subworld, *poisson.get(), psif);
+                tick(prof_.apply_wall, w0);
+                w0 = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
+                tick(prof_.truncate_wall, w0);
                 cpu1 = cpu_time();
                 apply_timer += long((cpu1 - cpu0) * 1000l);
 
@@ -1446,11 +1495,15 @@ private:
                 // assembled on its own and accumulated
                 cpu0 = cpu_time();
                 vecfuncT update = zero_functions_compressed<T, NDIM>(subworld, n);
+                double w1 = prof_on ? wall_time() : 0.0;
                 vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, mul_tol);
+                tick(prof_.mul2_wall, w1);
                 compress(subworld, row_contrib);
                 for (long j = 0; j <= i; ++j) update[j] += row_contrib[j];
                 for (long j = 0; j < i; ++j) {
+                    w1 = prof_on ? wall_time() : 0.0;
                     vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], vecfuncT(1, psif[j]), mul_tol);
+                    tick(prof_.mul2_wall, w1);
                     compress(subworld, mirrored);
                     update[i] += mirrored[0];
                 }
