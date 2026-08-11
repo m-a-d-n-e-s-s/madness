@@ -707,8 +707,18 @@ private:
         static inline vecfuncT Kf_node_;
         static inline bool Kf_node_initialized_ = false;
         static inline long Kf_node_world_id_ = -1;
+        /// Receiving endpoints for the two drains, one per world they transfer within.
+
+        /// These are WorldObjects, so they are bound to a world exactly as a Function is, and the
+        /// same lifetime rule applies: **release them while that world is still alive.** The node
+        /// world is built per application (the queue owns it and a fresh queue is built per call),
+        /// so a cached node reducer that survives the application is registered in a world that no
+        /// longer exists. The world id is kept beside the pointer rather than read back out of it,
+        /// because comparing `reducer->get_world().id()` is itself a read of the dead world.
         static inline std::shared_ptr<FinalizeReducer<T, NDIM>> universe_reducer_;
+        static inline long universe_reducer_world_id_ = -1;
         static inline std::shared_ptr<FinalizeReducer<T, NDIM>> node_reducer_;
+        static inline long node_reducer_world_id_ = -1;
         /// each drain happens once per rank, not once per task object
         static inline bool finalize_stage1_done_ = false;
         static inline bool finalize_universe_done_ = false;
@@ -730,14 +740,18 @@ private:
         /// One reducer per transport world, rebuilt when that world changes. Collective:
         /// constructing a WorldObject is, so every rank of `world` reaches this together.
         static FinalizeReducer<T, NDIM>& get_universe_reducer(World& world) {
-            if (not universe_reducer_ or universe_reducer_->get_world().id() != world.id())
+            if (not universe_reducer_ or universe_reducer_world_id_ != long(world.id())) {
                 universe_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+                universe_reducer_world_id_ = long(world.id());
+            }
             return *universe_reducer_;
         }
 
         static FinalizeReducer<T, NDIM>& get_node_reducer(World& world) {
-            if (not node_reducer_ or node_reducer_->get_world().id() != world.id())
+            if (not node_reducer_ or node_reducer_world_id_ != long(world.id())) {
                 node_reducer_ = std::make_shared<FinalizeReducer<T, NDIM>>(world);
+                node_reducer_world_id_ = long(world.id());
+            }
             return *node_reducer_;
         }
 
@@ -1063,6 +1077,14 @@ private:
             Kf_node_world_id_ = -1;
             finalize_stage1_done_ = false;
             finalize_universe_done_ = false;
+            // Both reducers go too, for the reason given at their declaration. Rebuilding one per
+            // application costs a WorldObject construction, which is nothing beside an
+            // application, and it also removes the shutdown hazard of a static outliving its
+            // world.
+            universe_reducer_.reset();
+            universe_reducer_world_id_ = -1;
+            node_reducer_.reset();
+            node_reducer_world_id_ = -1;
             // cost_reference_ deliberately survives: it is what the next call places against.
             // cost_this_call_ survives too, until the caller has summed and committed it.
         }
