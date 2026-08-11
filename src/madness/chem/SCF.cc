@@ -1383,6 +1383,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_macro_task_info(param.memory());
         K.set_batch_granularity(param.hfex_batch_granularity());
         K.set_accumulation_mode(param.hfex_local_accumulation());
+        K.set_cost_aware_assignment(param.hfex_cost_aware_assign());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);

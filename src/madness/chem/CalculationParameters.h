@@ -69,6 +69,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld stores the orbitals once as batches and has each task fetch the two it needs from the rank holding them, which bounds memory but needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
 		initialize<long>  ("hfex_batch_granularity",1,"hfexalg=multiworld: batches of orbitals per rank (>=1). 1 is the coarsest and has the lowest peak memory; raising it makes tasks smaller and easier to balance at the cost of more transfers");
+		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by their measured cost from the previous application instead of by counting them, which matters because screening makes the tiles uneven. Takes effect from the third application on, since it needs a representative reference; set false for the count-based placement");
 		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: how tile results are gathered. 1=sum per subworld, then one transfer per subworld into the result; 2=additionally sum the subworlds of a node first, so only one rank per node transfers between nodes (falls back to 1 on a single node)");
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
@@ -208,6 +209,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
     long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
+    bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
     int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}

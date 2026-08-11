@@ -758,6 +758,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
     return *this;
 }
 
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
+    impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();

@@ -122,7 +122,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // owned by some rank. The asymmetric case keeps the size-driven partition.
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   /*owner_pinned=*/is_symmetric(), batch_granularity_,
-                                  world.rank(), accumulation_mode_);
+                                  world.rank(), accumulation_mode_, cost_aware_assign_);
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. The algorithm therefore fixes the storage policy.
@@ -137,6 +137,18 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
     world.gop.fence();
+
+    // Every tile ran on exactly one rank, so summing the per-rank cost buffers unions them and
+    // leaves every rank holding the same matrix -- which is what lets the next call's placement
+    // be computed independently everywhere and still agree.
+    if (is_symmetric() and cost_aware_assign_) {
+        auto& costs = MacroTaskExchangeSimple::cost_this_call();
+        if (not costs.empty()) {
+            world.gop.sum(costs.data(), costs.size());
+            MacroTaskExchangeSimple::commit_cost_reference();
+        }
+    }
+
     statistics=gather_statistics();
     statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
     statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();

@@ -559,6 +559,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_cost_aware_assignment(const bool flag) {
+        cost_aware_assign_ = flag;
+        return *this;
+    }
+
     ExchangeImpl& set_accumulation_mode(const int mode) {
         MADNESS_CHECK_THROW(mode == 1 or mode == 2, "exchange accumulation mode must be 1 or 2");
         accumulation_mode_ = mode;
@@ -624,6 +629,8 @@ private:
     /// how the tile results are gathered: 1 = subworld buffer then universe, 2 = also reduce
     /// within a node first (default; degrades to 1 on a single node)
     int accumulation_mode_ = 2;
+    /// place tasks by measured cost instead of by counting them
+    bool cost_aware_assign_ = true;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
@@ -640,6 +647,8 @@ private:
         /// 2 = additionally reduce within a node first, so only one rank per node scatters
         ///     across nodes. Degrades to 1 automatically when there is a single node.
         int accumulation_mode_ = 2;
+        /// place tasks by their measured cost rather than by counting them
+        bool cost_aware_ = true;
         /// (column batch offset, row batch offset) -> owning rank, filled by
         /// prepare_owner_assignment and read by owner_hint
         std::map<std::pair<long,long>,long> owner_map_;
@@ -673,6 +682,19 @@ private:
         };
         static inline PrefetchSlot prefetch_current_;   ///< promoted from the previous task
         static inline PrefetchSlot prefetch_next_;      ///< requested during this task
+
+        /// What each task cost last time, to place them better this time.
+
+        /// Screening makes the tiles strongly uneven for large molecules, and a placement that
+        /// balances task *counts* cannot see that. The measured wall time of each tile is
+        /// recorded here, summed across ranks after the call -- each tile ran on exactly one
+        /// rank, so summing unions the contributions -- and used as the reference for the next
+        /// call. Kept across calls and across protocol changes on purpose: only the relative
+        /// cost matters, and its structure barely moves between them.
+        static inline std::vector<double> cost_reference_;   ///< from the previous call
+        static inline std::vector<double> cost_this_call_;    ///< rank-local, summed after the call
+        static inline std::map<long,long> batch_begin_to_index_;   ///< batch offset -> index
+        static inline long exchange_call_index_ = 0;
 
         /// Where this subworld's tile results are summed before they leave it, and where a
         /// node's subworlds are summed before that leaves the node. Static for the same reason
@@ -830,10 +852,11 @@ private:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
                                 const bool symmetric, const bool owner_pinned = false,
                                 const long granularity_level = 1, const long universe_rank = 0,
-                                const int accumulation_mode = 2)
+                                const int accumulation_mode = 2, const bool cost_aware = true)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
-                  accumulation_mode_(accumulation_mode), universe_rank_(universe_rank) {
+                  accumulation_mode_(accumulation_mode), cost_aware_(cost_aware),
+                  universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
             name="MacroTaskExchangeSimple";
         }
@@ -843,6 +866,9 @@ private:
         static long batch_cache_hits() { return batch_cache_hits_; }
         static long batch_cache_misses() { return batch_cache_misses_; }
         static long batch_prefetch_hits() { return batch_prefetch_hits_; }
+        static std::vector<double>& cost_this_call() { return cost_this_call_; }
+        /// make this call's measured costs the reference for the next one
+        static void commit_cost_reference() { cost_reference_ = cost_this_call_; }
         static void reset_batch_cache_counters() {
             batch_cache_hits_ = 0l; batch_cache_misses_ = 0l; batch_prefetch_hits_ = 0l;
         }
@@ -865,8 +891,19 @@ private:
             std::map<long,long> begin_to_index;
             for (long k = 0; k < M; ++k) begin_to_index[split[k].begin] = k;
 
+            // Cost-aware placement needs a reference from a previous call, and the first call
+            // is not representative of the ones that follow it -- cold caches and an initial
+            // guess -- so it takes effect from the third call on, with the second call's
+            // measurements as its reference.
+            ++exchange_call_index_;
+            batch_begin_to_index_ = begin_to_index;
+            const std::size_t ntask = std::size_t(M) * std::size_t(M + 1) / 2;
+            cost_this_call_.assign(ntask, 0.0);
+            const bool use_cost = cost_aware_ and exchange_call_index_ >= 3
+                    and cost_reference_.size() == ntask;
             const std::map<std::pair<long,long>,long> assignment =
-                    exchange_sym_round_robin_assign(nsubworld, M);
+                    use_cost ? exchange_sym_cost_aware_assign(nsubworld, M, cost_reference_)
+                             : exchange_sym_round_robin_assign(nsubworld, M);
 
             for (const auto& [task_batch, priority] : partition) {
                 MADNESS_CHECK_THROW(task_batch.input.size() >= 2,
@@ -1026,6 +1063,8 @@ private:
             Kf_node_world_id_ = -1;
             finalize_stage1_done_ = false;
             finalize_universe_done_ = false;
+            // cost_reference_ deliberately survives: it is what the next call places against.
+            // cost_this_call_ survives too, until the caller has summed and committed it.
         }
 
         /// true if the task sums its own tile results and drains them in the finalize, rather
@@ -1164,6 +1203,8 @@ private:
             MADNESS_CHECK(vf_range.end <= nresult);
             if (symmetric) MADNESS_CHECK(bra_range.end <= nresult);
 
+            const double tile_wall_start = wall_time();
+
             // Owner-pinned: fetch the two batches this task needs from the cloud. Because
             // bra == ket == vf there, one batch per range serves every operand role, so the
             // ket over a range is just that range's batch.
@@ -1210,6 +1251,19 @@ private:
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
+            }
+
+            // this tile's cost, for the next call's placement. Keyed by its batch pair, so the
+            // reference survives a different partition only if the pair count matches -- which
+            // prepare_owner_assignment checks before using it.
+            if (owner_pinned and not cost_this_call_.empty()) {
+                const auto ic = batch_begin_to_index_.find(vf_range.begin);
+                const auto jr = batch_begin_to_index_.find(bra_range.begin);
+                if (ic != batch_begin_to_index_.end() and jr != batch_begin_to_index_.end()) {
+                    const long t = exchange_sym_tri(ic->second, jr->second);
+                    if (t < long(cost_this_call_.size()))
+                        cost_this_call_[t] += wall_time() - tile_wall_start;
+                }
             }
             return Kf;
         }

@@ -194,6 +194,9 @@ public:
     /// 1 = gather tile results per subworld, 2 = also gather per node first
     Exchange& set_accumulation_mode(const int mode);
 
+    /// place tasks by their measured cost rather than by counting them
+    Exchange& set_cost_aware_assignment(const bool flag);
+
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;
         return *this;
