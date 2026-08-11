@@ -349,12 +349,29 @@ namespace madness {
     protected:
 
         /// Construct a new WorldObjectBase.
-        /// Protected, should only be called from WorldObject constructor.
+
+        /// Protected, should only be called from the \c WorldObject constructor.
+        /// \note This does \em not register the object with \p w; the derived
+        ///       \c WorldObject must call \c register_self() to do that, once
+        ///       its own members have been initialized.
         /// \param[in] w The world to which this object belongs.
-        template <typename DerivedT>
-        explicit WorldObjectBase(World& w, DerivedT* this_ptr)
-        : objid(w.register_ptr(this_ptr)), world(w), world_liveness(w.liveness())
+        explicit WorldObjectBase(World& w)
+        : objid(), world(w), world_liveness(w.liveness())
         { }
+
+        /// Registers this object with its world, making it globally addressable.
+
+        /// \attention Must be called by the \c WorldObject constructor \em after
+        /// all of its members have been initialized: registration publishes this
+        /// object to the active-message handlers running on the runtime threads,
+        /// which read those members (see \c WorldObject::is_ready()).
+        /// \tparam DerivedT The derived class being registered.
+        /// \param[in] this_ptr Pointer to the derived object being registered.
+        template <typename DerivedT>
+        void register_self(DerivedT* this_ptr) {
+            MADNESS_ASSERT(!objid); // registering twice would leak the first ID
+            objid = world.register_ptr(this_ptr);
+        }
 
     public:
 
@@ -755,9 +772,18 @@ namespace madness {
         /// -# to enable processing of future messages.
         /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
-                : WorldObjectBase(world, static_cast<Derived*>(this))
+                : WorldObjectBase(world)
                 , ready(false)
-                , me(world.rank()) {};
+                , me(world.rank())
+        {
+            // Registration must come last, hence is not part of the member
+            // initialization above: it publishes this object to the AM handlers
+            // running on the runtime threads, which read `ready` to decide
+            // whether an incoming message must be queued (see is_ready()).
+            // Since construction is collective, such a message can already be
+            // in flight while we are still in here.
+            this->register_self(static_cast<Derived*>(this));
+        };
 
 
         /// \todo Brief description needed.
