@@ -359,6 +359,19 @@ namespace madness {
         : objid(), world(w), world_liveness(w.liveness())
         { }
 
+        /// Copy constructor; produces an \em unregistered object.
+
+        /// Exists solely so that the derived \c WorldObject remains copy
+        /// constructible (which pre-C++17 is needed to permit RVO), never to
+        /// produce a usable object. The copy aliases the world of \p other but
+        /// deliberately does not copy its ID and is not registered with the
+        /// world: were the copy destroyed it would otherwise unregister
+        /// \p other, evicting a live object from the world's ID maps.
+        /// \param[in] other The object whose world is to be aliased.
+        WorldObjectBase(const WorldObjectBase& other)
+        : objid(), world(other.world), world_liveness(other.world_liveness)
+        { }
+
         /// Registers this object with its world, making it globally addressable.
 
         /// \attention Must be called by the \c WorldObject constructor \em after
@@ -376,7 +389,9 @@ namespace madness {
     public:
 
         virtual ~WorldObjectBase() {
-            if(initialized()) {
+            // objid is null for an unregistered object, i.e. one produced by the
+            // copy ctor above; such an object owns no entry in the world's maps
+            if(initialized() && objid) {
                 MADNESS_ASSERT_NOEXCEPT(world_is_alive() &&
                     "WorldObjectBase::~WorldObjectBase() the world of this object has already been destroyed");
                 auto* world_ptr = World::world_from_id(objid.get_world_id());
@@ -454,8 +469,12 @@ namespace madness {
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
 
-        // copy ctor must be enabled to permit RVO; in C++17 will not need this
-        WorldObject(const WorldObject& other) : WorldObjectBase(other) { abort(); }
+        // copy ctor must be enabled to permit RVO; in C++17 will not need this.
+        // It never produces a usable object. The safety of that does not rest on
+        // the abort() alone: the base copy ctor deliberately leaves the copy
+        // unregistered, so destroying one would not unregister `other`.
+        WorldObject(const WorldObject& other)
+            : WorldObjectBase(other), ready(false), me(other.me) { abort(); }
         // no copy
         WorldObject& operator=(const WorldObject&) = delete;
 
@@ -1467,7 +1486,7 @@ namespace madness {
         }
 
         virtual ~WorldObject() {
-            if(initialized()) {
+            if(initialized() && id()) {
               // noexcept variant: a throwing assertion in a destructor would
               // call std::terminate and discard the diagnostic
               World& world = this->get_world_noexcept(); // checks whether world exists
