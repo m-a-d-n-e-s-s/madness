@@ -690,18 +690,12 @@ public:
 	}
 
 	/// run all tasks
-	void run_all() {
 
-		if (printdebug()) print_taskq();
-		if (printtimings_detail()) {
-			if (universe.rank()==0) {
-				print("number of tasks in taskq",taskq.size());
-				print("redirecting output to files task.#####");
-			}
-		}
-		taskq_statistics["number_tasks"]=taskq.size();
-
-		// replicate the cloud (not necessarily the target if pointers are stored)
+	/// Put the cloud where the tasks will read it from.
+	
+	/// Rank- or node-replication of the cloud, and of the targets that stored pointers refer to.
+	/// Both are no-ops under a distributed policy.
+	void replicate_inputs() {
 		auto replication_policy = cloud.get_replication_policy();
 		if (replication_policy!=DistributionType::Distributed) {
 			double cpu0=cpu_time();
@@ -731,23 +725,17 @@ public:
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("target replication wall time to ",policy.ptr_target_distribution_policy,cpu1-cpu0);
 		}
+	}
 
-        if (printdebug()) cloud.print_size(universe);
-		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
-        universe.gop.fence();
-        universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
-        pmap1=FunctionDefaults<1>::get_pmap();
-        pmap2=FunctionDefaults<2>::get_pmap();
-        pmap3=FunctionDefaults<3>::get_pmap();
-        pmap4=FunctionDefaults<4>::get_pmap();
-        pmap5=FunctionDefaults<5>::get_pmap();
-        pmap6=FunctionDefaults<6>::get_pmap();
-        set_pmap(get_subworld());
-
-        double cpu00=cpu_time();
-
+	/// Run this rank's share of the queue.
+	
+	/// Two ways in: if every task names an owner and there is one subworld per rank, each rank walks
+	/// the queue and runs what it owns, since the assignment is already decided and the pull
+	/// scheduler's round trip per task would buy nothing. Otherwise task numbers are handed out
+	/// dynamically. Both converge on the same accounting.
+	/// \return the cpu time this rank spent inside task bodies
+	double execute_tasks() {
 		World& subworld=get_subworld();
-//		if (printdebug()) print("I am subworld",subworld.id());
 		double tasktime=0.0;
 
 		// If every task names an owner and there is one subworld per rank, each rank can walk
@@ -805,7 +793,15 @@ public:
 			}
 		}
 		}   // both the owned-walk and the pull loop converge here
-        universe.gop.set_forbid_fence(false);
+		return tasktime;
+	}
+
+	/// Move the results of tasks that accumulated their own output into the universe result.
+	
+	/// The ordering here is load-bearing and the comments inside say why. Two stages, so a node-local
+	/// reduction can sit between them and only one rank per node scatters between nodes.
+	void drain_own_output_buffers() {
+		World& subworld=get_subworld();
 		universe.gop.fence();
 		// A task that accumulates its own output does so without fencing, once per batch, so
 		// its buffer still has operations in flight here. The drains below read that buffer,
@@ -834,6 +830,40 @@ public:
 		if (nodeworld) nodeworld->gop.fence();
 		for (auto& t : taskq) t->finalize_stage2(subworld, nodeworld, cloud);
 		universe.gop.fence();
+	}
+	void run_all() {
+
+		if (printdebug()) print_taskq();
+		if (printtimings_detail()) {
+			if (universe.rank()==0) {
+				print("number of tasks in taskq",taskq.size());
+				print("redirecting output to files task.#####");
+			}
+		}
+		taskq_statistics["number_tasks"]=taskq.size();
+
+		// replicate the cloud (not necessarily the target if pointers are stored)
+		replicate_inputs();
+
+        if (printdebug()) cloud.print_size(universe);
+		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
+        universe.gop.fence();
+        universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
+        pmap1=FunctionDefaults<1>::get_pmap();
+        pmap2=FunctionDefaults<2>::get_pmap();
+        pmap3=FunctionDefaults<3>::get_pmap();
+        pmap4=FunctionDefaults<4>::get_pmap();
+        pmap5=FunctionDefaults<5>::get_pmap();
+        pmap6=FunctionDefaults<6>::get_pmap();
+        set_pmap(get_subworld());
+
+        double cpu00=cpu_time();
+
+		World& subworld=get_subworld();
+//		if (printdebug()) print("I am subworld",subworld.id());
+		double tasktime=execute_tasks();   // not const: gop.sum reduces it in place below
+        universe.gop.set_forbid_fence(false);
+		drain_own_output_buffers();
 
 		universe.gop.sum(tasktime);
 		if (printprogress() and universe.rank()==0) std::cout << std::endl;
