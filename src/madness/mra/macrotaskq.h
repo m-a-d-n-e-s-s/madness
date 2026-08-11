@@ -1357,22 +1357,14 @@ private:
         }
 
     	/// called by the MacroTaskQ when the task is scheduled
-        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
-        	const MacroTaskInfo policy) override {
-        	// per-task files are a debugging aid and become thousands at fine granularity; a
-        	// failing task still reports on the terminal regardless, see the catch below
-        	const auto io_mode = debug ? io_redirect::Mode::File : io_redirect::Mode::Discard;
-        	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
-        	// The try covers the whole body, not just the compute: a throw while loading the
-        	// inputs or issuing a prefetch would otherwise escape uninstrumented and be
-        	// reported by the task backend with no task id and no what().
-        	try {
-            const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
-            argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
-            task.subworld_ptr=&subworld;
-            // before the prefetch hook, which fetches through it
-            task.cloud_ptr=&cloud;
+    	/// Let this task start the transfer its successor will need.
+
+    	/// Called before the task body so the request overlaps this task's compute. The successor is
+    	/// the next task in the queue this rank owns; a task that declares no prefetch hook does
+    	/// nothing here.
+    	void prefetch_for_next_task(World& subworld, const argtupleT& argtuple,
+    	                            MacroTaskBase::taskqT& taskq, const long element) {
             // pre-compute: let the task prefetch what the next task it owns will need, so the
             // transfer overlaps this task's compute
             {
@@ -1388,8 +1380,11 @@ private:
                                                   next_col, next_row, has_next);
                 }
             }
+    	}
 
-    		std::string msg="";
+    	/// Bring the operand coefficients into the subworld, unless the task does that itself.
+    	void copy_operands_into_subworld(World& subworld, Cloud& cloud, argtupleT& batched_argtuple,
+    	                                 const MacroTaskInfo& policy, const bool debug) {
 			// maybe move this block to the cloud?
 			// A task that fetches its own operands must not have them copied in as well --
 			// that would pay for the coefficients twice, once per task instead of once per
@@ -1423,6 +1418,27 @@ private:
     				print("copied coefficients for task",get_name(),"in",cpu1-cpu0,"seconds");
     			}
     		}
+    	}
+
+        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
+        	const MacroTaskInfo policy) override {
+        	// per-task files are a debugging aid and become thousands at fine granularity; a
+        	// failing task still reports on the terminal regardless, see the catch below
+        	const auto io_mode = debug ? io_redirect::Mode::File : io_redirect::Mode::Discard;
+        	io_redirect io(io_mode, element, get_name()+"_output", get_name()+"_task", debug);
+        	// The try covers the whole body, not just the compute: a throw while loading the
+        	// inputs or issuing a prefetch would otherwise escape uninstrumented and be
+        	// reported by the task backend with no task id and no what().
+        	try {
+            const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
+            argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
+
+            task.subworld_ptr=&subworld;
+            // before the prefetch hook, which fetches through it
+            task.cloud_ptr=&cloud;
+			prefetch_for_next_task(subworld, argtuple, taskq, element);
+
+			copy_operands_into_subworld(subworld, cloud, batched_argtuple, policy, debug);
 
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
