@@ -632,6 +632,14 @@ public:
         print("  min/max of node");
         print("    memory in GBytes:         ",min_memsize,max_memsize);
         print("    max record size in GBytes:",max_record_size*byte2gbyte);
+        // the owner-pinned batches, reported separately because they are a different lifetime and
+        // usually the bulk of it. Zero unless some task stored batches.
+        const double b_size = stats.value("batch_container_size_global", 0.0);
+        if (b_size > 0.0) {
+            print("  owner-pinned batches");
+            print("    number of records:        ", b_size);
+            print("    memory in GBytes:         ", stats.value("batch_memory_global_GB", 0.0));
+        }
     }
 
     void clear_cache(World &subworld) {
@@ -642,6 +650,11 @@ public:
 
     void clear() {
         container.clear();
+        // The owner-pinned batches too. They are not leaked without this -- an SCF run derives the
+        // same record keys each time, so the next application overwrites them -- but they are the
+        // largest thing the cloud holds, and without this they stay resident through everything
+        // that follows the exchange in an iteration, which is where the memory ceiling actually is.
+        batch_container.clear();
     }
 
     void clear_timings() {
