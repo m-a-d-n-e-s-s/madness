@@ -548,6 +548,12 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_batch_granularity(const long level) {
+        MADNESS_CHECK_THROW(level >= 1, "exchange batch granularity must be at least 1");
+        batch_granularity_ = level;
+        return *this;
+    }
+
     ExchangeImpl& set_accumulation_mode(const int mode) {
         MADNESS_CHECK_THROW(mode == 1 or mode == 2, "exchange accumulation mode must be 1 or 2");
         accumulation_mode_ = mode;
