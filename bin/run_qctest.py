@@ -11,7 +11,8 @@ A qctest case is a self-contained directory (see src/examples/qc/README.md):
 
 The case is copied into the current working directory and run there, so the
 source tree is never written to.  ctest supplies a per-case scratch directory;
-for a manual run, cd into an empty directory first.
+for a manual run, cd into an empty directory first.  That directory is emptied
+before every run -- madqc restarts from its own leftover orbitals otherwise.
 
     bin/run_qctest.py --case src/examples/qc/scf_h2o_hf
     bin/run_qctest.py --case src/examples/qc/scf_h2o_hf --update   # regenerate reference
@@ -81,48 +82,51 @@ def should_skip(requires):
     return None
 
 
-# Run artifacts that let a warm workdir short-circuit the calculation. ctest's
-# per-case scratch directory is created once at configure time and reused by
-# every later run (cmake/modules/AddQCTests.cmake), so without this a second
-# `ctest -L qctest` reuses the first run's state: madqc finds a valid
-# <label>.calc_info.json, returns NextAction::Ok and skips the SCF entirely. The
-# case still passes -- against its own previous output -- in a fraction of the
-# time, which would hide a regression from anyone iterating locally.
-#
-# The checkpoint is the actual lever (SCFApplication::run keys the skip on
-# has_results); the archives are cleared too so the engine's own restart cannot
-# warm-start either.
-# The patterns deliberately do NOT anchor on a leading dot. Not every engine
-# names its state <prefix>.<thing>: oep writes `<label>.oep_calc_info.json` and
-# `restartdata_OEP.00000`, and the dotted forms ("*.calc_info.json",
-# "*.restartdata*") match neither. That left the oep case warm-starting from the
-# previous run's -- or worse, from a run killed midway, whose half-written
-# archive is exactly the kind of thing that produces an intermittent failure.
-STATE_GLOBS = ("*calc_info.json", "*restartdata*", "*restartaodata")
+MARKER = ".qctest_workdir"
 
 
-def clear_previous_state(workdir):
-    """Delete run artifacts left by an earlier run in this workdir.
+def clean_workdir(case, workdir, force=False):
+    """Empty the working directory before staging.
 
-    Files only, recursively, matching known MADNESS run-artifact names -- never
-    whole directories, since a manual run may share the cwd with the user's own
-    files.
+    madqc leaves its per-task scratch behind -- <case>/task_0/<calc>/mad.restartdata.*
+    among others -- and restarts from it on the next run. A repeated qctest then
+    converges onto the *previous* run's orbitals instead of solving the deck, which
+    makes the case pass or fail according to what ran there last. That has already
+    masked a real regression, so every run starts from an empty directory.
+
+    Wiping a directory is destructive, so do it only where we can tell the directory
+    is ours: it is empty, it carries our marker, or it holds this case's own output
+    from an earlier run (which covers scratch dirs created before the marker existed).
+    Anything else is a directory we do not recognise -- most likely a manual run
+    started in the wrong place -- and we refuse rather than delete. --clean overrides.
     """
-    removed = 0
-    for pattern in STATE_GLOBS:
-        for stale in sorted(workdir.rglob(pattern)):
-            if stale.is_file():
-                stale.unlink()
-                removed += 1
-    if removed:
-        print(f"cleared {removed} artifact(s) from a previous run in {workdir}")
+    if case == workdir:
+        sys.exit(f"qctest: refusing to run inside the case directory {case}; "
+                 "cd into an empty scratch directory first")
+
+    entries = sorted(workdir.iterdir())
+    if not entries:
+        (workdir / MARKER).write_text(f"{case.name}\n")
+        return
+
+    ours = {MARKER, case.name, f"{case.name}.calc_info.json",
+            f"{case.name}.out", f"{case.name}.run.log"}
+    if not force and not any(e.name in ours for e in entries):
+        sys.exit(f"qctest: {workdir} is not empty and holds no output of case "
+                 f"'{case.name}', so it does not look like a scratch directory:\n"
+                 + "\n".join(f"    {e.name}" for e in entries[:10])
+                 + f"\nRun from an empty directory, or pass --clean to erase this one.")
+
+    for entry in entries:
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    (workdir / MARKER).write_text(f"{case.name}\n")
 
 
 def stage(case, workdir):
     """Copy the case into workdir, skipping the reference (which must stay read-only)."""
-    if case == workdir:
-        sys.exit(f"qctest: refusing to run inside the case directory {case}; "
-                 "cd into an empty scratch directory first")
     for entry in sorted(case.iterdir()):
         if entry.name in ("reference", "check.json", "README.md"):
             continue
@@ -210,10 +214,8 @@ def main():
     ap.add_argument("--case", required=True, help="path to the qctest case directory")
     ap.add_argument("--update", action="store_true",
                     help="overwrite the checked-in reference with this run's results")
-    ap.add_argument("--keep-state", action="store_true",
-                    help="do not clear checkpoints/restart archives left by an earlier "
-                         "run in the work directory; for a case that deliberately "
-                         "exercises restart from warm state")
+    ap.add_argument("--clean", action="store_true",
+                    help="erase the working directory even if it is not recognised as scratch")
     args = ap.parse_args()
 
     case = Path(args.case).resolve()
@@ -232,9 +234,7 @@ def main():
         print(f"SKIPPED: {reason}")
         return SKIP
 
-    if not args.keep_state:
-        clear_previous_state(workdir)
-
+    clean_workdir(case, workdir, args.clean)
     runscript = stage(case, workdir)
     if not runscript.is_file():
         sys.exit(f"qctest: {case} has no run.sh")

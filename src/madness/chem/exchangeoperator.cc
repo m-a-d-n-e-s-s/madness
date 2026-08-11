@@ -117,16 +117,44 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
+    // Owner-pinned placement applies to the symmetric case only: it needs bra == ket so
+    // that one set of batches serves every operand role and both of a task's batches are
+    // owned by some rank. The asymmetric case keeps the size-driven partition.
+    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
+                                  /*owner_pinned=*/is_symmetric(), batch_granularity_,
+                                  world.rank(), accumulation_mode_, cost_aware_assign_);
+    // The owner-pinned path stores the orbitals as batches itself and fetches the two it
+    // needs per task, so the cloud must hold pointers rather than copy every operand into
+    // every subworld. The algorithm therefore fixes the storage policy.
+    const MacroTaskInfo policy = is_symmetric() ? MacroTaskInfo::preset("small_memory_owner")
+                                                : macro_task_info;
     if (taskq) taskq->set_printlevel(printlevel);
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
-                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info));
+                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(policy));
 
     // deferred execution if a taskq is provided by the user
     vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
     world.gop.fence();
+
+    // Every tile ran on exactly one rank, so summing the per-rank cost buffers unions them and
+    // leaves every rank holding the same matrix -- which is what lets the next call's placement
+    // be computed independently everywhere and still agree.
+    if (is_symmetric() and cost_aware_assign_) {
+        auto& costs = MacroTaskExchangeSimple::cost_this_call();
+        if (not costs.empty()) {
+            world.gop.sum(costs.data(), costs.size());
+            // dump before committing: this is the matrix just measured, which is what the next
+            // application will place against
+            if (world.rank() == 0 and exch_task_profile_enabled())
+                exch_write_cost_matrix(MacroTaskExchangeSimple::exchange_call_index(),
+                                       FunctionDefaults<NDIM>::get_k(),
+                                       MacroTaskExchangeSimple::cost_matrix_dimension(), costs);
+            MacroTaskExchangeSimple::commit_cost_reference();
+        }
+    }
+
     statistics=gather_statistics();
     statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
     statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();
@@ -271,83 +299,76 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
 
 /// compute a batch of the exchange matrix, with non-identical ranges
 
+/// Streams the tile one bra row at a time, so only one row of intermediates is live at
+/// once where building the tile in one go holds all nrow*ncolumn of them. Row `irow`
+/// builds N_ij = P(bra[irow] vf[j]) over the whole column range and contributes to both
+/// result ranges: ket[irow] N_ij to column j, and the sum over j of ket[j] N_ij to row irow.
 /// \param subworld     the world we're computing in
-/// \param cloud        where to store the results
+/// \param ket_rows     the orbitals to premultiply with, over the bra/row range
+/// \param ket_columns  the orbitals to premultiply with, over the vf/column range
 /// \param bra_batch    the bra batch of orbitals (including the nuclear correlation factor square)
-/// \param ket_batch    the ket batch of orbitals, also the orbitals to premultiply with
 /// \param vf_batch     the argument of the exchange operator
 template<typename T, std::size_t NDIM>
 std::pair<std::vector<Function<T, NDIM>>, std::vector<Function<T, NDIM>>>
 Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_batch_in_symmetric_matrix(World& subworld,
-                                                                                          const vecfuncT& mo_ket,      // not batched
+                                                                                          const vecfuncT& ket_rows,
+                                                                                          const vecfuncT& ket_columns,
                                                                                           const vecfuncT& bra_batch,   // batched
                                                                                           const vecfuncT& vf_batch) const { // batched
-    // orbital_product is a vector of vectors
-    double cpu0 = cpu_time();
-    std::vector<vecfuncT> orbital_product = matrix_mul_sparse<T, T, NDIM>(subworld, bra_batch, vf_batch, mul_tol);
-    vecfuncT orbital_product_flat = flatten(orbital_product); // convert into a flattened vector
-    truncate(subworld, orbital_product_flat);
-    double cpu1 = cpu_time();
-    mul1_timer += long((cpu1 - cpu0) * 1000l);
+    // result[i] = sum_k ket[k] \int bra[k] vf[i], so the tile contributes to both of its
+    // ranges: the ket over the rows accumulates into the columns, and the other way round
+    MADNESS_CHECK_THROW(ket_rows.size() == bra_batch.size(),
+                        "symmetric offdiagonal tile: ket/bra row size mismatch");
+    MADNESS_CHECK_THROW(ket_columns.size() == vf_batch.size(),
+                        "symmetric offdiagonal tile: ket/vf column size mismatch");
 
-    cpu0 = cpu_time();
+    const long nrow = long(bra_batch.size());
+    const long ncolumn = long(vf_batch.size());
+    vecfuncT resultcolumn(nrow);                                                   // maps to the row range
+    vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to the column range
     auto poisson = set_poisson(subworld, lo);
-    vecfuncT Nij = apply(subworld, *poisson.get(), orbital_product_flat);
-    truncate(subworld, Nij);
-    cpu1 = cpu_time();
-    apply_timer += long((cpu1 - cpu0) * 1000l);
 
-    // accumulate columns:      resultrow(i)=\sum_j j N_ij
-    // accumulate rows:      resultcolumn(j)=\sum_i i N_ij
-    cpu0 = cpu_time();
+    // per-stage wall, for the profiler only; `tick` is a no-op when it is off
+    const bool prof_on = profile_active();
+    auto tick = [&](double& acc, const double t0) { if (prof_on) acc += wall_time() - t0; };
 
-    // some helper functions
-    std::size_t nrow = bra_batch.size();
-    std::size_t ncolumn = vf_batch.size();
-    auto ij = [&ncolumn](const int i, const int j) { return i * ncolumn + j; };
+    for (long irow = 0; irow < nrow; ++irow) {
+        double cpu0 = cpu_time();
+        double w0 = prof_on ? wall_time() : 0.0;
+        vecfuncT Nij = mul_sparse(subworld, bra_batch[irow], vf_batch, mul_tol);
+        tick(prof_.mul1_wall, w0);
+        w0 = prof_on ? wall_time() : 0.0;
+        truncate(subworld, Nij);
+        tick(prof_.truncate_wall, w0);
+        double cpu1 = cpu_time();
+        mul1_timer += long((cpu1 - cpu0) * 1000l);
 
-    auto Nslice = [&Nij, &ij, &ncolumn](const long irow, const Slice s) {
-        vecfuncT result;
-        MADNESS_CHECK(s.start == 0 && s.end == -1 && s.step == 1);
-        for (std::size_t i = s.start; i <= s.end + ncolumn; ++i) {
-            result.push_back(Nij[ij(irow, i)]);
-        }
-        return result;
-    };
-    auto Nslice1 = [&Nij, &ij, &nrow](const Slice s, const long jcolumn) {
-        vecfuncT result;
-        MADNESS_CHECK(s.start == 0 && s.end == -1 && s.step == 1);
-        for (std::size_t i = s.start; i <= s.end + nrow; ++i) {
-            result.push_back(Nij[ij(i, jcolumn)]);
-        }
-        return result;
-    };
+        cpu0 = cpu_time();
+        w0 = prof_on ? wall_time() : 0.0;
+        Nij = apply(subworld, *poisson.get(), Nij);
+        tick(prof_.apply_wall, w0);
+        w0 = prof_on ? wall_time() : 0.0;
+        truncate(subworld, Nij);
+        tick(prof_.truncate_wall, w0);
+        cpu1 = cpu_time();
+        apply_timer += long((cpu1 - cpu0) * 1000l);
 
-    // corresponds to bra_batch and ket_batch, but without the ncf R^2
-    // result[i]        =                      sum_{k}                ket[k] \int bra[k] vf[i]
-    // result[rowbatch] = \sum_{columnbatches} sum_{k in columnbatch} ket[k] \int bra[k] vf[rowbatch]
-    MADNESS_CHECK(batch.input.size() == 2);
-    auto row_range = batch.input[0];            // corresponds to bra_batch
-    auto column_range = batch.input[1];         // corresponds to f_batch
-    vecfuncT to_dot_with_bra = column_range.copy_batch(mo_ket);
-    vecfuncT to_dot_with_vf = row_range.copy_batch(mo_ket);
-
-    vecfuncT resultcolumn(nrow);
-    for (std::size_t irow = 0; irow < nrow; ++irow) {
-        resultcolumn[irow] = dot(subworld, to_dot_with_vf,
-                                 Nslice(irow, _));  // sum over columns result=sum_j ket[j] N[j,i]
-    }
-    vecfuncT resultrow(ncolumn);
-    for (std::size_t icolumn = 0; icolumn < ncolumn; ++icolumn) {
-        resultrow[icolumn] = dot(subworld, to_dot_with_bra,
-                                 Nslice1(_, icolumn));  // sum over rows result=sum_i ket[i] N[j,i]
+        cpu0 = cpu_time();
+        // every row contributes to every column, so the column result accumulates ...
+        w0 = prof_on ? wall_time() : 0.0;
+        vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], Nij, mul_tol);
+        tick(prof_.mul2_wall, w0);
+        compress(subworld, row_update);
+        gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
+        // ... while each row's own entry is written exactly once
+        w0 = prof_on ? wall_time() : 0.0;
+        resultcolumn[irow] = dot(subworld, ket_columns, Nij, true, true, mul_tol);
+        tick(prof_.mul2_wall, w0);
+        cpu1 = cpu_time();
+        mul2_timer += long((cpu1 - cpu0) * 1000l);
     }
 
     // !! NO TRUNCATION AT THIS POINT !!
-    subworld.gop.fence();
-    cpu1 = cpu_time();
-    mul2_timer += long((cpu1 - cpu0) * 1000l);
-
     return std::make_pair(resultcolumn, resultrow);
 }
 

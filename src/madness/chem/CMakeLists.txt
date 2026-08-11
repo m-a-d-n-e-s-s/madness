@@ -167,7 +167,9 @@ if(BUILD_TESTING)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
-  test_restart.cc)
+  test_restart.cc test_exchange_owner_assign.cc test_exchange_batch_cache.cc))
+  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
+  test_exchange_owner_assign.cc test_exchange_batch_cache.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )

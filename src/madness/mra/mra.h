@@ -2584,7 +2584,10 @@ namespace madness {
 //        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
         f.change_tree_state(redundant,false);
-        g.change_tree_state(redundant);
+        g.change_tree_state(redundant,false);
+        // neither call is fenced, and either may be a no-op if the function already is
+        // redundant -- fence explicitly before the trees are traversed
+        result.world().gop.fence();
 		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
 		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
 
