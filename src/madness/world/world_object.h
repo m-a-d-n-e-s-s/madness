@@ -406,11 +406,17 @@ namespace madness {
             if(initialized() && objid) {
                 MADNESS_ASSERT_NOEXCEPT(world_is_alive() &&
                     "WorldObjectBase::~WorldObjectBase() the world of this object has already been destroyed");
-                auto* world_ptr = World::world_from_id(objid.get_world_id());
-                MADNESS_ASSERT_NOEXCEPT(world_ptr != nullptr &&  "WorldObjectBase::~WorldObjectBase() failed to find world");
-                MADNESS_ASSERT_NOEXCEPT(world_ptr == &world &&
-                    "WorldObjectBase::~WorldObjectBase() cached world differs from world in object ID");
-                world.unregister_ptr(objid);
+                // The assertion above is compiled out in release builds, so it
+                // cannot be what keeps us off a dangling reference; world_is_alive()
+                // is a real (relaxed) load and always runs. Nothing is leaked by
+                // skipping: the maps we would unregister from died with the world.
+                if(world_is_alive()) {
+                    auto* world_ptr = World::world_from_id(objid.get_world_id());
+                    MADNESS_ASSERT_NOEXCEPT(world_ptr != nullptr &&  "WorldObjectBase::~WorldObjectBase() failed to find world");
+                    MADNESS_ASSERT_NOEXCEPT(world_ptr == &world &&
+                        "WorldObjectBase::~WorldObjectBase() cached world differs from world in object ID");
+                    world.unregister_ptr(objid);
+                }
             }
         }
 
@@ -1504,10 +1510,14 @@ namespace madness {
         }
 
         virtual ~WorldObject() {
-            if(initialized() && id()) {
+            // this body is pure diagnostics, and every assertion in it is
+            // compiled out in release builds; world_is_alive() is not, so it is
+            // what keeps the dereference below off a dangling reference. The
+            // dead-world diagnostic itself is left to ~WorldObjectBase.
+            if(initialized() && id() && this->world_is_alive()) {
               // noexcept variant: a throwing assertion in a destructor would
               // call std::terminate and discard the diagnostic
-              World& world = this->get_world_noexcept(); // checks whether world exists
+              World& world = this->get_world_noexcept();
               MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
               MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
             }
