@@ -821,11 +821,15 @@ namespace madness {
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
-        /// See comments for err() w.r.t. applying to many functions.
+        /// If the function is neither compressed nor reconstructed, it is
+        /// reconstructed first -- summing norm2sq_local over e.g. a redundant tree
+        /// counts every level and overcounts.  See comments for err() w.r.t.
+        /// applying to many functions.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
+            if (!(is_compressed() or is_reconstructed())) reconstruct();
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -1244,15 +1248,24 @@ namespace madness {
         T trace_local() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
+                "function must be compressed or reconstructed for trace_local");
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
 
 
         /// Returns global value of \c int(f(x),x) ... global comm required
+
+        /// If the function is neither compressed nor reconstructed, it is
+        /// reconstructed first.  For efficient use especially with many functions,
+        /// reconstruct them all first and use trace_local instead, so you can
+        /// perform a global sum on all at the same time.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            if (!(is_compressed() or is_reconstructed())) reconstruct();
+            if (VERIFY_TREE) verify_tree();
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
             impl->world.gop.fence();
