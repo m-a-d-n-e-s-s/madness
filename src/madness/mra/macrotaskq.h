@@ -970,134 +970,82 @@ class MacroTask {
 
     // ---- optional task hooks ----
     //
-    // A task opts into a piece of framework machinery by declaring the corresponding
-    // member; each hook is a constrained overload plus a variadic no-op, so a task that
-    // declares nothing binds the no-op and behaves exactly as before. Detection is by
-    // overload resolution on a trailing int/... parameter, hence the literal 0 at every
-    // call site.
+    // A task opts into a piece of framework machinery by declaring the corresponding member. Each
+    // hook is a named detection trait plus an `if constexpr`, the same shape madness::archive uses
+    // to ask whether a type can serialize itself (see has_member_serialize_v in type_traits.h): the
+    // trait names the expression that has to compile, and the dispatch reads as an ordinary branch.
+    // A task that declares nothing takes the empty branch and behaves exactly as before.
     //
-    // Only the hooks whose signature depends on the task's own argument tuple or result
-    // type live here; the ones with a fixed signature are plain virtuals on
-    // MacroTaskOperationBase (owner_hint, accumulates_own_output, handles_own_data_movement)
-    // or on MacroTaskBase (wants_node_local_reduction, finalize_stage1, finalize_stage2),
-    // because run_all dispatches those through a base pointer.
-    //
-    // The hooks that reach into the argument tuple are wrapped in a tuple_size guard:
-    // std::get<2>(argtuple) inside a decltype is a hard error, not a substitution
-    // failure, for a task with fewer arguments.
+    // Only the hooks whose signature depends on the task's own argument tuple or result type live
+    // here; the ones with a fixed signature are plain virtuals on MacroTaskOperationBase
+    // (owner_hint, accumulates_own_output, handles_own_data_movement, cleanup) or on MacroTaskBase
+    // (wants_node_local_reduction, finalize_stage1, finalize_stage2), because run_all dispatches
+    // those through a base pointer.
 
-    /// let the task assign batches to owners before the tasks are created
+    /// true if: task.prepare_owner_assignment(partition, nsubworld)
     template<typename Q>
-    static auto prepare_owner_assignment_or_noop(Q& task,
-            const MacroTaskPartitioner::partitionT& partition, const long nsubworld, int)
-        -> decltype(task.prepare_owner_assignment(partition, nsubworld), void()) {
-        task.prepare_owner_assignment(partition, nsubworld);
-    }
-
+    using has_prepare_owner_assignment_t =
+        decltype(std::declval<Q&>().prepare_owner_assignment(
+                     std::declval<const MacroTaskPartitioner::partitionT&>(), 0L));
     template<typename Q>
-    static void prepare_owner_assignment_or_noop(Q&, const MacroTaskPartitioner::partitionT&, const long, ...) {}
+    static constexpr bool has_prepare_owner_assignment_v =
+        madness::meta::is_detected_v<has_prepare_owner_assignment_t, Q>;
 
-    /// let the task reorder the partition, e.g. for locality or to de-synchronize fetches
-    template<typename Q>
-    static auto shuffle_partition_or_noop(Q& task,
-            MacroTaskPartitioner::partitionT& partition, const long nsubworld, int)
-        -> decltype(task.shuffle_partition_by_owner(partition, nsubworld), void()) {
-        task.shuffle_partition_by_owner(partition, nsubworld);
-    }
-
-    template<typename Q>
-    static void shuffle_partition_or_noop(Q&, MacroTaskPartitioner::partitionT&, const long, ...) {}
-
-    /// let the task store its inputs as owner-pinned cloud batches
+    /// true if: task.store_batches(world, subworld, cloud, argtuple, nsubworld)
     template<typename Q, typename ArgTuple>
-    static auto store_batches_or_noop(Q& task, World& world, World& subworld, Cloud& cloud,
-            const ArgTuple& argtuple, const long nsubworld, int)
-        -> decltype(task.store_batches(world, subworld, cloud, argtuple, nsubworld), void()) {
-        task.store_batches(world, subworld, cloud, argtuple, nsubworld);
-    }
-
+    using has_store_batches_t =
+        decltype(std::declval<Q&>().store_batches(
+                     std::declval<World&>(), std::declval<World&>(), std::declval<Cloud&>(),
+                     std::declval<const ArgTuple&>(), 0L));
     template<typename Q, typename ArgTuple>
-    static void store_batches_or_noop(Q&, World&, World&, Cloud&, const ArgTuple&, const long, ...) {}
+    static constexpr bool has_store_batches_v =
+        madness::meta::is_detected_v<has_store_batches_t, Q, ArgTuple>;
 
-    /// pre-compute: promote the previous prefetch and issue the next task's, so its
-    /// transfer overlaps this task's compute
-    template<typename Q, typename ArgTuple>
-    static auto cloud_kbatch_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
-            const Batch_1D& next_hint, const bool has_next, int)
-        -> decltype(task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next), void()) {
-        task.cloud_kbatch_pipeline_advance(subworld, std::get<1>(argtuple), std::get<2>(argtuple), next_hint, has_next);
-    }
+    /// true if: task.sym_pipeline_advance(subworld, ket, next_col, next_row, has_next)
+    template<typename Q, typename VecT>
+    using has_sym_pipeline_advance_t =
+        decltype(std::declval<Q&>().sym_pipeline_advance(
+                     std::declval<World&>(), std::declval<const VecT&>(),
+                     std::declval<const Batch_1D&>(), std::declval<const Batch_1D&>(), true));
+    template<typename Q, typename VecT>
+    static constexpr bool has_sym_pipeline_advance_v =
+        madness::meta::is_detected_v<has_sym_pipeline_advance_t, Q, VecT>;
 
-    template<typename Q, typename ArgTuple>
-    static void cloud_kbatch_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const bool, ...) {}
-
-    template<typename Q, typename ArgTuple>
-    static void cloud_kbatch_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
-            const Batch_1D& next_hint, const bool has_next, int) {
-        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
-            cloud_kbatch_pipeline_advance_dispatch(task, subworld, argtuple, next_hint, has_next, 0);
-        }
-    }
-
-    /// pre-compute, symmetric case: takes both of the next task's ranges, so the task can
-    /// prefetch only the operand it does not already hold
-    template<typename Q, typename ArgTuple>
-    static auto sym_pipeline_advance_dispatch(Q& task, World& subworld, const ArgTuple& argtuple,
-            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int)
-        -> decltype(task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next), void()) {
-        task.sym_pipeline_advance(subworld, std::get<2>(argtuple), next_col, next_row, has_next);
-    }
-
-    template<typename Q, typename ArgTuple>
-    static void sym_pipeline_advance_dispatch(Q&, World&, const ArgTuple&, const Batch_1D&, const Batch_1D&, const bool, ...) {}
-
-    template<typename Q, typename ArgTuple>
-    static void sym_pipeline_advance_or_noop(Q& task, World& subworld, const ArgTuple& argtuple,
-            const Batch_1D& next_col, const Batch_1D& next_row, const bool has_next, int) {
-        if constexpr (std::tuple_size<ArgTuple>::value >= 3) {
-            sym_pipeline_advance_dispatch(task, subworld, argtuple, next_col, next_row, has_next, 0);
-        }
-    }
-
-    /// accumulate the batch result into a task-local buffer instead of the universe result
+    /// true if: task.accumulate_locally(subworld, result_subworld)
     template<typename Q, typename ResT>
-    static auto accumulate_locally_or_noop(Q& task, World& subworld, const ResT& result_subworld, int)
-        -> decltype(task.accumulate_locally(subworld, result_subworld), void()) {
-        task.accumulate_locally(subworld, result_subworld);
-    }
-
+    using has_accumulate_locally_t =
+        decltype(std::declval<Q&>().accumulate_locally(
+                     std::declval<World&>(), std::declval<const ResT&>()));
     template<typename Q, typename ResT>
-    static void accumulate_locally_or_noop(Q&, World&, const ResT&, ...) {}
+    static constexpr bool has_accumulate_locally_v =
+        madness::meta::is_detected_v<has_accumulate_locally_t, Q, ResT>;
 
-    /// whether the task wants its local buffers reduced within a node before the universe
+    /// true if: task.wants_node_local_reduction()
     template<typename Q>
-    static auto wants_node_local_reduction_or_default(const Q& task, int)
-        -> decltype(task.wants_node_local_reduction()) {
-        return task.wants_node_local_reduction();
-    }
-
+    using has_wants_node_local_reduction_t =
+        decltype(std::declval<const Q&>().wants_node_local_reduction());
     template<typename Q>
-    static bool wants_node_local_reduction_or_default(const Q&, ...) { return false; }
+    static constexpr bool has_wants_node_local_reduction_v =
+        madness::meta::is_detected_v<has_wants_node_local_reduction_t, Q>;
 
-    /// reduce the task-local buffers within a node
+    /// true if: task.finalize_stage1(subworld, nodeworld)
     template<typename Q>
-    static auto finalize_stage1_or_noop(Q& task, World& subworld, World* nodeworld, int)
-        -> decltype(task.finalize_stage1(subworld, nodeworld), void()) {
-        task.finalize_stage1(subworld, nodeworld);
-    }
-
+    using has_finalize_stage1_t =
+        decltype(std::declval<Q&>().finalize_stage1(std::declval<World&>(),
+                                                    std::declval<World*>()));
     template<typename Q>
-    static void finalize_stage1_or_noop(Q&, World&, World*, ...) {}
+    static constexpr bool has_finalize_stage1_v =
+        madness::meta::is_detected_v<has_finalize_stage1_t, Q>;
 
-    /// reduce across nodes into the universe result
+    /// true if: task.finalize_stage2(subworld, nodeworld, universe_result)
     template<typename Q, typename ResT>
-    static auto finalize_stage2_or_noop(Q& task, World& subworld, World* nodeworld, ResT& universe_result, int)
-        -> decltype(task.finalize_stage2(subworld, nodeworld, universe_result), void()) {
-        task.finalize_stage2(subworld, nodeworld, universe_result);
-    }
-
+    using has_finalize_stage2_t =
+        decltype(std::declval<Q&>().finalize_stage2(std::declval<World&>(),
+                                                    std::declval<World*>(),
+                                                    std::declval<ResT&>()));
     template<typename Q, typename ResT>
-    static void finalize_stage2_or_noop(Q&, World&, World*, ResT&, ...) {}
+    static constexpr bool has_finalize_stage2_v =
+        madness::meta::is_detected_v<has_finalize_stage2_t, Q, ResT>;
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
@@ -1169,15 +1117,16 @@ public:
         partitionT partition = partitioner->partition_tasks(argtuple);
 
         // let the task assign batches to owners from the whole partition, then reorder it
-        prepare_owner_assignment_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
-        shuffle_partition_or_noop(task, partition, taskq_ptr->get_nsubworld(), 0);
+        if constexpr (has_prepare_owner_assignment_v<taskT>)
+            task.prepare_owner_assignment(partition, taskq_ptr->get_nsubworld());
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         // additionally store the inputs as owner-pinned cloud batches, if the task wants them
-        store_batches_or_noop(task, world, taskq_ptr->get_subworld(), taskq_ptr->cloud, argtuple,
-                              taskq_ptr->get_nsubworld(), 0);
+        if constexpr (has_store_batches_v<taskT, argtupleT>)
+            task.store_batches(world, taskq_ptr->get_subworld(), taskq_ptr->cloud, argtuple,
+                               taskq_ptr->get_nsubworld());
         resultT result = task.allocator(world, argtuple);
         auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
@@ -1344,18 +1293,20 @@ private:
         /// A task that does not accumulate its own output has nothing to finalize, so the
         /// guard keeps every existing task on the queue's own accumulation path.
         bool wants_node_local_reduction() const override {
-            return wants_node_local_reduction_or_default(task, 0);
+            if constexpr (has_wants_node_local_reduction_v<taskT>) return task.wants_node_local_reduction();
+            else return false;
         }
 
         void finalize_stage1(World& subworld, World* nodeworld, Cloud& /*cloud*/) override {
             if (not task.accumulates_own_output()) return;
-            finalize_stage1_or_noop(task, subworld, nodeworld, 0);
+            if constexpr (has_finalize_stage1_v<taskT>) task.finalize_stage1(subworld, nodeworld);
         }
 
         void finalize_stage2(World& subworld, World* nodeworld, Cloud& cloud) override {
             if (not task.accumulates_own_output()) return;
             resultT result_universe = get_output(subworld, cloud);
-            finalize_stage2_or_noop(task, subworld, nodeworld, result_universe, 0);
+            if constexpr (has_finalize_stage2_v<taskT, resultT>)
+                task.finalize_stage2(subworld, nodeworld, result_universe);
         }
 
         /// the next task in taskq that this task's subworld also owns, or {-1, nullptr}
@@ -1399,8 +1350,13 @@ private:
                 const bool has_next = (next_ptr != nullptr) and (next_ptr->task.batch.input.size() > 1);
                 const Batch_1D next_col = has_next ? next_ptr->task.batch.input[0] : Batch_1D();
                 const Batch_1D next_row = has_next ? next_ptr->task.batch.input[1] : Batch_1D();
-                cloud_kbatch_pipeline_advance_or_noop(task, subworld, argtuple, next_row, has_next, 0);
-                sym_pipeline_advance_or_noop(task, subworld, argtuple, next_col, next_row, has_next, 0);
+                // the ket is the third argument; a task with fewer cannot have the hook either
+                if constexpr (std::tuple_size<argtupleT>::value >= 3) {
+                    using ketT = std::decay_t<std::tuple_element_t<2, argtupleT>>;
+                    if constexpr (has_sym_pipeline_advance_v<taskT, ketT>)
+                        task.sym_pipeline_advance(subworld, std::get<2>(argtuple),
+                                                  next_col, next_row, has_next);
+                }
             }
 
     		std::string msg="";
@@ -1467,7 +1423,8 @@ private:
         		// a subworld-local buffer and drains it once in finalize_stage2, instead of one
         		// subworld->universe gaxpy per batch.
         		if (task.accumulates_own_output()) {
-        			accumulate_locally_or_noop(task, subworld, result_subworld, 0);
+        			if constexpr (has_accumulate_locally_v<taskT, resultT>)
+        				task.accumulate_locally(subworld, result_subworld);
         		} else {
         			resultT result_universe=get_output(subworld, cloud);       // lives in the universe
         			accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
