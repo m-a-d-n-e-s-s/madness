@@ -337,29 +337,73 @@ namespace madness {
     } // namespace detail
 
     /// Base class for WorldObject
-    /// Provides a protected world reference to the derived class
-    /// and get_world() method to access it.
-    /// Should not be used directly, but rather through WorldObject<Derived>.
+
+    /// Holds the parts of a \c WorldObject that do not depend on the derived
+    /// class: the unique object ID and the \c World the object belongs to,
+    /// the latter accessible to the derived class via \c get_world().
+    /// Should not be used directly, but rather through \c WorldObject<Derived>.
     struct WorldObjectBase {
     private:
-        uniqueidT objid; ///< Unique object ID.
+        uniqueidT objid; ///< Unique object ID; null until \c register_self() has been called.
         World& world; ///< Memoized reference to the world to which this object belongs.
         World::liveness_handleT world_liveness; ///< Reports whether \c world is still alive.
 
     protected:
 
         /// Construct a new WorldObjectBase.
-        /// Protected, should only be called from WorldObject constructor.
+
+        /// Protected, should only be called from the \c WorldObject constructor.
+        /// \note This does \em not register the object with \p w; the derived
+        ///       \c WorldObject must call \c register_self() to do that, once
+        ///       its own members have been initialized.
         /// \param[in] w The world to which this object belongs.
-        template <typename DerivedT>
-        explicit WorldObjectBase(World& w, DerivedT* this_ptr)
-        : objid(w.register_ptr(this_ptr)), world(w), world_liveness(w.liveness())
+        explicit WorldObjectBase(World& w)
+        : objid(), world(w), world_liveness(w.liveness())
         { }
+
+        /// Copy constructor; produces an \em unregistered object.
+
+        /// Exists solely so that the derived \c WorldObject remains copy
+        /// constructible (which pre-C++17 is needed to permit RVO), never to
+        /// produce a usable object. The copy aliases the world of \p other but
+        /// deliberately does not copy its ID and is not registered with the
+        /// world: were the copy destroyed it would otherwise unregister
+        /// \p other, evicting a live object from the world's ID maps.
+        /// \param[in] other The object whose world is to be aliased.
+        WorldObjectBase(const WorldObjectBase& other)
+        : objid(), world(other.world), world_liveness(other.world_liveness)
+        { }
+
+        /// Registers this object with its world, making it globally addressable.
+
+        /// \attention Must be called by the \c WorldObject constructor \em after
+        /// all of its members have been initialized: registration publishes this
+        /// object to the active-message handlers running on the runtime threads,
+        /// which read those members (see \c WorldObject::is_ready()).
+        /// \tparam DerivedT The derived class being registered.
+        /// \param[in] this_ptr Pointer to the derived object being registered.
+        template <typename DerivedT>
+        void register_self(DerivedT* this_ptr) {
+            MADNESS_ASSERT(!objid); // registering twice would leak the first ID
+            objid = world.register_ptr(this_ptr);
+        }
+
+        /// Unchecked access to the memoized world reference.
+
+        /// \warning Does not validate that the world is still alive; only use
+        ///          where that has already been established (e.g. right after a
+        ///          \c world_is_alive() check).
+        /// \return A reference to the world.
+        World& get_world_unchecked() const noexcept {
+            return world;
+        }
 
     public:
 
         virtual ~WorldObjectBase() {
-            if(initialized()) {
+            // objid is null for an unregistered object, i.e. one produced by the
+            // copy ctor above; such an object owns no entry in the world's maps
+            if(initialized() && objid) {
                 MADNESS_ASSERT_NOEXCEPT(world_is_alive() &&
                     "WorldObjectBase::~WorldObjectBase() the world of this object has already been destroyed");
                 auto* world_ptr = World::world_from_id(objid.get_world_id());
@@ -389,8 +433,25 @@ namespace madness {
         /// \note The reference is memoized, hence only valid while that world is
         ///       alive; this is asserted here rather than paying for a lookup of
         ///       the world by its ID, since \c get_world() is called in hot loops.
+        /// \todo Promote the assertion to \c MADNESS_CHECK, so that the
+        ///       use-after-free is also caught in release builds (where
+        ///       \c MADNESS_ASSERT compiles away), once the cost of the
+        ///       liveness load in hot loops has been measured.
         World& get_world() const {
             MADNESS_ASSERT(world_is_alive());
+            return world;
+        }
+
+        /// Get the world to which this object belongs, without risking a throw.
+
+        /// Same as \c get_world(), except the memoized reference is validated
+        /// with \c MADNESS_ASSERT_NOEXCEPT, which aborts rather than throws.
+        /// Use this from destructors and other \c noexcept contexts, where a
+        /// throwing \c MADNESS_ASSERT would call \c std::terminate and thereby
+        /// discard the diagnostic.
+        /// \return A reference to the world.
+        World& get_world_noexcept() const noexcept {
+            MADNESS_ASSERT_NOEXCEPT(world_is_alive());
             return world;
         }
     };
@@ -411,7 +472,13 @@ namespace madness {
     /// -# Derived class must have at least one virtual function for serialization
     ///    of derived class pointers to be cast to the appropriate type.
     ///
-    /// Note that the world is exposed through \c WorldObjectBase::get_world().
+    /// The \c World is accessed through \c WorldObjectBase::get_world(), which
+    /// validates that it is still alive; derived classes that have already
+    /// established that can use \c WorldObjectBase::get_world_unchecked().
+    /// \note This class used to expose the \c World as a public data member
+    ///       named \c world. That member is gone; replace \c obj.world with
+    ///       \c obj.get_world() and, within a derived class, \c world with
+    ///       \c this->get_world().
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
@@ -420,8 +487,12 @@ namespace madness {
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
 
-        // copy ctor must be enabled to permit RVO; in C++17 will not need this
-        WorldObject(const WorldObject& other) : WorldObjectBase(other) { abort(); }
+        // copy ctor must be enabled to permit RVO; in C++17 will not need this.
+        // It never produces a usable object. The safety of that does not rest on
+        // the abort() alone: the base copy ctor deliberately leaves the copy
+        // unregistered, so destroying one would not unregister `other`.
+        WorldObject(const WorldObject& other)
+            : WorldObjectBase(other), ready(false), me(other.me) { abort(); }
         // no copy
         WorldObject& operator=(const WorldObject&) = delete;
 
@@ -755,9 +826,18 @@ namespace madness {
         /// -# to enable processing of future messages.
         /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
-                : WorldObjectBase(world, static_cast<Derived*>(this))
+                : WorldObjectBase(world)
                 , ready(false)
-                , me(world.rank()) {};
+                , me(world.rank())
+        {
+            // Registration must come last, hence is not part of the member
+            // initialization above: it publishes this object to the AM handlers
+            // running on the runtime threads, which read `ready` to decide
+            // whether an incoming message must be queued (see is_ready()).
+            // Since construction is collective, such a message can already be
+            // in flight while we are still in here.
+            this->register_self(static_cast<Derived*>(this));
+        };
 
 
         /// \todo Brief description needed.
@@ -1424,8 +1504,10 @@ namespace madness {
         }
 
         virtual ~WorldObject() {
-            if(initialized()) {
-              World& world = this->get_world(); // checks whether world exists
+            if(initialized() && id()) {
+              // noexcept variant: a throwing assertion in a destructor would
+              // call std::terminate and discard the diagnostic
+              World& world = this->get_world_noexcept(); // checks whether world exists
               MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
               MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
             }
