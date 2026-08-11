@@ -252,6 +252,42 @@ int test_dot(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T6: mul_sparse leaves its operands redundant. The global norm2()/trace()
+/// entry points must stay correct across that state.
+int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T6: operand state and the norms read off it");
+    t.set_do_print(world.rank() == 0);
+    operand_pair& p = pairs.front();
+
+    // reference values, taken while the operands are still reconstructed
+    p.f.reconstruct();
+    const double norm_before  = p.f.norm2();
+    const double trace_before = p.f.trace();
+
+    Function<double,D> q = mul_sparse(p.f, p.g, 1.e-6);
+    world.gop.fence();
+
+    t.checkpoint(get_tree_state(p.f) == redundant,
+                 "T6 left operand is left redundant");
+    t.checkpoint(get_tree_state(p.g) == redundant,
+                 "T6 right operand is left redundant");
+
+    const double norm_after  = p.f.norm2();
+    const double trace_after = p.f.trace();
+    if (world.rank() == 0)
+        printf("  T6 norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
+               norm_before, norm_after, trace_before, trace_after);
+
+    t.checkpoint(norm_after,  norm_before,  1.e-10, "T6 norm2 on a redundant function");
+    t.checkpoint(trace_after, trace_before, 1.e-10, "T6 trace on a redundant function");
+
+    // the vector overload already reconstructs; it must still agree
+    std::vector<Function<double,D>> v = {p.f};
+    t.checkpoint(norm2s(world, v)[0], norm_before, 1.e-10,
+                 "T6 vector norm2s agrees");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -271,6 +307,7 @@ int main(int argc, char** argv) {
         success += test_screening_accuracy(world, pairs);
         success += test_self_consistency(world, pairs);
         success += test_dot(world, pairs);
+        success += test_operand_state(world, pairs);
     }
 
     world.gop.fence();
