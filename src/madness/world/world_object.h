@@ -406,6 +406,10 @@ namespace madness {
         /// \note The reference is memoized, hence only valid while that world is
         ///       alive; this is asserted here rather than paying for a lookup of
         ///       the world by its ID, since \c get_world() is called in hot loops.
+        /// \todo Promote the assertion to \c MADNESS_CHECK, so that the
+        ///       use-after-free is also caught in release builds (where
+        ///       \c MADNESS_ASSERT compiles away), once the cost of the
+        ///       liveness load in hot loops has been measured.
         World& get_world() const {
             MADNESS_ASSERT(world_is_alive());
             return world;
