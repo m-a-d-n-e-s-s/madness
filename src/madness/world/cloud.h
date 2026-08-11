@@ -15,9 +15,11 @@
 
 
 #include <madness/world/parallel_dc_archive.h>
+#include<algorithm>
 #include<any>
 #include<atomic>
 #include<iomanip>
+#include<limits>
 #include<list>
 #include<mutex>
 
@@ -234,6 +236,23 @@ public:
     /// reply size meaning "the owner does not hold this record"; see on_trigger
     static constexpr std::size_t BATCH_NOT_FOUND = ~std::size_t(0);
 
+    /// bytes per MPI message in a batch transfer; a larger payload is split into several
+
+    /// MPI byte counts are `int`, and batches do exceed 2 GiB: a 161-orbital run at k=10
+    /// measured 3.03 GiB, whose count narrowed to a negative int. MPI rejects that and
+    /// SafeMPI throws it on the comm thread, where nothing catches it.
+    static std::size_t batch_chunk_bytes() { return batch_chunk_bytes_; }
+
+    /// Set the chunk size, for tests only.
+
+    /// Collective and not thread-safe: call it on every rank before any transfer. It exists so
+    /// a unit test can reach the multi-chunk path with an affordable payload.
+    static void set_batch_chunk_bytes(const std::size_t n) {
+        MADNESS_CHECK_THROW(n > 0 and n <= std::size_t(std::numeric_limits<int>::max()),
+                            "batch chunk size must be positive and fit an MPI count");
+        batch_chunk_bytes_ = n;
+    }
+
     /// @param[in] universe  the world the cloud lives in (collective construction)
     /// @param[in] cloud     back-reference used to read owner-local batch bytes
     BatchTransport(World& universe, Cloud* cloud)
@@ -257,10 +276,10 @@ private:
     struct PendingRecv {
         ProcessID owner = -1;
         int tag = -1;
-        bool not_found = false;        ///< owner reported it does not hold the record
-        batch_bytesT buf;              ///< sized in on_reply
-        SafeMPI::Request req;          ///< posted in on_reply
-        Future<batch_bytesT> fut;      ///< set by finish_recv
+        bool not_found = false;             ///< owner reported it does not hold the record
+        batch_bytesT buf;                   ///< sized in on_reply
+        std::vector<SafeMPI::Request> reqs; ///< one per chunk, posted in on_reply
+        Future<batch_bytesT> fut;           ///< set by finish_recv
     };
     std::mutex pending_mtx_;
     std::map<int, std::shared_ptr<PendingRecv>> pending_;
@@ -275,6 +294,8 @@ private:
         const int t = next_tag_.fetch_add(1);
         return BATCH_TAG_BASE + ((t % span) + span) % span;
     }
+
+    static inline std::size_t batch_chunk_bytes_ = std::size_t(1) << 30;   ///< 1 GiB
 
     void reap_sends();
 
@@ -1286,10 +1307,15 @@ inline void BatchTransport::on_trigger(batch_keyT record, ProcessID requester, i
         return;
     }
     const std::size_t n = ptr_size.second;
-    SafeMPI::Request rd = u.mpi.Isend(ptr_size.first, int(n), MPI_BYTE, requester, tag);
+    // MPI does not overtake between messages sharing source, tag and communicator, so posting
+    // the chunks in ascending offset order matches the requester's Irecvs pairwise without a
+    // per-chunk tag. That does rely on one transfer per tag, which alloc_tag's span makes true.
     {
         std::lock_guard<std::mutex> g(sends_mtx_);
-        sends_.push_back(rd);
+        for (std::size_t off = 0; off < n; off += batch_chunk_bytes_) {
+            const std::size_t len = std::min(batch_chunk_bytes_, n - off);
+            sends_.push_back(u.mpi.Isend(ptr_size.first + off, int(len), MPI_BYTE, requester, tag));
+        }
     }
     // the size rides in the reply so the requester can post its Irecv now, during its
     // own compute, and let the rendezvous finish in the background
@@ -1316,7 +1342,11 @@ inline void BatchTransport::on_reply(int tag, std::size_t size) {
         return;
     }
     p->buf.resize(size);
-    p->req = u.mpi.Irecv(p->buf.data(), int(size), MPI_BYTE, p->owner, tag);
+    // must match on_trigger's chunking exactly, in the same order; see batch_chunk_bytes
+    for (std::size_t off = 0; off < size; off += batch_chunk_bytes_) {
+        const std::size_t len = std::min(batch_chunk_bytes_, size - off);
+        p->reqs.push_back(u.mpi.Irecv(p->buf.data() + off, int(len), MPI_BYTE, p->owner, tag));
+    }
     u.taskq.add(this, &BatchTransport::finish_recv, tag);
 }
 
@@ -1329,8 +1359,8 @@ inline void BatchTransport::finish_recv(int tag) {
         p = it->second;
         pending_.erase(it);
     }
-    // the comm thread has been progressing this Irecv all along, so the await is short
-    World::await(p->req, true);
+    // the comm thread has been progressing these Irecvs all along, so the awaits are short
+    for (auto& r : p->reqs) World::await(r, true);
     p->fut.set(std::move(p->buf));
 }
 

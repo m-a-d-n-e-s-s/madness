@@ -345,6 +345,49 @@ int test_batch_store_and_fetch(World& universe) {
     return t1.end();
 }
 
+/// a payload spanning several MPI messages must arrive intact
+
+/// A unit test cannot afford a 2 GiB batch, so it lowers the chunk size instead, and checks the
+/// payload really is larger so it cannot pass vacuously. Needs two ranks to leave the local leg.
+int test_batch_fetch_chunked(World& universe) {
+    universe.gop.fence();
+    test_output t1("testing a batch transfer split into several MPI messages",
+                   universe.rank() == 0);
+
+    const std::size_t nfunc = 3;
+    std::vector<real_function_3d> batch;
+    std::vector<double> norms;
+    for (std::size_t i = 0; i < nfunc; ++i) {
+        batch.push_back(real_factory_3d(universe).functor(gaussian(1.0 + double(i))));
+        norms.push_back(batch.back().norm2());
+    }
+
+    Cloud cloud(universe);
+    const Cloud::keyT record = 4713;
+    cloud.store_batch(universe, batch, universe.size() > 1 ? 1 : 0, record);
+
+    const std::size_t chunk = 4096;
+    const std::size_t payload =
+            cloud.get_statistics(universe)["max_record_size"].get<std::size_t>();
+    t1.checkpoint(payload > chunk, "the payload spans more than one chunk");
+
+    const std::size_t saved = BatchTransport::batch_chunk_bytes();
+    BatchTransport::set_batch_chunk_bytes(chunk);
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        auto got = cloud.fetch_batch_p2p<double, 3>(subworld, record);
+        t1.checkpoint(got.size() == nfunc, "a chunked transfer returns the whole batch");
+        for (std::size_t i = 0; i < got.size(); ++i)
+            t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "chunked batch function norm");
+        subworld.gop.fence();
+    }
+    BatchTransport::set_batch_chunk_bytes(saved);
+    universe.gop.fence();
+    return t1.end();
+}
+
 /// fetching a record nobody stored must fail where the failure can be attributed
 
 /// The owner discovers it holds no such record inside a comm-thread AM handler, where a
@@ -728,6 +771,7 @@ int main(int argc, char** argv) {
     success += test_copy_function_from_other_world(universe);
     success += test_copy_function_from_other_world_through_cloud(universe);
     success += test_batch_store_and_fetch(universe);
+    success += test_batch_fetch_chunked(universe);
     success += test_batch_fetch_of_missing_record(universe);
     success += test_replication_policy(universe);
 
