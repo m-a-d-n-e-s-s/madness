@@ -337,12 +337,14 @@ namespace madness {
     } // namespace detail
 
     /// Base class for WorldObject
-    /// Provides a protected world reference to the derived class
-    /// and get_world() method to access it.
-    /// Should not be used directly, but rather through WorldObject<Derived>.
+
+    /// Holds the parts of a \c WorldObject that do not depend on the derived
+    /// class: the unique object ID and the \c World the object belongs to,
+    /// the latter accessible to the derived class via \c get_world().
+    /// Should not be used directly, but rather through \c WorldObject<Derived>.
     struct WorldObjectBase {
     private:
-        uniqueidT objid; ///< Unique object ID.
+        uniqueidT objid; ///< Unique object ID; null until \c register_self() has been called.
         World& world; ///< Memoized reference to the world to which this object belongs.
         World::liveness_handleT world_liveness; ///< Reports whether \c world is still alive.
 
@@ -384,6 +386,16 @@ namespace madness {
         void register_self(DerivedT* this_ptr) {
             MADNESS_ASSERT(!objid); // registering twice would leak the first ID
             objid = world.register_ptr(this_ptr);
+        }
+
+        /// Unchecked access to the memoized world reference.
+
+        /// \warning Does not validate that the world is still alive; only use
+        ///          where that has already been established (e.g. right after a
+        ///          \c world_is_alive() check).
+        /// \return A reference to the world.
+        World& get_world_unchecked() const noexcept {
+            return world;
         }
 
     public:
@@ -460,7 +472,13 @@ namespace madness {
     /// -# Derived class must have at least one virtual function for serialization
     ///    of derived class pointers to be cast to the appropriate type.
     ///
-    /// Note that the world is exposed through \c WorldObjectBase::get_world().
+    /// The \c World is accessed through \c WorldObjectBase::get_world(), which
+    /// validates that it is still alive; derived classes that have already
+    /// established that can use \c WorldObjectBase::get_world_unchecked().
+    /// \note This class used to expose the \c World as a public data member
+    ///       named \c world. That member is gone; replace \c obj.world with
+    ///       \c obj.get_world() and, within a derived class, \c world with
+    ///       \c this->get_world().
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
