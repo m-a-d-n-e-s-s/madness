@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <time.h>       // clock_gettime, CLOCK_PROCESS_CPUTIME_ID (POSIX, not in <ctime>)
 #include <sys/time.h>
 #include <unistd.h>
 #include <madness/madness_config.h>
@@ -139,6 +140,23 @@ namespace madness {
       const auto nanoseconds_since_epoch = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
       return nanoseconds_since_epoch / 1e9;
 #endif
+    }
+
+    /// Returns the CPU time consumed by this process, in seconds.
+
+    /// Aggregated over all threads of the process, so a task's compute time can be
+    /// separated from its idle time. This is *not* what cpu_time() returns: that
+    /// reads a cycle counter on x86 and therefore measures elapsed time. An
+    /// instrumentation helper, not part of the documented timing API.
+    /// \return The process CPU time (in seconds).
+    static inline double process_cpu_time() {
+#if defined(CLOCK_PROCESS_CPUTIME_ID)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+            return static_cast<double>(ts.tv_sec) + 1.0e-9 * static_cast<double>(ts.tv_nsec);
+        }
+#endif
+        return static_cast<double>(std::clock()) / static_cast<double>(CLOCKS_PER_SEC);
     }
 
 
