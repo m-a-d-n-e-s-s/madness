@@ -427,7 +427,11 @@ public:
 
     void accumulate_chunk(const std::vector<recT>& recs) {
         for (const auto& r : recs) {
-            MADNESS_ASSERT(r.f < dests_.size() and dests_[r.f] != nullptr);
+            // always on: this guards a raw pointer dereference, so it must not be a check that
+            // release builds compile out. ASSERTION_TYPE=disable is a supported configuration
+            MADNESS_CHECK_THROW(r.f < dests_.size() and dests_[r.f] != nullptr,
+                                "exchange finalize: a chunk names a destination this rank has not "
+                                "been given, so its reducer targets were never set");
             typename implT::dcT::accessor acc;
             dests_[r.f]->get_coeffs().insert(acc, r.key);   // get-or-create, locks the key
             acc->second.template gaxpy_inplace<T, T>(T(1.0), r.node, beta_);
