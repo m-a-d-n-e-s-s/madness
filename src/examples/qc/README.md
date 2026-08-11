@@ -30,6 +30,14 @@ ctest -R "madness/test/qc/nemo_he_hf"  # one case
 cmake --build . --target check-qctest-madness
 ```
 
+**Every run starts from an empty working directory.** `madqc` writes its per-task
+scratch to `<case>/task_0/<calc>/` and restarts from `mad.restartdata.*` if it finds
+it, so a second run in the same directory converges onto the first run's orbitals
+rather than solving the deck. `run_qctest.py` therefore erases the working directory
+before staging the case. It only does so where it can tell the directory is a scratch
+one -- empty, carrying the `.qctest_workdir` marker, or holding this case's own output
+-- and otherwise refuses rather than deleting; `--clean` overrides.
+
 Cases tagged `short` or `medium` are also picked up by `check-short-madness`
 (`ctest -L "short|medium"`), so they gate CI along with the unit tests.
 

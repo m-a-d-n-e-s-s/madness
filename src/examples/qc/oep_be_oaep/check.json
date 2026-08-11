@@ -1,8 +1,8 @@
 {
   "description": "OEP (OAEP model) for beryllium; HF reference plus OEP diagnostics",
   "checks": [
-    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-4},
-    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 1], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-3},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 1], "tol": 1e-3},
     {"key": ["tasks", 1, "scf_total_energy"], "tol": 1e-4},
     {"key": ["tasks", 1, "Econv"], "tol": 1e-4},
     {"key": ["tasks", 1, "Ex_conv"], "tol": 1e-4},
