@@ -410,6 +410,19 @@ namespace madness {
             MADNESS_ASSERT(world_is_alive());
             return world;
         }
+
+        /// Get the world to which this object belongs, without risking a throw.
+
+        /// Same as \c get_world(), except the memoized reference is validated
+        /// with \c MADNESS_ASSERT_NOEXCEPT, which aborts rather than throws.
+        /// Use this from destructors and other \c noexcept contexts, where a
+        /// throwing \c MADNESS_ASSERT would call \c std::terminate and thereby
+        /// discard the diagnostic.
+        /// \return A reference to the world.
+        World& get_world_noexcept() const noexcept {
+            MADNESS_ASSERT_NOEXCEPT(world_is_alive());
+            return world;
+        }
     };
 
     /// Implements most parts of a globally addressable object (via unique ID).
@@ -1451,7 +1464,9 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              World& world = this->get_world(); // checks whether world exists
+              // noexcept variant: a throwing assertion in a destructor would
+              // call std::terminate and discard the diagnostic
+              World& world = this->get_world_noexcept(); // checks whether world exists
               MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
               MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
             }
