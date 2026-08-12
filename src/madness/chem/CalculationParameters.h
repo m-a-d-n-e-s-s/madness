@@ -94,9 +94,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("plotcube",false,"If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx");
 		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","canon"});
 		initialize<std::string> ("pointgroup","c1","use point (sub) group symmetry if not localized",{"c1","c2","ci","cs","c2v","c2h","d2","d2h"});
-		initialize<bool>  ("restart",false,"if true restart from orbitals on disk");
-		initialize<bool>  ("restartao",false,"if true restart from orbitals projected into AO basis (STO3G) on disk");
-		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
+		initialize<std::string>("restart","auto","where the initial orbitals come from: auto picks "
+				"between none/iterate/read_only by what is on disk",
+				{"auto","none","iterate","read_only","ao","nwchem"});
+		// Retired in favour of the `restart` modes above, but kept registered so a
+		// deck that still sets them gets a migration error instead of the single
+		// easily-missed warning that ignore_unknown_keys would produce. See the
+		// guard at the end of set_derived_values().
+		initialize<bool>  ("restartao",false,"RETIRED -- use restart=ao");
+		initialize<bool>  ("no_compute",false,"RETIRED -- use restart=read_only");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
 		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
@@ -184,7 +190,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool have_beta() const {return (nbeta()>0) and (not spin_restricted());}
 
 	bool spin_restricted() const {return get<bool>("spin_restricted");}
-	bool no_compute() const {return get<bool>("no_compute");}
 
 	double lo() const {return get<double>("lo");}
 	double L() const {return get<double>("l");}
@@ -218,8 +223,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::vector<double> protocol() const {return get<std::vector<double> >("protocol");}
 	bool save() const {return get<bool>("save");}
-	bool restart() const {return get<bool>("restart");}
-	bool restartao() const {return get<bool>("restartao");}
+	/// the `restart` keyval as a string; parse with restart_mode_from_string()
+
+	/// Returns the spelling rather than the RestartMode enum because RestartPlan.h
+	/// includes this header, so the dependency cannot run the other way.
+	std::string restart() const {return get<std::string>("restart");}
 	bool restart_cphf() const {return get<bool>("restart_cphf");}
 
 	int maxsub() const {return get<int>("maxsub");}
@@ -314,6 +322,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
         //NWChem interface doesn't support geometry optimization
         if (get<bool>("gopt") && nwfile() != "none") error("NWchem initialization only supports single point energy calculations.");
+
+        // Retired keyvals. A clean break needs to be loud: ignore_unknown_keys is
+        // true by default, so deleting these outright would let an old deck run
+        // with different semantics after one warning nobody reads. They stay
+        // registered and erroring until the migration is old news.
+        if (is_user_defined("restartao"))
+        	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
+        if (is_user_defined("no_compute"))
+        	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {

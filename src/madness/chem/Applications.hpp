@@ -211,19 +211,13 @@ public:
         scf_results = empty_results;
         action = madness::NextAction::Redo;
       }
-      // If we are restarting from an existing archive, the SCF engine must be
-      // told to load its MOs from <prefix>.restartdata. This flag has to be set
-      // on params_ BEFORE the engine is constructed — set_calc_workdir() below
-      // builds the SCF (via calc()->initialize_(), which freezes params into
-      // mad.in), so a flag set afterwards (as the old moldft_lib::run did, on a
-      // discarded local copy) never reaches the constructor and "Restart"
-      // silently recomputed from scratch. (raman thread brief, defect 3)
-      if (action == madness::NextAction::Restart) {
-        params_.get<CalculationParameters>().set_user_defined_value("restart",
-                                                                    true);
-        if (world_.rank() == 0)
-          print("Restart requested: loading MOs from restartdata archive");
-      }
+      // NB: nothing needs to be pushed into params_ for a restart. The engine
+      // decides for itself where its orbitals come from (plan_restart, called
+      // from MolecularEnergy::value and Nemo::value), reading the archive's
+      // header rather than a flag set from out here. What used to live at this
+      // point -- set_user_defined_value("restart", true) before the engine was
+      // constructed, because a flag set afterwards never reached the ctor -- is
+      // therefore gone along with the boolean it set.
       world_.gop.fence();
       set_calc_workdir(pm.dir());
       auto params_copy = params_;
@@ -258,9 +252,11 @@ public:
 
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
-        // Restart vs Redo is now carried by the 'restart' flag set on params_
-        // above (Restart => load restartdata; Redo => fresh). Pass the real
-        // action through rather than a hardcoded Restart.
+        // Both actions mean the same thing here -- run the engine. Restart vs
+        // Redo used to select where the orbitals came from; that is now the
+        // engine's own decision (plan_restart, from the archive header), so the
+        // distinction survives only as a diagnostic. The action is still passed
+        // through for the log rather than hardcoding one.
         scf_results = lib_.run(world_, params_, action);
       } else {
         lib_.calc(world_, params_); // just set up the calc without running
@@ -745,8 +741,11 @@ NextAction valid(World &world, const SCFResultsTuple &results,
 
   // State in resultout the threshold refinement.
   //
+  // "at least as good as requested", not "exactly equal": these are thresholds,
+  // and exact float equality on them made a run converged to 1e-6 look invalid
+  // against a request for 1e-6 whenever the two were computed differently.
   const bool at_protocol =
-      (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
+      (cr.converged_for_thresh <= vthresh && cr.converged_for_dconv <= vdconv);
 
   const auto pjson = sr.properties.to_json();
   const bool energy_ok = pjson.contains("energy");
@@ -847,10 +846,9 @@ struct moldft_lib {
       return last_results_;
     }
 
-    // NOTE: for NextAction::Restart, the SCF engine is already told to load
-    // MOs from restartdata by the caller (SCFApplication::run sets the
-    // 'restart' flag on params_ BEFORE the engine is constructed). Setting it
-    // here on a local copy was dead code — the engine was already built.
+    // NOTE: NextAction::Restart needs nothing done here. The engine reads the
+    // restartdata header itself and decides whether to load, iterate or skip
+    // (plan_restart); NextAction only says whether the engine has to run at all.
     auto scf = calc(world, params_copy);
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
@@ -956,8 +954,11 @@ struct moldft_lib {
 
     scf->do_plots(world);
 
-    conv_res.set_converged_thresh(FunctionDefaults<3>::get_thresh());
-    conv_res.set_converged_dconv(scf->param.dconv());
+    // report what the SCF actually achieved, not what was requested -- taking
+    // these from FunctionDefaults/param made an unconverged run checkpoint as
+    // converged, so the next invocation skipped it.
+    conv_res.set_converged_thresh(scf->converged_for_thresh);
+    conv_res.set_converged_dconv(scf->converged_for_dconv);
     prop_res.energy = energy;
     prop_res.dipole = dip;
     prop_res.gradient = grad;
@@ -983,6 +984,15 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // `prefix` must be carried explicitly. It is the one parameter that is
+        // DERIVED from information the engine cannot recompute -- the name of
+        // the original input file (ParameterManager.hpp) -- and this round trip
+        // keeps only user-defined values. Without it the engine falls back to
+        // the "mad" default and writes mad.restartdata, while valid() looks for
+        // <prefix>.restartdata.00000: archive_exists is then always false and
+        // the restart can never fire. Everything else that set_derived_values()
+        // computes is re-derived identically by the SCF ctor.
+        in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
         write_json_to_input_file(in, {"dft"}, ofs);
         mol.print_defined_only(ofs);
