@@ -1232,9 +1232,11 @@ private:
         /// the owners: serializing centrally instead funnels the whole orbital set through
         /// one rank's network interface.
         ///
-        /// The symmetric case stores one set: bra == ket == vf, so the same batch serves as
-        /// column, row and ket operand. The asymmetric case stores three, one per role, over two
-        /// splits -- vf along the column dimension, bra and ket along the row dimension they share.
+        /// A record is stored per *distinct* operand vector, not per role: HF exchange passes one
+        /// vector as all three and still stores a single set, nemo's bra = R^2 * ket makes two, and
+        /// three only when all three differ. The symmetric grid shares one split; the asymmetric one
+        /// puts vf on the column boundaries and bra/ket on the row ones, so vf needs its own record
+        /// there even when it is the ket.
         void store_batches(World& world, World& subworld, Cloud& cloud, const argtupleT& argtuple,
                            const long nsubworld) {
             if (not owner_pinned) return;
@@ -1544,9 +1546,9 @@ private:
                 prof_.wall_start = tile_wall_start;
             }
 
-            // Owner-pinned: fetch the two batches this task needs from the cloud. Because
-            // bra == ket == vf there, one batch per range serves every operand role, so the
-            // ket over a range is just that range's batch.
+            // Owner-pinned: fetch this task's operands from the cloud, one request per role and
+            // range. Roles that share a record resolve to the same key, so the repeats are cache
+            // hits rather than transfers.
             vecfuncT bra_owned, vf_owned, ket_row_owned, ket_column_owned;
             const vecfuncT* bra_work = &bra_batch;
             const vecfuncT* vf_work = &vf_batch;
