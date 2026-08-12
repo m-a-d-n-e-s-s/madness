@@ -81,9 +81,9 @@ The three optimization cases cover the two forms a geometry optimization takes.
 `scf_lih_optimize` and `nemo_lih_optimize` use `--optimize --wf=<scf|nemo>`, the
 composable form that is its own task and publishes the optimized geometry for a
 later step. The moldft pair
-agree to the last digit of the geometry (r = 3.035071 bohr), which is the check
+agree to the last digit of the geometry (r = 3.034046 bohr), which is the check
 that the first-class optimizer really drives the same MolOpt as the in-SCF path;
-`nemo_lih_optimize` lands 1.3e-3 bohr away, the difference between a regularized
+`nemo_lih_optimize` lands 1.4e-4 bohr away, the difference between a regularized
 and a plain SCF reference at these thresholds. The nemo case is also the
 regression test for a wavefunction that is *not* re-solved as the nuclei move —
 `Nemo::value` skips the SCF when the orbitals are already converged to the

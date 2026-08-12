@@ -6,12 +6,12 @@
   Task 0 : GEOMETRY OPTIMIZATION
   ----------------------------------------------------------------------
     Reference        : moldft
-    Geometry steps   : 2
-    Final energy     :       -7.987363036 Ha
-    Max gradient     : 4.83e-07 Ha/bohr
+    Geometry steps   : 3
+    Final energy     :       -7.987363048 Ha
+    Max gradient     : 9.13e-07 Ha/bohr
     Optimized geometry (a.u.):
-        Li     0.00000000    -0.00000000     0.75503526
-         H     0.00000000    -0.00000000    -2.28003526
+        Li     0.00000000    -0.00000000     0.75452286
+         H     0.00000000    -0.00000000    -2.27952286
 
 ======================================================================
 

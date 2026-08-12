@@ -6,12 +6,12 @@
   Task 0 : GEOMETRY OPTIMIZATION
   ----------------------------------------------------------------------
     Reference        : nemo
-    Geometry steps   : 3
-    Final energy     :       -7.987362691 Ha
-    Max gradient     : 2.97e-09 Ha/bohr
+    Geometry steps   : 5
+    Final energy     :       -7.987363828 Ha
+    Max gradient     : 2.48e-07 Ha/bohr
     Optimized geometry (a.u.):
-        Li     0.00000000    -0.00000000     0.75440612
-         H     0.00000000    -0.00000000    -2.27940612
+        Li     0.00000000    -0.00000000     0.75445238
+         H     0.00000000    -0.00000000    -2.27945238
 
 ======================================================================
 
