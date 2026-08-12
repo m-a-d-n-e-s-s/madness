@@ -1,0 +1,33 @@
+# Geometry optimization of LiH on a NEMO reference: `--optimize --wf=nemo`.
+#
+# Same deck as scf_lih_optimize, run with a different `--wf` -- the optimizer, the
+# thresholds and the starting geometry are identical, so the pair is a cross-check
+# between the two engines: a regularized (nuclear-cusp-free) reference and a plain
+# SCF one must find the same minimum. They do, to ~1e-3 bohr at these thresholds
+# (3.0338 vs 3.0351 bohr), and each case pins its own value.
+#
+# nemo also needs the wavefunction re-solved at every new geometry. `Nemo::value`
+# skips the SCF when the orbitals are already converged to the requested
+# threshold; that flag is dropped when the nuclei move, or the optimizer would
+# walk on a frozen wavefunction (constant energy, gradients from stale orbitals).
+# This case is the regression test for that: a frozen wavefunction shows up here
+# as `delta-e` of exactly 0.0 across iterations and a wrong final geometry.
+#
+# Run:   ./run.sh          (or: madqc --optimize --wf=nemo nemo_lih_optimize.in)
+
+optimization
+    maxiter     10
+end
+
+dft
+    xc          hf
+    protocol    [1e-4, 1e-6]
+    dconv       1e-4
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.05
+end

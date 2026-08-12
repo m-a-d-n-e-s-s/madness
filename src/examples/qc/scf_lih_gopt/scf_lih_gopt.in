@@ -1,0 +1,39 @@
+# Hartree-Fock geometry optimization of LiH -- the `gopt` path of the `scf`
+# workflow, and the only deck here that optimizes a geometry.
+#
+# `gopt true` hands the SCF to MolOpt (src/madness/chem/molopt.h), which projects
+# translations and rotations out of the gradient before testing convergence.  The
+# raw gradient carries a spurious net force of the order of the gradient
+# accuracy -- for this deck 1.6e-4 a.u., an identical dE/dz on both atoms -- so
+# without that projection `max-g` never reaches `gtol` and the run burns
+# `gmaxiter` cycles at a geometry that stopped moving after two.  With it, the
+# projected gradient converges to 5e-7.  LiH is linear, so the projector must
+# also cope with the vanishing rotation about the molecular axis.
+#
+# The geometry tolerances are not set here and the `gtol`/`gprec` knobs in the
+# `dft` group do not reach this path: Applications.hpp derives them from
+# `protocol().back()` (Dalton-style), so the 1e-6 rung is what gives
+# gtol = xtol = 1e-5, etol = 2e-6 and a gradient precision of 1e-6.  A single
+# 1e-4 rung would instead put gtol at 2e-4 -- above the spurious net force,
+# i.e. a criterion that cannot tell a projected gradient from an unprojected
+# one.  That is the reason this case pays for the ladder.
+#
+# The start is 0.015 bohr inside the HF minimum (r_e = 3.0351 bohr), which the
+# optimizer closes in two steps.
+#
+# Run:   ./run.sh          (or: madqc --wf=scf scf_lih_gopt.in)
+
+dft
+    xc          hf
+    protocol    [1e-4, 1e-6]
+    dconv       1e-4
+    gopt        true
+    gmaxiter    10
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.05
+end

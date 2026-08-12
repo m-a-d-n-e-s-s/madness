@@ -49,6 +49,13 @@ int main() {
 
   const std::string workflow_list =
       madness::workflow_builders::runnable_workflow_list();
+  // `optimize` maps to a WorkflowKind (so --wf=optimize gets a migration message
+  // rather than "unknown") but must NOT be advertised as a runnable workflow: it
+  // is a flag on one, --optimize --wf=<scf|nemo>.
+  if (workflow_list.find("optimize") != std::string::npos) {
+    ok = false;
+    std::cerr << "runnable_workflow_list must not advertise 'optimize'\n";
+  }
   for (const char *name : madness::workflow_builders::runnable_workflows) {
     if (workflow_list.find(name) == std::string::npos) {
       ok = false;

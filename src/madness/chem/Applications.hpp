@@ -4,6 +4,7 @@
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
 #include <madness/chem/Results.h>
+#include <madness/chem/molopt.h>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -530,6 +531,7 @@ private:
   Library lib_; // owns shared_ptr<Engine>
   SCFResultsTuple scf_results;
 };
+
 
 /**
  * @brief Wrapper application to run the molresponse workflow

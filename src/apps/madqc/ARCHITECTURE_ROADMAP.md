@@ -8,18 +8,12 @@ knob + io provenance) already landed.
 
 ## Where we are (as-built)
 
-- `qcapp::Workflow` is a **linear list of single points**: each `Driver` runs in
-  a positional `task_<i>/` dir; its `summary()` JSON is appended to `tasks[]`.
-  Data *can* now flow through the Driver interface: change 1 landed, and
-  `Workflow::run` threads one `StepContext` task-to-task (`Drivers.hpp:124`).
-- **All four consumers now read the context**, but only the response step *adopts*
-  what it is handed. CC2, TDHF and OEP are **verify-only**: each calls
-  `check_context_matches_reference`, which throws if the context disagrees with
-  what the step was constructed with, because their engines are built from a
-  reference captured at workflow-assembly time and cannot be re-pointed
-  (`STEP_CONTEXT.md` has the constructor-by-constructor detail). They still take
-  their actual ground state from the **build-time side-channel**, where the builder
-  captures `reference->calc()` before adding the downstream driver.
+- `qcapp::Workflow` is a **linear list of independent single points**: each
+  `Driver` runs in a positional `task_<i>/` dir; its `summary()` JSON is
+  appended to `tasks[]`. No data flows through the Driver interface.
+- The working SCF→{response, cc2, cis, oep} pipelines pass data via a
+  **build-time side-channel**: the builder captures `reference->calc()`
+  (a live `shared_ptr<SCF/Nemo>`) before adding the downstream driver.
 - Geometry optimization WORKS today but only *inside* one SCF driver
   (`dft gopt=1` → `moldft_lib` → `MolOpt::optimize_app`; writes `_opt.xyz`,
   emits `optimization_results`). The `optimize` WORKFLOW is a stub (enum +
@@ -77,35 +71,53 @@ capture (which stays as a compatibility path until builders migrate).
 reference from the context; a third stage can consume stage 2's outputs.
 
 ### 2. First-class `optimize` workflow (M)
-Unblocked: the one bullet here that needs change 1 (publishing the molecule) has
-the mechanism it needs, and the other two are independent of it.
+**Status: LANDED.** `--optimize --wf=<scf|nemo>` is one task,
+`qcapp::OptimizeDriver<Library>` (`Drivers.hpp`), driving `MolOpt` over the reference
+engine the Library policy supplies — the same code optimizes on moldft
+(`Calc = SCF`) and nemo (`Calc = Nemo`). `--wf` names the reference method and
+`--optimize` asks for its geometry to be optimized; naming the engine in the
+`optimization` group as well was removed, and `--wf=optimize` now answers with a
+migration message. It reads the
+`optimization` group (which nothing read before), derives any threshold the deck
+leaves unset from `protocol().back()`, writes `<prefix>_opt.xyz`, and publishes the
+optimized geometry into the StepContext. Covered by
+`src/examples/qc/{scf,nemo}_lih_optimize`; the moldft case reproduces the
+in-SCF `dft gopt` geometry to the last digit (r = 3.035071 bohr), and the two
+engines agree on the minimum to 1.3e-3 bohr.
 
-Revive `OptimizeDriver` on top of `MolOpt` (the working optimizer):
-- fix `SCFTarget` to read the real result schema (`SCFTargetAdapter.hpp:32-33`
-  reads `res.at("energy")` / `res.at("gradient")`; neither key exists at that
-  level). The right keys are `results["properties"]["energy"]` and
-  `results["properties"]["gradient"]` — **not** `scf_total_energy`, which the
-  plain `scf` path leaves at 0.0 and only the nemo/mp2/cc2 engines fill. The
-  gradient key is present only when `derivatives` is on.
-- enable `WorkflowKind::Optimize` dispatch + add `"optimize"` to
-  `runnable_workflows` (its `std::array` size must go 7 → 8); consume the
-  (currently unread) `OptimizationParameters`. That group is already in the
-  `Params` tuple, but carries two latent bugs: `geometry_tolerence` is declared
-  `bool` yet the commented `OptimizeDriver` passes it as MolOpt's `double gtol`
-  (`Drivers.hpp:238`), and `get_method()` reads a `"method"` key that is never
-  initialized. It is also the natural home for the geometry tolerances, which
-  today are split: `MolOpt` gets values derived from `protocol().back()`
-  (`Applications.hpp:890-899`) while `valid()` tests the stored optimization
-  against the deck's own `gtol` (`:777`) — one knob, two meanings.
-- publish the optimized `Molecule` into the StepContext. Already true for the
-  in-SCF `gopt` path: `moldft_lib::run` puts the optimized geometry in
-  `scf_molecule`, and `publish_to_context` forwards it as `ctx.molecule`.
-*Acceptance:* `--wf=optimize` optimizes and a following stage (SCF or response)
-runs AT the optimized geometry — the geopt→Raman pipeline's first half. Assert
-against an SCF or response follow-on, not cc2/cis/oep: those builders call
-`reference->calc()` at assembly time, which constructs the engine and freezes the
-geometry into `mad.in` before any task runs, so they cannot honour an upstream
-molecule until construction is deferred.
+Three deviations from the original plan, each deliberate:
+
+- It is a **Driver**, not an Application. Numerical gradients are to be computed
+  from *displaced sub-runs* — one sub-run per ±h Cartesian displacement, each in its
+  own directory with its own `calc_info`, so displacements are restartable and can
+  later be spread across subworlds — and owning sub-runs is a Driver's job. The
+  gradient source is chosen at one point, `GeometryTarget` in
+  `SCFTargetAdapter.hpp`: `AnalyticTarget` today, a `DisplacedEnergyTarget` later,
+  which will run one `SCFApplication<Library>` per displacement under
+  `task_<i>/step_<k>/disp_<...>/` and so inherit that class's checkpoint and
+  `checkpoint_geometry_matches` guard for free. Its energies must come from
+  `results["properties"]["energy"]` — **not** `scf_total_energy`, which the plain
+  `scf` path leaves at 0.0. This is the same seam changes 3 and 4 need.
+- `SCFTarget` was **replaced rather than repaired**, but its idea returns for the
+  numerical path above: an Application per displaced geometry is exactly right when
+  the point is a restartable sub-run, and exactly wrong for walking one engine
+  along a path. So the analytic target drives the engine directly — both engines
+  reach `MolOpt` through `OptimizationTargetInterface`, which `MolecularEnergy`
+  (for an SCF) and `Nemo` (itself) already implement — and the per-geometry
+  Application returns only where sub-runs are wanted.
+- A **bug had to be fixed for nemo to work**: nothing dropped
+  `converged_for_thresh` when the nuclei moved, so `Nemo::value`'s `skip_solve`
+  short-circuited the SCF at every new geometry and the optimizer walked a frozen
+  wavefunction — energy constant to every digit, gradients from stale orbitals. That
+  affected the standalone `nemo` app's optimizer (`MolecularOptimizer`) too, not
+  just this workflow.
+
+Still open: `initial_hessian` is declined with an explicit error rather than
+silently ignored; the optimizer keeps no checkpoint of its own, so an interrupted
+optimization restarts from the input geometry; and the acceptance criterion's second
+half — *a following stage runs AT the optimized geometry* — needs a consumer, i.e.
+`SCFApplication::consume_context` adopting `ctx.molecule` before it builds its
+engine. The geometry is published; nothing reads it yet.
 
 ### 3. Properties at every optimization step (M)
 Add a post-accepted-step hook to `MolOpt::optimize_app` (callback carrying the

@@ -57,9 +57,19 @@ Select with `--wf=<name>` (aliases: `--workflow`, `-w`). Default: `scf`.
 | `oep`   | SCF → OEP | Optimized effective potential |
 
 Every multi-step workflow runs the ground-state SCF first, then hands the
-reference wavefunction to the downstream method. Geometry optimization is
-available through the `gopt` knob in the `dft` group (the standalone
-`optimize` workflow is currently disabled).
+reference wavefunction to the downstream method.
+
+Geometry optimization is not a workflow of its own but a flag on one: `--optimize`
+optimizes the geometry of whatever reference `--wf` names, so
+`madqc --optimize --wf=nemo deck.in` optimizes on a nemo reference and
+`--optimize --wf=scf` on a moldft one. It runs as its own task, honours the
+`optimization` parameter group, writes `<prefix>_opt.xyz`, and publishes the
+optimized geometry for a later step. Only `scf` and `nemo` are optimizable today.
+
+Alternatively `gopt 1` in the `dft` group optimizes *inside* an SCF task; that is
+the older form and remains supported. Both drive the same optimizer and give the
+same geometry. Working decks: `src/examples/qc/{scf,nemo}_lih_optimize` and
+`src/examples/qc/scf_lih_gopt`.
 
 ---
 
@@ -68,13 +78,15 @@ available through the `gopt` knob in the `dft` group (the standalone
 | Option | Effect |
 |--------|--------|
 | `--wf=<name>` | choose the workflow (default `scf`) |
+| `--optimize` | optimize the geometry of that workflow's reference (`scf`, `nemo`); takes no value |
 | `--help[=<workflow>]` | usage; optionally workflow-specific examples |
 | `--print_parameters=<group>` | print all knobs in a group and exit |
 | `--geometry=<name>` | molecule from a built-in name or `.xyz` file |
 | `--<group>="k1=v1; k2=v2"` | override knobs on the command line, e.g. `--dft="k=8; econv=1e-6"` |
 | `[input_file]` | path to an input deck (plain-text or JSON) |
 
-`<group>` is one of: `dft`, `nemo`, `response`, `cc2`, `cis`, `oep`, `geometry`.
+`<group>` is one of: `dft`, `nemo`, `response`, `cc2`, `cis`, `oep`, `optimization`,
+`geometry`.
 
 ---
 
