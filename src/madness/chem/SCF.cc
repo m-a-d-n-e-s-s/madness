@@ -467,6 +467,12 @@ void SCF::load_mos(World& world) {
 /// not want.
 void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
 
+    if (plan.iterate) {
+        converged_for_thresh = 1.e10;
+        converged_for_dconv = 1.e10;
+        current_energy = 1.e10;
+    }
+
     auto from_initial_guess=[&](World& world) {
         if (world.rank()==0) print("starting from the atomic initial guess");
         reset_aobasis(param.aobasis());
