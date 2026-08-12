@@ -809,7 +809,8 @@ private:
     /// how the tile results are gathered: 1 = subworld buffer then universe, 2 = also reduce
     /// within a node first (default; degrades to 1 on a single node)
     int accumulation_mode_ = 2;
-    /// place tasks by measured cost instead of by counting them
+    /// place tasks by measured cost instead of by counting them; the first two applications
+    /// still count, having no representative reference to measure against
     bool cost_aware_assign_ = true;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
