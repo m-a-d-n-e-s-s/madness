@@ -1206,7 +1206,8 @@ private:
         /// one rank's network interface.
         ///
         /// The symmetric case stores one set: bra == ket == vf, so the same batch serves as
-        /// column, row and ket operand.
+        /// column, row and ket operand. The asymmetric case stores three, one per role, over two
+        /// splits -- vf along the column dimension, bra and ket along the row dimension they share.
         void store_batches(World& world, World& subworld, Cloud& cloud, const argtupleT& argtuple,
                            const long nsubworld) {
             if (not owner_pinned) return;
@@ -1216,12 +1217,11 @@ private:
             // so say so rather than compute something wrong.
             MADNESS_CHECK_THROW(nsubworld == world.size(),
                                 "owner-pinned exchange needs one subworld per rank");
+            const vecfuncT& vf = std::get<0>(argtuple);
+            const vecfuncT& mo_bra = std::get<1>(argtuple);
             const vecfuncT& mo_ket = std::get<2>(argtuple);
             // one fence up front, so store_batch does not need one per function
             world.gop.fence();
-            const long salt = batch_salt_;
-            const std::vector<Batch_1D> split =
-                    exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level);
 
             // A cross-world copy picks its process map from the target world, but anything
             // on that path reading the process-wide default would route to universe ranks
@@ -1231,16 +1231,35 @@ private:
             FunctionDefaults<NDIM>::set_default_pmap(subworld);
 
             std::vector<std::pair<long, vecfuncT>> owned;
-            for (long k = 0; k < long(split.size()); ++k) {
-                const Batch_1D& r = split[k];
-                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
-                cloud.register_batch_owner(record, ProcessID(k % nsubworld));
-                if (k % nsubworld == world.rank()) {
-                    vecfuncT local(r.size());
-                    for (long i = r.begin; i < r.end; ++i)
-                        local[i - r.begin] = copy(subworld, mo_ket[i], /*fence=*/false);
-                    owned.emplace_back(record, std::move(local));
+            // register the routing for one operand set, and pull the batches this rank owns. Batch k
+            // goes to rank k, which is what puts a column batch on the rank running that column.
+            auto stage = [&](const vecfuncT& v, const int dim, const std::vector<Batch_1D>& split) {
+                for (long k = 0; k < long(split.size()); ++k) {
+                    const Batch_1D& r = split[k];
+                    const long record = exchange_batch_record_key(batch_salt_, dim, r);
+                    cloud.register_batch_owner(record, ProcessID(k % nsubworld));
+                    if (k % nsubworld == world.rank()) {
+                        vecfuncT local(r.size());
+                        for (long i = r.begin; i < r.end; ++i)
+                            local[i - r.begin] = copy(subworld, v[i], /*fence=*/false);
+                        owned.emplace_back(record, std::move(local));
+                    }
                 }
+            };
+
+            if (symmetric) {
+                stage(mo_ket, EXCHANGE_BATCH_VF,
+                      exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level));
+            } else {
+                // bra and ket are indexed together by the operator's sum over pairs, so they share
+                // the row boundaries; vf is independent and gets the column ones
+                MADNESS_CHECK_THROW(mo_bra.size() == mo_ket.size(),
+                                    "exchange: bra and ket are a paired set and must have equal length");
+                const std::vector<Batch_1D> columns = exchange_row_owner_split(vf.size(), nsubworld);
+                const std::vector<Batch_1D> rows = exchange_row_owner_split(mo_bra.size(), nsubworld);
+                stage(vf, EXCHANGE_BATCH_VF, columns);
+                stage(mo_bra, EXCHANGE_BATCH_BRA, rows);
+                stage(mo_ket, EXCHANGE_BATCH_KET, rows);
             }
             // the source ranks' comm threads serve the pulls, so a fence on the size-1
             // subworld drains this owner's copies
@@ -1279,8 +1298,15 @@ private:
             if (not has_next or cloud_ptr == nullptr) return;
             Cloud& cloud = *cloud_ptr;
             const long salt = batch_salt_;
-            for (const Batch_1D& r : {next_col, next_row}) {
-                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
+            // Symmetric: either of the task's two ranges may be the remote one, so try both. In the
+            // asymmetric case only the row rotates -- the column is held on this rank -- and of the
+            // two records it carries, the bra is the one requested; the ket follows synchronously.
+            const std::vector<std::pair<Batch_1D,int>> candidates =
+                    symmetric ? std::vector<std::pair<Batch_1D,int>>{{next_col, EXCHANGE_BATCH_VF},
+                                                                     {next_row, EXCHANGE_BATCH_VF}}
+                              : std::vector<std::pair<Batch_1D,int>>{{next_row, EXCHANGE_BATCH_BRA}};
+            for (const auto& [r, dim] : candidates) {
+                const long record = exchange_batch_record_key(salt, dim, r);
                 if (cloud.batch_owner(record) == universe_rank_) continue;   // reads locally
                 if (batch_cache_.contains(record)) continue;                 // already resident
                 if (prefetch_current_.valid and prefetch_current_.key == record) continue;
@@ -1345,8 +1371,8 @@ private:
         /// to all of them.
         ///
         /// The result must be a *set*: the caller gaxpys one entry per index, so a repeated index is
-        /// added twice. Both ranges come from one split while the grid is triangular, where they are
-        /// always equal or disjoint, but from separate splits of different lengths otherwise.
+        /// added twice. The two ranges do overlap in the asymmetric case, coming from separate splits
+        /// of different lengths rather than from one split, where they are always equal or disjoint.
         std::vector<long> touched_result_indices() const {
             std::vector<long> idx;
             auto add_range = [&](const Batch_1D& b) {
@@ -1486,21 +1512,35 @@ private:
             // Owner-pinned: fetch the two batches this task needs from the cloud. Because
             // bra == ket == vf there, one batch per range serves every operand role, so the
             // ket over a range is just that range's batch.
-            vecfuncT bra_owned, vf_owned;
+            vecfuncT bra_owned, vf_owned, ket_owned;
             const vecfuncT* bra_work = &bra_batch;
             const vecfuncT* vf_work = &vf_batch;
+            const vecfuncT* ket_work = nullptr;   // set only when the ket is fetched as its own role
             if (owner_pinned) {
                 MADNESS_CHECK_THROW(cloud_ptr != nullptr, "owner-pinned exchange: cloud_ptr is null");
                 Cloud& cloud = *cloud_ptr;
                 const long salt = batch_salt_;
                 // copy the handles out of the cache: the reference is only good until the
                 // entry is evicted, and the second fetch may evict the first
-                bra_owned = fetch_batch(world, cloud,
-                                        exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, bra_range));
-                vf_owned = diagonal_block
-                        ? bra_owned                     // one range, so one batch
-                        : fetch_batch(world, cloud,
-                                      exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                if (symmetric) {
+                    bra_owned = fetch_batch(world, cloud,
+                                            exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, bra_range));
+                    vf_owned = diagonal_block
+                            ? bra_owned                     // one range, so one batch
+                            : fetch_batch(world, cloud,
+                                          exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                } else {
+                    // The column batch is held: this task runs on the rank owning it, so the fetch
+                    // is a cache hit and those coefficients never move. The row batch is the one
+                    // that rotates, and it carries bra and ket over the same range.
+                    vf_owned = fetch_batch(world, cloud,
+                                           exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                    bra_owned = fetch_batch(world, cloud,
+                                            exchange_batch_record_key(salt, EXCHANGE_BATCH_BRA, bra_range));
+                    ket_owned = fetch_batch(world, cloud,
+                                            exchange_batch_record_key(salt, EXCHANGE_BATCH_KET, bra_range));
+                    ket_work = &ket_owned;
+                }
                 bra_work = &bra_owned;
                 vf_work = &vf_owned;
             }
@@ -1529,8 +1569,11 @@ private:
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultrow[i - vf_range.begin];}
             } else {
-                auto ket_batch = bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
+                // the ket comes from its own record when pinned, and is sliced from the unbatched
+                // argument otherwise -- which is the only form available without the batch store
+                const vecfuncT ket_batch = ket_work ? *ket_work : bra_range.copy_batch(vket);
+                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch,
+                                                                           *bra_work, *vf_work);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
             }

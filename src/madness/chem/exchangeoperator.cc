@@ -126,11 +126,11 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     if (symmetric != is_symmetric() and world.rank() == 0 and printlevel >= 4)
         print("MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path");
 
-    // Whether tasks are pinned to the ranks owning their batches. That needs one set of batches to
-    // serve every operand role, which is what bra == ket == vf buys, so it follows the symmetry the
-    // tiles actually use rather than the operator's own flag. Decided here, once, because pinning,
-    // the storage policy and the cost reduction have to agree.
-    const bool owner_pinned = symmetric;
+    // Whether tasks are pinned to the ranks owning their batches. Both symmetries support it now:
+    // the symmetric grid shares one stored set across all three operand roles, and the asymmetric
+    // one stores a set per role and holds its column batch while the row rotates. Decided here,
+    // once, because pinning, the storage policy and the cost reduction have to agree.
+    const bool owner_pinned = true;
 
     // the salt is formed here, once, where the ket is in hand: every rank builds the same task
     // objects collectively, so passing it reaches every rank without a manifest
