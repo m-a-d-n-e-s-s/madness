@@ -266,6 +266,17 @@ inline bool exch_task_profile_enabled() {
     return on;
 }
 
+/// Send a symmetric application down the general (bra, ket, vf) path? Read once per process.
+
+/// A symmetric application computes the same numbers either way -- the general path just does the
+/// whole rectangle where the symmetric one does a triangle and reuses each intermediate twice. So
+/// with this set, moldft becomes a differential test of the general path on data whose answer is
+/// already known, which is otherwise reachable only from nemo and molresponse. Debug only.
+inline bool exch_force_general_path() {
+    static const bool on = (std::getenv("MAD_EXCH_FORCE_GENERAL") != nullptr);
+    return on;
+}
+
 /// Append one record to exch_taskprof.r<rank>.jsonl.
 
 /// The stream stays open for the life of the process: one file per rank appended across every

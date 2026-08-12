@@ -117,17 +117,24 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    // Whether tasks are pinned to the ranks owning their batches. Today this is exactly the
-    // symmetric case, because bra == ket == vf there lets one set of batches serve every
-    // operand role, so both of a task's batches are owned by someone. It is decided here, once,
-    // rather than spelled as is_symmetric() at each of the three places that need it: pinning,
-    // the storage policy and the cost reduction have to agree, and the asymmetric path will opt
-    // in without changing what symmetric does.
-    const bool owner_pinned = is_symmetric();
+    // Whether the tiles may exploit the i-j symmetry. MAD_EXCH_FORCE_GENERAL takes it away from an
+    // application that is entitled to it, which computes the same numbers down the general path and
+    // so tests that path against a known answer; see exch_force_general_path.
+    const bool symmetric = is_symmetric() and not exch_force_general_path();
+    // printlevel rather than printdebug(), which is >= 10: this has to be visible at the level a
+    // validation run uses, or a forced run reads as a normal one
+    if (symmetric != is_symmetric() and world.rank() == 0 and printlevel >= 4)
+        print("MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path");
+
+    // Whether tasks are pinned to the ranks owning their batches. That needs one set of batches to
+    // serve every operand role, which is what bra == ket == vf buys, so it follows the symmetry the
+    // tiles actually use rather than the operator's own flag. Decided here, once, because pinning,
+    // the storage policy and the cost reduction have to agree.
+    const bool owner_pinned = symmetric;
 
     // the salt is formed here, once, where the ket is in hand: every rank builds the same task
     // objects collectively, so passing it reaches every rank without a manifest
-    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
+    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, symmetric,
                                   owner_pinned, batch_granularity_,
                                   world.rank(), accumulation_mode_, cost_aware_assign_,
                                   exchange_batch_salt(mo_ket));
