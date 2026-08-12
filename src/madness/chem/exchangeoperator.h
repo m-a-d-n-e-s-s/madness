@@ -873,7 +873,11 @@ private:
         struct PrefetchSlot {
             bool valid = false;
             long key = 0;
-            Future<batch_bytesT> fut;
+            /// Held by pointer, not by value: a slot is retired by overwriting it, and `Future`'s
+            /// assignment operator requires an unset target. Overwriting a slot whose reply has
+            /// already landed -- which is every consumed slot -- trips that assertion. Dropping
+            /// the pointer releases the future instead of assigning over it.
+            std::shared_ptr<Future<batch_bytesT>> fut;
         };
         static inline PrefetchSlot prefetch_current_;   ///< promoted from the previous task
         static inline PrefetchSlot prefetch_next_;      ///< requested during this task
@@ -982,7 +986,7 @@ private:
             for (PrefetchSlot* slot : {&prefetch_current_, &prefetch_next_}) {
                 if (slot->valid and slot->key == record) {
                     vecfuncT data = cloud.template deserialize_batch_p2p<T, NDIM>(
-                            world, slot->fut, record, /*cache_result=*/false);
+                            world, *slot->fut, record, /*cache_result=*/false);
                     *slot = PrefetchSlot();
                     ++batch_prefetch_hits_;
                     if (profile_active()) prof_.observe_fetch_tier(1);
@@ -1349,7 +1353,8 @@ private:
                 if (batch_cache_.contains(record)) continue;                 // already resident
                 if (prefetch_current_.valid and prefetch_current_.key == record) continue;
                 prefetch_next_.key = record;
-                prefetch_next_.fut = cloud.request_batch_bytes_async(record);
+                prefetch_next_.fut = std::make_shared<Future<batch_bytesT>>(
+                        cloud.request_batch_bytes_async(record));
                 prefetch_next_.valid = true;
                 break;                                                      // one per task
             }
