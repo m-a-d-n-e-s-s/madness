@@ -68,6 +68,24 @@ inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const
     return exchange_sym_owner_split(n, nsubworld, 1);
 }
 
+/// The asymmetric task grid: every (column, row) pair over two independent splits.
+
+/// The column dimension is the operand that stays put -- vf, whose batch the running rank holds --
+/// and the row dimension is the one that rotates, carrying bra and ket, which share this range
+/// because the operator sums over pairs. There is no symmetry to exploit, so the grid is the full
+/// rectangle rather than a triangle, and the two dimensions are split independently: bra and ket
+/// have the same length as each other but need not match vf's.
+inline std::vector<std::pair<Batch_1D, Batch_1D>>
+exchange_row_owner_grid(const std::size_t ncolumn, const std::size_t nrow, const long nsubworld) {
+    const std::vector<Batch_1D> columns = exchange_row_owner_split(ncolumn, nsubworld);
+    const std::vector<Batch_1D> rows = exchange_row_owner_split(nrow, nsubworld);
+    std::vector<std::pair<Batch_1D, Batch_1D>> out;
+    out.reserve(columns.size() * rows.size());
+    for (const auto& c : columns)
+        for (const auto& r : rows) out.emplace_back(c, r);
+    return out;
+}
+
 /// Triangular index of a batch pair, collapsing (i,j) and (j,i): a*(a+1)/2 + b.
 
 /// The indexing convention of the per-task cost vector, shared by whoever records a
@@ -960,6 +978,17 @@ private:
 
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
+
+                if (owner_pinned and not symmetric) {
+                    // full grid over two independent splits; see exchange_row_owner_grid
+                    partitionT result;
+                    for (const auto& [column, row] : exchange_row_owner_grid(vsize1, vsize2,
+                                                                            long(nsubworld))) {
+                        Batch batch(column, row, _);
+                        result.push_back(std::make_pair(batch, compute_priority(batch)));
+                    }
+                    return result;
+                }
 
                 if (owner_pinned) {
                     // lower-triangular grid over one granularity-aware split, shared with

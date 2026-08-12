@@ -114,6 +114,40 @@ int test_row_owner_split() {
     return t1.end();
 }
 
+int test_row_owner_grid() {
+    test_output t1("testing exchange_row_owner_grid");
+
+    // deliberately ncolumn != nrow: vf and the bra/ket pair are independent lengths, and every
+    // consumer so far has had them equal, so an implementation that conflated them would pass
+    // every existing test
+    const long ncol = 3, nrow = 8, nsw = 4;
+    const auto grid = exchange_row_owner_grid(ncol, nrow, nsw);
+    const auto columns = exchange_row_owner_split(ncol, nsw);
+    const auto rows = exchange_row_owner_split(nrow, nsw);
+
+    t1.checkpoint(grid.size() == columns.size() * rows.size(), "the grid is the full rectangle");
+
+    // assert which split feeds which slot, not just the shape: a swap gives a grid of the same
+    // size whenever the two lengths happen to agree, which is the case that has always been run
+    bool sides_ok = true, pairs_unique = true;
+    std::set<std::pair<long,long>> seen;
+    for (const auto& [c, r] : grid) {
+        if (std::find(columns.begin(), columns.end(), c) == columns.end()) sides_ok = false;
+        if (std::find(rows.begin(), rows.end(), r) == rows.end()) sides_ok = false;
+        if (not seen.insert({c.begin, r.begin}).second) pairs_unique = false;
+    }
+    t1.checkpoint(sides_ok, "the column slot comes from the vf split and the row slot from the bra split");
+    t1.checkpoint(pairs_unique and seen.size() == grid.size(), "every column/row pair appears exactly once");
+
+    // one batch per rank per dimension, so the shorter dimension is what limits the columns
+    t1.checkpoint(long(columns.size()) == std::min(ncol, nsw) and long(rows.size()) == std::min(nrow, nsw),
+                  "each dimension is split to one batch per rank, clamped by its own length");
+    t1.checkpoint(exchange_row_owner_grid(0, nrow, nsw).empty() and
+                  exchange_row_owner_grid(ncol, 0, nsw).empty(),
+                  "an empty dimension gives an empty grid");
+    return t1.end();
+}
+
 int test_owner_assignment() {
     test_output t1("testing exchange owner assignment");
 
@@ -169,6 +203,7 @@ int main(int argc, char** argv) {
     int result = 0;
     result += test_batch_split();
     result += test_row_owner_split();
+    result += test_row_owner_grid();
     result += test_owner_assignment();
     if (result == 0) print("\n --> all tests \033[32m passed \033[0m \n");
     else print("\n --> all tests \033[31m failed \033[0m \n");
