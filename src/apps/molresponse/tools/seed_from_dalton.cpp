@@ -19,6 +19,7 @@
 
 #include "dalton_rspvec.hpp"
 #include "dalton_gto.hpp"
+#include "dalton_mra.hpp"    // shared DaltonResponseFunctor + projection helpers
 
 #include "../ResponseProtocol.hpp"
 #include "../kernels/tags.hpp"
@@ -38,39 +39,9 @@
 using namespace madness;
 using namespace molresponse_v3;
 
-namespace {
-
-class DaltonResponseFunctor : public madness::FunctionFunctorInterface<double, 3> {
-    const DaltonMoldenBasis& basis;
-    std::vector<double> weights;    // D[:,i] for orbital i
-    std::vector<madness::coord_3d> centers;
-
-public:
-    DaltonResponseFunctor(const DaltonMoldenBasis& b, std::vector<double> w)
-        : basis(b), weights(std::move(w)) {
-        for (const auto& sh : basis.shells)
-            centers.push_back({sh.cx, sh.cy, sh.cz});
-    }
-
-    double operator()(const madness::coord_3d& r) const override {
-        double val = 0.0;
-        double bf[9];  // max 9 components for g shell
-        for (size_t s = 0; s < basis.shells.size(); s++) {
-            const auto& sh = basis.shells[s];
-            sh.evaluate(r[0], r[1], r[2], bf);
-            const int off = basis.ao_offsets[s];
-            for (int k = 0; k < sh.n_ao; k++)
-                val += weights[static_cast<size_t>(off + k)] * bf[k];
-        }
-        return val;
-    }
-
-    std::vector<madness::coord_3d> special_points() const override {
-        return centers;
-    }
-};
-
-} // namespace
+// DaltonResponseFunctor + the AO->MRA projection helpers now live in
+// dalton_mra.hpp (shared with tpa_from_dalton and the dalton.dir FD seed
+// path, solvers/dalton_import.hpp).
 
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
@@ -185,38 +156,12 @@ int main(int argc, char** argv) {
         const double ysign = parser.key_exists("yflip") ? +1.0 : -1.0;
 
         // Project one occ-vir block (flat, row-major occ-outer) into n_occ
-        // Functions: D = C_vir @ blk^T, one Function per occupied column,
-        // scaled by sgn*scale.
+        // Functions scaled by sgn*scale — shared machinery (dalton_mra.hpp).
         auto project_block = [&](const std::vector<double>& blk,
                                  double sgn) -> vecfuncT {
-            std::vector<double> D(static_cast<size_t>(n_ao * n_occ), 0.0);
-            for (int mu = 0; mu < n_ao; mu++)
-                for (int i = 0; i < n_occ; i++) {
-                    double val = 0.0;
-                    for (int a = 0; a < n_vir; a++)
-                        val += molden.mo_coeffs[
-                                   static_cast<size_t>(mu + n_ao * (n_occ + a))]
-                             * blk[static_cast<size_t>(i * n_vir + a)];
-                    D[static_cast<size_t>(mu + n_ao * i)] = val;
-                }
-            vecfuncT out;
-            for (int i = 0; i < n_occ; i++) {
-                std::vector<double> D_col_i(
-                    D.begin() + static_cast<ptrdiff_t>(i * n_ao),
-                    D.begin() + static_cast<ptrdiff_t>((i + 1) * n_ao));
-                // base-type ptr so functor() picks the interface overload
-                std::shared_ptr<madness::FunctionFunctorInterface<double, 3>> ff =
-                    std::make_shared<DaltonResponseFunctor>(molden.basis,
-                                                            std::move(D_col_i));
-                Function<double, 3> fn = FunctionFactory<double, 3>(world)
-                                             .functor(ff)
-                                             .thresh(thresh)
-                                             .truncate_on_project();
-                const double s2 = sgn * scale;
-                if (s2 != 1.0) fn.scale(s2);
-                out.push_back(fn);
-            }
-            return out;
+            return project_dalton_ov_block(world, molden.basis,
+                                           molden.mo_coeffs, n_ao, n_mo, n_occ,
+                                           n_vir, blk, thresh, sgn * scale);
         };
 
         const size_t NR = root_list.size();
