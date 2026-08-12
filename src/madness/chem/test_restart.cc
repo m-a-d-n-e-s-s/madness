@@ -307,6 +307,54 @@ void test_automatic() {
         check(not unknown2.iterate, "auto: unrecorded archive eprec is not a mismatch");
     }
 
+    // The functional is the Hamiltonian just as eprec is: an `xc=lda` run in a
+    // directory holding a converged `xc=hf` archive must NOT skip the SCF and
+    // report the HF energy. The orbitals are still the best guess available.
+    {
+        RestartMetadata meta = converged_archive(1.e-6, 1.e-4);
+        meta.xc = "hf";
+        const RestartPlan same = plan_restart(A, with_archive(meta), moldft, ladder,
+                user_dconv, lih(), Representation::mo, 0.0, "hf");
+        check(not same.iterate, "auto: matching xc keeps the convergence claim");
+
+        const RestartPlan diff = plan_restart(A, with_archive(meta), moldft, ladder,
+                user_dconv, lih(), Representation::mo, 0.0, "lda");
+        check(diff.iterate, "auto: a different functional re-converges");
+        check(diff.source == RestartSource::restartdata,
+              "auto: a different functional still uses the orbitals as a guess");
+        // the convergence CLAIM is dropped, but not the precision the orbitals are
+        // represented at: they are accurate functions of the wrong operator, so
+        // there is nothing to gain from reprojecting them back down to rung 0
+        check(diff.protocol_start == 1,
+              "auto: a different functional resumes at the archive's precision");
+
+        // an empty string on either side is "not recorded", not a mismatch
+        const RestartPlan unknown = plan_restart(A, with_archive(meta), moldft, ladder,
+                user_dconv, lih(), Representation::mo, 0.0, "");
+        check(not unknown.iterate, "auto: unknown requested xc is not a mismatch");
+        const RestartPlan unknown2 = plan_restart(A,
+                with_archive(converged_archive(1.e-6, 1.e-4)), moldft, ladder, user_dconv,
+                lih(), Representation::mo, 0.0, "lda");
+        check(not unknown2.iterate, "auto: unrecorded archive xc is not a mismatch");
+    }
+
+    // the same for the nuclear correlation factor: two nemo runs in one directory
+    // that differ only in `ncf` solve different Hamiltonians under the same
+    // representation tag, so the representation check cannot catch them
+    {
+        RestartMetadata meta = converged_archive(1.e-6, 1.e-4, Representation::nemo);
+        meta.ncf = "slater:2.000000";
+        const RestartPlan same = plan_restart(A, with_archive(meta), nemo, ladder,
+                user_dconv, lih(), Representation::nemo, 0.0, "", "slater:2.000000");
+        check(not same.iterate, "auto: matching ncf keeps the convergence claim");
+
+        const RestartPlan diff = plan_restart(A, with_archive(meta), nemo, ladder,
+                user_dconv, lih(), Representation::nemo, 0.0, "", "slater:1.000000");
+        check(diff.iterate, "auto: a different ncf re-converges");
+        check(diff.source == RestartSource::restartdata,
+              "auto: a different ncf still uses the orbitals as a guess");
+    }
+
     // nwchem, when there is nothing better and the engine can read it
     expect("auto, nwchem file named", A, nothing(false, true), moldft,
            RestartSource::nwchem, true, 0);
