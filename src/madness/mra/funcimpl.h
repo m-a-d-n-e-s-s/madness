@@ -3045,8 +3045,12 @@ template<size_t NDIM>
 
             if (lc.size() == 0) {
                 MADNESS_CHECK(lit != left->coeffs.end());
+                // redundant form puts coefficients and computed norms on every
+                // node; without them the screen below reads garbage
+                MADNESS_CHECK(lit->second.has_coeff());
                 lnorm = lit->second.get_norm_tree();
                 ldnorm = lit->second.get_dnorm_tree();
+                MADNESS_CHECK(ldnorm < NORM_TREE_UNCOMPUTED);
                 l_is_leaf = !lit->second.has_children();
             }
             else {
@@ -3082,20 +3086,14 @@ template<size_t NDIM>
                 riterT rit = right->coeffs.find(key).get();
                 if (rc.size() == 0) {
                     MADNESS_CHECK(rit != right->coeffs.end());
+                    MADNESS_CHECK(rit->second.has_coeff());
                     rnorm = rit->second.get_norm_tree();
                     rdnorm = rit->second.get_dnorm_tree();
+                    MADNESS_CHECK(rdnorm < NORM_TREE_UNCOMPUTED);
                 }
                 else {
                     rnorm = rc.normf();
                     rdnorm = 0.0;
-                }
-
-                if (ldnorm >= NORM_TREE_UNCOMPUTED || rdnorm >= NORM_TREE_UNCOMPUTED) {
-                    static std::atomic<bool> warned{false};
-                    bool expected = false;
-                    if (warned.compare_exchange_strong(expected, true))
-                        print("WARNING: mul_sparse operand has an uncomputed dnorm_tree; "
-                              "screening is disabled for those nodes (missing make_redundant?)");
                 }
 
                 // the neglected cross terms are below threshold: multiply here (requires redundant form)
@@ -3125,7 +3123,11 @@ template<size_t NDIM>
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
                     riterT rit = vright[i]->coeffs.find(key).get();
+                    // coefficients handed down from the parent stand in for a node
+                    // that need not exist here; without them the node must exist
+                    MADNESS_CHECK(vrc[i].size() || rit != vright[i]->coeffs.end());
                     if (vrc[i].size() || !rit->second.has_children()) {
+                        MADNESS_CHECK(vrc[i].size() || rit->second.has_coeff());
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = (vrc[i].size() ? vrc[i] : rit->second.coeff().full_tensor_copy())(___);
                         vrss[i] = vright[i]->unfilter(rd);
