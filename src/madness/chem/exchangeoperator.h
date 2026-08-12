@@ -1337,11 +1337,16 @@ private:
 
         /// The result entries this tile actually wrote.
 
-        /// operator() scatters into the bra range and the vf range of a full-width Kf and
-        /// leaves everything else zero, so summing all `nresult` entries would gaxpy mostly
-        /// zeros -- a per-tile cost proportional to the whole result vector. The union of the
-        /// two input ranges is a correct superset of every entry the tile touched; a full-size
-        /// or absent range falls back to all of them.
+        /// operator() scatters into a full-width Kf and leaves everything else zero, so summing all
+        /// `nresult` entries would gaxpy mostly zeros -- a per-tile cost proportional to the whole
+        /// result vector. Every tile writes its column range; a symmetric off-diagonal tile also
+        /// writes its row range, reusing each intermediate for the transposed element, whereas an
+        /// asymmetric tile contributes to its column alone. A full-size or absent range falls back
+        /// to all of them.
+        ///
+        /// The result must be a *set*: the caller gaxpys one entry per index, so a repeated index is
+        /// added twice. Both ranges come from one split while the grid is triangular, where they are
+        /// always equal or disjoint, but from separate splits of different lengths otherwise.
         std::vector<long> touched_result_indices() const {
             std::vector<long> idx;
             auto add_range = [&](const Batch_1D& b) {
@@ -1354,7 +1359,10 @@ private:
                 return idx;
             }
             add_range(batch.input[0]);
-            if (batch.input.size() > 1 and not (batch.input[1] == batch.input[0])) add_range(batch.input[1]);
+            if (symmetric and batch.input.size() > 1 and not (batch.input[1] == batch.input[0]))
+                add_range(batch.input[1]);
+            std::sort(idx.begin(), idx.end());
+            idx.erase(std::unique(idx.begin(), idx.end()), idx.end());
             return idx;
         }
 
