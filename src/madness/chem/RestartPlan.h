@@ -252,12 +252,18 @@ first_rung_tighter_than(const std::vector<double>& protocol, const double achiev
 /// @param[in] wanted     the representation the asking engine stores (mo/nemo/znemo)
 /// @param[in] eprec      the requested molecular smoothing parameter; 0 skips the
 ///                       check, which is what a caller that does not know it passes
+/// @param[in] xc         the requested exchange-correlation functional; an empty
+///                       string skips the check
+/// @param[in] ncf        the requested nuclear correlation factor, e.g. "slater:2.0";
+///                       empty for an engine that has none, and skips the check
 inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& disk,
                                  const RestartCapabilities& can,
                                  const std::vector<double>& protocol,
                                  const double user_dconv, const Molecule& requested,
                                  const Representation wanted,
-                                 const double eprec = 0.0) {
+                                 const double eprec = 0.0,
+                                 const std::string& xc = "",
+                                 const std::string& ncf = "") {
 
     MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in plan_restart");
     const std::size_t last = protocol.size() - 1;
@@ -272,6 +278,30 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
 
     RestartPlan plan;
     plan.mode = mode;
+
+    // does the archive solve the same Hamiltonian this run is asking about?
+    //
+    // eprec, xc and the nuclear correlation factor all change the operator, not
+    // just its representation: orbitals from a different one are a perfectly good
+    // guess, but their convergence claim is about another problem, and -- unlike a
+    // k or thresh mismatch -- that cannot be repaired by reprojecting. An unset
+    // value on either side (0.0 / "") means "not recorded" -- v4 archives, the
+    // seeding tools, and engines that have no ncf -- which is not evidence of a
+    // mismatch. Returns an empty string when the Hamiltonians agree, otherwise the
+    // phrase that goes into `why`.
+    auto hamiltonian_mismatch = [&](const RestartMetadata& meta) {
+        if (meta.eprec != 0.0 and eprec != 0.0 and
+                std::abs(meta.eprec / eprec - 1.0) > 1.e-10)
+            return "archive was written at eprec " + format_thresh(meta.eprec) +
+                   ", this run uses " + format_thresh(eprec);
+        if (not meta.xc.empty() and not xc.empty() and meta.xc != xc)
+            return "archive was written with xc '" + meta.xc + "', this run uses '" +
+                   xc + "'";
+        if (not meta.ncf.empty() and not ncf.empty() and meta.ncf != ncf)
+            return "archive was written with the nuclear correlation factor '" +
+                   meta.ncf + "', this run uses '" + ncf + "'";
+        return std::string();
+    };
 
     // ---- fall back to the initial guess, recording why ---------------------
     auto give_up = [&](const std::string& why) {
@@ -352,6 +382,17 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             plan.iterate = false;
             plan.protocol_start = last;
             plan.stale_energy = meta.current_energy;
+            const std::string other = hamiltonian_mismatch(meta);
+            if (not other.empty()) {
+                // Not overridden -- the user asked for these orbitals and gets
+                // them -- but handing back an energy for a different Hamiltonian
+                // without saying so is how a wrong number ends up in a table.
+                plan.warn = true;
+                plan.why = "restart read_only: " + other +
+                           " -- returning the archive's energy for a DIFFERENT "
+                           "Hamiltonian, as requested";
+                return plan;
+            }
             const bool good = meta.is_converged_to(target_thresh, target_dconv);
             plan.warn = not good;
             plan.why = good
@@ -438,17 +479,14 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         return give_up("restart auto: geometry moved and no AO projections available");
     }
 
-    // eprec sets the width of the nuclear-charge smearing, so an archive written
-    // at a different eprec converged a different Hamiltonian: its orbitals are a
-    // perfectly good guess, but its convergence claim is not about this problem,
-    // and unlike a k or thresh mismatch this cannot be repaired by reprojecting.
-    // A zero on either side means "not recorded" (v4 archives, and the seeding
-    // tools), which is not evidence of a mismatch.
-    const bool eprec_known = meta.eprec != 0.0 and eprec != 0.0;
-    if (eprec_known and std::abs(meta.eprec / eprec - 1.0) > 1.e-10)
-        return continue_from_archive(meta, "restart auto: archive was written at eprec " +
-                                           format_thresh(meta.eprec) + ", this run uses " +
-                                           format_thresh(eprec) +
+    // A different eprec, functional or nuclear correlation factor is a different
+    // Hamiltonian: keep the orbitals as a guess, but throw away the archive's
+    // convergence claim, which is about another problem. Without this an
+    // `xc=lda` run in a directory holding a converged `xc=hf` archive skips the
+    // SCF entirely and reports the HF energy.
+    const std::string other = hamiltonian_mismatch(meta);
+    if (not other.empty())
+        return continue_from_archive(meta, "restart auto: " + other +
                                            " -- a different Hamiltonian, so re-converging");
 
     if (meta.is_converged_to(target_thresh, target_dconv)) {
@@ -508,17 +546,21 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
 ///    output" argument does not have to stay true for correctness.
 ///
 /// @param[in] can which sources the asking engine can read; see RestartCapabilities
+/// @param[in] ncf the nuclear correlation factor this run uses (SCF::restart_ncf);
+///                empty for an engine that has none
 inline RestartPlan make_restart_plan(World& world, const RestartMode mode,
                                      const CalculationParameters& param,
                                      const Molecule& requested,
                                      const Representation wanted,
-                                     const RestartCapabilities& can) {
+                                     const RestartCapabilities& can,
+                                     const std::string& ncf = "") {
 
     const RestartSources disk =
             survey_restart_sources(world, param.prefix(), param.nwfile() != "none");
 
     RestartPlan plan = plan_restart(mode, disk, can, param.protocol(), param.dconv(),
-                                    requested, wanted, requested.parameters.eprec());
+                                    requested, wanted, requested.parameters.eprec(),
+                                    param.xc(), ncf);
     world.gop.broadcast_serializable(plan, 0);
 
     if (world.rank() == 0 and param.print_level() > 1) {

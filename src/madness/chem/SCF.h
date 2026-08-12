@@ -564,7 +564,7 @@ public:
         // is no drift to detect.
         RestartPlan plan = make_restart_plan(world, restart_mode_from_string(calc.param.restart()),
                 calc.param, calc.molecule, calc.restart_representation,
-                RestartCapabilities::all());
+                RestartCapabilities::all(), calc.restart_ncf);
 
         // set the target basis BEFORE reading, so load_mos reprojects straight
         // into the rung we are about to iterate at rather than into whatever k
