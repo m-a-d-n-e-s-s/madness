@@ -753,6 +753,14 @@ private:
         /// pin each task to a rank that owns one of its batches, over the owner-pinned split
         bool owner_pinned = false;
         long granularity_level = 1;
+        /// Per-application salt for the batch record keys, from exchange_batch_salt.
+
+        /// Carried on the task rather than re-derived where it is used: every rank builds the
+        /// same task objects collectively, so a constructor argument already reaches every
+        /// rank, and deriving it instead requires whichever operand vector it is taken from to
+        /// be available in full wherever a key is formed. That is true only while the ket is
+        /// passed unbatched.
+        long batch_salt_ = 0;
         /// 1 = sum into a subworld buffer and drain that into the universe;
         /// 2 = additionally reduce within a node first, so only one rank per node scatters
         ///     across nodes. Degrades to 1 automatically when there is a single node.
@@ -984,9 +992,11 @@ private:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
                                 const bool symmetric, const bool owner_pinned = false,
                                 const long granularity_level = 1, const long universe_rank = 0,
-                                const int accumulation_mode = 2, const bool cost_aware = true)
+                                const int accumulation_mode = 2, const bool cost_aware = true,
+                                const long batch_salt = 0)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
+                  batch_salt_(batch_salt),
                   accumulation_mode_(accumulation_mode), cost_aware_(cost_aware),
                   universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
@@ -1111,7 +1121,7 @@ private:
             const vecfuncT& mo_ket = std::get<2>(argtuple);
             // one fence up front, so store_batch does not need one per function
             world.gop.fence();
-            const long salt = exchange_batch_salt(mo_ket);
+            const long salt = batch_salt_;
             const std::vector<Batch_1D> split =
                     exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level);
 
@@ -1154,7 +1164,10 @@ private:
         ///
         /// This is what makes the owner-pinned transport worth its machinery: without it every
         /// task pays the full latency of its remote batch with nothing to overlap it against.
-        void sym_pipeline_advance(World& subworld, const vecfuncT& mo_ket,
+        /// \param mo_ket  unused: the salt it used to be derived from is carried on the task.
+        ///                It stays in the signature because the queue's detection trait matches
+        ///                on it (has_sym_pipeline_advance_v).
+        void sym_pipeline_advance(World& subworld, const vecfuncT&,
                                   const Batch_1D& next_col, const Batch_1D& next_row,
                                   const bool has_next) const {
             if (not owner_pinned) return;
@@ -1167,7 +1180,7 @@ private:
             prefetch_next_ = PrefetchSlot();
             if (not has_next or cloud_ptr == nullptr) return;
             Cloud& cloud = *cloud_ptr;
-            const long salt = exchange_batch_salt(mo_ket);
+            const long salt = batch_salt_;
             for (const Batch_1D& r : {next_col, next_row}) {
                 const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
                 if (cloud.batch_owner(record) == universe_rank_) continue;   // reads locally
@@ -1373,7 +1386,7 @@ private:
             if (owner_pinned) {
                 MADNESS_CHECK_THROW(cloud_ptr != nullptr, "owner-pinned exchange: cloud_ptr is null");
                 Cloud& cloud = *cloud_ptr;
-                const long salt = exchange_batch_salt(vket);
+                const long salt = batch_salt_;
                 // copy the handles out of the cache: the reference is only good until the
                 // entry is evicted, and the second fetch may evict the first
                 bra_owned = fetch_batch(world, cloud,

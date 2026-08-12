@@ -120,9 +120,12 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // Owner-pinned placement applies to the symmetric case only: it needs bra == ket so
     // that one set of batches serves every operand role and both of a task's batches are
     // owned by some rank. The asymmetric case keeps the size-driven partition.
+    // the salt is formed here, once, where the ket is in hand: every rank builds the same task
+    // objects collectively, so passing it reaches every rank without a manifest
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
                                   /*owner_pinned=*/is_symmetric(), batch_granularity_,
-                                  world.rank(), accumulation_mode_, cost_aware_assign_);
+                                  world.rank(), accumulation_mode_, cost_aware_assign_,
+                                  exchange_batch_salt(mo_ket));
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. The algorithm therefore fixes the storage policy.
