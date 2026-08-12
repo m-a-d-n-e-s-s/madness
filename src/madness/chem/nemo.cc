@@ -318,8 +318,15 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
   fock->add_operator("V", std::make_shared<Nuclear<double, 3>>(world, this));
   fock->add_operator("T", std::make_shared<Kinetic<double, 3>>(world));
   if (calc->xc.hf_exchange_coefficient() > 0.0) {
-    Exchange<double, 3> K =
-        Exchange<double, 3>(world, this, ispin).set_symmetric(false);
+    // The algorithm comes from the input rather than ExchangeImpl's built-in default, which this
+    // site used to take, ignoring the parameter. Only `multiworld` stores bra and ket apart, which
+    // is what nemo's asymmetric operands need before the triangle is usable -- see
+    // compute_nemo_potentials for why the exchange is symmetric even though the operands are not.
+    const auto alg = Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg());
+    Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
+                                .set_algorithm(alg)
+                                .set_symmetric(alg == Exchange<double, 3>::multiworld_efficient)
+                                .set_printlevel(get_calc_param().print_level());
     fock->add_operator("K", {-1.0, std::make_shared<Exchange<double, 3>>(K)});
   }
   if (calc->xc.is_dft()) {
@@ -635,11 +642,16 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
       Knemo = zero_functions_compressed<double, 3>(world, size_to_int(nemo.size()));
       // construction must happen outside the if-block to avoid pointers to
       // arguments going out of scope in the macrotaskq
+      //
+      // Symmetric even though the operands are not: bra = R^2 * ket, and a common weight leaves
+      // bra_i * vf_j symmetric in (i,j), which is all the triangle needs. The algorithm comes from
+      // the input instead of being fixed here, so `hfexalg multiworld` reaches nemo's SCF; the
+      // parameter defaults to the row algorithm this site hard-coded, so the default is unchanged.
       Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
                                   .set_symmetric(true)
-                                  .set_taskq(taskq);
-      K.set_algorithm(
-          Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
+                                  .set_taskq(taskq)
+                                  .set_printlevel(get_calc_param().print_level());
+      K.set_algorithm(Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg()));
       if (calc->xc.hf_exchange_coefficient() > 0.0)
         Knemo = K(nemo);
 
