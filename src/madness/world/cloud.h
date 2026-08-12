@@ -303,8 +303,11 @@ private:
     /// Must not throw: an exception here escapes every task-level handler.
     void on_trigger(batch_keyT record, ProcessID requester, int tag);
 
-    /// requester side, comm thread: size the buffer, post the Irecv, enqueue finish_recv
-    void on_reply(int tag, std::size_t size);
+    /// requester side, comm thread: size the buffer, post the Irecvs, enqueue finish_recv
+
+    /// \param chunk  the chunking the *owner* used, echoed back so the receiver never has to
+    ///               infer it. See on_trigger.
+    void on_reply(int tag, std::size_t size, std::size_t chunk);
 
     /// requester side, worker task: await the background-progressed Irecv and set the future
     void finish_recv(int tag);
@@ -1303,26 +1306,30 @@ inline void BatchTransport::on_trigger(batch_keyT record, ProcessID requester, i
         // Not held here -- reply with the sentinel and post nothing. Throwing instead
         // would escape this comm-thread handler past every task-level handler and abort
         // the run with no attribution; the requester raises it in task context.
-        this->send(requester, &BatchTransport::on_reply, tag, BATCH_NOT_FOUND);
+        this->send(requester, &BatchTransport::on_reply, tag, BATCH_NOT_FOUND, std::size_t(0));
         return;
     }
     const std::size_t n = ptr_size.second;
+    // Sent along rather than read again by the requester: the size is a process-local static, so
+    // the two ends can disagree, and a receiver that guessed would post Irecvs that do not match
+    // the messages -- MPI_ERR_TRUNCATE on the comm thread, where nothing catches it.
+    const std::size_t chunk = batch_chunk_bytes_;
     // MPI does not overtake between messages sharing source, tag and communicator, so posting
     // the chunks in ascending offset order matches the requester's Irecvs pairwise without a
     // per-chunk tag. That does rely on one transfer per tag, which alloc_tag's span makes true.
     {
         std::lock_guard<std::mutex> g(sends_mtx_);
-        for (std::size_t off = 0; off < n; off += batch_chunk_bytes_) {
-            const std::size_t len = std::min(batch_chunk_bytes_, n - off);
+        for (std::size_t off = 0; off < n; off += chunk) {
+            const std::size_t len = std::min(chunk, n - off);
             sends_.push_back(u.mpi.Isend(ptr_size.first + off, int(len), MPI_BYTE, requester, tag));
         }
     }
-    // the size rides in the reply so the requester can post its Irecv now, during its
+    // the size rides in the reply so the requester can post its Irecvs now, during its
     // own compute, and let the rendezvous finish in the background
-    this->send(requester, &BatchTransport::on_reply, tag, n);
+    this->send(requester, &BatchTransport::on_reply, tag, n, chunk);
 }
 
-inline void BatchTransport::on_reply(int tag, std::size_t size) {
+inline void BatchTransport::on_reply(int tag, std::size_t size, std::size_t chunk) {
     World& u = this->get_world();
     std::shared_ptr<PendingRecv> p;
     {
@@ -1342,9 +1349,10 @@ inline void BatchTransport::on_reply(int tag, std::size_t size) {
         return;
     }
     p->buf.resize(size);
-    // must match on_trigger's chunking exactly, in the same order; see batch_chunk_bytes
-    for (std::size_t off = 0; off < size; off += batch_chunk_bytes_) {
-        const std::size_t len = std::min(batch_chunk_bytes_, size - off);
+    // the owner's framing, not ours; see on_trigger. Positive whenever the record was found, and
+    // unguarded because a throw on this thread is what the framing exists to avoid
+    for (std::size_t off = 0; off < size; off += chunk) {
+        const std::size_t len = std::min(chunk, size - off);
         p->reqs.push_back(u.mpi.Irecv(p->buf.data() + off, int(len), MPI_BYTE, p->owner, tag));
     }
     u.taskq.add(this, &BatchTransport::finish_recv, tag);

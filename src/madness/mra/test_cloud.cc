@@ -373,6 +373,10 @@ int test_batch_fetch_chunked(World& universe) {
 
     const std::size_t saved = BatchTransport::batch_chunk_bytes();
     BatchTransport::set_batch_chunk_bytes(chunk);
+    // Fenced because the owner reads the size when it serves. A rank whose own fetch resolves
+    // locally would otherwise run ahead and restore the default before serving, leaving the
+    // transfer a single chunk -- passing while exercising nothing.
+    universe.gop.fence();
     {
         auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
         World& subworld = *subworld_ptr;
@@ -383,6 +387,24 @@ int test_batch_fetch_chunked(World& universe) {
             t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "chunked batch function norm");
         subworld.gop.fence();
     }
+    universe.gop.fence();
+
+    // The ends must not have to agree on the chunk size, so give them different ones. CI caught
+    // this as MPI_ERR_TRUNCATE at np=2 when a rank restored the default before serving.
+    BatchTransport::set_batch_chunk_bytes(universe.rank() == 0 ? chunk : saved);
+    universe.gop.fence();
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        auto got = cloud.fetch_batch_p2p<double, 3>(subworld, record);
+        t1.checkpoint(got.size() == nfunc, "the ends need not agree on the chunk size");
+        for (std::size_t i = 0; i < got.size(); ++i)
+            t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "mismatched-chunk batch function norm");
+        subworld.gop.fence();
+    }
+    universe.gop.fence();
+
     BatchTransport::set_batch_chunk_bytes(saved);
     universe.gop.fence();
     return t1.end();
