@@ -148,6 +148,54 @@ int test_row_owner_grid() {
     return t1.end();
 }
 
+int test_row_owner_assignment() {
+    test_output t1("testing exchange_row_owner_assign");
+
+    // ncolumn != nrow throughout: the two dimensions are independent lengths
+    bool one_rank_per_column = true, complete = true, in_range = true, spread_ok = true;
+    for (long ncol : {1L, 2L, 3L, 5L, 8L}) {
+        for (long nrow : {1L, 4L, 7L}) {
+            for (long nworker : {1L, 2L, 4L, 8L}) {
+                const auto owner = exchange_row_owner_assign(ncol, nrow, nworker);
+                if (long(owner.size()) != ncol * nrow) complete = false;
+                std::map<long, std::set<long>> ranks_of_column;
+                std::vector<long> per_rank(nworker, 0);
+                for (const auto& [task, rank] : owner) {
+                    if (rank < 0 or rank >= nworker) in_range = false;
+                    ranks_of_column[task.first].insert(rank);
+                    ++per_rank[rank];
+                }
+                for (const auto& [column, ranks] : ranks_of_column)
+                    if (ranks.size() != 1) one_rank_per_column = false;
+                // each worker gets whole columns, so the counts differ by at most one column
+                const long mx = *std::max_element(per_rank.begin(), per_rank.end());
+                const long mn = *std::min_element(per_rank.begin(), per_rank.end());
+                if (mx - mn > nrow) spread_ok = false;
+            }
+        }
+    }
+    t1.checkpoint(complete, "every column/row task is assigned exactly once");
+    t1.checkpoint(in_range, "every owner is a valid worker");
+    t1.checkpoint(one_rank_per_column,
+                  "all tasks of a column share one worker, so its held batch is never fetched");
+    t1.checkpoint(spread_ok, "workers differ by at most one column's worth of tasks");
+
+    // distinct columns land on distinct workers while there are workers to spare -- that is what
+    // makes each rank hold a different vf batch
+    const auto owner = exchange_row_owner_assign(4, 3, 4);
+    std::set<long> distinct;
+    for (long c = 0; c < 4; ++c) distinct.insert(owner.at({c, 0}));
+    t1.checkpoint(distinct.size() == 4, "distinct columns go to distinct workers when enough exist");
+
+    t1.checkpoint(exchange_row_owner_assign(4, 3, 4) == exchange_row_owner_assign(4, 3, 4),
+                  "deterministic, so every rank agrees without communicating");
+    t1.checkpoint(exchange_row_owner_assign(0, 3, 4).empty() and
+                  exchange_row_owner_assign(4, 0, 4).empty() and
+                  exchange_row_owner_assign(4, 3, 0).empty(),
+                  "degenerate dimensions or worker count give an empty assignment");
+    return t1.end();
+}
+
 int test_owner_assignment() {
     test_output t1("testing exchange owner assignment");
 
@@ -204,6 +252,7 @@ int main(int argc, char** argv) {
     result += test_batch_split();
     result += test_row_owner_split();
     result += test_row_owner_grid();
+    result += test_row_owner_assignment();
     result += test_owner_assignment();
     if (result == 0) print("\n --> all tests \033[32m passed \033[0m \n");
     else print("\n --> all tests \033[31m failed \033[0m \n");

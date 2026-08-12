@@ -86,6 +86,22 @@ exchange_row_owner_grid(const std::size_t ncolumn, const std::size_t nrow, const
     return out;
 }
 
+/// Owner of every task in the asymmetric grid: all tasks of a column go to one worker.
+
+/// The column operand is the one that stays put, so putting a whole column on one worker means the
+/// batch it holds is never fetched, and that worker computes the *complete* result for those
+/// columns -- there is no cross-rank reduction of results beyond the final gather. Handing columns
+/// out in order is balanced by construction, the grid being a full rectangle, so no cost model is
+/// needed here. Keyed by batch index, like exchange_sym_round_robin_assign.
+inline std::map<std::pair<long,long>,long>
+exchange_row_owner_assign(const long ncolumn, const long nrow, const long nworker) {
+    std::map<std::pair<long,long>,long> owner;
+    if (ncolumn <= 0 or nrow <= 0 or nworker <= 0) return owner;
+    for (long c = 0; c < ncolumn; ++c)
+        for (long r = 0; r < nrow; ++r) owner[{c, r}] = c % nworker;
+    return owner;
+}
+
 /// Triangular index of a batch pair, collapsing (i,j) and (j,i): a*(a+1)/2 + b.
 
 /// The indexing convention of the per-task cost vector, shared by whoever records a
@@ -1081,6 +1097,38 @@ private:
                                       const long nsubworld) {
             owner_map_.clear();
             if (not owner_pinned or nsubworld <= 0) return;
+
+            if (not symmetric) {
+                // Both dimensions are indexed from the partition rather than from nresult, which is
+                // the column length only: the row dimension carries bra and ket and has its own.
+                std::map<long,long> column_index, row_index;
+                for (const auto& [task_batch, priority] : partition) {
+                    MADNESS_CHECK_THROW(task_batch.input.size() >= 2,
+                                        "owner-pinned exchange expects two-dimensional task batches");
+                    column_index[task_batch.input[0].begin] = 0;   // renumbered below, in order
+                    row_index[task_batch.input[1].begin] = 0;
+                }
+                long next = 0;
+                for (auto& [begin, index] : column_index) index = next++;
+                next = 0;
+                for (auto& [begin, index] : row_index) index = next++;
+
+                const auto assignment = exchange_row_owner_assign(long(column_index.size()),
+                                                                  long(row_index.size()), nsubworld);
+                for (const auto& [task_batch, priority] : partition) {
+                    const long c = column_index[task_batch.input[0].begin];
+                    const long r = row_index[task_batch.input[1].begin];
+                    auto it = assignment.find({c, r});
+                    owner_map_[{task_batch.input[0].begin, task_batch.input[1].begin}] =
+                            (it != assignment.end()) ? it->second : (c % nsubworld);
+                }
+                // Cost-aware placement stays off here: its vector is indexed by exchange_sym_tri,
+                // which is meaningless for a rectangle, and a column-per-worker grid is already
+                // balanced. An empty vector is what stops the tiles recording into it.
+                cost_this_call_.clear();
+                batch_begin_to_index_.clear();
+                return;
+            }
 
             const std::vector<Batch_1D> split =
                     exchange_sym_owner_split(nresult, nsubworld, granularity_level);
