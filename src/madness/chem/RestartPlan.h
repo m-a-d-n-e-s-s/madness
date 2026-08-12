@@ -375,9 +375,10 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                 "kind of orbital than this calculation uses");
 
         if (mode == RestartMode::read_only) {
+            MADNESS_CHECK_THROW(
+                    compare_geometry(meta.molecule, requested) == GeometryMatch::same,
+                    "restart read_only: archive geometry does not match the requested geometry");
             // The user asserted these orbitals are the answer. Respect that even
-            // when they are not converged to the requested precision -- warn and
-            // hand back the stale energy rather than second-guessing.
             plan.source = RestartSource::restartdata;
             plan.iterate = false;
             plan.protocol_start = last;
