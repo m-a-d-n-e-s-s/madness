@@ -98,6 +98,49 @@ int test_generic_exchange(World& world) {
     return t1.end();
 }
 
+/// nemo's shape: bra = w * ket with vf == ket, which keeps the symmetric task list
+int test_weighted_bra_exchange(World& world) {
+    test_output t1("testing exchange with bra = w * ket and vf == ket", world.rank() == 0);
+
+    // The symmetric kernel reuses each intermediate for the transposed element, which needs
+    // bra_i * vf_j to be symmetric in (i,j) -- true whenever bra is a common weight times vf, not
+    // only when they are equal. nemo is exactly this, with w = R^2, so it keeps the triangular task
+    // list while bra and ket remain different functions that have to be stored separately.
+    const long nocc = 5;
+    const auto ket = make_set(world, nocc, 1.1, 0.20);
+    const real_function_3d weight = real_factory_3d(world)
+                                            .functor(shifted_gaussian(0.15, coord_3d{0.1, -0.2, 0.3}))
+                                            .truncate_on_project();
+    std::vector<real_function_3d> bra = mul(world, weight, ket);
+    truncate(world, bra);
+
+    t1.checkpoint(not exchange_same_operands(bra, ket), "bra and ket are genuinely different functions");
+
+    const double lo = 1.e-4;
+    auto apply_with = [&](const Exchange<double, 3>::ExchangeAlgorithm alg, const bool sym) {
+        Exchange<double, 3> K(world, lo, FunctionDefaults<3>::get_thresh());
+        K.set_bra_and_ket(bra, ket);
+        K.set_symmetric(sym);
+        K.set_algorithm(alg);
+        return K(ket);                      // vf == ket, as in nemo's Fock operator
+    };
+
+    const auto reference = apply_with(Exchange<double, 3>::small_memory, false);
+    const auto got = apply_with(Exchange<double, 3>::multiworld_efficient, true);
+
+    double maxdiff = 0.0;
+    for (std::size_t i = 0; i < reference.size() and i < got.size(); ++i)
+        maxdiff = std::max(maxdiff, (reference[i] - got[i]).norm2());
+    if (world.rank() == 0) print("largest |K_symmetric - K_smallmem| over vf:", maxdiff);
+    t1.checkpoint(maxdiff < 10.0 * FunctionDefaults<3>::get_thresh(),
+                  "the symmetric task list over separate bra and ket records agrees with the reference");
+
+    double smallest = std::numeric_limits<double>::max();
+    for (const auto& f : reference) smallest = std::min(smallest, f.norm2());
+    t1.checkpoint(smallest > 1.e-6, "the reference result is non-trivial");
+    return t1.end();
+}
+
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
     int result = 0;
@@ -108,6 +151,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<3>::set_k(7);
         FunctionDefaults<3>::set_cubic_cell(-16.0, 16.0);
         result += test_generic_exchange(world);
+        result += test_weighted_bra_exchange(world);
         world.gop.fence();
     }
     if (result == 0) print("\n --> all tests \033[32m passed \033[0m \n");

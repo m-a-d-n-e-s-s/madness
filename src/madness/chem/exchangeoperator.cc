@@ -137,7 +137,9 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, symmetric,
                                   owner_pinned, batch_granularity_,
                                   world.rank(), accumulation_mode_, cost_aware_assign_,
-                                  exchange_batch_salt(mo_ket));
+                                  exchange_batch_salt(mo_ket),
+                                  exchange_same_operands(mo_bra, mo_ket),
+                                  exchange_same_operands(vf, mo_ket));
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. Pinning therefore fixes the storage policy.
