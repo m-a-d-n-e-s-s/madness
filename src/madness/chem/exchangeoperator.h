@@ -58,6 +58,16 @@ inline std::vector<Batch_1D> exchange_sym_owner_split(const std::size_t n, const
     return out;
 }
 
+/// Batch boundaries for the asymmetric row/column split: one batch per rank.
+
+/// Deliberately the same boundaries as exchange_sym_owner_split at granularity 1, so batches stored
+/// for one dimension align with the partition. Named apart because "sym" reads wrong in the
+/// asymmetric path, and because granularity is not a knob here -- the column-to-rank assignment
+/// relies on there being exactly one batch per rank.
+inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const long nsubworld) {
+    return exchange_sym_owner_split(n, nsubworld, 1);
+}
+
 /// Triangular index of a batch pair, collapsing (i,j) and (j,i): a*(a+1)/2 + b.
 
 /// The indexing convention of the per-task cost vector, shared by whoever records a

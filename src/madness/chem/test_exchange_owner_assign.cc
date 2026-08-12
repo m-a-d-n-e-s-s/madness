@@ -95,6 +95,25 @@ int test_batch_split() {
     return t1.end();
 }
 
+int test_row_owner_split() {
+    test_output t1("testing exchange_row_owner_split");
+
+    t1.checkpoint(exchange_row_owner_split(0, 8).empty(), "empty split for an empty vector");
+
+    bool same = true, one_per_rank = true;
+    for (long n = 1; n <= 64; ++n) {
+        for (long nsw : {1L, 2L, 3L, 8L, 40L}) {
+            const auto row = exchange_row_owner_split(n, nsw);
+            if (row != exchange_sym_owner_split(n, nsw, 1)) same = false;
+            if (long(row.size()) != std::min<long>(std::max<long>(1, nsw), n)) one_per_rank = false;
+        }
+    }
+    // the contiguity, coverage and balance of these boundaries are covered by test_batch_split
+    t1.checkpoint(same, "the same boundaries as the granularity-1 symmetric split");
+    t1.checkpoint(one_per_rank, "exactly min(nsubworld, n) batches, which the column-to-rank assignment needs");
+    return t1.end();
+}
+
 int test_owner_assignment() {
     test_output t1("testing exchange owner assignment");
 
@@ -149,6 +168,7 @@ int main(int argc, char** argv) {
     madness::initialize(argc, argv);
     int result = 0;
     result += test_batch_split();
+    result += test_row_owner_split();
     result += test_owner_assignment();
     if (result == 0) print("\n --> all tests \033[32m passed \033[0m \n");
     else print("\n --> all tests \033[31m failed \033[0m \n");
