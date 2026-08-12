@@ -53,6 +53,7 @@ Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 21 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 25 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
+| `scf_lih_gopt` | `scf` | LiH | geometry optimization (`gopt`); gradient projection | 38 s | long |
 | `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 48 s | long |
 | `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 50 s | long |
 | `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 51 s | long |
@@ -71,6 +72,21 @@ workers + 1 comm) is 8 MADNESS threads before MPI's own progress threads, so on 
 timeout on an 8-core laptop. Its `run.sh` therefore sets the per-rank worker count
 from `MPI_WORKERS` rather than inheriting `MAD_NUM_THREADS`, which by convention
 means *per job*, not per rank.
+
+`scf_lih_gopt` is the only case that optimizes a geometry, and the two keys it
+leans on are behavioral rather than energetic: `optimization_results.nsteps` and
+`optimization_results.max_gradient`. MolOpt projects translations and rotations
+out of the gradient before testing convergence; drop that projection and the raw
+net force (8.4e-5 here, an identical dE/dz on both atoms) never reaches
+`gtol`, so the run burns all 10 `gmaxiter` cycles at a geometry that stopped
+moving after two — `nsteps` 2 → 10 and `max_gradient` 4.8e-7 → 8.4e-5, while the
+energy (3.8e-8) and the bond length (3.6e-6 bohr) stay well inside any sane
+tolerance. Asserting the energy alone would not have noticed. The case pays for
+the 1e-6 protocol rung for the same reason: `gtol` is derived from
+`protocol().back()`, and a single 1e-4 rung puts it at 2e-4, *above* the
+spurious net force — a criterion that cannot tell a projected gradient from an
+unprojected one. `max_gradient` carries `"allow_zero": true` because a converged
+gradient is legitimately near zero.
 
 There is deliberately **no plain-CC2 case**: a `calc_type cc2` ground state on
 helium measured 1833 s, and `lrcc2_he_excited` already solves that ground state on
