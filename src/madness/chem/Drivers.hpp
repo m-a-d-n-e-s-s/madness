@@ -264,17 +264,41 @@ public:
         madness::print("Running geometry optimization on", Library::label(), "in",
                        pm.dir().string());
 
-      // Tie the geometry thresholds to the accuracy of the wavefunction, the same
-      // Dalton-style rules the in-SCF gopt path uses -- but as *derived* values, so
-      // anything the deck sets in the `optimization` group wins.
+      // What the optimizer may demand, given how accurate the energy and the
+      // gradient actually are. These are the `optimization` group's knobs and
+      // nothing else -- the `dft` group's gtol/gval/gprec belong to the in-SCF
+      // optimizer and are not consulted here. Set as *derived* values, so
+      // anything the deck puts in the `optimization` group still wins.
+      //
+      // The split that matters: the ENERGY is bounded by the wavefunction
+      // threshold, the GRADIENT is not. The gradient is a functional of the
+      // density, so `dconv` bounds it; on top of that the raw derivatives carry
+      // a spurious net force (~1e-3 on water, and it does NOT shrink with
+      // `eprec`) which the projector removes only down to a residual of the
+      // same order as `dconv`.
+      //
+      // Deriving gtol from protocol().back() asked for 1e-5 on a gradient good
+      // to ~1e-5, and the optimizer ground against its own noise: H2O/LDA took
+      // seven geometries of non-monotonic wandering instead of four. Worse,
+      // MolOpt's escape hatch ("insufficient precision in gradient -- forcing
+      // convergence") is armed by gradient_precision, so setting that below the
+      // true precision disables the one mechanism that would have stopped it.
       auto &op = params_.get<OptimizationParameters>();
-      const double wf_thresh =
-          params_.get<CalculationParameters>().protocol().back();
-      op.set_derived_value("etol", std::max(1.0e-7, 2.0 * wf_thresh));
-      op.set_derived_value("gtol", std::max(1.0e-5, 2.0 * wf_thresh));
-      op.set_derived_value("xtol", std::max(1.0e-5, 2.0 * wf_thresh));
-      op.set_derived_value("value_precision", std::max(1.0e-7, 2.0 * wf_thresh));
-      op.set_derived_value("gradient_precision", std::max(1.0e-6, wf_thresh));
+      const auto &cp = params_.get<CalculationParameters>();
+      const double wf_thresh = cp.protocol().back();
+      const double dconv = cp.dconv();
+      op.set_derived_value("etol", std::max(1.0e-6, 2.0 * wf_thresh));
+      op.set_derived_value("gtol", std::max(1.0e-4, dconv));
+      op.set_derived_value("xtol", 1.0e-3);
+      op.set_derived_value("value_precision", std::max(1.0e-6, wf_thresh));
+      // NOT dconv itself: the density error largely cancels in the gradient.
+      // Measured on H2O, the projected gradient's noise floor is ~1e-5 at the
+      // default dconv of 1e-4, and stays there when eprec is tightened by 100x.
+      // This number is load-bearing in two places -- it arms the "insufficient
+      // precision, force convergence" escape, and it clamps gtol from below
+      // (MolOpt's ctor) -- so setting it at dconv made the optimizer bail while
+      // the geometry was still moving by 1e-2 bohr.
+      op.set_derived_value("gradient_precision", std::max(1.0e-6, 0.1 * dconv));
 
       MADNESS_CHECK_THROW(
           !op.get_initial_hessian(),
@@ -326,10 +350,25 @@ public:
       // gradients; everything below is unchanged by that choice.
       madness::AnalyticTarget target(*engine_target);
 
+      // Keep the raw derivative table out of the log: MolOpt now prints the
+      // projected gradient it actually uses, and the two side by side (differing
+      // by ~100x) are what made the projection look like it was not happening.
+      if constexpr (std::is_same_v<Calc, madness::SCF>)
+        engine->suppress_raw_gradient_print = true;
+      else
+        engine->get_calc()->suppress_raw_gradient_print = true;
+
+      // The deck's print_level drives the optimizer too, rather than a hardcoded
+      // 1 that no input could raise. The mapping keeps the default (print_level
+      // 3 -> 1) exactly as it was and still shows the iteration table at 2;
+      // only 4 and above turn on the projector/hessian dumps.
+      const int molopt_print =
+          (cp.print_level() >= 2) ? std::max(1, cp.print_level() - 2) : 0;
       madness::MolOpt opt(op.get_maxiter(), op.get_maxstep(), op.get_etol(),
                           op.get_gtol(), op.get_xtol(), op.get_value_precision(),
                           op.get_gradient_precision(),
-                          (world_.rank() == 0) ? 1 : 0, op.get_algopt());
+                          (world_.rank() == 0) ? molopt_print : 0,
+                          op.get_algopt());
 
       madness::OptimizationResults opt_res;
       if constexpr (std::is_same_v<Calc, madness::SCF>) {
