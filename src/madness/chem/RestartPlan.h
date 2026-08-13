@@ -51,7 +51,8 @@ enum class RestartMode {
     automatic,   ///< look at what is on disk and choose (the default)
     none,        ///< ignore everything on disk, start from the initial guess
     iterate,     ///< read restartdata and keep iterating
-    read_only,   ///< read restartdata and do not iterate, whatever its precision
+    read_only,   ///< read restartdata and do not iterate, whatever its precision;
+                 ///< requires the archive to be for the requested geometry
     ao,          ///< read the AO projections (restartaodata) and iterate
     nwchem,      ///< read an NWChem movecs file and iterate
 };
@@ -375,6 +376,15 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                 "kind of orbital than this calculation uses");
 
         if (mode == RestartMode::read_only) {
+            // Precision is the user's call to make; the geometry is not. read_only
+            // hands back meta.current_energy without solving anything, so at a
+            // displaced geometry it would report an energy for a molecule nobody
+            // asked about -- and unlike a loose threshold, that cannot be what the
+            // user meant. `iterate` needs no such check: there the orbitals are
+            // only a starting guess and the SCF runs at the requested geometry.
+            MADNESS_CHECK_THROW(
+                    compare_geometry(meta.molecule, requested) == GeometryMatch::same,
+                    "restart read_only: archive geometry does not match the requested geometry");
             // The user asserted these orbitals are the answer. Respect that even
             // when they are not converged to the requested precision -- warn and
             // hand back the stale energy rather than second-guessing.
