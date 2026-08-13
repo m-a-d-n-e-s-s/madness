@@ -288,6 +288,43 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T7: norm_tree means ||f|| on the box, in every tree state. compress()
+/// clears leaf coefficients, and the leaf norm has to be read before that
+/// happens or a zero propagates to the root.
+int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T7: norm_tree across tree states");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+    const double exact = f.norm2();
+
+    auto root_norm_tree = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double nt = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            nt = g.get_impl()->get_coeffs().find(key0).get()->second.get_norm_tree();
+        world.gop.max(nt);
+        return nt;
+    };
+
+    f.make_redundant(true);
+    const double nt_redundant = root_norm_tree(f);
+    f.reconstruct();
+    f.compress();
+    const double nt_compressed = root_norm_tree(f);
+
+    if (world.rank() == 0)
+        printf("  T7 ||f|| %.10e  redundant %.10e  compressed %.10e\n",
+               exact, nt_redundant, nt_compressed);
+
+    t.checkpoint(std::abs(nt_redundant  - exact) < 1.e-10,
+                 "T7 root norm_tree on a redundant tree equals ||f||");
+    t.checkpoint(std::abs(nt_compressed - exact) < 1.e-10,
+                 "T7 root norm_tree on a compressed tree equals ||f||");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -308,6 +345,7 @@ int main(int argc, char** argv) {
         success += test_self_consistency(world, pairs);
         success += test_dot(world, pairs);
         success += test_operand_state(world, pairs);
+        success += test_norm_tree_states(world, pairs);
     }
 
     world.gop.fence();
