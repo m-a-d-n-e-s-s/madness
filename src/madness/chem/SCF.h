@@ -245,6 +245,10 @@ public:
     /// nuclear correlation factor behind restart_representation, e.g. "slater:2.0"
     std::string restart_ncf;
 
+    /// set while an optimizer drives this SCF, to keep the raw derivative table
+    /// out of the log next to MolOpt's projected one -- see SCF::derivatives
+    mutable bool suppress_raw_gradient_print=false;
+
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
         : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {
