@@ -58,6 +58,65 @@ inline std::vector<Batch_1D> exchange_sym_owner_split(const std::size_t n, const
     return out;
 }
 
+/// Batch boundaries for the asymmetric row/column split: one batch per rank.
+
+/// Deliberately the same boundaries as exchange_sym_owner_split at granularity 1, so batches stored
+/// for one dimension align with the partition. Named apart because "sym" reads wrong in the
+/// asymmetric path, and because granularity is not a knob here -- the column-to-rank assignment
+/// relies on there being exactly one batch per rank.
+inline std::vector<Batch_1D> exchange_row_owner_split(const std::size_t n, const long nsubworld) {
+    return exchange_sym_owner_split(n, nsubworld, 1);
+}
+
+/// The asymmetric task grid: every (column, row) pair over two independent splits.
+
+/// The column dimension is the operand that stays put -- vf, whose batch the running rank holds --
+/// and the row dimension is the one that rotates, carrying bra and ket, which share this range
+/// because the operator sums over pairs. There is no symmetry to exploit, so the grid is the full
+/// rectangle rather than a triangle, and the two dimensions are split independently: bra and ket
+/// have the same length as each other but need not match vf's.
+inline std::vector<std::pair<Batch_1D, Batch_1D>>
+exchange_row_owner_grid(const std::size_t ncolumn, const std::size_t nrow, const long nsubworld) {
+    const std::vector<Batch_1D> columns = exchange_row_owner_split(ncolumn, nsubworld);
+    const std::vector<Batch_1D> rows = exchange_row_owner_split(nrow, nsubworld);
+    std::vector<std::pair<Batch_1D, Batch_1D>> out;
+    out.reserve(columns.size() * rows.size());
+    for (const auto& c : columns)
+        for (const auto& r : rows) out.emplace_back(c, r);
+    return out;
+}
+
+/// Are these the same functions, so that one stored record can serve both operand roles?
+
+/// Compares identity, not value: `Function` is a shallow handle, so equal implementation pointers
+/// mean the coefficients are literally shared and storing them twice would duplicate the largest
+/// thing the cloud holds. HF exchange passes the same vector as all three operands, and nemo passes
+/// the same one as ket and vf, so this is the common case rather than a corner.
+template<typename T, std::size_t NDIM>
+inline bool exchange_same_operands(const std::vector<Function<T, NDIM>>& a,
+                                   const std::vector<Function<T, NDIM>>& b) {
+    if (a.size() != b.size()) return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        if (a[i].get_impl().get() != b[i].get_impl().get()) return false;
+    return true;
+}
+
+/// Owner of every task in the asymmetric grid: all tasks of a column go to one worker.
+
+/// The column operand is the one that stays put, so putting a whole column on one worker means the
+/// batch it holds is never fetched, and that worker computes the *complete* result for those
+/// columns -- there is no cross-rank reduction of results beyond the final gather. Handing columns
+/// out in order is balanced by construction, the grid being a full rectangle, so no cost model is
+/// needed here. Keyed by batch index, like exchange_sym_round_robin_assign.
+inline std::map<std::pair<long,long>,long>
+exchange_row_owner_assign(const long ncolumn, const long nrow, const long nworker) {
+    std::map<std::pair<long,long>,long> owner;
+    if (ncolumn <= 0 or nrow <= 0 or nworker <= 0) return owner;
+    for (long c = 0; c < ncolumn; ++c)
+        for (long r = 0; r < nrow; ++r) owner[{c, r}] = c % nworker;
+    return owner;
+}
+
 /// Triangular index of a batch pair, collapsing (i,j) and (j,i): a*(a+1)/2 + b.
 
 /// The indexing convention of the per-task cost vector, shared by whoever records a
@@ -263,6 +322,17 @@ struct ExchTaskProfile {
 /// Is per-task exchange profiling on? Read once per process.
 inline bool exch_task_profile_enabled() {
     static const bool on = (std::getenv("MAD_EXCH_TASK_PROFILE") != nullptr);
+    return on;
+}
+
+/// Send a symmetric application down the general (bra, ket, vf) path? Read once per process.
+
+/// A symmetric application computes the same numbers either way -- the general path just does the
+/// whole rectangle where the symmetric one does a triangle and reuses each intermediate twice. So
+/// with this set, moldft becomes a differential test of the general path on data whose answer is
+/// already known, which is otherwise reachable only from nemo and molresponse. Debug only.
+inline bool exch_force_general_path() {
+    static const bool on = (std::getenv("MAD_EXCH_FORCE_GENERAL") != nullptr);
     return on;
 }
 
@@ -739,7 +809,8 @@ private:
     /// how the tile results are gathered: 1 = subworld buffer then universe, 2 = also reduce
     /// within a node first (default; degrades to 1 on a single node)
     int accumulation_mode_ = 2;
-    /// place tasks by measured cost instead of by counting them
+    /// place tasks by measured cost instead of by counting them; the first two applications
+    /// still count, having no representative reference to measure against
     bool cost_aware_assign_ = true;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
@@ -753,6 +824,20 @@ private:
         /// pin each task to a rank that owns one of its batches, over the owner-pinned split
         bool owner_pinned = false;
         long granularity_level = 1;
+        /// Per-application salt for the batch record keys, from exchange_batch_salt.
+
+        /// Carried on the task rather than re-derived where it is used: every rank builds the
+        /// same task objects collectively, so a constructor argument already reaches every
+        /// rank, and deriving it instead requires whichever operand vector it is taken from to
+        /// be available in full wherever a key is formed. That is true only while the ket is
+        /// passed unbatched.
+        long batch_salt_ = 0;
+        /// Which role's record actually carries the bra and the vf. Identical operand vectors share
+        /// one stored record instead of duplicating coefficients: HF exchange passes one vector as
+        /// all three operands, nemo passes one as ket and vf. Set on the universe side, where all
+        /// three are in hand; see exchange_same_operands.
+        bool bra_shares_ket_ = true;
+        bool vf_shares_ket_ = true;
         /// 1 = sum into a subworld buffer and drain that into the universe;
         /// 2 = additionally reduce within a node first, so only one rank per node scatters
         ///     across nodes. Degrades to 1 automatically when there is a single node.
@@ -788,7 +873,11 @@ private:
         struct PrefetchSlot {
             bool valid = false;
             long key = 0;
-            Future<batch_bytesT> fut;
+            /// Held by pointer, not by value: a slot is retired by overwriting it, and `Future`'s
+            /// assignment operator requires an unset target. Overwriting a slot whose reply has
+            /// already landed -- which is every consumed slot -- trips that assertion. Dropping
+            /// the pointer releases the future instead of assigning over it.
+            std::shared_ptr<Future<batch_bytesT>> fut;
         };
         static inline PrefetchSlot prefetch_current_;   ///< promoted from the previous task
         static inline PrefetchSlot prefetch_next_;      ///< requested during this task
@@ -897,7 +986,7 @@ private:
             for (PrefetchSlot* slot : {&prefetch_current_, &prefetch_next_}) {
                 if (slot->valid and slot->key == record) {
                     vecfuncT data = cloud.template deserialize_batch_p2p<T, NDIM>(
-                            world, slot->fut, record, /*cache_result=*/false);
+                            world, *slot->fut, record, /*cache_result=*/false);
                     *slot = PrefetchSlot();
                     ++batch_prefetch_hits_;
                     if (profile_active()) prof_.observe_fetch_tier(1);
@@ -931,6 +1020,17 @@ private:
 
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
+
+                if (owner_pinned and not symmetric) {
+                    // full grid over two independent splits; see exchange_row_owner_grid
+                    partitionT result;
+                    for (const auto& [column, row] : exchange_row_owner_grid(vsize1, vsize2,
+                                                                            long(nsubworld))) {
+                        Batch batch(column, row, _);
+                        result.push_back(std::make_pair(batch, compute_priority(batch)));
+                    }
+                    return result;
+                }
 
                 if (owner_pinned) {
                     // lower-triangular grid over one granularity-aware split, shared with
@@ -984,9 +1084,13 @@ private:
         MacroTaskExchangeSimple(const long nresult, const double lo, const double mul_tol,
                                 const bool symmetric, const bool owner_pinned = false,
                                 const long granularity_level = 1, const long universe_rank = 0,
-                                const int accumulation_mode = 2, const bool cost_aware = true)
+                                const int accumulation_mode = 2, const bool cost_aware = true,
+                                const long batch_salt = 0, const bool bra_shares_ket = true,
+                                const bool vf_shares_ket = true)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
+                  batch_salt_(batch_salt), bra_shares_ket_(bra_shares_ket),
+                  vf_shares_ket_(vf_shares_ket),
                   accumulation_mode_(accumulation_mode), cost_aware_(cost_aware),
                   universe_rank_(universe_rank) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
@@ -1021,6 +1125,38 @@ private:
                                       const long nsubworld) {
             owner_map_.clear();
             if (not owner_pinned or nsubworld <= 0) return;
+
+            if (not symmetric) {
+                // Both dimensions are indexed from the partition rather than from nresult, which is
+                // the column length only: the row dimension carries bra and ket and has its own.
+                std::map<long,long> column_index, row_index;
+                for (const auto& [task_batch, priority] : partition) {
+                    MADNESS_CHECK_THROW(task_batch.input.size() >= 2,
+                                        "owner-pinned exchange expects two-dimensional task batches");
+                    column_index[task_batch.input[0].begin] = 0;   // renumbered below, in order
+                    row_index[task_batch.input[1].begin] = 0;
+                }
+                long next = 0;
+                for (auto& [begin, index] : column_index) index = next++;
+                next = 0;
+                for (auto& [begin, index] : row_index) index = next++;
+
+                const auto assignment = exchange_row_owner_assign(long(column_index.size()),
+                                                                  long(row_index.size()), nsubworld);
+                for (const auto& [task_batch, priority] : partition) {
+                    const long c = column_index[task_batch.input[0].begin];
+                    const long r = row_index[task_batch.input[1].begin];
+                    auto it = assignment.find({c, r});
+                    owner_map_[{task_batch.input[0].begin, task_batch.input[1].begin}] =
+                            (it != assignment.end()) ? it->second : (c % nsubworld);
+                }
+                // Cost-aware placement stays off here: its vector is indexed by exchange_sym_tri,
+                // which is meaningless for a rectangle, and a column-per-worker grid is already
+                // balanced. An empty vector is what stops the tiles recording into it.
+                cost_this_call_.clear();
+                batch_begin_to_index_.clear();
+                return;
+            }
 
             const std::vector<Batch_1D> split =
                     exchange_sym_owner_split(nresult, nsubworld, granularity_level);
@@ -1060,6 +1196,10 @@ private:
             }
         }
 
+        /// the record role carrying the bra, and the one carrying the vf over a *shared* split
+        int bra_role() const { return bra_shares_ket_ ? EXCHANGE_BATCH_KET : EXCHANGE_BATCH_BRA; }
+        int vf_role() const { return vf_shares_ket_ ? EXCHANGE_BATCH_KET : EXCHANGE_BATCH_VF; }
+
         /// \return the rank this task is pinned to, or -1 to leave the choice to the queue
         long owner_hint(const Batch& task_batch, const long nsubworld) const override {
             if (not owner_pinned or nsubworld <= 0 or owner_map_.empty()) return -1;
@@ -1097,8 +1237,11 @@ private:
         /// the owners: serializing centrally instead funnels the whole orbital set through
         /// one rank's network interface.
         ///
-        /// The symmetric case stores one set: bra == ket == vf, so the same batch serves as
-        /// column, row and ket operand.
+        /// A record is stored per *distinct* operand vector, not per role: HF exchange passes one
+        /// vector as all three and still stores a single set, nemo's bra = R^2 * ket makes two, and
+        /// three only when all three differ. The symmetric grid shares one split; the asymmetric one
+        /// puts vf on the column boundaries and bra/ket on the row ones, so vf needs its own record
+        /// there even when it is the ket.
         void store_batches(World& world, World& subworld, Cloud& cloud, const argtupleT& argtuple,
                            const long nsubworld) {
             if (not owner_pinned) return;
@@ -1108,12 +1251,11 @@ private:
             // so say so rather than compute something wrong.
             MADNESS_CHECK_THROW(nsubworld == world.size(),
                                 "owner-pinned exchange needs one subworld per rank");
+            const vecfuncT& vf = std::get<0>(argtuple);
+            const vecfuncT& mo_bra = std::get<1>(argtuple);
             const vecfuncT& mo_ket = std::get<2>(argtuple);
             // one fence up front, so store_batch does not need one per function
             world.gop.fence();
-            const long salt = exchange_batch_salt(mo_ket);
-            const std::vector<Batch_1D> split =
-                    exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level);
 
             // A cross-world copy picks its process map from the target world, but anything
             // on that path reading the process-wide default would route to universe ranks
@@ -1123,16 +1265,43 @@ private:
             FunctionDefaults<NDIM>::set_default_pmap(subworld);
 
             std::vector<std::pair<long, vecfuncT>> owned;
-            for (long k = 0; k < long(split.size()); ++k) {
-                const Batch_1D& r = split[k];
-                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
-                cloud.register_batch_owner(record, ProcessID(k % nsubworld));
-                if (k % nsubworld == world.rank()) {
-                    vecfuncT local(r.size());
-                    for (long i = r.begin; i < r.end; ++i)
-                        local[i - r.begin] = copy(subworld, mo_ket[i], /*fence=*/false);
-                    owned.emplace_back(record, std::move(local));
+            // register the routing for one operand set, and pull the batches this rank owns. Batch k
+            // goes to rank k, which is what puts a column batch on the rank running that column.
+            auto stage = [&](const vecfuncT& v, const int dim, const std::vector<Batch_1D>& split) {
+                for (long k = 0; k < long(split.size()); ++k) {
+                    const Batch_1D& r = split[k];
+                    const long record = exchange_batch_record_key(batch_salt_, dim, r);
+                    cloud.register_batch_owner(record, ProcessID(k % nsubworld));
+                    if (k % nsubworld == world.rank()) {
+                        vecfuncT local(r.size());
+                        for (long i = r.begin; i < r.end; ++i)
+                            local[i - r.begin] = copy(subworld, v[i], /*fence=*/false);
+                        owned.emplace_back(record, std::move(local));
+                    }
                 }
+            };
+
+            // bra and ket are indexed together by the operator's sum over pairs, so wherever both
+            // are stored they share boundaries
+            MADNESS_CHECK_THROW(mo_bra.size() == mo_ket.size(),
+                                "exchange: bra and ket are a paired set and must have equal length");
+            if (symmetric) {
+                // One split serves every role, so a role whose vector is the ket's needs no record of
+                // its own. HF exchange therefore still stores exactly one set, while nemo -- whose bra
+                // is R^2 times its ket -- stores two over the same boundaries.
+                const std::vector<Batch_1D> split =
+                        exchange_sym_owner_split(mo_ket.size(), nsubworld, granularity_level);
+                stage(mo_ket, EXCHANGE_BATCH_KET, split);
+                if (not bra_shares_ket_) stage(mo_bra, EXCHANGE_BATCH_BRA, split);
+                if (not vf_shares_ket_) stage(vf, EXCHANGE_BATCH_VF, split);
+            } else {
+                // Two splits: vf gets the column boundaries, bra and ket the row ones. vf needs its
+                // own record even when it is the ket, the two splits having different boundaries.
+                const std::vector<Batch_1D> columns = exchange_row_owner_split(vf.size(), nsubworld);
+                const std::vector<Batch_1D> rows = exchange_row_owner_split(mo_bra.size(), nsubworld);
+                stage(vf, EXCHANGE_BATCH_VF, columns);
+                stage(mo_ket, EXCHANGE_BATCH_KET, rows);
+                if (not bra_shares_ket_) stage(mo_bra, EXCHANGE_BATCH_BRA, rows);
             }
             // the source ranks' comm threads serve the pulls, so a fence on the size-1
             // subworld drains this owner's copies
@@ -1154,7 +1323,10 @@ private:
         ///
         /// This is what makes the owner-pinned transport worth its machinery: without it every
         /// task pays the full latency of its remote batch with nothing to overlap it against.
-        void sym_pipeline_advance(World& subworld, const vecfuncT& mo_ket,
+        /// \param mo_ket  unused: the salt it used to be derived from is carried on the task.
+        ///                It stays in the signature because the queue's detection trait matches
+        ///                on it (has_sym_pipeline_advance_v).
+        void sym_pipeline_advance(World& subworld, const vecfuncT&,
                                   const Batch_1D& next_col, const Batch_1D& next_row,
                                   const bool has_next) const {
             if (not owner_pinned) return;
@@ -1167,14 +1339,22 @@ private:
             prefetch_next_ = PrefetchSlot();
             if (not has_next or cloud_ptr == nullptr) return;
             Cloud& cloud = *cloud_ptr;
-            const long salt = exchange_batch_salt(mo_ket);
-            for (const Batch_1D& r : {next_col, next_row}) {
-                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, r);
+            const long salt = batch_salt_;
+            // Always the ket's record: it is the one role stored unconditionally, in both grids and on
+            // whichever split the range belongs to, so requesting it can never name a record nobody
+            // holds. Symmetric: either of the task's two ranges may be the remote one, so try both.
+            // Asymmetric: only the row rotates, the column being held on this rank.
+            const std::vector<Batch_1D> candidates =
+                    symmetric ? std::vector<Batch_1D>{next_col, next_row}
+                              : std::vector<Batch_1D>{next_row};
+            for (const auto& r : candidates) {
+                const long record = exchange_batch_record_key(salt, EXCHANGE_BATCH_KET, r);
                 if (cloud.batch_owner(record) == universe_rank_) continue;   // reads locally
                 if (batch_cache_.contains(record)) continue;                 // already resident
                 if (prefetch_current_.valid and prefetch_current_.key == record) continue;
                 prefetch_next_.key = record;
-                prefetch_next_.fut = cloud.request_batch_bytes_async(record);
+                prefetch_next_.fut = std::make_shared<Future<batch_bytesT>>(
+                        cloud.request_batch_bytes_async(record));
                 prefetch_next_.valid = true;
                 break;                                                      // one per task
             }
@@ -1226,11 +1406,16 @@ private:
 
         /// The result entries this tile actually wrote.
 
-        /// operator() scatters into the bra range and the vf range of a full-width Kf and
-        /// leaves everything else zero, so summing all `nresult` entries would gaxpy mostly
-        /// zeros -- a per-tile cost proportional to the whole result vector. The union of the
-        /// two input ranges is a correct superset of every entry the tile touched; a full-size
-        /// or absent range falls back to all of them.
+        /// operator() scatters into a full-width Kf and leaves everything else zero, so summing all
+        /// `nresult` entries would gaxpy mostly zeros -- a per-tile cost proportional to the whole
+        /// result vector. Every tile writes its column range; a symmetric off-diagonal tile also
+        /// writes its row range, reusing each intermediate for the transposed element, whereas an
+        /// asymmetric tile contributes to its column alone. A full-size or absent range falls back
+        /// to all of them.
+        ///
+        /// The result must be a *set*: the caller gaxpys one entry per index, so a repeated index is
+        /// added twice. The two ranges do overlap in the asymmetric case, coming from separate splits
+        /// of different lengths rather than from one split, where they are always equal or disjoint.
         std::vector<long> touched_result_indices() const {
             std::vector<long> idx;
             auto add_range = [&](const Batch_1D& b) {
@@ -1243,7 +1428,10 @@ private:
                 return idx;
             }
             add_range(batch.input[0]);
-            if (batch.input.size() > 1 and not (batch.input[1] == batch.input[0])) add_range(batch.input[1]);
+            if (symmetric and batch.input.size() > 1 and not (batch.input[1] == batch.input[0]))
+                add_range(batch.input[1]);
+            std::sort(idx.begin(), idx.end());
+            idx.erase(std::unique(idx.begin(), idx.end()), idx.end());
             return idx;
         }
 
@@ -1364,24 +1552,43 @@ private:
                 prof_.wall_start = tile_wall_start;
             }
 
-            // Owner-pinned: fetch the two batches this task needs from the cloud. Because
-            // bra == ket == vf there, one batch per range serves every operand role, so the
-            // ket over a range is just that range's batch.
-            vecfuncT bra_owned, vf_owned;
+            // Owner-pinned: fetch this task's operands from the cloud, one request per role and
+            // range. Roles that share a record resolve to the same key, so the repeats are cache
+            // hits rather than transfers.
+            vecfuncT bra_owned, vf_owned, ket_row_owned, ket_column_owned;
             const vecfuncT* bra_work = &bra_batch;
             const vecfuncT* vf_work = &vf_batch;
             if (owner_pinned) {
                 MADNESS_CHECK_THROW(cloud_ptr != nullptr, "owner-pinned exchange: cloud_ptr is null");
                 Cloud& cloud = *cloud_ptr;
-                const long salt = exchange_batch_salt(vket);
+                const long salt = batch_salt_;
                 // copy the handles out of the cache: the reference is only good until the
                 // entry is evicted, and the second fetch may evict the first
-                bra_owned = fetch_batch(world, cloud,
-                                        exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, bra_range));
-                vf_owned = diagonal_block
-                        ? bra_owned                     // one range, so one batch
-                        : fetch_batch(world, cloud,
-                                      exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                if (symmetric) {
+                    // One split, so every role is available over either range. Where the roles alias
+                    // the ket these resolve to the same record and the repeats are cache hits, which
+                    // is why HF exchange pays nothing for the generality.
+                    bra_owned = fetch_batch(world, cloud,
+                                            exchange_batch_record_key(salt, bra_role(), bra_range));
+                    vf_owned = fetch_batch(world, cloud,
+                                           exchange_batch_record_key(salt, vf_role(), vf_range));
+                    ket_row_owned = fetch_batch(world, cloud,
+                                                exchange_batch_record_key(salt, EXCHANGE_BATCH_KET, bra_range));
+                    ket_column_owned = diagonal_block
+                            ? ket_row_owned                 // one range, so one batch
+                            : fetch_batch(world, cloud,
+                                          exchange_batch_record_key(salt, EXCHANGE_BATCH_KET, vf_range));
+                } else {
+                    // The column batch is held: this task runs on the rank owning it, so the fetch
+                    // is a cache hit and those coefficients never move. The row batch is the one
+                    // that rotates, and it carries bra and ket over the same range.
+                    vf_owned = fetch_batch(world, cloud,
+                                           exchange_batch_record_key(salt, EXCHANGE_BATCH_VF, vf_range));
+                    bra_owned = fetch_batch(world, cloud,
+                                            exchange_batch_record_key(salt, bra_role(), bra_range));
+                    ket_row_owned = fetch_batch(world, cloud,
+                                                exchange_batch_record_key(salt, EXCHANGE_BATCH_KET, bra_range));
+                }
                 bra_work = &bra_owned;
                 vf_work = &vf_owned;
             }
@@ -1390,17 +1597,20 @@ private:
             const double compute_cpu_start = process_cpu_time();
             if (profiling) prof_.wait_for_data_wall = compute_wall_start - tile_wall_start;
 
+            // the ket comes from its own record when pinned, and is sliced from the unbatched argument
+            // otherwise, which is the only form available without the batch store
+            const vecfuncT ket_rows = owner_pinned ? ket_row_owned : bra_range.copy_batch(vket);
+
             if (symmetric and diagonal_block) {
-                const vecfuncT ket_batch = owner_pinned ? *bra_work : bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, *bra_work,
+                vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_rows, *bra_work,
                                                                                    *vf_work);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
-                const vecfuncT ket_rows = owner_pinned ? *bra_work : bra_range.copy_batch(vket);
-                const vecfuncT ket_columns = owner_pinned ? *vf_work : vf_range.copy_batch(vket);
+                const vecfuncT ket_columns = owner_pinned ? ket_column_owned
+                                                          : vf_range.copy_batch(vket);
                 auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, ket_rows,
                                                                                             ket_columns,
                                                                                             *bra_work, *vf_work);
@@ -1410,8 +1620,8 @@ private:
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
                     Kf[i] += resultrow[i - vf_range.begin];}
             } else {
-                auto ket_batch = bra_range.copy_batch(vket);
-                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
+                vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_rows,
+                                                                           *bra_work, *vf_work);
                 for (int i = vf_range.begin; i < vf_range.end; ++i)
                     Kf[i] += resultcolumn[i - vf_range.begin];
             }

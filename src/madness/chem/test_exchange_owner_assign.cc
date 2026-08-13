@@ -95,6 +95,107 @@ int test_batch_split() {
     return t1.end();
 }
 
+int test_row_owner_split() {
+    test_output t1("testing exchange_row_owner_split");
+
+    t1.checkpoint(exchange_row_owner_split(0, 8).empty(), "empty split for an empty vector");
+
+    bool same = true, one_per_rank = true;
+    for (long n = 1; n <= 64; ++n) {
+        for (long nsw : {1L, 2L, 3L, 8L, 40L}) {
+            const auto row = exchange_row_owner_split(n, nsw);
+            if (row != exchange_sym_owner_split(n, nsw, 1)) same = false;
+            if (long(row.size()) != std::min<long>(std::max<long>(1, nsw), n)) one_per_rank = false;
+        }
+    }
+    // the contiguity, coverage and balance of these boundaries are covered by test_batch_split
+    t1.checkpoint(same, "the same boundaries as the granularity-1 symmetric split");
+    t1.checkpoint(one_per_rank, "exactly min(nsubworld, n) batches, which the column-to-rank assignment needs");
+    return t1.end();
+}
+
+int test_row_owner_grid() {
+    test_output t1("testing exchange_row_owner_grid");
+
+    // deliberately ncolumn != nrow: vf and the bra/ket pair are independent lengths, and every
+    // consumer so far has had them equal, so an implementation that conflated them would pass
+    // every existing test
+    const long ncol = 3, nrow = 8, nsw = 4;
+    const auto grid = exchange_row_owner_grid(ncol, nrow, nsw);
+    const auto columns = exchange_row_owner_split(ncol, nsw);
+    const auto rows = exchange_row_owner_split(nrow, nsw);
+
+    t1.checkpoint(grid.size() == columns.size() * rows.size(), "the grid is the full rectangle");
+
+    // assert which split feeds which slot, not just the shape: a swap gives a grid of the same
+    // size whenever the two lengths happen to agree, which is the case that has always been run
+    bool sides_ok = true, pairs_unique = true;
+    std::set<std::pair<long,long>> seen;
+    for (const auto& [c, r] : grid) {
+        if (std::find(columns.begin(), columns.end(), c) == columns.end()) sides_ok = false;
+        if (std::find(rows.begin(), rows.end(), r) == rows.end()) sides_ok = false;
+        if (not seen.insert({c.begin, r.begin}).second) pairs_unique = false;
+    }
+    t1.checkpoint(sides_ok, "the column slot comes from the vf split and the row slot from the bra split");
+    t1.checkpoint(pairs_unique and seen.size() == grid.size(), "every column/row pair appears exactly once");
+
+    // one batch per rank per dimension, so the shorter dimension is what limits the columns
+    t1.checkpoint(long(columns.size()) == std::min(ncol, nsw) and long(rows.size()) == std::min(nrow, nsw),
+                  "each dimension is split to one batch per rank, clamped by its own length");
+    t1.checkpoint(exchange_row_owner_grid(0, nrow, nsw).empty() and
+                  exchange_row_owner_grid(ncol, 0, nsw).empty(),
+                  "an empty dimension gives an empty grid");
+    return t1.end();
+}
+
+int test_row_owner_assignment() {
+    test_output t1("testing exchange_row_owner_assign");
+
+    // ncolumn != nrow throughout: the two dimensions are independent lengths
+    bool one_rank_per_column = true, complete = true, in_range = true, spread_ok = true;
+    for (long ncol : {1L, 2L, 3L, 5L, 8L}) {
+        for (long nrow : {1L, 4L, 7L}) {
+            for (long nworker : {1L, 2L, 4L, 8L}) {
+                const auto owner = exchange_row_owner_assign(ncol, nrow, nworker);
+                if (long(owner.size()) != ncol * nrow) complete = false;
+                std::map<long, std::set<long>> ranks_of_column;
+                std::vector<long> per_rank(nworker, 0);
+                for (const auto& [task, rank] : owner) {
+                    if (rank < 0 or rank >= nworker) in_range = false;
+                    ranks_of_column[task.first].insert(rank);
+                    ++per_rank[rank];
+                }
+                for (const auto& [column, ranks] : ranks_of_column)
+                    if (ranks.size() != 1) one_rank_per_column = false;
+                // each worker gets whole columns, so the counts differ by at most one column
+                const long mx = *std::max_element(per_rank.begin(), per_rank.end());
+                const long mn = *std::min_element(per_rank.begin(), per_rank.end());
+                if (mx - mn > nrow) spread_ok = false;
+            }
+        }
+    }
+    t1.checkpoint(complete, "every column/row task is assigned exactly once");
+    t1.checkpoint(in_range, "every owner is a valid worker");
+    t1.checkpoint(one_rank_per_column,
+                  "all tasks of a column share one worker, so its held batch is never fetched");
+    t1.checkpoint(spread_ok, "workers differ by at most one column's worth of tasks");
+
+    // distinct columns land on distinct workers while there are workers to spare -- that is what
+    // makes each rank hold a different vf batch
+    const auto owner = exchange_row_owner_assign(4, 3, 4);
+    std::set<long> distinct;
+    for (long c = 0; c < 4; ++c) distinct.insert(owner.at({c, 0}));
+    t1.checkpoint(distinct.size() == 4, "distinct columns go to distinct workers when enough exist");
+
+    t1.checkpoint(exchange_row_owner_assign(4, 3, 4) == exchange_row_owner_assign(4, 3, 4),
+                  "deterministic, so every rank agrees without communicating");
+    t1.checkpoint(exchange_row_owner_assign(0, 3, 4).empty() and
+                  exchange_row_owner_assign(4, 0, 4).empty() and
+                  exchange_row_owner_assign(4, 3, 0).empty(),
+                  "degenerate dimensions or worker count give an empty assignment");
+    return t1.end();
+}
+
 int test_owner_assignment() {
     test_output t1("testing exchange owner assignment");
 
@@ -149,6 +250,9 @@ int main(int argc, char** argv) {
     madness::initialize(argc, argv);
     int result = 0;
     result += test_batch_split();
+    result += test_row_owner_split();
+    result += test_row_owner_grid();
+    result += test_row_owner_assignment();
     result += test_owner_assignment();
     if (result == 0) print("\n --> all tests \033[32m passed \033[0m \n");
     else print("\n --> all tests \033[31m failed \033[0m \n");
