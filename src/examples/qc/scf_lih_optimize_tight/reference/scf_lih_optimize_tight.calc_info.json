@@ -5,29 +5,22 @@
     },
     "tasks": [
         {
-            "convergence": {
-                "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 1e-06
-            },
-            "convergence_info": {
-                "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 1e-06
-            },
             "metadata": {
+                "method": "moldft",
                 "mpi_size": 1
             },
-            "model": "scf",
+            "model": "optimize",
             "molecule": {
                 "geometry": [
                     [
-                        5.3271793755496673e-20,
-                        -1.9854864914446829e-19,
-                        0.7545228610143063
+                        5.830524270332471e-20,
+                        -1.6698814743914154e-19,
+                        0.754522862468444
                     ],
                     [
-                        4.558010370886154e-19,
-                        -1.3223707722555563e-18,
-                        -2.279522861014307
+                        4.1744631511653097e-19,
+                        -1.3041534320413104e-18,
+                        -2.279522862468444
                     ]
                 ],
                 "parameters": {
@@ -52,18 +45,18 @@
                 ]
             },
             "optimization_results": {
-                "final_energy": -7.987363048166158,
+                "final_energy": -7.9873630482690166,
                 "final_geometry": {
                     "geometry": [
                         [
-                            5.3271793755496673e-20,
-                            -1.9854864914446829e-19,
-                            0.7545228610143063
+                            5.830524270332471e-20,
+                            -1.6698814743914154e-19,
+                            0.754522862468444
                         ],
                         [
-                            4.558010370886154e-19,
-                            -1.3223707722555563e-18,
-                            -2.279522861014307
+                            4.1744631511653097e-19,
+                            -1.3041534320413104e-18,
+                            -2.279522862468444
                         ]
                     ],
                     "parameters": {
@@ -87,110 +80,28 @@
                         "H"
                     ]
                 },
-                "max_gradient": 9.132101868869515e-07,
+                "max_gradient": 9.132135280476328e-07,
                 "max_step": 0.0,
                 "nsteps": 3
             },
             "properties": {
-                "dipole": {
-                    "ndim": -1,
-                    "size": 0
-                },
-                "energy": -7.987363048269067,
+                "energy": -7.9873630482690166,
                 "gradient": {
-                    "ndim": -1,
-                    "size": 0
-                }
-            },
-            "scf": {
-                "is_opt": true,
-                "model": "scf",
-                "molecule": {
-                    "geometry": [
-                        [
-                            5.3271793755496673e-20,
-                            -1.9854864914446829e-19,
-                            0.7545228610143063
-                        ],
-                        [
-                            4.558010370886154e-19,
-                            -1.3223707722555563e-18,
-                            -2.279522861014307
-                        ]
-                    ],
-                    "parameters": {
-                        "core_type": "none",
-                        "eprec": 1e-06,
-                        "field": [
-                            0.0,
-                            0.0,
-                            0.0
-                        ],
-                        "no_orient": false,
-                        "psp_calc": false,
-                        "pure_ae": true,
-                        "source_name": "mad.in",
-                        "source_type": "inputfile",
-                        "symtol": -0.01,
-                        "units": "atomic"
-                    },
-                    "symbols": [
-                        "Li",
-                        "H"
-                    ]
-                },
-                "properties": {
-                    "dipole": {
-                        "ndim": -1,
-                        "size": 0
-                    },
-                    "energy": -7.987363048269067,
-                    "gradient": {
-                        "ndim": -1,
-                        "size": 0
-                    }
-                },
-                "scf_eigenvalues_a": {
                     "dims": [
-                        2
+                        6
                     ],
                     "ndim": 1,
-                    "size": 2,
+                    "size": 6,
                     "vals": [
-                        -2.445988271736921,
-                        -0.3013813125071577
+                        9.237059422505925e-14,
+                        1.1279853715613144e-13,
+                        1.4725138697546658e-05,
+                        -3.5392216534549736e-16,
+                        1.9985235901097413e-15,
+                        1.6551565753641917e-05
                     ]
-                },
-                "scf_eigenvalues_b": {
-                    "ndim": -1,
-                    "size": 0
-                },
-                "scf_fock_a": {
-                    "ndim": -1,
-                    "size": 0
-                },
-                "scf_total_energy": 0.0
-            },
-            "scf_eigenvalues_a": {
-                "dims": [
-                    2
-                ],
-                "ndim": 1,
-                "size": 2,
-                "vals": [
-                    -2.445988271736921,
-                    -0.3013813125071577
-                ]
-            },
-            "scf_eigenvalues_b": {
-                "ndim": -1,
-                "size": 0
-            },
-            "scf_fock_a": {
-                "ndim": -1,
-                "size": 0
-            },
-            "scf_total_energy": 0.0
+                }
+            }
         }
     ]
 }
