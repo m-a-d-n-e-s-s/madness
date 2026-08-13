@@ -308,6 +308,24 @@ int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
         return nt;
     };
 
+    auto root_dnorm_tree = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double dnt = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            dnt = g.get_impl()->get_coeffs().find(key0).get()->second.get_dnorm_tree();
+        world.gop.max(dnt);
+        return dnt;
+    };
+
+    auto root_snorm = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double sn = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            sn = g.get_impl()->get_coeffs().find(key0).get()->second.get_snorm();
+        world.gop.max(sn);
+        return sn;
+    };
+
     f.make_redundant(true);
     const double nt_redundant = root_norm_tree(f);
     f.reconstruct();
@@ -322,6 +340,30 @@ int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
                  "T7 root norm_tree on a redundant tree equals ||f||");
     t.checkpoint(std::abs(nt_compressed - exact) < 1.e-10,
                  "T7 root norm_tree on a compressed tree equals ||f||");
+
+    // ||f||^2 = ||s||^2 + ||d||^2, so dnorm_tree at the root must be strictly
+    // below ||f||: equality means the scaling block was counted as detail
+    const double dnt_compressed = root_dnorm_tree(f);
+    if (world.rank() == 0)
+        printf("  T7 root dnorm_tree compressed %.10e  (||f|| %.10e)\n",
+               dnt_compressed, exact);
+    t.checkpoint(dnt_compressed < 0.999 * exact,
+                 "T7 root dnorm_tree excludes the scaling block");
+
+    // The multiwavelet basis is orthonormal, so the root scaling block and every
+    // difference coefficient below it are mutually orthogonal:
+    //   ||f||^2 == ||s_root||^2 + sum_nodes ||d||^2 == snorm^2 + dnorm_tree^2
+    // This pins dnorm_tree rather than merely bounding it, and so also catches a
+    // dnorm that comes out too small.
+    const double sn_compressed = root_snorm(f);
+    const double recomposed = std::sqrt(sn_compressed * sn_compressed
+                                      + dnt_compressed * dnt_compressed);
+    if (world.rank() == 0)
+        printf("  T7 snorm %.14e  dnorm_tree %.14e\n"
+               "  T7 sqrt(s^2+d^2) %.14e  ||f|| %.14e\n",
+               sn_compressed, dnt_compressed, recomposed, exact);
+    t.checkpoint(std::abs(recomposed - exact) < 1.e-12 * exact,
+                 "T7 snorm^2 + dnorm_tree^2 == ||f||^2 at the root");
     return t.end();
 }
 
