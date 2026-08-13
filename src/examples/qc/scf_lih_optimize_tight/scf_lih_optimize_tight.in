@@ -1,34 +1,50 @@
-# Hartree-Fock geometry optimization of LiH -- the `gopt` path of the `scf`
-# workflow, and the only deck here that optimizes a geometry.
+# Hartree-Fock geometry optimization of LiH with the optimizer thresholds pinned
+# EXPLICITLY, rather than left to be derived.
 #
-# `gopt true` hands the SCF to MolOpt (src/madness/chem/molopt.h), which projects
-# translations and rotations out of the gradient before testing convergence.  The
-# raw gradient carries a spurious net force of the order of the gradient
-# accuracy -- for this deck 1.6e-4 a.u., an identical dE/dz on both atoms -- so
-# without that projection `max-g` never reaches `gtol` and the run burns
-# `gmaxiter` cycles at a geometry that stopped moving after two.  With it, the
-# projected gradient converges to 5e-7.  LiH is linear, so the projector must
-# also cope with the vanishing rotation about the molecular axis.
+# This is the companion to scf_lih_optimize, which runs the same molecule at the
+# derived defaults. Two things it establishes that the other cases do not:
 #
-# The geometry tolerances are not set here and the `gtol`/`gprec` knobs in the
-# `dft` group do not reach this path: Applications.hpp derives them from
-# `protocol().back()` (Dalton-style), so the 1e-6 rung is what gives
-# gtol = xtol = 1e-5, etol = 2e-6 and a gradient precision of 1e-6.  A single
-# 1e-4 rung would instead put gtol at 2e-4 -- above the spurious net force,
-# i.e. a criterion that cannot tell a projected gradient from an unprojected
-# one.  That is the reason this case pays for the ladder.
+#   * a value set in the `optimization` group is accepted and applied. The driver
+#     sets its thresholds with set_derived_value (Drivers.hpp), so anything a deck
+#     states wins over the derived value; the ones below are all tighter than
+#     what would be derived from `dconv` (gtol 1e-4, xtol 1e-3,
+#     gradient_precision 1e-5).
 #
-# The start is 0.015 bohr inside the HF minimum (r_e = 3.0351 bohr), which the
-# optimizer closes in two steps.
+#     The difference is visible: at the derived thresholds scf_lih_optimize stops
+#     after 2 steps at a max gradient of 4.0e-07 and r = 3.035076 bohr; pinned as
+#     below this case takes 3 steps to 9.1e-07 and r = 3.034046. Same minimum,
+#     different stopping point -- which is what a threshold is for.
 #
-# Run:   ./run.sh          (or: madqc --wf=scf scf_lih_gopt.in)
+#   * these are the thresholds the retired in-SCF `gopt` path used to impose on
+#     everyone. They are a fine *choice* and a poor *default*: at a looser
+#     `dconv` they sit on the gradient's own noise floor, and the optimizer
+#     grinds instead of converging.
+#
+# What this case has always really tested is the projection. MolOpt removes
+# translations and rotations from the gradient before testing convergence
+# (MolOpt::print_gradient reports both the projected gradient and the net force
+# it took out). The raw gradient here carries a spurious net force of ~1.6e-4
+# a.u., an identical dE/dz on both atoms; without the projection `max-g` never
+# reaches `gtol` and the run burns every cycle at a geometry that stopped moving.
+# `max_gradient` is the key that notices -- asserting the energy alone would not,
+# since it is right either way. LiH is linear, so the projector must also cope
+# with the vanishing rotation about the molecular axis.
+#
+# The start is 0.015 bohr inside the HF minimum.
+#
+# Run:   ./run.sh    (or: madqc --optimize --wf=scf scf_lih_optimize_tight.in)
+
+optimization
+    gtol                1e-5
+    xtol                1e-5
+    gradient_precision  1e-6
+    maxiter             10
+end
 
 dft
     xc          hf
     protocol    [1e-4, 1e-6]
     dconv       1e-4
-    gopt        true
-    gmaxiter    10
 end
 
 molecule

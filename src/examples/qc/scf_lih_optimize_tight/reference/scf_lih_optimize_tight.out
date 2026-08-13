@@ -3,13 +3,15 @@
   MADQC RESULTS SUMMARY
 ======================================================================
 
-  Task 0 : SCF  (model = scf)
+  Task 0 : GEOMETRY OPTIMIZATION
   ----------------------------------------------------------------------
-    Molecule         : HLi
-    Total energy     :       -7.987363048 Ha        -217.3472 eV
-    Orbital eps (a)  : -2.4460 -0.3014  (Ha)
-    Converged        :  thresh = 1e-06  dconv = 0.0001
-    Wall time        :  0.0 s   (1 MPI x 1 threads)
+    Reference        : moldft
+    Geometry steps   : 3
+    Final energy     :       -7.987363048 Ha
+    Max gradient     : 9.13e-07 Ha/bohr
+    Optimized geometry (a.u.):
+        Li     0.00000000    -0.00000000     0.75452286
+         H     0.00000000    -0.00000000    -2.27952286
 
 ======================================================================
 

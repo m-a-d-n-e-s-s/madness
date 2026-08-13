@@ -1,2 +1,2 @@
 #!/bin/sh
-exec ${MADQC:-madqc} --wf=scf scf_lih_gopt.in
+exec ${MADQC:-madqc} --optimize --wf=scf scf_lih_optimize_tight.in

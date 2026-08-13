@@ -138,7 +138,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		// ignore_unknown_keys is true by default, so a deleted key would let an
 		// old deck run as a plain single point after one warning nobody reads --
 		// silently returning an unoptimized geometry. See the guard at the end of
-		// set_derived_values(). Same treatment as `no_compute`/`restartao`.
+		// set_derived_values().
 		initialize<bool> ("gopt",false,"RETIRED -- use `madqc --optimize`");
 		initialize<double> ("gtol",1.e-4,"RETIRED -- use optimization group `gtol`");
 		initialize<bool> ("gtest",false,"RETIRED -- never had an effect");
