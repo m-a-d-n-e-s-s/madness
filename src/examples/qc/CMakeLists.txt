@@ -26,6 +26,9 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # that a regularized and a plain SCF reference find the same minimum
   add_qctest(scf_lih_optimize   madqc "qctest;long;applications")      #  37 s
   add_qctest(nemo_lih_optimize  madqc "qctest;long;applications")      #  77 s
+  # the only polyatomic optimization, the only one on a functional, and the only
+  # one at the default eprec -- see the deck for why each of those matters
+  add_qctest(scf_h2o_lda_optimize madqc "qctest;long;applications")    #  74 s
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
