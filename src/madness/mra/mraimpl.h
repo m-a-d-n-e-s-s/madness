@@ -1716,14 +1716,22 @@ namespace madness {
         TensorArgs targs2=targs;
         targs2.thresh*=0.1;
 
-        // need the deep copy for contiguity
-        coeffT ss=coeffT(copy(d(cdata.s0)));
-        double snorm=ss.normf();
+        // need the deep copy for contiguity; ss shares it rather than taking a
+        // second one, so this k^NDIM block is the only temporary on the path
+        const tensorT s0block = copy(d(cdata.s0));
+        coeffT ss = coeffT(s0block);
+        double snorm = ss.normf();
 
-        if (key.level()> 0 && !nonstandard1) d(cdata.s0) = 0.0;
+        // dnorm must mean ||d|| in every tree state. The stored tensor keeps its
+        // s0 block at the root and everywhere in nonstandard form, so zero s0
+        // unconditionally to measure and put it back when the stored tensor is
+        // one that keeps it.
+        const bool stored_tensor_keeps_s0 = (key.level() == 0) or nonstandard1;
+        d(cdata.s0) = 0.0;
+        const double dnorm = d.normf();
+        if (stored_tensor_keeps_s0) d(cdata.s0) = s0block;
 
         coeffT dd=coeffT(d,targs2);
-        double dnorm=dd.normf();
         double norm_tree=sqrt(norm_tree2);
         // dnorm_tree accumulates this node's d coefficients and all those below it
         double dnorm_tree=sqrt(dnorm_tree2+dnorm*dnorm);
