@@ -711,8 +711,11 @@ inline NextAction decide_next_action(bool at_protocol, bool archive_needed,
 template <typename SCFParams>
 NextAction valid(World &world, const SCFResultsTuple &results,
                  const SCFParams &params) {
-  // Take a copy of the parameters
-  auto [sr, pr, cr, optr] = results;
+  // Take a copy of the parameters. The 4th element (OptimizationResults) is
+  // deliberately not bound: an SCF task no longer optimizes, so there is
+  // nothing of it to validate here.
+  auto [sr, pr, cr, optr_unused] = results;
+  (void)optr_unused;
 
   // Required convergence for "final" protocol
   const auto vthresh = params.protocol().back(); // final protocol
@@ -767,29 +770,16 @@ NextAction valid(World &world, const SCFResultsTuple &results,
                                        (need_dipole ? dipole_ok : true) &&
                                        (need_gradient ? gradient_ok : true);
 
-  bool is_gopt = false;
-  bool gopt_ok = true;
-  if (params.gopt()) {
-    is_gopt = true;
-  }
-  if (is_gopt) {
-    // check if the optimized geometry is available
-    try {
-
-      double gtol = params.gtol();
-      // A geometry optimization is only valid if the max gradient has
-      // dropped below gtol; otherwise it must be restarted/redone.
-      // (Previously this set gopt_ok=true on non-convergence, which made an
-      //  unconverged optimization look valid and suppressed the redo.)
-      gopt_ok = (optr.max_gradient < gtol);
-    } catch (...) {
-      gopt_ok = false;
-    }
-  }
+  // NB: no geometry-optimization validity test here any more. An SCF task no
+  // longer optimizes anything -- that is qcapp::OptimizeDriver's job, and it
+  // keeps no checkpoint of its own to validate (the optimizer's hessian and
+  // step history are not persisted, so an interrupted optimization restarts
+  // from the input geometry while the SCF underneath still restarts per
+  // geometry as usual).
 
   // Decide action
   const bool must_redo = !at_protocol || (archive_needed && !archive_exists) ||
-                         !all_properties_computed || !gopt_ok;
+                         !all_properties_computed;
 
   // if we don't need to redo, we can either reload or return ok
   if (!must_redo)
@@ -801,7 +791,6 @@ NextAction valid(World &world, const SCFResultsTuple &results,
     print("archive_needed: ", archive_needed);
     print("archive_exists: ", archive_exists);
     print("all_properties_computed: ", all_properties_computed);
-    print("gopt_ok: ", gopt_ok);
   }
   // with we need to redo we can restart from the exisiting archive
   return archive_exists ? NextAction::Restart : NextAction::Redo;
@@ -872,69 +861,19 @@ struct moldft_lib {
     // vama
     scf->set_protocol<3>(world, scf->param.protocol()[0]);
     double energy = 0.0;
-    scf_res.is_opt = scf->param.gopt();
+    // An SCF task computes an energy at one geometry. Geometry optimization is
+    // its own workflow task now -- `madqc --optimize --wf=scf`,
+    // qcapp::OptimizeDriver in chem/Drivers.hpp -- which drives the same MolOpt
+    // over the same MolecularEnergy target, derives its thresholds from the
+    // `optimization` group, and publishes the optimized geometry downstream.
+    // scf_res.is_opt stays false; the field and the OptimizationResults slot in
+    // SCFResultsTuple remain because the driver fills them.
+    MolecularEnergy E(world, *scf);
+    scf_res.scf_molecule = molecule;
 
-    if (scf_res.is_opt) {
-      // Geometry convergence thresholds tied to final SCF protocol
-      // following the Dalton-style rules:
-      //
-      //   wf_thresh = final SCF threshold (protocol().back())
-      //
-      //   |ΔE|   < max(1e-6, 2 * wf_thresh)
-      //   ||g||  < max(1e-4, 2 * wf_thresh)
-      //   ||dx|| < max(1e-4, 2 * wf_thresh)
-      //
-      // MolOpt uses:
-      //   etol -> energy change tolerance
-      //   gtol -> max gradient tolerance
-      //   xtol -> max Cartesian step tolerance
-      //
-      const double wf_thresh = scf->param.protocol().back();
-      const double etol = std::max(1.0e-7, 2.0 * wf_thresh);
-      const double gxtol = std::max(1.0e-5, 2.0 * wf_thresh);
-      const double gprec = std::max(1.0e-6, wf_thresh);
-
-      MolOpt opt(scf->param.gmaxiter(), // maximum geometry iterations
-                 0.1,   // maximum step in any Cartesian coordinate
-                 etol,  // energy-change tolerance
-                 gxtol, // gradient tolerance
-                 gxtol, // step (Cartesian) tolerance
-                 etol,  // assumed energy precision
-                 gprec, // assumed gradient precision
-                 (world.rank() == 0) ? 1 : 0, // print_level
-                 scf->param.algopt());
-
-      MolecularEnergy target(world, *scf);
-      opt_res = opt.optimize_app(scf->molecule, target);
-      auto new_mol = opt_res.final_geometry;
-
-      Tensor<double> gradient;
-      target.energy_and_gradient(new_mol, energy, gradient);
-      scf_res.scf_molecule = new_mol;
-
-      scf_res.properties.energy = energy;
-      scf_res.properties.gradient = gradient;
-
-      // write out the optimized geometry
-      if (world.rank() == 0) {
-        std::string geomfile = scf->param.prefix() + "_opt.xyz";
-        std::ofstream ofs(geomfile);
-        new_mol.print(ofs);
-        ofs.close();
-        print("optimized geometry written to ", geomfile);
-        // write out mad.in with optimized geometry
-      }
-
-      // MolecularEnergy E(world, *scf);
-      // energy = E.value(new_mol.get_all_coords().flat());
-    } else {
-      MolecularEnergy E(world, *scf);
-      scf_res.scf_molecule = molecule;
-
-      energy = E.value(scf->molecule.get_all_coords().flat());
-      if (world.rank() == 0 && scf->param.print_level() > 0)
-        E.output_calc_info_schema();
-    }
+    energy = E.value(scf->molecule.get_all_coords().flat());
+    if (world.rank() == 0 && scf->param.print_level() > 0)
+      E.output_calc_info_schema();
 
     functionT rho = scf->make_density(world, scf->aocc, scf->amo);
     functionT brho = rho;
