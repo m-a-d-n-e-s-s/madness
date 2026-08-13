@@ -230,6 +230,10 @@ public:
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
     bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
+    /// set while an optimizer drives this SCF, to keep the raw derivative table
+    /// out of the log next to MolOpt's projected one -- see SCF::derivatives
+    mutable bool suppress_raw_gradient_print=false;
+
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
         : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {

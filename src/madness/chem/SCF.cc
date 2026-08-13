@@ -1514,8 +1514,16 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
     r += ra + ru + rc;
     END_TIMER(world, "derivatives");
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
-        print("\n Derivatives (a.u.)\n -----------\n");
+    // Not printed while an optimizer is driving: these are the RAW derivatives,
+    // carrying a spurious net force and torque that is routinely orders of
+    // magnitude larger than the residual the optimizer converges. MolOpt prints
+    // the projected gradient it actually uses (MolOpt::print_gradient), and two
+    // tables differing by 100x invite the reader to conclude that no projection
+    // is happening. A single-point gradient run still prints this, since there
+    // it is the answer rather than an intermediate.
+    if (world.rank() == 0 and (param.print_level() > 1) and not suppress_raw_gradient_print) {
+        print("\n Derivatives (a.u.), raw -- translations/rotations NOT projected out"
+              "\n -----------\n");
         print(
                 "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
         print(

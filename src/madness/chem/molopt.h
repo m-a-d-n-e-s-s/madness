@@ -185,6 +185,46 @@ private:
     return V;
   }
 
+  /// print the gradient the optimizer actually works with
+  ///
+  /// This is the PROJECTED gradient, and it is what every convergence test
+  /// below uses. The engines print their own raw derivatives -- a table that
+  /// carries the full spurious net force and torque, typically orders of
+  /// magnitude above the projected residual -- so without this the only
+  /// gradient visible in an optimization log is the one the optimizer does not
+  /// use, which reads as though no projection were happening at all.
+  ///
+  /// The removed net force is printed alongside precisely because it is not a
+  /// defect of the optimizer: translational invariance is broken only by the
+  /// numerics of the underlying gradient, and seeing how much was taken out is
+  /// the honest measure of that error.
+  void print_gradient(const Molecule &molecule, const Tensor<double> &graw,
+                      const Tensor<double> &g) const {
+    const size_t natom = molecule.natom();
+    // a plain array, not a Tensor: Tensor::operator()(0) is ambiguous between
+    // the long and the const long* overloads, since 0 is also a null pointer
+    // constant
+    double net[3] = {0.0, 0.0, 0.0};
+    for (size_t i = 0; i < natom; ++i)
+      for (int c = 0; c < 3; ++c)
+        net[c] += graw[i * 3 + c];
+
+    print("\n Gradient (a.u.), translations and rotations projected out\n"
+          " ---------------------------------------------------------\n");
+    print("  atom        x            y            z          dE/dx        "
+          "dE/dy        dE/dz");
+    print(" ------ ------------ ------------ ------------ ------------ "
+          "------------ ------------");
+    for (size_t i = 0; i < natom; ++i) {
+      const Atom &atom = molecule.get_atom(i);
+      printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n", int(i), atom.x,
+             atom.y, atom.z, g[i * 3 + 0], g[i * 3 + 1], g[i * 3 + 2]);
+    }
+    printf("  max element of the projected gradient  %12.3e\n", g.absmax());
+    printf("  net force removed by the projection    %12.3e %12.3e %12.3e\n",
+           net[0], net[1], net[2]);
+  }
+
   /// a1 is initial step (usually pick 1)
   /// energy0 is energy at zero step
   /// dxgrad is gradient projected onto search dir
@@ -327,9 +367,12 @@ public:
       // the raw gradient carries a spurious net force/torque of the order of
       // the gradient accuracy, which would keep max-g above gtol forever
       Tensor<double> P = make_projector(molecule);
+      const Tensor<double> graw = copy(g);
       g = inner(P, g);
-      if (print_level > 1)
-        print("gradient after projection", g);
+      // by default, and NOT only at high print levels: this is the gradient
+      // every test below is applied to
+      if (print_level > 0)
+        print_gradient(molecule, graw, g);
 
       double de = e - ep;
       double dxmax = dx.absmax();
@@ -461,9 +504,12 @@ public:
       // the raw gradient carries a spurious net force/torque of the order of
       // the gradient accuracy, which would keep max-g above gtol forever
       Tensor<double> P = make_projector(molecule);
+      const Tensor<double> graw = copy(g);
       g = inner(P, g);
-      if (print_level > 1)
-        print("gradient after projection", g);
+      // by default, and NOT only at high print levels: this is the gradient
+      // every test below is applied to
+      if (print_level > 0)
+        print_gradient(molecule, graw, g);
 
       double de = e - ep;
       double dxmax = dx.absmax();
