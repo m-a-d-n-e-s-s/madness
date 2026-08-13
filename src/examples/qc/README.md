@@ -81,17 +81,13 @@ The four optimization cases cover the two forms a geometry optimization takes.
 `scf_lih_gopt` uses `dft gopt`, which optimizes *inside* one SCF task;
 `scf_lih_optimize` and `nemo_lih_optimize` use `--optimize --wf=<scf|nemo>`, the
 composable form that is its own task and publishes the optimized geometry for a
-later step. The moldft pair agree on the energy to the last printed digit
-(−7.987363048 both) and on the bond length to 7e-5 bohr (3.034046 vs 3.033974),
-which is the check that the first-class optimizer really drives the same MolOpt
-as the in-SCF path; `nemo_lih_optimize` lands 3e-4 bohr away (3.034271), the
-difference between a regularized and a plain SCF reference at these thresholds.
+later step. The moldft pair agree on the bond length to 5e-6 bohr (3.035071 vs
+3.035076) in the same number of steps, which is the check that the first-class
+optimizer really drives the same MolOpt as the in-SCF path;
+`nemo_lih_optimize` lands 1.3e-3 bohr away (3.033772), the difference between a
+regularized and a plain SCF reference at these thresholds.
 
-The step counts differ slightly — 3 for `scf_lih_gopt`, 2 for the two
-`--optimize` cases — because the two forms still derive their thresholds
-differently (the in-SCF path from `protocol().back()`, the driver from `dconv`,
-which is what actually bounds a gradient). That resolves when the in-SCF form is
-retired. All three converge on the criteria rather than through MolOpt's
+All three converge on the criteria rather than through MolOpt's
 "insufficient precision" escape; if one of them ever starts taking a single step
 and stopping, suspect `gradient_precision` being set above the gradient's real
 noise floor, which both disarms that escape and clamps `gtol` from below. The

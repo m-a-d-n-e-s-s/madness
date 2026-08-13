@@ -19,8 +19,9 @@
 # that does NOT shrink with eprec; MolOpt projects it out and prints what is
 # left (`MolOpt::print_gradient`). Before the thresholds were tied to `dconv`,
 # `gtol` was derived at 1e-5 -- below the gradient's own noise floor -- and this
-# calculation took 7 geometry steps of non-monotonic wandering instead of 4,
-# with MolOpt's "insufficient precision" escape hatch armed too tightly to fire.
+# calculation wandered non-monotonically, the max gradient rising again between
+# steps, with MolOpt's "insufficient precision" escape hatch armed too tightly to
+# fire. It now converges on the criteria instead.
 #
 # Run:   ./run.sh    (or: madqc --optimize --wf=scf scf_h2o_lda_optimize.in)
 
