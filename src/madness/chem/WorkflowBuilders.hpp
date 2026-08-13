@@ -83,17 +83,14 @@ inline void add_nemo_workflow_drivers(World &world, Params &pm,
 /// Geometry optimization of a workflow's reference geometry: `--optimize` plus
 /// `--wf=<scf|nemo>`, which names the reference method. One task,
 /// qcapp::OptimizeDriver, which as a Driver can later own the displaced sub-runs a
-/// numerical gradient needs. The in-SCF form (`dft gopt`) is unchanged and still
-/// available; both drive the same MolOpt and give the same geometry.
+/// numerical gradient needs. This is now the ONLY way to optimize a geometry --
+/// the in-SCF `dft gopt` form has been removed and its keyvals retired.
 inline void add_optimize_workflow_drivers(World &world, Params &pm,
                                           WorkflowKind kind,
                                           qcapp::Workflow &wf) {
-  // `--optimize` also sets dft.gopt (CalculationParameters.h), which is the
-  // *other* optimizer. Clear it: the driver is doing the optimizing, and leaving
-  // it set would both misreport the run in the parameter echo and make any later
-  // SCF task in the same workflow optimize a second time.
-  pm.get<CalculationParameters>().set_user_defined_value("gopt", false);
-
+  // NB: nothing to clear on the dft group. `--optimize` used to set `dft.gopt`,
+  // which armed the *other* optimizer, and this had to undo it before a later
+  // SCF task in the same workflow optimized a second time. That coupling is gone.
   switch (kind) {
   case WorkflowKind::Scf:
     wf.addDriver(
