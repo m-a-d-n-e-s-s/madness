@@ -1,5 +1,5 @@
 {
-  "description": "Geometry optimization of LiH as its own workflow (--wf=optimize, moldft reference)",
+  "description": "Geometry optimization of LiH as its own task (--optimize --wf=scf, moldft reference)",
   "checks": [
     {"key": ["tasks", 0, "optimization_results", "nsteps"], "tol": 0},
     {"key": ["tasks", 0, "optimization_results", "final_energy"], "tol": 1e-6},
