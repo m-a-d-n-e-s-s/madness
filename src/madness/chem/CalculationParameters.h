@@ -55,8 +55,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
 		read_input_and_commandline_options(world, parser, "dft");
-        // convenience option -- needs to be moved to the MolecularOptimizer class
-        if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
+        // NB: `--optimize` deliberately does NOT set anything here. It selects a
+        // workflow task (WorkflowBuilders::add_optimize_workflow_drivers); the
+        // `dft` group has no say in whether a geometry is optimized.
 		std::string inputfile=parser.value("input");
 		// std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
 		// if (prefix!="input") set_derived_value("prefix",prefix);
@@ -128,16 +129,24 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double> ("lo",1.e-10,"smallest length scale we need to resolve");
 		initialize<std::vector<double> > ("protocol",{1.e-4,1.e-6},"calculation protocol");
 
-		// geometry optimization parameters
-		// @TODO: need to be moved to molecular optimizer class
-		initialize<bool> ("gopt",false,"geometry optimizer");
-		initialize<double> ("gtol",1.e-4,"geometry tolerance");
-		initialize<bool> ("gtest",false,"geometry tolerance");
-		initialize<double> ("gval",1.e-5,"value precision");
-		initialize<double> ("gprec",1.e-4,"gradient precision");
-		initialize<int> ("gmaxiter",20,"optimization maxiter");
-		initialize<bool> ("ginitial_hessian",false,"compute inital hessian for optimization");
-		initialize<std::string> ("algopt","bfgs","algorithm used for optimization",{"bfgs","cg"});
+		// Retired geometry-optimization knobs. Geometry optimization is no longer
+		// something an SCF does to itself; it is a workflow task of its own
+		// (`madqc --optimize --wf=<scf|nemo>`, qcapp::OptimizeDriver) and every
+		// knob it has lives in the `optimization` group (ParameterManager.hpp).
+		//
+		// These stay registered, and error, rather than being deleted outright:
+		// ignore_unknown_keys is true by default, so a deleted key would let an
+		// old deck run as a plain single point after one warning nobody reads --
+		// silently returning an unoptimized geometry. See the guard at the end of
+		// set_derived_values(). Same treatment as `no_compute`/`restartao`.
+		initialize<bool> ("gopt",false,"RETIRED -- use `madqc --optimize`");
+		initialize<double> ("gtol",1.e-4,"RETIRED -- use optimization group `gtol`");
+		initialize<bool> ("gtest",false,"RETIRED -- never had an effect");
+		initialize<double> ("gval",1.e-5,"RETIRED -- use optimization group `value_precision`");
+		initialize<double> ("gprec",1.e-4,"RETIRED -- use optimization group `gradient_precision`");
+		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
+		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
+		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
 		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
@@ -240,13 +249,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool derivatives() const {return get<bool>("derivatives");}
 	bool dipole() const {return get<bool>("dipole");}
 
-	bool gopt() const {return get<bool>("gopt");}
-	std::string algopt() const {return get<std::string>("algopt");}
-	int gmaxiter() const {return get<int>("gmaxiter");}
-	double gtol() const {return get<double>("gtol");}
-	double gval() const {return get<double>("gval");}
-	double gprec() const {return get<double>("gprec");}
-	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
+	// NB: no gopt()/gtol()/gval()/gprec()/gmaxiter()/ginitial_hessian()/algopt()
+	// accessors. Those keyvals are retired; see the initialize() block above and
+	// the guard in set_derived_values(). The optimizer's knobs are in
+	// OptimizationParameters (chem/ParameterManager.hpp).
 
      std::string nwfile() const {return get<std::string>("nwfile");}
 
@@ -320,9 +326,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
         			"switch from local to canonical orbitals (keyword canon)\n\n");
         }
 
-        //NWChem interface doesn't support geometry optimization
-        if (get<bool>("gopt") && nwfile() != "none") error("NWchem initialization only supports single point energy calculations.");
-
         // Retired keyvals. A clean break needs to be loud: ignore_unknown_keys is
         // true by default, so deleting these outright would let an old deck run
         // with different semantics after one warning nobody reads. They stay
@@ -331,6 +334,17 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
         if (is_user_defined("no_compute"))
         	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
+        // Geometry optimization left the `dft` group entirely. `gopt` in particular
+        // must not be waved through: a deck that sets it expects an optimized
+        // geometry back, and silently returning a single point at the input
+        // geometry is a wrong answer, not a missing feature.
+        for (const std::string& key : {"gopt","gtol","gtest","gval","gprec",
+                                       "gmaxiter","ginitial_hessian","algopt"}) {
+        	if (is_user_defined(key))
+        		error(("\n\n`" + key + "` has been retired: geometry optimization is now a task of "
+        		       "its own.\nUse `madqc --optimize --wf=<scf|nemo>` and the `optimization` "
+        		       "parameter group\n(see `madqc --print_parameters=optimization`).\n\n").c_str());
+        }
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {
