@@ -3453,9 +3453,10 @@ template <typename T, std::size_t NDIM>
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
+                const double snorm = node.coeff().normf();
+
                 if (not keepleaves) node.clear_coeff();
 
-                auto snorm=(keepleaves) ? node.coeff().normf() : 0.0;
                 node.set_norm_tree(snorm);
                 node.set_dnorm_tree(0.0);
                 node.set_snorm(snorm);
