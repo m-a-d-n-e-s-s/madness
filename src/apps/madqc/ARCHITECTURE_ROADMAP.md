@@ -14,11 +14,12 @@ knob + io provenance) already landed.
 - The working SCF→{response, cc2, cis, oep} pipelines pass data via a
   **build-time side-channel**: the builder captures `reference->calc()`
   (a live `shared_ptr<SCF/Nemo>`) before adding the downstream driver.
-- Geometry optimization WORKS today but only *inside* one SCF driver
-  (`dft gopt=1` → `moldft_lib` → `MolOpt::optimize_app`; writes `_opt.xyz`,
-  emits `optimization_results`). The `optimize` WORKFLOW is a stub (enum +
-  disabled dispatch + fully-commented `OptimizeDriver` + a dead `SCFTarget`
-  adapter whose result schema doesn't match `SCFApplication`).
+- Geometry optimization is a first-class task: `--optimize --wf=<scf|nemo>` →
+  `qcapp::OptimizeDriver` → `MolOpt::optimize_app`; writes `_opt.xyz`, emits
+  `optimization_results`, publishes the optimized geometry into the StepContext.
+  (Historical note: it used to live *inside* one SCF driver, gated on
+  `dft gopt=1`, with the `optimize` workflow a stub. That form is gone and its
+  `dft` keyvals are retired.)
 - Restart machinery is strong and reusable: SCF checkpoint validation with a
   geometry-match guard; response restart via `response_metadata.json` +
   best-usable-seed selection; per-task `PathManager` dirs (absolute paths).
@@ -43,11 +44,14 @@ engine the Library policy supplies — the same code optimizes on moldft
 `optimization` group as well was removed, and `--wf=optimize` now answers with a
 migration message. It reads the
 `optimization` group (which nothing read before), derives any threshold the deck
-leaves unset from `protocol().back()`, writes `<prefix>_opt.xyz`, and publishes the
-optimized geometry into the StepContext. Covered by
-`src/examples/qc/{scf,nemo}_lih_optimize`; the moldft case reproduces the
-in-SCF `dft gopt` geometry to the last digit (r = 3.035071 bohr), and the two
-engines agree on the minimum to 1.3e-3 bohr.
+leaves unset — the energy ones from `protocol().back()`, the gradient ones from
+`dconv`, which is what actually bounds a gradient — writes `<prefix>_opt.xyz`,
+and publishes the optimized geometry into the StepContext. Covered by
+`src/examples/qc/{scf_lih_optimize, scf_lih_optimize_tight, nemo_lih_optimize,
+scf_h2o_lda_optimize}`. `scf_lih_optimize_tight` pins the thresholds the retired
+in-SCF path used to impose and reproduces its numbers exactly (r = 3.034046 bohr,
+E = −7.987363048), which is what establishes that moving the optimizer out of the
+SCF changed no arithmetic; the two engines agree on the minimum to 3e-4 bohr.
 
 Three deviations from the original plan, each deliberate:
 

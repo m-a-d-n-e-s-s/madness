@@ -122,7 +122,8 @@ void help(const std::string &wf) {
     print("madqc --optimize --wf=scf --geometry=h2o --optimization=\"gtol=1.e-4; "
           "maxiter=10\"");
     print("\nsee  madqc --print_parameters=optimization  for all knobs.");
-    print("the older in-SCF form is still available as  --dft=\"gopt=1\".");
+    print("the in-SCF form (--dft=\"gopt=1\") has been removed; its keyvals are");
+    print("retired and error with a pointer to the `optimization` group.");
   }
 }
 

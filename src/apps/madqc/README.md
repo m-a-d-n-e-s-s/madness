@@ -66,10 +66,15 @@ optimizes the geometry of whatever reference `--wf` names, so
 `optimization` parameter group, writes `<prefix>_opt.xyz`, and publishes the
 optimized geometry for a later step. Only `scf` and `nemo` are optimizable today.
 
-Alternatively `gopt 1` in the `dft` group optimizes *inside* an SCF task; that is
-the older form and remains supported. Both drive the same optimizer and give the
-same geometry. Working decks: `src/examples/qc/{scf,nemo}_lih_optimize` and
-`src/examples/qc/scf_lih_gopt`.
+This is the only way to optimize a geometry. The older in-SCF form (`gopt 1` in
+the `dft` group) has been removed and its keyvals — `gopt`, `gtol`, `gval`,
+`gprec`, `gmaxiter`, `ginitial_hessian`, `algopt` — are retired: a deck that sets
+one now fails with a message naming the replacement rather than silently running
+a single point. Every optimizer knob lives in the `optimization` group.
+
+Working decks: `src/examples/qc/{scf,nemo}_lih_optimize`,
+`src/examples/qc/scf_lih_optimize_tight` (thresholds pinned explicitly) and
+`src/examples/qc/scf_h2o_lda_optimize` (polyatomic, on a functional).
 
 ---
 
