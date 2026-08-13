@@ -3,8 +3,8 @@
 # Same deck as scf_lih_optimize, run with a different `--wf` -- the optimizer, the
 # thresholds and the starting geometry are identical, so the pair is a cross-check
 # between the two engines: a regularized (nuclear-cusp-free) reference and a plain
-# SCF one must find the same minimum. They do, to ~1e-4 bohr at these thresholds
-# (3.033905 vs 3.034046 bohr), and each case pins its own value.
+# SCF one must find the same minimum. They do, to ~3e-4 bohr at these thresholds
+# (3.034271 vs 3.033974 bohr), and each case pins its own value.
 #
 # nemo also needs the wavefunction re-solved at every new geometry. `Nemo::value`
 # skips the SCF when the orbitals are already converged to the requested
