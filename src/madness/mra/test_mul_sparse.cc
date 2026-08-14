@@ -261,8 +261,10 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
 
     // reference values, taken while the operands are still reconstructed
     p.f.reconstruct();
-    const double norm_before  = p.f.norm2();
-    const double trace_before = p.f.trace();
+    p.g.reconstruct();
+    const double norm_before    = p.f.norm2();
+    const double trace_before   = p.f.trace();
+    const double g_trace_before = p.g.trace();
 
     Function<double,D> q = mul_sparse(p.f, p.g, 1.e-6);
     world.gop.fence();
@@ -272,19 +274,34 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     t.checkpoint(get_tree_state(p.g) == redundant,
                  "T6 right operand is left redundant");
 
-    const double norm_after  = p.f.norm2();
-    const double trace_after = p.f.trace();
+    // each entry point has to be called on a tree that is still redundant at
+    // the point of the call, and norm2()/trace() reconstruct as a side effect
+    // -- so they cannot be measured one after the other on the same operand
+    const double norm_after  = p.f.norm2();     // p.f: redundant -> reconstructed
+    const double trace_after = p.g.trace();     // p.g: redundant -> reconstructed
     if (world.rank() == 0)
         printf("  T6 norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
-               norm_before, norm_after, trace_before, trace_after);
+               norm_before, norm_after, g_trace_before, trace_after);
 
-    t.checkpoint(norm_after,  norm_before,  1.e-10, "T6 norm2 on a redundant function");
-    t.checkpoint(trace_after, trace_before, 1.e-10, "T6 trace on a redundant function");
+    t.checkpoint(norm_after,  norm_before,    1.e-10, "T6 norm2 on a redundant function");
+    t.checkpoint(trace_after, g_trace_before, 1.e-10, "T6 trace on a redundant function");
+    t.checkpoint(get_tree_state(p.f) == reconstructed and
+                 get_tree_state(p.g) == reconstructed,
+                 "T6 norm2/trace leave the operand reconstructed");
 
-    // the vector overload already reconstructs; it must still agree
+    // the vector overload already reconstructs; it must still agree.  p.f is
+    // reconstructed by now, so put it back into redundant form first
+    p.f.make_redundant(true);
+    t.checkpoint(get_tree_state(p.f) == redundant,
+                 "T6 norm2s operand is redundant on entry");
     std::vector<Function<double,D>> v = {p.f};
     t.checkpoint(norm2s(world, v)[0], norm_before, 1.e-10,
                  "T6 vector norm2s agrees");
+
+    // p.f has now been through reconstructed -> redundant -> reconstructed;
+    // its trace must still be the value measured at the top
+    t.checkpoint(p.f.trace(), trace_before, 1.e-10,
+                 "T6 trace round-trips through redundant form");
     return t.end();
 }
 
