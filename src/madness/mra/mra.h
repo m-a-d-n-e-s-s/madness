@@ -825,11 +825,25 @@ namespace madness {
         /// reconstructed first -- summing norm2sq_local over e.g. a redundant tree
         /// counts every level and overcounts.  See comments for err() w.r.t.
         /// applying to many functions.
+        ///
+        /// Throws if the function is on-demand: it carries no coefficients, so
+        /// its norm is not defined until it is materialized.
+        ///
+        /// N.B. that reconstruction is a mutation -- it discards the interior
+        /// coefficients of a redundant tree -- so this (logically const) method
+        /// fences before it changes state: any task still reading those
+        /// coefficients, e.g. a mul_sparse() invoked with fence=false, must be
+        /// done with them before they are removed.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
-            if (!(is_compressed() or is_reconstructed())) reconstruct();
+            if (!(is_compressed() or is_reconstructed())) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "norm2 is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -1261,10 +1275,18 @@ namespace madness {
         /// reconstructed first.  For efficient use especially with many functions,
         /// reconstruct them all first and use trace_local instead, so you can
         /// perform a global sum on all at the same time.
+        ///
+        /// Throws if the function is on-demand, and fences before reconstructing;
+        /// see norm2() for both.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
-            if (!(is_compressed() or is_reconstructed())) reconstruct();
+            if (!(is_compressed() or is_reconstructed())) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "trace is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
             if (VERIFY_TREE) verify_tree();
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
