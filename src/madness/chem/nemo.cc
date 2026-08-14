@@ -195,14 +195,17 @@ double Nemo::value(const Tensor<double> &x) {
 
   // read (pre-) converged wave function from disk if there is one
   if (get_calc_param().no_compute() or get_calc_param().restart()) {
-    set_protocol(get_calc_param().econv()); // set thresh to current value
+    // set thresh to the final rung of the ladder before loading, so load_mos
+    // compares the archive against the precision we are actually aiming for
+    set_protocol(p.end_prec);
     if (world.rank() == 0 and get_calc_param().print_level() > 2)
       print("reading orbitals from disk");
     calc->load_mos(world);
     if (world.rank() == 0 and get_calc_param().print_level() > 2) {
       print("orbitals are converged to ", calc->converged_for_thresh);
     }
-    p.start_prec = calc->converged_for_thresh;
+    // resume at the first rung the archive has not already converged through
+    p.set_start_from_achieved(calc->converged_for_thresh);
 
     calc->ao = calc->project_ao_basis(world, calc->aobasis);
 
@@ -397,6 +400,14 @@ double Nemo::solve(const SCFProtocol &proto) {
   vecfuncT &nemo = calc->amo;
   // long nmo = nemo.size();
 
+  // Every product below mixes the nemos with R, R_square and the potentials, so
+  // they must all share the current polynomial order. set_protocol keeps them in
+  // step; this catches any future path that reaches solve() without going
+  // through it, where the failure would otherwise be silent garbage.
+  if (nemo.size() > 0)
+    MADNESS_CHECK_THROW(nemo.front().k() == FunctionDefaults<3>::get_k(),
+                        "nemos are not at the current k -- set_protocol was skipped");
+
   // NOTE that nemos are somewhat sensitive to sparse operations (why??)
   // Therefore set all tolerance thresholds to zero, also in the mul_sparse
 
@@ -522,8 +533,12 @@ double Nemo::solve(const SCFProtocol &proto) {
   if (converged) {
     if (world.rank() == 0)
       print("\nIterations converged\n");
-    calc->converged_for_thresh = get_calc_param().econv();
-    calc->converged_for_dconv = get_calc_param().dconv();
+    // Record the rung actually converged to, not the user's econv/dconv -- the
+    // same rule moldft follows in SCF::solve. With econv this claimed a single
+    // precision for every rung of the ladder, which made the restart logic and
+    // madqc's validity test compare against a number the run never reached.
+    calc->converged_for_thresh = proto.thresh;
+    calc->converged_for_dconv = proto.dconv;
     if (get_calc_param().save())
       calc->save_mos(world);
   } else {
@@ -1530,7 +1545,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
   }
 
   SCFProtocol preiterations(world, get_calc_param());
-  preiterations.end_prec *= 10.0;
+  preiterations.drop_last_rung();   // stop one rung short: this is only a guess
   preiterations.initialize();
   for (; not preiterations.finished(); ++preiterations) {
     set_protocol(preiterations.current_prec);
@@ -1570,7 +1585,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
   // solve the response equations
   SCFProtocol p(world, get_calc_param());
-  p.start_prec = p.end_prec;
+  p.set_start_index(p.size() - 1);   // the response equations run at full precision only
   p.initialize();
 
   for (; not p.finished(); ++p) {
