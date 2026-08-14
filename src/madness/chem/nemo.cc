@@ -184,8 +184,22 @@ double Nemo::value(const Tensor<double> &x) {
   if (world.rank() == 0)
     print_header2("computing the nemo wave function");
 
-  if ((xsq - calc->molecule.get_all_coords()).normf() > 1.e-12)
+  // We get here only when the reference is NOT solved at this geometry
+  // (check_converged returned false above), so if a previous solve happened
+  // (coords_sum > 0) the nuclei have moved: drop everything tied to their old
+  // positions. The convergence flag has to go too, or `skip_solve` below reads
+  // "already converged to the requested threshold" and short-circuits the SCF at
+  // the new geometry -- a caller that walks the geometry (MolOpt via the optimize
+  // workflow, MolecularOptimizer via the nemo app) then optimizes on a frozen
+  // wavefunction: energy constant to every digit, gradients from stale orbitals.
+  // 1e10 is the same "not converged" sentinel SCF::load_mos uses.
+  //
+  // The condition here used to compare the scalar `xsq` against the coordinate
+  // tensor, which is not the geometry test it reads as.
+  if (coords_sum > 0.0) {
     invalidate_factors_and_potentials();
+    calc->converged_for_thresh = 1.e10;
+  }
 
   calc->molecule.set_all_coords(
       x.reshape(size_to_long(calc->molecule.natom()), 3));

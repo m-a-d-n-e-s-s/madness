@@ -1,0 +1,13 @@
+{
+  "description": "LDA geometry optimization of water as its own task (--optimize --wf=scf); the only polyatomic, the only functional, and the only default-eprec optimization case",
+  "checks": [
+    {"key": ["tasks", 0, "optimization_results", "final_energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "optimization_results", "max_gradient"], "tol": 1e-4, "allow_zero": true},
+    {"key": ["tasks", 0, "optimization_results", "final_geometry", "geometry", 0, 2], "tol": 1e-3},
+    {"key": ["tasks", 0, "optimization_results", "final_geometry", "geometry", 1, 1], "tol": 1e-3},
+    {"key": ["tasks", 0, "optimization_results", "final_geometry", "geometry", 1, 2], "tol": 1e-3},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "metadata", "method"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}
