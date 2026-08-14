@@ -1469,9 +1469,16 @@ namespace madness {
         if (finalstate==get_tree_state()) return;
 
 
-        // go through reconstructed state -- requires fence!
+        // go through reconstructed state -- requires fence! The uncovered transitions need the
+        // reconstructed coefficients before the second pass, so the fence is unavoidable; report a
+        // broken no-fence promise once, from one rank, rather than per rank per call.
+        if (not fence and FunctionDefaults<NDIM>::get_debug() and world.rank() == 0) {
+            static std::atomic<bool> reported(false);
+            if (not reported.exchange(true))
+                print("change_tree_state:", current_state, "->", finalstate,
+                      "must reconstruct first and therefore fences, despite fence=false");
+        }
         change_tree_state(reconstructed,true);
-        print("could not respect  no-fence  parameter in change_tree_state");
         change_tree_state(finalstate,fence);
 
     }
