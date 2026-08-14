@@ -1983,8 +1983,15 @@ namespace madness {
         const double d=sizeof(T);
         const double fac=1024*1024*1024;
 
+        // norm2sq_local sums the coefficients of every node, which is ||f||^2
+        // only when the tree carries them once -- on a redundant or nonstandard
+        // tree it counts every level and overcounts (cf. Function::norm2()).
+        // This is a diagnostic and must not mutate the tree, so report the norm
+        // only where it means something.  The tree state is replicated, so all
+        // ranks take the same branch and the global ops stay collective.
+        const bool norm_is_meaningful = is_compressed() or is_reconstructed();
         double norm=0.0;
-        {
+        if (norm_is_meaningful) {
             double local = norm2sq_local();
             this->world.gop.sum(local);
             this->world.gop.fence();
@@ -1995,8 +2002,12 @@ namespace madness {
 
             constexpr std::size_t bufsize=128;
             char buf[bufsize];
-            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
-                   (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
+            if (norm_is_meaningful)
+                snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
+                       (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
+            else
+                snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7s %zu, %6.3f m, %6.3f GByte",
+                       (name.c_str()), wall, "n/a", tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
             print(std::string(buf));
         }
     }
