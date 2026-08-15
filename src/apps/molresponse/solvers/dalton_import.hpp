@@ -72,7 +72,6 @@
 #include <madness/chem/molecule.h>
 #include <madness/misc/info.h>
 #include <madness/mra/mra.h>
-#include <madness/tensor/tensor_lapack.h>   // syev (Loewdin gauge polish)
 #include <madness/world/MADworld.h>
 
 #include <algorithm>
@@ -562,17 +561,12 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
   // ---- occupied-orbital GAUGE ROTATION -------------------------------------
   // DALTON's response vectors are indexed by its CANONICAL occupied MOs; the
   // FD solver's x_i belong to the MADNESS ground-state orbitals — typically
-  // LOCALIZED (moldft `localize new`). Response functions transform
-  // covariantly with the occupied orbitals, so without this the per-orbital
-  // pairing is scrambled and the seed is worthless (observed: seed-implied
-  // alpha_zz 3.56 vs 8.39 on the h2o A/B). Build the occupied-occupied
-  // overlap M(i,j) = <phi^DAL_i | phi^MAD_j> in MRA space, Loewdin-polish it
-  // to an exact unitary U = M (M^T M)^{-1/2}, and rotate every seed block:
-  //     x^MAD_j = sum_i x^DAL_i U(i,j)     (same for y).
-  // The eigenvalues of M^T M are ALSO the quantitative ground-state import
-  // fidelity: ~1 when the two occupied spaces coincide. An eigenvalue below
-  // 0.5 means a MADNESS occupied orbital has little support in the DALTON
-  // occupied space — a different state entirely — hard error.
+  // LOCALIZED (moldft `localize new`). Project the DALTON occupied MOs to MRA
+  // and build U = M (M^T M)^{-1/2} via the shared helper (tools/dalton_mra.hpp
+  // occupied_gauge_rotation — physics rationale, fidelity eigenvalue print and
+  // the <0.5 hard error live there); every seed block is rotated
+  //     x^MAD_j = sum_i x^DAL_i U(i,j)     (same for y)
+  // before Q-projection.
   Tensor<double> U;
   {
     bool any = false;
@@ -587,33 +581,8 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
                                                  std::move(w), active_thresh));
       }
       truncate(world, phi_dal, active_thresh);
-      Tensor<double> M = matrix_inner(world, phi_dal, gs.orbitals_alpha());
-      Tensor<double> S = inner(transpose(M), M);   // M^T M, n_occ x n_occ
-      Tensor<double> V, ev;
-      syev(S, V, ev);
-      double ev_min = ev(0L);
-      for (long k = 0; k < ev.dim(0); ++k) ev_min = std::min(ev_min, ev(k));
-      if (world.rank() == 0)
-        print("[DALTON-SEED] occupied-gauge overlap M^T M eigenvalues:", ev,
-              "  (import fidelity; 1 = perfect span match)");
-      if (ev_min < 0.5) {
-        std::ostringstream os;
-        os << "dalton import: occupied-space mismatch — min eigenvalue of the "
-              "DALTON/MADNESS occupied overlap M^T M is " << ev_min
-           << " (want ~1). The DALTON ground state does not span the MADNESS "
-              "occupied orbitals (different state/charge/geometry?)";
-        throw std::runtime_error(os.str());
-      }
-      Tensor<double> Sinvhalf(static_cast<long>(n_occ),
-                              static_cast<long>(n_occ));
-      for (long a = 0; a < n_occ; ++a)
-        for (long b = 0; b < n_occ; ++b) {
-          double s = 0.0;
-          for (long k = 0; k < n_occ; ++k)
-            s += V(a, k) * V(b, k) / std::sqrt(ev(k));
-          Sinvhalf(a, b) = s;
-        }
-      U = inner(M, Sinvhalf);   // Loewdin: exactly unitary
+      U = occupied_gauge_rotation(world, phi_dal, gs.orbitals_alpha(),
+                                  /*verbose=*/true);
     }
   }
 
