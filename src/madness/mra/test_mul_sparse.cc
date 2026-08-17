@@ -384,6 +384,58 @@ int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T8: broaden() resets the per-node norms through zero_norm_tree(). The
+/// screening criterion reads norm_tree and dnorm_tree as a pair, so a reset
+/// that clears one and leaves the other in place is worse than no reset at
+/// all: norm_tree = 0 with a small stale dnorm_tree passes the test in
+/// mulXXveca() and multiplies at a level that is too coarse.
+int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T8: broaden resets norm_tree and dnorm_tree");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+
+    // redundant form writes both norms on every node, and undoing it only
+    // drops the internal coefficients -- so the tree carries computed norms
+    // into broaden()
+    f.make_redundant(true);
+    f.reconstruct();
+
+    // counts local nodes, summed over ranks: (computed dnorm_tree, nonzero
+    // norm_tree)
+    auto count = [&world](const Function<double,D>& g) {
+        long computed = 0, nonzero = 0;
+        const auto& c = g.get_impl()->get_coeffs();
+        for (auto it = c.begin(); it != c.end(); ++it) {
+            if (it->second.get_dnorm_tree() != NORM_TREE_UNCOMPUTED) ++computed;
+            if (it->second.get_norm_tree() != 0.0) ++nonzero;
+        }
+        world.gop.sum(computed);
+        world.gop.sum(nonzero);
+        return std::make_pair(computed, nonzero);
+    };
+
+    const auto before = count(f);
+    if (world.rank() == 0)
+        printf("  T8 before broaden: %ld nodes with a computed dnorm_tree, "
+               "%ld with a nonzero norm_tree\n", before.first, before.second);
+    // without this the test would pass on an empty premise
+    t.checkpoint(before.first > 0 and before.second > 0,
+                 "T8 the tree carries computed norms into broaden");
+
+    f.broaden();
+    world.gop.fence();
+
+    const auto after = count(f);
+    if (world.rank() == 0)
+        printf("  T8 after broaden:  %ld nodes with a computed dnorm_tree, "
+               "%ld with a nonzero norm_tree\n", after.first, after.second);
+    t.checkpoint(after.second == 0, "T8 broaden clears norm_tree");
+    t.checkpoint(after.first == 0,  "T8 broaden clears dnorm_tree");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -405,6 +457,7 @@ int main(int argc, char** argv) {
         success += test_dot(world, pairs);
         success += test_operand_state(world, pairs);
         success += test_norm_tree_states(world, pairs);
+        success += test_broaden_resets_norms(world, pairs);
     }
 
     world.gop.fence();
