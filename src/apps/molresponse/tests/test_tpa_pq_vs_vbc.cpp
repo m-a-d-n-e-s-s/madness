@@ -1,46 +1,35 @@
 // ===========================================================================
-// test_tpa_pq_vs_vbc.cpp — build the two-photon residue source (p,q) as an
-// EXPLICITLY STATE-FREE vector and compare it, term by term, against beta's
-// quadratic source V^{bc}.
+// test_tpa_pq_vs_vbc.cpp — gate for the PROMOTED state-free two-photon
+// residue source (P,Q) (kernels/tpa_source_spec.hpp, source-unification
+// step 3), and the measured comparison against beta's quadratic source V^{bc}.
 //
-// Both objects are vectors built from phi and the two photon-leg responses
-// (b,c) only. That is the whole point: the naive assumption was that they are
-// the same object, and this test measures exactly how they differ without any
-// excited-state vector entering the comparison.
+// The (P,Q) assembly was derived and validated IN this test (see git history:
+// the regrouping identities are pinned by test_tpa_regroup_identities, and the
+// original inline build agreed with the c-grouped production composition to
+// 3e-7 on stored FD responses). It now lives in kernels/tpa_source_spec.hpp
+// as data over the declarative engine (kernels/source_spec.hpp); this test is
+// the equality gate that promotion must keep passing:
 //
-// The c-grouped residue of kernels/tpa.hpp writes the two-electron part as
-// -(T1+T2+T3) with x^f/y^f appearing inside densities and exchange pairs. The
-// regrouping moves the state out using one master identity, read four ways.
-// With (K[a,b]t)_i = sum_j b_j P(a_j t_i), P the Coulomb convolution:
+//   (1) TWO-ELECTRON gate: <x^f|P> + <y^f|Q> from assemble_tpa_pq(B,C) must
+//       equal -(T1+T2+T3) = tpa::tpa_e3_residue(B,C,F)/sqrt(2) to MRA
+//       precision. The only use of a state vector; any stand-in works
+//       because the regrouping identities are algebraic.
+//   (2) ONE-ELECTRON gate: the full assemble_tpa_pq(B,C,vB,vC) adds exactly
+//       tpa::tpa_moment_residue_1e's half(b,c)+half(c,b) content:
+//       contraction == e3/sqrt(2) + S_1e.
+//   (3) COMPARISON (informational): (P,Q) vs V^{bc}'s two-electron part,
+//       family norms + difference — the measured statement that the residue
+//       source is NOT the VBC source (paper "One Right-Hand Side" §obs 1-3).
 //
-//     <u|K[a,b]v> = sum_ij  int int  u_i(r) b_j(r) a_j(r') v_i(r') / |r-r'|
-//
-// The four vectors sit in distinguishable slots -- u,b at r; a,v at r'; u,v
-// carry index i; a,b carry index j -- so ANY one of them can be isolated into
-// the bra:
-//     isolate v :  <u|K[a,b]v> = <v|K[b,a]u>          (M1, operator transpose)
-//     isolate a :  <u|K[a,b]v> = <a|K[u,v]b>          (M3)
-//     isolate b :  <u|K[a,b]v> = <b|K[v,u]a>          (M3')
-// plus the Coulomb analogue  <u|J[rho]v> = int rho * J[sum_i u_i v_i], and the
-// occupied-block move  <z^{uv}|w> = <u|transform(v, <w|phi>)> for
-// z^{uv}_i = sum_j phi_j <u_j|v_i>.
-//
-// Applying these to T1, T2, T3 yields p,q containing no x^f or y^f. The test
-// then does two things:
-//   (1) VALIDATES the regrouping: <x^f|p> + <y^f|q> must equal -(T1+T2+T3)
-//       from the existing tpa_e3_residue, to MRA precision. This is what
-//       proves the hand derivation; it is the only place a state vector is
-//       used, and any stand-in works because the identities are algebraic.
-//   (2) COMPARES (p,q) against V^{bc}'s two-electron part family by family,
-//       reporting norms of each and of their differences.
-//
-// Stand-in vectors are used by default. They must NOT be Q-projected and must
-// admix phi with irregular coefficients: Q-projected vectors are orthogonal to
-// phi, which silently zeroes every <phi|...> factor, and pure Cartesian dipoles
-// on a symmetric molecule zero further terms by selection rule. Either makes
-// the test pass without testing anything.
+// Stand-in vectors are used by default (CI needs no external data beyond the
+// ground-state fixture). They must NOT be Q-projected and must admix phi with
+// irregular coefficients: Q-projected vectors are orthogonal to phi, which
+// silently zeroes every <phi|...> factor, and pure Cartesian dipoles on a
+// symmetric molecule zero further terms by selection rule. Either makes the
+// test pass without testing anything.
 //
 //   test_tpa_pq_vs_vbc --archive=<moldft restartdata> [--thresh=X] [--k=N]
+//       [--calc-dir=<dir> --freq=<omega_f/2> [--baxis=N --caxis=N]]
 // ===========================================================================
 
 #include "../GroundState.hpp"
@@ -49,6 +38,7 @@
 #include "../kernels/common_ops.hpp"
 #include "../kernels/tags.hpp"
 #include "../kernels/tpa.hpp"
+#include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/two_electron.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/build_response_ground_state.hpp"
@@ -59,6 +49,7 @@
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -67,7 +58,6 @@
 
 using namespace madness;
 using namespace molresponse_v3;
-using molresponse_v3::common_ops::apply_exchange;
 
 using vecfuncT = std::vector<real_function_3d>;
 
@@ -121,9 +111,8 @@ int main(int argc, char **argv) {
           world, gs, gs.hf_exchange_coefficient(), gs.params().lo());
 
       const vecfuncT &phi = g0.amo;
-      const double lo = gs.params().lo();
-      const double cxc = g0.c_xc;
       const size_t n = phi.size();
+      const double cxc = g0.c_xc;
 
       // ---- stand-in b, c, f vectors (see header note on why not Q-projected)
       auto d0 = dipole_perturbation(world, gs, 0);
@@ -176,140 +165,72 @@ int main(int argc, char **argv) {
         }
       }
 
-      // ---- small helpers -------------------------------------------------
-      auto vdot = [&](const vecfuncT &a, const vecfuncT &b) {  // sum_i a_i b_i
-        vecfuncT p(a.size());
-        for (size_t i = 0; i < a.size(); ++i) p[i] = a[i] * b[i];
-        truncate(world, p);
-        return sum(world, p);
-      };
-      auto Jof = [&](const real_function_3d &rho) { return apply(*coulop, rho); };
-      auto K = [&](const vecfuncT &bra, const vecfuncT &ket, const vecfuncT &to) {
-        return apply_exchange(world, bra, ket, to, lo);
-      };
-      auto scal = [&](vecfuncT v, double s) { scale(world, v, s); return v; };
-      auto add = [&](vecfuncT &dst, const vecfuncT &src, double s) {
-        gaxpy(world, 1.0, dst, s, src);
-      };
-      auto zero = [&]() { return zero_functions<double, 3>(world, (int)n); };
-      // vector whose i-th component is phi_i * F
-      auto phiF = [&](const real_function_3d &F) { return mul(world, F, phi, true); };
-      auto zblk = [&](const vecfuncT &u, const vecfuncT &v) {  // z^{uv}
-        return transform(world, phi, matrix_inner(world, u, v), true);
-      };
-
-      // ================= (p,q) from the regrouping =======================
-      // --- family B : from -T2, the photon-b kernel g_B -------------------
-      real_function_3d rhoB = vdot(phi, xb); rhoB += vdot(phi, yb);
-      rhoB.scale(2.0); rhoB.truncate();
-      auto JB = Jof(rhoB);
-      auto gB  = [&](const vecfuncT &tt) {
-        return two_electron::apply_gamma_raw(world, JB, tt, {{xb, phi}, {phi, yb}}, cxc, lo);
-      };
-      auto gBT = [&](const vecfuncT &tt) {   // transposed exchange pairs
-        return two_electron::apply_gamma_raw(world, JB, tt, {{phi, xb}, {yb, phi}}, cxc, lo);
-      };
-      auto MB  = matrix_inner(world, gB(phi),  phi);
-      auto MBT = matrix_inner(world, gBT(phi), phi);
-      // -T2 = A - B - C + D
-      vecfuncT pB = transform(world, xc, MB, true);  add(pB, gBT(xc), -1.0);
-      vecfuncT qB = scal(gB(yc), -1.0);              add(qB, transform(world, yc, MBT, true), 1.0);
-
-      // --- family F : from -T3, the regrouped state kernel ----------------
-      // Each T3 term becomes  2*phi_j*J[rho] - cxc*K[.,.]phi , state-free.
-      auto z1 = zblk(yb, xc);          // z^{y^b x^c}
-      auto z2 = zblk(xb, yc);          // z^{x^b y^c}
-      auto Jcb = Jof(vdot(xc, yb));
-      auto Jbc = Jof(vdot(xb, yc));
-      auto Jz1 = Jof(vdot(z1, phi));
-      auto Jz2 = Jof(vdot(phi, z2));
-      vecfuncT pF = zero(), qF = zero();
-      // 3a (T3 sign +) -> subtract
-      add(pF, phiF(Jcb), -2.0); add(pF, K(yb, xc, phi), +cxc);
-      add(qF, phiF(Jcb), -2.0); add(qF, K(xc, yb, phi), +cxc);
-      // 3b (T3 sign -) -> add
-      add(pF, phiF(Jz1), +2.0); add(pF, K(phi, z1, phi), -cxc);
-      add(qF, phiF(Jz1), +2.0); add(qF, K(z1, phi, phi), -cxc);
-      // 3c (T3 sign +) -> subtract
-      add(pF, phiF(Jbc), -2.0); add(pF, K(yc, xb, phi), +cxc);
-      add(qF, phiF(Jbc), -2.0); add(qF, K(xb, yc, phi), +cxc);
-      // 3d (T3 sign -) -> add
-      add(pF, phiF(Jz2), +2.0); add(pF, K(z2, phi, phi), -cxc);
-      add(qF, phiF(Jz2), +2.0); add(qF, K(phi, z2, phi), -cxc);
-
-      // --- family D : from -T1, the b-with-state transition density -------
-      auto W  = Jof(vdot(xc, phi) + vdot(yc, phi));
-      auto Nm = matrix_inner(world, phi, mul(world, W, phi, true));
-      auto wE3 = K(phi, xc, phi);      // for the zeta^D piece, x-channel
-      auto wE6 = K(yc, phi, phi);      // for the zeta^D piece, y-channel
-      auto Q3 = matrix_inner(world, phi, wE3);
-      auto Q6 = matrix_inner(world, phi, wE6);
-      vecfuncT pD = zero(), qD = zero();
-      // Coulomb (T1 sign +) -> subtract
-      add(pD, mul(world, W, xb, true), -2.0);
-      add(pD, transform(world, xb, Nm, true), +2.0);
-      add(qD, mul(world, W, yb, true), -2.0);
-      add(qD, transform(world, yb, Nm, true), +2.0);
-      // exchange, dyad pieces  (T1 carries -cxc; -T1 flips to +cxc)
-      add(pD, K(phi, xc, xb), +cxc);
-      add(pD, K(yc, phi, xb), +cxc);
-      add(qD, K(xc, phi, yb), +cxc);
-      add(qD, K(phi, yc, yb), +cxc);
-      // exchange, zeta^D pieces (extra minus from nzetaD = -zeta^D)
-      add(pD, transform(world, xb, Q3, true), -cxc);
-      add(pD, transform(world, xb, Q6, true), -cxc);
-      add(qD, transform(world, yb, transpose(Q3), true), -cxc);
-      add(qD, transform(world, yb, transpose(Q6), true), -cxc);
-
-      vecfuncT p = madness::copy(world, pB); add(p, pF, 1.0); add(p, pD, 1.0);
-      vecfuncT q = madness::copy(world, qB); add(q, qF, 1.0); add(q, qD, 1.0);
-      truncate(world, p); truncate(world, q);
-
-      // ================= validation: does it reproduce -(T1+T2+T3)? ======
       ResponseStateXY<ClosedShell> B, C, F;
       B.x_alpha = madness::copy(world, xb); B.y_alpha = madness::copy(world, yb);
       C.x_alpha = madness::copy(world, xc); C.y_alpha = madness::copy(world, yc);
       F.x_alpha = madness::copy(world, xf); F.y_alpha = madness::copy(world, yf);
+
+      // ============ (P,Q) from the PROMOTED kernel (2e part) ==============
+      auto PQ = tpa::assemble_tpa_pq(world, g0, B, C);
+
+      // ============ gate 1: does it reproduce -(T1+T2+T3)? ================
       // tpa_e3_residue returns -sqrt2*(T1+T2+T3), so +e3/sqrt2 = -(T1+T2+T3),
-      // which is the quantity (p,q) was constructed to reproduce.
+      // which is the quantity (P,Q) was constructed to reproduce.
       const double e3 = tpa::tpa_e3_residue(world, g0, B, C, F);
       const double cgrouped = e3 / std::sqrt(2.0);    // = -(T1+T2+T3)
-      const double sgrouped = inner(xf, p) + inner(yf, q);
+      const double sgrouped = inner(xf, PQ.x_alpha) + inner(yf, PQ.y_alpha);
 
-      // ================= V^{bc} two-electron part =========================
+      // ============ gate 2: full (1e + 2e) vs residue_1e + e3 =============
+      const auto mu_b = dipole_operator(world, 0);
+      const auto mu_c = dipole_operator(world, 2);
+      auto PQ_full = tpa::assemble_tpa_pq(world, g0, B, C, mu_b, mu_c);
+      // arrays laid out so S_1e(0,1) = half(b,c) + half(c,b) with (vB, vC)
+      const std::array<ResponseStateXY<ClosedShell>, 3> resp{
+          B, C, C};
+      const std::array<real_function_3d, 3> ops{mu_b, mu_c, mu_c};
+      const auto S1e = tpa::tpa_moment_residue_1e(world, g0, F, resp, ops, 1.0);
+      const double ref_full = cgrouped + S1e(0L, 1L);
+      const double got_full =
+          inner(xf, PQ_full.x_alpha) + inner(yf, PQ_full.y_alpha);
+
+      // ============ (3) V^{bc} two-electron part (informational) =========
       // Zero one-electron operators isolate the two-electron content.
       real_function_3d zop = madness::copy(phi[0]); zop.scale(0.0);
       auto V = vbc::compute_vbc<ClosedShell>(world, g0, B, C, zop, madness::copy(zop));
 
       auto nrm = [&](const vecfuncT &v) { return norm2(world, v); };
-      vecfuncT dpx = madness::copy(world, p); add(dpx, V.x_alpha, -1.0);
-      vecfuncT dqy = madness::copy(world, q); add(dqy, V.y_alpha, -1.0);
+      vecfuncT dpx = madness::copy(world, PQ.x_alpha); gaxpy(world, 1.0, dpx, -1.0, V.x_alpha);
+      vecfuncT dqy = madness::copy(world, PQ.y_alpha); gaxpy(world, 1.0, dqy, -1.0, V.y_alpha);
 
       if (world.rank() == 0) {
-        print("\n=== (p,q) from the regrouping  vs  V^{bc} two-electron ===");
+        print("\n=== promoted (P,Q) source (tpa_source_spec)  vs  references ===");
         print("  thresh =", t, "  n_occ =", n, "  c_xc =", cxc);
         print("  b,c source:", src);
-        print("\n--- validation of the regrouping (the only use of a state vector) ---");
+        print("\n--- gate 1: two-electron regrouping vs tpa_e3_residue ---");
         printf("  c-grouped  -(T1+T2+T3)          = %+.10f\n", cgrouped);
-        printf("  state-grouped <x^f|p>+<y^f|q>   = %+.10f\n", sgrouped);
+        printf("  state-grouped <x^f|P>+<y^f|Q>   = %+.10f\n", sgrouped);
         const double rel = std::abs(cgrouped) > 1e-12
                              ? std::abs(sgrouped - cgrouped) / std::abs(cgrouped)
                              : std::abs(sgrouped - cgrouped);
         printf("  relative difference             = %.3e   %s\n", rel,
                rel < 200.0 * t ? "PASS" : "FAIL");
-        print("\n--- family norms of (p,q), all state-free ---");
-        printf("  %-28s ||p||=%10.6f  ||q||=%10.6f\n", "B  (photon-b kernel g_B)", nrm(pB), nrm(qB));
-        printf("  %-28s ||p||=%10.6f  ||q||=%10.6f\n", "F  (regrouped state kern)", nrm(pF), nrm(qF));
-        printf("  %-28s ||p||=%10.6f  ||q||=%10.6f\n", "D  (b-with-state density)", nrm(pD), nrm(qD));
-        printf("  %-28s ||p||=%10.6f  ||q||=%10.6f\n", "total (p,q)", nrm(p), nrm(q));
-        print("\n--- V^{bc} and the difference ---");
+        print("\n--- gate 2: full (1e+2e) vs tpa_moment_residue_1e + e3 ---");
+        printf("  reference  e3/sqrt2 + S_1e      = %+.10f\n", ref_full);
+        printf("  contraction of full (P,Q)       = %+.10f\n", got_full);
+        const double relf = std::abs(ref_full) > 1e-12
+                              ? std::abs(got_full - ref_full) / std::abs(ref_full)
+                              : std::abs(got_full - ref_full);
+        printf("  relative difference             = %.3e   %s\n", relf,
+               relf < 200.0 * t ? "PASS" : "FAIL");
+        print("\n--- (P,Q) vs V^{bc} two-electron (informational) ---");
+        printf("  %-28s ||P||=%10.6f  ||Q||=%10.6f\n", "(P,Q) total", nrm(PQ.x_alpha), nrm(PQ.y_alpha));
         printf("  %-28s ||x||=%10.6f  ||y||=%10.6f\n", "V^{bc} 2-electron", nrm(V.x_alpha), nrm(V.y_alpha));
-        printf("  %-28s ||  ||=%10.6f  ||  ||=%10.6f\n", "(p,q) - V^{bc}", nrm(dpx), nrm(dqy));
-        const double relx = nrm(p) > 1e-12 ? nrm(dpx) / nrm(p) : 0.0;
-        const double rely = nrm(q) > 1e-12 ? nrm(dqy) / nrm(q) : 0.0;
-        printf("  relative:  ||p-Vx||/||p|| = %.4f     ||q-Vy||/||q|| = %.4f\n", relx, rely);
-        rc = (rel < 200.0 * t) ? 0 : 1;
-        print("\n", rc == 0 ? "REGROUPING VALIDATED" : "REGROUPING FAILED");
+        printf("  %-28s ||  ||=%10.6f  ||  ||=%10.6f\n", "(P,Q) - V^{bc}", nrm(dpx), nrm(dqy));
+        const double relx = nrm(PQ.x_alpha) > 1e-12 ? nrm(dpx) / nrm(PQ.x_alpha) : 0.0;
+        const double rely = nrm(PQ.y_alpha) > 1e-12 ? nrm(dqy) / nrm(PQ.y_alpha) : 0.0;
+        printf("  relative:  ||P-Vx||/||P|| = %.4f     ||Q-Vy||/||Q|| = %.4f\n", relx, rely);
+        rc = (rel < 200.0 * t && relf < 200.0 * t) ? 0 : 1;
+        print("\n", rc == 0 ? "PQ_SOURCE_SPEC VALIDATED" : "PQ_SOURCE_SPEC FAILED");
       }
       world.gop.broadcast(rc, 0);
     }
