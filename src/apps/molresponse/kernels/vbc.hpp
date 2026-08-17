@@ -22,6 +22,7 @@
 // with the already-Dalton-validated linear kernel.
 // ===========================================================================
 
+#include "source_spec.hpp"   // declarative source engine (spec path, step 2)
 #include "tags.hpp"
 #include "tda.hpp"   // ResponseGroundState, common_ops::{dot, apply_exchange}
 #include "two_electron.hpp"  // two_electron::{ExchangePair, apply_gamma_raw}
@@ -177,6 +178,117 @@ compute_vbc(madness::World &world, const ResponseGroundState &g0,
         "+ Kernels<Full,OpenShell>::compute_density), so the open-shell build is "
         "per-spin make_zeta + compute_vbc_i over alpha AND beta blocks -- future "
         "work (step 6b/7).");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Spec path (source-unification step 2): compute_vbc_i's three pieces
+// (gzeta, fb, fphi) re-expressed as DATA over the declarative engine of
+// kernels/source_spec.hpp. compute_vbc_spec lives BESIDE compute_vbc (not a
+// replacement): the two are asserted equal to summation-order precision by
+// tests/test_vbc_spec_equivalence.cpp before any caller may switch over.
+// ---------------------------------------------------------------------------
+
+/// One ordered (B,C) half of the VBC source as a two-channel (X,Y) spec.
+/// Term-for-term image of compute_vbc_i:
+///   gzeta: -Q̂ g'[γ_ζ] φ          γ_ζ legs {(x^B, y^C), (φ, ζ_BC)}, the
+///                                 relaxation-carrying pair density (ζ_BC
+///                                 already holds its -1, make_zeta)
+///   fb:    -Q̂ ( g'[γ^B] c + v c )        = -Q̂ F^B c   (property Fock,
+///                                 eq:tpa_fbar with the un-daggered kernel)
+///   fphi:  + Σ_k c_k <φ|F^B φ>_kp        (occupied-matrix move)
+/// The Y channel carries the conjugate leg order, exactly as compute_g.
+/// Densities are built exactly as compute_g builds them (factor 2 inside,
+/// truncated); rho_B is shared by fb/fphi and by both channels, so the
+/// engine's Coulomb cache convolves it once.
+inline std::vector<source_spec::SourceSpec>
+vbc_half_spec(madness::World &world, const ResponseGroundState &g0,
+              const vecfuncT &bx, const vecfuncT &by,
+              const vecfuncT &cx, const vecfuncT &cy,
+              const vecfuncT &zeta_bc,
+              const madness::real_function_3d &v) {
+  using namespace madness;
+  using source_spec::apply_entry;
+  using source_spec::occupied_matrix_entry;
+  const vecfuncT &phi0 = g0.amo;
+
+  real_function_3d rho_zeta = common_ops::dot(world, bx, cy);
+  rho_zeta += common_ops::dot(world, phi0, zeta_bc);
+  rho_zeta.scale(2.0);
+  rho_zeta.truncate();
+
+  real_function_3d rho_B = common_ops::dot(world, bx, phi0);
+  rho_B += common_ops::dot(world, phi0, by);
+  rho_B.scale(2.0);
+  rho_B.truncate();
+
+  source_spec::SourceSpec X, Y;
+  // gzeta
+  X.entries.push_back(apply_entry(rho_zeta, {{bx, cy}, {phi0, zeta_bc}},
+                                  phi0, -1.0, /*Q=*/true));
+  // fb   (one_electron = v folds the v*c of F^B c into the same entry)
+  X.entries.push_back(apply_entry(rho_B, {{bx, phi0}, {phi0, by}},
+                                  cx, -1.0, /*Q=*/true, v));
+  // fphi
+  X.entries.push_back(occupied_matrix_entry(rho_B, {{bx, phi0}, {phi0, by}},
+                                            phi0, cx, +1.0,
+                                            /*transpose=*/false, v));
+  // conjugate channel: swapped exchange legs (compute_g's gy pair order)
+  Y.entries.push_back(apply_entry(rho_zeta, {{cy, bx}, {zeta_bc, phi0}},
+                                  phi0, -1.0, /*Q=*/true));
+  Y.entries.push_back(apply_entry(rho_B, {{phi0, bx}, {by, phi0}},
+                                  cy, -1.0, /*Q=*/true, v));
+  Y.entries.push_back(occupied_matrix_entry(rho_B, {{phi0, bx}, {by, phi0}},
+                                            phi0, cy, +1.0,
+                                            /*transpose=*/false, v));
+  return {std::move(X), std::move(Y)};
+}
+
+/// Spec-path twin of compute_vbc<ClosedShell>: same zeta builds, same
+/// (B,C) + (C,B) halves, same truncation points — but each half is evaluated
+/// by source_spec::assemble_source over the data of vbc_half_spec instead of
+/// the bespoke compute_vbc_i. Gate: test_vbc_spec_equivalence asserts
+/// per-channel agreement with compute_vbc at summation-order precision.
+template <class Shell>
+inline ResponseStateXY<Shell>
+compute_vbc_spec(madness::World &world, const ResponseGroundState &g0,
+                 const ResponseStateXY<Shell> &B,
+                 const ResponseStateXY<Shell> &C,
+                 const madness::real_function_3d &VB_op,
+                 const madness::real_function_3d &VC_op) {
+  using namespace madness;
+  if constexpr (std::is_same_v<Shell, ClosedShell>) {
+    const vecfuncT &phi0 = g0.amo;
+    const vecfuncT &bx = B.x_alpha;
+    const vecfuncT &by = B.y_alpha;
+    const vecfuncT &cx = C.x_alpha;
+    const vecfuncT &cy = C.y_alpha;
+
+    auto zeta_bc = make_zeta(world, by, cx, phi0);
+    auto zeta_cb = make_zeta(world, cy, bx, phi0);
+
+    auto bc = source_spec::assemble_source(
+        world, g0, vbc_half_spec(world, g0, bx, by, cx, cy, zeta_bc, VB_op));
+    truncate(world, bc[0]);
+    truncate(world, bc[1]);
+    auto cb = source_spec::assemble_source(
+        world, g0, vbc_half_spec(world, g0, cx, cy, bx, by, zeta_cb, VC_op));
+    truncate(world, cb[0]);
+    truncate(world, cb[1]);
+
+    ResponseStateXY<ClosedShell> result;
+    result.x_alpha = std::move(bc[0]);
+    gaxpy(world, 1.0, result.x_alpha, 1.0, cb[0]);
+    result.y_alpha = std::move(bc[1]);
+    gaxpy(world, 1.0, result.y_alpha, 1.0, cb[1]);
+    truncate(world, result.x_alpha);
+    truncate(world, result.y_alpha);
+    return result;
+  } else {
+    (void)world; (void)g0; (void)B; (void)C; (void)VB_op; (void)VC_op;
+    throw std::runtime_error(
+        "compute_vbc_spec: open-shell VBC is not derived (same status as "
+        "compute_vbc — per-spin specs are future work, step 6b/7).");
   }
 }
 
