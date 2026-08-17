@@ -1303,17 +1303,14 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
-    /// Multiplies two vectors of functions q[i] = a[i] * b[i]
-
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Multiplies two vectors of functions q[i] = a[i] * b[i]; see mul_sparse to screen
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_make_redundant=true,
-        double tol=0.0) {
+        bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulvv);
         if (do_make_redundant) {
             // prepare once, not once per pair: mul_sparse fences whenever it prepares.
@@ -1324,7 +1321,7 @@ namespace madness {
         }
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false, false, tol);
+            q[i] = mul(a[i], b[i], false, false);
         }
         if (fence) world.gop.fence();
         return q;
@@ -1693,20 +1690,17 @@ namespace madness {
         return sum(world,mul_sparse(world,a,b,tol,/*fence=*/true,do_make_redundant),fence);
     }
 
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]; see dot_sparse for screening
     template <typename T, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(T,R), NDIM>
     dot(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_make_redundant=true,
-        double tol=0.0) {
+        bool do_make_redundant=true) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true,do_make_redundant,tol),fence);
+        return sum(world,mul(world,a,b,/*fence=*/true,do_make_redundant),fence);
     }
-
-
 
     /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
