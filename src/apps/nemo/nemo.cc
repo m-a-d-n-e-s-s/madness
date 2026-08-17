@@ -71,6 +71,12 @@ int main(int argc, char** argv) {
     } else if (parser.key_exists("print_parameters")) {
         Nemo::print_parameters();
 
+    } else if (parser.key_exists("restart_info")) {
+        // Report what a restart archive holds and stop; see moldft.cc.
+        std::string p=parser.value("restart_info");
+        if (p.empty() or p=="restart_info") p="mad";
+        print_restartdata_info(world,p);
+
     } else {
 
         try {

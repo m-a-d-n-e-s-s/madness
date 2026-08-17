@@ -1,5 +1,6 @@
 #include "GroundState.hpp"
 
+#include <madness/chem/Restart.h>
 #include <madness/chem/SCFOperators.h>
 #include <madness/chem/xcfunctional.h>
 #include <madness/tensor/tensor_json.hpp>
@@ -133,41 +134,49 @@ GroundState GroundState::from_archive(World& world,
 GroundState::ArchiveHeader
 GroundState::read_archive_header(World& world,
                                   const std::string& archive_path) {
-    // NB: this parse MIRRORS SCF::save_mos / load_mos's field order
-    // (madness/chem/SCF.cc, archive version 4) — it re-reads the header
-    // because SCF::load_mos offers no header-only entry point. If moldft's
-    // restartdata format drifts, update BOTH in lockstep; the guard below
-    // turns silent field-order drift into an actionable error. The header
-    // values are broadcast by the parallel archive, so the throw is
-    // collective.
+    // The header layout is owned by RestartMetadata (madness/chem/Restart.h),
+    // which SCF::save_mos and SCF::load_mos also go through -- so this no longer
+    // mirrors a field order by hand and cannot drift out of lockstep with
+    // moldft. It reads whatever versions RestartMetadata supports (4 and 5), so
+    // ground-state archives written before the header grew its version-5 tail
+    // still work here unchanged.
     ArchiveHeader h;
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>
         ar(world, archive_path.c_str());
 
-    ar & h.version;
-    if (h.version != 4) {
+    RestartMetadata meta;
+    try {
+        meta.read(ar);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(
+            "GroundState::read_archive_header: cannot read the header of " +
+            archive_path + ": " + e.what() +
+            ". Regenerate the ground-state archive with a matching moldft.");
+    }
+
+    h.version = meta.version;
+    h.energy = meta.current_energy;
+    h.spin_restricted = meta.spin_restricted;
+    h.L = meta.L;
+    h.k = meta.k;
+    h.xc = meta.xc;
+    h.localize_method = meta.localize;
+    h.converged_for_thresh = meta.converged_for_thresh;
+
+    // The response code expects moldft orbitals. A nemo archive stores the
+    // regularized F = psi/R under the same filename, and before version 5 the
+    // header carried nothing to tell them apart; now it does, so say so rather
+    // than silently building a response on the wrong functions. Version-4
+    // archives report "unknown" and are accepted, exactly as before.
+    if (not meta.representation_matches(Representation::mo)) {
         throw std::runtime_error(
             "GroundState::read_archive_header: " + archive_path +
-            " has archive version " + std::to_string(h.version) +
-            ", but this reader mirrors moldft's version-4 layout "
-            "(SCF::save_mos, madness/chem/SCF.cc). Regenerate the ground-state "
-            "archive with a matching moldft, or update read_archive_header to "
-            "the new field order.");
+            " holds '" + madness::to_string(meta.representation) + "' functions, but the response "
+            "code needs moldft orbitals ('mo').");
     }
-    ar & h.energy;
-    ar & h.spin_restricted;
-    ar & h.L;
-    ar & h.k;
 
-    // Read molecule (needed to advance archive position, but we discard it
-    // since the caller provides the canonical molecule)
-    Molecule mol_discard;
-    ar & mol_discard;
-    ar & h.xc;
-    ar & h.localize_method;
-    ar & h.converged_for_thresh;
-
-    // Read nmo_alpha (needed to infer nopen for open-shell)
+    // Read nmo_alpha, which directly follows the header (needed to infer nopen
+    // for open-shell)
     ar & h.nmo_alpha;
 
     return h;

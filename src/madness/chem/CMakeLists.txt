@@ -52,6 +52,8 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     ParameterManager.hpp
     ResponseParameters.hpp
+    Restart.h
+    RestartPlan.h
     PathManager.hpp
     Applications.hpp
     Drivers.hpp
@@ -166,7 +168,7 @@ if(BUILD_TESTING)
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
       test_exchange_asymmetric.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
-  test_exchange_owner_assign.cc test_exchange_batch_cache.cc)
+  test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )

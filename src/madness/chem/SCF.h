@@ -46,6 +46,8 @@
 #include <madness/mra/mra.h>
 
 #include<madness/chem/CalculationParameters.h>
+#include<madness/chem/Restart.h>
+#include<madness/chem/RestartPlan.h>
 #include"madness/mra/commandlineparser.h"
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
@@ -230,6 +232,19 @@ public:
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
     bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
+    /// what amo/bmo actually hold, recorded in the restartdata header
+    ///
+    /// Representation::mo for moldft's orbitals. Nemo drives an SCF rather than
+    /// deriving from one and stores the regularized F = psi/R in amo, so it sets
+    /// this to Representation::nemo (and restart_ncf) on the SCF it owns.
+    /// Without it both engines
+    /// write the same filename, with the same version tag, holding different
+    /// functions -- and loading one as the other is silently wrong.
+    Representation restart_representation=Representation::mo;
+
+    /// nuclear correlation factor behind restart_representation, e.g. "slater:2.0"
+    std::string restart_ncf;
+
     /// set while an optimizer drives this SCF, to keep the raw derivative table
     /// out of the log next to MolOpt's projected one -- see SCF::derivatives
     mutable bool suppress_raw_gradient_print=false;
@@ -255,7 +270,11 @@ public:
         print("moldft --print_parameters\n");
         print("You can perform a simple calculation by running\n");
         print("moldft --geometry=h2o.xyz\n");
-        print("provided you have an xyz file in your directory.");
+        print("provided you have an xyz file in your directory.\n\n");
+        print("To see what a restart archive holds -- geometry, k, the precision it");
+        print("converged to, whether it is moldft or nemo orbitals -- without starting");
+        print("a calculation:\n");
+        print("moldft --restart_info=<prefix>\n");
 
     }
 
@@ -374,7 +393,11 @@ public:
 
     distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
 
-    void get_initial_orbitals(World& world);
+    /// carry out a restart plan: read the orbitals it names, or make a guess
+
+    /// @param[in,out] plan  downgraded to the initial guess if the named source
+    ///                      turns out not to load
+    void get_initial_orbitals(World& world, RestartPlan& plan);
 
     void initial_guess(World& world);
 
@@ -535,48 +558,77 @@ public:
         if (xsq == coords_sum) {
             return calc.current_energy;
         }
-	    // if not at protocol[0] and thresh changed, reset to protocol[0]
-	    auto proto0 = calc.param.protocol()[0];
-	    if(FunctionDefaults<3>::get_thresh() != proto0){
-	    	if(world.rank()==0){
-	    		print("thresh changed from protocol[0], resetting to protocol[0]");
-	    	}
-	    calc.set_protocol<3>(world, proto0);
-	    }
         calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(), 3));
         coords_sum = xsq;
 
-        // read converged wave function from disk if there is one
-        if (calc.param.no_compute()) {
-            calc.load_mos(world);
-            calc.make_nuclear_potential(world);
-            calc.ao = calc.project_ao_basis(world, calc.aobasis);
-            return calc.current_energy;
-        }
+        // Decide once, here, where the orbitals come from and which rung of the
+        // ladder to start on. This replaces both the old `no_compute` early
+        // return and the "thresh drifted away from protocol[0], reset it" patch:
+        // the protocol is now set explicitly to the rung the plan names, so there
+        // is no drift to detect.
+        RestartPlan plan = make_restart_plan(world, restart_mode_from_string(calc.param.restart()),
+                calc.param, calc.molecule, calc.restart_representation,
+                RestartCapabilities::all(), calc.restart_ncf);
+
+        // set the target basis BEFORE reading, so load_mos reprojects straight
+        // into the rung we are about to iterate at rather than into whatever k
+        // FunctionDefaults happened to be left at
+        calc.set_protocol<3>(world, calc.param.protocol()[plan.protocol_start]);
 
         // initialize the PCM solver for this geometry
         if (calc.param.pcm_data() != "none") {
             calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
         }
 
-        calc.get_initial_orbitals(world);
+        calc.get_initial_orbitals(world, plan);
+
+        // Reading can invalidate the plan's premise. load_mos resets
+        // converged_for_thresh when it has to reproject, and it may have fallen
+        // back to the initial guess altogether; either way the orbitals are no
+        // longer the converged answer the plan took them for. An automatic plan
+        // changes its mind; an explicit read_only does not -- the user asserted
+        // these orbitals are the answer, and gets them plus a warning.
+        const double target_thresh = calc.param.protocol().back();
+        const double target_dconv = std::max(target_thresh, calc.param.dconv());
+        if (not plan.iterate and plan.mode == RestartMode::automatic and
+                not (calc.converged_for_thresh <= target_thresh and
+                     calc.converged_for_dconv <= target_dconv)) {
+            plan.iterate = true;
+            plan.protocol_start = calc.param.protocol().size() - 1;
+            if (world.rank() == 0)
+                print("the orbitals had to be reprojected on reading and are no longer "
+                      "converged; iterating at the final protocol rung after all");
+        }
 
         // AOs are needed for final analysis, and for localization
         calc.reset_aobasis("sto-3g");
         calc.ao.clear(); world.gop.fence();
         calc.ao = calc.project_ao_basis(world, calc.aobasis);
 
+        if (not plan.iterate) {
+            if (world.rank() == 0) print("not solving the SCF equations:", plan.why);
+            calc.make_nuclear_potential(world);
+            // The energy is the archive's, taken from its header. Not
+            // calc.current_energy: load_mos clears that whenever it reprojects,
+            // so reading a 1e-4 archive under `restart read_only` at a 1e-6
+            // request would otherwise hand back 1e10 instead of the stale energy
+            // the user asked to be given.
+            calc.current_energy = plan.stale_energy;
+            return calc.current_energy;
+        }
+
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
-        for (unsigned int proto = 0; proto < calc.param.protocol().size(); proto++) {
+        for (unsigned int proto = plan.protocol_start; proto < calc.param.protocol().size(); proto++) {
 
             int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
             int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
             int nvalpha_start, nv_old;
 
-            //repeat with gradually decreasing nvirt, only for first protocol
-            if (proto == 0 && nvalpha > 0) {
+            //repeat with gradually decreasing nvirt, only for the first protocol
+            // rung we actually run -- which is not rung 0 after a restart
+            if (proto == plan.protocol_start && nvalpha > 0) {
                 nvalpha_start = nvalpha * calc.param.nv_factor();
             } else {
                 nvalpha_start = nvalpha;
@@ -617,8 +669,10 @@ public:
 
                 }
 
-                // project orbitals into higher k
-                if (proto > 0) calc.project(world);
+                // project orbitals into higher k. Not needed on the first rung we
+                // run: the orbitals were either just made at that k, or read at it
+                // because set_protocol ran before load_mos.
+                if (proto > plan.protocol_start) calc.project(world);
 
                 // If the basis for the inital guess was not sto-3g
                 // switch to sto-3g since this is needed for analysis

@@ -59,6 +59,16 @@ void test_same(const T& t1, const T& t2) {
 	}
 }
 
+/// check that an error message carries \p snippet, wherever in the message it sits
+void test_contains(const std::string& msg, const std::string& snippet) {
+	if (msg.find(snippet)==std::string::npos) {
+		std::cout << "++" << msg << "++" << std::endl;
+		std::cout << "does not contain ++" << snippet << "++" << std::endl;
+
+		throw std::runtime_error("failure in test");
+	}
+}
+
 struct inputfile {
 	std::string fname;
 	inputfile(const std::string filename, const std::string lines) {
@@ -362,8 +372,10 @@ bool test_not_allowed(World& world) {
 
 		found_exception=false;
     } catch (std::invalid_argument& err) {
-        std::string errmsg=std::string(err.what()).substr(0,30);
-        test_same(errmsg,std::string("\ntrying to assign a value that"));
+        // the message names the offending keyword before explaining the problem
+        std::string errmsg(err.what());
+        test_contains(errmsg,std::string("in keyword `local`"));
+        test_contains(errmsg,std::string("trying to assign a value that's not allowed"));
 	} catch (std::runtime_error& err) {
 		std::string errmsg=std::string(err.what()).substr(0,30);
 		test_same(errmsg,std::string("found an error for key >> loca"));

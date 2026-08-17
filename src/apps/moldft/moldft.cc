@@ -96,6 +96,14 @@ int main(int argc, char **argv) {
             } else if (parser.key_exists("print_parameters")) {
                 SCF::print_parameters();
 
+            } else if (parser.key_exists("restart_info")) {
+                // Report what a restart archive holds and stop. Answers "why
+                // did/didn't my restart fire?" without starting a calculation.
+                // Takes an archive name; defaults to the `prefix` default.
+                std::string p=parser.value("restart_info");
+                if (p.empty() or p=="restart_info") p="mad";
+                print_restartdata_info(world,p);
+
             } else {
                 if (world.rank() == 0) print("input filename: ", parser.value("input"));
 
