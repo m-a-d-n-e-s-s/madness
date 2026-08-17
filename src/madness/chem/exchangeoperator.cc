@@ -380,7 +380,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
         gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
         // ... while each row's own entry is written exactly once
         w0 = prof_on ? wall_time() : 0.0;
-        resultcolumn[irow] = dot(subworld, ket_columns, Nij, true, true, mul_tol);
+        resultcolumn[irow] = dot_sparse(subworld, ket_columns, Nij, mul_tol, true, true);
         tick(prof_.mul2_wall, w0);
         cpu1 = cpu_time();
         mul2_timer += long((cpu1 - cpu0) * 1000l);
