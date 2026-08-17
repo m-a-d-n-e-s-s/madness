@@ -1301,12 +1301,14 @@ namespace madness {
         }
     }
 
-    // For each local node sets value of norm tree, snorm and dnorm to 0.0
+    // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
+    // dnorm_tree as uncomputed.
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::zero_norm_tree() {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             it->second.set_norm_tree(0.0);
+            it->second.set_dnorm_tree(NORM_TREE_UNCOMPUTED);
             it->second.set_snorm(0.0);
             it->second.set_dnorm(0.0);
         }
