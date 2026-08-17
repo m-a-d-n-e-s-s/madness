@@ -1,0 +1,122 @@
+{
+    "io": {
+        "backend": "native",
+        "hdf5_compiled": false
+    },
+    "tasks": [
+        {
+            "metadata": {
+                "method": "moldft",
+                "mpi_size": 1
+            },
+            "model": "optimize",
+            "molecule": {
+                "geometry": [
+                    [
+                        3.751342683209384e-18,
+                        1.3261520031416275e-06,
+                        -0.2440699254792332
+                    ],
+                    [
+                        2.3238995288560597e-19,
+                        1.4565674470679464,
+                        0.8675595453746048
+                    ],
+                    [
+                        -1.609992411775883e-17,
+                        -1.4565687732199495,
+                        0.8675605561046286
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 0.0001,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "mad.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "O",
+                    "H",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": -75.91346184077639,
+                "final_geometry": {
+                    "geometry": [
+                        [
+                            3.751342683209384e-18,
+                            1.3261520031416275e-06,
+                            -0.2440699254792332
+                        ],
+                        [
+                            2.3238995288560597e-19,
+                            1.4565674470679464,
+                            0.8675595453746048
+                        ],
+                        [
+                            -1.609992411775883e-17,
+                            -1.4565687732199495,
+                            0.8675605561046286
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "mad.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "O",
+                        "H",
+                        "H"
+                    ]
+                },
+                "max_gradient": 1.9289474364092817e-05,
+                "max_step": 0.0,
+                "nsteps": 7
+            },
+            "properties": {
+                "energy": -75.91346184077639,
+                "gradient": {
+                    "dims": [
+                        9
+                    ],
+                    "ndim": 1,
+                    "size": 9,
+                    "vals": [
+                        -5.676336520824263e-05,
+                        1.6975396712748392e-06,
+                        -0.0004686313341082382,
+                        -1.8292563296567733e-06,
+                        1.3961375993520875e-05,
+                        -0.0004981581447438543,
+                        -1.8292557587436551e-06,
+                        -1.5523530905170446e-05,
+                        -0.0004969729466535178
+                    ]
+                }
+            }
+        }
+    ]
+}

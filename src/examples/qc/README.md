@@ -49,14 +49,18 @@ Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
 |------|---------|--------|--------------|------|------|
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
-| `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 10 s | short |
-| `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 21 s | medium |
-| `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 25 s | medium |
+| `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
+| `nemo_he_varyk` | `nemo` | He | `k` unpinned, so it varies 6 → 8 across the ladder; must match `nemo_he_hf` | 13 s | medium |
+| `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
+| `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
-| `scf_lih_gopt` | `scf` | LiH | geometry optimization (`gopt`); gradient projection | 38 s | long |
-| `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 48 s | long |
-| `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 50 s | long |
-| `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 51 s | long |
+| `scf_lih_gopt` | `scf` | LiH | geometry optimization inside an SCF task (`dft gopt`) | 38 s | long |
+| `scf_lih_optimize` | `scf` + `--optimize` | LiH | geometry optimization as its own task, moldft reference | 37 s | long |
+| `nemo_lih_optimize` | `nemo` + `--optimize` | LiH | the same, on a nemo reference | 77 s | long |
+| `scf_h2o_lda_optimize` | `scf` + `--optimize` | H₂O | the only polyatomic optimization, the only one on a functional, and the only one at the default `eprec` | 74 s | long |
+| `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 75 s | long |
+| `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 83 s | long |
+| `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 79 s | long |
 | `mp2_he_corr` | `mp2` | He | MP2 correlation energy; fixed `k` | 790 s | verylong |
 | `lrcc2_he_excited` | `cc2` | He | CC2 ground state + LR-CC2 excitation | 6744 s | verylong |
 
@@ -73,7 +77,29 @@ timeout on an 8-core laptop. Its `run.sh` therefore sets the per-rank worker cou
 from `MPI_WORKERS` rather than inheriting `MAD_NUM_THREADS`, which by convention
 means *per job*, not per rank.
 
-`scf_lih_gopt` is the only case that optimizes a geometry, and the two keys it
+The four optimization cases cover the two forms a geometry optimization takes.
+`scf_lih_gopt` uses `dft gopt`, which optimizes *inside* one SCF task;
+`scf_lih_optimize` and `nemo_lih_optimize` use `--optimize --wf=<scf|nemo>`, the
+composable form that is its own task and publishes the optimized geometry for a
+later step. The moldft pair agree on the bond length to 5e-6 bohr (3.035071 vs
+3.035076) in the same number of steps, which is the check that the first-class
+optimizer really drives the same MolOpt as the in-SCF path;
+`nemo_lih_optimize` lands 1.3e-3 bohr away (3.033772), the difference between a
+regularized and a plain SCF reference at these thresholds.
+
+All three converge on the criteria rather than through MolOpt's
+"insufficient precision" escape; if one of them ever starts taking a single step
+and stopping, suspect `gradient_precision` being set above the gradient's real
+noise floor, which both disarms that escape and clamps `gtol` from below. The
+nemo case is also the
+regression test for a wavefunction that is *not* re-solved as the nuclei move —
+`Nemo::value` skips the SCF when the orbitals are already converged to the
+requested threshold, and if that flag survives a geometry change the optimizer
+walks a frozen wavefunction. The symptom is `delta-e` of exactly 0.0 across
+iterations, which is why `final_energy` is checked to 1e-6 there rather than the
+usual 1e-5: the frozen-wavefunction answer is off by only 9e-6.
+
+`scf_lih_gopt` was the first case to optimize a geometry, and the two keys it
 leans on are behavioral rather than energetic: `optimization_results.nsteps` and
 `optimization_results.max_gradient`. MolOpt projects translations and rotations
 out of the gradient before testing convergence; drop that projection and the raw

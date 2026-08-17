@@ -35,14 +35,53 @@ capture (which stays as a compatibility path until builders migrate).
 reference from the context; a third stage can consume stage 2's outputs.
 
 ### 2. First-class `optimize` workflow (M)
-Revive `OptimizeDriver` on top of `MolOpt` (the working optimizer):
-- fix `SCFTarget` to read the real result schema
-  (`results["scf"]["scf_total_energy"]` / gradient — not `res.at("energy")`);
-- enable `WorkflowKind::Optimize` dispatch + add `"optimize"` to
-  `runnable_workflows`; consume the (currently unread) `OptimizationParameters`;
-- publish the optimized `Molecule` into the StepContext.
-*Acceptance:* `--wf=optimize` optimizes and a following stage (SCF or response)
-runs AT the optimized geometry — the geopt→Raman pipeline's first half.
+**Status: LANDED.** `--optimize --wf=<scf|nemo>` is one task,
+`qcapp::OptimizeDriver<Library>` (`Drivers.hpp`), driving `MolOpt` over the reference
+engine the Library policy supplies — the same code optimizes on moldft
+(`Calc = SCF`) and nemo (`Calc = Nemo`). `--wf` names the reference method and
+`--optimize` asks for its geometry to be optimized; naming the engine in the
+`optimization` group as well was removed, and `--wf=optimize` now answers with a
+migration message. It reads the
+`optimization` group (which nothing read before), derives any threshold the deck
+leaves unset from `protocol().back()`, writes `<prefix>_opt.xyz`, and publishes the
+optimized geometry into the StepContext. Covered by
+`src/examples/qc/{scf,nemo}_lih_optimize`; the moldft case reproduces the
+in-SCF `dft gopt` geometry to the last digit (r = 3.035071 bohr), and the two
+engines agree on the minimum to 1.3e-3 bohr.
+
+Three deviations from the original plan, each deliberate:
+
+- It is a **Driver**, not an Application. Numerical gradients are to be computed
+  from *displaced sub-runs* — one sub-run per ±h Cartesian displacement, each in its
+  own directory with its own `calc_info`, so displacements are restartable and can
+  later be spread across subworlds — and owning sub-runs is a Driver's job. The
+  gradient source is chosen at one point, `GeometryTarget` in
+  `SCFTargetAdapter.hpp`: `AnalyticTarget` today, a `DisplacedEnergyTarget` later,
+  which will run one `SCFApplication<Library>` per displacement under
+  `task_<i>/step_<k>/disp_<...>/` and so inherit that class's checkpoint and
+  `checkpoint_geometry_matches` guard for free. Its energies must come from
+  `results["properties"]["energy"]` — **not** `scf_total_energy`, which the plain
+  `scf` path leaves at 0.0. This is the same seam changes 3 and 4 need.
+- `SCFTarget` was **replaced rather than repaired**, but its idea returns for the
+  numerical path above: an Application per displaced geometry is exactly right when
+  the point is a restartable sub-run, and exactly wrong for walking one engine
+  along a path. So the analytic target drives the engine directly — both engines
+  reach `MolOpt` through `OptimizationTargetInterface`, which `MolecularEnergy`
+  (for an SCF) and `Nemo` (itself) already implement — and the per-geometry
+  Application returns only where sub-runs are wanted.
+- A **bug had to be fixed for nemo to work**: nothing dropped
+  `converged_for_thresh` when the nuclei moved, so `Nemo::value`'s `skip_solve`
+  short-circuited the SCF at every new geometry and the optimizer walked a frozen
+  wavefunction — energy constant to every digit, gradients from stale orbitals. That
+  affected the standalone `nemo` app's optimizer (`MolecularOptimizer`) too, not
+  just this workflow.
+
+Still open: `initial_hessian` is declined with an explicit error rather than
+silently ignored; the optimizer keeps no checkpoint of its own, so an interrupted
+optimization restarts from the input geometry; and the acceptance criterion's second
+half — *a following stage runs AT the optimized geometry* — needs a consumer, i.e.
+`SCFApplication::consume_context` adopting `ctx.molecule` before it builds its
+engine. The geometry is published; nothing reads it yet.
 
 ### 3. Properties at every optimization step (M)
 Add a post-accepted-step hook to `MolOpt::optimize_app` (callback carrying the

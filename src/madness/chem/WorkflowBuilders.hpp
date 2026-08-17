@@ -24,6 +24,9 @@ enum class WorkflowKind {
   Unknown
 };
 
+// `optimize` is deliberately NOT here: it is not a workflow but a flag on one --
+// `--optimize --wf=<scf|nemo>`. The name still maps to WorkflowKind::Optimize so
+// `--wf=optimize` can be answered with a migration message rather than "unknown".
 inline constexpr std::array<const char *, 7> runnable_workflows = {
     "scf", "nemo", "response", "mp2", "cc2", "cis", "oep"};
 
@@ -66,9 +69,48 @@ inline void add_scf_workflow_drivers(World &world, Params &pm,
 
 inline void add_nemo_workflow_drivers(World &world, Params &pm,
                                       qcapp::Workflow &wf) {
-  pm.get<CalculationParameters>().set_derived_value("k", 8);
+  // NB: no set_derived_value("k", 8) here. Pinning k defeated the thresh->k
+  // derivation in SCF::set_protocol, so a nemo workflow ran the whole protocol
+  // at one polynomial order. That was a workaround for nemo not surviving a k
+  // change -- the nemos, the AO basis and the nuclear correlation factor were
+  // not reprojected -- which NemoBase::set_protocol now handles. A deck that
+  // wants a fixed k still says so explicitly, and that wins over any derived
+  // value. moldft's builder above sets no k either.
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+}
+
+/// Geometry optimization of a workflow's reference geometry: `--optimize` plus
+/// `--wf=<scf|nemo>`, which names the reference method. One task,
+/// qcapp::OptimizeDriver, which as a Driver can later own the displaced sub-runs a
+/// numerical gradient needs. The in-SCF form (`dft gopt`) is unchanged and still
+/// available; both drive the same MolOpt and give the same geometry.
+inline void add_optimize_workflow_drivers(World &world, Params &pm,
+                                          WorkflowKind kind,
+                                          qcapp::Workflow &wf) {
+  // `--optimize` also sets dft.gopt (CalculationParameters.h), which is the
+  // *other* optimizer. Clear it: the driver is doing the optimizing, and leaving
+  // it set would both misreport the run in the parameter echo and make any later
+  // SCF task in the same workflow optimize a second time.
+  pm.get<CalculationParameters>().set_user_defined_value("gopt", false);
+
+  switch (kind) {
+  case WorkflowKind::Scf:
+    wf.addDriver(
+        std::make_unique<qcapp::OptimizeDriver<moldft_lib>>(world, pm));
+    break;
+  case WorkflowKind::Nemo:
+    pm.get<CalculationParameters>().set_derived_value("k", 8);
+    wf.addDriver(std::make_unique<qcapp::OptimizeDriver<nemo_lib>>(world, pm));
+    break;
+  default:
+    MADNESS_EXCEPTION("--optimize is only supported for --wf=scf and "
+                      "--wf=nemo; optimizing a correlated, excited-state or "
+                      "response reference needs the downstream step to honour "
+                      "the optimized geometry first (ARCHITECTURE_ROADMAP "
+                      "change 2)",
+                      1);
+  }
 }
 
 // NOTE (M1 decoupling, Stage 2): the response workflow no longer has a MADchem
@@ -129,10 +171,21 @@ inline void add_oep_workflow_drivers(World &world, Params &pm,
       std::make_unique<OEPApplication>(world, pm, ref_calc)));
 }
 
+/// @param optimize  `--optimize` was given: optimize this workflow's reference
+///                  geometry instead of running the workflow itself.
 inline void add_workflow_drivers(World &world, Params &pm,
                                  const std::string &user_workflow,
-                                 qcapp::Workflow &wf) {
-  switch (workflow_kind_from_name(user_workflow)) {
+                                 qcapp::Workflow &wf, bool optimize = false) {
+  const WorkflowKind kind = workflow_kind_from_name(user_workflow);
+  if (optimize) {
+    if (kind == WorkflowKind::Unknown)
+      MADNESS_EXCEPTION("--optimize with an unknown workflow; use --wf=scf or "
+                        "--wf=nemo",
+                        1);
+    add_optimize_workflow_drivers(world, pm, kind, wf);
+    return;
+  }
+  switch (kind) {
   case WorkflowKind::Scf:
     add_scf_workflow_drivers(world, pm, wf);
     break;
@@ -155,13 +208,13 @@ inline void add_workflow_drivers(World &world, Params &pm,
   case WorkflowKind::Oep:
     add_oep_workflow_drivers(world, pm, wf);
     break;
-  case WorkflowKind::Optimize: {
-    std::string msg =
-        "The optimize workflow is currently disabled. Please use the dft + "
-        "gopt() application instead.\n";
-    MADNESS_EXCEPTION(msg.c_str(), 1);
+  case WorkflowKind::Optimize:
+    MADNESS_EXCEPTION("`--wf=optimize` is not a workflow: the workflow names the "
+                      "reference method and --optimize asks for its geometry to "
+                      "be optimized. Use `--optimize --wf=scf` or "
+                      "`--optimize --wf=nemo`",
+                      1);
     break;
-  }
   case WorkflowKind::Unknown:
   default: {
     std::string msg =

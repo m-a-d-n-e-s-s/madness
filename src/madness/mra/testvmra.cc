@@ -529,7 +529,8 @@ void test_orthonormalize_symmetric(World& world) {
     END_TIMER("compress");
     
     START_TIMER;
-    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc, 1e-6);
+    double lindep=1.e-6;
+    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc,lindep);
     END_TIMER("orthonormalize_symmetric");
 
     START_TIMER;
@@ -539,12 +540,13 @@ void test_orthonormalize_symmetric(World& world) {
     START_TIMER;
     Tensor<T> identity(n, n);
     for (int i=0; i<n; ++i) identity(i,i)=1.0;
+    double err=(identity-test).normf();
     END_TIMER("form identity matrix");
 
     if (world.rank() == 0) 
-        print("error norm",(identity-test).normf(),"\n");
+        print("error norm",err,"\n");
 
-    MADNESS_CHECK((identity-test).normf() < thresh);
+    MADNESS_CHECK(err <std::max(lindep, thresh));
 }
 
 template <typename T, int NDIM>

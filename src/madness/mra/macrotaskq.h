@@ -1388,11 +1388,14 @@ private:
 			// maybe move this block to the cloud?
 			// A task that fetches its own operands must not have them copied in as well --
 			// that would pay for the coefficients twice, once per task instead of once per
-			// owned batch, which is the cost the owner-pinned path exists to avoid.
+			// owned batch, which is the cost the owner-pinned path exists to avoid. Both pointer
+			// policies store a pointer, so both would otherwise deep-copy here -- and which one is
+			// in force comes from the queue, so a task sharing a queue with another operator (nemo
+			// runs Coulomb and exchange through one) inherits that queue's policy, not its own.
 			const bool need_auto_copy =
-				(policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) or
-				(policy.storage_policy==MacroTaskInfo::StorePointerToFunction
-					and not task.handles_own_data_movement());
+				(policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer or
+				 policy.storage_policy==MacroTaskInfo::StorePointerToFunction)
+					and not task.handles_own_data_movement();
     		if (need_auto_copy) {
     			double cpu0=wall_time();
     			Cloud::cloudtimer timer(subworld,cloud.copy_time);

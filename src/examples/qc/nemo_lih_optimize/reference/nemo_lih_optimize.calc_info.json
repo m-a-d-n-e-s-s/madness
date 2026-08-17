@@ -1,0 +1,107 @@
+{
+    "io": {
+        "backend": "native",
+        "hdf5_compiled": false
+    },
+    "tasks": [
+        {
+            "metadata": {
+                "method": "nemo",
+                "mpi_size": 1
+            },
+            "model": "optimize",
+            "molecule": {
+                "geometry": [
+                    [
+                        1.6248914238931629e-19,
+                        -8.07189801158603e-19,
+                        0.7543860384255161
+                    ],
+                    [
+                        8.353511705804069e-20,
+                        -1.569170914679395e-18,
+                        -2.279386038425516
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "nemo_lih_optimize.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "Li",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": -7.987362690697205,
+                "final_geometry": {
+                    "geometry": [
+                        [
+                            1.6248914238931629e-19,
+                            -8.07189801158603e-19,
+                            0.7543860384255161
+                        ],
+                        [
+                            8.353511705804069e-20,
+                            -1.569170914679395e-18,
+                            -2.279386038425516
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "nemo_lih_optimize.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "Li",
+                        "H"
+                    ]
+                },
+                "max_gradient": 2.774693765028618e-06,
+                "max_step": 0.0,
+                "nsteps": 2
+            },
+            "properties": {
+                "energy": -7.987362690697205,
+                "gradient": {
+                    "dims": [
+                        6
+                    ],
+                    "ndim": 1,
+                    "size": 6,
+                    "vals": [
+                        -6.472601081859223e-14,
+                        -6.483710650656753e-14,
+                        -0.00016614687143190476,
+                        -9.436810879857782e-16,
+                        -1.4570858513621231e-15,
+                        -0.0001605974839014035
+                    ]
+                }
+            }
+        }
+    ]
+}

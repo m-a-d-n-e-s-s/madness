@@ -117,17 +117,34 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    // Owner-pinned placement applies to the symmetric case only: it needs bra == ket so
-    // that one set of batches serves every operand role and both of a task's batches are
-    // owned by some rank. The asymmetric case keeps the size-driven partition.
-    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric(),
-                                  /*owner_pinned=*/is_symmetric(), batch_granularity_,
-                                  world.rank(), accumulation_mode_, cost_aware_assign_);
+    // Whether the tiles may exploit the i-j symmetry. MAD_EXCH_FORCE_GENERAL takes it away from an
+    // application that is entitled to it, which computes the same numbers down the general path and
+    // so tests that path against a known answer; see exch_force_general_path.
+    const bool symmetric = is_symmetric() and not exch_force_general_path();
+    // printlevel rather than printdebug(), which is >= 10: this has to be visible at the level a
+    // validation run uses, or a forced run reads as a normal one
+    if (symmetric != is_symmetric() and world.rank() == 0 and printlevel >= 4)
+        print("MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path");
+
+    // Whether tasks are pinned to the ranks owning their batches. Both symmetries support it now:
+    // the symmetric grid shares one stored set across all three operand roles, and the asymmetric
+    // one stores a set per role and holds its column batch while the row rotates. Decided here,
+    // once, because pinning, the storage policy and the cost reduction have to agree.
+    const bool owner_pinned = true;
+
+    // the salt is formed here, once, where the ket is in hand: every rank builds the same task
+    // objects collectively, so passing it reaches every rank without a manifest
+    MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, symmetric,
+                                  owner_pinned, batch_granularity_,
+                                  world.rank(), accumulation_mode_, cost_aware_assign_,
+                                  exchange_batch_salt(mo_ket),
+                                  exchange_same_operands(mo_bra, mo_ket),
+                                  exchange_same_operands(vf, mo_ket));
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
-    // every subworld. The algorithm therefore fixes the storage policy.
-    const MacroTaskInfo policy = is_symmetric() ? MacroTaskInfo::preset("small_memory_owner")
-                                                : macro_task_info;
+    // every subworld. Pinning therefore fixes the storage policy.
+    const MacroTaskInfo policy = owner_pinned ? MacroTaskInfo::preset("small_memory_owner")
+                                              : macro_task_info;
     if (taskq) taskq->set_printlevel(printlevel);
 
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
@@ -140,8 +157,9 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // Every tile ran on exactly one rank, so summing the per-rank cost buffers unions them and
     // leaves every rank holding the same matrix -- which is what lets the next call's placement
-    // be computed independently everywhere and still agree.
-    if (is_symmetric() and cost_aware_assign_) {
+    // be computed independently everywhere and still agree. Gated on pinning, not on symmetry,
+    // to match where the tiles record their cost.
+    if (owner_pinned and cost_aware_assign_) {
         auto& costs = MacroTaskExchangeSimple::cost_this_call();
         if (not costs.empty()) {
             world.gop.sum(costs.data(), costs.size());
