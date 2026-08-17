@@ -2451,7 +2451,8 @@ namespace madness {
         MADNESS_ASSERT(g.size()==3);
         World& world=f[0].world();
         reconstruct(world,f,false);
-        reconstruct(world,g);
+        reconstruct(world,g,false);
+        world.gop.fence();
 
         std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > d(f.size()),dd(f.size());
 
@@ -2465,14 +2466,14 @@ namespace madness {
         world.gop.fence();
 
         compress(world,d,false);
-        compress(world,dd);
+        compress(world,dd,false);
+        world.gop.fence();
 
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
-
-
         world.gop.fence();
+    
         return d;
     }
 
