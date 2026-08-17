@@ -280,6 +280,181 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
 }
 
 
+/// test the owner-pinned batch store and its point-to-point fetch
+
+/// Two ranks are needed to exercise a remote owner; with one rank only the local leg is
+/// reached, which is why the MPI variant of this test carries the coverage.
+int test_batch_store_and_fetch(World& universe) {
+    universe.gop.fence();
+    test_output t1("testing owner-pinned batch store and p2p fetch", universe.rank() == 0);
+
+    const std::size_t nfunc = 3;
+    std::vector<real_function_3d> batch;
+    std::vector<double> norms;
+    for (std::size_t i = 0; i < nfunc; ++i) {
+        batch.push_back(real_factory_3d(universe).functor(gaussian(1.0 + double(i))));
+        norms.push_back(batch.back().norm2());
+    }
+
+    Cloud cloud(universe);
+    const Cloud::keyT rec_first = 4711;
+    const Cloud::keyT rec_second = 4712;
+    cloud.store_batch(universe, batch, 0, rec_first);
+    cloud.store_batch(universe, batch, universe.size() > 1 ? 1 : 0, rec_second);
+
+    // the routing is registered collectively, so all ranks must agree on it
+    ProcessID owner_here = cloud.batch_owner(rec_second);
+    ProcessID owner_min = owner_here, owner_max = owner_here;
+    universe.gop.min(owner_min);
+    universe.gop.max(owner_max);
+    t1.checkpoint(owner_min == owner_max, "every rank agrees on the batch owner");
+    t1.checkpoint(cloud.batch_owner(rec_first) == 0, "the owner is the rank we asked for");
+
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        {
+            // the round trip reproduces the batch whether the record is owned here (local
+            // read) or on another rank (point-to-point transfer)
+            for (const auto record : {rec_first, rec_second}) {
+                auto got = cloud.fetch_batch_p2p<double, 3>(subworld, record);
+                t1.checkpoint(got.size() == nfunc, "batch size survives the round trip");
+                for (std::size_t i = 0; i < got.size(); ++i)
+                    t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "batch function norm");
+            }
+
+            // the two-phase form must agree with the synchronous one; the trigger is already
+            // in flight when request returns
+            auto fut = cloud.request_batch_bytes_async(rec_second);
+            auto got_async = cloud.deserialize_batch_p2p<double, 3>(subworld, fut, rec_second);
+            t1.checkpoint(got_async.size() == nfunc, "async form returns the whole batch");
+            for (std::size_t i = 0; i < got_async.size(); ++i)
+                t1.checkpoint(got_async[i].norm2(), norms[i], 1.e-10, "async batch function norm");
+
+            // opting into the cloud-side cache must not change the result
+            auto got_cached = cloud.fetch_batch_p2p<double, 3>(subworld, rec_first, true);
+            t1.checkpoint(got_cached.size() == nfunc, "cached fetch returns the whole batch");
+            for (std::size_t i = 0; i < got_cached.size(); ++i)
+                t1.checkpoint(got_cached[i].norm2(), norms[i], 1.e-10, "cached batch function norm");
+            cloud.clear_cache(subworld);
+        }
+        subworld.gop.fence();
+    }
+    universe.gop.fence();
+    return t1.end();
+}
+
+/// a payload spanning several MPI messages must arrive intact
+
+/// A unit test cannot afford a 2 GiB batch, so it lowers the chunk size instead, and checks the
+/// payload really is larger so it cannot pass vacuously. Needs two ranks to leave the local leg.
+int test_batch_fetch_chunked(World& universe) {
+    universe.gop.fence();
+    test_output t1("testing a batch transfer split into several MPI messages",
+                   universe.rank() == 0);
+
+    const std::size_t nfunc = 3;
+    std::vector<real_function_3d> batch;
+    std::vector<double> norms;
+    for (std::size_t i = 0; i < nfunc; ++i) {
+        batch.push_back(real_factory_3d(universe).functor(gaussian(1.0 + double(i))));
+        norms.push_back(batch.back().norm2());
+    }
+
+    Cloud cloud(universe);
+    const Cloud::keyT record = 4713;
+    cloud.store_batch(universe, batch, universe.size() > 1 ? 1 : 0, record);
+
+    const std::size_t chunk = 4096;
+    const std::size_t payload =
+            cloud.get_statistics(universe)["max_record_size"].get<std::size_t>();
+    t1.checkpoint(payload > chunk, "the payload spans more than one chunk");
+
+    const std::size_t saved = BatchTransport::batch_chunk_bytes();
+    BatchTransport::set_batch_chunk_bytes(chunk);
+    // Fenced because the owner reads the size when it serves. A rank whose own fetch resolves
+    // locally would otherwise run ahead and restore the default before serving, leaving the
+    // transfer a single chunk -- passing while exercising nothing.
+    universe.gop.fence();
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        auto got = cloud.fetch_batch_p2p<double, 3>(subworld, record);
+        t1.checkpoint(got.size() == nfunc, "a chunked transfer returns the whole batch");
+        for (std::size_t i = 0; i < got.size(); ++i)
+            t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "chunked batch function norm");
+        subworld.gop.fence();
+    }
+    universe.gop.fence();
+
+    // The ends must not have to agree on the chunk size, so give them different ones. CI caught
+    // this as MPI_ERR_TRUNCATE at np=2 when a rank restored the default before serving.
+    BatchTransport::set_batch_chunk_bytes(universe.rank() == 0 ? chunk : saved);
+    universe.gop.fence();
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        auto got = cloud.fetch_batch_p2p<double, 3>(subworld, record);
+        t1.checkpoint(got.size() == nfunc, "the ends need not agree on the chunk size");
+        for (std::size_t i = 0; i < got.size(); ++i)
+            t1.checkpoint(got[i].norm2(), norms[i], 1.e-10, "mismatched-chunk batch function norm");
+        subworld.gop.fence();
+    }
+    universe.gop.fence();
+
+    BatchTransport::set_batch_chunk_bytes(saved);
+    universe.gop.fence();
+    return t1.end();
+}
+
+/// fetching a record nobody stored must fail where the failure can be attributed
+
+/// The owner discovers it holds no such record inside a comm-thread AM handler, where a
+/// throw would escape every task-level handler and abort with no task id and no what().
+/// It has to surface here instead, in task context, as a named exception. An abort rather
+/// than a caught throw is a real failure of the transport, not a flaky test.
+int test_batch_fetch_of_missing_record(World& universe) {
+    universe.gop.fence();
+    test_output t1("testing that a missing batch record throws where it can be attributed",
+                   universe.rank() == 0);
+
+    Cloud cloud(universe);
+    const Cloud::keyT never_stored = 9999;
+    // register the routing but store no payload: a request aimed at a definite rank that
+    // holds nothing, which is the visibility gap made deterministic
+    cloud.register_batch_owner(never_stored, universe.size() > 1 ? 1 : 0);
+
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        MacroTaskQ::set_pmap(subworld);
+        {
+            bool threw = false;
+            std::string what;
+            try {
+                auto got = cloud.fetch_batch_p2p<double, 3>(subworld, never_stored);
+                print("fetch of an unstored record returned", got.size(), "functions");
+            } catch (const std::exception& e) {
+                threw = true;
+                what = e.what();
+                print("caught, as intended:", what);
+            }
+            t1.checkpoint(threw, "a missing record throws instead of returning an empty batch");
+            // check which failure it was: any exception would satisfy the test above, and
+            // one from elsewhere would let it pass for the wrong reason
+            t1.checkpoint(what.find("does not hold this batch record") != std::string::npos,
+                          "the throw is the transport's missing-record check");
+        }
+        subworld.gop.fence();
+    }
+    universe.gop.fence();
+    return t1.end();
+}
+
+
 /// test replication of a function and/or cloud over nodes and ranks
 int test_replication_policy(World& universe) {
     test_output t1("testing node replication of function and cloud", universe.rank() == 0);
@@ -617,6 +792,9 @@ int main(int argc, char** argv) {
     success += simple_example(universe);
     success += test_copy_function_from_other_world(universe);
     success += test_copy_function_from_other_world_through_cloud(universe);
+    success += test_batch_store_and_fetch(universe);
+    success += test_batch_fetch_chunked(universe);
+    success += test_batch_fetch_of_missing_record(universe);
     success += test_replication_policy(universe);
 
     if (1) {

@@ -20,6 +20,10 @@ dft
     k        6
     maxiter  10
     econv    1e-4
+    # single-rung ladder: this is a cheap smoke test, not a converged
+    # calculation. `econv` no longer truncates the protocol (nemo now
+    # follows `protocol` like moldft), so the intent is stated here.
+    protocol [1e-4]
     dconv    1e-3
 end
 

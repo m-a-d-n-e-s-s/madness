@@ -1,0 +1,10 @@
+{
+  "description": "nemo on helium with k varying across the protocol ladder (k unpinned)",
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-6},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-6},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-5},
+    {"key": ["tasks", 0, "convergence_info", "converged_for_thresh"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

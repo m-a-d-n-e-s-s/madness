@@ -14,21 +14,33 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # estimates: short < 10 s, medium < 30 s, long < 2 min, verylong beyond.
   # Re-measure before retagging; short+medium gate every CI run via
   # check-short-madness.
-  add_qctest(scf_he_hf         madqc "qctest;short;applications")     #   5 s
-  add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #   7 s, 2 ranks
-  add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  10 s
-  add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #  25 s
-  add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  38 s
+  add_qctest(scf_he_hf         madqc "qctest;short;applications")     #   6 s
+  add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
+  add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
+  # the only case with k varying across the protocol; must agree with nemo_he_hf
+  add_qctest(nemo_he_varyk     madqc "qctest;medium;applications")    #  13 s
+  add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #   9 s
+  add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
+  # the only gopt case: asserts the optimizer projects translations/rotations
+  # out of the gradient before testing convergence (see README)
+  add_qctest(scf_lih_gopt      madqc "qctest;long;applications")      #  38 s
+  # the `optimize` workflow on both reference engines; the pair also cross-checks
+  # that a regularized and a plain SCF reference find the same minimum
+  add_qctest(scf_lih_optimize   madqc "qctest;long;applications")      #  37 s
+  add_qctest(nemo_lih_optimize  madqc "qctest;long;applications")      #  77 s
+  # the only polyatomic optimization, the only one on a functional, and the only
+  # one at the default eprec -- see the deck for why each of those matters
+  add_qctest(scf_h2o_lda_optimize madqc "qctest;long;applications")    #  74 s
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
   add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
   add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
-  add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  21 s
+  add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
-  add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  48 s
-  add_qctest(nemo_h2o_boys     madqc "qctest;long;applications")      #  50 s
-  add_qctest(nemo_h2o_new      madqc "qctest;long;applications")      #  51 s
+  add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s
+  add_qctest(nemo_h2o_boys     madqc "qctest;long;applications")      #  83 s
+  add_qctest(nemo_h2o_new      madqc "qctest;long;applications")      #  79 s
 
 endif()
 

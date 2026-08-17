@@ -336,11 +336,130 @@ namespace madness {
 
     } // namespace detail
 
-    /// Base class for WorldObject, useful for introspection
+    /// Base class for WorldObject
+
+    /// Holds the parts of a \c WorldObject that do not depend on the derived
+    /// class: the unique object ID and the \c World the object belongs to,
+    /// the latter accessible to the derived class via \c get_world().
+    /// Should not be used directly, but rather through \c WorldObject<Derived>.
     struct WorldObjectBase {
-      virtual ~WorldObjectBase() = default;
+    private:
+        uniqueidT objid; ///< Unique object ID; null until \c register_self() has been called.
+        World& world; ///< Memoized reference to the world to which this object belongs.
+        World::liveness_handleT world_liveness; ///< Reports whether \c world is still alive.
+
+    protected:
+
+        /// Construct a new WorldObjectBase.
+
+        /// Protected, should only be called from the \c WorldObject constructor.
+        /// \note This does \em not register the object with \p w; the derived
+        ///       \c WorldObject must call \c register_self() to do that, once
+        ///       its own members have been initialized.
+        /// \param[in] w The world to which this object belongs.
+        explicit WorldObjectBase(World& w)
+        : objid(), world(w), world_liveness(w.liveness())
+        { }
+
+        /// Copy constructor; produces an \em unregistered object.
+
+        /// Exists solely so that the derived \c WorldObject remains copy
+        /// constructible (which pre-C++17 is needed to permit RVO), never to
+        /// produce a usable object. The copy aliases the world of \p other but
+        /// deliberately does not copy its ID and is not registered with the
+        /// world: were the copy destroyed it would otherwise unregister
+        /// \p other, evicting a live object from the world's ID maps.
+        /// \param[in] other The object whose world is to be aliased.
+        WorldObjectBase(const WorldObjectBase& other)
+        : objid(), world(other.world), world_liveness(other.world_liveness)
+        { }
+
+        /// Registers this object with its world, making it globally addressable.
+
+        /// \attention Must be called by the \c WorldObject constructor \em after
+        /// all of its members have been initialized: registration publishes this
+        /// object to the active-message handlers running on the runtime threads,
+        /// which read those members (see \c WorldObject::is_ready()).
+        /// \tparam DerivedT The derived class being registered.
+        /// \param[in] this_ptr Pointer to the derived object being registered.
+        template <typename DerivedT>
+        void register_self(DerivedT* this_ptr) {
+            MADNESS_ASSERT(!objid); // registering twice would leak the first ID
+            objid = world.register_ptr(this_ptr);
+        }
+
+        /// Unchecked access to the memoized world reference.
+
+        /// \warning Does not validate that the world is still alive; only use
+        ///          where that has already been established (e.g. right after a
+        ///          \c world_is_alive() check).
+        /// \return A reference to the world.
+        World& get_world_unchecked() const noexcept {
+            return world;
+        }
+
     public:
-        virtual World& get_world() const = 0;
+
+        virtual ~WorldObjectBase() {
+            // objid is null for an unregistered object, i.e. one produced by the
+            // copy ctor above; such an object owns no entry in the world's maps
+            if(initialized() && objid) {
+                MADNESS_ASSERT_NOEXCEPT(world_is_alive() &&
+                    "WorldObjectBase::~WorldObjectBase() the world of this object has already been destroyed");
+                // The assertion above is compiled out in release builds, so it
+                // cannot be what keeps us off a dangling reference; world_is_alive()
+                // is a real (relaxed) load and always runs. Nothing is leaked by
+                // skipping: the maps we would unregister from died with the world.
+                if(world_is_alive()) {
+                    auto* world_ptr = World::world_from_id(objid.get_world_id());
+                    MADNESS_ASSERT_NOEXCEPT(world_ptr != nullptr &&  "WorldObjectBase::~WorldObjectBase() failed to find world");
+                    MADNESS_ASSERT_NOEXCEPT(world_ptr == &world &&
+                        "WorldObjectBase::~WorldObjectBase() cached world differs from world in object ID");
+                    world.unregister_ptr(objid);
+                }
+            }
+        }
+
+        /// Returns the globally unique object ID.
+        const uniqueidT& id() const {
+            return objid;
+        }
+
+        /// Reports whether the world to which this object belongs still exists.
+
+        /// A \c WorldObject must not outlive its \c World, but it happens; this
+        /// makes the (otherwise silent) use-after-free detectable.
+        /// \return True if the world of this object has not been destroyed yet.
+        bool world_is_alive() const noexcept {
+            return world_liveness && world_liveness->load(std::memory_order_relaxed);
+        }
+
+        /// Get the world to which this object belongs.
+        /// \return A reference to the world.
+        /// \note The reference is memoized, hence only valid while that world is
+        ///       alive; this is asserted here rather than paying for a lookup of
+        ///       the world by its ID, since \c get_world() is called in hot loops.
+        /// \todo Promote the assertion to \c MADNESS_CHECK, so that the
+        ///       use-after-free is also caught in release builds (where
+        ///       \c MADNESS_ASSERT compiles away), once the cost of the
+        ///       liveness load in hot loops has been measured.
+        World& get_world() const {
+            MADNESS_ASSERT(world_is_alive());
+            return world;
+        }
+
+        /// Get the world to which this object belongs, without risking a throw.
+
+        /// Same as \c get_world(), except the memoized reference is validated
+        /// with \c MADNESS_ASSERT_NOEXCEPT, which aborts rather than throws.
+        /// Use this from destructors and other \c noexcept contexts, where a
+        /// throwing \c MADNESS_ASSERT would call \c std::terminate and thereby
+        /// discard the diagnostic.
+        /// \return A reference to the world.
+        World& get_world_noexcept() const noexcept {
+            MADNESS_ASSERT_NOEXCEPT(world_is_alive());
+            return world;
+        }
     };
 
     /// Implements most parts of a globally addressable object (via unique ID).
@@ -359,7 +478,13 @@ namespace madness {
     /// -# Derived class must have at least one virtual function for serialization
     ///    of derived class pointers to be cast to the appropriate type.
     ///
-    /// Note that \c world is exposed for convenience as a public data member.
+    /// The \c World is accessed through \c WorldObjectBase::get_world(), which
+    /// validates that it is still alive; derived classes that have already
+    /// established that can use \c WorldObjectBase::get_world_unchecked().
+    /// \note This class used to expose the \c World as a public data member
+    ///       named \c world. That member is gone; replace \c obj.world with
+    ///       \c obj.get_world() and, within a derived class, \c world with
+    ///       \c this->get_world().
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
@@ -368,8 +493,12 @@ namespace madness {
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
 
-        // copy ctor must be enabled to permit RVO; in C++17 will not need this
-        WorldObject(const WorldObject& other) : world(other.world) { abort(); }
+        // copy ctor must be enabled to permit RVO; in C++17 will not need this.
+        // It never produces a usable object. The safety of that does not rest on
+        // the abort() alone: the base copy ctor deliberately leaves the copy
+        // unregistered, so destroying one would not unregister `other`.
+        WorldObject(const WorldObject& other)
+            : WorldObjectBase(other), ready(false), me(other.me) { abort(); }
         // no copy
         WorldObject& operator=(const WorldObject&) = delete;
 
@@ -380,12 +509,9 @@ namespace madness {
         /// \todo Description needed.
         typedef detail::voidT voidT;
 
-        World& world; ///< The \c World this object belongs to. (Think globally, act locally).
-
         // The order here matters in a multi-threaded world
         volatile bool ready; ///< True if ready to rock 'n roll.
         ProcessID me; ///< Rank of self.
-        uniqueidT objid; ///< Sense of self.
 
 
         inline static Spinlock pending_mutex; ///< \todo Description needed.
@@ -592,7 +718,8 @@ namespace madness {
                 detail::run_function(result, task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, a9);
             else {
-                detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world));
+                World& world = this->get_world();
+                detail::info<memfnT> info(this->id(), me, memfn, result.remote_ref(world));
                 world.am.send(dest, & objT::template handler<memfnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>,
                         new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9));
             }
@@ -638,7 +765,9 @@ namespace madness {
                 const TaskAttributes& attr) const
         {
             typename taskT::futureT result;
-            detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world), attr);
+            World& world = this->get_world();
+            const ProcessID me = world.rank();
+            detail::info<memfnT> info(this->id(), me, memfn, result.remote_ref(world), attr);
             world.am.send(dest, & objT::template spawn_remote_task_handler<taskT>,
                     new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9), RMI::ATTR_UNORDERED);
 
@@ -670,7 +799,7 @@ namespace madness {
                 pendingT& nv = const_cast<pendingT&>(pending);
                 for (pendingT::iterator it=nv.begin(); it!=nv.end();) {
                     detail::PendingMsg& p = *it;
-                    if (p.id == objid) {
+                    if (p.id == this->id()) {
                         tmp.push_back(p);
                         it = nv.erase(it);
                     }
@@ -703,22 +832,18 @@ namespace madness {
         /// -# to enable processing of future messages.
         /// \param[in,out] world The \c World encapsulating the \"global\" domain.
         WorldObject(World& world)
-                : world(world)
+                : WorldObjectBase(world)
                 , ready(false)
                 , me(world.rank())
-                , objid(world.register_ptr(static_cast<Derived*>(this))) {};
-
-
-        /// Returns the globally unique object ID.
-        const uniqueidT& id() const {
-            return objid;
-        }
-
-
-        /// Returns a reference to the \c world.
-        World& get_world() const {
-            return const_cast<WorldObject<Derived>*>(this)->world;
-        }
+        {
+            // Registration must come last, hence is not part of the member
+            // initialization above: it publishes this object to the AM handlers
+            // running on the runtime threads, which read `ready` to decide
+            // whether an incoming message must be queued (see is_ready()).
+            // Since construction is collective, such a message can already be
+            // in flight while we are still in here.
+            this->register_self(static_cast<Derived*>(this));
+        };
 
 
         /// \todo Brief description needed.
@@ -1008,7 +1133,7 @@ namespace madness {
             typedef detail::WorldObjectTaskHelper<Derived, memfnT> task_helper;
             typedef TaskFn<typename task_helper::wrapperT> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn), attr);
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn), attr);
             else
                 return send_task<taskT>(dest, memfn, voidT::value, voidT::value,
                         voidT::value, voidT::value, voidT::value, voidT::value,
@@ -1034,7 +1159,7 @@ namespace madness {
             typedef TaskFn<typename task_helper::wrapperT,
                     typename detail::task_arg<a1T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), voidT::value,
@@ -1064,7 +1189,7 @@ namespace madness {
                     typename detail::task_arg<a1T>::type,
                     typename detail::task_arg<a2T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1097,7 +1222,7 @@ namespace madness {
                     typename detail::task_arg<a2T>::type,
                     typename detail::task_arg<a3T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1134,7 +1259,7 @@ namespace madness {
                     typename detail::task_arg<a3T>::type,
                     typename detail::task_arg<a4T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1175,7 +1300,7 @@ namespace madness {
                     typename detail::task_arg<a4T>::type,
                     typename detail::task_arg<a5T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1219,7 +1344,7 @@ namespace madness {
                     typename detail::task_arg<a5T>::type,
                     typename detail::task_arg<a6T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1267,7 +1392,7 @@ namespace madness {
                     typename detail::task_arg<a6T>::type,
                     typename detail::task_arg<a7T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1318,7 +1443,7 @@ namespace madness {
                     typename detail::task_arg<a7T>::type,
                     typename detail::task_arg<a8T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, attr);
             else {
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1376,7 +1501,7 @@ namespace madness {
                     typename detail::task_arg<a8T>::type,
                     typename detail::task_arg<a9T>::type> taskT;
             if (dest == me)
-                return world.taskq.add(task_helper::make_task_fn(this, memfn),
+                return this->get_world().taskq.add(task_helper::make_task_fn(this, memfn),
                         a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
             else
                 return send_task<taskT>(dest, memfn, am_arg(a1), am_arg(a2),
@@ -1385,11 +1510,16 @@ namespace madness {
         }
 
         virtual ~WorldObject() {
-            if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world));
+            // this body is pure diagnostics, and every assertion in it is
+            // compiled out in release builds; world_is_alive() is not, so it is
+            // what keeps the dereference below off a dangling reference. The
+            // dead-world diagnostic itself is left to ~WorldObjectBase.
+            if(initialized() && id() && this->world_is_alive()) {
+              // noexcept variant: a throwing assertion in a destructor would
+              // call std::terminate and discard the diagnostic
+              World& world = this->get_world_noexcept();
               MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
               MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
-              world.unregister_ptr(this->id());
             }
         }
 
@@ -1555,7 +1685,7 @@ namespace madness {
 #endif  // MADNESS_WORLDOBJECT_FUTURE_TRACE
 
     namespace archive {
-        
+
         /// Specialization of \c ArchiveLoadImpl for globally-addressable objects.
 
         /// \tparam Derived The derived class of \c WorldObject in a curiously

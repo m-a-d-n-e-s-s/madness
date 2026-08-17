@@ -15,8 +15,13 @@
 
 
 #include <madness/world/parallel_dc_archive.h>
+#include<algorithm>
 #include<any>
+#include<atomic>
 #include<iomanip>
+#include<limits>
+#include<list>
+#include<mutex>
 
 
 /*!
@@ -153,6 +158,161 @@ struct Recordlist {
 
 };
 
+/// Process map for the cloud's batch container
+
+/// Routes a record to an explicitly assigned owner, falling back to a hash for any
+/// record that was never registered. `set_owner` is collective, so all ranks agree on
+/// routing without further communication. Unlike the default cloud container this map
+/// is never reset to local, which is what keeps owner pinning stable.
+template <typename keyT, typename hashfunT = Hash<keyT>>
+class CloudOwnerPmap : public WorldDCPmapInterface<keyT> {
+private:
+    const int nproc;
+    hashfunT hashfun;
+    std::shared_ptr<std::map<keyT, ProcessID>> table;
+
+public:
+    CloudOwnerPmap(World& world, const hashfunT& hf = hashfunT())
+        : nproc(world.mpi.nproc()), hashfun(hf), table(new std::map<keyT, ProcessID>()) {}
+
+    /// collective: every rank must register the same (key, owner) pair
+    void set_owner(const keyT& key, const ProcessID owner) { (*table)[key] = owner; }
+
+    ProcessID owner(const keyT& key) const override {
+        auto it = table->find(key);
+        if (it != table->end()) return it->second;
+        if (nproc == 1) return 0;
+        return hashfun(key) % nproc;
+    }
+
+    void print_table(const std::string& tag = "") const {
+        print("CloudOwnerPmap::table", tag, "size=", table->size(), "(nproc=", nproc, ")");
+        for (const auto& kv : *table) {
+            std::ostringstream os;
+            os << "  key=0x" << std::hex << kv.first << std::dec << "  owner=" << kv.second;
+            print(os.str());
+        }
+    }
+};
+
+/// BatchTransport holds a back-reference to its Cloud; its bodies are defined below the class
+class Cloud;
+
+using batch_keyT = madness::archive::ContainerRecordOutputArchive::keyT;
+/// the serialized batch travels by value through a Future, so it must be
+/// archive-serializable: a plain vector is, a shared_ptr is not
+using batch_bytesT = std::vector<unsigned char>;
+
+/// Point-to-point transfer of serialized function batches between universe ranks
+
+/// The bytes stream straight from the owner's local batch store to the requester by
+/// MPI point-to-point; they never ride inside an active-message payload, so there is
+/// no eager-buffer limit and no extra copy on the wire.
+///
+/// Both endpoints are posted from **comm-thread AM handlers** (`WorldObject::send` runs
+/// the member inline on the RMI receiver thread), never from worker tasks. That is what
+/// buys overlap under worker saturation: at a tight protocol every worker sits in the
+/// exchange kernel for a long time, so an endpoint posted as a *task* would queue behind
+/// it and the MPI op would not be posted until compute ended. On the comm thread the RMI
+/// loop's Testsome drives the rendezvous to completion during compute instead, leaving
+/// only the final await for the worker.
+///
+/// Wire protocol:
+///   1. requester (worker): record a pending slot keyed by `tag`, send `on_trigger`
+///   2. owner `on_trigger` (comm thread): Isend the local bytes, reply `on_reply` with the size
+///   3. requester `on_reply` (comm thread): size the buffer, post the Irecv, enqueue `finish_recv`
+///   4. requester `finish_recv` (worker): await the Irecv and set the future
+///
+/// The size travels in the reply of step 2 rather than a separate Isend so that step 3 can
+/// post the payload Irecv *during* compute; posting it at consume time would move the data
+/// transfer to post-compute and lose the overlap.
+class BatchTransport : public WorldObject<BatchTransport> {
+public:
+    /// tags live in the range MADNESS does not manage (safempi.h); 32767 is the
+    /// conservative MPI_TAG_UB floor
+    static constexpr int BATCH_TAG_BASE = 8192;
+    static constexpr int BATCH_TAG_CAP = 32767;
+
+    /// reply size meaning "the owner does not hold this record"; see on_trigger
+    static constexpr std::size_t BATCH_NOT_FOUND = ~std::size_t(0);
+
+    /// bytes per MPI message in a batch transfer; a larger payload is split into several
+
+    /// MPI byte counts are `int`, and batches do exceed 2 GiB: a 161-orbital run at k=10
+    /// measured 3.03 GiB, whose count narrowed to a negative int. MPI rejects that and
+    /// SafeMPI throws it on the comm thread, where nothing catches it.
+    static std::size_t batch_chunk_bytes() { return batch_chunk_bytes_; }
+
+    /// Set the chunk size, for tests only.
+
+    /// Collective and not thread-safe: call it on every rank before any transfer. It exists so
+    /// a unit test can reach the multi-chunk path with an affordable payload.
+    static void set_batch_chunk_bytes(const std::size_t n) {
+        MADNESS_CHECK_THROW(n > 0 and n <= std::size_t(std::numeric_limits<int>::max()),
+                            "batch chunk size must be positive and fit an MPI count");
+        batch_chunk_bytes_ = n;
+    }
+
+    /// @param[in] universe  the world the cloud lives in (collective construction)
+    /// @param[in] cloud     back-reference used to read owner-local batch bytes
+    BatchTransport(World& universe, Cloud* cloud)
+        : WorldObject<BatchTransport>(universe), cloud_(cloud), next_tag_(0) {
+        this->process_pending();
+    }
+
+    /// Future to the serialized bytes of `record`, fetched from its owner
+
+    /// Resolves locally without MPI when this rank owns the record. The trigger is in
+    /// flight on return, so the round trip overlaps work until the future is consumed.
+    Future<batch_bytesT> request(batch_keyT record);
+
+private:
+    Cloud* cloud_;                 ///< back-reference (not owned)
+    std::atomic<int> next_tag_;
+
+    /// requester-side state for one outstanding receive. Held by shared_ptr so the buffer
+    /// address is stable for the Irecv and the entry can leave pending_ while finish_recv
+    /// still owns its reference.
+    struct PendingRecv {
+        ProcessID owner = -1;
+        int tag = -1;
+        bool not_found = false;             ///< owner reported it does not hold the record
+        batch_bytesT buf;                   ///< sized in on_reply
+        std::vector<SafeMPI::Request> reqs; ///< one per chunk, posted in on_reply
+        Future<batch_bytesT> fut;           ///< set by finish_recv
+    };
+    std::mutex pending_mtx_;
+    std::map<int, std::shared_ptr<PendingRecv>> pending_;
+
+    /// owner-side in-flight Isends, reaped lazily. Their buffers live in the cloud's
+    /// batch container and stay valid for the duration, so an un-reaped Isend is harmless.
+    std::mutex sends_mtx_;
+    std::list<SafeMPI::Request> sends_;
+
+    int alloc_tag() {
+        const int span = BATCH_TAG_CAP - BATCH_TAG_BASE + 1;
+        const int t = next_tag_.fetch_add(1);
+        return BATCH_TAG_BASE + ((t % span) + span) % span;
+    }
+
+    static inline std::size_t batch_chunk_bytes_ = std::size_t(1) << 30;   ///< 1 GiB
+
+    void reap_sends();
+
+    /// owner side, comm thread: Isend the record's bytes, then reply with the count.
+    /// Must not throw: an exception here escapes every task-level handler.
+    void on_trigger(batch_keyT record, ProcessID requester, int tag);
+
+    /// requester side, comm thread: size the buffer, post the Irecvs, enqueue finish_recv
+
+    /// \param chunk  the chunking the *owner* used, echoed back so the receiver never has to
+    ///               infer it. See on_trigger.
+    void on_reply(int tag, std::size_t size, std::size_t chunk);
+
+    /// requester side, worker task: await the background-progressed Irecv and set the future
+    void finish_recv(int tag);
+};
+
 /// cloud class
 
 /// store and load data to/from the cloud into arbitrary worlds
@@ -223,6 +383,12 @@ private:
     DistributionType cloud_replication_policy = Distributed;
 
     mutable madness::WorldContainer<keyT, valueT> container;
+    /// dedicated container for owner-pinned function batches; see store_batch / fetch_batch_p2p.
+    /// Uses CloudOwnerPmap so each batch record lives on an explicitly chosen rank.
+    std::shared_ptr<CloudOwnerPmap<keyT>> batch_pmap;
+    mutable madness::WorldContainer<keyT, valueT> batch_container;
+    /// constructed after batch_container so it is destroyed first, as WorldObject lifetimes require
+    std::unique_ptr<BatchTransport> batch_transport_;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -238,7 +404,11 @@ public:
 public:
 
     /// @param[in]	universe	the universe world
-    Cloud(madness::World &universe) : container(universe), reading_time(0l), copy_time(0l), writing_time(0l),
+    Cloud(madness::World &universe) : container(universe),
+        batch_pmap(new CloudOwnerPmap<keyT>(universe)),
+        batch_container(universe, batch_pmap),
+        batch_transport_(new BatchTransport(universe, this)),
+        reading_time(0l), copy_time(0l), writing_time(0l),
         cache_reads(0l), cache_stores(0l) {
     }
 
@@ -254,6 +424,13 @@ public:
 
     void set_debug(bool value) {
         debug = value;
+    }
+
+    /// dump the record->owner table on rank 0; pair with the caller's own task-to-rank
+    /// print to check that task assignment and batch routing agree
+    void print_batch_owner_map(World& universe, const std::string& tag = "") const {
+        if (universe.rank() != 0) return;
+        batch_pmap->print_table(tag);
     }
 
     void set_fence(bool value) {
@@ -347,6 +524,14 @@ public:
             memsize+=item.second.size();
             max_record_size=std::max(max_record_size,item.second.size());
         }
+        // batch records are held separately, and for a caller that stores batches they are
+        // the larger half; leaving them out would understate the cloud's footprint
+        std::size_t batch_memsize=0;
+        for (auto& item : batch_container) {
+            batch_memsize+=item.second.size();
+            max_record_size=std::max(max_record_size,item.second.size());
+        }
+        memsize+=batch_memsize;
         std::size_t global_memsize=memsize;
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
@@ -367,8 +552,14 @@ public:
         auto local_size=container.size();
         auto global_size=local_size;
         universe.gop.sum(global_size);
+        auto batch_global_size=batch_container.size();
+        universe.gop.sum(batch_global_size);
+        std::size_t batch_global_memsize=batch_memsize;
+        universe.gop.sum(batch_global_memsize);
         nlohmann::json j;
         j["container_size_global"] = global_size;
+        j["batch_container_size_global"] = batch_global_size;
+        j["batch_memory_global_GB"] = batch_global_memsize*uchar2gbyte;
         j["memory_global_GB"] = global_memsize*uchar2gbyte;
         j["memory_min_GB"] = min_memsize*uchar2gbyte;
         j["memory_max_GB"] = max_memsize*uchar2gbyte;
@@ -465,6 +656,14 @@ public:
         print("  min/max of node");
         print("    memory in GBytes:         ",min_memsize,max_memsize);
         print("    max record size in GBytes:",max_record_size*byte2gbyte);
+        // the owner-pinned batches, reported separately because they are a different lifetime and
+        // usually the bulk of it. Zero unless some task stored batches.
+        const double b_size = stats.value("batch_container_size_global", 0.0);
+        if (b_size > 0.0) {
+            print("  owner-pinned batches");
+            print("    number of records:        ", b_size);
+            print("    memory in GBytes:         ", stats.value("batch_memory_global_GB", 0.0));
+        }
     }
 
     void clear_cache(World &subworld) {
@@ -475,6 +674,11 @@ public:
 
     void clear() {
         container.clear();
+        // The owner-pinned batches too. They are not leaked without this -- an SCF run derives the
+        // same record keys each time, so the next application overwrites them -- but they are the
+        // largest thing the cloud holds, and without this they stay resident through everything
+        // that follows the exchange in an iteration, which is where the memory ceiling actually is.
+        batch_container.clear();
     }
 
     void clear_timings() {
@@ -567,6 +771,46 @@ public:
         } else {
             return do_load<T>(world, recordlist);
         }
+    }
+
+    /// Register the owner of a batch record; local map insert, no communication
+
+    /// Collective in the same sense as store_batch: every rank must call it with an
+    /// identical (record, owner) pair or fetches will route inconsistently. Separating
+    /// registration from the payload lets all ranks replicate the routing while each
+    /// owner stores only its own bytes, over a size-1 subworld.
+    void register_batch_owner(const keyT record, const ProcessID owner) {
+        batch_pmap->set_owner(record, owner);
+    }
+
+    /// Store a batch of functions as one owner-pinned record
+
+    /// The whole vector -- its size and each function -- is serialized into a single
+    /// record in the batch container and routed to `owner`, so one batch is one record
+    /// with one owner. Must be called with identical (owner, record) on every rank of
+    /// `world`.
+    ///
+    /// @param[in] fence  false lets a caller storing many batches emit one fence for all
+    ///                   of them; the collective gather inside the archive self-synchronizes
+    template<typename T, std::size_t NDIM>
+    keyT store_batch(madness::World& world, const std::vector<Function<T, NDIM>>& batch,
+                     const ProcessID owner, const keyT record, const bool fence = true) {
+        if (is_replicated) {
+            print("Cloud contents are replicated and read-only!");
+            MADNESS_EXCEPTION("cloud error", 1);
+        }
+        batch_pmap->set_owner(record, owner);
+        cloudtimer t_batch(world, batch_store_time);
+        {
+            madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record);
+            madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            par.set_dofence(false);
+            std::size_t fsize = batch.size();
+            par & fsize;
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        if (dofence and fence) world.gop.fence();
+        return record;
     }
 
     /// @param[in]  world presumably the universe
@@ -696,6 +940,9 @@ public:
 private:
 
     mutable std::atomic<long> reading_time=0l;     // in microseconds
+    mutable std::atomic<long> batch_store_time=0l;       ///< store_batch wall time, microseconds
+    mutable std::atomic<long> batch_find_time=0l;        ///< waiting on the p2p transfer, microseconds
+    mutable std::atomic<long> batch_deserialize_time=0l; ///< deserializing the bytes, microseconds
 public:
     mutable std::atomic<long> copy_time=0l;        // if pointers are stored in cloud, time to copy from universe to subworld
     mutable std::atomic<long> target_replication_time=0l;     // if pointers are stored in cloud, time to replicate targets
@@ -750,6 +997,99 @@ private:
     bool is_cached(const keyT &key) const {
         return (cached_objects.count(key) == 1);
     }
+
+public:
+
+    /// the owner of a batch record; a pmap lookup, no communication
+    ProcessID batch_owner(const keyT record) const {
+        return batch_pmap->owner(record);
+    }
+
+private:
+
+    /// only the transport reads owner-local bytes; callers go through fetch_batch_p2p
+    friend class BatchTransport;
+
+    /// bytes of a batch record held by this rank, empty if it holds none
+
+    /// Never throws: the callers are BatchTransport's comm-thread handlers, where an
+    /// escaping exception bypasses every task-level handler and surfaces as an
+    /// unattributable abort. A miss is reported to the requester instead, and raised
+    /// there in task context.
+    ///
+    /// Emptiness is a sound "not found" marker because a stored batch always begins with
+    /// its serialized element count, so a present record is never zero bytes.
+    valueT try_get_local_batch_bytes(const keyT record) const {
+        typename madness::WorldContainer<keyT, valueT>::const_accessor acc;
+        if (batch_container.find(acc, record)) return acc->second;
+        return valueT();
+    }
+
+    /// stable pointer and size of a local batch record, {nullptr,0} if this rank holds none
+
+    /// Lets the comm thread Isend without copying the payload. The accessor lock is
+    /// released on return, but the address stays valid because batch records are neither
+    /// erased nor mutated between the store and the end of the consuming operation.
+    /// Never throws, for the reason given on try_get_local_batch_bytes.
+    std::pair<const unsigned char*, std::size_t> try_get_local_batch_ptr(const keyT record) const {
+        typename madness::WorldContainer<keyT, valueT>::const_accessor acc;
+        if (batch_container.find(acc, record))
+            return {acc->second.data(), acc->second.size()};
+        return {nullptr, 0};
+    }
+
+public:
+
+    /// start fetching `record` from its owner; the trigger is in flight on return
+    Future<batch_bytesT> request_batch_bytes_async(const keyT record) const {
+        return batch_transport_->request(record);
+    }
+
+    /// turn the bytes of a p2p transfer into the batch of functions
+
+    /// Blocks on `fut` only if the transfer has not landed yet. Runs in a task, which is
+    /// where a missing record is reported so the failure is attributable.
+    /// @param[in] cache_result  default false: the cloud-side cache is not safe to keep
+    ///                          across changes of the calling world, so opting in is the
+    ///                          caller's decision
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> deserialize_batch_p2p(madness::World& subworld,
+            Future<batch_bytesT> fut, const keyT record,
+            const bool cache_result = false) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        cloudtimer t(subworld, reading_time);
+        const double w0 = wall_time();
+        batch_bytesT bytes = fut.get();
+        const double w1 = wall_time();
+        batch_find_time += long((w1 - w0) * 1.e6);
+        MADNESS_CHECK_THROW(not bytes.empty(),
+                            "deserialize_batch_p2p: the owner does not hold this batch record");
+        vecfuncT batch;
+        {
+            madness::archive::VectorInputArchive var(bytes);
+            madness::archive::ParallelInputArchive<madness::archive::VectorInputArchive> par(subworld, var);
+            std::size_t fsize = 0;
+            par & fsize;
+            batch.resize(fsize);
+            for (std::size_t i = 0; i < fsize; ++i) par & batch[i];
+        }
+        batch_deserialize_time += long((wall_time() - w1) * 1.e6);
+        if (use_cache and cache_result) cache(subworld, batch, record);
+        return batch;
+    }
+
+    /// fetch a batch stored by store_batch; resolves without MPI when this rank owns it
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T, NDIM>> fetch_batch_p2p(madness::World& subworld,
+            const keyT record, const bool cache_result = false) const {
+        typedef std::vector<Function<T, NDIM>> vecfuncT;
+        if (is_cached(record)) return load_from_cache<vecfuncT>(subworld, record);
+        return deserialize_batch_p2p<T, NDIM>(subworld, request_batch_bytes_async(record),
+                                              record, cache_result);
+    }
+
+private:
 
     /// checks if a (universe) container record is used
 
@@ -925,6 +1265,112 @@ public:
         return target;
     }
 };
+
+// ---- BatchTransport bodies; they need the complete Cloud ----
+
+inline Future<batch_bytesT> BatchTransport::request(batch_keyT record) {
+    World& u = this->get_world();
+    const ProcessID owner = cloud_->batch_owner(record);
+    if (owner == u.rank()) {
+        // local: no MPI. An absent record yields empty bytes, which the consumer
+        // reports in task context, exactly as for the remote path.
+        return Future<batch_bytesT>(cloud_->try_get_local_batch_bytes(record));
+    }
+    const int tag = alloc_tag();
+    auto p = std::make_shared<PendingRecv>();
+    p->owner = owner;
+    p->tag = tag;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        pending_[tag] = p;
+    }
+    // send, not add: the trigger runs inline on the owner's comm thread, so the owner
+    // posts its Isend without queueing behind its own saturated workers
+    this->send(owner, &BatchTransport::on_trigger, record, u.rank(), tag);
+    return p->fut;
+}
+
+inline void BatchTransport::reap_sends() {
+    std::lock_guard<std::mutex> g(sends_mtx_);
+    for (auto it = sends_.begin(); it != sends_.end(); ) {
+        if (it->Test()) it = sends_.erase(it);
+        else ++it;
+    }
+}
+
+inline void BatchTransport::on_trigger(batch_keyT record, ProcessID requester, int tag) {
+    World& u = this->get_world();
+    reap_sends();
+    auto ptr_size = cloud_->try_get_local_batch_ptr(record);
+    if (ptr_size.first == nullptr) {
+        // Not held here -- reply with the sentinel and post nothing. Throwing instead
+        // would escape this comm-thread handler past every task-level handler and abort
+        // the run with no attribution; the requester raises it in task context.
+        this->send(requester, &BatchTransport::on_reply, tag, BATCH_NOT_FOUND, std::size_t(0));
+        return;
+    }
+    const std::size_t n = ptr_size.second;
+    // Sent along rather than read again by the requester: the size is a process-local static, so
+    // the two ends can disagree, and a receiver that guessed would post Irecvs that do not match
+    // the messages -- MPI_ERR_TRUNCATE on the comm thread, where nothing catches it.
+    const std::size_t chunk = batch_chunk_bytes_;
+    // MPI does not overtake between messages sharing source, tag and communicator, so posting
+    // the chunks in ascending offset order matches the requester's Irecvs pairwise without a
+    // per-chunk tag. That does rely on one transfer per tag, which alloc_tag's span makes true.
+    {
+        std::lock_guard<std::mutex> g(sends_mtx_);
+        for (std::size_t off = 0; off < n; off += chunk) {
+            const std::size_t len = std::min(chunk, n - off);
+            sends_.push_back(u.mpi.Isend(ptr_size.first + off, int(len), MPI_BYTE, requester, tag));
+        }
+    }
+    // the size rides in the reply so the requester can post its Irecvs now, during its
+    // own compute, and let the rendezvous finish in the background
+    this->send(requester, &BatchTransport::on_reply, tag, n, chunk);
+}
+
+inline void BatchTransport::on_reply(int tag, std::size_t size, std::size_t chunk) {
+    World& u = this->get_world();
+    std::shared_ptr<PendingRecv> p;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        auto it = pending_.find(tag);
+        MADNESS_CHECK(it != pending_.end());
+        p = it->second;
+    }
+    if (size == BATCH_NOT_FOUND) {
+        // no Isend was posted, so post no Irecv; empty bytes mark the miss
+        {
+            std::lock_guard<std::mutex> g(pending_mtx_);
+            pending_.erase(tag);
+        }
+        p->not_found = true;
+        p->fut.set(batch_bytesT());
+        return;
+    }
+    p->buf.resize(size);
+    // the owner's framing, not ours; see on_trigger. Positive whenever the record was found, and
+    // unguarded because a throw on this thread is what the framing exists to avoid
+    for (std::size_t off = 0; off < size; off += chunk) {
+        const std::size_t len = std::min(chunk, size - off);
+        p->reqs.push_back(u.mpi.Irecv(p->buf.data() + off, int(len), MPI_BYTE, p->owner, tag));
+    }
+    u.taskq.add(this, &BatchTransport::finish_recv, tag);
+}
+
+inline void BatchTransport::finish_recv(int tag) {
+    std::shared_ptr<PendingRecv> p;
+    {
+        std::lock_guard<std::mutex> g(pending_mtx_);
+        auto it = pending_.find(tag);
+        MADNESS_CHECK(it != pending_.end());
+        p = it->second;
+        pending_.erase(it);
+    }
+    // the comm thread has been progressing these Irecvs all along, so the awaits are short
+    for (auto& r : p->reqs) World::await(r, true);
+    p->fut.set(std::move(p->buf));
+}
 
 } /* namespace madness */
 

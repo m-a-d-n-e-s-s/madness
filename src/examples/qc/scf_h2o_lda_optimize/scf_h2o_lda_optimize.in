@@ -1,0 +1,43 @@
+# Geometry optimization of water with an LDA reference: `--optimize --wf=scf`.
+#
+# The three LiH optimization cases all share a blind spot that this one covers,
+# and each part of it was a real defect:
+#
+#   * LiH is a LINEAR DIATOMIC -- one internal degree of freedom, and the
+#     rotation about the molecular axis is null, so the translation/rotation
+#     projector is barely exercised. Water is bent: 3 coupled internal degrees
+#     of freedom and a soft bend, which is where a mis-scaled convergence
+#     threshold actually shows up.
+#
+#   * they all run `xc hf`. This is the only optimization case on a functional.
+#
+#   * they all pin `eprec 1e-6`. This deck deliberately leaves `eprec` at its
+#     1e-4 default, because that is what a user typing
+#     `madqc --geometry=h2o --optimize --dft="xc=lda"` gets.
+#
+# The raw derivatives here carry a spurious net force of ~1.1e-3 a.u. along z
+# that does NOT shrink with eprec; MolOpt projects it out and prints what is
+# left (`MolOpt::print_gradient`). Before the thresholds were tied to `dconv`,
+# `gtol` was derived at 1e-5 -- below the gradient's own noise floor -- and this
+# calculation wandered non-monotonically, the max gradient rising again between
+# steps, with MolOpt's "insufficient precision" escape hatch armed too tightly to
+# fire. It now converges on the criteria instead.
+#
+# Run:   ./run.sh    (or: madqc --optimize --wf=scf scf_h2o_lda_optimize.in)
+
+optimization
+    maxiter     10
+end
+
+dft
+    xc          lda
+    protocol    [1e-4, 1e-6]
+    dconv       1e-4
+end
+
+molecule
+    units   atomic
+    O   0.0   0.0          -0.21300717
+    H   0.0   1.4265081     0.85202867
+    H   0.0  -1.4265081     0.85202867
+end

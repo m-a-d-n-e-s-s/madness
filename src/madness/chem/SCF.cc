@@ -257,6 +257,7 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
     //set_protocol < 3 > (world, param.econv());
     FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_debug(param.print_level() >= 10);
 
 }
 
@@ -1381,6 +1382,9 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_symmetric(true).set_printlevel(param.print_level());
         K.set_macro_task_info(MacroTaskInfo::preset("default"));
         K.set_macro_task_info(param.memory());
+        K.set_batch_granularity(param.hfex_batch_granularity());
+        K.set_accumulation_mode(param.hfex_local_accumulation());
+        K.set_cost_aware_assignment(param.hfex_cost_aware_assign());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
@@ -1511,8 +1515,16 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
     r += ra + ru + rc;
     END_TIMER(world, "derivatives");
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
-        print("\n Derivatives (a.u.)\n -----------\n");
+    // Not printed while an optimizer is driving: these are the RAW derivatives,
+    // carrying a spurious net force and torque that is routinely orders of
+    // magnitude larger than the residual the optimizer converges. MolOpt prints
+    // the projected gradient it actually uses (MolOpt::print_gradient), and two
+    // tables differing by 100x invite the reader to conclude that no projection
+    // is happening. A single-point gradient run still prints this, since there
+    // it is the answer rather than an intermediate.
+    if (world.rank() == 0 and (param.print_level() > 1) and not suppress_raw_gradient_print) {
+        print("\n Derivatives (a.u.), raw -- translations/rotations NOT projected out"
+              "\n -----------\n");
         print(
                 "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
         print(

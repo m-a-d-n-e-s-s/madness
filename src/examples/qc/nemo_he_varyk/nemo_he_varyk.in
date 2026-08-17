@@ -1,0 +1,33 @@
+# Hartree-Fock on helium with regularized (nemo) orbitals and a protocol ladder
+# that CHANGES k between rungs -- deliberately leaving `k` at its -1 default so
+# SCF::set_protocol derives it from each threshold (1e-4 -> k=6, 1e-6 -> k=8).
+#
+# This is the one deck that exercises a varying k in nemo; every other nemo case
+# pins `k`, which is why the path was broken and unnoticed for so long. Two
+# things had to be fixed to make it work, and both regress silently:
+#
+#   * the nemos and the AO basis must be reprojected onto the new k when the
+#     protocol advances (NemoBase::set_protocol / reproject_mos), and
+#   * NuclearCorrelationFactor::initialize must replace its U1 potentials rather
+#     than append to them, since U1(axis) reads the first three entries.
+#
+# The energy must match nemo_he_hf, which reaches the same answer with k pinned
+# at 7 -- that agreement is the point of the case. DO NOT add a `k` line here.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_he_varyk.in)
+
+dft
+    xc        hf
+    protocol  [1e-4, 1e-6]
+    maxiter   10
+    dconv     1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end
