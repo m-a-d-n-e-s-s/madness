@@ -74,6 +74,13 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<size_t>("excited.maxiter", 20, "maximum iterations for excited-state solve stage");
         initialize<size_t>("excited.maxsub", 8, "subspace size for excited-state iterative solves");
         initialize<size_t>("excited.owner_group", 0, "subgroup lane reserved for excited-state bundle execution");
+        initialize<std::vector<double>>("excited.expect_omegas", {},
+                                        "expected excitation energies (au): after the excited-state solve, hard-warn "
+                                        "(never error) for any converged root farther than excited.expect_tol from "
+                                        "every listed value. Pass a trusted ladder (e.g. d-aug DALTON) when the solve "
+                                        "is seeded from a poorer basis — a seeded solve tracks the seeded states and "
+                                        "does not guarantee the N lowest");
+        initialize<double>("excited.expect_tol", 0.02, "tolerance (au) for the excited.expect_omegas cross-check");
         //** if properites are requested, then one should specify directions,
         // frequencies, and atom_indices(for nuclear response) */
         initialize<bool>("property", false, "Compute properties");
@@ -217,6 +224,12 @@ public:
     }
     [[nodiscard]] size_t excited_owner_group() const {
         return get<size_t>("excited.owner_group");
+    }
+    [[nodiscard]] std::vector<double> excited_expect_omegas() const {
+        return get<std::vector<double>>("excited.expect_omegas");
+    }
+    [[nodiscard]] double excited_expect_tol() const {
+        return get<double>("excited.expect_tol");
     }
     [[nodiscard]] std::vector<double> dipole_frequencies() const {
         return get<std::vector<double>>("dipole.frequencies");

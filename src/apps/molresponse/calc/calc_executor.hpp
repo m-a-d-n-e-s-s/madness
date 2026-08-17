@@ -49,6 +49,7 @@
 #include "../kernels/vbc.hpp"
 #include "../solvers/es_analysis.hpp"
 #include "../solvers/es_save_load.hpp"
+#include "../solvers/es_seed_guard.hpp"
 #include "../solvers/es_solver.hpp"
 #include "../solvers/fd_solver.hpp"
 #include "../solvers/iterate_protocol.hpp"
@@ -154,6 +155,16 @@ struct ExecutorSettings {
   // Exchange operator per root per iter. A/B-to-floor vs the reference (~1e-3
   // rel in θ → ~1e-6 in a converged ω), NOT bitwise. Off by default.
   bool              es_gamma_tensor   = false;
+  // Root-identity guard cross-check (--es-expect-omegas / deck
+  // excited.expect_omegas): after the ES solve, hard-warn (never error) for any
+  // converged root farther than es_expect_tol (au) from EVERY listed value.
+  // This is how a campaign passes a trusted (e.g. d-aug DALTON) ladder to a
+  // solve seeded from a poorer basis — the W5 tracking failure mode. Empty =
+  // check off. The seeded-solve visibility part of the guard (overlap table +
+  // basin-escape / tracking warnings) needs no knob; it always runs on a
+  // seeded ES solve. See solvers/es_seed_guard.hpp.
+  std::vector<double> es_expect_omegas;
+  double            es_expect_tol     = kSeedGuardExpectTolDefault;
   // Best-effort acceptance at maxiter (FD nodes). When true, a non-diverged FD
   // solve that exhausts max_iters WITHOUT meeting the strict target is recorded
   // converged (with an `accepted` marker + its real residual). NOTE: ladder
@@ -544,9 +555,19 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): keep a deep copy of the seed the solve starts
+  // from, so we can report per-root seed overlap / ω shift after convergence
+  // (a seeded ES solve TRACKS the seeded states — see es_seed_guard.hpp).
+  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = capture_es_seed_reference(world, loaded->state,
+                                           loaded->bundle_dir,
+                                           loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+    }
   }
   if (!seeded) {
     const long n_warm = std::max<long>(
@@ -621,6 +642,23 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5): visibility on what a SEEDED solve actually did
+  // (seed overlap / ω shift per root, basin-escape + pure-tracking warnings)
+  // plus the optional expected-ω cross-check. Collective evaluate; rank-0
+  // print + metadata write. A fresh solve runs the expect-check only.
+  {
+    std::optional<EsSeedGuardReport> guard;
+    if (seed_ref)
+      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
+                                     ctx.es_expect_omegas, ctx.es_expect_tol);
+    else if (!ctx.es_expect_omegas.empty())
+      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
+                                      ctx.es_expect_tol);
+    if (guard) {
+      print_es_seed_guard(world, *guard);
+      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
+    }
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the IN-MEMORY converged state `sf` at the solve's
   // own process count and writes only a rank-0 JSON — it does NOT reload the
@@ -683,9 +721,20 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): deep-copy the seed for the post-solve overlap /
+  // ω-shift report (see es_seed_guard.hpp). NB: the cached TDA warmup guess
+  // below is NOT a seed in this sense (it is this solver's own cold-start
+  // artifact), so seed_ref stays empty on that path.
+  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = capture_es_seed_reference(world, loaded->state,
+                                           loaded->bundle_dir,
+                                           loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+    }
   }
   if (!seeded) {
     const std::string cache_base =
@@ -779,6 +828,20 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5) — same contract as the TDA path above.
+  {
+    std::optional<EsSeedGuardReport> guard;
+    if (seed_ref)
+      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
+                                     ctx.es_expect_omegas, ctx.es_expect_tol);
+    else if (!ctx.es_expect_omegas.empty())
+      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
+                                      ctx.es_expect_tol);
+    if (guard) {
+      print_es_seed_guard(world, *guard);
+      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
+    }
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the in-memory `sf` (no bundle reload), so it never
   // hits the cross-np load path that caused the parked ES heap-OOB (now guarded

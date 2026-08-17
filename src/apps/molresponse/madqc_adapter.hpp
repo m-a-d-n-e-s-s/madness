@@ -167,6 +167,11 @@ struct molresponse_v3_lib {
     // excited.tda=false → Full (X,Y) ES bundle (default TDA).
     if (rp.excited_enable() && !rp.excited_tda())
       for (auto &e : in.plan.es) e.tda = false;
+    // excited.expect_omegas / excited.expect_tol → the root-identity guard's
+    // expected-ω cross-check (hard warning, never an error). Deck spelling of
+    // the standalone --es-expect-omegas / --es-expect-tol flags.
+    in.settings.es_expect_omegas = rp.excited_expect_omegas();
+    in.settings.es_expect_tol    = rp.excited_expect_tol();
     // ResponseApplication::run has already chdir'd (ScopedCWD) into `outdir`, and
     // `outdir` is RELATIVE — so the calc dir is the cwd ("."). Using outdir here
     // would double the path (outdir/outdir) and the metadata would be written/read
