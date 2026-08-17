@@ -251,7 +251,8 @@ if (BUILD_TESTING)
     add_test(NAME madness/test/molresponse/test_run_response/run
              COMMAND test_run_response
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
-    # Source-unification gates (steps 2+3): spec path == bespoke builders.
+    # Source-unification gates (steps 2+3): spec path == bespoke builders,
+    # plus the M1/M3 regrouping identities the (P,Q) promotion rests on.
     add_test(NAME madness/test/molresponse/test_vbc_spec_equivalence/run
              COMMAND test_vbc_spec_equivalence
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata
@@ -259,8 +260,12 @@ if (BUILD_TESTING)
     add_test(NAME madness/test/molresponse/test_tpa_pq_vs_vbc/run
              COMMAND test_tpa_pq_vs_vbc
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_tpa_regroup_identities/run
+             COMMAND test_tpa_regroup_identities
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
     foreach(_t test_kernel_equivalence test_calc_manager_run test_run_response
-               test_vbc_spec_equivalence test_tpa_pq_vs_vbc)
+               test_vbc_spec_equivalence test_tpa_pq_vs_vbc
+               test_tpa_regroup_identities)
       set_property(TEST madness/test/molresponse/${_t}/run
                    PROPERTY LABELS "response-fixture;response;long" APPEND)
     endforeach()
