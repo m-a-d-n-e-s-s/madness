@@ -235,7 +235,18 @@ inline DaltonManifest locate_dalton_dir(const std::string &dir,
       fs::create_directories(extract_dir);
       const std::string cmd = "tar -xzf '" + tars[0] + "' -C '" + extract_dir +
                               "' RSPVEC molden.inp 2>/dev/null";
-      (void)std::system(cmd.c_str());
+      // glibc marks system() warn_unused_result and (void) does not silence
+      // it under gcc. tar exits nonzero if EITHER member is absent, and a
+      // GS-only directory legitimately lacks RSPVEC — so partial extraction
+      // is decided by the existence checks below, not by tar's rc. Only a
+      // total failure (nothing extracted) is an error here.
+      const int tar_rc = std::system(cmd.c_str());
+      if (tar_rc != 0 && !fs::exists(extract_dir + "/molden.inp") &&
+          !fs::exists(extract_dir + "/RSPVEC"))
+        throw std::runtime_error(
+            "dalton import: extraction of '" + tars[0] +
+            "' produced neither RSPVEC nor molden.inp (tar exit " +
+            std::to_string(tar_rc) + ")");
       if (m.molden_path.empty() && fs::exists(extract_dir + "/molden.inp"))
         m.molden_path = extract_dir + "/molden.inp";
       if (m.rspvec_path.empty() && fs::exists(extract_dir + "/RSPVEC"))
