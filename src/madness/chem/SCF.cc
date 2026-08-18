@@ -39,7 +39,6 @@
 #include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
 #include <madness/world/ranks_and_hosts.h>
-#include <madness/mra/memory_measurement.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
 #include <madchem.h>
@@ -1579,13 +1578,11 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms,
     rms = sqrt(rms / v.size());
 }
 
-/// ~10 orbitals per rank in flight, capped by bsh_apply_max_tile; nmo (one chunk) for
-/// small systems. Shared by the tiled BSH apply and the residual transform.
-static size_t bsh_tile_size(size_t nmo, size_t nranks, long max_tile) {
+/// ~10 orbitals per rank in flight; nmo (one chunk) for small systems.
+/// Shared by the tiled BSH apply and the residual transform.
+static size_t bsh_tile_size(size_t nmo, size_t nranks) {
     const size_t min_tile = 10;
-    size_t ntile = std::min(std::max<size_t>(nmo, 1), min_tile * std::max<size_t>(nranks, 1));
-    if (max_tile > 0) ntile = std::min(ntile, size_t(max_tile));
-    return ntile;
+    return std::min(std::max<size_t>(nmo, 1), min_tile * std::max<size_t>(nranks, 1));
 }
 
 /// loose/tight divide of the bsh_apply dispatch: at thresh <= this, auto switches to
@@ -1658,14 +1655,8 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
 
     START_TIMER(world);
     ApplyTask apply_task;
-    const long nw = param.bsh_apply_nworld();
-    // Owner-pinning needs nworld==nranks (slot == physical rank) and batch=1 (one owner
-    // per task); an explicit conflicting request wins and the redistribute is skipped.
-    if (redistribute && ((nw > 0 && nw != world.size()) || batch != 1)) {
-        if (param.print_level() >= 2 && world.rank() == 0)
-            print("BSH apply: skipping the operand redistribute (needs nworld=nranks and batch=1)");
-        redistribute = false;
-    }
+    MADNESS_CHECK_THROW(!redistribute || batch == 1,
+                        "the BSH operand redistribute requires batch=1 (one owner per task)");
     // cost-balanced assignment, computed UP FRONT from Vpsi's original distribution;
     // it drives BOTH the redistribute and owner_hint -- they MUST share one assignment
     std::vector<ProcessID> bsh_owner;
@@ -1673,16 +1664,15 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
         bsh_owner = assign_cost_aware(function_costs(world, Vpsi), world.size());
         apply_task.owner_ = bsh_owner;
     }
-    // batch > 0 (from the auto dispatch) overrides the explicit params; 0 = default
-    const long maxb = batch > 0 ? batch : param.bsh_apply_max_batch();
-    const long minb = batch > 0 ? batch : param.bsh_apply_min_batch();
-    if (maxb > 0) apply_task.partitioner->set_max_batch_size(maxb);
-    if (minb > 0) apply_task.partitioner->set_min_batch_size(minb);
+    if (batch > 0) {
+        apply_task.partitioner->set_max_batch_size(batch);
+        apply_task.partitioner->set_min_batch_size(batch);
+    }
     auto factory = MacroTaskQFactory(world);
     // small_memory = StoreFunctionViaPointer: pointers in the cloud, coeffs streamed
-    factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
+    factory.set_policy(MacroTaskInfo::preset("small_memory"));
+    // owner-pinning needs nworld==nranks (subworld slot == physical rank)
     if (redistribute) factory.set_nworld(world.size());
-    else if (nw > 0) factory.set_nworld(nw);
     // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
     // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
     if (param.print_level() >= 10) factory.set_printlevel(5);
@@ -1733,7 +1723,7 @@ vecfuncT SCF::apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
                               const CalculationParameters& param) {
     START_TIMER(world);
     const size_t nfunc = Vpsi.size();
-    const size_t ntile = bsh_tile_size(nfunc, world.size(), param.bsh_apply_max_tile());
+    const size_t ntile = bsh_tile_size(nfunc, world.size());
     vecfuncT new_psi(nfunc);
     for (size_t ilo=0; ilo<nfunc; ilo+=ntile) {
         size_t iend = std::min(ilo+ntile,nfunc);
@@ -1806,7 +1796,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     // a single chunk (identical path) for small systems. fock keeps the -eps shift
     // across chunks (restored after the loop).
     {
-        const size_t ntile = bsh_tile_size(nmo, world.size(), param.bsh_apply_max_tile());
+        const size_t ntile = bsh_tile_size(nmo, world.size());
         for (size_t ilo = 0; ilo < size_t(nmo); ilo += ntile) {
             size_t iend = std::min(ilo + ntile, size_t(nmo));
             vecfuncT fpsi = transform(world, psi,
@@ -1832,7 +1822,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     // binds); tile on a single node at loose/medium (no gather, no subworld copy).
     std::string bsh_apply_mode = param.bsh_apply();
     const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
-    long batch = 0;   // 0 = bsh_apply_{min,max}_batch or partitioner default
+    long batch = 0;   // 0 = partitioner default
     if (bsh_apply_mode == "auto") {
         const long n_nodes = long(ranks_per_host(world).size());   // collective
         bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
@@ -1847,22 +1837,13 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     // the redistribute + local fetch collapse it; at loose/medium the move is a net
     // loss. Applies to auto and to explicit bsh_apply=macrotask.
     bool redistribute = (bsh_apply_mode == "macrotask") and tight;
-    if (redistribute and batch == 0
-        and param.bsh_apply_max_batch() == 0 and param.bsh_apply_min_batch() == 0)
-        batch = 1;   // explicit macrotask mode at tight: default to owner-coherent tasks
+    if (redistribute) batch = 1;   // one owner per task (explicit macrotask mode included)
     if (redistribute and param.print_level() >= 2 and world.rank() == 0)
         print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
     vecfuncT new_psi;
     if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch, redistribute);
     else if (bsh_apply_mode == "plain") new_psi = apply_bsh_plain(world, Vpsi, eps, param);
     else                                new_psi = apply_bsh_tiled(world, Vpsi, eps, param);
-
-    // memory snapshot at a consistent point (inputs freed, new_psi built); the RSS
-    // still shows the in-apply high water. Adds fences -- memory runs only.
-    if (param.bsh_apply_memcheck()) {
-        if (world.rank() == 0) print("=== BSH apply memcheck, mode:", param.bsh_apply(), "===");
-        MemoryMeasurer::measure_and_print(world);
-    }
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and

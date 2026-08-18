@@ -72,12 +72,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
 		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
 		initialize<std::string>("bsh_apply","auto","BSH operator apply backend in compute_residual: auto=macrotask multinode or at tight thresh, tile otherwise; tile=rank-aware memory-bounded loop; macrotask=distribute across subworlds (rank-local apply, memory-frugal); plain=single un-tiled apply",{"auto","tile","macrotask","plain"});
-		initialize<int>   ("bsh_apply_nworld",0,"bsh_apply=macrotask: number of subworlds for the BSH apply (0=auto=nrank, i.e. 1 rank/subworld); lower it (e.g. 2) for more ranks per apply");
-		initialize<int>   ("bsh_apply_max_batch",0,"bsh_apply=macrotask: max orbitals per BSH apply task (0=partitioner default); smaller = less memory per task");
-		initialize<int>   ("bsh_apply_min_batch",0,"bsh_apply=macrotask: min orbitals per BSH apply task (0=partitioner default)");
-		initialize<int>   ("bsh_apply_max_tile",0,"bsh_apply=tile: cap orbitals per tile (0=auto=min(nmo,10*nproc)); set it to bound peak memory on large/tight-thresh runs where the auto tile is the whole MO vector");
-		initialize<std::string>("bsh_apply_policy","small_memory","bsh_apply=macrotask: cloud storage preset. small_memory=StoreFunctionViaPointer (pointers in cloud, coeffs streamed to subworlds); default/large_memory=StoreFunction (full functions replicated per rank)",{"small_memory","small_memory_owner","default","large_memory","node_replicated_target"});
-		initialize<bool>  ("bsh_apply_memcheck",false,"if true, print a MemoryMeasurer map after each BSH apply (adds fences; use for memory comparison, not timing)");
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
@@ -219,12 +213,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
     bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
     int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
 	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
-	int bsh_apply_nworld() const {return get<int>("bsh_apply_nworld");}
-	int bsh_apply_max_batch() const {return get<int>("bsh_apply_max_batch");}
-	int bsh_apply_min_batch() const {return get<int>("bsh_apply_min_batch");}
-	int bsh_apply_max_tile() const {return get<int>("bsh_apply_max_tile");}
-	std::string bsh_apply_policy() const {return get<std::string>("bsh_apply_policy");}
-	bool bsh_apply_memcheck() const {return get<bool>("bsh_apply_memcheck");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
