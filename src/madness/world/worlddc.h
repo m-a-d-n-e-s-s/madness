@@ -42,6 +42,9 @@
 
 #include <functional>
 #include <set>
+#include <map>
+#include <vector>
+#include <algorithm>
 #include <unordered_set>
 
 
@@ -595,6 +598,7 @@ namespace madness
         const ProcessID me;                               ///< My MPI rank
         internal_containerT local;                        ///< Locally owned data
         std::vector<keyT> *move_list;                     ///< Tempoary used to record data that needs redistributing
+        std::map<ProcessID, std::vector<keyT>> coalesced_move_; ///< Temporary: keys to move, bucketed by destination (coalesced redistribute)
 
         /// Handles find request
         void find_handler(ProcessID requestor, const keyT &key, const RemoteReference<FutureImpl<iterator>> &ref)
@@ -881,6 +885,20 @@ namespace madness
             return local.insert(acc, key);
         }
 
+        /// AM target of the coalesced redistribute: bulk-insert boxes this rank owns
+        /// under the already-adopted new pmap. Keys are disjoint from those this rank
+        /// is concurrently erasing (their new owner != me), so per-bucket locking
+        /// suffices. See redistribute_coalesced_phase2.
+        void insert_batch(const std::vector<pairT> &boxes)
+        {
+            for (const pairT &kv : boxes)
+            {
+                accessor acc;
+                [[maybe_unused]] auto inserted = local.insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+
         void clear()
         {
             local.clear();
@@ -1120,6 +1138,67 @@ namespace madness
         {
             delete move_list;
         }
+
+        // --- Coalesced redistribute: like redistribute_phase1/2, but phase2 sends ONE
+        // bulk AM per (destination, chunk) instead of one AM per box. The caller owns
+        // the fences: fence, phase1 on all containers, fence, phase2, fence. The middle
+        // fence is REQUIRED -- phase1 iterates the ConcurrentHashMap and needs a
+        // quiescent window; phase2 tolerates concurrent insert_batch (disjoint keys).
+
+        /// phase1: adopt newpmap (callback swap as in replicate()) and bucket the keys
+        /// to move by destination. Quiescent window required.
+        void redistribute_coalesced_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
+        {
+            pmap->deregister_callback(this);
+            pmap = newpmap;
+            pmap->register_callback(this);
+            coalesced_move_.clear();
+            for (typename internal_containerT::iterator iter = local.begin(); iter != local.end(); ++iter)
+            {
+                ProcessID d = owner(iter->first); // uses the new pmap
+                if (d != me)
+                    coalesced_move_[d].push_back(iter->first);
+            }
+        }
+
+        /// phase2: per destination, chunk the key list (at most cap_boxes per chunk),
+        /// erase each box after copying it into the batch, send one insert_batch AM
+        /// per chunk.
+        void redistribute_coalesced_phase2(std::size_t cap_boxes, bool rotate)
+        {
+            if (cap_boxes == 0) cap_boxes = 1;
+            std::vector<ProcessID> dsts;
+            dsts.reserve(coalesced_move_.size());
+            for (const auto &kv : coalesced_move_) dsts.push_back(kv.first);
+            // rotate: destinations > me first, so ranks don't all hammer dst 0 at once
+            if (rotate)
+                std::stable_partition(dsts.begin(), dsts.end(),
+                                      [this](ProcessID d) { return d > me; });
+            for (ProcessID d : dsts)
+            {
+                const std::vector<keyT> &keys = coalesced_move_[d];
+                std::vector<pairT> batch;
+                batch.reserve(std::min(cap_boxes, keys.size()));
+                for (std::size_t i = 0; i < keys.size(); ++i)
+                {
+                    typename internal_containerT::iterator iter = local.find(keys[i]);
+                    if (iter != local.end())
+                    {
+                        batch.push_back(pairT(keys[i], iter->second));
+                        local.erase(iter); // delete local copy of the data
+                    }
+                    if (batch.size() >= cap_boxes || i + 1 == keys.size())
+                    {
+                        if (!batch.empty())
+                        {
+                            this->task(d, &implT::insert_batch, batch); // one bulk AM per chunk
+                            batch.clear();
+                        }
+                    }
+                }
+            }
+            coalesced_move_.clear();
+        }
     };
 
     /// Makes a distributed container with specified attributes
@@ -1280,6 +1359,23 @@ namespace madness
         void replicate_on_hosts(bool fence = true)
         {
             p->replicate_on_hosts(fence);
+        }
+
+        /// Coalesced redistribute, phase 1: adopt newpmap, bucket the move list.
+        /// Caller fences before (quiescent window).
+        void redistribute_coalesced_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
+        {
+            check_initialized();
+            p->redistribute_coalesced_phase1(newpmap);
+        }
+
+        /// Coalesced redistribute, phase 2: one bulk AM per (destination, chunk of at
+        /// most cap_boxes), erase-after-copy. Caller fences after; rotate staggers
+        /// destinations to reduce incast.
+        void redistribute_coalesced_phase2(std::size_t cap_boxes, bool rotate = true)
+        {
+            check_initialized();
+            p->redistribute_coalesced_phase2(cap_boxes, rotate);
         }
 
         /// Inserts/replaces key+value pair (non-blocking communication if key not local)
