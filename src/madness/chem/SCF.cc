@@ -1756,14 +1756,29 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
         eps(i) = std::min(-0.05, fock(i, i));
         fock(i, i) -= eps(i);
     }
-    vecfuncT fpsi = transform(world, psi, fock, trantol, true);
 
-    for (int i = 0; i < nmo; ++i) { // Undo the damage
+    // Vpsi -= psi*fock, tiled over output columns: untiled transform() materializes all
+    // nmo fpsi next to psi+Vpsi, ~3x orbital memory at tight thresh -- an OOM upstream
+    // of the (memory-frugal) BSH apply. ntile fpsi live at once -> ~2x + one chunk;
+    // a single chunk (identical path) for small systems. fock keeps the -eps shift
+    // across chunks (restored after the loop).
+    {
+        const size_t ntile = bsh_tile_size(nmo, world.size(), param.bsh_apply_max_tile());
+        for (size_t ilo = 0; ilo < size_t(nmo); ilo += ntile) {
+            size_t iend = std::min(ilo + ntile, size_t(nmo));
+            vecfuncT fpsi = transform(world, psi,
+                                      fock(_, Slice(long(ilo), long(iend) - 1)), trantol, true);
+            for (size_t i = ilo; i < iend; ++i)
+                Vpsi[i].gaxpy(1.0, fpsi[i - ilo], -1.0, false);
+            world.gop.fence();
+            fpsi.clear();   // free this chunk before building the next
+        }
+    }
+
+    for (int i = 0; i < nmo; ++i) { // Undo the damage (after all chunks used the shift)
         fock(i, i) += eps(i);
     }
 
-    gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
-    fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
