@@ -20,11 +20,12 @@ knob + io provenance) already landed.
   (`STEP_CONTEXT.md` has the constructor-by-constructor detail). They still take
   their actual ground state from the **build-time side-channel**, where the builder
   captures `reference->calc()` before adding the downstream driver.
-- Geometry optimization WORKS today but only *inside* one SCF driver
-  (`dft gopt=1` → `moldft_lib` → `MolOpt::optimize_app`; writes `_opt.xyz`,
-  emits `optimization_results`). The `optimize` WORKFLOW is a stub (enum +
-  disabled dispatch + fully-commented `OptimizeDriver` + a dead `SCFTarget`
-  adapter whose result schema doesn't match `SCFApplication`).
+- Geometry optimization is a first-class task: `--optimize --wf=<scf|nemo>` →
+  `qcapp::OptimizeDriver` → `MolOpt::optimize_app`; writes `_opt.xyz`, emits
+  `optimization_results`, publishes the optimized geometry into the StepContext.
+  (Historical note: it used to live *inside* one SCF driver, gated on
+  `dft gopt=1`, with the `optimize` workflow a stub. That form is gone and its
+  `dft` keyvals are retired.)
 - Restart machinery is strong and reusable: SCF checkpoint validation with a
   geometry-match guard; response restart via `response_metadata.json` +
   best-usable-seed selection; per-task `PathManager` dirs (absolute paths).
@@ -77,8 +78,22 @@ capture (which stays as a compatibility path until builders migrate).
 reference from the context; a third stage can consume stage 2's outputs.
 
 ### 2. First-class `optimize` workflow (M)
-Unblocked: the one bullet here that needs change 1 (publishing the molecule) has
-the mechanism it needs, and the other two are independent of it.
+**Status: LANDED.** `--optimize --wf=<scf|nemo>` is one task,
+`qcapp::OptimizeDriver<Library>` (`Drivers.hpp`), driving `MolOpt` over the reference
+engine the Library policy supplies — the same code optimizes on moldft
+(`Calc = SCF`) and nemo (`Calc = Nemo`). `--wf` names the reference method and
+`--optimize` asks for its geometry to be optimized; naming the engine in the
+`optimization` group as well was removed, and `--wf=optimize` now answers with a
+migration message. It reads the
+`optimization` group (which nothing read before), derives any threshold the deck
+leaves unset — the energy ones from `protocol().back()`, the gradient ones from
+`dconv`, which is what actually bounds a gradient — writes `<prefix>_opt.xyz`,
+and publishes the optimized geometry into the StepContext. Covered by
+`src/examples/qc/{scf_lih_optimize, scf_lih_optimize_tight, nemo_lih_optimize,
+scf_h2o_lda_optimize}`. `scf_lih_optimize_tight` pins the thresholds the retired
+in-SCF path used to impose and reproduces its numbers exactly (r = 3.034046 bohr,
+E = −7.987363048), which is what establishes that moving the optimizer out of the
+SCF changed no arithmetic; the two engines agree on the minimum to 3e-4 bohr.
 
 Revive `OptimizeDriver` on top of `MolOpt` (the working optimizer):
 - fix `SCFTarget` to read the real result schema (`SCFTargetAdapter.hpp:32-33`

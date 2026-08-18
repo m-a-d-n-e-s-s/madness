@@ -2,8 +2,9 @@
 #
 # This is the composable form of a geometry optimization -- one task that drives
 # MolOpt over a reference engine and publishes the optimized geometry into the
-# StepContext, as opposed to `dft gopt 1`, which optimizes inside a single SCF
-# task (see scf_lih_gopt for that form; the two produce the same geometry).
+# StepContext. It runs at the DERIVED thresholds; scf_lih_optimize_tight is the
+# same molecule with them pinned explicitly, and reproduces the numbers the
+# retired in-SCF `dft gopt` path used to produce.
 #
 # The reference engine is whatever `--wf` names -- scf (i.e. moldft) here, nemo in
 # nemo_lih_optimize. Everything else in this deck is identical between the two,
