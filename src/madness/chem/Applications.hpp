@@ -34,11 +34,123 @@ struct StepContext {
   std::optional<Molecule> molecule;
   /// Live ground-state reference engine, if an upstream SCF step exposed one.
   std::shared_ptr<SCF> reference;
+  /// Live Nemo-based ground-state reference, if an upstream nemo step exposed
+  /// one. Deliberately a SECOND field rather than a widening of `reference`:
+  /// SCF (SCF.h) and Nemo (via NemoBase) share no base class, and aliasing a
+  /// Nemo's inner SCF into `reference` would silently re-point consumers that
+  /// expect a standalone SCF engine (ResponseApplication).
+  std::shared_ptr<Nemo> nemo_reference;
   /// Named archive/output paths (absolute), e.g. "restartdata" -> path.
   std::map<std::string, std::filesystem::path> archives;
   /// Free-form JSON for artifacts not yet first-class.
   nlohmann::json blob = nlohmann::json::object();
 };
+
+/// True iff `a` and `b` describe the same nuclear framework: equal atom count
+/// and, per atom, equal element/charge/mass and a displacement below the 1e-10
+/// threshold Atom::operator== already applies.
+///
+/// Deliberately ignores derived state (rcut, pointgroup, field, molecular
+/// parameters). Those differ across a JSON round trip -- from_json re-orients
+/// the molecule -- which is why Molecule::operator== is not usable as a geometry
+/// guard. Lives here rather than in molecule.h only to avoid making every
+/// translation unit in the tree rebuild for it; molecule.h is its natural home
+/// once something outside this header needs it.
+inline bool same_nuclear_framework(const Molecule &a, const Molecule &b) {
+  if (a.natom() != b.natom())
+    return false;
+  for (unsigned int i = 0; i < a.natom(); ++i)
+    if (!(a.get_atom(i) == b.get_atom(i)))
+      return false;
+  return true;
+}
+
+/// Consumer-side precondition for the steps that cannot adopt an upstream
+/// reference (madqc ARCHITECTURE_ROADMAP change 1).
+///
+/// CC2, TDHF and OEP build their engine from a reference captured when the
+/// workflow is ASSEMBLED, not when it runs: CC2's ctor calls set_protocol on it
+/// and builds its own TDHF + CCPotentials from it, TDHF freezes its derived
+/// parameters off it, and OEP's own Nemo base is constructed FROM it. So a
+/// reference or geometry published later cannot be adopted, and the partial
+/// hooks that look like they would do it (TDHF::set_reference,
+/// OEP::set_reference, CCPotentials::reset_nemo) each swap only part of the
+/// state and would leave a silently inconsistent object. Until engine
+/// construction moves into run(), the honest thing a consumer can do is verify
+/// that the threaded context agrees with what it was built on -- so a
+/// mis-chained workflow fails loudly instead of writing out a correlation
+/// energy computed at the wrong geometry.
+///
+/// @param[in] ctx         the context Workflow::run threads task-to-task
+/// @param[in] reference    the build-time reference this step's engine uses
+/// @param[in] step_label  "cc2" / "cis" / "oep", for diagnostics only
+/// @param[in] world       for rank-0 printing
+inline void check_context_matches_reference(const StepContext &ctx,
+                                            const Nemo &reference,
+                                            const char *step_label,
+                                            World &world) {
+  // Messages passed to MADNESS_CHECK_THROW must be string literals:
+  // MadnessException stores a bare const char* and does not copy it, so a
+  // temporary std::string's c_str() would dangle by the time what() is called.
+  // Runtime detail goes into the rank-0 print next to each check instead.
+  if (ctx.nemo_reference && ctx.nemo_reference.get() != &reference) {
+    if (world.rank() == 0)
+      print("StepContext reference mismatch in step", step_label);
+    MADNESS_CHECK_THROW(
+        false,
+        "StepContext carries a different ground-state reference than this step "
+        "was constructed with; cc2/cis/oep build their engine when the workflow "
+        "is assembled and cannot adopt a reference published later. See "
+        "src/apps/madqc/STEP_CONTEXT.md");
+  }
+
+  // Only meaningful when the published molecule came from some producer other
+  // than our own reference. When the upstream reference IS our engine,
+  // ctx.molecule is by construction the geometry it ran at, and any difference
+  // is JSON-round-trip / re-orientation noise against a 1e-10 threshold.
+  if (!ctx.nemo_reference && ctx.molecule && ctx.molecule->natom() > 0) {
+    if (!same_nuclear_framework(*ctx.molecule, reference.molecule())) {
+      if (world.rank() == 0) {
+        print("geometry published by an upstream step, in step", step_label);
+        ctx.molecule->print();
+        print("geometry this step's engine was constructed with:");
+        reference.molecule().print();
+      }
+      MADNESS_CHECK_THROW(
+          false,
+          "An upstream step published a geometry that differs from the one this "
+          "step's engine was constructed with; cc2/cis/oep freeze the nuclear "
+          "framework at workflow-assembly time and cannot run at an upstream "
+          "optimized or displaced geometry. Run the method as its own workflow "
+          "at that geometry; see src/apps/madqc/STEP_CONTEXT.md");
+    }
+  }
+
+  // A reference engine that was constructed but never solved or reloaded has no
+  // orbitals: CC2 would call compute_fock_matrix on an empty amo, TDHF and OEP
+  // would fail their own check_converged gate much deeper in. Reachable when the
+  // upstream SCF results were reused (NextAction::ReloadOnly) and no restartdata
+  // archive existed to reload the MOs from -- i.e. the deck set `save false`.
+  if (reference.get_calc()->get_amo().empty()) {
+    if (world.rank() == 0)
+      print("empty reference orbitals in step", step_label);
+    MADNESS_CHECK_THROW(
+        false,
+        "The upstream ground state has no orbitals: its results were reused from "
+        "a checkpoint, but no restartdata archive was available to reload the "
+        "MOs from, so the reference engine was only constructed. cc2/cis/oep "
+        "need a live converged reference. Set `save 1` in the dft group, or "
+        "delete the reference step's calc_info.json to recompute");
+  }
+
+  if (world.rank() == 0) {
+    print("step", step_label,
+          ": ground-state reference confirmed via StepContext");
+    const auto it = ctx.archives.find("restartdata");
+    if (it != ctx.archives.end())
+      print("  upstream restartdata archive:", it->second.string());
+  }
+}
 
 // Scoped CWD: changes the current directory to the given one, and restores when
 // the object goes out of scope
@@ -272,7 +384,30 @@ public:
         // distinction survives only as a diagnostic. The action is still passed
         // through for the log rather than hardcoding one.
         scf_results = lib_.run(world_, params_, action);
+      } else if (action == madness::NextAction::Ok) {
+        // Results stand as checkpointed -- but the engine must not be left as a
+        // bare construction: a downstream cc2/cis/oep step needs a reference with
+        // orbitals. Ok implies the restartdata archive exists (see valid()), so
+        // the MOs can be reloaded from it.
+        //
+        // NOTE: Ok is currently UNREACHABLE, for a different reason on each path,
+        // so this branch is correct-but-dormant rather than exercised:
+        //  - nemo: valid() tests at_protocol as
+        //    `converged_for_thresh == protocol().back()`, but Nemo::value drives
+        //    its SCFProtocol from econv, so converged_for_thresh never equals the
+        //    final protocol rung -> must_redo stays true -> Restart.
+        //  - moldft: valid() looks for `params.prefix() + ".restartdata.00000"`,
+        //    while the engine is constructed from the mad.in written by
+        //    moldft_lib::initialize_ and so writes `mad.restartdata.00000`
+        //    -> archive_exists is always false -> Redo.
+        // Both are recorded in ARCHITECTURE_ROADMAP.md. Reuse still works today
+        // via Restart (which reloads the MOs), it just costs the archive read.
+        lib_.reload(world_, params_);
       } else {
+        // ReloadOnly: results stand, and there is no archive to reload from, so
+        // the engine has no orbitals. Harmless for a standalone scf/nemo run;
+        // check_context_matches_reference reports it if a chained step then
+        // needs a live reference.
         lib_.calc(world_, params_); // just set up the calc without running
       }
 
@@ -342,12 +477,27 @@ public:
   void publish_to_context(StepContext &ctx) override {
     if constexpr (std::is_same_v<Calc, SCF>) {
       ctx.reference = calc(); // shared_ptr<SCF>
+    } else if constexpr (std::is_base_of_v<Nemo, Calc>) {
+      // The nemo-based ground state used by the cc2/cis/oep chains. NOT also
+      // published as ctx.reference: that field means "a standalone SCF engine",
+      // and re-pointing it at a Nemo's inner SCF would change what
+      // ResponseApplication consumes.
+      ctx.nemo_reference = calc(); // shared_ptr<Nemo>
     }
+    // Publish the geometry this step actually ran at. The natom() guard matters:
+    // a producer that leaves SCFResults::scf_molecule unset would otherwise
+    // publish a DEFAULT-CONSTRUCTED empty Molecule, and a consumer that assigns
+    // ctx.molecule straight into its params (as ResponseApplication does) would
+    // wipe its geometry. params_'s Molecule is the correct fallback -- on the
+    // Ok/ReloadOnly path run() has already refreshed it from the checkpoint.
     if (results_.contains("molecule")) {
       try {
         Molecule m;
         m.from_json(results_["molecule"]);
-        ctx.molecule = std::move(m);
+        if (m.natom() > 0)
+          ctx.molecule = std::move(m);
+        else
+          ctx.molecule = params_.get<Molecule>();
       } catch (...) {
         // leave ctx.molecule unset -> downstream falls back to input geometry
       }
@@ -387,13 +537,7 @@ private:
     } catch (...) {
       return true; // can't parse -> let other validation decide
     }
-    const Molecule &want = params_.get<Molecule>();
-    if (ckpt_mol.natom() != want.natom())
-      return false;
-    for (unsigned int i = 0; i < want.natom(); ++i)
-      if (!(want.get_atom(i) == ckpt_mol.get_atom(i)))
-        return false;
-    return true;
+    return same_nuclear_framework(params_.get<Molecule>(), ckpt_mol);
   }
 
   /// what operator this checkpoint's numbers are a solution OF
@@ -524,6 +668,13 @@ public:
       params_.get<CCParameters>().print(CCParameters::tag, "end");
   }
 
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "cc2", world_);
+  }
+
   void run(const std::filesystem::path &workdir) override {
     // 1) set up a namedspaced directory for this run
     std::string label = "cc2";
@@ -584,6 +735,13 @@ public:
   void print_parameters(World &world) const override {
     if (world.rank() == 0)
       params_.get<TDHFParameters>().print(TDHFParameters::tag, "end");
+  }
+
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "cis", world_);
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -661,6 +819,13 @@ public:
   void print_parameters(World &world) const override {
     if (world.rank() == 0)
       params_.get<OEP_Parameters>().print(OEP_Parameters::tag, "end");
+  }
+
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "oep", world_);
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -883,6 +1048,18 @@ struct moldft_lib {
   }
 
   static void print_parameters() { Calc::print_parameters(); }
+
+  /// Rehydrate the engine when the checkpoint results are reused, so a
+  /// downstream step gets a reference with orbitals rather than a bare
+  /// freshly-constructed SCF. load_mos handles k-projection and the threshold
+  /// itself; the protocol is set first to match the order Nemo::value uses.
+  void reload(World &world, const Params &params) {
+    auto scf = calc(world, params);
+    scf->set_protocol<3>(world,
+                         params.get<CalculationParameters>().protocol().back());
+    scf->load_mos(world);
+  }
+
   // params get's changed by SCF constructor
   SCFResultsTuple run(World &world, const Params &params,
                       const NextAction next_action_) {
@@ -1086,6 +1263,20 @@ struct nemo_lib {
 
   static void print_parameters() { Calc::print_parameters(); }
 
+  /// Rehydrate the engine when the checkpoint results are reused, so downstream
+  /// steps (cc2/cis/oep) get a reference with orbitals rather than a bare
+  /// freshly-constructed Nemo. Goes through the engine's own no_compute path:
+  /// Nemo::value then loads the MOs from the archive, builds the nuclear
+  /// correlation factor via set_protocol, records coords_sum (so check_converged
+  /// passes downstream) and skips the SCF iterations. Setting no_compute after
+  /// construction is safe because it is read in value(), unlike `restart` which
+  /// SCFApplication::run must set before the engine is built.
+  void reload(World &world, const Params &params) {
+    auto nm = calc(world, params);
+    nm->get_calc()->param.set_user_defined_value("no_compute", true);
+    nm->value(nm->molecule().get_all_coords());
+  }
+
   SCFResultsTuple run(World &world, const Params &params,
                       NextAction action = NextAction::Redo) {
     SCFResultsTuple results;
@@ -1105,6 +1296,11 @@ struct nemo_lib {
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
+    // The geometry this reference was solved at. Without it, results_["molecule"]
+    // (and therefore the checkpoint and ctx.molecule) reports an empty molecule,
+    // and checkpoint_geometry_matches compares 0 atoms against N and rejects
+    // every nemo-path checkpoint -- so restarts always recomputed.
+    sr.scf_molecule = nm->get_calc()->molecule;
 
     if (nm->get_nemo_param().hessian())
       sr.properties.vibrations =
