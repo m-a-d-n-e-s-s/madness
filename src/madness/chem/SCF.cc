@@ -38,6 +38,8 @@
 #include "funcdefaults.h"
 #include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
+#include <madness/world/ranks_and_hosts.h>
+#include <madness/mra/memory_measurement.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
 #include <madchem.h>
@@ -1577,43 +1579,172 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms,
     rms = sqrt(rms / v.size());
 }
 
-vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
-                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
+/// ~10 orbitals per rank in flight, capped by bsh_apply_max_tile; nmo (one chunk) for
+/// small systems. Shared by the tiled BSH apply and the residual transform.
+static size_t bsh_tile_size(size_t nmo, size_t nranks, long max_tile) {
+    const size_t min_tile = 10;
+    size_t ntile = std::min(std::max<size_t>(nmo, 1), min_tile * std::max<size_t>(nranks, 1));
+    if (max_tile > 0) ntile = std::min(ntile, size_t(max_tile));
+    return ntile;
+}
 
+/// loose/tight divide of the bsh_apply dispatch: at thresh <= this, auto switches to
+/// the memory-conservative macrotask configuration (one orbital per task).
+static constexpr double BSH_TIGHT_THRESH = 1.0e-7;
 
-    // apply the BSH operator in a Macrotask to reduce communication and possible hangs
+vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                                  const CalculationParameters& param, long batch) {
     class ApplyTask : public MacroTaskOperationBase {
     public:
         ApplyTask() {
-            name="applytask";
+            name="apply_bsh";
         }
-        // you need to define the exact argument(s) of operator() as tuple
         typedef std::tuple<const std::vector<real_function_3d> &, const Tensor<double>&,
         const CalculationParameters&> argtupleT;
-
-        // you need to define the result type
-        // resultT must implement gaxpy(alpha, result, beta, contribution)
-        // with resultT result, contribution;
         using resultT = std::vector<real_function_3d>;
 
-        // you need to define an empty constructor for the result
+        // called in the universe (full argtuple -> full-size result) and in each subworld
+        // (batched argtuple -> batch-size result); sizing from the input vector fits both.
         resultT allocator(World &world, const argtupleT &argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            resultT result = zero_functions_compressed<double, 3>(world, n);
-            return result;
+            return zero_functions_compressed<double, 3>(world, n);
         }
 
         resultT operator()(const std::vector<real_function_3d> &Vpsi,
             const Tensor<double>& eps, const CalculationParameters& param) const {
-            World& world=Vpsi.front().world();
+            // the framework deep-copied the batch into the subworld;
+            // Vpsi.front().world() IS the subworld
+            World& world = Vpsi.front().world();
             MADNESS_CHECK_THROW(eps.ndim()==1,"need a 1D tensor for eps in ApplyTask");
-            Tensor<double> batched_eps=eps(Slice(batch.input[0].begin,batch.input[0].end-1));
-            MADNESS_CHECK_THROW(batched_eps.size()==batch.input[0].size(),"batched eps size mismatch");
+            // slice eps to this task's batch (Slice end inclusive; full-size batch -> -1).
+            const long b = batch.input[0].begin;
+            const long e = batch.input[0].is_full_size() ? eps.size() : batch.input[0].end;
+            Tensor<double> batched_eps=eps(Slice(b, e-1));
+            MADNESS_CHECK_THROW(batched_eps.size()==static_cast<long>(Vpsi.size()),
+                                "batched eps size mismatch in ApplyTask");
             std::vector<poperatorT> ops = make_bsh_operators(world, batched_eps,param);
-            vecfuncT new_psi = apply(world, ops, Vpsi);
+            vecfuncT tmp_Vpsi = Vpsi;   // shallow copies; set_thresh mutates impl state
+            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+            // in-subworld apply+truncate; framework overhead = outer timer - this
+            const bool instr = param.print_level() >= 10;
+            const double in_gb = instr ? get_size(world, tmp_Vpsi) : 0.0;
+            const double w0 = wall_time();
+            vecfuncT new_psi = apply(world, ops, tmp_Vpsi);
+            const double w1 = wall_time();
+            truncate(world, new_psi);   // in-subworld so the universe gaxpy stays small
+            const double w2 = wall_time();
+            if (instr and world.rank() == 0)
+                printf("  [ApplyTask sw nrank=%d nfunc=%zu apply=%.2fs truncate=%.2fs in=%.3fGB out=%.3fGB]\n",
+                       world.size(), tmp_Vpsi.size(), w1 - w0, w2 - w1, in_gb,
+                       get_size(world, new_psi));
             return new_psi;
         }
     };
+
+    START_TIMER(world);
+    ApplyTask apply_task;
+    // batch > 0 (from the auto dispatch) overrides the explicit params; 0 = default
+    const long maxb = batch > 0 ? batch : param.bsh_apply_max_batch();
+    const long minb = batch > 0 ? batch : param.bsh_apply_min_batch();
+    if (maxb > 0) apply_task.partitioner->set_max_batch_size(maxb);
+    if (minb > 0) apply_task.partitioner->set_min_batch_size(minb);
+    auto factory = MacroTaskQFactory(world);
+    // small_memory = StoreFunctionViaPointer: pointers in the cloud, coeffs streamed
+    factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
+    const long nw = param.bsh_apply_nworld();
+    if (nw > 0) factory.set_nworld(nw);
+    // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
+    // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
+    if (param.print_level() >= 10) factory.set_printlevel(5);
+    MacroTask macrotask(world, apply_task, factory);
+    const bool instr = param.print_level() >= 10;
+    const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
+    vecfuncT new_psi = macrotask(Vpsi, eps, param);
+    Vpsi.clear();
+    world.gop.fence();
+    if (instr) {
+        const double newpsi_gb = get_size(world, new_psi);
+        // fence-free getrusage high-water; rss_max = worst rank, rss_tot = sum
+        double rss_max = madness::get_rss_usage_in_GB();
+        double rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0) {
+            auto cs = macrotask.get_taskq()->get_cloud_statistics();
+            printf("  [BSH macrotask: held Vpsi=%.2fGB (%.3f/rank) result=%.2fGB | "
+                   "comm deep-copy max=%.2fs av=%.2fs | cloud-read max=%.2fs | write=%.2fs | tgt-repl=%.2fs"
+                   " | peakRSS max=%.2fGB/rank tot=%.2fGB]\n",
+                   vpsi_gb, vpsi_gb/std::max<int>(1,world.size()), newpsi_gb,
+                   cs.value("copy_time_max_s",-1.0), cs.value("copy_time_av_s",-1.0),
+                   cs.value("reading_time_max_s",-1.0), cs.value("writing_time_s",-1.0),
+                   cs.value("target_replication_time_s",-1.0),
+                   rss_max, rss_tot);
+        }
+    }
+    END_TIMER(world, "Apply BSH (macrotask)");
+    return new_psi;
+}
+
+/// Tiled apply: bounds the nonstandard working set to ~10 orbitals/rank (bsh_tile_size);
+/// the untiled apply converts every orbital at once and OOMs large systems. Consumes Vpsi.
+vecfuncT SCF::apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param) {
+    START_TIMER(world);
+    const size_t nfunc = Vpsi.size();
+    const size_t ntile = bsh_tile_size(nfunc, world.size(), param.bsh_apply_max_tile());
+    vecfuncT new_psi(nfunc);
+    for (size_t ilo=0; ilo<nfunc; ilo+=ntile) {
+        size_t iend = std::min(ilo+ntile,nfunc);
+        vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+        // eps(i) == min(-0.05, fock(i,i)) for the whole vector; slice it for this tile.
+        tensorT tmp_eps = eps(Slice(long(ilo), long(iend)-1));
+        std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
+        set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+        vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+        truncate(world, tmp_new_psi);
+        // results home, inputs freed as the loop advances
+        for (size_t i = ilo; i<iend; ++i){
+            new_psi[i] = std::move(tmp_new_psi[i-ilo]);
+            Vpsi[i].clear(false);
+        }
+        ops.clear();
+    }
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {   // peak RSS, comparable to the macrotask print
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH tile: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    return new_psi;
+}
+
+/// Single un-tiled apply (small systems / debugging). Consumes Vpsi.
+vecfuncT SCF::apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param) {
+    START_TIMER(world);
+    std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
+    set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
+    vecfuncT new_psi = apply(world, ops, Vpsi);
+    ops.clear();
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH plain: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    START_TIMER(world);
+    truncate(world, new_psi);
+    END_TIMER(world, "Truncate new psi");
+    return new_psi;
+}
+
+vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
+                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
 
     START_TIMER(world);
     PROFILE_MEMBER_FUNC(SCF);
@@ -1637,60 +1768,33 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
 
-    const bool tile_applyBSH = true;
+    // bsh_apply selects the backend (executors above; eps fed identically to all).
+    // auto: macrotask when multinode (rank-local apply, no inter-node convolution comm)
+    // or at tight protocol (one orbital per task bounds the working set where memory
+    // binds); tile on a single node at loose/medium (no gather, no subworld copy).
+    std::string bsh_apply_mode = param.bsh_apply();
+    long batch = 0;   // 0 = bsh_apply_{min,max}_batch or partitioner default
+    if (bsh_apply_mode == "auto") {
+        const long n_nodes = long(ranks_per_host(world).size());   // collective
+        const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
+        bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
+        // tight: one orbital per task (memory-conservative); loose/medium: a modest
+        // batch amortizes per-task overhead
+        if (bsh_apply_mode == "macrotask") batch = tight ? 1 : 4;
+        if (param.print_level() >= 2 and world.rank() == 0)
+            print("BSH apply [auto]:", bsh_apply_mode, "(nodes:", n_nodes,
+                  tight ? ", tight protocol)" : ")");
+    }
     vecfuncT new_psi;
+    if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch);
+    else if (bsh_apply_mode == "plain") new_psi = apply_bsh_plain(world, Vpsi, eps, param);
+    else                                new_psi = apply_bsh_tiled(world, Vpsi, eps, param);
 
-    if (tile_applyBSH) {
-        START_TIMER(world);
-        size_t min_tile = 10;
-        size_t ntile = std::min(amo.size(), min_tile);
-        new_psi = zero_functions<double,3>(world, Vpsi.size());
-
-        for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
-            size_t iend = std::min(ilo+ntile,Vpsi.size());
-            vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
-
-            int tmp_nmo = tmp_Vpsi.size();
-            tensorT tmp_eps(tmp_nmo);
-            for (int i = 0; i < tmp_nmo; ++i) {
-                tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
-            }
-
-            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
-            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
-
-            vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
-
-            //truncate tmp_new_psi
-            truncate(world, tmp_new_psi);
-
-            //put the results into their final home
-            for (size_t i = ilo; i<iend; ++i){
-                new_psi[i] += tmp_new_psi[i-ilo];
-            }
-            ops.clear();
-        }
-
-        Vpsi.clear();
-        world.gop.fence();
-        END_TIMER(world, "Apply BSH");
-    } else {
-        START_TIMER(world);
-
-        std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
-        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
-
-        new_psi = apply(world, ops, Vpsi);
-        
-        ops.clear();
-        Vpsi.clear();
-        world.gop.fence();
-
-        END_TIMER(world, "Apply BSH");
-        
-        START_TIMER(world);
-        truncate(world, new_psi);
-        END_TIMER(world, "Truncate new psi");
+    // memory snapshot at a consistent point (inputs freed, new_psi built); the RSS
+    // still shows the in-apply high water. Adds fences -- memory runs only.
+    if (param.bsh_apply_memcheck()) {
+        if (world.rank() == 0) print("=== BSH apply memcheck, mode:", param.bsh_apply(), "===");
+        MemoryMeasurer::measure_and_print(world);
     }
 
     // Thought it was a bad idea to truncate *before* computing the residual
