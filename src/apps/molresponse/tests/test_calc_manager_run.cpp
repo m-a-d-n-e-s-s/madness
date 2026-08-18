@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
                 "[--maxiter=N] [--dconv=X] [--calc-dir=DIR] "
                 "[--print-level=0..3] "
                 "[--dalton-dir=DIR [--dalton-molden=F] [--dalton-rspvec=F] "
-                "[--dalton-out=F]]");
+                "[--dalton-out=F] [--seed-start-rung=coarse|fine]]");
         finalize();
         return 1;
       }
@@ -114,6 +114,32 @@ int main(int argc, char **argv) {
         protocol = parse_protocol_csv(parser.value("protocol"));
       else
         protocol.push_back(default_thresh_for_k(header.k));
+      // --seed-start-rung=fine: a DALTON-seeded run skips straight to the
+      // FINEST rung (W6 between-pole finding: the coarse rung hits maxiter
+      // unconverged in every arm and launders away the seed's head start —
+      // the seed is already at the physics; refining it at k6 first is a
+      // detour). Collapsing the ladder HERE, before set_response_protocol /
+      // gs.prepare / run_dalton_import, makes the seed projection land at
+      // the fine rung's (k, thresh). Default coarse = full ladder,
+      // unchanged. Gated on --dalton-dir: a COLD fine start needs no flag
+      // (just pass a single-rung --protocol).
+      const std::string seed_start_rung =
+          parser.key_exists("seed-start-rung")
+              ? parser.value("seed-start-rung")
+              : std::string("coarse");
+      {
+        const bool have_seed = parser.key_exists("dalton-dir");
+        if (apply_seed_start_rung(protocol, seed_start_rung, have_seed)) {
+          if (world.rank() == 0)
+            print("[SEED-START-RUNG] fine: ladder collapsed to thresh=",
+                  protocol.front(),
+                  " — the DALTON seed projects at the fine rung");
+        } else if (seed_start_rung == "fine" && !have_seed &&
+                   world.rank() == 0) {
+          print("[SEED-START-RUNG] fine requested but no --dalton-dir seed "
+                "— ignored (full ladder runs)");
+        }
+      }
       // Analyze-only reports at the TOP protocol and never solves, so set that
       // protocol up front: the single gs.prepare() below loads + projects the
       // orbitals at the target (k,thresh) directly. This avoids a second
@@ -320,7 +346,7 @@ int main(int argc, char **argv) {
         print("  calc_dir   =", calc_dir);
         if (parser.key_exists("dalton-dir"))
           print("  dalton_dir =", parser.value_raw("dalton-dir"),
-                " (FD seed import)");
+                " (FD seed import)  seed_start_rung =", seed_start_rung);
         print("  mode       =", (do_beta ? "hyperpolarizability (beta/VBC)"
                                  : es_roots > 0 ? "resonant-gradient (ES)"
                                                 : "polarizability"));

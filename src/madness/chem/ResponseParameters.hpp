@@ -91,6 +91,14 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "the projected RSPVEC vectors. Import-only — madness never "
                                 "invokes DALTON. Geometry fingerprint mismatch is a hard error; "
                                 "frequencies must match exactly 1-to-1.");
+        initialize<std::string>("seed.start_rung", "coarse",
+                                "protocol rung where a SEEDED response run starts. 'coarse' "
+                                "(default) climbs the full coarse->fine ladder; 'fine' skips "
+                                "straight to the finest rung when a dalton.dir seed is present "
+                                "(between-pole runs: the coarse rung burns maxiter unconverged "
+                                "and launders away the seed's head start — the seed is already "
+                                "at the physics). Ignored without dalton.dir.",
+                                {"coarse", "fine"});
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
@@ -149,6 +157,9 @@ public:
     }
     [[nodiscard]] std::string dalton_dir() const {
         return get<std::string>("dalton.dir");
+    }
+    [[nodiscard]] std::string seed_start_rung() const {
+        return get<std::string>("seed.start_rung");
     }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");
