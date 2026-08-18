@@ -1237,8 +1237,14 @@ template<size_t NDIM>
 
             // copy coeffs from (a subset of) other's world
 
+            // single-owner pmap: fetch from that rank only -- the all-ranks poll costs
+            // N-1 empty round-trips queued behind the owner's compute
+            const ProcessID single_owner = other.get_pmap()->single_owner();
+            if (single_owner >= 0) {
+                copy_remote_coeffs_from_pid<Q>(single_owner, other);
+
             // if other's data is distributed, we need to fetch from all ranks
-            if (other.get_coeffs().is_distributed()) {
+            } else if (other.get_coeffs().is_distributed()) {
                 for (ProcessID pid=0; pid<other.world.size(); ++pid) {
                     copy_remote_coeffs_from_pid<Q>(pid, other);
                 }
@@ -1255,9 +1261,13 @@ template<size_t NDIM>
         template <typename Q>
         void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other) {
             typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
-            // std::vector<unsigned char> v=other.task(pid, &implQ::serialize_remote_coeffs).get();
-            auto v=other.task(pid, &implQ::serialize_remote_coeffs);
-            world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
+            if (pid == other.world.rank()) {
+                // the shard is local: copy nodes directly, no serialize round-trip
+                copy_coeffs_same_world(other, false);
+            } else {
+                auto v=other.task(pid, &implQ::serialize_remote_coeffs);
+                world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
+            }
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
