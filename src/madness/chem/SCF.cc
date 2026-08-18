@@ -1593,7 +1593,8 @@ static size_t bsh_tile_size(size_t nmo, size_t nranks, long max_tile) {
 static constexpr double BSH_TIGHT_THRESH = 1.0e-7;
 
 vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
-                                  const CalculationParameters& param, long batch) {
+                                  const CalculationParameters& param, long batch,
+                                  bool redistribute) {
     class ApplyTask : public MacroTaskOperationBase {
     public:
         ApplyTask() {
@@ -1602,6 +1603,20 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
         typedef std::tuple<const std::vector<real_function_3d> &, const Tensor<double>&,
         const CalculationParameters&> argtupleT;
         using resultT = std::vector<real_function_3d>;
+
+        // Owner-pinned placement (iff the operand was redistributed): owner_[j] is where
+        // redistribute_to_batches put Vpsi[j]; running j's task there makes the auto_copy
+        // a local fetch. owner_ MUST equal the redistribute assignment and each task must
+        // span one function (batch=1). Replicated, so all ranks compute the same slot;
+        // nsubworld==nranks under the redistribute. Empty => -1 (dynamic).
+        std::vector<ProcessID> owner_;
+        long owner_hint(const madness::Batch& batch, const long nsubworld) const override {
+            if (owner_.empty() || nsubworld <= 0) return -1;
+            const long b = batch.input[0].begin;
+            if (b >= 0 && b < static_cast<long>(owner_.size()))
+                return static_cast<long>(owner_[b]) % nsubworld;
+            return b % nsubworld;   // fallback (not reached once owner_ is populated)
+        }
 
         // called in the universe (full argtuple -> full-size result) and in each subworld
         // (batched argtuple -> batch-size result); sizing from the input vector fits both.
@@ -1643,6 +1658,21 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
 
     START_TIMER(world);
     ApplyTask apply_task;
+    const long nw = param.bsh_apply_nworld();
+    // Owner-pinning needs nworld==nranks (slot == physical rank) and batch=1 (one owner
+    // per task); an explicit conflicting request wins and the redistribute is skipped.
+    if (redistribute && ((nw > 0 && nw != world.size()) || batch != 1)) {
+        if (param.print_level() >= 2 && world.rank() == 0)
+            print("BSH apply: skipping the operand redistribute (needs nworld=nranks and batch=1)");
+        redistribute = false;
+    }
+    // cost-balanced assignment, computed UP FRONT from Vpsi's original distribution;
+    // it drives BOTH the redistribute and owner_hint -- they MUST share one assignment
+    std::vector<ProcessID> bsh_owner;
+    if (redistribute) {
+        bsh_owner = assign_cost_aware(function_costs(world, Vpsi), world.size());
+        apply_task.owner_ = bsh_owner;
+    }
     // batch > 0 (from the auto dispatch) overrides the explicit params; 0 = default
     const long maxb = batch > 0 ? batch : param.bsh_apply_max_batch();
     const long minb = batch > 0 ? batch : param.bsh_apply_min_batch();
@@ -1651,14 +1681,27 @@ vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& e
     auto factory = MacroTaskQFactory(world);
     // small_memory = StoreFunctionViaPointer: pointers in the cloud, coeffs streamed
     factory.set_policy(MacroTaskInfo::preset(param.bsh_apply_policy()));
-    const long nw = param.bsh_apply_nworld();
-    if (nw > 0) factory.set_nworld(nw);
+    if (redistribute) factory.set_nworld(world.size());
+    else if (nw > 0) factory.set_nworld(nw);
     // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
     // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
     if (param.print_level() >= 10) factory.set_printlevel(5);
     MacroTask macrotask(world, apply_task, factory);
     const bool instr = param.print_level() >= 10;
     const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
+    // localize Vpsi up front -- no convolution running, so the move runs at transport
+    // speed; the auto_copy then fetches locally. Streams, no 2x transient.
+    if (redistribute) {
+        const double t0 = wall_time();
+        redistribute_to_batches(world, Vpsi, bsh_owner);
+        if (instr) {
+            double rss = madness::get_rss_usage_in_GB();
+            world.gop.max(rss);
+            if (world.rank() == 0)
+                printf("  [BSH redistribute: Vpsi -> single-owner (%zu funcs) in %.2fs | peakRSS max=%.2fGB/rank]\n",
+                       Vpsi.size(), wall_time() - t0, rss);
+        }
+    }
     vecfuncT new_psi = macrotask(Vpsi, eps, param);
     Vpsi.clear();
     world.gop.fence();
@@ -1788,20 +1831,29 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     // or at tight protocol (one orbital per task bounds the working set where memory
     // binds); tile on a single node at loose/medium (no gather, no subworld copy).
     std::string bsh_apply_mode = param.bsh_apply();
+    const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
     long batch = 0;   // 0 = bsh_apply_{min,max}_batch or partitioner default
     if (bsh_apply_mode == "auto") {
         const long n_nodes = long(ranks_per_host(world).size());   // collective
-        const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
         bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
-        // tight: one orbital per task (memory-conservative); loose/medium: a modest
-        // batch amortizes per-task overhead
+        // tight: one orbital per task (memory, and required by the redistribute
+        // below); loose/medium: a modest batch amortizes per-task overhead
         if (bsh_apply_mode == "macrotask") batch = tight ? 1 : 4;
         if (param.print_level() >= 2 and world.rank() == 0)
             print("BSH apply [auto]:", bsh_apply_mode, "(nodes:", n_nodes,
                   tight ? ", tight protocol)" : ")");
     }
+    // pre-localize ONLY at tight protocol: the per-task gather serve-starves there and
+    // the redistribute + local fetch collapse it; at loose/medium the move is a net
+    // loss. Applies to auto and to explicit bsh_apply=macrotask.
+    bool redistribute = (bsh_apply_mode == "macrotask") and tight;
+    if (redistribute and batch == 0
+        and param.bsh_apply_max_batch() == 0 and param.bsh_apply_min_batch() == 0)
+        batch = 1;   // explicit macrotask mode at tight: default to owner-coherent tasks
+    if (redistribute and param.print_level() >= 2 and world.rank() == 0)
+        print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
     vecfuncT new_psi;
-    if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch);
+    if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch, redistribute);
     else if (bsh_apply_mode == "plain") new_psi = apply_bsh_plain(world, Vpsi, eps, param);
     else                                new_psi = apply_bsh_tiled(world, Vpsi, eps, param);
 

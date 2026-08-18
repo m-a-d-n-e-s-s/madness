@@ -424,7 +424,8 @@ public:
     /// BSH-apply executors for compute_residual, selected by the bsh_apply parameter.
     /// All three consume Vpsi and return the new orbitals (not yet orthonormalized).
     vecfuncT apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
-                                 const CalculationParameters& param, long batch);
+                                 const CalculationParameters& param, long batch,
+                                 bool redistribute);
     vecfuncT apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
                              const CalculationParameters& param);
     vecfuncT apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
