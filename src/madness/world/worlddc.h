@@ -144,6 +144,14 @@ namespace madness
             return Distributed;
         }
 
+        /// The one rank every key maps to on every process, or -1. Lets a cross-world
+        /// copy fetch from one owner instead of polling all ranks. Stronger than
+        /// WorldDCLocalPmap, whose owner is the calling rank.
+        virtual ProcessID single_owner() const
+        {
+            return -1;
+        }
+
         /// Registers object for receipt of redistribute callbacks
 
         /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
@@ -286,6 +294,23 @@ namespace madness
         {
             return RankReplicated;
         }
+    };
+
+    /// Places every key on one fixed rank (all ranks agree on the owner).
+    ///
+    /// Moves a container's whole content onto one rank, so a cross-world copy is
+    /// a single fetch. Distribution type stays Distributed; see single_owner().
+    /// \ingroup worlddc
+    template <typename keyT>
+    class WorldDCSingleOwnerPmap : public WorldDCPmapInterface<keyT>
+    {
+    private:
+        const ProcessID owner_;
+
+    public:
+        WorldDCSingleOwnerPmap(ProcessID owner) : owner_(owner) {}
+        ProcessID owner(const keyT & /*key*/) const override { return owner_; }
+        ProcessID single_owner() const override { return owner_; }
     };
 
     /// node-replicated map will return the lowest rank on the node as owner
