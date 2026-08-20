@@ -33,6 +33,7 @@
 #define SRC_MADNESS_CHEM_DISPERSION_H_
 
 #include <string>
+#include <vector>
 
 #include <madness/tensor/tensor.h>
 #include <madness/world/world.h>
@@ -96,6 +97,18 @@ public:
     /// result can be added to those tensors directly. All zeros if inactive.
     Tensor<double> gradient(World& world, const Molecule& mol) const;
 
+    /// d^2 E_disp / dR_i dR_j in Hartree/bohr^2, (3*natom, 3*natom)
+
+    /// Same [3*atom + axis] index convention as gradient(), so the result can be
+    /// added straight to Nemo::hessian's matrix. All zeros if inactive.
+    ///
+    /// Central differences of the *analytic* gradient. simple-dftd3 grew an
+    /// analytic Hessian (dftd3_get_dispersion_hessian) only in its 1.6 API,
+    /// which no release carries yet; differencing costs 6*natom library calls of
+    /// a few microseconds each and lands ~1e-9 Ha/bohr^2 from the exact result,
+    /// orders of magnitude below the error of the electronic Hessian it joins.
+    Tensor<double> hessian(World& world, const Molecule& mol) const;
+
     /// throw if `spec` asks for a correction, naming the engine that cannot apply it
 
     /// For engines whose energy expression has no dispersion term. Silently
@@ -130,6 +143,15 @@ private:
 
     /// evaluate on rank 0 and broadcast; fills the cache below
     void compute(World& world, const Molecule& mol) const;
+
+    /// the atomic numbers, ordered to match Molecule::get_all_coords()
+    static std::vector<int> atomic_numbers(const Molecule& mol);
+
+    /// one library call: energy and gradient for a geometry. Rank-local and
+    /// uncached, so the finite differences in hessian() neither communicate per
+    /// displacement nor evict the cache.
+    void evaluate(const std::vector<int>& numbers, const Tensor<double>& coords,
+                  double& e, Tensor<double>& g) const;
 
     /// memoized result -- SCF::solve asks once per iteration for a quantity
     /// that only changes when the optimizer moves the nuclei

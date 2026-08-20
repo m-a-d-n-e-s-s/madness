@@ -229,6 +229,50 @@ void DispersionCorrection::print_citation(World& world) const {
 }
 
 
+void DispersionCorrection::evaluate(const std::vector<int>& numbers,
+                                    const Tensor<double>& coords,
+                                    double& e, Tensor<double>& g) const {
+#ifdef MADNESS_HAS_DFTD3
+    dftd3_error error = dftd3_new_error();
+
+    // no lattice, no periodicity -- molecular
+    dftd3_structure structure = dftd3_new_structure(
+            error, int(numbers.size()), numbers.data(), coords.ptr(), nullptr, nullptr);
+    throw_on_error(error, "constructing the molecular structure");
+
+    dftd3_model model = dftd3_new_d3_model(error, structure);
+    throw_on_error(error, "constructing the D3 model");
+
+    dftd3_param param = load_damping(error, damping == rational, method, atm);
+
+    // energy in Hartree, gradient in Hartree/bohr laid out [3*atom + axis],
+    // which is exactly what SCF::derivatives uses -- no reordering, no unit
+    // conversion. The virial is meaningless for a molecular system but is
+    // still written to: passing a null pointer segfaults inside the library.
+    double sigma[9];
+    dftd3_get_dispersion(error, structure, model, param, &e, g.ptr(), sigma);
+    throw_on_error(error, "evaluating the dispersion energy and gradient");
+
+    dftd3_delete_param(&param);
+    dftd3_delete_model(&model);
+    dftd3_delete_structure(&structure);
+    dftd3_delete_error(&error);
+#else
+    (void)numbers; (void)coords; (void)e; (void)g;
+    MADNESS_EXCEPTION("dispersion correction requested, but MADNESS was built without simple-dftd3", 1);
+#endif
+}
+
+
+/// the atomic numbers, in the order simple-dftd3 expects the coordinates
+std::vector<int> DispersionCorrection::atomic_numbers(const Molecule& mol) {
+    std::vector<int> numbers(mol.natom());
+    for (size_t i = 0; i < mol.natom(); ++i)
+        numbers[i] = int(mol.get_atomic_number(static_cast<unsigned int>(i)));
+    return numbers;
+}
+
+
 void DispersionCorrection::compute(World& world, const Molecule& mol) const {
 
     const Tensor<double> coords = mol.get_all_coords();  // natom x 3, in bohr
@@ -243,40 +287,7 @@ void DispersionCorrection::compute(World& world, const Molecule& mol) const {
     // simple-dftd3 may be OpenMP-parallel, and its reduction order -- hence the
     // last bits of the result -- is not guaranteed to agree across ranks running
     // with different thread counts.
-    if (world.rank() == 0) {
-#ifdef MADNESS_HAS_DFTD3
-        std::vector<int> numbers(natom);
-        for (long i = 0; i < natom; ++i)
-            numbers[i] = int(mol.get_atomic_number(static_cast<unsigned int>(i)));
-
-        dftd3_error error = dftd3_new_error();
-
-        // no lattice, no periodicity -- molecular
-        dftd3_structure structure = dftd3_new_structure(
-                error, int(natom), numbers.data(), coords.ptr(), nullptr, nullptr);
-        throw_on_error(error, "constructing the molecular structure");
-
-        dftd3_model model = dftd3_new_d3_model(error, structure);
-        throw_on_error(error, "constructing the D3 model");
-
-        dftd3_param param = load_damping(error, damping == rational, method, atm);
-
-        // energy in Hartree, gradient in Hartree/bohr laid out [3*atom + axis],
-        // which is exactly what SCF::derivatives uses -- no reordering, no unit
-        // conversion. The virial is meaningless for a molecular system but is
-        // still written to: passing a null pointer segfaults inside the library.
-        double sigma[9];
-        dftd3_get_dispersion(error, structure, model, param, &e, g.ptr(), sigma);
-        throw_on_error(error, "evaluating the dispersion energy and gradient");
-
-        dftd3_delete_param(&param);
-        dftd3_delete_model(&model);
-        dftd3_delete_structure(&structure);
-        dftd3_delete_error(&error);
-#else
-        MADNESS_EXCEPTION("dispersion correction requested, but MADNESS was built without simple-dftd3", 1);
-#endif
-    }
+    if (world.rank() == 0) evaluate(atomic_numbers(mol), coords, e, g);
 
     world.gop.broadcast(e, 0);
     world.gop.broadcast(g.ptr(), g.size(), 0);
@@ -285,6 +296,61 @@ void DispersionCorrection::compute(World& world, const Molecule& mol) const {
     cached_gradient = g;
     cached_energy = e;
     cache_valid = true;
+}
+
+
+Tensor<double> DispersionCorrection::hessian(World& world, const Molecule& mol) const {
+
+    const long natom = static_cast<long>(mol.natom());
+    const long ndim = 3 * natom;
+    Tensor<double> h(ndim, ndim);
+    if (damping == none) return h;
+
+    // The whole finite-difference loop runs on rank 0 and the matrix is
+    // broadcast once, rather than going through compute() per displacement:
+    // 6*natom collectives inside a loop for a quantity this cheap is the wrong
+    // trade, and it would evict the energy/gradient cache on every step.
+    if (world.rank() == 0) {
+        const std::vector<int> numbers = atomic_numbers(mol);
+        Tensor<double> coords = copy(mol.get_all_coords());
+
+        // 1e-4 bohr: the gradient being differenced is analytic, so the only
+        // errors are the O(h^2) truncation and the O(eps/h) cancellation, which
+        // cross near this value and leave ~1e-9 Ha/bohr^2.
+        const double step = 1.e-4;
+        double e = 0.0;
+        Tensor<double> gplus(ndim), gminus(ndim);
+
+        for (long i = 0; i < ndim; ++i) {
+            const long iatom = i / 3;
+            const long iaxis = i % 3;
+            const double x0 = coords(iatom, iaxis);
+
+            coords(iatom, iaxis) = x0 + step;
+            evaluate(numbers, coords, e, gplus);
+            coords(iatom, iaxis) = x0 - step;
+            evaluate(numbers, coords, e, gminus);
+            coords(iatom, iaxis) = x0;  // exact restore, not x0-step+step
+
+            for (long j = 0; j < ndim; ++j)
+                h(i, j) = (gplus[j] - gminus[j]) / (2.0 * step);
+        }
+
+        // The exact Hessian is symmetric; the finite-difference one is only
+        // nearly so, and averaging the two off-diagonal estimates is free
+        // accuracy. Done explicitly rather than via transpose() to keep the
+        // in-place update obvious.
+        for (long i = 0; i < ndim; ++i) {
+            for (long j = 0; j < i; ++j) {
+                const double avg = 0.5 * (h(i, j) + h(j, i));
+                h(i, j) = avg;
+                h(j, i) = avg;
+            }
+        }
+    }
+
+    world.gop.broadcast(h.ptr(), h.size(), 0);
+    return h;
 }
 
 

@@ -1136,6 +1136,24 @@ VibrationalResults Nemo::hessian(const Tensor<double> &x) {
     print(molecule().nuclear_repulsion_hessian());
   }
 
+  // and the empirical dispersion correction, if one is active. Added here, with
+  // the nuclear-nuclear term and after the sum-rule fixup above, because like
+  // that term it already satisfies translational invariance -- it must not be
+  // folded into the electronic block that gets purified and re-summed.
+  //
+  // Without this the energy and the gradient would carry the correction and the
+  // Hessian would not, silently: this Hessian is analytic, so nothing brings the
+  // term in by accident, and the sum rules re-imposed above keep the output
+  // looking well-formed either way.
+  if (calc->dispersion.active()) {
+    const Tensor<double> hdisp = calc->dispersion.hessian(world, molecule());
+    hessian += hdisp;
+    if (hessdebug) {
+      print("\n dispersion Hessian (a.u.)\n");
+      print(hdisp);
+    }
+  }
+
   if (hessdebug) {
     print("\n Hessian (a.u.)\n");
     print(hessian);

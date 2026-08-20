@@ -141,6 +141,83 @@ int test_gradient(World& world) {
 }
 
 
+/// the Hessian: symmetric, translationally invariant, and consistent with the
+/// gradient it is differenced from
+int test_hessian(World& world) {
+    test_output t("testing the D3 Hessian");
+
+    DispersionCorrection d("d3bj", "pbe", "", false);
+    const Molecule mol = h2o();
+    const long n = 9;
+    const Tensor<double> h = d.hessian(world, mol);
+
+    t.checkpoint(h.ndim() == 2 and h.dim(0) == n and h.dim(1) == n,
+                 "shape is 3*natom x 3*natom");
+
+    // exact symmetry: hessian() averages the two off-diagonal estimates
+    double asym = 0.0;
+    for (long i = 0; i < n; ++i)
+        for (long j = 0; j < n; ++j)
+            asym = std::max(asym, std::fabs(h(i, j) - h(j, i)));
+    t.checkpoint(asym, 1.e-16, "exactly symmetric");
+
+    // translational invariance: displacing every atom along one axis cannot
+    // change the energy, so each row must sum to zero over that axis
+    double tsum = 0.0;
+    for (long i = 0; i < n; ++i)
+        for (int axis = 0; axis < 3; ++axis) {
+            double s = 0.0;
+            for (long jatom = 0; jatom < 3; ++jatom) s += h(i, 3 * jatom + axis);
+            tsum = std::max(tsum, std::fabs(s));
+        }
+    t.checkpoint(tsum, 1.e-9, "rows obey the translational sum rule");
+
+    // independent check of the whole matrix: second differences of the ENERGY,
+    // which never touches the analytic gradient hessian() differences
+    const Tensor<double> x0 = mol.get_all_coords();
+    const double hh = 1.e-3;
+    Molecule m = mol;
+    double err = 0.0;
+    for (long i = 0; i < n; ++i) {
+        for (long j = 0; j <= i; ++j) {
+            auto energy_at = [&](double di, double dj) {
+                Tensor<double> x = copy(x0);
+                x(i / 3, i % 3) += di;
+                x(j / 3, j % 3) += dj;
+                m.set_all_coords(x);
+                return d.energy(world, m);
+            };
+            const double fd = (energy_at(hh, hh) - energy_at(hh, -hh)
+                               - energy_at(-hh, hh) + energy_at(-hh, -hh))
+                              / (4.0 * hh * hh);
+            err = std::max(err, std::fabs(fd - h(i, j)));
+        }
+    }
+    m.set_all_coords(x0);
+    t.checkpoint(err, 1.e-6, "agrees with second differences of the energy");
+
+    // against an outside implementation: the same second derivative obtained by
+    // central-differencing the s-dftd3 CLI's own analytic gradient, LiH at
+    // r = 3 bohr with D3(BJ)/hf --
+    //   s-dftd3 --bj hf --grad g.txt --json o.json coord   at z = 3 +/- 1e-4
+    //   d2E/dz(H)^2 = (g_plus[5] - g_minus[5]) / 2e-4
+    {
+        DispersionCorrection dl("d3bj", "hf", "", false);
+        const Tensor<double> hl = dl.hessian(world, lih());
+        t.checkpoint(hl(5, 5), -6.204984e-05, 1.e-10, "LiH zz(H,H) vs. the s-dftd3 CLI");
+        t.checkpoint(hl(5, 2), 6.204984e-05, 1.e-10, "LiH zz(Li,H) vs. the s-dftd3 CLI");
+    }
+
+    // inactive -> exactly zero, same shape
+    DispersionCorrection off("none", "pbe", "", false);
+    const Tensor<double> hz = off.hessian(world, mol);
+    t.checkpoint(hz.dim(0) == n and hz.absmax() == 0.0,
+                 "inactive contributes a zero Hessian of the right shape");
+
+    return t.end();
+}
+
+
 /// an inactive correction contributes exactly nothing
 int test_inactive(World& world) {
     test_output t("testing the inactive dispersion correction");
@@ -215,6 +292,7 @@ int main(int argc, char** argv) {
         print("linked against simple-dftd3", DispersionCorrection::library_version());
         error += test_energies(world);
         error += test_gradient(world);
+        error += test_hessian(world);
         error += test_inactive(world);
         error += test_bad_input(world);
     }
