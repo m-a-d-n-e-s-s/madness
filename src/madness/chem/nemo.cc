@@ -139,6 +139,13 @@ Tensor<double> NemoBase::compute_gradient(const real_function_3d &rhonemo,
           molecule.nuclear_repulsion_derivative(atom, axis);
     }
   }
+
+  // NB: the empirical dispersion correction is NOT added here. NemoBase has no
+  // access to CalculationParameters, and this function is shared with Znemo,
+  // where D3 is not defined. Callers that support it add
+  // calc->dispersion.gradient(world, molecule) themselves -- currently
+  // Nemo::gradient and Nemo::analyze. A new caller on a dispersion-capable path
+  // must do the same.
   return grad;
 }
 
@@ -195,8 +202,11 @@ double Nemo::value(const Tensor<double> &x) {
     return calc->current_energy;
   double xsq = x.sumsq();
 
-  if (world.rank() == 0)
+  if (world.rank() == 0) {
     print_header2("computing the nemo wave function");
+  }
+  // prints at most once per object, so repeated geometry steps stay quiet
+  calc->dispersion.print_citation(world);
 
   // We get here only when the reference is NOT solved at this geometry
   // (check_converged returned false above), so if a previous solve happened
@@ -333,6 +343,7 @@ nlohmann::json Nemo::analyze() const {
 
   // compute the gradient
   Tensor<double> grad = compute_gradient(rhonemo, molecule());
+  grad += calc->dispersion.gradient(world, molecule());
 
   PropertyResults pr;
   pr.energy = calc->current_energy;
@@ -653,8 +664,12 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
   if (do_pcm())
     pcm_energy = pcm.compute_pcm_energy();
   const double nucrep = calc->molecule.nuclear_repulsion_energy();
+  const double edisp = calc->dispersion.energy(world, calc->molecule);
 
-  double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
+  // edisp is deliberately not appended to the vector returned below:
+  // check_convergence()'s `each_energy` criterion iterates over all of its
+  // elements, so a new one would change when the SCF is declared converged.
+  double energy = ke + J - K + exc + pe + nucrep + pcm_energy + edisp;
 
   if (world.rank() == 0 and get_calc_param().print_level() > 2) {
     printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
@@ -671,6 +686,8 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
     if (do_pcm())
       printf("   polarization (PCM) %16.8f\n", pcm_energy);
     printf("    nuclear-repulsion %16.8f\n", nucrep);
+    if (calc->dispersion.active())
+      printf("      dispersion (D3) %16.8f\n", edisp);
     printf("   regularized energy %16.8f\n", energy);
   }
   t.end("compute energy");
@@ -978,6 +995,7 @@ Tensor<double> Nemo::gradient(const Tensor<double> &x) {
   rhonemo = rhonemo.refine();
 
   Tensor<double> grad = NemoBase::compute_gradient(rhonemo, calc->molecule);
+  grad += calc->dispersion.gradient(world, calc->molecule);
 
   if (world.rank() == 0) {
     print("\n Derivatives (a.u.)\n -----------\n");

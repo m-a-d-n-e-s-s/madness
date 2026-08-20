@@ -196,6 +196,17 @@ if (MADNESS_HAS_LIBXC AND NOT TARGET Libxc::xc)
     get_filename_component(_libxc_config_dir "@Libxc_CONFIG@" DIRECTORY)
     find_dependency(Libxc CONFIG REQUIRED PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
 endif()
+
+########### simple-dftd3 ############
+# Only the CONFIG flavour can be re-found; a FindDFTD3-based discovery has
+# already been baked into the exported target as an absolute library path.
+set(MADNESS_HAS_DFTD3 @MADNESS_HAS_DFTD3@)
+set(madness_DFTD3_CONFIG "@s-dftd3_CONFIG@")
+if (MADNESS_HAS_DFTD3 AND madness_DFTD3_CONFIG AND NOT TARGET s-dftd3::s-dftd3)
+    include( CMakeFindDependencyMacro )
+    get_filename_component(_sdftd3_config_dir "${madness_DFTD3_CONFIG}" DIRECTORY)
+    find_dependency(s-dftd3 CONFIG REQUIRED PATHS "${_sdftd3_config_dir}" NO_DEFAULT_PATH)
+endif()
   
 ### LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
 if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)

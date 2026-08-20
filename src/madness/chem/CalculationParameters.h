@@ -117,6 +117,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
+		initialize<std::string> ("dispersion","none","DFT-D3 dispersion correction",{"none","d3bj","d3zero"});
+		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
+		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
@@ -220,6 +223,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
+	std::string dispersion() const {return get<std::string>("dispersion");}
+	std::string dispersion_functional() const {return get<std::string>("dispersion_functional");}
+	bool dispersion_atm() const {return get<bool>("dispersion_atm");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
     long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
@@ -349,6 +355,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
         if (is_user_defined("no_compute"))
         	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
+
+    	// dispersion correction
+    	if (dispersion()!="none" and xc()!="hf") {
+    		set_derived_value("dispersion_functional",xc());
+    	}
+
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {
