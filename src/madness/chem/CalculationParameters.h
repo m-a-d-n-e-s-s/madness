@@ -55,8 +55,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
 		read_input_and_commandline_options(world, parser, "dft");
-        // convenience option -- needs to be moved to the MolecularOptimizer class
-        if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
+        // NB: `--optimize` deliberately does NOT set anything here. It selects a
+        // workflow task (WorkflowBuilders::add_optimize_workflow_drivers); the
+        // `dft` group has no say in whether a geometry is optimized.
 		std::string inputfile=parser.value("input");
 		// std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
 		// if (prefix!="input") set_derived_value("prefix",prefix);
@@ -67,7 +68,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
+		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
+		initialize<long>  ("hfex_batch_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
+		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
@@ -91,9 +95,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("plotcube",false,"If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx");
 		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","canon"});
 		initialize<std::string> ("pointgroup","c1","use point (sub) group symmetry if not localized",{"c1","c2","ci","cs","c2v","c2h","d2","d2h"});
-		initialize<bool>  ("restart",false,"if true restart from orbitals on disk");
-		initialize<bool>  ("restartao",false,"if true restart from orbitals projected into AO basis (STO3G) on disk");
-		initialize<bool>  ("no_compute",false,"if true use orbitals on disk, set value to computed");
+		initialize<std::string>("restart","auto","where the initial orbitals come from: auto picks "
+				"between none/iterate/read_only by what is on disk",
+				{"auto","none","iterate","read_only","ao","nwchem"});
+		// Retired in favour of the `restart` modes above, but kept registered so a
+		// deck that still sets them gets a migration error instead of the single
+		// easily-missed warning that ignore_unknown_keys would produce. See the
+		// guard at the end of set_derived_values().
+		initialize<bool>  ("restartao",false,"RETIRED -- use restart=ao");
+		initialize<bool>  ("no_compute",false,"RETIRED -- use restart=read_only");
 		initialize<bool>  ("save",true,"if true save orbitals to disk");
 		initialize<int>   ("maxsub",10,"size of iterative subspace ... set to 0 or 1 to disable");
 		initialize<double> ("orbitalshift",0.0,"scf orbital shift: shift the occ orbitals to lower energies");
@@ -119,16 +129,24 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double> ("lo",1.e-10,"smallest length scale we need to resolve");
 		initialize<std::vector<double> > ("protocol",{1.e-4,1.e-6},"calculation protocol");
 
-		// geometry optimization parameters
-		// @TODO: need to be moved to molecular optimizer class
-		initialize<bool> ("gopt",false,"geometry optimizer");
-		initialize<double> ("gtol",1.e-4,"geometry tolerance");
-		initialize<bool> ("gtest",false,"geometry tolerance");
-		initialize<double> ("gval",1.e-5,"value precision");
-		initialize<double> ("gprec",1.e-4,"gradient precision");
-		initialize<int> ("gmaxiter",20,"optimization maxiter");
-		initialize<bool> ("ginitial_hessian",false,"compute inital hessian for optimization");
-		initialize<std::string> ("algopt","bfgs","algorithm used for optimization",{"bfgs","cg"});
+		// Retired geometry-optimization knobs. Geometry optimization is no longer
+		// something an SCF does to itself; it is a workflow task of its own
+		// (`madqc --optimize --wf=<scf|nemo>`, qcapp::OptimizeDriver) and every
+		// knob it has lives in the `optimization` group (ParameterManager.hpp).
+		//
+		// These stay registered, and error, rather than being deleted outright:
+		// ignore_unknown_keys is true by default, so a deleted key would let an
+		// old deck run as a plain single point after one warning nobody reads --
+		// silently returning an unoptimized geometry. See the guard at the end of
+		// set_derived_values().
+		initialize<bool> ("gopt",false,"RETIRED -- use `madqc --optimize`");
+		initialize<double> ("gtol",1.e-4,"RETIRED -- use optimization group `gtol`");
+		initialize<bool> ("gtest",false,"RETIRED -- never had an effect");
+		initialize<double> ("gval",1.e-5,"RETIRED -- use optimization group `value_precision`");
+		initialize<double> ("gprec",1.e-4,"RETIRED -- use optimization group `gradient_precision`");
+		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
+		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
+		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
 		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
@@ -181,7 +199,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool have_beta() const {return (nbeta()>0) and (not spin_restricted());}
 
 	bool spin_restricted() const {return get<bool>("spin_restricted");}
-	bool no_compute() const {return get<bool>("no_compute");}
 
 	double lo() const {return get<double>("lo");}
 	double L() const {return get<double>("l");}
@@ -205,6 +222,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
+    long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
+    bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
+    int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
@@ -212,8 +232,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::vector<double> protocol() const {return get<std::vector<double> >("protocol");}
 	bool save() const {return get<bool>("save");}
-	bool restart() const {return get<bool>("restart");}
-	bool restartao() const {return get<bool>("restartao");}
+	/// the `restart` keyval as a string; parse with restart_mode_from_string()
+
+	/// Returns the spelling rather than the RestartMode enum because RestartPlan.h
+	/// includes this header, so the dependency cannot run the other way.
+	std::string restart() const {return get<std::string>("restart");}
 	bool restart_cphf() const {return get<bool>("restart_cphf");}
 
 	int maxsub() const {return get<int>("maxsub");}
@@ -226,13 +249,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool derivatives() const {return get<bool>("derivatives");}
 	bool dipole() const {return get<bool>("dipole");}
 
-	bool gopt() const {return get<bool>("gopt");}
-	std::string algopt() const {return get<std::string>("algopt");}
-	int gmaxiter() const {return get<int>("gmaxiter");}
-	double gtol() const {return get<double>("gtol");}
-	double gval() const {return get<double>("gval");}
-	double gprec() const {return get<double>("gprec");}
-	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
+	// NB: no gopt()/gtol()/gval()/gprec()/gmaxiter()/ginitial_hessian()/algopt()
+	// accessors. Those keyvals are retired; see the initialize() block above and
+	// the guard in set_derived_values(). The optimizer's knobs are in
+	// OptimizationParameters (chem/ParameterManager.hpp).
 
      std::string nwfile() const {return get<std::string>("nwfile");}
 
@@ -306,8 +326,29 @@ struct CalculationParameters : public QCCalculationParametersBase {
         			"switch from local to canonical orbitals (keyword canon)\n\n");
         }
 
-        //NWChem interface doesn't support geometry optimization
-        if (get<bool>("gopt") && nwfile() != "none") error("NWchem initialization only supports single point energy calculations.");
+        // Geometry optimization left the `dft` group entirely. `gopt` in particular
+        // must not be waved through: a deck that sets it expects an optimized
+        // geometry back, and silently returning a single point at the input
+        // geometry is a wrong answer, not a missing feature. They stay registered
+        // and erroring rather than being deleted, because ignore_unknown_keys is
+        // true by default and a deleted key would run the deck as a plain single
+        // point after one warning nobody reads.
+        for (const std::string& key : {"gopt","gtol","gtest","gval","gprec",
+                                       "gmaxiter","ginitial_hessian","algopt"}) {
+        	if (is_user_defined(key))
+        		error(("\n\n`" + key + "` has been retired: geometry optimization is now a task of "
+        		       "its own.\nUse `madqc --optimize --wf=<scf|nemo>` and the `optimization` "
+        		       "parameter group\n(see `madqc --print_parameters=optimization`).\n\n").c_str());
+        }
+
+        // Retired keyvals. A clean break needs to be loud: ignore_unknown_keys is
+        // true by default, so deleting these outright would let an old deck run
+        // with different semantics after one warning nobody reads. They stay
+        // registered and erroring until the migration is old news.
+        if (is_user_defined("restartao"))
+        	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
+        if (is_user_defined("no_compute"))
+        	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {

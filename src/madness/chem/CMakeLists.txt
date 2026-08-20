@@ -55,6 +55,8 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     ParameterManager.hpp
     ResponseParameters.hpp
+    Restart.h
+    RestartPlan.h
     PathManager.hpp
     Applications.hpp
     Drivers.hpp
@@ -171,8 +173,11 @@ if(BUILD_TESTING)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc)
-  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc test_operator_diagnostics.cc)
+      test_exchange_asymmetric.cc
+  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
+  test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc
+  test_operator_diagnostics.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
@@ -182,6 +187,8 @@ if(BUILD_TESTING)
   endif(INTEGRATORXX_FOUND)
 
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
+  # the rotating operand only moves between ranks, so the distributed path needs more than one
+  add_mpi_tests(chem test_exchange_asymmetric "2" "MADchem;MADgtest" "unittests;short")
   add_unittests(chem "${CHEM_TEST_SOURCES_LONG}" "MADchem;MADgtest" "unittests;long")
 
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)

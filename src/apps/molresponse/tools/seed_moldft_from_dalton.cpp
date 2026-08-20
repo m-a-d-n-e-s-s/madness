@@ -1,12 +1,11 @@
 // seed_moldft_from_dalton — build a moldft ground-state SEED by projecting the
-// occupied DALTON/molden MOs onto the MRA basis and writing a version-4
-// `.restartdata` archive that moldft `--restart` resumes from. Ground-state
-// analogue of tools/seed_from_dalton (which seeds the ES/response bundle).
+// occupied DALTON/molden MOs onto the MRA basis and writing a `.restartdata`
+// archive that moldft `--restart` resumes from. Ground-state analogue of
+// tools/seed_from_dalton (which seeds the ES/response bundle).
 //
-// The write layout mirrors SCF::save_mos (chem/SCF.cc, version 4) EXACTLY so
-// SCF::load_mos accepts it with no moldft change:
-//   uint version; double energy; bool spin_restricted;
-//   double L; int k; Molecule; string xc; string localize; double conv_thresh;
+// The header is written through RestartMetadata (madness/chem/Restart.h), the
+// same struct SCF::save_mos and SCF::load_mos use, so the layout cannot drift
+// away from moldft's and is not restated here. Orbitals follow the header:
 //   uint nmo; Tensor eps; Tensor occ; vector<int> set; Function mo[nmo];
 // (closed-shell only: spin_restricted=true, no beta block.)
 //
@@ -16,8 +15,10 @@
 //     pass --L to match the deck's `l` (default 200, the value used here).
 //   * k/thresh mismatch is handled by load_mos (it re-projects), so seeding at
 //     the first protocol rung (k6/1e-4) is fine even for a 1e-4,1e-6 climb.
-//   * xc/localize are LOADED INTO the run's params by load_mos, so they must be
-//     what the run intends (defaults hf / canon).
+//   * xc/localize are recorded in the header but are NOT pushed into the run's
+//     parameters — load_mos reads them and discards them, so the deck must set
+//     whatever the run intends (defaults hf / canon). The values written here
+//     are provenance, not configuration.
 //   * MADNESS re-converges to its own MRA-HF minimum; the DALTON orbitals are a
 //     starting guess, not frozen.
 //
@@ -35,6 +36,7 @@
 #include <madness/world/MADworld.h>
 #include <madness/world/parallel_archive.h>
 #include <madness/chem/molecule.h>
+#include <madness/chem/Restart.h>
 
 #include <cctype>
 #include <cmath>
@@ -192,16 +194,35 @@ int main(int argc, char** argv) {
         }
         std::vector<int> aset(static_cast<size_t>(n_occ), 0);
 
-        // Write the version-4 restartdata (SCF::save_mos layout, closed-shell).
+        // Write the restartdata header through RestartMetadata
+        // (madness/chem/Restart.h), the same struct SCF::save_mos uses, so this
+        // tool cannot drift out of the format the way an open-coded field list
+        // could. It emits the current version; SCF::load_mos reads that and the
+        // older layout alike, so archives seeded by an earlier build of this
+        // tool remain loadable.
         const bool spin_restricted = true;
         const double conv_thresh = thresh;
         const std::string archivename = out_prefix + ".restartdata";
         archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(
             world, archivename.c_str(), nio);
-        unsigned int version = 4;
-        ar & version;
-        ar & energy & spin_restricted;
-        ar & L & k & molecule & xc & loc & conv_thresh;
+
+        RestartMetadata meta;
+        meta.current_energy = energy;
+        meta.spin_restricted = spin_restricted;
+        meta.L = L;
+        meta.k = k;
+        meta.molecule = molecule;
+        meta.xc = xc;
+        meta.localize = loc;
+        meta.converged_for_thresh = conv_thresh;
+        // A Dalton seed is a starting guess, not a converged MADNESS solution:
+        // leave converged_for_dconv at its "unknown" default so a restart treats
+        // these orbitals as something to iterate on rather than a finished answer.
+        meta.representation = Representation::mo;
+        meta.eprec = molecule.parameters.eprec();
+        meta.madness_version = MADNESS_PACKAGE_VERSION;
+        meta.write(ar);
+
         ar & static_cast<unsigned int>(amo.size());
         ar & aeps & aocc & aset;
         for (unsigned int i = 0; i < amo.size(); ++i) ar & amo[i];

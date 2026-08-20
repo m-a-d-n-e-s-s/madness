@@ -146,6 +146,13 @@ Nemo::Nemo(World &world, const commandlineparser &parser)
     : NemoBase(world), calc(std::make_shared<SCF>(world, parser)),
       nemo_param(world, parser), coords_sum(-1.0), ac(world, calc) {
 
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
+
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
   symmetry_projector = projector_irrep(get_calc_param().pointgroup())
@@ -162,6 +169,13 @@ Nemo::Nemo(World &world, const CalculationParameters &param,
            const Molecule &molecule)
     : NemoBase(world), calc(std::make_shared<SCF>(world, param, molecule)),
       nemo_param(nemo_param), coords_sum(-1.0), ac(world, calc) {
+
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
@@ -184,8 +198,22 @@ double Nemo::value(const Tensor<double> &x) {
   if (world.rank() == 0)
     print_header2("computing the nemo wave function");
 
-  if ((xsq - calc->molecule.get_all_coords()).normf() > 1.e-12)
+  // We get here only when the reference is NOT solved at this geometry
+  // (check_converged returned false above), so if a previous solve happened
+  // (coords_sum > 0) the nuclei have moved: drop everything tied to their old
+  // positions. The convergence flag has to go too, or `skip_solve` below reads
+  // "already converged to the requested threshold" and short-circuits the SCF at
+  // the new geometry -- a caller that walks the geometry (MolOpt via the optimize
+  // workflow, MolecularOptimizer via the nemo app) then optimizes on a frozen
+  // wavefunction: energy constant to every digit, gradients from stale orbitals.
+  // 1e10 is the same "not converged" sentinel SCF::load_mos uses.
+  //
+  // The condition here used to compare the scalar `xsq` against the coordinate
+  // tensor, which is not the geometry test it reads as.
+  if (coords_sum > 0.0) {
     invalidate_factors_and_potentials();
+    calc->converged_for_thresh = 1.e10;
+  }
 
   calc->molecule.set_all_coords(
       x.reshape(size_to_long(calc->molecule.natom()), 3));
@@ -193,47 +221,73 @@ double Nemo::value(const Tensor<double> &x) {
 
   SCFProtocol p(world, get_calc_param());
 
-  // read (pre-) converged wave function from disk if there is one
-  if (get_calc_param().no_compute() or get_calc_param().restart()) {
-    set_protocol(get_calc_param().econv()); // set thresh to current value
+  // One decision, made from the archive's header before anything is read: which
+  // source the orbitals come from and which rung of the ladder to start on.
+  // nemo can read neither the AO projections nor NWChem movecs (see
+  // RestartCapabilities), so for nemo the fallback from an unusable archive is
+  // the atomic guess.
+  RestartPlan plan = make_restart_plan(
+      world, restart_mode_from_string(get_calc_param().restart()), get_calc_param(),
+      calc->molecule, calc->restart_representation,
+      RestartCapabilities::restartdata_only(), calc->restart_ncf);
+
+  // Set the basis of the rung we are about to work at BEFORE reading, so
+  // load_mos reprojects straight into it.
+  p.set_start_index(plan.protocol_start);
+  set_protocol(p.thresh);
+
+  if (plan.needs_load()) {
+    MADNESS_CHECK(plan.source == RestartSource::restartdata);
     if (world.rank() == 0 and get_calc_param().print_level() > 2)
       print("reading orbitals from disk");
     calc->load_mos(world);
-    if (world.rank() == 0 and get_calc_param().print_level() > 2) {
+    if (world.rank() == 0 and get_calc_param().print_level() > 2)
       print("orbitals are converged to ", calc->converged_for_thresh);
-    }
-    p.start_prec = calc->converged_for_thresh;
-
     calc->ao = calc->project_ao_basis(world, calc->aobasis);
 
-  } else { // we need a guess
-
-    FunctionDefaults<3>::set_thresh(p.start_prec);
-    set_protocol(p.start_prec); // set thresh to initial value
+  } else if (calc->amo.empty()) {   // we need a guess
 
     calc->ao = calc->project_ao_basis(world, calc->aobasis);
+    calc->initial_guess(world);
+    real_function_3d R_inverse = ncf->inverse();
+    calc->amo = R_inverse * calc->amo;
+    truncate(world, calc->amo);
 
-    if (not(calc->converged_for_thresh * 0.999 < p.end_prec)) {
-      // if the orbitals are not converged to the end precision, we need to
-      // recompute the ncf
-      calc->initial_guess(world);
-      real_function_3d R_inverse = ncf->inverse();
-      calc->amo = R_inverse * calc->amo;
-      truncate(world, calc->amo);
-    }
+  } else {
+    // A later geometry along an optimization: the previous geometry's nemos are
+    // a much better guess than the atomic one, and set_protocol above has
+    // already brought them to this rung's k with the R metric. Keep them -- but
+    // note that we still iterate: they solve the previous geometry, not this
+    // one. (Reading them back through the AO expansion, which is what moldft
+    // does here, needs the representation-neutral restartaodata of phase 4.)
+    if (world.rank() == 0 and get_calc_param().print_level() > 2)
+      print("starting from the orbitals of the previous geometry");
+    calc->ao = calc->project_ao_basis(world, calc->aobasis);
   }
 
-  bool skip_solve = (get_calc_param().no_compute()) or
-                    (calc->converged_for_thresh * 0.9999 < p.end_prec);
-  if (skip_solve) {
-    if (world.rank() == 0) {
-      print("skipping the solution of the SCF equations:");
-      if (get_calc_param().no_compute())
-        print(" -> the option no_compute =1");
-      if (calc->converged_for_thresh * 0.9999 < p.end_prec)
-        print(" -> orbitals are converged to the required threshold of",
-              p.end_prec);
-    }
+  // Reading can invalidate the plan: load_mos resets converged_for_thresh
+  // whenever it has to reproject, so orbitals the header called converged may
+  // not be any more. An automatic plan changes its mind; an explicit read_only
+  // does not -- the user asserted these orbitals are the answer.
+  const double target_thresh = get_calc_param().protocol().back();
+  const double target_dconv = std::max(target_thresh, get_calc_param().dconv());
+  if (not plan.iterate and plan.mode == RestartMode::automatic and
+      not(calc->converged_for_thresh <= target_thresh and
+          calc->converged_for_dconv <= target_dconv)) {
+    plan.iterate = true;
+    plan.protocol_start = get_calc_param().protocol().size() - 1;
+    p.set_start_index(plan.protocol_start);
+    if (world.rank() == 0)
+      print("the orbitals had to be reprojected on reading and are no longer "
+            "converged; iterating at the final protocol rung after all");
+  }
+
+  if (not plan.iterate) {
+    if (world.rank() == 0)
+      print("not solving the SCF equations:", plan.why);
+    // the archive's energy, from its header -- load_mos clears current_energy
+    // whenever it has to reproject (see MolecularEnergy::value for the detail)
+    calc->current_energy = plan.stale_energy;
 
   } else {
 
@@ -318,8 +372,15 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
   fock->add_operator("V", std::make_shared<Nuclear<double, 3>>(world, this));
   fock->add_operator("T", std::make_shared<Kinetic<double, 3>>(world));
   if (calc->xc.hf_exchange_coefficient() > 0.0) {
-    Exchange<double, 3> K =
-        Exchange<double, 3>(world, this, ispin).set_symmetric(false);
+    // The algorithm comes from the input rather than ExchangeImpl's built-in default, which this
+    // site used to take, ignoring the parameter. Only `multiworld` stores bra and ket apart, which
+    // is what nemo's asymmetric operands need before the triangle is usable -- see
+    // compute_nemo_potentials for why the exchange is symmetric even though the operands are not.
+    const auto alg = Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg());
+    Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
+                                .set_algorithm(alg)
+                                .set_symmetric(alg == Exchange<double, 3>::multiworld_efficient)
+                                .set_printlevel(get_calc_param().print_level());
     fock->add_operator("K", {-1.0, std::make_shared<Exchange<double, 3>>(K)});
   }
   if (calc->xc.is_dft()) {
@@ -389,6 +450,14 @@ double Nemo::solve(const SCFProtocol &proto) {
   // guess has already been performed in value()
   vecfuncT &nemo = calc->amo;
   // long nmo = nemo.size();
+
+  // Every product below mixes the nemos with R, R_square and the potentials, so
+  // they must all share the current polynomial order. set_protocol keeps them in
+  // step; this catches any future path that reaches solve() without going
+  // through it, where the failure would otherwise be silent garbage.
+  if (nemo.size() > 0)
+    MADNESS_CHECK_THROW(nemo.front().k() == FunctionDefaults<3>::get_k(),
+                        "nemos are not at the current k -- set_protocol was skipped");
 
   // NOTE that nemos are somewhat sensitive to sparse operations (why??)
   // Therefore set all tolerance thresholds to zero, also in the mul_sparse
@@ -499,6 +568,12 @@ double Nemo::solve(const SCFProtocol &proto) {
     converged = check_convergence(energies, oldenergies, bsh_norm, deltadens,
                                   get_calc_param(), proto.econv, proto.dconv);
 
+    // save_mos writes current_energy into the archive header, so it has to hold
+    // the energy of the orbitals being written. Without this the header carried
+    // whatever the PREVIOUS call to Nemo::value had left there -- i.e. the
+    // previous protocol rung's energy -- and a read_only restart handed back an
+    // energy one rung too coarse (1.8e-5 out on He, against a 1e-6 request).
+    calc->current_energy = energy;
     if (get_calc_param().save())
       calc->save_mos(world);
     t_bsh.tag("orbital update");
@@ -515,8 +590,13 @@ double Nemo::solve(const SCFProtocol &proto) {
   if (converged) {
     if (world.rank() == 0)
       print("\nIterations converged\n");
-    calc->converged_for_thresh = get_calc_param().econv();
-    calc->converged_for_dconv = get_calc_param().dconv();
+    // Record the rung actually converged to, not the user's econv/dconv -- the
+    // same rule moldft follows in SCF::solve. With econv this claimed a single
+    // precision for every rung of the ladder, which made the restart logic and
+    // madqc's validity test compare against a number the run never reached.
+    calc->converged_for_thresh = proto.thresh;
+    calc->converged_for_dconv = proto.dconv;
+    calc->current_energy = energy;
     if (get_calc_param().save())
       calc->save_mos(world);
   } else {
@@ -635,11 +715,16 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
       Knemo = zero_functions_compressed<double, 3>(world, size_to_int(nemo.size()));
       // construction must happen outside the if-block to avoid pointers to
       // arguments going out of scope in the macrotaskq
+      //
+      // Symmetric even though the operands are not: bra = R^2 * ket, and a common weight leaves
+      // bra_i * vf_j symmetric in (i,j), which is all the triangle needs. The algorithm comes from
+      // the input instead of being fixed here, so `hfexalg multiworld` reaches nemo's SCF; the
+      // parameter defaults to the row algorithm this site hard-coded, so the default is unchanged.
       Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
                                   .set_symmetric(true)
-                                  .set_taskq(taskq);
-      K.set_algorithm(
-          Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
+                                  .set_taskq(taskq)
+                                  .set_printlevel(get_calc_param().print_level());
+      K.set_algorithm(Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg()));
       if (calc->xc.hf_exchange_coefficient() > 0.0)
         Knemo = K(nemo);
 
@@ -1518,7 +1603,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
   }
 
   SCFProtocol preiterations(world, get_calc_param());
-  preiterations.end_prec *= 10.0;
+  preiterations.drop_last_rung();   // stop one rung short: this is only a guess
   preiterations.initialize();
   for (; not preiterations.finished(); ++preiterations) {
     set_protocol(preiterations.current_prec);
@@ -1558,7 +1643,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
   // solve the response equations
   SCFProtocol p(world, get_calc_param());
-  p.start_prec = p.end_prec;
+  p.set_start_index(p.size() - 1);   // the response equations run at full precision only
   p.initialize();
 
   for (; not p.finished(); ++p) {

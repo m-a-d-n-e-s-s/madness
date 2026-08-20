@@ -169,6 +169,31 @@ public:
     }
 };
 
+/// a task that names an owner for every batch
+
+/// With every task owned and one subworld per rank the queue skips its central scheduler and
+/// each rank walks the queue running only the tasks it owns. Nothing else here declares
+/// owner_hint, so without this task that path is never executed.
+class OwnedTask : public MacroTaskOperationBase {
+public:
+    typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
+    using resultT = std::vector<real_function_3d>;
+
+    long owner_hint(const Batch& batch, const long nsubworld) const override {
+        if (nsubworld<=0 or batch.input.empty()) return -1;
+        return std::max<long>(0, batch.input[0].begin) % nsubworld;
+    }
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        return zero_functions_auto_tree_state<double,3>(world, std::get<0>(argtuple).size());
+    }
+
+    /// deliberately cheap: this exercises the scheduling path, not the arithmetic
+    resultT operator()(const std::vector<real_function_3d>& v) const {
+        return 2.0*v;
+    }
+};
+
 class MicroTask1 : public MacroTaskOperationBase{
 public:
     MicroTask1() : MacroTaskOperationBase("Microtask1") {}
@@ -598,6 +623,20 @@ int test_mixed_tuple(World& universe, const std::vector<real_function_3d>& v3) {
     return 0;
 }
 
+/// run a task that owns all its batches, so the queue takes its owned-walk path
+
+/// The result has to match the same task computed directly, and the run has to complete:
+/// the owned walk shares the finalize and the collective fences that follow the scheduling
+/// loop, so an error there shows up as a hang or an aborted fence rather than a wrong number.
+int test_owned_tasks(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting OwnedTask\n");
+    OwnedTask t;
+    std::vector<real_function_3d> ref = t(v3);
+    MacroTask task(universe, t);
+    std::vector<real_function_3d> test = task(v3);
+    return check_vector(universe, ref, test, "owned tasks bypass the scheduler");
+}
+
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank() == 0) print("\nstarting 2d partitioning");
     auto policy=MacroTaskInfo::preset("large_memory");
@@ -680,6 +719,9 @@ int main(int argc, char **argv) {
 
         success+=test_2d_partitioning(universe,v3);
         timer1.tag("2D partitioning");
+
+        success+=test_owned_tasks(universe,v3);
+        timer1.tag("owned tasks");
 
         if (universe.rank() == 0) {
             if (success==0) print("\n --> all tests \033[32m", "passed ", "\033[0m\n");

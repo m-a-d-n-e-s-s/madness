@@ -40,6 +40,7 @@
 #include <madness/world/worldmem.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
+#include <madness/chem/Restart.h>
 #include <madchem.h>
 
 #if defined(__has_include)
@@ -257,6 +258,7 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
     //set_protocol < 3 > (world, param.econv());
     FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_debug(param.print_level() >= 10);
 
 }
 
@@ -282,19 +284,25 @@ void SCF::save_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     auto archivename=param.prefix()+".restartdata";
     archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, archivename.c_str(), param.get<int>("nio"));
-    // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
-    /*
-     * After spin restricted
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      */
-    unsigned int version = 4;
-    ar & version;
-    ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
-    // Reorder so it doesn't affect orbital data
+
+    // The header layout lives in RestartMetadata (chem/Restart.h) -- do not
+    // open-code it here. Adding a field there is enough; this call and
+    // load_mos() below both follow.
+    RestartMetadata meta;
+    meta.current_energy = current_energy;
+    meta.spin_restricted = param.spin_restricted();
+    meta.L = param.L();
+    meta.k = FunctionDefaults<3>::get_k();
+    meta.molecule = molecule;
+    meta.xc = param.xc();
+    meta.localize = param.localize_method();
+    meta.converged_for_thresh = converged_for_thresh;
+    meta.converged_for_dconv = converged_for_dconv;
+    meta.representation = restart_representation;
+    meta.ncf = restart_ncf;
+    meta.eprec = molecule.parameters.eprec();
+    meta.madness_version = MADNESS_PACKAGE_VERSION;
+    meta.write(ar);
 
     ar & (unsigned int) (amo.size());
     ar & aeps & aocc & aset;
@@ -324,66 +332,61 @@ void SCF::load_mos(World& world) {
 
     bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
 
-    // const double thresh = FunctionDefaults<3>::get_thresh();
-    bool spinrest = false;
-
     amo.clear();
     bmo.clear();
 
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+".restartdata");
 
-    /*
-      File format:
-          unsigned int version;
-          double current energy;
-      bool spinrestricted --> if true only alpha orbitals are present
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      std::string localize;
-      double converged_for_thresh
-      unsigned int nmo_alpha;
-      Tensor<double> aeps;
-      Tensor<double> aocc;
-      vector<int> aset;
-      for i from 0 to nalpha-1:
-      .   Function<double,3> amo[i]
-      repeat for beta if !spinrestricted
-     */
-    // Local copies for a basic check
-    double L=0;
-    int k1=0;                    // Ignored for restarting, used in response only
-    double converged_for_thresh1=1.e10;
-    double current_energy1=1.e10;
-    unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version=0;
+    // The header, then one block of orbitals per spin. RestartMetadata::read
+    // accepts version 4 and 5, so archives written before the header carried a
+    // representation tag or converged_for_dconv still load; the fields they lack
+    // come back as "unknown"/1e10 rather than as a claim the archive never made.
+    RestartMetadata meta;
+    meta.read(ar);
 
-    ar & archive_version;
-
-    // Some basic checks
-    std::string errmsg= "incompatible archive versions: "+std::to_string(archive_version) +
-                     " vs. input parameter: "+std::to_string(version);
-    MADNESS_CHECK_THROW(archive_version ==version, errmsg.c_str());
-
-    // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-    // EPS, SWAP, ... sigh
-    ar & current_energy1 & spinrest;
-    // Reorder
-    Molecule mol;
-    ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
-
-
-    // more basic checks
-    errmsg= "inconsistent box size in restartdata file: "+ std::to_string(L) +
-                     " vs. input parameter: "+std::to_string(param.L());
-    MADNESS_CHECK_THROW(L==param.L(), errmsg.c_str());
-
-    if (not (mol == molecule)) {
+    // NOTE: xc and localize are deliberately NOT copied back into param. The old
+    // code appeared to do so with `ar & param.xc()`, but those getters return by
+    // value and the input operator& takes const T&, so every one of those reads
+    // landed in a temporary and was discarded. Making it look intentional here
+    // rather than reviving a behaviour nobody has depended on.
+    if (not meta.representation_matches(restart_representation)) {
+        // Print before throwing: MadnessException keeps the char* it is handed
+        // without copying (world/madness_exception.h), so a c_str() from a local
+        // string dangles by the time anything prints it -- the message comes out
+        // empty. The detail is the whole value of this check, so emit it here.
         if (world.rank() == 0) {
-            print("Warning: Molecule in archive does not match the current molecule");
-            print("Restarting from this molecular geometry");
-            molecule.print();
+            print("ERROR: restartdata holds '"+madness::to_string(meta.representation)+
+                  "' functions, but this calculation wants '"+madness::to_string(restart_representation)+
+                  "'. moldft orbitals (psi) and nemo orbitals (F = psi/R) are not");
+            print("interchangeable; point the run at the right archive, or set a");
+            print("different prefix so the two engines stop sharing a filename.");
+        }
+        MADNESS_EXCEPTION("restartdata representation does not match this calculation", 1);
+    }
+
+    // more basic checks. Print before throwing: MadnessException stores the bare
+    // `const char*` without copying it (madness_exception.h), so a c_str() from a
+    // local std::string dangles and the message comes out empty -- which is what
+    // this check did until now.
+    if (meta.L!=param.L()) {
+        if (world.rank() == 0)
+            print("inconsistent box size in restartdata file:", meta.L,
+                  "vs. input parameter:", param.L());
+        MADNESS_EXCEPTION("inconsistent box size in restartdata file", 1);
+    }
+
+    // compare_geometry, not Molecule::operator==: the latter also compares rcut
+    // and the whole MolecularParameters object, including each parameter's
+    // precedence, so a deserialized molecule differs from a freshly parsed one
+    // even when every atom sits at the same place -- and this warning fired on
+    // every restart. What matters here is the atoms, in order.
+    const Molecule& mol = meta.molecule;
+    if (compare_geometry(mol, molecule) != GeometryMatch::same) {
+        if (world.rank() == 0) {
+            print("Warning: molecule in archive does not match the requested molecule");
+            print("using the orbitals as a guess for the requested geometry; the");
+            print("geometry stored in the archive was");
+            mol.print();
         }
     }
 
@@ -433,70 +436,123 @@ void SCF::load_mos(World& world) {
 
     // if everything worked out, set convergence parameters
     if (needs_redo) {
+        // reprojected in k or re-truncated, so the stored convergence no longer
+        // describes the orbitals we now hold
         converged_for_thresh=1.e10;
+        converged_for_dconv=1.e10;
         current_energy=1.e10;
     } else {
-        converged_for_thresh= converged_for_thresh1;
-        current_energy=current_energy1;
+        converged_for_thresh= meta.converged_for_thresh;
+        converged_for_dconv= meta.converged_for_dconv;
+        current_energy=meta.current_energy;
     }
-    molecule=mol;
+    // NB: the requested geometry wins. Restarting must never silently move the
+    // molecule to the one stored in the archive -- during a geometry
+    // optimization that would compute the energy at a geometry the optimizer
+    // did not ask for.
 }
 
 
-/// get the initial orbitals for a calculation
+/// get the initial orbitals for a calculation, from the source the plan names
 
-/// the ordering of initial orbitals is
-/// 1. from restartdata
-/// 2. from aobasis
-/// 3. from NWChem
-/// 4. from initial_guess()
-void SCF::get_initial_orbitals(World& world) {
+/// The precedence ladder that used to live here is gone: which source to use is
+/// decided once, up front, by plan_restart() (RestartPlan.h), from the archive's
+/// header rather than from file existence plus a handful of booleans. All this
+/// does is carry the decision out.
+///
+/// The one thing that cannot be decided from a header is whether the orbitals
+/// themselves load. If they do not, an automatic plan falls back to the initial
+/// guess -- loudly, since a header that parsed and a body that did not is a
+/// damaged archive -- while an explicitly requested source throws, because a
+/// silent fresh start is exactly what someone asking to resume a long run does
+/// not want.
+void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
 
-    auto get_initial_orbitals1=[&](World& world, std::string fromwhere) {
-        if (world.rank()==0) print("try restarting calculation from "+fromwhere);
-        bool success=false;
-        if (fromwhere=="restartdata") {
-            try {
-                load_mos(world);
-                success=true;
-            } catch (...) {
-                // could not load MOs, but user has requested so explicitly
-                if (param.restart()) {
-                    MADNESS_EXCEPTION("No initial orbitals found in restartdata",1);
-                }
-                return false;
-            }
-            MADNESS_CHECK_THROW(amo.size()==size_t(param.nalpha()),"inconsistent restart data");
+    if (plan.iterate) {
+        converged_for_thresh = 1.e10;
+        converged_for_dconv = 1.e10;
+        current_energy = 1.e10;
+    }
 
-        } else if (fromwhere=="restartao") {
-            reset_aobasis("sto-3g");
-            ao = project_ao_basis(world, aobasis);
-            success=restart_aos(world);
-
-        } else if (fromwhere=="NWChem") {
-            initial_guess_from_nwchem(world);
-            // will throw if it doesn't work
-            success=true;
-
-        } else if (fromwhere=="initial_guess") {
-            reset_aobasis(param.aobasis());
-            ao = project_ao_basis(world, aobasis);
-            make_nuclear_potential(world);
-            initial_guess(world);
-            success=true;
-
-        } else {
-            throw std::runtime_error("Unknown source of initial orbitals: "+fromwhere);
-        }
-        if (success and world.rank()==0) print("   --- successfully started from ",fromwhere);
-        return success;
+    auto from_initial_guess=[&](World& world) {
+        if (world.rank()==0) print("starting from the atomic initial guess");
+        reset_aobasis(param.aobasis());
+        ao = project_ao_basis(world, aobasis);
+        make_nuclear_potential(world);
+        initial_guess(world);
     };
 
-    bool success=false;
-    if (!success and param.restart()) success=get_initial_orbitals1(world,"restartdata");
-    if (!success and param.restartao()) success=get_initial_orbitals1(world,"restartao");
-    if (!success and param.nwfile()!="none") success=get_initial_orbitals1(world,"NWChem");
-    if (!success) get_initial_orbitals1(world,"initial_guess");
+    auto load_from=[&](World& world, const RestartSource source) {
+        if (world.rank()==0) print("reading initial orbitals from "+madness::to_string(source));
+        if (source==RestartSource::restartdata) {
+            load_mos(world);
+            // load_mos reads nmo_alpha orbitals (occupied + virtuals), so this
+            // must compare against nmo_alpha -- comparing against nalpha made
+            // every restart with nvalpha>0 throw.
+            MADNESS_CHECK_THROW(amo.size()==size_t(param.nmo_alpha()),"inconsistent restart data");
+
+        } else if (source==RestartSource::restartao) {
+            reset_aobasis("sto-3g");
+            ao = project_ao_basis(world, aobasis);
+            if (not restart_aos(world))
+                MADNESS_EXCEPTION("could not read the AO projections from restartaodata",1);
+
+        } else if (source==RestartSource::nwchem) {
+            initial_guess_from_nwchem(world);   // throws if it does not work
+
+        } else {
+            MADNESS_EXCEPTION("unhandled restart source",1);
+        }
+    };
+
+    if (not plan.needs_load()) {
+        from_initial_guess(world);
+        return;
+    }
+
+    if (plan.mode!=RestartMode::automatic) {
+        load_from(world,plan.source);        // no fallback: the user was explicit
+        return;
+    }
+
+    std::string errmsg;
+    int loaded=1;
+    try {
+        load_from(world,plan.source);
+    } catch (const std::exception& e) {
+        loaded=0;
+        errmsg=(e.what()!=nullptr) ? e.what() : "no message";
+    }
+
+    // Agree across ranks before doing anything else. A rank that loaded while
+    // another fell back would build a different set of Functions from here on and
+    // the two would diverge on the next collective -- a hang, which is worse than
+    // a wrong answer because it leaves nothing to debug. This cannot rescue a
+    // failure that happened *inside* a collective (the ranks are already out of
+    // step by then), but it does keep an asymmetric read failure from spreading.
+    world.gop.min(loaded);
+
+    if (loaded==0) {
+        if (world.rank()==0) {
+            print("WARNING: could not read the initial orbitals from",
+                  madness::to_string(plan.source));
+            if (not errmsg.empty()) print("WARNING:", errmsg);
+            print("WARNING: falling back to the atomic initial guess. If this archive"
+                  " should be readable, that is a bug or a damaged file.");
+        }
+        // The plan was built on the assumption that those orbitals would load. They
+        // did not, so the rungs it wanted to skip are not covered by anything: an
+        // atomic guess dropped straight onto the finest rung is both wasteful and a
+        // poor starting point. Start over at rung 0.
+        plan.source=RestartSource::initial_guess;
+        plan.iterate=true;
+        plan.protocol_start=0;
+        // and put FunctionDefaults back on rung 0 before building the guess, so the
+        // orbitals and k agree: the caller set the protocol to the rung the plan
+        // wanted to resume at, and nothing reprojects the first rung it runs.
+        set_protocol<3>(world,param.protocol()[0]);
+        from_initial_guess(world);
+    }
 }
 
 
@@ -692,12 +748,17 @@ distmatT SCF::kinetic_energy_matrix(World& world, const vecfuncT& v) const {
     START_TIMER(world);
     reconstruct(world, v);
     END_TIMER(world, "KEmat reconstruct");
+    // these operators serve only this matrix, which is the many-tree case the pool submission helps
+    for (int axis = 0; axis < 3; ++axis) gradop[axis]->parallel_submit_ = true;
     START_TIMER(world);
+    stage_halo(world, gradop, v);
     vecfuncT dvx = apply(world, *(gradop[0]), v, false);
     vecfuncT dvy = apply(world, *(gradop[1]), v, false);
     vecfuncT dvz = apply(world, *(gradop[2]), v, false);
     world.gop.fence();
     END_TIMER(world, "KEmat differentiate");
+    // all three axes' halos are live until here, since all three are applied before the fence above
+    clear_halo(v);
     START_TIMER(world);
     compress(world, dvx, false);
     compress(world, dvy, false);
@@ -738,7 +799,10 @@ bool SCF::restart_aos(World& world) {
             print("\nRestarting from AO projections on disk\n");
         }
         catch (...) {
-            // print("\nAO restart file open/reading failed --- starting from atomic guess instead\n");
+            // Say so. This used to be silent (the print was commented out), which
+            // made a wrong prefix or a truncated AO file indistinguishable from
+            // "there was nothing to read".
+            print("\nreading", param.prefix()+".restartaodata", "failed\n");
             OK = false;
         }
     }
@@ -1004,7 +1068,11 @@ void SCF::initial_guess_from_nwchem(World& world) {
 void SCF::initial_guess(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    MADNESS_CHECK_THROW(not param.restart(),"no restart in SCF::initial_guess");
+    // No guard on `restart` any more: reaching the atomic guess is a legitimate
+    // outcome of any restart mode except the explicit ones, which throw rather
+    // than fall back (see SCF::get_initial_orbitals). The nwchem guard stays --
+    // with an nwfile named, `aobasis` was read from that file (SCF.cc, the ctor),
+    // so an atomic guess here would be built in the wrong basis.
     MADNESS_CHECK_THROW(param.nwfile()=="none","no nwchem in SCF::initial_guess");
 
     // recalculate initial guess density matrix without core orbitals
@@ -1376,6 +1444,9 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_symmetric(true).set_printlevel(param.print_level());
         K.set_macro_task_info(MacroTaskInfo::preset("default"));
         K.set_macro_task_info(param.memory());
+        K.set_batch_granularity(param.hfex_batch_granularity());
+        K.set_accumulation_mode(param.hfex_local_accumulation());
+        K.set_cost_aware_assignment(param.hfex_cost_aware_assign());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
@@ -1414,7 +1485,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     // compute Vpsi and truncation
     START_TIMER(world);
-    const bool tile_Vpsi = true;
+    // Tiling bounds the products' transient memory, which only threatens at high precision, and
+    // costs nmo/ntile fences plus a truncation of every product. The untiled path was the default
+    // for years; take it below the tight protocols.
+    const bool tile_Vpsi = FunctionDefaults<3>::get_thresh() < 1.e-7;
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
@@ -1425,14 +1499,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 size_t iend = std::min(ilo+ntile,amo.size());
                 vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
                 auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
-
-                //truncate tmpVpsi
                 truncate(world, tmpVpsi);
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    Vpsi[i] += tmpVpsi[i-ilo];
-                }
+                // one gaxpy per tile instead of two fences per orbital, as the untiled branch does
+                vecfuncT Vpsi_tile(Vpsi.begin()+ilo, Vpsi.begin()+iend);
+                gaxpy(world, 1.0, Vpsi_tile, 1.0, tmpVpsi);
             }
             END_TIMER(world, "V*psi");
         } else {
@@ -1506,8 +1577,16 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
     r += ra + ru + rc;
     END_TIMER(world, "derivatives");
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
-        print("\n Derivatives (a.u.)\n -----------\n");
+    // Not printed while an optimizer is driving: these are the RAW derivatives,
+    // carrying a spurious net force and torque that is routinely orders of
+    // magnitude larger than the residual the optimizer converges. MolOpt prints
+    // the projected gradient it actually uses (MolOpt::print_gradient), and two
+    // tables differing by 100x invite the reader to conclude that no projection
+    // is happening. A single-point gradient run still prints this, since there
+    // it is the answer rather than an intermediate.
+    if (world.rank() == 0 and (param.print_level() > 1) and not suppress_raw_gradient_print) {
+        print("\n Derivatives (a.u.), raw -- translations/rotations NOT projected out"
+              "\n -----------\n");
         print(
                 "  atom        x            y            z          dE/dx        dE/dy        dE/dz");
         print(
@@ -2186,69 +2265,59 @@ void SCF::solve(World& world) {
         //     //do_this_iter = false;
         //     param.maxsub = maxsub_save;
         // }
-        const bool tile_localize = true;
-        if (tile_localize) {
-            if (param.do_localize() && do_this_iter) {
-                START_TIMER(world);
-                Localizer localizer(world, aobasis, molecule, ao);
-                localizer.set_method(param.localize_method());
+        // The first localization starts from the atomic guess, where CG can spend hundreds of
+        // iterations chasing 1e-6 while still bouncing above it. Later iterations re-localize
+        // anyway, so loosen that one call.
+        double localize_tolloc_scale = 1.0;
+        if (param.do_localize() && do_this_iter && !initial_localization_done) {
+            localize_tolloc_scale = 100.0;
+            initial_localization_done = true;
+        }
+        // Tiling the transform bounds the transient memory of the rotated orbitals, which only
+        // threatens at high precision. Below that it only buys an extra truncation per tile.
+        // Take the untiled path except at the tight protocols.
+        const bool tile_localize = FunctionDefaults<3>::get_thresh() < 1.e-7;
+
+        // Rotate one spin's orbitals by its localization matrix. When tiled it rotates min_tile
+        // orbitals at a time, bounding the transient to that many functions rather than all of them.
+        auto rotate_orbitals = [&world, tile_localize](vecfuncT& v, const tensorT& UT) {
+            if (tile_localize) {
+                const size_t min_tile = 10;
+                const size_t ntile = std::min(v.size(), min_tile);
+                vecfuncT rotated(v.size());
+                for (size_t ilo = 0; ilo < v.size(); ilo += ntile) {
+                    const size_t iend = std::min(ilo + ntile, v.size());
+                    auto U_slice = copy(transpose(UT)(_, Slice(ilo, iend - 1)));
+                    auto tmp = transform(world, v, U_slice);
+                    truncate(world, tmp);
+                    for (size_t i = ilo; i < iend; ++i) rotated[i] = tmp[i - ilo];
+                }
+                v = rotated;
+            } else {
+                v = transform(world, v, transpose(UT));
+                truncate(world, v);
+            }
+            normalize(world, v);
+        };
+
+        if (param.do_localize() && do_this_iter) {
+            START_TIMER(world);
+            Localizer localizer(world, aobasis, molecule, ao);
+            localizer.set_method(param.localize_method());
+            localizer.set_tolloc_scale(localize_tolloc_scale);
+            {
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-
-                size_t min_tile = 10;
-                size_t ntile = std::min(amo.size(), min_tile);
-                vecfuncT new_amo = zero_functions<double,3>(world, amo.size());  
-
-                for (size_t ilo=0; ilo<amo.size(); ilo+=ntile){
-                    size_t iend = std::min(ilo+ntile,amo.size());
-                    auto U_slice = copy(transpose(UT)(_,Slice(ilo,iend-1)));
-
-                    auto tmp_amo = transform(world, amo, U_slice);
-
-                    truncate(world, tmp_amo);
-
-                    for (size_t i = ilo; i<iend; ++i){
-                        new_amo[i] += tmp_amo[i-ilo];
-                    }
-                }
-                normalize(world, new_amo);
-                amo = new_amo;
-
-                if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
-                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-                    UT.screen(trantol);
-                    bmo = transform(world, bmo, transpose(UT));
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                }
-                END_TIMER(world, "localize");
+                rotate_orbitals(amo, UT);
             }
-        } else {
-            if (param.do_localize() && do_this_iter) {
-                START_TIMER(world);
-                Localizer localizer(world, aobasis, molecule, ao);
-                localizer.set_method(param.localize_method());
-                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+            if (!param.spin_restricted() && param.nbeta() != 0) {
+                MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-                amo = transform(world, amo, transpose(UT));
-                truncate(world, amo);
-                normalize(world, amo);
-
-                if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
-                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-                    UT.screen(trantol);
-                    bmo = transform(world, bmo, transpose(UT));
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                }
-                END_TIMER(world, "localize");
+                rotate_orbitals(bmo, UT);
             }
+            END_TIMER(world, "localize");
         }
 
         START_TIMER(world);
@@ -2407,10 +2476,17 @@ void SCF::solve(World& world) {
 
             // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
             if (converged || iter == param.maxiter() - 1) {
+                // record what we converged *to*, on every rank and independent of
+                // the print level: the restart logic keys off these two fields.
+                // The values are the thresholds of this protocol level, not
+                // param.econv()/param.dconv() -- at a loose level the latter
+                // over-claims, at the final level it under-claims.
+                if (converged) {
+                    converged_for_thresh=FunctionDefaults<3>::get_thresh();
+                    converged_for_dconv=dconv;
+                }
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
-                    converged_for_thresh=param.econv();
-                    converged_for_dconv=param.dconv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors

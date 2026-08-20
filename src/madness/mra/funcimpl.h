@@ -122,6 +122,15 @@ namespace madness {
     };
 
 
+    /// Sentinel for norm_tree/dnorm_tree meaning "not computed". Overflows the screening
+    /// criterion, so nodes carrying it are descended rather than screened.
+    static constexpr double NORM_TREE_UNCOMPUTED = 1e300;
+
+    /// Safety margin on the tolerance of the screened multiplication: the criterion estimates
+    /// the neglected cross terms rather than bounding them. Tightening is cheap and buys
+    /// accuracy, hence the extra factor. Applied once, in mulXXvec.
+    static constexpr double MUL_SCREENING_SAFETY = 0.1;
+
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, std::size_t NDIM>
     class FunctionNode {
@@ -134,7 +143,8 @@ namespace madness {
         // stores the entire entry as volatile
 
         coeffT _coeffs; ///< The coefficients, if any
-        double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
+        double _norm_tree; ///< After norm_tree will contain norm of sum coefficients summed up tree
+        double _dnorm_tree=NORM_TREE_UNCOMPUTED; ///< norm of the difference coefficients summed up the tree
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients, also defined if there are no d coefficients
@@ -144,7 +154,7 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
         /// Default constructor makes node without coeff or children
         FunctionNode() :
-            _coeffs(), _norm_tree(1e300), _has_children(false) {
+            _coeffs(), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED), _has_children(false) {
         }
 
         /// Constructor from given coefficients with optional children
@@ -154,7 +164,7 @@ namespace madness {
         /// take ownership.
         explicit
         FunctionNode(const coeffT& coeff, bool has_children = false) :
-            _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
+            _coeffs(coeff), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED), _has_children(has_children) {
         }
 
         explicit
@@ -163,13 +173,13 @@ namespace madness {
         }
 
         explicit
-        FunctionNode(const coeffT& coeff, double norm_tree, double snorm, double dnorm, bool has_children) :
-	  _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
+        FunctionNode(const coeffT& coeff, double norm_tree, double dnorm_tree, double snorm, double dnorm, bool has_children) :
+	  _coeffs(coeff), _norm_tree(norm_tree), _dnorm_tree(dnorm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) :
-            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _has_children(other._has_children),
-            dnorm(other.dnorm), snorm(other.snorm) {
+            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _dnorm_tree(other._dnorm_tree),
+            _has_children(other._has_children), dnorm(other.dnorm), snorm(other.snorm) {
         }
 
         FunctionNode<T, NDIM>&
@@ -177,10 +187,10 @@ namespace madness {
             if (this != &other) {
                 coeff() = copy(other.coeff());
                 _norm_tree = other._norm_tree;
+                _dnorm_tree = other._dnorm_tree;
                 _has_children = other._has_children;
                 dnorm=other.dnorm;
                 snorm=other.snorm;
-                _norm_tree=other._norm_tree;
             }
             return *this;
         }
@@ -192,7 +202,7 @@ namespace madness {
         template<typename Q>
         FunctionNode<Q, NDIM>
         convert() const {
-            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, snorm, dnorm, _has_children);
+            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, _dnorm_tree, snorm, dnorm, _has_children);
         }
 
         /// Returns true if there are coefficients in this node
@@ -307,9 +317,19 @@ namespace madness {
             _norm_tree = norm_tree;
         }
 
+        /// Sets the value of dnorm_tree
+        void set_dnorm_tree(double dnorm_tree) {
+            _dnorm_tree = dnorm_tree;
+        }
+
         /// Gets the value of norm_tree
         double get_norm_tree() const {
             return _norm_tree;
+        }
+
+        /// Gets the value of dnorm_tree
+        double get_dnorm_tree() const {
+            return _dnorm_tree;
         }
 
         /// return the precomputed norm of the (virtual) d coefficients
@@ -460,7 +480,8 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
+            // changing this list changes the on-disk format: bump FUNCTION_ARCHIVE_MAGIC
+            ar & coeff() & _has_children & _norm_tree & _dnorm_tree & dnorm & snorm;
         }
 
         /// like operator<<(ostream&, const FunctionNode<T,NDIM>&) but
@@ -474,7 +495,7 @@ namespace madness {
             if (norm < 1e-12)
                 norm = 0.0;
             double nt = this->get_norm_tree();
-            if (nt == 1e300)
+            if (nt == NORM_TREE_UNCOMPUTED)
                 nt = 0.0;
             s << norm << ",\"norm_tree\":" << nt << ",\"snorm\":"
               << this->get_snorm() << ",\"dnorm\":" << this->get_dnorm()
@@ -492,8 +513,10 @@ namespace madness {
         if (norm < 1e-12)
             norm = 0.0;
         double nt = node.get_norm_tree();
-        if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        double dnt = node.get_dnorm_tree();
+        if (nt == NORM_TREE_UNCOMPUTED) nt = 0.0;
+        if (dnt == NORM_TREE_UNCOMPUTED) dnt = 0.0;
+        s << norm << ", norm_tree = " << nt << ", dnorm_tree = " << dnt << ", s/dnorm =" << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
@@ -1053,10 +1076,68 @@ template<size_t NDIM>
 
         dcT coeffs; ///< The coefficients
 
+        /// Neighbor coefficients pushed here by whoever owns them; null until something stages.
+
+        /// Values mirror what `sock_it_to_me` returns for the same key: coefficients for a same-level
+        /// leaf, empty for an interior node, absent when the neighbor is coarser and the consumer
+        /// must walk up. Which nodes get pushed is the operator's business, not the table's --- see
+        /// `DerivativeBase::stage_halo`.
+        ///
+        /// Allocated on the first push, so functions that never stage one do not carry it: a
+        /// `ConcurrentHashMap` default-constructs 1021 bins, ~32 kB per function.
+        mutable std::atomic<ConcurrentHashMap<keyT,coeffT>*> neighbor_halo_{nullptr};
+
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
+        /// Is a neighbor halo staged on this function?
+        bool halo_enabled() const {
+            return neighbor_halo_.load(std::memory_order_acquire) != nullptr;
+        }
+
+        /// Discard the neighbor halo, freeing the staged coefficients.
+
+        /// Requires a quiescent window: it frees a table that `halo_probe` may be reading.
+        void halo_clear() const {
+            delete neighbor_halo_.exchange(nullptr, std::memory_order_acq_rel);
+        }
+
+        /// How many neighbor nodes are staged on this rank; zero if no halo.
+        std::size_t halo_size() const {
+            const auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            return h ? h->size() : 0;
+        }
+
+        /// Insert pushed neighbor nodes into the halo; runs as a task, concurrently with other pushes.
+
+        /// Allocates the table on the first push, so staging needs no collective set-up.
+        void receive_halo(const std::vector<std::pair<keyT,coeffT> >& buf) const {
+            auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            if (!h) {
+                auto* fresh = new ConcurrentHashMap<keyT,coeffT>();
+                if (neighbor_halo_.compare_exchange_strong(h, fresh, std::memory_order_acq_rel,
+                                                           std::memory_order_acquire))
+                    h = fresh;
+                else
+                    delete fresh;   // lost the race; the failed CAS put the winner's table in h
+            }
+            for (const auto& kv : buf) {
+                typename ConcurrentHashMap<keyT,coeffT>::accessor acc;
+                (void) h->insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+
+        /// Look up a staged neighbor; on a hit copy its coefficients, which are empty for an interior node.
+        bool halo_probe(const keyT& key, coeffT& out) const {
+            const auto* h = neighbor_halo_.load(std::memory_order_acquire);
+            if (!h) return false;
+            typename ConcurrentHashMap<keyT,coeffT>::const_accessor acc;
+            if (h->find(acc, key)) { out = acc->second; return true; }
+            return false;
+        }
+
         Timer timer_accumulate;
         Timer timer_change_tensor_type;
         Timer timer_lr_result;
@@ -1178,7 +1259,7 @@ template<size_t NDIM>
             this->process_pending();
         }
 
-        virtual ~FunctionImpl() { }
+        virtual ~FunctionImpl() { halo_clear(); }
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const;
 
@@ -2846,11 +2927,9 @@ template<size_t NDIM>
                 std::swap(ind[i],ind[j]);
             }
 
-            typename FunctionImpl<R,NDIM>::dcT::const_iterator end = right->coeffs.end();
-            for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right->coeffs.begin(); it != end; ++it) {
-                if (it->second.has_coeff()) {
-                    const Key<NDIM>& key = it->first;
-                    const GenTensor<R>& r = it->second.coeff();
+            for (const auto& [key, rnode] : right->coeffs) {
+                if (rnode.has_coeff()) {
+                    const GenTensor<R>& r = rnode.coeff();
                     double norm = r.normf();
                     double keytol = truncate_tol(tol,key);
 
@@ -2859,20 +2938,17 @@ template<size_t NDIM>
                         if (std::abs(norm*c(i)) > keytol) {
                             implT* left = vleft[i].get();
                             typename dcT::accessor acc;
-                            bool newnode = left->coeffs.insert(acc,key);
-                            if (newnode && key.level()>0) {
+                            bool new_node = left->coeffs.insert(acc,key);
+                            if (new_node) {
+                                /* Notify parent nodes that a new child exists. */
                                 Key<NDIM> parent = key.parent();
-				if (left->coeffs.is_local(parent))
-				  left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-				else
-				  left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
-
+                                if (left->coeffs.is_local(parent))
+                                    left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                else
+                                    left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
                             }
                             nodeT& node = acc->second;
-                            if (!node.has_coeff())
-                                node.set_coeff(coeffT(cdata.v2k,targs));
-                            coeffT& t = node.coeff();
-                            t.gaxpy(1.0, r, c(i));
+                            node.gaxpy_inplace(1.0, rnode, c(i));
                         }
                     }
                 }
@@ -3032,13 +3108,21 @@ template<size_t NDIM>
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
             double lnorm = 1e99;
+            double ldnorm = 1e99;
+            bool l_is_leaf = false;
             Tensor<L> lc = lcin;
+            literT lit = left->coeffs.find(key).get();
+
             if (lc.size() == 0) {
-                literT it = left->coeffs.find(key).get();
-                MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
-                if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                MADNESS_CHECK(lit != left->coeffs.end());
+                lnorm = lit->second.get_norm_tree();
+                ldnorm = lit->second.get_dnorm_tree();
+                l_is_leaf = !lit->second.has_children();
+            }
+            else {
+                lnorm = lc.normf();
+                ldnorm = 0.0;       // node created to match trees; leaves carry no detail
+                l_is_leaf = true;
             }
 
             // Loop thru RHS functions seeing if anything can be multiplied
@@ -3049,27 +3133,46 @@ template<size_t NDIM>
             vright.reserve(vrightin.size());
             vrc.reserve(vrightin.size());
 
+            // fetched at most once and shared by every right function; do_mul only reads it
+            Tensor<L> lc_shared;
+            bool lc_shared_set = false;
+            auto left_coeffs = [&]() -> const Tensor<L>& {
+                if (!lc_shared_set) {
+                    lc_shared = lc.size() ? lc : lit->second.coeff().full_tensor_copy();
+                    lc_shared_set = true;
+                }
+                return lc_shared;
+            };
+
             for (unsigned int i=0; i<vrightin.size(); ++i) {
                 FunctionImpl<T,NDIM>* result = vresultin[i];
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
-                double rnorm;
+                double rnorm, rdnorm;
+                riterT rit = right->coeffs.find(key).get();
                 if (rc.size() == 0) {
-                    riterT it = right->coeffs.find(key).get();
-                    MADNESS_ASSERT(it != right->coeffs.end());
-                    rnorm = it->second.get_norm_tree();
-                    if (it->second.has_coeff())
-                        rc = it->second.coeff().full_tensor_copy();
+                    MADNESS_CHECK(rit != right->coeffs.end());
+                    rnorm = rit->second.get_norm_tree();
+                    rdnorm = rit->second.get_dnorm_tree();
                 }
                 else {
                     rnorm = rc.normf();
+                    rdnorm = 0.0;
                 }
 
-                if (rc.size() && lc.size()) { // Yipee!
-                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
+                if (ldnorm >= NORM_TREE_UNCOMPUTED || rdnorm >= NORM_TREE_UNCOMPUTED) {
+                    static std::atomic<bool> warned{false};
+                    bool expected = false;
+                    if (warned.compare_exchange_strong(expected, true))
+                        print("WARNING: mul_sparse operand has an uncomputed dnorm_tree; "
+                              "screening is disabled for those nodes (missing make_redundant?)");
                 }
-                else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
-                    result->coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf
+
+                // the neglected cross terms are below threshold: multiply here (requires redundant form)
+                if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
+                    // lc/rc must keep their size for the recursion logic, so pass separate tensors
+                    Tensor<R> rc_data = (rc.size() == 0) ? rit->second.coeff().full_tensor_copy() : rc;
+                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, left_coeffs(), std::make_pair(key,rc_data));
                 }
                 else {  // Interior node
                     result->coeffs.replace(key, nodeT(coeffT(),true));
@@ -3081,18 +3184,22 @@ template<size_t NDIM>
 
             if (vresult.size()) {
                 Tensor<L> lss;
-                if (lc.size()) {
+                if (lc.size() || l_is_leaf) {
                     Tensor<L> ld(cdata.v2k);
-                    ld(cdata.s0) = lc(___);
+                    ld(cdata.s0) = left_coeffs()(___);
                     lss = left->unfilter(ld);
                 }
 
+                // invariant across the child loop below, so look it up once per right function
+                std::vector<char> r_unfiltered(vresult.size(), 0);
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
-                    if (vrc[i].size()) {
+                    riterT rit = vright[i]->coeffs.find(key).get();
+                    if (vrc[i].size() || !rit->second.has_children()) {
                         Tensor<R> rd(cdata.v2k);
-                        rd(cdata.s0) = vrc[i](___);
+                        rd(cdata.s0) = (vrc[i].size() ? vrc[i] : rit->second.coeff().full_tensor_copy())(___);
                         vrss[i] = vright[i]->unfilter(rd);
+                        r_unfiltered[i] = 1;
                     }
                 }
 
@@ -3102,12 +3209,12 @@ template<size_t NDIM>
 
                     std::vector<Slice> cp = child_patch(child);
 
-                    if (lc.size())
+                    if (lc.size() || l_is_leaf)
                         ll = copy(lss(cp));
 
                     std::vector< Tensor<R> > vv(vresult.size());
                     for (unsigned int i=0; i<vresult.size(); ++i) {
-                        if (vrc[i].size())
+                        if (r_unfiltered[i])
                             vv[i] = copy(vrss[i](cp));
                     }
 
@@ -3393,7 +3500,8 @@ template<size_t NDIM>
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
             if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
+                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult,
+                          tol*MUL_SCREENING_SAFETY);
             if (fence)
                 world.gop.fence();
         }
@@ -5065,8 +5173,11 @@ template<size_t NDIM>
 //        void compress(bool nonstandard, bool keepleaves, bool redundant, bool fence);
         void compress(const TreeState newstate, bool fence);
 
+        /// s coefficients plus the (snorm_tree, dnorm_tree) pair propagated up by compress
+        typedef std::pair<coeffT, std::pair<double,double> > compressT;
+
         /// Invoked on node where key is local
-        Future<std::pair<coeffT,double> > compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
+        Future<compressT> compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
         		bool redundant1);
 
         private:
@@ -5100,22 +5211,21 @@ template<size_t NDIM>
 
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
 
-        /// also compute the norm tree for all nodes
+        /// also propagates norm_tree and dnorm_tree for all nodes
         /// @param[in] key 	this's key
-        /// @param[in] v 	sum coefficients of the child nodes
+        /// @param[in] v 	sum coefficients and propagated norms of the child nodes
         /// @param[in] nonstandard  keep the sum coefficients with the wavelet coefficients
-        /// @param[in] redundant    keep only the sum coefficients, discard the wavelet coefficients
-        /// @return 		the sum coefficients
-        std::pair<coeffT,double> compress_op(const keyT& key, const std::vector< Future<std::pair<coeffT,double>> >& v, bool nonstandard);
+        /// @return 		the sum coefficients and propagated norms
+        compressT compress_op(const keyT& key, const std::vector< Future<compressT> >& v, bool nonstandard);
 
 
         /// similar to compress_op, but insert only the sum coefficients in the tree
 
-        /// also compute the norm tree for all nodes
+        /// also propagates norm_tree and dnorm_tree for all nodes
         /// @param[in] key  this's key
-        /// @param[in] v    sum coefficients of the child nodes
-        /// @return         the sum coefficients
-        std::pair<coeffT,double> make_redundant_op(const keyT& key,const std::vector< Future<std::pair<coeffT,double> > >& v);
+        /// @param[in] v    sum coefficients and propagated norms of the child nodes
+        /// @return         the sum coefficients and propagated norms
+        compressT make_redundant_op(const keyT& key,const std::vector< Future<compressT> >& v);
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence);

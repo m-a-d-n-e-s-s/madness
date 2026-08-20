@@ -58,7 +58,7 @@ namespace madness {
 
     enum TreeState {
     	reconstructed,				///< s coeffs at the leaves only
-		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
+		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root, empty leaves may be present
 		nonstandard, 				///< s and d coeffs in internal nodes
     	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
         nonstandard_after_apply, 	///< s and d coeffs, state after operator application
@@ -262,14 +262,12 @@ namespace madness {
         	autorefine=value;
         }
 
-        /// Gets the default debug flag (is this used anymore?)
+        /// Gets the default debug flag, which gates verbose MRA diagnostics
         static bool get_debug() {
         	return debug;
         }
 
-        /// Sets the default debug flag (is this used anymore?)
-
-        /// Not sure if this does anything useful
+        /// Sets the default debug flag; see get_debug
         static void set_debug(bool value) {
         	debug=value;
         }

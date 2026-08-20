@@ -45,6 +45,12 @@ public:
         return *this;
     }
 
+    /// Multiply the "new" method's convergence threshold by this factor (default 1.0).
+    Localizer& set_tolloc_scale(const double scale) {
+        tolloc_scale=scale;
+        return *this;
+    }
+
     AtomicBasisSet get_aobasis() const {
         return aobasis;
     }
@@ -170,6 +176,7 @@ private:
     Function<double,3> metric;       /// =R for computing matrix elements of operators
     double thetamax=0.1;                /// maximum rotation(?)
     const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
+    double tolloc_scale = 1.0;  // multiplies tolloc, "new" method only
     double thresh_degenerate;           /// when are orbitals degenerate
     bool enforce_core_valence_separation=false;  /// no rotations between core and valence orbitals (distinguished by 'set')
     std::string method="new";           /// localization method

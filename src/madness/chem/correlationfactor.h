@@ -103,6 +103,15 @@ public:
 	    // set threshold for projections
 	    vtol=vtol1;
 
+		// Discard any previous set. initialize() is called again on every
+		// protocol step, and U1(axis) reads U1_function[axis] -- i.e. the FIRST
+		// three entries. Appending therefore left the accessor pinned to the
+		// functions built on the first call: at the initial (loosest) threshold,
+		// and at the initial k. With a pinned k that is a silent loss of
+		// precision for the rest of the ladder; with k varying across the
+		// protocol it is a tensor conformance failure.
+		U1_function.clear();
+
 		// construct the potential functions
 		// keep tighter threshold for orthogonalization
 		for (int axis=0; axis<3; ++axis) {

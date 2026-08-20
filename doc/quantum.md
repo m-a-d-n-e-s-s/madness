@@ -160,9 +160,18 @@ For the following workflows there are gradients implemented:
 > `nemo`, `moldft`, `znemo`
 
 ### Native optimizer
-Codes with gradients can use the built-in geometry optimizer by adding the `gopt` flag 
-in the `dft` block, geometry optimization parameters are set in the `geoopt` block.
-> `madqc --wf=nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+Geometry optimization is a task of its own, selected with `--optimize`; `--wf`
+names the reference method to optimize on. Its parameters are the `optimization`
+block (`madqc --print_parameters=optimization`).
+> `madqc --optimize --wf=nemo --dft="k=8; econv=1.e-5" --optimization="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+
+Thresholds left unset are derived from the accuracy actually available — the
+energy ones from the wavefunction threshold, the gradient ones from `dconv` —
+so a deck normally sets only `maxiter`, if anything.
+
+The older `gopt` flag in the `dft` block, and the `geoopt` block that went with
+it, have been removed. `znemo` has no replacement yet: `--optimize` accepts
+`--wf=scf` and `--wf=nemo` only.
 
 ### External optimizers
 External optimizers (e.g. [pyberny](https://jan.hermann.name/pyberny/), [geometric](https://geometric.readthedocs.io/) ) 

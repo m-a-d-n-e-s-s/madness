@@ -1,0 +1,107 @@
+{
+    "io": {
+        "backend": "native",
+        "hdf5_compiled": false
+    },
+    "tasks": [
+        {
+            "metadata": {
+                "method": "moldft",
+                "mpi_size": 1
+            },
+            "model": "optimize",
+            "molecule": {
+                "geometry": [
+                    [
+                        5.824007517484914e-20,
+                        -1.9850927143598614e-19,
+                        0.7550380927690868
+                    ],
+                    [
+                        4.1747741849825067e-19,
+                        -1.4082808869768535e-18,
+                        -2.2800380927690873
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "mad.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "Li",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": -7.98736303586312,
+                "final_geometry": {
+                    "geometry": [
+                        [
+                            5.824007517484914e-20,
+                            -1.9850927143598614e-19,
+                            0.7550380927690868
+                        ],
+                        [
+                            4.1747741849825067e-19,
+                            -1.4082808869768535e-18,
+                            -2.2800380927690873
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "mad.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "Li",
+                        "H"
+                    ]
+                },
+                "max_gradient": 4.043151019261917e-07,
+                "max_step": 0.0,
+                "nsteps": 2
+            },
+            "properties": {
+                "energy": -7.98736303586312,
+                "gradient": {
+                    "dims": [
+                        6
+                    ],
+                    "ndim": 1,
+                    "size": 6,
+                    "vals": [
+                        6.572524160510711e-14,
+                        4.17442559136031e-14,
+                        -8.356999024933254e-05,
+                        -5.343333778986972e-16,
+                        1.0548416856966844e-15,
+                        -8.43786204531849e-05
+                    ]
+                }
+            }
+        }
+    ]
+}

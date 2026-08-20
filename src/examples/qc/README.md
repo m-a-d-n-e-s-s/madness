@@ -30,6 +30,14 @@ ctest -R "madness/test/qc/nemo_he_hf"  # one case
 cmake --build . --target check-qctest-madness
 ```
 
+**Every run starts from an empty working directory.** `madqc` writes its per-task
+scratch to `<case>/task_0/<calc>/` and restarts from `mad.restartdata.*` if it finds
+it, so a second run in the same directory converges onto the first run's orbitals
+rather than solving the deck. `run_qctest.py` therefore erases the working directory
+before staging the case. It only does so where it can tell the directory is a scratch
+one -- empty, carrying the `.qctest_workdir` marker, or holding this case's own output
+-- and otherwise refuses rather than deleting; `--clean` overrides.
+
 Cases tagged `short` or `medium` are also picked up by `check-short-madness`
 (`ctest -L "short|medium"`), so they gate CI along with the unit tests.
 
@@ -41,13 +49,17 @@ Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
 |------|---------|--------|--------------|------|------|
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
-| `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 10 s | short |
-| `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 21 s | medium |
-| `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 25 s | medium |
+| `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
+| `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
+| `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
-| `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 48 s | long |
-| `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 50 s | long |
-| `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 51 s | long |
+| `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |
+| `scf_lih_optimize` | `scf` + `--optimize` | LiH | geometry optimization as its own task, moldft reference | 37 s | long |
+| `nemo_lih_optimize` | `nemo` + `--optimize` | LiH | the same, on a nemo reference | 77 s | long |
+| `scf_h2o_lda_optimize` | `scf` + `--optimize` | H₂O | the only polyatomic optimization, the only one on a functional, and the only one at the default `eprec` | 74 s | long |
+| `nemo_h2o_canon` | `nemo` | H₂O | `localize canon` | 75 s | long |
+| `nemo_h2o_boys` | `nemo` | H₂O | `localize boys` | 83 s | long |
+| `nemo_h2o_new` | `nemo` | H₂O | `localize new` | 79 s | long |
 | `mp2_he_corr` | `mp2` | He | MP2 correlation energy; fixed `k` | 790 s | verylong |
 | `lrcc2_he_excited` | `cc2` | He | CC2 ground state + LR-CC2 excitation | 6744 s | verylong |
 
@@ -63,6 +75,47 @@ workers + 1 comm) is 8 MADNESS threads before MPI's own progress threads, so on 
 timeout on an 8-core laptop. Its `run.sh` therefore sets the per-rank worker count
 from `MPI_WORKERS` rather than inheriting `MAD_NUM_THREADS`, which by convention
 means *per job*, not per rank.
+
+The four optimization cases all use `--optimize --wf=<scf|nemo>`, which since the
+in-SCF `dft gopt` form was removed is the only way to optimize a geometry.
+
+`scf_lih_optimize` and `scf_lih_optimize_tight` are the same molecule at two
+threshold settings: the first at the derived defaults (2 steps, max gradient
+4.0e-07, r = 3.035076 bohr), the second with `gtol`/`xtol`/`gradient_precision`
+pinned in the `optimization` group at the values the retired in-SCF path used to
+impose (3 steps, 9.1e-07, r = 3.034046). Same minimum, different stopping
+point — energies -7.987363036 and -7.987363048, i.e. 1.2e-08 Ha apart. The tight
+case reproduces the removed path's numbers exactly, which is what establishes that
+moving the optimizer out of the SCF changed no arithmetic — only who chooses the
+thresholds. `nemo_lih_optimize` lands at r = 3.034271, the difference between a
+regularized and a plain SCF reference.
+
+All four converge on the criteria rather than through MolOpt's "insufficient
+precision" escape; if one ever starts taking a single step and stopping, suspect
+`gradient_precision` being set above the gradient's real noise floor, which both
+disarms that escape and clamps `gtol` from below. The nemo case is also the
+regression test for a wavefunction that is *not* re-solved as the nuclei move —
+`Nemo::value` skips the SCF when the orbitals are already converged to the
+requested threshold, and if that flag survives a geometry change the optimizer
+walks a frozen wavefunction. The symptom is `delta-e` of exactly 0.0 across
+iterations, which is why `final_energy` is checked to 1e-6 there rather than the
+usual 1e-5: the frozen-wavefunction answer is off by only 9e-6.
+
+`scf_lih_optimize_tight` is the case that detects a broken gradient projection,
+and the key it leans on is behavioral rather than energetic:
+`optimization_results.max_gradient`. MolOpt projects translations and rotations
+out of the gradient before testing convergence; drop that projection and the raw
+net force (1.6e-4 here, an identical dE/dz on both atoms) never reaches `gtol`,
+so the run burns every cycle at a geometry that stopped moving — while the energy
+and the bond length stay well inside any sane tolerance. Asserting the energy
+alone would not notice. That is also why this case pins `gtol` at 1e-5 rather
+than taking the derived 1e-4: a threshold *above* the spurious net force cannot
+tell a projected gradient from an unprojected one. `max_gradient` carries
+`"allow_zero": true` because a converged gradient is legitimately near zero.
+
+`nsteps` is deliberately not asserted in any of the four. A step count is a
+discrete function of continuous quantities that vary run to run, and pinning it
+with `tol: 0` made these cases fail on unrelated numerical changes.
 
 There is deliberately **no plain-CC2 case**: a `calc_type cc2` ground state on
 helium measured 1833 s, and `lrcc2_he_excited` already solves that ground state on

@@ -105,6 +105,34 @@ public:
 		scale(world, nemo, invnorm);
 	}
 
+	/// reproject a set of nemos onto the current k and thresh
+
+	/// The counterpart of SCF::project (chem/SCF.cc) for regularized orbitals.
+	/// SCF::project must NOT be used here: it normalizes with the plain L2
+	/// metric, while nemos are normalized against R^2. Without this, a protocol
+	/// step that changes k leaves the nemos at the old polynomial order while
+	/// FunctionDefaults, R and the potentials have already moved to the new one.
+	template<typename T, std::size_t NDIM>
+	void reproject_mos(std::vector<Function<T,NDIM> >& nemo,
+			const Function<double,NDIM>& metric) const {
+
+		if (nemo.size()==0) return;
+		const int k=FunctionDefaults<NDIM>::get_k();
+		const double thresh=FunctionDefaults<NDIM>::get_thresh();
+		if (nemo.front().k()==k) {           // nothing to do but retighten
+			set_thresh(world,nemo,thresh);
+			return;
+		}
+
+		if (world.rank()==0) print("reprojecting nemos from k =",nemo.front().k(),"to k =",k);
+		reconstruct(world,nemo);
+		for (std::size_t i=0; i<nemo.size(); ++i)
+			nemo[i]=madness::project(nemo[i],k,thresh,false);
+		world.gop.fence();
+		truncate(world,nemo);
+		normalize(nemo,metric);
+	}
+
 	template<typename T>
     static Tensor<T> Q2(const Tensor<T>& s) {
 		Tensor<T> Q = -0.5*s;
@@ -145,9 +173,16 @@ public:
 
     virtual bool need_recompute_factors_and_potentials(const double thresh) const {
         bool need=false;
+        const int k=FunctionDefaults<3>::get_k();
         if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
         if (not ncf) need=true;
         if ((not R_square.is_initialized()) or (R_square.thresh()>thresh)) need=true;
+        // k must be checked independently of thresh: re-entering a protocol at
+        // the same threshold but a different k (a restart, or a user-pinned k)
+        // would otherwise reuse R and R_square at the old k and silently mix
+        // polynomial orders in every product with the nemos.
+        if (R.is_initialized() and R.k()!=k) need=true;
+        if (R_square.is_initialized() and R_square.k()!=k) need=true;
         return need;
     };
 
@@ -393,7 +428,11 @@ public:
         print("nemo --print_parameters\n");
         print("You can perform a simple calculation by running\n");
         print("nemo --geometry=h2o.xyz\n");
-        print("provided you have an xyz file in your directory.");
+        print("provided you have an xyz file in your directory.\n\n");
+        print("To see what a restart archive holds -- geometry, k, the precision it");
+        print("converged to, whether it is moldft or nemo orbitals -- without starting");
+        print("a calculation:\n");
+        print("nemo --restart_info=<prefix>\n");
 
     }
 
@@ -643,6 +682,8 @@ protected:
 	/// adapt the thresholds consistently to a common value
     void set_protocol(const double thresh) {
 
+        // sets FunctionDefaults, including k -- which SCF::set_protocol derives
+        // from thresh unless the user pinned it
         calc->set_protocol<3>(world,thresh);
 
         if (need_recompute_factors_and_potentials(thresh)) {
@@ -656,9 +697,24 @@ protected:
         poisson = std::shared_ptr<real_convolution_3d>(
                 CoulombOperatorPtr(world, get_calc_param().lo(), FunctionDefaults<3>::get_thresh()));
 
-        // set thresholds for the MOs
-        set_thresh(world,calc->amo,thresh);
-        set_thresh(world,calc->bmo,thresh);
+        // Bring the MOs to the new k and thresh. This must come AFTER the ncf
+        // has been rebuilt, because the normalization inside reproject_mos uses
+        // R as the metric and would otherwise mix polynomial orders itself.
+        reproject_mos(calc->amo,R);
+        reproject_mos(calc->bmo,R);
+
+        // The AO basis has to follow k as well. moldft reprojects it inside its
+        // protocol loop (SCF.h, MolecularEnergy::value); nemo projected it once
+        // outside the ladder, so a k change left it behind -- and Nemo::localize
+        // hands it to the Localizer next to the freshly reprojected nemos.
+        const int k=FunctionDefaults<3>::get_k();
+        if (calc->ao.size()>0 and calc->ao.front().k()!=k) {
+            if (world.rank()==0 and get_calc_param().print_level()>2)
+                print("reprojecting the AO basis from k =",calc->ao.front().k(),"to k =",k);
+            calc->ao.clear();
+            world.gop.fence();
+            calc->ao=calc->project_ao_basis(world,calc->aobasis);
+        }
 
     }
 
