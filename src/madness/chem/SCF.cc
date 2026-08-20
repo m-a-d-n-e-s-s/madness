@@ -2494,9 +2494,16 @@ void SCF::solve(World& world) {
             localizer.set_tolloc_scale(localize_tolloc_scale);
             {
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+                const double t_loc0 = wall_time();
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                const double t_loc1 = wall_time();
                 UT.screen(trantol);
                 rotate_orbitals(amo, UT);
+                // split the localize timer: matrix = the localizer optimization (incl. U
+                // replication); transform = screen + the nmo^2 orbital rotation
+                if (world.rank() == 0 && param.print_level() >= 3)
+                    printf("  localize phases: matrix %.2fs transform %.2fs\n",
+                           t_loc1 - t_loc0, wall_time() - t_loc1);
             }
             if (!param.spin_restricted() && param.nbeta() != 0) {
                 MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
