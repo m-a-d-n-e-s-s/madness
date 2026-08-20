@@ -37,6 +37,10 @@ jobs:
       CCACHE_COMPRESSLEVEL : 6
       MAD_SMALL_TESTS : 1
       MAD_NUM_THREADS : 3
+      # conda-forge's simple-dftd3 links its own OpenBLAS and OpenMP runtimes;
+      # MADNESS owns parallelism and needs a sequential BLAS, so pin both to 1
+      OMP_NUM_THREADS : 1
+      OPENBLAS_NUM_THREADS : 1
       CTEST_OUTPUT_ON_FAILURE : 1
       BUILD_CONFIG : >
         -G Ninja
@@ -110,6 +114,30 @@ jobs:
           sudo apt-get install libcereal-dev
         fi
 
+    # simple-dftd3 backs the `dispersion` keyword and is packaged by neither apt
+    # nor Homebrew, so it has to come from conda-forge. Without it MADNESS still
+    # builds and every other test runs, but test_dispersion and the
+    # scf_lih_pbe_d3 qctest are not registered at all -- the correction would
+    # have no CI coverage whatsoever.
+    - name: Install simple-dftd3 (conda-forge)
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        environment-name: sdftd3
+        create-args: simple-dftd3
+        init-shell: bash
+        cache-environment: true
+
+    # Only DFTD3_ROOT_DIR is handed to CMake, deliberately NOT CMAKE_PREFIX_PATH:
+    # the conda prefix also carries nlohmann_json, libxc and a BLAS, and letting
+    # the rest of the build resolve those out of it would silently change what is
+    # being tested.
+    - name: Locate simple-dftd3
+      shell: bash -el {0}
+      run: |
+        echo "DFTD3_ROOT_DIR=$CONDA_PREFIX" >> $GITHUB_ENV
+        ls -l "$CONDA_PREFIX/include/s-dftd3.h"
+        ls -l "$CONDA_PREFIX"/lib/libs-dftd3.*
+
     - name: Prepare ccache timestamp
       id: ccache_cache_timestamp
       shell: cmake -P {0}
@@ -133,7 +161,7 @@ jobs:
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND
+      run: cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DDFTD3_ROOT_DIR="$DFTD3_ROOT_DIR"
 
     - name: Build
       working-directory: ${{github.workspace}}/build
