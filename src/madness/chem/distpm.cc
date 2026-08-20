@@ -72,7 +72,10 @@ void matrix_inner(DistributedMatrix<T>& A,
 static inline double PM_q(const tensorT & S, const double * MADNESS_RESTRICT Ci, const double * MADNESS_RESTRICT Cj, int lo, int nbf)
 {
     double qij = 0.0;
-    if (nbf == 1) { // H atom in STO-3G ... often lots of these!
+    if (S.size() == 0) { // empty S marks an orthonormal block (S == identity): the "new" method
+        for(int mu = 0;mu < nbf;++mu) qij += Ci[mu + lo] * Cj[mu + lo];
+    }
+    else if (nbf == 1) { // H atom in STO-3G ... often lots of these!
         qij = Ci[lo]*S(0,0)*Cj[lo];
     }
     else {
@@ -386,6 +389,42 @@ DistributedMatrix<double> distributed_localize_PM(World & world,
     // }
     // world.gop.broadcast(U.ptr(), U.size(), 0);
     //return U;
+}
+
+DistributedMatrix<double> distributed_localize_new(World& world,
+                                                   const Tensor<double>& C,
+                                                   const std::vector<int>& set,
+                                                   const std::vector<int>& at_to_bf,
+                                                   const std::vector<int>& at_nbf,
+                                                   const double thresh,
+                                                   const double thetamax)
+{
+    const long nmo = C.dim(0);
+    const long nao = C.dim(1);
+    const long natom = at_to_bf.size();
+
+    // Empty overlap blocks select PM_q's orthonormal fast path (S == identity): in the
+    // orthonormal atomic-eigenfunction basis the charge q_ij(a) is a plain dot product.
+    std::vector<tensorT> Svec(natom);
+
+    DistributedMatrix<double> dU = column_distributed_matrix<double>(world, nmo, nmo);
+    dU.fill_identity();
+
+    DistributedMatrix<double> dC = column_distributed_matrix<double>(world, nmo, nao);
+    dC.copy_from_replicated(C);
+
+    DistributedMatrix<double> dA = concatenate_rows(dC, dU);
+
+    world.taskq.add(new SystolicPMOrbitalLocalize(dA, set, at_to_bf, at_nbf, Svec, thresh,
+                                                  thetamax, natom, nao, nmo));
+    world.taskq.fence();
+
+    dA.extract_columns(nao, nmo+nao-1, dU);
+
+    world.taskq.add(new SystolicFixOrbitalOrders(dU));
+    world.taskq.fence();
+
+    return dU;
 }
 
 }

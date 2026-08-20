@@ -149,6 +149,21 @@ private:
                                       const bool randomize = true,
                                       const bool doprint = false) const;
 
+    /// the "new" objective optimized with distributed systolic Jacobi sweeps (localize=new_sys)
+    template<typename T, std::size_t NDIM>
+    DistributedMatrix<T> localize_new_systolic(World& world,
+                                               const std::vector<Function<T, NDIM>>& mo,
+                                               const std::vector<int>& set,
+                                               const double thresh = 1e-9,
+                                               const bool randomize = true,
+                                               const bool doprint = false) const;
+
+    /// build the "new" method's orthonormal atomic-eigenfunction basis and localization blocks
+    template<typename T, std::size_t NDIM>
+    void prepare_new_basis(World& world, const std::vector<Function<T, NDIM>>& mo,
+                           Tensor<T>& C, std::vector<int>& at_to_bf,
+                           std::vector<int>& at_nbf) const;
+
     template<typename T>
     inline double DIP(const Tensor<T>& dip, int i, int j, int k, int l) const {
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);

@@ -80,6 +80,8 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
         dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
         dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
+    } else if (method == "new_sys") {
+        dUT = localize_new_systolic(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
@@ -313,18 +315,17 @@ DistributedMatrix<T> Localizer::localize_PM(World& world, const std::vector<Func
 }
 
 
+/// Build the "new" method's working basis: transform the AO-projection matrix C into the
+/// orthonormal atomic-eigenfunction basis and construct the per-atom localization blocks
+/// (1s / 2s2p / rest). Shared by localize_new (rank-0 CG) and localize_new_systolic.
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
-                                             const std::vector<int>& set, double thresh,
-                                             const bool randomize, const bool doprint) const {
-    // PROFILE_MEMBER_FUNC(SCF);
+void Localizer::prepare_new_basis(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                  Tensor<T>& C, std::vector<int>& at_to_bf,
+                                  std::vector<int>& at_nbf) const {
     typedef Tensor<T> tensorT;
-
-    int nmo = mo.size();
     int nao = ao.size();
 
-    tensorT C = matrix_inner(world, mo, ao);
-    std::vector<int> at_to_bf, at_nbf; // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+    C = matrix_inner(world, mo, ao);
 
     bool use_atomic_evecs = true;
     if (use_atomic_evecs) {
@@ -393,6 +394,22 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
         aobasis.shells_to_bfn(molecule, at_to_bf, at_nbf);
         //aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
     }
+
+}
+
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                             const std::vector<int>& set, double thresh,
+                                             const bool randomize, const bool doprint) const {
+    // PROFILE_MEMBER_FUNC(SCF);
+    typedef Tensor<T> tensorT;
+
+    int nmo = mo.size();
+    int nao = ao.size();
+
+    tensorT C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
 
     // Below here atoms may be shells or atoms --- by default shells
 
@@ -571,6 +588,26 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     //print(UT);
     return dUT;
 }
+
+/// The "new" objective optimized with distributed systolic Jacobi sweeps
+
+/// In the orthonormal atomic-eigenfunction basis the "new" objective is Pipek-Mezey
+/// (q_ij(a) with identity overlap), so it can reuse localize_PM's systolic machinery:
+/// every rank works every call, where localize_new's rank-0 optimizer leaves all other
+/// ranks idle -- beyond ~1500 orbitals a single call then exceeds the runtime idle
+/// watchdog (MAD_WAIT_TIMEOUT). A different optimizer on the same objective: it reaches
+/// a different, equally valid local maximum.
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_new_systolic(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                                      const std::vector<int>& set, double thresh,
+                                                      const bool randomize, const bool doprint) const {
+    Tensor<T> C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
+    // randomize is ignored, as in the PM path
+    return distributed_localize_new(world, C, set, at_to_bf, at_nbf, thresh, thetamax);
+}
+
 
 template<typename T>
 std::size_t Localizer::determine_frozen_orbitals(const Tensor<T> fmat) {
