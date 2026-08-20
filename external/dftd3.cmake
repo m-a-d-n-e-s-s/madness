@@ -13,13 +13,20 @@ if(ENABLE_DFTD3)
   # but do not go looking for the cause in MADNESS. QUIET does not suppress a
   # message(WARNING) raised inside someone else's config file.
   find_package(s-dftd3 CONFIG QUIET)
-  if(TARGET s-dftd3::s-dftd3 AND DEFINED s-dftd3_DIR)
-    # Record the config used so the installed madness-config.cmake can re-find the dependency.
-    set(s-dftd3_CONFIG "${s-dftd3_DIR}/s-dftd3Config.cmake" CACHE INTERNAL "s-dftd3 package config used by MADNESS")
-  endif()
 
   if(NOT TARGET s-dftd3::s-dftd3)
     find_package(DFTD3)
+  endif()
+
+  # Whether the CONFIG flavour is the one we ended up USING -- the only thing
+  # madness-config.cmake should act on. Recorded explicitly rather than inferred
+  # from s-dftd3_CONFIG being non-empty: measured, find_package leaves that
+  # variable EMPTY when a config file is located but reports NOT FOUND (the
+  # conda-forge 1.5.0 case above), so the inference does hold, but it is a subtle
+  # property of find_package and the consumer config should not silently depend
+  # on a reader knowing it.
+  if(TARGET s-dftd3::s-dftd3)
+    set(MADNESS_DFTD3_VIA_CONFIG ON)
   endif()
 
   # Set the output variables
