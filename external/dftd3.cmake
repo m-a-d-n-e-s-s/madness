@@ -13,6 +13,10 @@ if(ENABLE_DFTD3)
   # but do not go looking for the cause in MADNESS. QUIET does not suppress a
   # message(WARNING) raised inside someone else's config file.
   find_package(s-dftd3 CONFIG QUIET)
+  if(TARGET s-dftd3::s-dftd3 AND DEFINED s-dftd3_DIR)
+    # Record the config used so the installed madness-config.cmake can re-find the dependency.
+    set(s-dftd3_CONFIG "${s-dftd3_DIR}/s-dftd3Config.cmake" CACHE INTERNAL "s-dftd3 package config used by MADNESS")
+  endif()
 
   if(NOT TARGET s-dftd3::s-dftd3)
     find_package(DFTD3)
