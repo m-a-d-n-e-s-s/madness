@@ -121,8 +121,8 @@ if (PCM_FOUND)
 	target_include_directories(madness PUBLIC ${PCM_INCLUDE_DIRS})
 	target_link_libraries(madness PUBLIC ${PCM_LIBRARIES})
 endif ()
-# no include directories: only chem/dispersion.cc includes <s-dftd3.h>, and it
-# gets the -I as a source-file property (see src/madness/chem/CMakeLists.txt)
+# no include directories: only chem/dispersion.cc includes the simple-dftd3 C header, and it
+# is included via an absolute path passed as MADNESS_DFTD3_HEADER (see src/madness/chem/CMakeLists.txt)
 if (TARGET s-dftd3::s-dftd3)
 	target_link_libraries(madness PUBLIC s-dftd3::s-dftd3)
 elseif (DFTD3_FOUND)
