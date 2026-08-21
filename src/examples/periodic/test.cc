@@ -1,5 +1,6 @@
 #include "testpc.h"
 #include <fftw3.h>
+#include <memory>
 
 /*****************
 
