@@ -7,10 +7,9 @@
 // converged.
 //
 // This is an ALLOCATION test (it runs real MRA solves). Usage:
-//   test_calc_manager_run --archive=<moldft restartdata> \
+//   test_calc_manager_run --archive=<moldft restartdata>
 //       [--omega=0.0,0.057] [--axes=xyz] [--protocol=1e-4,1e-6] [--es-roots=N]
-//       \
-//       [--maxiter=N] [--dconv=X] [--calc-dir=DIR] [--print-level=0..3] \
+//       [--maxiter=N] [--dconv=X] [--calc-dir=DIR] [--print-level=0..3]
 //       [--conv-factor=F | --bsh-factor=F --density-factor=F]
 //   --conv-factor loosens/tightens both convergence gates (target = F*dconv,
 //   default F=5); --bsh-factor / --density-factor set each gate independently.

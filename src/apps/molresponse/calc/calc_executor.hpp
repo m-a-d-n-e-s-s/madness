@@ -1672,9 +1672,10 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
   const bool loaded =
       es_full ? load_tpa_es_xy<Full>(world, ctx.calc_dir, omegas, Xfs)
               : load_tpa_es_xy<TDA>(world, ctx.calc_dir, omegas, Xfs);
-  if (world.rank() == 0)
+  if (world.rank() == 0) {
     printf("[TPA timing] ES bundle load: %.1f s\n", madness::wall_time() - t_es0);
     fflush(stdout);
+  }
   if (!loaded) {
     if (world.rank() == 0)
       print("[TPA] no ES bundle under", ctx.calc_dir, "— SKIPPED");

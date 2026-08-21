@@ -786,12 +786,12 @@ namespace madness
                 }
                 else
                 {
-                    size_t sz;
+                    size_t sz = 0;
                     world.gop.broadcast_serializable(sz, rank);
                     for (size_t i = 0; i < sz; i++)
                     {
-                        keyT key;
-                        valueT value;
+                        keyT key{};
+                        valueT value{};
                         world.gop.broadcast_serializable(key, rank);
                         world.gop.broadcast_serializable(value, rank);
                         insert(pairT(key, value));

@@ -1057,7 +1057,6 @@ struct moldft_lib {
 
     SCFResultsTuple results;
     auto &scf_res = std::get<0>(results);
-    auto &opt_res = std::get<3>(results);
     auto &prop_res = std::get<1>(results);
     auto &conv_res = std::get<2>(results);
 

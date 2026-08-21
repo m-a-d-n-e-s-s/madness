@@ -195,7 +195,7 @@ class Molecule {
       // `--geometry=<name>` is the documented spelling (see the help text of
       // moldft/nemo/cc2/madqc); `--molecule=<name>` is accepted as an alias.
       // value_raw, not value: this may be a path, and paths are case-sensitive.
-      for (const std::string &key : {"geometry", "molecule"}) {
+      for (const char *key : {"geometry", "molecule"}) {
         if (parser.key_exists(key)) {
           set_user_defined_value("source_name", parser.value_raw(key));
         }
