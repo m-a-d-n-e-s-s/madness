@@ -798,8 +798,6 @@ namespace madness {
         // If we can do that, keep shrinking the distance if possible.
         // If we wanted the *best* direction for this trick, we'd start with the smallest real-space length.
         for (size_t d = 0; d != NDIM; ++d) {
-          std::cout << "Box bounds " << box_[d].first << " " << box_[d].second << std::endl;
-          std::cout << "Center " << center_[d] << " bmax " << Displacements<NDIM>::bmax_default() - 1 << std::endl;
           if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
             // If displacing past bmax_default *to the left* keeps us in the box...
             for (size_t disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
@@ -861,7 +859,7 @@ namespace madness {
             return Displacement(n, probing_displacement_vec);
           } else {
             if (max_permissible_abs == 0) {
-	      std::cout << probing_displacement_vec << std::endl;
+	      // Need an actual error message here
 	      throw;
             }
             max_permissible_abs -= 1;
