@@ -160,7 +160,7 @@ std::ostream& operator << (std::ostream& s, const TensorType& tt) {
 }
 
 // you can use low-rank tensors only when you use gentensor
-#if HAVE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
 #include <madness/tensor/lowranktensor.h>
 
 #else
@@ -185,7 +185,7 @@ namespace madness {
 		GenTensor(const TensorType tt): Tensor<T>() {}
 		GenTensor(std::vector<long> v, const TensorType& tt) : Tensor<T>(v) {}
 		GenTensor(std::vector<long> v, const TensorArgs& targs) : Tensor<T>(v) {}
-		GenTensor(const SRConf<T>& sr1) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
+		GenTensor(const SRConf<T>& sr1) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use ENABLE_GENTENSOR",1);}
 		GenTensor(long nd, const long d[], const TensorType& tt) : Tensor<T>(nd,d){};
 
         /// Type conversion makes a deep copy
@@ -325,5 +325,5 @@ namespace madness {
 
 }   // namespace madness
 
-#endif /* HAVE_GENTENSOR */
+#endif /* ENABLE_GENTENSOR */
 #endif /* GENTENSOR_H_ */

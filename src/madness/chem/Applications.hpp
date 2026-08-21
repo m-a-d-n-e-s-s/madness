@@ -659,7 +659,7 @@ public:
   explicit CC2Application(World &w, const Params &p,
                           const std::shared_ptr<Nemo> &reference)
       : Application(p),
-        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference),
+        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), p.get<LowRankFunctionParameters>(), reference),
         world_(w), reference_(reference) {}
 
   // print_parameters

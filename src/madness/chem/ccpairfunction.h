@@ -414,6 +414,11 @@ public:
     }
 
     /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const std::shared_ptr<SeparatedConvolution<T,LDIM>> op_, const CCFunction<T,LDIM>& f1, const CCFunction<T,LDIM>& f2) :
+            CCPairFunction(std::make_shared<CCConvolutionOperator<T,LDIM>>(f1.function.world(),op_->info.type,typename CCConvolutionOperator<T,LDIM>::Parameters()),std::vector<Function<T,LDIM>>({f1.function}),std::vector<Function<T,LDIM>>({f2.function})) {
+    }
+
+    /// takes a deep copy of the argument functions
     explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const std::vector<Function<T,LDIM>>& f1,
                             const std::vector<Function<T,LDIM>>& f2) {
         World& world=f1.front().world();
@@ -636,7 +641,7 @@ public:
     }
 
     /// convert this into a pure hi-dim function
-    void convert_to_pure_no_op_inplace();
+    void convert_to_pure_no_op_inplace(const SeparatedConvolution<T,NDIM>* Gscreen=NULL);
 
     CCPairFunction& operator*=(const double fac) {
         if (component->is_pure()) pure()*=fac;
@@ -938,9 +943,18 @@ std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& 
 
 template<typename T, std::size_t NDIM>
 CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const std::vector<CCPairFunction<T,NDIM>>& argument) {
-    CCPairFunction result;
-    for (const auto& a : argument) result+=G(a);
-    return result;
+    // apply G to each piece and collapse the results into a single pure function
+    Function<T,NDIM> sum;
+    for (const auto& a : argument) {
+        if (!a.is_assigned()) continue;
+        CCPairFunction<T,NDIM> Ga = madness::apply(G, a);   // pure result
+        if (sum.is_initialized()) sum += Ga.get_function();
+        else                      sum  = Ga.get_function();
+    }
+    MADNESS_CHECK_THROW(sum.is_initialized(),
+                        "apply(G, vector<CCPairFunction>): no assigned arguments");
+    sum.truncate();
+    return CCPairFunction<T,NDIM>(sum);
 }
 
 /// apply the operator on a CCPairfunction, both with the same dimension
@@ -975,18 +989,18 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPair
 /// result can be
 ///  Q12 f12 |ij> = (1 - O1) (1 - O2) f12 i(1) j(2)
 ///              = f12 ij - \sum_k k(1) f_ik(2) j(2) - \sum_k k(2) f_ij(1)j(1)
-/// which is a pure function and a decomposed function
+/// which is a op-decomposed function and a decomposed function
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const std::vector<CCPairFunction<T,NDIM>>& argument) {
     return CCPairFunction<T,NDIM>::apply(projector,argument);
 }
 
 
+/// application of the projector might return a vector of ccpairfunctions, e.g. Q12 f12 |ij> = f12 |ij > + |ab>
 template<typename T, std::size_t NDIM>
-CCPairFunction<T,NDIM> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
+std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
     auto result=madness::apply(projector,std::vector<CCPairFunction<T,NDIM>> (1,argument));
-    MADNESS_CHECK(result.size()==1);
-    return result[0];
+    return result;
 }
 
 template<typename T, std::size_t NDIM>
@@ -1045,6 +1059,14 @@ std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDI
             result.push_back(inner(cc1,cc2,v1,v2));
         }
     }
+    return result;
+}
+
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> > operator+(const CCPairFunction<T,NDIM> c1, const CCPairFunction<T,NDIM>& c2) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    result.push_back(c1);
+    result.push_back(c2);
     return result;
 }
 

@@ -201,14 +201,14 @@ void Coulomb<T, NDIM>::reset_poisson_operator_ptr(const double lo, const double 
 }
 
 template<typename T, std::size_t NDIM>
-real_function_3d Coulomb<T, NDIM>::compute_density(const SCF *calc) const {
-    real_function_3d density = calc->make_density(world, calc->get_aocc(),
-                                                  calc->get_amo());
+Function<T,NDIM> Coulomb<T, NDIM>::compute_density(const SCF *calc) const {
+    Function<T,NDIM> density = convert<double,T,NDIM>(calc->make_density(world, calc->get_aocc(),
+                                                  calc->get_amo()));
     if (calc->is_spin_restricted()) {
         density.scale(2.0);
     } else {
-        real_function_3d brho = calc->make_density(world, calc->get_bocc(),
-                                                   calc->get_bmo());
+        Function<T,NDIM> brho = convert<double,T,NDIM>(calc->make_density(world, calc->get_bocc(),
+                                                   calc->get_bmo()));
         density += brho;
     }
     density.truncate();
@@ -216,22 +216,22 @@ real_function_3d Coulomb<T, NDIM>::compute_density(const SCF *calc) const {
 }
 
 template<typename T, std::size_t NDIM>
-real_function_3d Coulomb<T, NDIM>::compute_potential(const madness::SCF *calc) const {
-    real_function_3d density = compute_density(calc);
+Function<T,NDIM> Coulomb<T, NDIM>::compute_potential(const madness::SCF *calc) const {
+    Function<T,NDIM> density = compute_density(calc);
     return (*poisson)(density).truncate();
 }
 
 /// same as above, but with the additional factor R^2 in the density
 template<typename T, std::size_t NDIM>
-real_function_3d Coulomb<T, NDIM>::compute_potential(const madness::Nemo *nemo) const {
-    real_function_3d density = nemo->make_density(nemo->get_calc()->aocc,
-                                                  nemo->get_calc()->amo);
+Function<T,NDIM> Coulomb<T, NDIM>::compute_potential(const madness::Nemo *nemo) const {
+    Function<T,NDIM> density = convert<double,T,NDIM>(nemo->make_density(nemo->get_calc()->aocc,
+                                                  nemo->get_calc()->amo));
     if (nemo->get_calc()->is_spin_restricted()) {
         density.scale(2.0);
     } else {
-        real_function_3d brho = nemo->get_calc()->make_density(world,
+        Function<T,NDIM> brho = convert<double,T,NDIM>(nemo->get_calc()->make_density(world,
                                                                nemo->get_calc()->get_bocc(),
-                                                               nemo->get_calc()->get_bmo());
+                                                               nemo->get_calc()->get_bmo()));
         density += brho;
     }
     density = (density * nemo->R_square).truncate();
