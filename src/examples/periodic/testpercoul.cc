@@ -300,7 +300,6 @@ int main(int argc, char**argv) {
         const auto twonm3 = 1 << std::max((n - 1), 0);
         Key<ND> key(n, {twonm3, twonm1, 0});
 
-        std::size_t disp_count = 0;
         std::array<std::optional<std::int64_t>, ND> box_radius;
         std::array<std::optional<std::int64_t>, ND> surface_thickness;
         auto &range = op_rr.get_range();
@@ -399,13 +398,11 @@ int main(int argc, char**argv) {
 
           for (int l = 0; l != (1 << (n - 1)) + 5; ++l) {
             process_displacement(Key<3>(n, Vector<Translation, 3>({l, 0, 0})));
-            ++disp_count;
           }
 
           if (n <= 3) {
             for (auto &&disp : range_boundary_face_displacements) {
               process_displacement(disp);
-              ++disp_count;
             }
           }
 

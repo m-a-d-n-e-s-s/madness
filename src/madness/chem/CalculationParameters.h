@@ -333,10 +333,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
         // and erroring rather than being deleted, because ignore_unknown_keys is
         // true by default and a deleted key would run the deck as a plain single
         // point after one warning nobody reads.
-        for (const std::string& key : {"gopt","gtol","gtest","gval","gprec",
+        for (const char* key : {"gopt","gtol","gtest","gval","gprec",
                                        "gmaxiter","ginitial_hessian","algopt"}) {
         	if (is_user_defined(key))
-        		error(("\n\n`" + key + "` has been retired: geometry optimization is now a task of "
+        		error(("\n\n`" + std::string(key) + "` has been retired: geometry optimization is now a task of "
         		       "its own.\nUse `madqc --optimize --wf=<scf|nemo>` and the `optimization` "
         		       "parameter group\n(see `madqc --print_parameters=optimization`).\n\n").c_str());
         }

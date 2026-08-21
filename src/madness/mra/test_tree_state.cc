@@ -224,5 +224,5 @@ int main(int argc, char **argv) {
     success+=test_conversion(world);
 
     madness::finalize();
-    return 0;
+    return success;
 }

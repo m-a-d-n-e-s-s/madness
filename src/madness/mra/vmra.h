@@ -574,7 +574,7 @@ namespace madness {
     	lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
 
     	// transform s to s^{-1/2} in-place
-    	int rank = 0, nlindep = 0;
+    	size_t rank = 0, nlindep = 0;
     	for(size_t i = 0; i < n; ++i) {
             const auto s_i = s(i);
     		if (s_i > lindep) {

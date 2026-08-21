@@ -852,6 +852,8 @@ template<size_t NDIM>
     	CoeffTracker(const CoeffTracker& other) : impl(other.impl), key_(other.key_),
     			is_leaf_(other.is_leaf_), coeff_(other.coeff_), dnorm_(other.dnorm_) {};
 
+    	CoeffTracker& operator=(const CoeffTracker& other) = default;
+
     	/// const reference to impl
     	const implT* get_impl() const {return impl;}
 
