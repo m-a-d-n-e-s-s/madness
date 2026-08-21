@@ -1,4 +1,8 @@
-# Makefile for building a MADNESS application against the installed container libraries
+# Makefile for building a MADNESS application against the installed container
+# libraries. CMakeLists.txt in this directory is the supported route -- it picks
+# up MADNESS's public compile definitions and BLAS include paths from
+# madness-config.cmake. This file spells the amd64/MKL link line out by hand;
+# on a non-x86-64 image replace the mkl_* libraries with `-lopenblas -llapacke`.
 CXX ?= g++
 CXXFLAGS ?= -std=c++20 -O2 -Wall
 CPPFLAGS ?= -I/usr/local/include

@@ -2,9 +2,14 @@
 
 This directory provides the Docker container configuration for **MADNESS** (Multiresolution Adaptive Numerical Environment for Scientific Simulation) and the **`madqc`** quantum chemistry application.
 
-The container is configured for single-node / non-MPI execution with stubbed-out MPI and uses **Intel MKL** for single-threaded (sequential) BLAS and LAPACK. It provides both:
+The container is configured for single-node / non-MPI execution with stubbed-out MPI and a **sequential** (single-threaded) BLAS/LAPACK — MADNESS owns parallelism through its own task pool, so a threaded BLAS would oversubscribe the cores. It provides both:
 1. Ready-to-use binaries (including **`madqc`** and chemistry datasets).
-2. A complete C++20 development environment (headers, static libraries, CMake configuration files, and `pkg-config`) for building and running new MADNESS-based applications.
+2. A complete C++20 development environment (headers, static libraries and CMake configuration files) for building and running new MADNESS-based applications.
+
+Consume the installation with `find_package(madness CONFIG)`. MADNESS has no
+working `pkg-config` module — `config/MADNESS.pc.in` is an unmaintained
+autotools leftover whose substitutions come out empty — so the image
+deliberately does not ship or advertise one.
 
 ---
 
@@ -25,11 +30,50 @@ Example building with custom arguments:
 docker build --build-arg CMAKE_BUILD_TYPE=Release -t madness:latest -f admin/docker/ubuntu/Dockerfile .
 ```
 
-### Multi-Architecture & ARM64 Notes
-The Dockerfile is structured to support multi-platform builds (e.g. `linux/amd64` and `linux/arm64`). To build for multiple architectures with `docker buildx`:
+### Architecture & the BLAS choice
+Intel MKL is x86-64 only, so the BLAS/LAPACK dependency is selected from
+BuildKit's `TARGETARCH`:
+
+| Target | Packages | CMake |
+| --- | --- | --- |
+| `linux/amd64` | `libmkl-dev` | `-DENABLE_MKL=ON` (`FindMKL.cmake` requires `mkl_sequential`) |
+| anything else | `libopenblas-serial-dev`, `liblapacke-dev` | `-DENABLE_MKL=OFF` |
+
+`linux/amd64` is the configuration this image is built and used in. The
+non-x86-64 path is provided so that `docker buildx build --platform linux/arm64`
+has a sequential BLAS to fall back on, but it is **not** covered by CI — treat it
+as best-effort and expect to adjust package names per Ubuntu release.
+
 ```bash
 docker buildx build --platform linux/amd64 -t madness:amd64 -f admin/docker/ubuntu/Dockerfile . --load
 ```
+
+With the classic (non-BuildKit) builder `TARGETARCH` is empty and the x86-64/MKL
+configuration is assumed.
+
+### Publishing images
+`admin/docker/images/Makefile` builds and pushes the tagged images. It invokes
+the Dockerfile with the repository root as the build context, which is what the
+`COPY . /usr/src/madness` step requires:
+
+```bash
+docker login -u <docker.com username>
+cd admin/docker/images
+make all         # build an image per $(versions), tag the newest as :latest
+make push/all    # build, tag and push everything
+```
+
+Override `repo`, `versions` or `latest` on the command line to build elsewhere,
+e.g. `make repo=myorg versions="24.04 22.04" all`.
+
+### CI coverage
+`.github/workflows/docker.yml` builds the image and exercises it: it reproduces
+the `src/examples/qc/scf_he_hf` reference *through the container* (by pointing
+the qctest harness's `MADQC` at a `docker run` wrapper), runs an LDA deck to
+prove libxc is live at runtime, and builds the developer example against the
+install tree with CMake. It is path-filtered to `admin/docker/**` plus a weekly
+schedule, since a full in-container MADNESS build is too expensive for every
+push. The header of that file records what it deliberately does not cover.
 
 ---
 
@@ -110,6 +154,11 @@ Inside the container, you can use `g++`, `make`, and `cmake` directly.
 
 ### Option B: Building via Make
 
+Option C (CMake) is the supported route — it picks up MADNESS's public compile
+definitions and BLAS include paths automatically. The hand-written form below
+hardcodes the amd64/MKL link line and must be adjusted for a non-x86-64 image
+(`-lopenblas -llapacke` in place of the `mkl_*` libraries).
+
 Create a `Makefile` for your application:
 
 ```makefile
@@ -167,53 +216,34 @@ docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:la
 
 ## 4. Hello World Developer Example Walkthrough
 
-A complete example source file (`hello.cc`):
+The example lives at `admin/docker/examples/hello_world/hello.cc` in the source
+tree and at `/usr/local/share/madness/examples/hello_world/hello.cc` in the
+image. Read it there rather than from a copy in this file — a duplicated listing
+drifts, and this one previously drifted into misusing the runtime.
 
-```cpp
-#include <madness/mra/mra.h>
-#include <iostream>
-#include <cmath>
+It projects `f(x) = sin(x)` onto an adaptive wavelet basis on `[0, pi]` and
+computes `int_0^pi sin(x) dx = 2.0`. Two runtime invariants it exists to
+demonstrate (see the "Runtime" section of `CLAUDE.md`):
 
-using namespace madness;
+- `World& world = initialize(argc, argv);` — `initialize()` already constructs
+  the default `World` on `MPI_COMM_WORLD` and returns a reference to it.
+  Constructing a second `World` on the same communicator makes `finalize()`
+  report `MADNESS runtime finalized but 1 world still exists`, and leaves that
+  `World`'s destructor running after MPI has been torn down.
+- Every `Function` is scoped so that it is destroyed *before* `finalize()`.
 
-double my_func(const coord_1d& r) {
-    return std::sin(r[0]);
-}
+To build and run it with the bundled files:
 
-int main(int argc, char** argv) {
-    // 1. Initialize MADNESS runtime & World communicator
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-
-    // 2. Initialize numerical environment
-    startup(world, argc, argv);
-
-    if (world.rank() == 0) {
-        print("Hello from MADNESS on rank", world.rank(), "of size", world.size());
-    }
-
-    // 3. Set 1D computation domain: [0, pi]
-    FunctionDefaults<1>::set_cubic_cell(0.0, M_PI);
-
-    // 4. Project f(x) = sin(x) into adaptive wavelet basis
-    real_function_1d f = real_factory_1d(world).f(my_func);
-
-    // 5. Compute integral: int_0^pi sin(x) dx = 2.0
-    double integral = f.trace();
-
-    if (world.rank() == 0) {
-        print("Computed integral of sin(x) on [0, pi]:", integral);
-        print("Expected exact value                  :", 2.0);
-    }
-
-    // 6. Finalize runtime
-    finalize();
-    return 0;
-}
-```
-
-To run this example using the bundled files:
 ```bash
 cd admin/docker/examples/hello_world
-docker run --rm -v "$(pwd)":/work -w /work madness:latest make run
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+  madness:latest bash -c "cmake -B build -S . && cmake --build build && ./build/hello_madness"
+```
+
+Expected output ends with:
+
+```
+Computed integral of sin(x) on [0, pi]: 2.000000e+00
+Difference from exact                 : 2.220446e-16
+Calculation completed successfully.
 ```
