@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 #include <madness/world/madness_exception.h>
 #include <madness/world/MADworld.h>
@@ -40,15 +41,22 @@ static std::string lookup_id(const int id) {
 static xc_func_type* make_func(int id, bool polarized) {
     xc_func_type* func = new xc_func_type;
     int POLARIZED = polarized ? XC_POLARIZED : XC_UNPOLARIZED;
-    //MADNESS_ASSERT(xc_func_init(func, id, POLARIZED) == 0); // SHOULD BE CHECK
-    if (xc_func_init(func, id, POLARIZED) != 0) throw "bad stuff!!!!!!!!!!";
+    if (xc_func_init(func, id, POLARIZED) != 0) {
+        delete func;
+        // runtime_error, not MADNESS_EXCEPTION: MadnessException stores the
+        // char* without copying, so a message built on the fly would dangle
+        throw std::runtime_error("libxc could not initialize functional id "
+                                 + std::to_string(id));
+    }
     return func;
 }
 
 static xc_func_type* lookup_func(const std::string& name, bool polarized) {
     int id = lookup_name(name);
-    //MADNESS_ASSERT(id > 0); // SHOULD BE CHECK
-    if(id <= 0) throw "bad stuff xxx";
+    // the offending name has to be in the message: it comes straight from the
+    // user's `xc` input line, which is free-form (`xc GGA_X_PBE 0.75 ...`)
+    if (id <= 0) throw std::runtime_error(
+        "unknown libxc functional in the xc input line: >>" + name + "<<");
     return make_func(id, polarized);
 }
 
@@ -553,7 +561,8 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
 
     //MADNESS_CHECK(!spin_polarized);    // for now
     //MADNESS_CHECK(ispin==0);           // for now
-    if (spin_polarized || ispin!=0) throw "bad stuff yyy";
+    MADNESS_CHECK_THROW(not spin_polarized and ispin==0,
+                        "XCfunctional::fxc_apply: only spin-restricted, ispin==0 is implemented");
 
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma, rho_pt, sigma_pt;   // rho=2rho_alpha, sigma=4sigma_alpha
