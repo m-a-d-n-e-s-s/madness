@@ -1,6 +1,9 @@
 #include "testpc.h"
 #include <fftw3.h>
+#include <algorithm>
+#include <iostream>
 #include <memory>
+#include <vector>
 
 /*****************
 
