@@ -31,6 +31,7 @@
 
 #include <madness.h>
 #include<madness/chem/SCFOperators.h>
+#include<madness/chem/xcfunctional.h>
 
 using namespace madness;
 
@@ -108,6 +109,41 @@ int test_slater_exchange(World& world) {
 
 }
 
+/// the exact-exchange fraction of a hybrid must not depend on how it was named
+
+/// A hybrid can be requested either through one of the hardcoded aliases or by
+/// its libxc name. Both must end up with the same admixture: the fraction is a
+/// property of the functional, queried from libxc, not of the input line.
+/// Before this was queried, the libxc-name form silently ran with no exact
+/// exchange at all.
+int test_hybrid_coefficients(World& world) {
+
+    if (world.rank()==0) print("\nentering test_hybrid_coefficients");
+
+    // {input line, expected exact-exchange fraction}
+    std::vector<std::pair<std::string,double> > cases = {
+            {"LDA",              0.0},
+            {"PBE",              0.0},
+            {"PBE0",             0.25},
+            {"HYB_GGA_XC_PBEH",  0.25},
+            {"B3LYP",            0.2},
+            {"HYB_GGA_XC_B3LYP", 0.2},
+            {"HF",               1.0}
+    };
+
+    int result=0;
+    for (const auto& c : cases) {
+        XCfunctional xcfunc;
+        xcfunc.initialize(c.first, false, world);
+        const double coeff=xcfunc.hf_exchange_coefficient();
+        if (world.rank()==0) printf("  %-20s hf_coeff = %6.4f (expected %6.4f)\n",
+                c.first.c_str(), coeff, c.second);
+        if (check_err(coeff-c.second, 1.e-10, "hf exchange coefficient of "+c.first)) result=1;
+    }
+    return result;
+}
+
+
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
 
@@ -122,6 +158,7 @@ int main(int argc, char** argv) {
     int result=0;
 
     result+=test_slater_exchange(world);
+    result+=test_hybrid_coefficients(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

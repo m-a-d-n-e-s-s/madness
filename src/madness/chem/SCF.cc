@@ -1469,7 +1469,11 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         START_TIMER(world);
 
         XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
-        if (ispin == 0) exc = xcoperator.compute_xc_energy();
+        // accumulate: for a hybrid, exc already holds the exact-exchange
+        // contribution from the block above. compute_xc_energy() returns the
+        // spin-summed DFT energy, hence the ispin==0 guard -- it is counted once,
+        // while the exchange part is accumulated per spin by the caller.
+        if (ispin == 0) exc += xcoperator.compute_xc_energy();
         vloc += xcoperator.make_xc_potential();
 
         END_TIMER(world, "DFT potential");

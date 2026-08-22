@@ -15,6 +15,7 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # Re-measure before retagging; short+medium gate every CI run via
   # check-short-madness.
   add_qctest(scf_he_hf         madqc "qctest;short;applications")     #   6 s
+  add_qctest(scf_he_pbe0       madqc "qctest;medium;applications")    #   9 s
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
   # the only case with k varying across the protocol; must agree with nemo_he_hf

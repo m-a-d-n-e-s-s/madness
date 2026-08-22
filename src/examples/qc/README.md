@@ -50,6 +50,7 @@ Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
 | `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
+| `scf_he_pbe0` | `scf` | He | the only hybrid — exact exchange plus a semilocal functional | 9 s | medium |
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
