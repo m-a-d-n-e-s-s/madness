@@ -400,7 +400,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, int ispin, std::s
 
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
-        : world(world), ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+        : world(world), dft_deriv(nemo->get_calc()->param.dft_deriv()), ispin(ispin),
+          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
@@ -438,7 +439,9 @@ XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, const real_functi
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, const real_function_3d &arho,
                                 const real_function_3d &brho, int ispin)
-        : world(world), nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin), extra_truncation(0.01) {
+        : world(world), dft_deriv(nemo->get_calc()->param.dft_deriv()),
+          nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin),
+          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
                    not nemo->get_calc()->param.spin_restricted(), world);
@@ -629,7 +632,7 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
     }
 
     world.gop.fence();
-    truncate(world, xc_args, extra_truncation);
+    truncate(world, xcargs, extra_truncation);
     return xcargs;
 }
 
