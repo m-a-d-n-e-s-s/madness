@@ -48,8 +48,9 @@
 #include "../tensor/tensor_lapack.h"
 #include "../world/madness_exception.h"
 #include "../world/print.h"
+#include <madness/misc/array_of_bools.h>
+#include <madness/mra/kernelrange.h>
 #include <madness/mra/operatorinfo.h>
-
 
 namespace madness {
 
@@ -328,6 +329,47 @@ public:
         expnt = expnt(Slice(0,npt-1));
     }
 
+    void truncate_mixed_expansion(Tensor<double>&c, Tensor<double>& e, const std::array<LatticeRange, NDIM>& lattice_ranges, const Tensor<double>& cell_width, double lo, double finite_hi, double eps) const {
+        int last_infinity_forced_index = 0;
+	bool infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+	bool finite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return !b.infinite();});
+        if (infinite_any) {
+            double max_infinite_spacing = 0;
+            for(int d=0; d!=NDIM; ++d) {
+                if (lattice_ranges[d].infinite())
+                    max_infinite_spacing = std::max(max_infinite_spacing, cell_width(d));
+            }
+	    double tcut = 0.25 / max_infinite_spacing / max_infinite_spacing;
+            for (int i=0; i<e.dim(0); ++i) {
+                if (e(i) < tcut) {
+		    last_infinity_forced_index = i - 1;
+		    break;
+                 }
+	        // If the loop never breaks, we can't truncate.
+	        if (i + 1 == e.dim(0)) return;
+            }
+        }
+        if (finite_any) {
+            double mid = lo + (finite_hi-lo)*0.5;
+            long npt=c.size();
+            for (long i=npt-1; i>last_infinity_forced_index; --i) {
+                double cnew = c[i]*exp(-(e[i]-e[i-1])*mid*mid);
+                double errlo = c[i]*exp(-e[i]*lo*lo) -
+                               cnew*exp(-e[i-1]*lo*lo);
+                double errhi = c[i]*exp(-e[i]*finite_hi*finite_hi) -
+                               cnew*exp(-e[i-1]*finite_hi*finite_hi);
+                if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
+                npt--;
+                c[i-1] = c[i-1] + cnew;
+            }
+            c = c(Slice(0,npt-1));
+            e = e(Slice(0,npt-1));
+        } else {
+            c = c(Slice(0,last_infinity_forced_index+1));
+            e = e(Slice(0,last_infinity_forced_index+1));
+        }
+    }
+
     void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
 			double L, bool discardG0) const {
 		double tcut = 0.25/L/L;
@@ -336,6 +378,8 @@ public:
 			// Relies on expnts being in decreasing order
 			for (int i=0; i<e.dim(0); ++i) {
 				if (e(i) < tcut) {
+                                        std::cout << "Performed cut at " << i << " with dimension " << e.dim(0) << std::endl;
+                                        std::cout << "Truncation threshold " << tcut << " means excluding " << e(i) << std::endl;
 					c = c(Slice(0,i));
 					e = e(Slice(0,i));
 					break;

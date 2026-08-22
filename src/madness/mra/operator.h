@@ -224,7 +224,8 @@ namespace madness {
 
         static inline std::pair<Tensor<double>,Tensor<double>>
         make_coeff_for_operator(World& world, OperatorInfo& info,
-                                const std::array<LatticeRange, NDIM>& lattice_ranges) {
+                                const std::array<LatticeRange, NDIM>& lattice_ranges,
+                                const Vector<double, NDIM>& magnifier = Vector<double, NDIM>(1.0)) {
 
           const Tensor<double> &cell_width =
               FunctionDefaults<NDIM>::get_cell_width();
@@ -240,6 +241,7 @@ namespace madness {
               break;
             }
           }
+	  double hi_finite = hi;
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
@@ -257,12 +259,11 @@ namespace madness {
             for(int d=0; d!=NDIM; ++d) {
               if (lattice_ranges[d])
                 max_lattice_spacing =
-                    std::max(max_lattice_spacing, cell_width(d));
+                    std::max(max_lattice_spacing, cell_width(d) * magnifier[d]);
             }
             // WARNING: discardG0 = true ignores the coefficients of truncated
             //          terms
-            fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                            /* discardG0 = */ true);
+	    fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, info.lo, hi_finite, info.thresh);
             info.truncate_lowexp_gaussians = true;
           }
 
@@ -1044,12 +1045,13 @@ namespace madness {
                              const std::array<LatticeRange, NDIM>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false,
-                             const Vector<double, NDIM>& bloch_k = Vector<double, NDIM>(0.0))
+                             const Vector<double, NDIM>& bloch_k = Vector<double, NDIM>(0.0),
+                             const Vector<double, NDIM>& magnifier = Vector<double, NDIM>(1.0))
                : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_ranges,k,doleaves,info1.mu) {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
+            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges, magnifier);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
             ops.resize(rank);
@@ -2011,6 +2013,7 @@ namespace madness {
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
       const auto lattice_summed_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return static_cast<bool>(b);});
       const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+      auto finite_hi = hi;
       if (lattice_summed_any) {
         hi *= 100;
       }
@@ -2030,8 +2033,7 @@ namespace madness {
         }
         // WARNING: discardG0 = true ignores the coefficients of truncated
         //          terms
-        fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                        /* discardG0 = */ false);
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, lo, finite_hi, eps);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
                                                  lattice_ranges, k);
