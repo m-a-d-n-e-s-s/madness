@@ -41,6 +41,14 @@ one -- empty, carrying the `.qctest_workdir` marker, or holding this case's own 
 Cases tagged `short` or `medium` are also picked up by `check-short-madness`
 (`ctest -L "short|medium"`), so they gate CI along with the unit tests.
 
+**A deck naming a functional beyond `lda` needs libxc.** Without it,
+`xcfunctional_ldaonly.cc` stands in and understands only `lda` and `hf`;
+anything else throws at the first potential evaluation. Such cases are therefore
+registered under `if (TARGET Libxc::xc)` in `CMakeLists.txt` and simply do not
+exist in a build without libxc -- which is the case for every Ubuntu cell in CI
+today. That constraint, not preference, is why almost everything here is
+`xc hf`.
+
 ## Cases
 
 Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
