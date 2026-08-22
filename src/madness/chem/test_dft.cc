@@ -99,6 +99,7 @@ int test_slater_exchange(World& world) {
     print("xc energy via kernel:",energy3);
     ratio=energy/energy3;
     print("ratio ",ratio);
+    err=std::abs(ratio-1.0);
     if (check_err(err,thresh,"dft kernel error")) return 1;
 //    plot_plane(world,kernel,dens,vphiphi,"kernel");
 
