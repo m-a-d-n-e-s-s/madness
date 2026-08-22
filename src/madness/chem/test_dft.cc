@@ -144,6 +144,68 @@ int test_hybrid_coefficients(World& world) {
 }
 
 
+/// the meta-gga machinery, checked against two exact identities
+
+/// (a) int(tau) must equal the kinetic energy. tau = 1/2 sum_i |grad psi_i|^2, so
+///     this pins the factor of 1/2 that libxc has required since version 2.0.0
+///     and would catch a tau built from the wrong quantity.
+/// (b) the non-multiplicative operator must satisfy its own weak form,
+///     <phi|v_tau|psi> = 1/2 int (de/dtau) grad(phi).grad(psi).
+///     That is the integration by parts the nested form
+///     -1/2 sum_x D_x(v_tau D_x psi) is supposed to realize, and it is also the
+///     self-adjointness that make_fock_matrix relies on.
+int test_meta_gga(World& world) {
+
+    if (world.rank()==0) print("\nentering test_meta_gga");
+
+    const double thresh=FunctionDefaults<3>::get_thresh();
+    int result=0;
+
+    // a normalized s-type orbital, and the closed-shell density that goes with it
+    real_function_3d psi=real_factory_3d(world).f(slater);
+    psi.scale(1.0/psi.norm2());
+    real_function_3d dens=2.0*psi*psi;          // closed shell
+
+    XCOperator<double,3> xc(world,"MGGA_X_TPSS",false,copy(dens),copy(dens));
+    MADNESS_CHECK(xc.has_tau_term());
+    xc.set_tau(vecfuncT(1,psi));
+
+    // (a) int(tau) == T. tau is stored per spin, so the total is twice the alpha
+    //     value for a closed-shell system.
+    const double tau_integral=2.0*xc.get_tau(0).trace();
+    Kinetic<double,3> T(world);
+    const double kinetic=2.0*T(psi,psi);        // factor 2 for closed shell
+    // relative: the test orbital is deliberately cuspy, so its kinetic energy is
+    // O(100) and an absolute tolerance would say nothing
+    if (world.rank()==0) print("  int(tau)",tau_integral," kinetic",kinetic,
+                               " rel err",(tau_integral-kinetic)/kinetic);
+    if (check_err((tau_integral-kinetic)/kinetic,thresh*10.0,
+                  "int(tau) != kinetic energy")) result=1;
+
+    // (b) the weak form of the operator. make_xc_potential() is what computes vtau.
+    const real_function_3d pot=xc.make_xc_potential();
+    const real_function_3d vtau=xc.get_vtau();
+    MADNESS_CHECK(vtau.is_initialized());
+
+    real_function_3d phi=real_factory_3d(world).f(slater2);
+    phi.scale(1.0/phi.norm2());
+
+    for (const real_function_3d& ket : {psi, phi}) {
+        const double lhs=inner(phi,xc.apply_tau_term(vecfuncT(1,ket))[0]);
+        double rhs=0.0;
+        for (int axis=0; axis<3; ++axis) {
+            real_derivative_3d D(world,axis);
+            rhs+=0.5*inner(vtau*D(phi),D(ket));
+        }
+        if (world.rank()==0) print("  <phi|v_tau|ket>",lhs," weak form",rhs);
+        if (check_err(lhs-rhs,std::max(1.e-8,std::fabs(rhs)*1.e-3),
+                      "meta-gga operator does not match its weak form")) result=1;
+    }
+
+    return result;
+}
+
+
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
 
@@ -159,6 +221,7 @@ int main(int argc, char** argv) {
 
     result+=test_slater_exchange(world);
     result+=test_hybrid_coefficients(world);
+    result+=test_meta_gga(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

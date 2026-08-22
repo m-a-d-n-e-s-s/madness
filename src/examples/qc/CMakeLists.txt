@@ -21,6 +21,7 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # other deck here is `xc hf` or `xc lda`.
   if (TARGET Libxc::xc)
     add_qctest(scf_he_pbe0     madqc "qctest;medium;applications")    #   9 s
+    add_qctest(scf_he_tpss     madqc "qctest;medium;applications")    #  17 s
   endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
