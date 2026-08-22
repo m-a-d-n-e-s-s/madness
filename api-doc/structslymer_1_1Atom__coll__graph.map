@@ -1,0 +1,5 @@
+<map id="slymer::Atom" name="slymer::Atom">
+<area shape="rect" id="Node000001" title="An atom (symbol and position)." alt="" coords="5,93,116,119"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="31,5,90,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="63,45,63,93,58,93,58,45"/>
+</map>

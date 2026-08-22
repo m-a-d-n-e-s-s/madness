@@ -1,0 +1,21 @@
+<map id="exchangeoperator.h" name="exchangeoperator.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="407,5,557,31"/>
+<area shape="rect" id="Node000002" href="$SCFOperators_8cc.html" title="Operators for the molecular HF and DFT code." alt="" coords="5,86,135,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="398,35,148,81,116,89,115,83,147,76,397,30"/>
+<area shape="rect" id="Node000003" href="$exchangeoperator_8cc.html" title=" " alt="" coords="159,86,317,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="434,37,274,89,273,83,432,32"/>
+<area shape="rect" id="Node000004" href="$madchem_8h.html" title=" " alt="" coords="341,86,439,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="460,42,405,88,402,84,456,38"/>
+<area shape="rect" id="Node000008" href="$test__exchange__asymmetric_8cc.html" title="tests the exchange operator with bra, ket and vf all distinct" alt="" coords="464,86,684,111"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="508,38,562,84,559,88,504,42"/>
+<area shape="rect" id="Node000009" href="$test__exchange__batch__cache_8cc.html" title="tests the exchange operator&#39;s batch record keys and its bounded batch cache" alt="" coords="709,79,869,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="541,31,716,76,714,81,539,37"/>
+<area shape="rect" id="Node000010" href="$test__exchange__owner__assign_8cc.html" title="tests the pure batch&#45;splitting and owner&#45;assignment helpers of the exchange operator" alt="" coords="893,79,1057,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="572,29,881,76,894,78,893,84,880,81,571,34"/>
+<area shape="rect" id="Node000005" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="244,167,307,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="363,121,294,169,291,164,360,117"/>
+<area shape="rect" id="Node000006" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="331,167,449,192"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="393,125,393,166,387,166,387,125"/>
+<area shape="rect" id="Node000007" href="$simple__hf_8cpp.html" title=" " alt="" coords="473,167,585,192"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="423,116,509,164,507,169,421,120"/>
+</map>

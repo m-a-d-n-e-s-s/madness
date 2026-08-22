@@ -1,0 +1,23 @@
+<map id="NWChem.h" name="NWChem.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="237,5,331,31"/>
+<area shape="rect" id="Node000002" href="$InitParameters_8h.html" title=" " alt="" coords="18,79,147,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="239,38,116,81,115,76,238,33"/>
+<area shape="rect" id="Node000006" href="$NWChem_8cc.html" title=" " alt="" coords="172,79,273,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="267,43,235,80,231,77,263,40"/>
+<area shape="rect" id="Node000007" href="$madchem_8h.html" title=" " alt="" coords="297,79,396,104"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="305,39,339,77,335,80,301,43"/>
+<area shape="rect" id="Node000011" href="$molecularbasis_8cc.html" title=" " alt="" coords="420,79,559,104"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="331,33,457,76,455,81,329,38"/>
+<area shape="rect" id="Node000003" href="$DF_8h.html" title=" " alt="" coords="57,152,108,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="85,118,85,152,80,152,80,118"/>
+<area shape="rect" id="Node000004" href="$DF_8cc.html" title=" " alt="" coords="5,225,61,251"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="69,190,44,227,39,224,65,187"/>
+<area shape="rect" id="Node000005" href="$DFdriver_8cc.html" title=" " alt="" coords="86,225,181,251"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="101,187,127,224,123,227,97,190"/>
+<area shape="rect" id="Node000008" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="201,152,263,177"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="318,113,252,154,249,150,315,109"/>
+<area shape="rect" id="Node000009" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="287,152,406,177"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="349,118,349,152,344,152,344,118"/>
+<area shape="rect" id="Node000010" href="$simple__hf_8cpp.html" title=" " alt="" coords="429,152,541,177"/>
+<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="382,108,464,149,461,154,380,113"/>
+</map>

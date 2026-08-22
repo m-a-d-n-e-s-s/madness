@@ -1,0 +1,15 @@
+<map id="madness::WorldDCPmapInterface&lt; keyT &gt;" name="madness::WorldDCPmapInterface&lt; keyT &gt;">
+<area shape="rect" id="Node000001" title="Interface to be provided by any process map." alt="" coords="5,165,245,205"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CloudOwnerPmap.html" title="Process map for the cloud&#39;s batch container." alt="" coords="315,5,520,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="156,154,216,103,253,77,292,55,322,43,324,48,294,60,256,82,219,107,159,158"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1LevelPmap.html" title="A pmap that locates children on odd levels with their even level parents." alt="" coords="337,69,498,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="186,158,292,119,336,106,337,111,294,124,188,163"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1SimplePmap.html" title="A simple process map." alt="" coords="332,133,503,173"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="259,168,332,160,332,165,259,173"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1WorldDCDefaultPmap.html" title="Default process map is &quot;random&quot; using madness::hash(key)" alt="" coords="302,197,533,237"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="259,197,302,202,301,207,259,203"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1WorldDCLocalPmap.html" title="Local process map will always return the current process as owner." alt="" coords="309,261,525,301"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="188,208,294,247,335,259,333,264,292,252,186,213"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1WorldDCNodeReplicatedPmap.html" title=" " alt="" coords="293,325,541,365"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="159,213,219,263,256,289,294,311,324,323,322,328,292,316,253,294,216,268,156,217"/>
+</map>

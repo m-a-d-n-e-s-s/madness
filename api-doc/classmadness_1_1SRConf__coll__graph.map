@@ -1,0 +1,8 @@
+<map id="madness::SRConf&lt; T &gt;" name="madness::SRConf&lt; T &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,197,180,223"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="6,5,169,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="91,44,95,197,90,197,85,45"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="108,80,320,135"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="117,37,177,78,174,82,114,41"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="173,146,108,199,105,195,170,142"/>
+</map>

@@ -1,0 +1,16 @@
+<map id="madness::Molecule" name="madness::Molecule">
+<area shape="rect" id="Node000001" title=" " alt="" coords="805,79,953,105"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,55,677,81"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="691,75,805,84,805,89,691,80"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="119,25,178,50"/>
+<area shape="poly" id="edge5_Node000001_Node000003" title=" " alt="" coords="191,31,316,23,448,18,551,19,653,30,782,57,845,77,843,82,781,63,652,35,551,24,448,23,316,28,192,36"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="192,40,316,52,443,60,442,65,316,57,191,45"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,105,663,130"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="676,110,781,103,805,100,806,105,782,108,676,116"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,105,230,130"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="244,115,457,115,457,120,244,120"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,155,641,195"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="654,158,717,146,781,129,850,102,852,107,782,135,718,151,655,164"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,162,292,187"/>
+<area shape="poly" id="edge7_Node000006_Node000007" title=" " alt="" coords="306,172,479,172,479,177,306,177"/>
+</map>
