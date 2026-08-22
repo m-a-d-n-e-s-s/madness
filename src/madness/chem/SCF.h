@@ -59,6 +59,7 @@
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
 #include<madness/chem/pcm.h>
+#include<madness/chem/dispersion.h>
 #include<madness/chem/QCPropertyInterface.h>
 
 #include <madness/tensor/tensor_json.hpp>
@@ -201,6 +202,14 @@ public:
     CalculationParameters param;
     XCfunctional xc;
     PCM pcm;
+
+    /// empirical DFT-D3 dispersion correction; inactive unless `dispersion` is set
+    ///
+    /// Owned by SCF so that nemo and oep, which hold a shared_ptr<SCF>, reach
+    /// the same object through `calc->dispersion`. (Znemo carries a bare
+    /// CalculationParameters instead and uses the static
+    /// DispersionCorrection::reject to refuse a correction it cannot apply.)
+    DispersionCorrection dispersion;
     AtomicBasisSet aobasis;
     functionT mask;
 

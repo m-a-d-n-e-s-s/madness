@@ -111,6 +111,7 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
+option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
 
 set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
@@ -673,6 +674,9 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
   include(external/integratorxx.cmake)
+  include(external/dftd3.cmake)
+  add_feature_info(DFTD3 MADNESS_HAS_DFTD3
+      "empirical DFT-D3 dispersion corrections to the energy and the nuclear gradient, via simple-dftd3")
 endif ()
 include(external/pybind11.cmake)
 

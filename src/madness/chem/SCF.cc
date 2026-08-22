@@ -204,6 +204,7 @@ scf_data::scf_data() : iter(0) {
     e_data.insert({"e_nuclear", std::vector<double>(0)});
     e_data.insert({"e_coulomb", std::vector<double>(0)});
     e_data.insert({"e_pcm", std::vector<double>(0)});
+    e_data.insert({"e_disp", std::vector<double>(0)});
     e_data.insert({"e_xc", std::vector<double>(0)});
     e_data.insert({"e_nrep", std::vector<double>(0)});
     e_data.insert({"e_tot", std::vector<double>(0)});
@@ -248,6 +249,14 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
 
     xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level() >= 10);
     //xc.plot();
+
+    // Constructed here, next to the functional it belongs to, and not lazily at
+    // the first energy evaluation: an unusable functional name for the D3
+    // parameter tables must abort before any work is done, and the ctor throws
+    // collectively (every rank runs it, none of it touches MPI).
+    dispersion = DispersionCorrection(param.dispersion(), param.xc(),
+                                      param.dispersion_functional(),
+                                      param.dispersion_atm());
 
     // Ensure we have enough basis functions to guess the requested
     // number of states ... a minimal basis for a closed-shell atom
@@ -1574,7 +1583,8 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
         }
     }
     //if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
-    r += ra + ru + rc;
+    // the D3 gradient uses the same [3*atom + axis] layout, in Ha/bohr
+    r += ra + ru + rc + dispersion.gradient(world, molecule);
     END_TIMER(world, "derivatives");
 
     // Not printed while an optimizer is driving: these are the RAW derivatives,
@@ -2425,10 +2435,11 @@ void SCF::solve(World& world) {
         }
 
         double enrep = molecule.nuclear_repulsion_energy();
+        double edisp = dispersion.energy(world, molecule);
         double ekinetic = ekina + ekinb;
         double enonlocal = enla + enlb;
         double exc = exca + excb;
-        double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm;
+        double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm + edisp;
         current_energy = etot;
         //esol = etot;
 
@@ -2449,6 +2460,8 @@ void SCF::solve(World& world) {
             printf("                  PCM %16.8f\n", epcm);
             printf(" exchange-correlation %16.8f\n", exc);
             printf("    nuclear-repulsion %16.8f\n", enrep);
+            if (dispersion.active())
+                printf("      dispersion (D3) %16.8f\n", edisp);
             printf("                total %16.8f\n\n", etot);
         }
         e_data.add_data({{"e_kinetic", ekinetic},
@@ -2456,6 +2469,7 @@ void SCF::solve(World& world) {
                          {"e_nuclear", enuclear},
                          {"e_coulomb", ecoulomb},
                          {"e_pcm",     epcm},
+                         {"e_disp",    edisp},
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
