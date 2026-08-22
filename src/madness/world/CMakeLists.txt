@@ -27,7 +27,7 @@ if(MADNESS_ENABLE_CEREAL)
 endif()
 
 # Create the MADworld-obj and MADworld library targets
-add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
+add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "misc;common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
 # DISABLEPIE flag can break linking of dependent libraries (e.g. on Linux using gcc6)
 # instead for each dependent executable target T do:

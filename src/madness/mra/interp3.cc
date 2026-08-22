@@ -34,7 +34,7 @@
 #include <cmath>
 #include <vector>
 #include <madness/world/worldinit.h>
-#include <madness/misc/interpolation_1d.h>
+#include <madness/mra/interpolation_1d.h>
 
 using namespace std;
 
