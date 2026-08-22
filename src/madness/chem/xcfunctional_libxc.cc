@@ -309,18 +309,25 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * MADNESS_RESTRICT zetaa_y = xc_args[enum_zetaa_y].ptr();
             const double * MADNESS_RESTRICT zetaa_z = xc_args[enum_zetaa_z].ptr();
 
-            const double * MADNESS_RESTRICT zetab_x = xc_args[enum_zetaa_x].ptr();
-            const double * MADNESS_RESTRICT zetab_y = xc_args[enum_zetaa_y].ptr();
-            const double * MADNESS_RESTRICT zetab_z = xc_args[enum_zetaa_z].ptr();
+            const double * MADNESS_RESTRICT zetab_x = xc_args[enum_zetab_x].ptr();
+            const double * MADNESS_RESTRICT zetab_y = xc_args[enum_zetab_y].ptr();
+            const double * MADNESS_RESTRICT zetab_z = xc_args[enum_zetab_z].ptr();
 
-            // might happen if there are no beta electrons
+            // might happen if there are no beta electrons: prep_xc_args leaves the
+            // beta intermediates unassigned, so their data pointers are NULL.
+            // Substitute a zero tensor -- rho_beta is zero as well, so all beta
+            // contributions vanish regardless of what zeta_beta is set to.
             madness::Tensor<double> dummy;
-            if ((rhob==NULL) or (chiab==NULL) or (chibb==NULL)) {
+            if ((rhob==NULL) or (chiab==NULL) or (chibb==NULL)
+                    or (zetab_x==NULL) or (zetab_y==NULL) or (zetab_z==NULL)) {
                 dummy=madness::Tensor<double>(np);
             }
             if (rhob==NULL) rhob=dummy.ptr();
             if (chiab==NULL) chiab=dummy.ptr();
             if (chibb==NULL) chibb=dummy.ptr();
+            if (zetab_x==NULL) zetab_x=dummy.ptr();
+            if (zetab_y==NULL) zetab_y=dummy.ptr();
+            if (zetab_z==NULL) zetab_z=dummy.ptr();
 
             rho   = madness::Tensor<double>(np*2L);
             drho[0]  = madness::Tensor<double>(np*2L);
