@@ -98,5 +98,6 @@ jobs:
       run: |
         find "${{ github.workspace }}/conda-dist" \( -name '*.tar.bz2' -o -name '*.conda' \) -print0 | \
           while IFS= read -r -d '' pkg; do
-            anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
+            anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg" || \
+              echo "Warning: upload of $(basename "$pkg") failed (package may already exist on Anaconda.org)"
           done
