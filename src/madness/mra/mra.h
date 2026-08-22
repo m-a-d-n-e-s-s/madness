@@ -821,11 +821,29 @@ namespace madness {
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
-        /// See comments for err() w.r.t. applying to many functions.
+        /// If the function is neither compressed nor reconstructed, it is
+        /// reconstructed first -- summing norm2sq_local over e.g. a redundant tree
+        /// counts every level and overcounts.  See comments for err() w.r.t.
+        /// applying to many functions.
+        ///
+        /// Throws if the function is on-demand: it carries no coefficients, so
+        /// its norm is not defined until it is materialized.
+        ///
+        /// N.B. that reconstruction is a mutation -- it discards the interior
+        /// coefficients of a redundant tree -- so this (logically const) method
+        /// fences before it changes state: any task still reading those
+        /// coefficients, e.g. a mul_sparse() invoked with fence=false, must be
+        /// done with them before they are removed.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
+            if (!(is_compressed() or is_reconstructed())) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "norm2 is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -1244,15 +1262,32 @@ namespace madness {
         T trace_local() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
+                "function must be compressed or reconstructed for trace_local");
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
 
 
         /// Returns global value of \c int(f(x),x) ... global comm required
+
+        /// If the function is neither compressed nor reconstructed, it is
+        /// reconstructed first.  For efficient use especially with many functions,
+        /// reconstruct them all first and use trace_local instead, so you can
+        /// perform a global sum on all at the same time.
+        ///
+        /// Throws if the function is on-demand, and fences before reconstructing;
+        /// see norm2() for both.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            if (!(is_compressed() or is_reconstructed())) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "trace is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
+            if (VERIFY_TREE) verify_tree();
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
             impl->world.gop.fence();
@@ -1424,9 +1459,7 @@ namespace madness {
             // if this and g are the same, use norm2()
             if constexpr (std::is_same_v<T,R>) {
               if (this->get_impl() == g.get_impl()) {
-                TreeState state = this->get_impl()->get_tree_state();
-                if (not(state == reconstructed or state == compressed))
-                  change_tree_state(reconstructed);
+                // let norm2() handle tree state
                 double norm = this->norm2();
                 return norm * norm;
               }
