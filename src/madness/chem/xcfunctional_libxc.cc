@@ -65,6 +65,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, const bool verbose) {
     rhotol=1e-7; rhomin=0.0; // default values
     ggatol=1.e-4;
+    tautol=1.e-12;
 
     bool printit=verbose and (world.rank()==0);
     double factor;      // weight factor for the various functionals
@@ -96,6 +97,18 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             funcs.push_back(std::make_pair(lookup_func("GGA_X_PBE",polarized),0.75));
             funcs.push_back(std::make_pair(lookup_func("GGA_C_PBE",polarized),1.0));
             hf_coeff=0.25;
+        } else if (name == "TPSS") {
+            // meta-gga: bring these up before r2scan/scan, since TPSS is built on
+            // z = tau_W/tau and does not carry the oscillation in grad(de/dtau) at
+            // alpha = 1 that makes the SCAN family grid-hungry
+            funcs.push_back(std::make_pair(lookup_func("MGGA_X_TPSS",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("MGGA_C_TPSS",polarized),1.0));
+        } else if (name == "R2SCAN") {
+            funcs.push_back(std::make_pair(lookup_func("MGGA_X_R2SCAN",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("MGGA_C_R2SCAN",polarized),1.0));
+        } else if (name == "SCAN") {
+            funcs.push_back(std::make_pair(lookup_func("MGGA_X_SCAN",polarized),1.0));
+            funcs.push_back(std::make_pair(lookup_func("MGGA_C_SCAN",polarized),1.0));
         } else if (name == "B3LYP") {
             // VWN-3 correlation; the 0.2 exact exchange comes from the libxc query below
             funcs.push_back(std::make_pair(lookup_func("HYB_GGA_XC_B3LYP",polarized),1.0));
@@ -105,6 +118,8 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             line >> rhotol;
         } else if (name == "GGATOL") {
             line >> ggatol;
+        } else if (name == "TAUTOL") {
+            line >> tautol;
         } else if (name == "HF" || name == "HF_X") {
             if (! (line >> factor)) factor = 1.0;
             hf_coeff = factor;
@@ -114,6 +129,10 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         }
     }
 
+    // nderiv is a rung index (0 lda, 1 gga, 2 meta-gga), not a count of density
+    // derivatives -- a meta-gga needs FIRST derivatives of the orbitals (through
+    // tau), not second derivatives of the density. Query it through
+    // is_lda()/is_gga()/is_meta() and the needs_sigma()/needs_tau() capabilities.
     for (unsigned int i=0; i<funcs.size(); i++) {
         const int family = funcs[i].first->info->family;
         if (family == XC_FAMILY_GGA) nderiv = std::max(nderiv,1);
@@ -121,6 +140,17 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         if (family == XC_FAMILY_MGGA) nderiv = std::max(nderiv,2);
         if (family == XC_FAMILY_HYB_MGGA) nderiv = std::max(nderiv,2);
  //       if (family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
+    }
+
+    // Laplacian-level functionals would need nabla^2 rho as a separate input and
+    // contribute +nabla^2(de/dnabla^2 rho) to the potential -- four net derivatives
+    // of the density. Not supported; lapl is passed to libxc as NULL, so a
+    // functional that needs it must be refused rather than silently given zeros.
+    for (unsigned int i=0; i<funcs.size(); i++) {
+        if (funcs[i].first->info->flags & XC_FLAGS_NEEDS_LAPLACIAN) {
+            MADNESS_EXCEPTION("Laplacian-level functionals are not supported: "
+                              "no nabla^2 rho intermediate is available",1);
+        }
     }
 
     // The exact-exchange admixture of a hybrid is a property of the functional,
@@ -158,6 +188,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         print("\nscreening parameters");
         print(" rhotol, rhomin",rhotol,rhomin);
         print("         ggatol",ggatol);
+        if (needs_tau()) print("         tautol",tautol);
         if (printit) print("polarized ",polarized,"\n");
 
     }
@@ -183,6 +214,14 @@ bool XCfunctional::is_meta() const {
     return nderiv == 2;
 }
 
+bool XCfunctional::needs_sigma() const {
+    return nderiv >= 1;
+}
+
+bool XCfunctional::needs_tau() const {
+    return nderiv >= 2;
+}
+
 bool XCfunctional::is_dft() const {
 //    return (is_lda() || is_gga() || is_meta());
     return (funcs.size()>0);
@@ -201,6 +240,7 @@ bool XCfunctional::has_kxc() const
 
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
+           madness::Tensor<double>& tau,
            madness::Tensor<double>& rho_pt, madness::Tensor<double>& sigma_pt,
            std::vector<madness::Tensor<double> >& drho,
            std::vector<madness::Tensor<double> >& drho_pt,
@@ -230,7 +270,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 }
             }
         }
-        else if (is_gga()) {
+        else if (needs_sigma()) {
             // rho is the density
             // the reduced density gradient sigma is given by
             // sigma = rho * rho * chi
@@ -259,6 +299,27 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 ddensx[i]=dens[i]*zetaa_x[i];
                 ddensy[i]=dens[i]*zetaa_y[i];
                 ddensz[i]=dens[i]*zetaa_z[i];
+            }
+
+            if (needs_tau()) {
+                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
+                madness::Tensor<double> taudummy;
+                if (taua==NULL) {           // caller did not provide tau
+                    taudummy=madness::Tensor<double>(np);
+                    taua=taudummy.ptr();
+                }
+                tau = madness::Tensor<double>(np);
+                double * MADNESS_RESTRICT t = tau.ptr();
+                for (long i=0; i<np; i++) {
+                    double ti = std::max(tautol,2.0*taua[i]);   // full tau is twice alpha tau
+                    // tau >= tau_W = sigma/(8 rho) is exact, so the Fermi hole
+                    // curvature stays positive and the iso-orbital indicators stay in
+                    // range. Bounding tau from below rather than clamping sigma down
+                    // (which is what libxc's XC_FLAGS_ENFORCE_FHC does) leaves the
+                    // density gradient untouched.
+                    if (dens[i] > rhotol) ti = std::max(ti,sig[i]/(8.0*dens[i]));
+                    t[i] = ti;
+                }
             }
 
             // add perturbed density and density gradients in response calculations
@@ -297,7 +358,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
         }
         else {
-            MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
+            MADNESS_EXCEPTION("unknown functional rung in xcfunctional",1);
         }
 
     } else if (spin_polarized) {
@@ -322,7 +383,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 MADNESS_EXCEPTION("no spin polarized DFT response in xcfunctional",1);
             }
         }
-        else if (is_gga()) {
+        else if (needs_sigma()) {
             // input
             const double * MADNESS_RESTRICT rhoa  = xc_args[enum_rhoa].ptr();
             const double * MADNESS_RESTRICT rhob  = xc_args[enum_rhob].ptr();
@@ -391,25 +452,53 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
 
             }
+
+            if (needs_tau()) {
+                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
+                const double * MADNESS_RESTRICT taub = xc_args[enum_taub].ptr();
+                madness::Tensor<double> taudummy;
+                if ((taua==NULL) or (taub==NULL)) {
+                    taudummy=madness::Tensor<double>(np);
+                }
+                if (taua==NULL) taua=taudummy.ptr();
+                if (taub==NULL) taub=taudummy.ptr();
+
+                tau = madness::Tensor<double>(np*2L);
+                double * MADNESS_RESTRICT t = tau.ptr();
+                for (long i=0; i<np; i++) {
+                    double ta = std::max(tautol,taua[i]);
+                    double tb = std::max(tautol,taub[i]);
+                    // tau_s >= sigma_ss/(8 rho_s) in each spin channel, see above
+                    if (dens[2*i  ] > rhotol) ta = std::max(ta,sig[3*i  ]/(8.0*dens[2*i  ]));
+                    if (dens[2*i+1] > rhotol) tb = std::max(tb,sig[3*i+2]/(8.0*dens[2*i+1]));
+                    t[2*i  ] = ta;
+                    t[2*i+1] = tb;
+                }
+            }
+
             if (need_response) {
                 MADNESS_EXCEPTION("no spin polarized DFT response in xcfunctional",1);
             }
         }
         else {
-            MADNESS_EXCEPTION("only LDA and GGA available in xcfunctional",1);
+            MADNESS_EXCEPTION("unknown functional rung in xcfunctional",1);
         }
     }
 }
 
 
 madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const {
-    madness::Tensor<double> rho, sigma, rho_pt, sigma_pt;
+    madness::Tensor<double> rho, sigma, tau, rho_pt, sigma_pt;
     std::vector<Tensor<double> > ddens(3), ddens_pt(3);
-    make_libxc_args(t, rho, sigma, rho_pt, sigma_pt, ddens, ddens_pt, false);
+    make_libxc_args(t, rho, sigma, tau, rho_pt, sigma_pt, ddens, ddens_pt, false);
 
     const int np = t[0].size();
     const double * MADNESS_RESTRICT dens = rho.ptr();
     const double * MADNESS_RESTRICT sig = sigma.ptr();
+    const double * MADNESS_RESTRICT ktau = tau.ptr();
+    // zeroed laplacian input for meta-ggas (see the MGGA case below)
+    madness::Tensor<double> lapl_zero;
+    if (needs_tau()) lapl_zero=madness::Tensor<double>(rho.size());
 
     madness::Tensor<double> result(3L, t[0].dims());
     double * MADNESS_RESTRICT res = result.ptr();
@@ -428,6 +517,14 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             break;
         case XC_FAMILY_HYB_GGA:
             xc_gga_exc(funcs[i].first, np, dens, sig, work);
+            break;
+        case XC_FAMILY_MGGA:
+        case XC_FAMILY_HYB_MGGA:
+            // Laplacian-level functionals are refused in initialize(), so the
+            // laplacian input is irrelevant here -- but pass a real zeroed buffer
+            // rather than NULL, because libxc's generated kernels do not guard
+            // every laplacian access on the pointer
+            xc_mgga_exc(funcs[i].first, np, dens, sig, lapl_zero.ptr(), ktau, work);
             break;
         default:
             MADNESS_EXCEPTION("unknown XC_FAMILY in xcfunctional::exc",1);
@@ -449,9 +546,9 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
 
 std::vector<madness::Tensor<double> > XCfunctional::vxc(
         const std::vector< madness::Tensor<double> >& t, const int ispin) const {
-    madness::Tensor<double> rho, sigma, dummy;
+    madness::Tensor<double> rho, sigma, tau, dummy;
     std::vector<Tensor<double> > drho(3), ddens_pt(3);
-    make_libxc_args(t, rho, sigma, dummy, dummy, drho, ddens_pt, false);
+    make_libxc_args(t, rho, sigma, tau, dummy, dummy, drho, ddens_pt, false);
 
     // number of grid points
     const int np = t[0].size();
@@ -470,14 +567,11 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
         nvsig = 3;
     }
 
-    int result_size=0;
-    // local terms, same spin
-    if (is_lda()) result_size= 1;
-    // local terms,  3x semilocal terms (x,y,z)
-    if (is_gga() and (not is_spin_polarized())) result_size= 4;
-    // local terms,  3x semilocal terms (x,y,z) for same spin and opposite spin
-    if (is_gga() and (is_spin_polarized())) result_size= 7;
-    MADNESS_ASSERT(result_size>0);
+    // must agree with xc_potential::get_result_size(), which is what the caller
+    // allocated -- multi_to_multi_op_values only cross-checks the two under
+    // MADNESS_ASSERT, which is compiled out in a release build
+    const std::size_t result_size=xc_potential(*this,ispin).get_result_size();
+    MADNESS_CHECK(result_size>0);
 
     Tensor<double> r(3L, t[0].dims());
     r=0.0;
@@ -503,20 +597,42 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
 
         break;
 
+        case XC_FAMILY_HYB_MGGA:
+        case XC_FAMILY_MGGA:
         case XC_FAMILY_HYB_GGA:
         case XC_FAMILY_GGA:
         {
-            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
+            const int family=funcs[i].first->info->family;
+            const bool meta=(family==XC_FAMILY_MGGA) or (family==XC_FAMILY_HYB_MGGA);
+
+            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np), vtau;
             double * MADNESS_RESTRICT vr = vrho.ptr();
             double * MADNESS_RESTRICT vs = vsig.ptr();
+            double * MADNESS_RESTRICT vt = NULL;
+            if (meta) {
+                vtau=madness::Tensor<double>(nvrho*np);
+                vt=vtau.ptr();
+            }
             const double * MADNESS_RESTRICT sig = sigma.ptr();
             // in: funcs[i].first
             // in: np      number of points
             // in: dens    the density [a,b]
             // in: sig     contracted density gradients \nabla \rho . \nabla \rho [aa,ab,bb]
+            // in: ktau    the kinetic energy density [a,b] (meta-gga only)
             // out: vr     \del e/\del \rho_alpha [a,b]
             // out: vs     \del e/\del sigma_alpha [aa,ab,bb]
-            xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+            // out: vt     \del e/\del \tau_alpha [a,b] (meta-gga only)
+            if (meta) {
+                // Laplacian-level functionals are refused in initialize(), so both
+                // the laplacian input and the de/dlaplacian output are irrelevant --
+                // but they get real buffers rather than NULL, because libxc's
+                // generated kernels do not guard every laplacian access on the pointer
+                madness::Tensor<double> lapl_zero(nvrho*np), vlapl(nvrho*np);
+                xc_mgga_vxc(funcs[i].first, np, dens, sig, lapl_zero.ptr(), tau.ptr(),
+                            vr, vs, vlapl.ptr(), vt);
+            } else {
+                xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+            }
 
             if (spin_polarized) {
                 double * MADNESS_RESTRICT r0 = result[0].ptr();
@@ -565,6 +681,20 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                     r3[j] += 2.0 * vs[j]*funcs[i].second*ddensz[j];    // total density
                 }
             }
+
+            // de/dtau of the spin this operator acts on; the caller turns it into
+            // the non-multiplicative operator -1/2 nabla.(de/dtau nabla psi)
+            if (meta) {
+                double * MADNESS_RESTRICT rt = result[spin_polarized ? 7 : 4].ptr();
+                // Unlike the semilocal flux terms, which carry a factor rho*zeta and
+                // are damped in the tail on their own, de/dtau multiplies grad(psi).
+                // That does not vanish nearly as fast, and de/dtau itself diverges
+                // where the density is negligible -- it reaches O(100) on the atomic
+                // initial guess. Screen it on the density, as the response kernel does.
+                for (long j=0; j<np; j++)
+                    rt[j] += binary_munge(vt[nvrho*j+ispin]*funcs[i].second,
+                                          dens[nvrho*j+ispin],ggatol);
+            }
         }
         break;
         default:
@@ -594,7 +724,8 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma, rho_pt, sigma_pt;   // rho=2rho_alpha, sigma=4sigma_alpha
     std::vector<Tensor<double> > drho(3), drho_pt(3);
-    make_libxc_args(t, rho, sigma, rho_pt, sigma_pt, drho, drho_pt, true);
+    madness::Tensor<double> tau;
+    make_libxc_args(t, rho, sigma, tau, rho_pt, sigma_pt, drho, drho_pt, true);
 
     // number of grid points
     const int np = t[0].size();

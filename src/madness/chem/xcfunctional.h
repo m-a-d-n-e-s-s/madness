@@ -68,6 +68,8 @@ public:
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
         enum_rhob=1,            ///< beta density \f$ \rho_\beta \f$
         enum_rho_pt=2,          ///< perturbed density (CPHF, TDKS) \f$ \rho_{pt} \f$
+        enum_taua=3,            ///< alpha kinetic energy density \f$ \tau_\alpha = \frac{1}{2}\sum_i|\nabla\psi_{i\alpha}|^2 \f$
+        enum_taub=4,            ///< beta kinetic energy density \f$ \tau_\beta \f$
         enum_saa=10,            ///< \f$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$
         enum_sab=11,            ///< \f$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$
         enum_sbb=12,            ///< \f$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$
@@ -98,12 +100,20 @@ public:
     /// density, which we call binary munging
     double get_ggatol() const {return ggatol;}
 
+    /// return the floor for the kinetic energy density
+
+    /// meta-gga functionals build the iso-orbital indicators alpha and z with tau
+    /// in the denominator, so tau needs a floor well above libxc's own 1e-20
+    /// default for a real-space code, where tau is a numerical derivative
+    double get_tautol() const {return tautol;}
+
 protected:
 
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
     double rhomin, rhotol;      ///< See initialize and munge*
     double ggatol;              ///< See initialize and munge*
+    double tautol;              ///< floor for the kinetic energy density, see initialize
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -125,6 +135,7 @@ protected:
     /// @param[in]  t       input density (gradients)
     /// @param[out] rho     ground state (spin) density, properly munged
     /// @param[out] sigma   ground state (spin) density gradients, properly munged
+    /// @param[out] tau     ground state (spin) kinetic energy density, properly munged
     /// @param[out] rho_pt  response density, properly munged (no spin)
     /// @param[out] sigma_pt  response (spin) density gradients, properly munged
     /// @param[out] drho    density derivative, constructed from rho and zeta
@@ -133,6 +144,7 @@ protected:
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma,
+                         madness::Tensor<double>& tau,
                          madness::Tensor<double>& rho_pt,
                          madness::Tensor<double>& sigma_pt,
                          std::vector<madness::Tensor<double> >& drho,
@@ -238,8 +250,18 @@ public:
     /// Returns true if the potential is gga (needs first derivatives)
     bool is_gga() const;
 
-    /// Returns true if the potential is meta gga (needs second derivatives ... not yet supported)
+    /// Returns true if the potential is meta gga (needs the kinetic energy density)
     bool is_meta() const;
+
+    /// Returns true if the functional needs the reduced density gradients sigma
+
+    /// True for gga AND meta-gga -- a meta-gga needs the density gradients as
+    /// well as the kinetic energy density. Use this, not is_gga(), to decide
+    /// whether the gradient intermediates have to be computed.
+    bool needs_sigma() const;
+
+    /// Returns true if the functional needs the kinetic energy density tau
+    bool needs_tau() const;
 
     /// Returns true if there is a DFT functional (false probably means Hatree-Fock exchange only)
     bool is_dft() const;
@@ -352,7 +374,8 @@ public:
         t[enum_rhoa]=(rho);
         if (is_spin_polarized()) t[enum_rhob]=(rho);
 //        if (is_gga()) t[enum_saa]=madness::Tensor<double>(npt); // sigma_aa=0
-        if (is_gga()) t[enum_saa]=0.5*rho; // sigma_aa=0
+        if (needs_sigma()) t[enum_saa]=0.5*rho; // sigma_aa=0
+        if (needs_tau()) t[enum_taua]=0.5*rho;
         madness::Tensor<double> f  = exc(t); //pending UGHHHHH
         std::vector<madness::Tensor<double> > va = vxc(t,0);
         for (long i=0; i<npt; i++) {
@@ -386,13 +409,13 @@ struct xc_potential {
     std::size_t get_result_size() const {
         // local terms, same spin
         if (xc->is_lda()) return 1;
-        // local terms,  3x semilocal terms (x,y,z)
-        if (xc->is_gga() and (not xc->is_spin_polarized())) return 4;
-        // local terms,  3x semilocal terms (x,y,z) for same spin and opposite spin
-        if (xc->is_gga() and (xc->is_spin_polarized())) return 7;
-
-        MADNESS_EXCEPTION("only lda and gga in xc_potential_multi",1);
-        return 0;
+        // local term + 3x semilocal terms (x,y,z), same spin
+        std::size_t result_size=4;
+        // 3x semilocal terms (x,y,z) for the opposite spin
+        if (xc->is_spin_polarized()) result_size+=3;
+        // de/dtau, same spin -- the non-multiplicative meta-gga term
+        if (xc->needs_tau()) result_size+=1;
+        return result_size;
     }
 
     std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
