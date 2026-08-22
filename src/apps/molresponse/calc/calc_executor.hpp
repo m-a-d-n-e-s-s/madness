@@ -94,6 +94,11 @@ struct ExecutorSettings {
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
   // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
+  // AO basis projected for the VirtualAO guess (CLI --es-guess-basis / deck
+  // response.excited.guess_basis). Radial rank per l-sector = #shells(l) −
+  // #occupied(l), so a larger basis reaches further up the radial ladder
+  // (Rydberg series want d-aug-cc-pvtz or similar). Ignored by other modes.
+  std::string       es_guess_basis        = "aug-cc-pvdz";
   // --tpa-residue: contract the 2PA moment with the corrected single-residue
   // form (tpa::tpa_moment_residue — X_f in the residue slot against V^{bc}
   // built from the two photon responses) instead of the legacy beta-reuse
@@ -555,7 +560,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
                                static_cast<double>(n_roots))));
     s0 = run_oversampled_tda_warmup<ClosedShell>(
         world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-        c_xc, lo, ctx.print_level, ctx.es_guess);
+        c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
   }
 
   Solver solver(world, std::move(problem), main_policy, ctx.print_level);
@@ -718,7 +723,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
                                  static_cast<double>(n_roots))));
       auto tda = run_oversampled_tda_warmup<ClosedShell>(
           world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-          c_xc, lo, ctx.print_level, ctx.es_guess);
+          c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
       s0 = promote_tda_to_full_closed_shell(world, tda);
       if (ctx.es_warmup_cache) {
         save_es_roots<Full, ClosedShell>(world, s0, warm_cache,

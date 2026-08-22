@@ -424,6 +424,10 @@ int main(int argc, char **argv) {
           ctx.es_maxrotn = std::stod(parser.value("maxrotn"));
         if (parser.key_exists("es-guess"))
           ctx.es_guess = parse_es_guess_mode(parser.value("es-guess"));
+        // --es-guess-basis=NAME : AO basis for --es-guess=virtual_ao
+        // (default aug-cc-pvdz).
+        if (parser.key_exists("es-guess-basis"))
+          ctx.es_guess_basis = parser.value("es-guess-basis");
         // --tpa-residue [--tpa-prefactor=X]: corrected single-residue 2PA
         // contraction (kernels/tpa.hpp tpa_moment_residue) instead of the
         // legacy beta-reuse candidate.

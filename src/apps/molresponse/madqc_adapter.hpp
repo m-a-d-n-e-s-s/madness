@@ -203,6 +203,20 @@ struct molresponse_v3_lib {
     in.settings.policy.dconv_user = rp.dconv();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
+    // ES initial-guess knobs (deck: response { excited.guess virtual_ao,
+    // excited.guess_basis aug-cc-pvtz }). Deck default (solid_harmonics /
+    // aug-cc-pvdz) maps to the ExecutorSettings default — existing decks are
+    // unchanged. virtual_ao is the energy-ordered AO-virtual guess; it is
+    // required to reach totally-symmetric / radially-excited states on atoms,
+    // which the angular-only solid-harmonic trials structurally cannot span.
+    in.settings.es_guess       = parse_es_guess_mode(rp.excited_guess());
+    in.settings.es_guess_basis = rp.excited_guess_basis();
+    if (world.rank() == 0 && rp.excited_enable() &&
+        in.settings.es_guess != ESGuessMode::SolidHarmonics)
+      print("response: excited.guess =", to_string(in.settings.es_guess),
+            (in.settings.es_guess == ESGuessMode::VirtualAO
+                 ? std::string("(basis " + in.settings.es_guess_basis + ")")
+                 : std::string()));
     // Deck-level HDF5 opt-in (response.hdf5 true) — the env var
     // MADRESPONSE_IO_HDF5 still works; the deck parameter wins when set.
     if (rp.hdf5()) {

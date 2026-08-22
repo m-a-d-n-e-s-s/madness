@@ -74,6 +74,20 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<size_t>("excited.maxiter", 20, "maximum iterations for excited-state solve stage");
         initialize<size_t>("excited.maxsub", 8, "subspace size for excited-state iterative solves");
         initialize<size_t>("excited.owner_group", 0, "subgroup lane reserved for excited-state bundle execution");
+        initialize<std::string>("excited.guess", "solid_harmonics",
+                                "excited-state initial-guess generator. solid_harmonics "
+                                "(default): angular trials (solid harmonic x occupied "
+                                "orbital) — structurally blind to totally-symmetric / "
+                                "radially-excited states on atoms. virtual_ao: "
+                                "energy-ordered single excitations into AO-basis virtual "
+                                "orbitals (NWChem CIS-diagonal guess; closed-shell only). "
+                                "random: envelope-localized noise (cold but unbiased).",
+                                {"solid_harmonics", "virtual_ao", "random"});
+        initialize<std::string>("excited.guess_basis", "aug-cc-pvdz",
+                                "Gaussian AO basis projected to build the virtual_ao "
+                                "excited-state guess (ignored by other guess modes). "
+                                "Radial rank per l-sector = #shells(l) - #occupied(l), "
+                                "so a larger basis reaches further up the radial ladder.");
         //** if properites are requested, then one should specify directions,
         // frequencies, and atom_indices(for nuclear response) */
         initialize<bool>("property", false, "Compute properties");
@@ -227,6 +241,12 @@ public:
     }
     [[nodiscard]] size_t excited_owner_group() const {
         return get<size_t>("excited.owner_group");
+    }
+    [[nodiscard]] std::string excited_guess() const {
+        return get<std::string>("excited.guess");
+    }
+    [[nodiscard]] std::string excited_guess_basis() const {
+        return get<std::string>("excited.guess_basis");
     }
     [[nodiscard]] std::vector<double> dipole_frequencies() const {
         return get<std::vector<double>>("dipole.frequencies");
