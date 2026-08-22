@@ -97,9 +97,8 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             funcs.push_back(std::make_pair(lookup_func("GGA_C_PBE",polarized),1.0));
             hf_coeff=0.25;
         } else if (name == "B3LYP") {
-            // VWN-3 correlation
+            // VWN-3 correlation; the 0.2 exact exchange comes from the libxc query below
             funcs.push_back(std::make_pair(lookup_func("HYB_GGA_XC_B3LYP",polarized),1.0));
-            hf_coeff=0.2;
         } else if (name == "RHOMIN") {
             line >> rhomin;
         } else if (name == "RHOTOL") {
@@ -116,10 +115,37 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
     }
 
     for (unsigned int i=0; i<funcs.size(); i++) {
-        if (funcs[i].first->info->family == XC_FAMILY_GGA) nderiv = std::max(nderiv,1);
-        if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
-        if (funcs[i].first->info->family == XC_FAMILY_MGGA)nderiv = std::max(nderiv,2);
- //       if (funcs[i].first->info->family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
+        const int family = funcs[i].first->info->family;
+        if (family == XC_FAMILY_GGA) nderiv = std::max(nderiv,1);
+        if (family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
+        if (family == XC_FAMILY_MGGA) nderiv = std::max(nderiv,2);
+        if (family == XC_FAMILY_HYB_MGGA) nderiv = std::max(nderiv,2);
+ //       if (family == XC_FAMILY_LDA) nderiv = std::max(nderiv,0);
+    }
+
+    // The exact-exchange admixture of a hybrid is a property of the functional,
+    // not of the input line, so query it from libxc instead of hardcoding it.
+    // libxc has corrected several of these coefficients over the years (CAP0 had
+    // 75% instead of 25%, LC_BLYP used omega=0.3 instead of 0.33, ...), and a
+    // hardcoded value silently diverges from the functional it claims to be.
+    // Without this, a hybrid requested by its libxc name -- as opposed to one of
+    // the aliases above -- ran with no exact exchange at all.
+    for (unsigned int i=0; i<funcs.size(); i++) {
+        const int family = funcs[i].first->info->family;
+        const bool is_hybrid = (family == XC_FAMILY_HYB_LDA)
+                            or (family == XC_FAMILY_HYB_GGA)
+                            or (family == XC_FAMILY_HYB_MGGA);
+        if (not is_hybrid) continue;
+
+        // range-separated hybrids need an attenuated exchange operator, which the
+        // exchange operator does not provide; treating them as global hybrids
+        // would silently give the wrong answer.
+        const int flags = funcs[i].first->info->flags;
+        if ((flags & XC_FLAGS_HYB_CAM) or (flags & XC_FLAGS_HYB_CAMY)) {
+            MADNESS_EXCEPTION("range-separated hybrids are not supported: no "
+                              "attenuated exchange operator is available",1);
+        }
+        hf_coeff += funcs[i].second * xc_hyb_exx_coef(funcs[i].first);
     }
     if (printit) {
         print("\ninput line was:",input_line);
