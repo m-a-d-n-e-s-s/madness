@@ -350,7 +350,10 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
                 sig[3*i  ]  = std::max(1.e-14,ra * ra * chiaa[i]);  // aa
-                sig[3*i+1]  = std::max(1.e-14,ra * rb * chiab[i]);  // ab
+                // sigma_ab = grad(rho_a).grad(rho_b) is bilinear and may legitimately
+                // be negative; only its magnitude is bounded (by Cauchy-Schwarz on the
+                // zeta vectors, which holds automatically here). Do not clamp the sign.
+                sig[3*i+1]  = ra * rb * chiab[i];                   // ab
                 sig[3*i+2]  = std::max(1.e-14,rb * rb * chibb[i]);  // bb
 
                 ddensx[2*i  ]=ra * zetaa_x[i];
