@@ -336,7 +336,7 @@ namespace madness {
       using Displacement = Key<NDIM>;
       /// this callable returns whether a given primitive box (or hyperface if only one coordinate is provided) can be filtered out.
       /// if screening a primitive box, the corresponding displacement should be provided both for further screening and for the displacement to be updated, if displacements are translated to connect two cells in the box.
-      /// the validator should normally be a BoxSurfaceDisplacementFilter object. anything else is probably a hack.
+      /// the validator should normally be a BoxSurfaceDisplacementValidator object. anything else is probably a hack.
       using Validator = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
 
     private:
@@ -696,9 +696,7 @@ namespace madness {
           : center_(center), box_radius_(box_radius),
             surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)) {
         // initialize bounds
-        bool has_finite_dimensions = false;
         const auto n = center_.level();
-        Vector<Translation, NDIM> probing_displacement_vec(0);
         for (size_t d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
@@ -706,15 +704,11 @@ namespace madness {
             r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
             MADNESS_ASSERT(r > 0);
             box_[d] = {center_[d] - r, center_[d] + r};
-            if (!has_finite_dimensions) // first finite dimension? probing displacement will be nonzero along it, zero along all others
-              probing_displacement_vec[d] = r;
-            has_finite_dimensions = true;
           } else {
             box_[d] = {0, (1 << center_.level()) - 1};
           }
         }
-        MADNESS_ASSERT(has_finite_dimensions);
-        probing_displacement_ = Displacement(n, probing_displacement_vec);
+        probing_displacement_ = compute_probe();
         for (size_t d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
@@ -771,6 +765,130 @@ namespace madness {
       const Displacement& probing_displacement() const {
         return probing_displacement_;
       }
+
+    private:
+      // If all dimensions are lattice-summed and even, then the standard
+      // algorithm to compute the probe displacement fails...
+      Displacement compute_probe() {
+        const auto n = center_.level();
+        std::optional<size_t> backup_face;
+        Vector<Translation, NDIM> probing_displacement_vec(0);
+        for (size_t d=0; d!= NDIM; ++d) {
+          if (box_radius_[d]) {
+            if (!backup_face.has_value() || box_radius_[d] < box_radius_[*backup_face]) {
+              backup_face = d;
+            }
+            if ((!is_lattice_summed_[d]) || *box_radius_[d] % 2 == 1 || NDIM == 1 || n == 0) {
+              // Most likely, either there is no lattice summation (this face is mapped onto itself), or
+              // the range is odd (this face is mapped onto a cell face). In the first two cases, the
+              // face is well-separated from the "small magnitude" displacements for large n.
+              // We can displace to the origin of this hyperface.
+              // Whereas if NDIM == 1 or n == 0, the entire boundary has already been mapped to the vicinity of the origin and computed.
+              // We can't screen this out the obvious way, but we can trust the Validator to recognize that these points have already been computed.
+              auto r = *box_radius_[d];  // in units of 2^{n-1}
+              // n = 0 is special b/c << -1 is undefined
+              r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
+              MADNESS_ASSERT(r > 0);
+              probing_displacement_vec[d] = r;
+              return Displacement(n, probing_displacement_vec);
+            }
+          }
+        }
+        MADNESS_ASSERT(backup_face.has_value());  // if all dimensions are infinite, then there is no surface!
+        // If we're in this case, then lattice summation *always* maps the periodic face onto a hyperplane
+        // through the cube origin, and the screening test above would screen out the box iff the origin displacement has a small norm.
+        // That screening test isn't viable. We need to choose our probe displacement differently.
+        // Instead, we'll probe on target_face, but not on its origin.
+        // (We know the face has non-orign points because if we're in this clause, NDIM > 1, and there's more than one box.)
+        // Now, the operator norm decays as the displacement magnitude increases.
+        // The challenge is to find a displacement *just big enough* for it to be valid, but no larger.
+        probing_displacement_vec[backup_face.value()] = (*box_radius_[backup_face.value()]) * Translation(1) << (n-1);
+
+        // As a special case, if there is no validator, that means that even the boxes closest to origin could be filtered out.
+        // So then *every* displacement will say to filter this out. Let's choose the easiest one.'
+        if (!validator_) return Displacement(n, probing_displacement_vec);
+        // From here on, we can assume the validator exists.
+
+        // We're going to be greedy. Let's try choosing one dimension's displacement to exceed bmax_default.
+        // If we can do that, keep shrinking the distance if possible.
+        // If we wanted the *best* direction for this trick, we'd start with the smallest real-space length.
+        for (size_t d = 0; d != NDIM; ++d) {
+          if (d == backup_face.value()) continue;
+          if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
+            // If displacing past bmax_default *to the left* keeps us in the box...
+            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
+              probing_displacement_vec[d] = -disp;
+              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+                // Let's use the last valid key.
+                probing_displacement_vec[d] -= 1;
+                return Displacement(n, probing_displacement_vec);
+              }
+              probing_displacement_vec[d] = 0;
+            }
+            return Displacement(n, probing_displacement_vec);
+          } else if (center_[d] + Displacements<NDIM>::bmax_default() + 1 <= box_[d].second) {
+            // If displacing past bmax_default *to the right* keeps us in the box...
+            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
+              probing_displacement_vec[d] = +disp;
+              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+                // Let's use the last valid key.
+                probing_displacement_vec[d] += 1;
+                return Displacement(n, probing_displacement_vec);
+              }
+              probing_displacement_vec[d] = 0;
+            }
+          return Displacement(n, probing_displacement_vec);
+          }
+	}
+        // If we can't, set all the distances to the maximum and greedily reduce until we get something invalid.
+        // We could maybe decay some more, but this is fine.
+        Translation max_permissible_abs = 0;
+        for (size_t d = 0; d != NDIM; ++d) {
+          if (d == backup_face.value()) continue;
+          // n.b.: If !box_radius_[d]_, we should have returned by now - dimension d isn't lattice-summed.'
+          max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
+          // +/- displacements are equivalent for lattice-summed dimensions.
+          // + is the canonical choice the displacment code makes.
+          probing_displacement_vec[d] = max_permissible_abs;
+        }
+        bool can_shrink = true;
+        max_permissible_abs--;
+        while (true) {
+          for (size_t d = 0; d != NDIM; ++d) {
+            if (d == backup_face.value()) continue;
+            if (probing_displacement_vec[d] > max_permissible_abs) {
+              probing_displacement_vec[d] -= 1;
+              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+                // We can't afford to shrink this dimension. Revert!
+                probing_displacement_vec[d] += 1;
+                can_shrink = false;
+              }
+            } else if (probing_displacement_vec[d] < -max_permissible_abs) {
+              probing_displacement_vec[d] += 1;
+              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+                // We can't afford to shrink this dimension. Revert!
+                probing_displacement_vec[d] -= 1;
+                can_shrink = false;
+              }
+            }
+          }
+          if (!can_shrink) {
+            return Displacement(n, probing_displacement_vec);
+          } else {
+            if (max_permissible_abs == 0) {
+              // I want a case where this happens "in the wild," but if we end up here, we probably just need to compute all. The probe doesn't matter.'
+	          MADNESS_EXCEPTION("Attempt to generate a probe displacement failed. Contact developers immediately.", 0)
+	          throw;
+            }
+            max_permissible_abs -= 1;
+          }
+        }
+      }
+
     };  // BoxSurfaceDisplacementRange
 
 
