@@ -1465,12 +1465,23 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     }
 
     // compute the local DFT potential for the MOs
+    // the operator has to outlive this block: a meta-gga also contributes a
+    // non-multiplicative term, which is applied to the orbitals further down
+    std::shared_ptr<XCOperator<double, 3> > xcoperator;
     if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) { //??RJH?? Won't this incorrectly exclude hybrid DFT with coeff=1.0?
         START_TIMER(world);
 
-        XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
-        if (ispin == 0) exc = xcoperator.compute_xc_energy();
-        vloc += xcoperator.make_xc_potential();
+        xcoperator.reset(new XCOperator<double, 3>(world, this, ispin, param.dft_deriv()));
+        xcoperator->set_print_level(param.print_level());
+        // the kinetic energy density is orbital-dependent, so unlike the density
+        // it cannot be recovered from what the ctor is given
+        if (xcoperator->has_tau_term()) xcoperator->set_tau(this->amo, this->bmo);
+        // accumulate: for a hybrid, exc already holds the exact-exchange
+        // contribution from the block above. compute_xc_energy() returns the
+        // spin-summed DFT energy, hence the ispin==0 guard -- it is counted once,
+        // while the exchange part is accumulated per spin by the caller.
+        if (ispin == 0) exc += xcoperator->compute_xc_energy();
+        vloc += xcoperator->make_xc_potential();
 
         END_TIMER(world, "DFT potential");
     }
@@ -1514,6 +1525,17 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
             END_TIMER(world, "Truncate Vpsi");
             print_meminfo(world.rank(), "Truncate Vpsi");
         }
+    }
+
+    // The meta-gga term -1/2 nabla.(de/dtau nabla psi_i) is an operator on the
+    // orbitals, not a local potential, so it belongs in Vpsi alongside K rather
+    // than in vloc. It goes in after the tiling block above, which truncates only
+    // its own per-tile product and never Vpsi itself.
+    if (xcoperator and xcoperator->has_tau_term()) {
+        START_TIMER(world);
+        gaxpy(world, 1.0, Vpsi, 1.0, xcoperator->apply_tau_term(amo));
+        truncate(world, Vpsi);
+        END_TIMER(world, "meta-gga tau term");
     }
 
     world.gop.fence();
