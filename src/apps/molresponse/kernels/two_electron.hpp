@@ -80,6 +80,29 @@ apply_gamma_raw(madness::World &world,
   return out;
 }
 
+/// Runtime-sized overload of apply_gamma_raw for callers whose pair list is
+/// built dynamically (the declarative source-spec engine, source_spec.hpp,
+/// whose entries carry between zero and four exchange legs). Identical
+/// contraction, same term order; kept as a separate body (not a delegate) so
+/// the initializer_list path used by the validated linear/VBC kernels is
+/// byte-untouched.
+inline vecfuncT
+apply_gamma_raw(madness::World &world,
+                  const madness::real_function_3d &J,
+                  const vecfuncT &apply_to,
+                  const std::vector<ExchangePair> &pairs,
+                  double c_xc, double lo) {
+  using namespace madness;
+  auto out = mul(world, J, apply_to, true);
+  if (c_xc > 0.0) {
+    for (const auto &p : pairs) {
+      auto k = common_ops::apply_exchange(world, p.bra, p.ket, apply_to, lo);
+      gaxpy(world, 1.0, out, -c_xc, k);
+    }
+  }
+  return out;
+}
+
 /// Shared gamma contraction for every Kernels<Type,Shell>::apply_g and
 /// compute_gamma. Call once per response component (X, Y; alpha, beta):
 ///     out = Q( J[rho] * apply_to  -  c_xc * Sum_pairs K(bra, ket)(apply_to) ).
