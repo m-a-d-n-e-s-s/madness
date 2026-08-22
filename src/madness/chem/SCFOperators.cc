@@ -454,8 +454,128 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > XCOperator<T, NDIM>::operator()(const std::vector<Function<T, NDIM> > &vket) const {
     real_function_3d xc_pot = make_xc_potential();
     double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // safety
-    return mul_sparse(world, xc_pot, vket, vtol);
+    std::vector<Function<T, NDIM> > result = mul_sparse(world, xc_pot, vket, vtol);
+    if (has_tau_term()) result += apply_tau_term(vket);
+    return result;
 }
+
+
+template<typename T, std::size_t NDIM>
+bool XCOperator<T, NDIM>::has_tau_term() const {
+    return xc->needs_tau();
+}
+
+
+template<typename T, std::size_t NDIM>
+real_function_3d XCOperator<T, NDIM>::get_tau(const int spin) const {
+    return xc_args[spin == 0 ? XCfunctional::enum_taua : XCfunctional::enum_taub];
+}
+
+
+/// compute tau = 1/2 sum_i |grad psi_i|^2 and store it in the intermediates
+template<typename T, std::size_t NDIM>
+void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const vecfuncT &bmo) const {
+
+    MADNESS_CHECK_THROW(is_initialized(), "set_tau called before the intermediates exist");
+
+    // In nemo mode the orbitals handed in are the nemos F with psi = R F, so
+    // grad psi = R (grad F - U1 F). Not implemented yet -- refuse rather than
+    // silently returning the kinetic energy density of the nemos.
+    if (ncf) MADNESS_EXCEPTION("meta-gga with a nuclear correlation factor is not "
+                               "implemented yet: tau must be built from grad(R F), "
+                               "not grad(F)", 1);
+
+    const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
+
+    auto compute_tau = [&](const vecfuncT &mo) {
+        real_function_3d result = real_factory_3d(world).compressed();
+        for (int axis = 0; axis < 3; ++axis) {
+            real_derivative_3d D(world, axis);
+            if (dft_deriv == "bspline") D.set_bspline1();
+            else if (dft_deriv == "ble") D.set_ble1();
+            vecfuncT mo_copy = copy(world, mo);
+            refine(world, mo_copy);
+            vecfuncT dmo = apply(world, D, mo_copy);
+            result += dot(world, dmo, dmo);
+        }
+        // libxc convention: tau = 1/2 sum_i |grad psi_i|^2  (since libxc 2.0.0)
+        return (0.5 * result).truncate(extra_truncation);
+    };
+
+    xc_args[XCfunctional::enum_taua] = compute_tau(amo);
+    if (have_beta) {
+        MADNESS_CHECK_THROW(bmo.size() > 0, "set_tau needs beta orbitals for an "
+                                            "open-shell meta-gga calculation");
+        xc_args[XCfunctional::enum_taub] = compute_tau(bmo);
+    }
+    world.gop.fence();
+}
+
+
+/// apply the non-multiplicative meta-gga term, -1/2 sum_x D_x(vtau D_x psi_i)
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> >
+XCOperator<T, NDIM>::apply_tau_term(const std::vector<Function<T, NDIM> > &vket) const {
+
+    MADNESS_CHECK_THROW(has_tau_term(), "apply_tau_term on a non-meta functional");
+    MADNESS_CHECK_THROW(vtau.is_initialized(), "apply_tau_term before make_xc_potential");
+
+    const double vtol = FunctionDefaults<3>::get_thresh() * 0.1;
+
+    // 1 + de/dtau is the inverse effective mass of the modified kinetic operator
+    // -1/2 nabla.((1 + de/dtau) nabla). Where it goes non-positive the quadratic
+    // form loses positive-definiteness and there is no minimum to converge to.
+    // Function carries no min/max, so this samples a coarse lattice: it is an
+    // indicator, not a bound, hence a warning rather than an assertion.
+    if (print_level >= 2) {
+        const double L = FunctionDefaults<3>::get_cell_width().max() * 0.5;
+        double lo = 1.e10, hi = -1.e10;
+        const int n = 7;
+        for (int ix = 0; ix < n; ++ix)
+            for (int iy = 0; iy < n; ++iy)
+                for (int iz = 0; iz < n; ++iz) {
+                    const coord_3d r{-L + 2.0 * L * ix / (n - 1),
+                                     -L + 2.0 * L * iy / (n - 1),
+                                     -L + 2.0 * L * iz / (n - 1)};
+                    const double v = vtau(r);
+                    lo = std::min(lo, v);
+                    hi = std::max(hi, v);
+                }
+        if (world.rank() == 0) {
+            print("meta-gga de/dtau sampled on a", n, "^3 lattice: min", lo, " max", hi);
+            if (1.0 + lo <= 0.0)
+                print("WARNING: 1 + de/dtau is not positive -- the effective mass "
+                      "operator is not elliptic there and the SCF may not converge");
+        }
+    }
+
+    std::vector<Function<T, NDIM> > result =
+            zero_functions_compressed<T, NDIM>(world, vket.size());
+    for (int axis = 0; axis < 3; ++axis) {
+        auto D = make_derivative(axis);
+        std::vector<Function<T, NDIM> > vket_copy = copy(world, vket);
+        refine(world, vket_copy);
+        std::vector<Function<T, NDIM> > dket = apply(world, *D, vket_copy);
+        // vtau is only ever multiplied, never differentiated
+        dket = mul_sparse(world, vtau, dket, vtol);
+        refine(world, dket);
+        result = add(world, result, apply(world, *D, dket));
+    }
+    scale(world, result, -0.5);
+    truncate(world, result);
+    return result;
+}
+
+
+/// gradient operator for the meta-gga term, honouring dft_deriv
+template<typename T, std::size_t NDIM>
+std::shared_ptr<Derivative<T, NDIM> > XCOperator<T, NDIM>::make_derivative(const int axis) const {
+    auto D = std::shared_ptr<Derivative<T, NDIM> >(new Derivative<T, NDIM>(world, axis));
+    if (dft_deriv == "bspline") D->set_bspline1();
+    else if (dft_deriv == "ble") D->set_ble1();
+    return D;
+}
+
 
 template<typename T, std::size_t NDIM>
 double XCOperator<T, NDIM>::compute_xc_energy() const {
@@ -479,6 +599,11 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
     if (not is_initialized()) {
         MADNESS_EXCEPTION("calling xc potential without intermediates ", 1);
     }
+    if (has_tau_term() and (not xc_args[XCfunctional::enum_taua].is_initialized())) {
+        MADNESS_EXCEPTION("meta-gga functional without a kinetic energy density: "
+                          "call XCOperator::set_tau() with the occupied orbitals "
+                          "before make_xc_potential()", 1);
+    }
 
     refine_to_common_level(world, xc_args);
 
@@ -489,7 +614,11 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
     // local part, first term in Yanai2005, Eq. (12)
     real_function_3d dft_pot = intermediates[0];
 
-    if (xc->is_gga()) {
+    // de/dtau -- kept for apply_tau_term, which turns it into the
+    // non-multiplicative operator. Comes out of the same pointwise pass.
+    if (has_tau_term()) vtau = intermediates[xc->is_spin_polarized() ? 7 : 4];
+
+    if (xc->needs_sigma()) {
         vecfuncT semilocal(3);
         semilocal[0] = intermediates[1];
         semilocal[1] = intermediates[2];
@@ -601,7 +730,7 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
     world.gop.fence();
 
     // compute the chi quantity such that sigma = rho^2 * chi
-    if (xc->is_gga()) {
+    if (xc->needs_sigma()) {
 
         real_function_3d logdensa = unary_op(arho, logme());
         vecfuncT grada;
