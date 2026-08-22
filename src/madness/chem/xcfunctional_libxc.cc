@@ -430,7 +430,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             xc_gga_exc(funcs[i].first, np, dens, sig, work);
             break;
         default:
-            throw "HOW DID WE GET HERE?";
+            MADNESS_EXCEPTION("unknown XC_FAMILY in xcfunctional::exc",1);
         }
         if (spin_polarized) {
             for (long j=0; j<np; j++) {
@@ -625,7 +625,7 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
             xc_lda_fxc(funcs[i].first, np, dens, vr);
 
             // only local terms
-            result[0]+=v2rho2.emul(rho_pt);
+            result[0]+=funcs[i].second*v2rho2.emul(rho_pt);
 
         }
         break;
@@ -673,29 +673,30 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
             xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
 
 
-            for (long i=0; i<np; i++) {
+            const double w=funcs[i].second;
+            for (long j=0; j<np; j++) {
 
                 // local terms
-                r0[i]+=vrr[i]*dens_pt[i] + 2.0*vrs[i] * sig_pt[i];
+                r0[j]+=w*(vrr[j]*dens_pt[j] + 2.0*vrs[j] * sig_pt[j]);
 
                 // semilocal terms -- x,y,z
-                r1[i]+= binary_munge(
-                          2.0*vrs[i] * dens_pt[i] * ddensx[i]
-                          + 4.0 * vss[i] * sig_pt[i] * ddensx[i]
-                          + 2.0 * vs[i]*ddens_ptx[i],
-                        dens[i],ggatol);
+                r1[j]+= w*binary_munge(
+                          2.0*vrs[j] * dens_pt[j] * ddensx[j]
+                          + 4.0 * vss[j] * sig_pt[j] * ddensx[j]
+                          + 2.0 * vs[j]*ddens_ptx[j],
+                        dens[j],ggatol);
 
-                r2[i]+=binary_munge(
-                        2.0*vrs[i] * dens_pt[i] * ddensy[i]
-                        + 4.0 * vss[i] * sig_pt[i] * ddensy[i]
-                        + 2.0 * vs[i]*ddens_pty[i],
-                        dens[i],ggatol);
+                r2[j]+=w*binary_munge(
+                        2.0*vrs[j] * dens_pt[j] * ddensy[j]
+                        + 4.0 * vss[j] * sig_pt[j] * ddensy[j]
+                        + 2.0 * vs[j]*ddens_pty[j],
+                        dens[j],ggatol);
 
-                r3[i]+=binary_munge(
-                        2.0*vrs[i] * dens_pt[i] * ddensz[i]
-                        + 4.0 * vss[i] * sig_pt[i] * ddensz[i]
-                        + 2.0 * vs[i]*ddens_ptz[i],
-                        dens[i],ggatol);
+                r3[j]+=w*binary_munge(
+                        2.0*vrs[j] * dens_pt[j] * ddensz[j]
+                        + 4.0 * vss[j] * sig_pt[j] * ddensz[j]
+                        + 2.0 * vs[j]*ddens_ptz[j],
+                        dens[j],ggatol);
 
             }
         }
@@ -704,9 +705,8 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::fxc",1);
         }
 
-        // accumulate into result tensor with proper weighting
+        // the functional weight is already folded into each contribution above
         for (std::size_t j=0; j<result.size(); ++j) {
-            result[j]*=funcs[i].second;
 
             // check for NaNs
             double * MADNESS_RESTRICT res = result[j].ptr();
