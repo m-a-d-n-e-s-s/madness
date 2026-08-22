@@ -816,7 +816,7 @@ namespace madness {
           if (d == backup_face.value()) continue;
           if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
             // If displacing past bmax_default *to the left* keeps us in the box...
-            for (size_t disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
+            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
               probing_displacement_vec[d] = -disp;
               auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
               if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
@@ -824,11 +824,12 @@ namespace madness {
                 probing_displacement_vec[d] -= 1;
                 return Displacement(n, probing_displacement_vec);
               }
+              probing_displacement_vec[d] = 0;
             }
             return Displacement(n, probing_displacement_vec);
           } else if (center_[d] + Displacements<NDIM>::bmax_default() + 1 <= box_[d].second) {
             // If displacing past bmax_default *to the right* keeps us in the box...
-            for (size_t disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
+            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
               probing_displacement_vec[d] = +disp;
               auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
               if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
@@ -836,6 +837,7 @@ namespace madness {
                 probing_displacement_vec[d] += 1;
                 return Displacement(n, probing_displacement_vec);
               }
+              probing_displacement_vec[d] = 0;
             }
           return Displacement(n, probing_displacement_vec);
           }
@@ -845,10 +847,11 @@ namespace madness {
         Translation max_permissible_abs = 0;
         for (size_t d = 0; d != NDIM; ++d) {
           if (d == backup_face.value()) continue;
-          auto plus = box_[d].second - center_[d];
-          auto minus = center_[d] - box_[d].first;
-          max_permissible_abs = std::max({max_permissible_abs, plus, minus});
-          probing_displacement_vec[d] = plus > minus ? plus : -minus;
+          // n.b.: If !box_radius_[d]_, we should have returned by now - dimension d isn't lattice-summed.'
+          max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
+          // +/- displacements are equivalent for lattice-summed dimensions.
+          // + is the canonical choice the displacment code makes.
+          probing_displacement_vec[d] = max_permissible_abs;
         }
         bool can_shrink = true;
         max_permissible_abs--;
