@@ -45,6 +45,57 @@ if(NOT LAPACK_LIBRARIES)
     set(LAPACK_LIBRARIES "-framework Accelerate")
     set(LAPACK_FOUND TRUE)
   endif()
+
+  # Search for sequential OpenBLAS
+  if(ENABLE_OPENBLAS AND NOT LAPACK_FOUND)
+    set(_OPENBLAS_SERIAL_SEARCH_PATHS
+        /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/openblas-serial
+        /usr/lib/aarch64-linux-gnu/openblas-serial
+        /usr/lib/arm-linux-gnueabihf/openblas-serial
+        /usr/lib/x86_64-linux-gnu/openblas-serial
+        /usr/lib/openblas-serial
+        /opt/openblas-serial/lib
+        /opt/openblas/lib
+    )
+    set(_OPENBLAS_SERIAL_INC_PATHS
+        /usr/include/${CMAKE_LIBRARY_ARCHITECTURE}/openblas-serial
+        /usr/include/aarch64-linux-gnu/openblas-serial
+        /usr/include/arm-linux-gnueabihf/openblas-serial
+        /usr/include/x86_64-linux-gnu/openblas-serial
+        /usr/include/openblas-serial
+        /opt/openblas-serial/include
+        /opt/openblas/include
+    )
+
+    find_library(LAPACK_openblas_serial_lapack_LIBRARY
+        NAMES lapack
+        PATHS ${_OPENBLAS_SERIAL_SEARCH_PATHS}
+        NO_DEFAULT_PATH
+    )
+    find_library(LAPACK_openblas_serial_blas_LIBRARY
+        NAMES openblas openblas_serial openblas_seq blas
+        PATHS ${_OPENBLAS_SERIAL_SEARCH_PATHS}
+        NO_DEFAULT_PATH
+    )
+    find_path(LAPACK_openblas_serial_INCLUDE_DIR
+        NAMES cblas.h openblas_config.h
+        PATHS ${_OPENBLAS_SERIAL_INC_PATHS}
+        NO_DEFAULT_PATH
+    )
+
+    if(LAPACK_openblas_serial_blas_LIBRARY)
+      if(LAPACK_openblas_serial_lapack_LIBRARY)
+        set(LAPACK_LIBRARIES ${LAPACK_openblas_serial_lapack_LIBRARY} ${LAPACK_openblas_serial_blas_LIBRARY})
+      else()
+        set(LAPACK_LIBRARIES ${LAPACK_openblas_serial_blas_LIBRARY})
+      endif()
+      if(LAPACK_openblas_serial_INCLUDE_DIR)
+        set(LAPACK_INCLUDE_DIRS ${LAPACK_openblas_serial_INCLUDE_DIR})
+      endif()
+      set(LAPACK_FOUND TRUE)
+      set(HAVE_OPENBLAS 1)
+    endif()
+  endif()
   
   # Search for netlib lapack and blas libraries
   if(NOT LAPACK_FOUND)
@@ -117,6 +168,13 @@ if (USER_LAPACK_LIBRARIES)
     endif(USER_LAPACK_LIBRARIES_IS_ACML)
   endif(USER_LAPACK_LIBRARIES_IS_MKL)
 
+  # check for OpenBLAS
+  check_function_exists(openblas_get_parallel USER_LAPACK_LIBRARIES_IS_OPENBLAS)
+  if(USER_LAPACK_LIBRARIES_IS_OPENBLAS)
+    message(STATUS "User-defined LAPACK_LIBRARIES provides an OpenBLAS library")
+    set(HAVE_OPENBLAS 1)
+  endif(USER_LAPACK_LIBRARIES_IS_OPENBLAS)
+
   # LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
   if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)
     find_package(OpenMP REQUIRED COMPONENTS C)
@@ -126,6 +184,30 @@ if (USER_LAPACK_LIBRARIES)
   endif()
 
 endif(USER_LAPACK_LIBRARIES)
+
+# Check for OpenBLAS parallelism mode (must be sequential for MADNESS)
+check_function_exists(openblas_get_parallel LAPACK_PROVIDES_OPENBLAS)
+if(LAPACK_PROVIDES_OPENBLAS)
+  set(HAVE_OPENBLAS 1)
+  if(MADNESS_FORCE_SEQUENTIAL_BLAS AND NOT CMAKE_CROSSCOMPILING)
+    include(CheckCXXSourceRuns)
+    check_cxx_source_runs(
+      "
+      extern \"C\" int openblas_get_parallel(void);
+      int main() {
+        // 0 = OPENBLAS_SEQUENTIAL, 1 = OPENBLAS_THREAD, 2 = OPENBLAS_OPENMP
+        return (openblas_get_parallel() == 0) ? 0 : 1;
+      }
+      "
+      OPENBLAS_IS_SEQUENTIAL
+    )
+    if(NOT OPENBLAS_IS_SEQUENTIAL)
+      message(WARNING "Detected threaded OpenBLAS in LAPACK_LIBRARIES! MADNESS requires sequential BLAS to avoid task engine oversubscription.")
+    else()
+      message(STATUS "Verified OpenBLAS is sequential (single-threaded).")
+    endif()
+  endif()
+endif()
 
 cmake_pop_check_state()
 

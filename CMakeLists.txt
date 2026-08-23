@@ -102,6 +102,8 @@ option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
 #redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
+option(ENABLE_OPENBLAS "Search for OpenBLAS (prefers sequential variant) for BLAS and LAPACK support" ON)
+option(MADNESS_FORCE_SEQUENTIAL_BLAS "Enforce sequential (single-threaded) BLAS" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 option(ENABLE_GPERFTOOLS "Enable use of full Google Performance Tools (gperftools)" OFF)
 option(ENABLE_LIBUNWIND
