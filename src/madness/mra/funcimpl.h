@@ -5190,7 +5190,9 @@ template<size_t NDIM>
               validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
-            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
+            // N.B. must match how the displacement is merged back into a full key below:
+            // particle 1 occupies the front opdim axes, particle 2 the back ones
+            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
             BoxSurfaceDisplacementRange<opdim>
                 range_boundary_face_displacements(opkey, box_radius,
                                                   surface_thickness,
