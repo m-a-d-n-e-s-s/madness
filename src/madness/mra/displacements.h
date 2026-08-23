@@ -485,10 +485,7 @@ namespace madness {
           }
 
           // reset our search along all non-fixed dimensions
-          // the reset along the fixed_dim returns silently
-          for (size_t i = 0; i < NDIM; ++i) {
-            reset_along_dim(i);
-          }
+          reset_all_dims_and_select_face();
         }
 
         /// Perform advance, repeating if you are at a filtered point
@@ -512,7 +509,29 @@ namespace madness {
 
         // Recall that the surface is a union of hyperfaces, i.e., direct products of intervals.
         // Reset state on dimension `dim` to initialize for the start of interval `dim` in the the current direct product
-        void reset_along_dim(size_t dim) {
+        /// Restarts the sweep of the current fixed dimension's face, skipping ahead
+        /// to the next finite dimension for as long as a face turns out to be
+        /// entirely filtered out. Sets `done` if no face has a usable layer left,
+        /// which makes the range simply empty rather than an error.
+        void reset_all_dims_and_select_face() {
+          while (fixed_dim < NDIM) {
+            bool face_has_a_layer = true;
+            for (size_t d = 0; d != NDIM; ++d) {
+              if (!reset_along_dim(d)) face_has_a_layer = false;
+            }
+            if (face_has_a_layer) return;
+            ++fixed_dim;
+            while (fixed_dim < NDIM && !parent->box_radius_[fixed_dim]) {
+              ++fixed_dim;
+            }
+          }
+          done = true;
+        }
+
+        /// @return false iff \p dim is the fixed dimension and every one of its
+        ///         remaining surface layers is filtered out by the validator, i.e.
+        ///         this face contributes nothing
+        bool reset_along_dim(size_t dim) {
           const auto is_fixed_dim = dim == fixed_dim;
           Vector<Translation, NDIM> l = point.translation();
           Translation l_dim_min;
@@ -569,10 +588,15 @@ namespace madness {
                 if (!filtered_out())
                   break;
               }
-              MADNESS_ASSERT(have_another_surface_layer);
+              // N.B. a face all of whose layers are filtered out is not an error:
+              // e.g. for an even range on a non-lattice-summed axis the range
+              // boundary lies a full period away, hence entirely outside a finite
+              // domain. Report it and let the caller move on to the next face.
+              return have_another_surface_layer;
             }
 
           }
+          return true;
         };
 
         /**
@@ -613,9 +637,9 @@ namespace madness {
                                 parent->surface_thickness_[d].value_or(0),
                          parent->box_[d].second +
                              parent->surface_thickness_[d].value_or(0)} : parent->box_[d];
-              reset_along_dim(d);
             }
-            advance_till_valid();
+            reset_all_dims_and_select_face();
+            if (!done) advance_till_valid();
           }
         }
 
