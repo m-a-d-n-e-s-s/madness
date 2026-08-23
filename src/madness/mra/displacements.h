@@ -474,7 +474,7 @@ namespace madness {
           }
           // (3) switch to next fixed dimension with finite radius
           ++fixed_dim;
-          while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
+          while (fixed_dim < NDIM && !parent->box_radius_[fixed_dim]) {
             ++fixed_dim;
           }
 
@@ -603,7 +603,7 @@ namespace madness {
             : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
           if (type != End) {
             // skip to first dimensions with limited range
-            while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
+            while (fixed_dim < NDIM && !parent->box_radius_[fixed_dim]) {
               ++fixed_dim;
             }
 
@@ -799,59 +799,57 @@ namespace madness {
         // through the cube origin, and the screening test above would screen out the box iff the origin displacement has a small norm.
         // That screening test isn't viable. We need to choose our probe displacement differently.
         // Instead, we'll probe on target_face, but not on its origin.
-        // (We know the face has non-orign points because if we're in this clause, NDIM > 1, and there's more than one box.)
+        // (We know the face has non-origin points because if we're in this clause, NDIM > 1, and there's more than one box.)
         // Now, the operator norm decays as the displacement magnitude increases.
         // The challenge is to find a displacement *just big enough* for it to be valid, but no larger.
         probing_displacement_vec[backup_face.value()] = (*box_radius_[backup_face.value()]) * Translation(1) << (n-1);
 
         // As a special case, if there is no validator, that means that even the boxes closest to origin could be filtered out.
-        // So then *every* displacement will say to filter this out. Let's choose the easiest one.'
+        // So then *every* displacement will say to filter this out. Let's choose the easiest one.
         if (!validator_) return Displacement(n, probing_displacement_vec);
         // From here on, we can assume the validator exists.
 
         // We're going to be greedy. Let's try choosing one dimension's displacement to exceed bmax_default.
         // If we can do that, keep shrinking the distance if possible.
         // If we wanted the *best* direction for this trick, we'd start with the smallest real-space length.
+        const Translation bmax = Displacements<NDIM>::bmax_default();
         for (size_t d = 0; d != NDIM; ++d) {
           if (d == backup_face.value()) continue;
-          if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
-            // If displacing past bmax_default *to the left* keeps us in the box...
-            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
-              probing_displacement_vec[d] = -disp;
-              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
-              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
-                // Let's use the last valid key.
-                probing_displacement_vec[d] -= 1;
-                return Displacement(n, probing_displacement_vec);
-              }
-              probing_displacement_vec[d] = 0;
+          // Displace past bmax_default, in whichever direction stays inside the box.
+          Translation sign = 0;
+          if (center_[d] - bmax - 1 >= box_[d].first)
+            sign = -1;
+          else if (center_[d] + bmax + 1 <= box_[d].second)
+            sign = +1;
+          else
+            continue;
+
+          for (Translation disp = bmax; disp != 0; --disp) {
+            probing_displacement_vec[d] = sign * disp;
+            auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+            if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+              // This one is filtered out, so the last valid key was one step longer.
+              probing_displacement_vec[d] = sign * (disp + 1);
+              break;
             }
-            return Displacement(n, probing_displacement_vec);
-          } else if (center_[d] + Displacements<NDIM>::bmax_default() + 1 <= box_[d].second) {
-            // If displacing past bmax_default *to the right* keeps us in the box...
-            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
-              probing_displacement_vec[d] = +disp;
-              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
-              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
-                // Let's use the last valid key.
-                probing_displacement_vec[d] += 1;
-                return Displacement(n, probing_displacement_vec);
-              }
-              probing_displacement_vec[d] = 0;
-            }
-          return Displacement(n, probing_displacement_vec);
           }
-	}
+          // Either the loop broke out holding the last valid displacement, or every trial
+          // down to |disp| == 1 was valid and that shortest one is the one we want.
+          return Displacement(n, probing_displacement_vec);
+        }
         // If we can't, set all the distances to the maximum and greedily reduce until we get something invalid.
         // We could maybe decay some more, but this is fine.
         Translation max_permissible_abs = 0;
         for (size_t d = 0; d != NDIM; ++d) {
           if (d == backup_face.value()) continue;
-          // n.b.: If !box_radius_[d]_, we should have returned by now - dimension d isn't lattice-summed.'
-          max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
+          // dimensions of unlimited extent have no surface to probe; leave their component at 0
+          if (!box_radius_[d]) continue;
+          // N.B. box_ is in boxes, box_radius_ is in units of 2^{n-1}; the probe must be in boxes.
+          const Translation r = box_[d].second - center_[d];
+          max_permissible_abs = std::max(max_permissible_abs, r);
           // +/- displacements are equivalent for lattice-summed dimensions.
-          // + is the canonical choice the displacment code makes.
-          probing_displacement_vec[d] = max_permissible_abs;
+          // + is the canonical choice the displacement code makes.
+          probing_displacement_vec[d] = r;
         }
         bool can_shrink = true;
         max_permissible_abs--;
@@ -880,9 +878,8 @@ namespace madness {
             return Displacement(n, probing_displacement_vec);
           } else {
             if (max_permissible_abs == 0) {
-              // I want a case where this happens "in the wild," but if we end up here, we probably just need to compute all. The probe doesn't matter.'
-	          MADNESS_EXCEPTION("Attempt to generate a probe displacement failed. Contact developers immediately.", 0)
-	          throw;
+              // I want a case where this happens "in the wild," but if we end up here, we probably just need to compute all. The probe doesn't matter.
+              MADNESS_EXCEPTION("Attempt to generate a probe displacement failed. Contact developers immediately.", 0);
             }
             max_permissible_abs -= 1;
           }
