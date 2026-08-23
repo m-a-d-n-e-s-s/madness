@@ -191,6 +191,56 @@ int test_no_duplicates(World& world) {
   return t.end();
 }
 
+/// A face whose every layer is filtered out makes the range shorter, not fatal.
+///
+/// For an even N on a non-lattice-summed axis the range boundary sits a full
+/// period from the center, so with a finite domain every layer of every face is
+/// out of bounds and the surface is legitimately empty. Iterating it must yield
+/// nothing rather than tripping an assertion.
+int test_fully_filtered_faces(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: an entirely filtered face is not an error", world.rank() == 0);
+
+  // every face out of the domain => empty range
+  {
+    constexpr std::size_t NDIM = 2;
+    const Level n = 4;
+    Radii<NDIM> box_radius, surface_thickness;
+    for (std::size_t d = 0; d != NDIM; ++d) {
+      box_radius[d] = 2;  // r = 2*2^3 = 16 boxes from the center of a 16-box axis
+      surface_thickness[d] = 1;
+    }
+    BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
+                                            array_of_bools<NDIM>{false}, in_domain_only<NDIM>());
+    std::size_t count = 0;
+    for (auto&& disp : range) {
+      (void)disp;
+      ++count;
+    }
+    t.checkpoint(count == 0, "2D n=4 N={2,2} in-domain: surface is empty, not fatal");
+    t.checkpoint(range.begin() == range.end(), "2D n=4 N={2,2} in-domain: begin() == end()");
+  }
+
+  // one face entirely out of the domain, the other partly inside => the survivors
+  // are still enumerated, and still without duplicates
+  {
+    constexpr std::size_t NDIM = 2;
+    const Level n = 4;
+    Radii<NDIM> box_radius, surface_thickness;
+    box_radius[0] = 2;  surface_thickness[0] = 1;  // boundary a full period away
+    box_radius[1] = 1;  surface_thickness[1] = 1;  // boundary at the cell edge
+    BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
+                                            array_of_bools<NDIM>{false}, in_domain_only<NDIM>());
+    std::vector<Key<NDIM>> disps;
+    for (auto&& disp : range) disps.push_back(disp);
+    std::sort(disps.begin(), disps.end());
+    t.checkpoint(!disps.empty(), "2D n=4 N={2,1} in-domain: the surviving face is enumerated");
+    t.checkpoint(std::unique(disps.begin(), disps.end()) == disps.end(),
+                 "2D n=4 N={2,1} in-domain: all displacements distinct");
+  }
+
+  return t.end();
+}
+
 /// Whenever the hyperface origin is a usable probe, it is the one chosen.
 ///
 /// That covers every case except "lattice-summed with even N on all finite
@@ -433,6 +483,7 @@ int main(int argc, char** argv) {
   int errors = 0;
   errors += test_surface_extent(world);
   errors += test_no_duplicates(world);
+  errors += test_fully_filtered_faces(world);
   errors += test_probe_hyperface_origin(world);
   errors += test_probe_even_lattice_sum(world);
   errors += test_probe_fallback_is_in_box_units(world);
