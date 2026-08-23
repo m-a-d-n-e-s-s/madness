@@ -189,23 +189,41 @@ endif(USER_LAPACK_LIBRARIES)
 check_function_exists(openblas_get_parallel LAPACK_PROVIDES_OPENBLAS)
 if(LAPACK_PROVIDES_OPENBLAS)
   set(HAVE_OPENBLAS 1)
-  if(MADNESS_FORCE_SEQUENTIAL_BLAS AND NOT CMAKE_CROSSCOMPILING)
-    include(CheckCXXSourceRuns)
-    check_cxx_source_runs(
-      "
-      extern \"C\" int openblas_get_parallel(void);
-      int main() {
-        // 0 = OPENBLAS_SEQUENTIAL, 1 = OPENBLAS_THREAD, 2 = OPENBLAS_OPENMP
-        return (openblas_get_parallel() == 0) ? 0 : 1;
+endif()
+
+if(MADNESS_FORCE_SEQUENTIAL_BLAS AND NOT CMAKE_CROSSCOMPILING)
+  include(CheckCXXSourceRuns)
+  cmake_push_check_state()
+  set(CMAKE_REQUIRED_LIBRARIES ${PROCESSED_LAPACK_LIBRARIES} ${CMAKE_REQUIRED_LIBRARIES} Threads::Threads ${CMAKE_DL_LIBS})
+  check_cxx_source_runs(
+    "
+    #include <dlfcn.h>
+    extern \"C\" void dgemm_(char*, char*, int*, int*, int*, double*, double*, int*, double*, int*, double*, double*, int*);
+    extern \"C\" int openblas_get_parallel(void) __attribute__((weak));
+
+    int main() {
+      void *sym = (void*)dgemm_;
+      if (!sym) return 1;
+
+      int (*get_parallel)(void) = openblas_get_parallel;
+      if (!get_parallel) {
+        get_parallel = (int (*)(void))dlsym(RTLD_DEFAULT, \"openblas_get_parallel\");
       }
-      "
-      OPENBLAS_IS_SEQUENTIAL
-    )
-    if(NOT OPENBLAS_IS_SEQUENTIAL)
-      message(WARNING "Detected threaded OpenBLAS in LAPACK_LIBRARIES! MADNESS requires sequential BLAS to avoid task engine oversubscription.")
-    else()
-      message(STATUS "Verified OpenBLAS is sequential (single-threaded).")
-    endif()
+      if (get_parallel) {
+        // 0 = OPENBLAS_SEQUENTIAL, 1 = OPENBLAS_THREAD, 2 = OPENBLAS_OPENMP
+        int mode = get_parallel();
+        return (mode == 0) ? 0 : 1;
+      }
+      return 0;
+    }
+    "
+    OPENBLAS_IS_SEQUENTIAL
+  )
+  cmake_pop_check_state()
+  if(NOT OPENBLAS_IS_SEQUENTIAL)
+    message(WARNING "Detected threaded OpenBLAS in LAPACK_LIBRARIES! MADNESS requires sequential BLAS to avoid task engine oversubscription.")
+  else()
+    message(STATUS "Verified OpenBLAS is sequential (single-threaded).")
   endif()
 endif()
 

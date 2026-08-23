@@ -1,8 +1,6 @@
 ARG ubuntuImage=ubuntu:22.04
 FROM ${ubuntuImage}
 
-ARG TARGETARCH
-ARG ARCH
 ARG BUILD_TYPE=Release
 ARG BUILD_PARALLEL_JOBS=2
 ARG CMAKE_EXTRA_ARGS=""
@@ -28,45 +26,20 @@ RUN DEBIAN_FRONTEND=noninteractive \
     apt-get -yq update && \
     apt-get -yq install make wget curl
 
-# main, cmake, clang
+# main, openblas, cmake, clang
 RUN make install/main && \
+    make install/openblas && \
     make install/cmake && \
     make install/clang && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install linear algebra library depending on architecture:
-# For ARM64: libopenblas
-# For x86_64: Intel MKL
-RUN TARGET_ARCH="${TARGETARCH:-${ARCH}}"; \
-    if [ -z "$TARGET_ARCH" ]; then \
-        TARGET_ARCH=$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/'); \
-    fi; \
-    if [ "$TARGET_ARCH" = "arm64" ] || [ "$TARGET_ARCH" = "aarch64" ]; then \
-        make install/openblas; \
-    else \
-        make apt-add-repository/intel-mkl && \
-        make download/intel-mkl && \
-        make install/intel-mkl; \
-    fi && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Build MADNESS
-RUN TARGET_ARCH="${TARGETARCH:-${ARCH}}"; \
-    if [ -z "$TARGET_ARCH" ]; then \
-        TARGET_ARCH=$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/'); \
-    fi; \
-    if [ "$TARGET_ARCH" = "arm64" ] || [ "$TARGET_ARCH" = "aarch64" ]; then \
-        BUILD_TARGET="build/madness/arm64"; \
-    else \
-        BUILD_TARGET="build/madness/x86_64"; \
-    fi; \
-    make ${BUILD_TARGET} \
-        BUILD_TYPE="${BUILD_TYPE}" \
-        BUILD_PARALLEL_JOBS="${BUILD_PARALLEL_JOBS}" \
-        CMAKE_EXTRA_ARGS="${CMAKE_EXTRA_ARGS}" \
-        MADNESS_REPO="${MADNESS_REPO}" && \
+# build MADNESS for ARM64 with OpenBLAS
+RUN make build/madness/arm64 \
+    BUILD_TYPE="${BUILD_TYPE}" \
+    BUILD_PARALLEL_JOBS="${BUILD_PARALLEL_JOBS}" \
+    CMAKE_EXTRA_ARGS="${CMAKE_EXTRA_ARGS}" \
+    MADNESS_REPO="${MADNESS_REPO}" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
 
