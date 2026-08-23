@@ -851,7 +851,7 @@ namespace madness {
           max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
           // +/- displacements are equivalent for lattice-summed dimensions.
           // + is the canonical choice the displacement code makes.
-          probing_displacement_vec[d] = box_radius_[d];
+          probing_displacement_vec[d] = *box_radius_[d];
         }
         bool can_shrink = true;
         max_permissible_abs--;
