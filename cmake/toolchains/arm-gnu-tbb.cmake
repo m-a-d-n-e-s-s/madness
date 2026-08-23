@@ -41,10 +41,11 @@ else()
 endif()
 
 # Flags
-set(LAPACK_LIBRARIES "-L/usr/lib/aarch64-linux-gnu/openblas" "-llapacke" "-llapack" "-lopenblas")
+set(LAPACK_LIBRARIES "-L/usr/lib/aarch64-linux-gnu/openblas-serial" "-llapacke" "-llapack" "-lopenblas")
 #set(LAPACK_LIBRARIES "-L/opt/arm/armpl-19.2.0_Cortex-A72_Ubuntu-16.04_arm-hpc-compiler_19.2_aarch64-linux/lib" "-larmpl" "-lamath")
 
 #set(LAPACK_COMPILE_DEFINITIONS MADNESS_LINALG_USE_LAPACKE CACHE STRING "LAPACK preprocessor definitions")
+set(LAPACK_INCLUDE_DIRS "/usr/include/aarch64-linux-gnu/openblas-serial" CACHE STRING "LAPACK include directories")
 #set(LAPACK_INCLUDE_DIRS ${MKL_ROOT_DIR}/include CACHE STRING "LAPACK include directories")
 
 set(INTEGER4 TRUE CACHE BOOL "Set Fortran integer size to 4 bytes")
