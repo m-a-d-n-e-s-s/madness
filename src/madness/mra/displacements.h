@@ -798,8 +798,8 @@ namespace madness {
         // If we're in this case, then lattice summation *always* maps the periodic face onto a hyperplane
         // through the cube origin, and the screening test above would screen out the box iff the origin displacement has a small norm.
         // That screening test isn't viable. We need to choose our probe displacement differently.
-        // Instead, we'll probe on target_face, but not on its origin.
-        // (We know the face has non-orign points because if we're in this clause, NDIM > 1, and there's more than one box.)
+        // Instead, we'll probe on backup_face, but not on its origin.
+        // (We know the face has non-origin points because if we're in this clause, NDIM > 1, and there's more than one box.)
         // Now, the operator norm decays as the displacement magnitude increases.
         // The challenge is to find a displacement *just big enough* for it to be valid, but no larger.
         probing_displacement_vec[backup_face.value()] = (*box_radius_[backup_face.value()]) * Translation(1) << (n-1);
@@ -850,8 +850,8 @@ namespace madness {
           // n.b.: If !box_radius_[d]_, we should have returned by now - dimension d isn't lattice-summed.'
           max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
           // +/- displacements are equivalent for lattice-summed dimensions.
-          // + is the canonical choice the displacment code makes.
-          probing_displacement_vec[d] = max_permissible_abs;
+          // + is the canonical choice the displacement code makes.
+          probing_displacement_vec[d] = box_radius_[d];
         }
         bool can_shrink = true;
         max_permissible_abs--;
@@ -880,9 +880,8 @@ namespace madness {
             return Displacement(n, probing_displacement_vec);
           } else {
             if (max_permissible_abs == 0) {
-              // I want a case where this happens "in the wild," but if we end up here, we probably just need to compute all. The probe doesn't matter.'
+              // I want a case where this happens "in the wild," but if we end up here, we probably just need to compute all. The probe doesn't matter.
 	          MADNESS_EXCEPTION("Attempt to generate a probe displacement failed. Contact developers immediately.", 0)
-	          throw;
             }
             max_permissible_abs -= 1;
           }
