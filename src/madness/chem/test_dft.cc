@@ -230,6 +230,82 @@ int test_meta_gga(World& world) {
 }
 
 
+/// pointwise check of the spin-polarized de/dtau against a finite difference
+///
+/// Nothing else exercises the polarized meta-gga unpacking: the closed-shell path
+/// uses a different libxc entry point (nspin=1), a different index into vxc()'s
+/// result vector, and a different stride. This works on raw tensors, so it isolates
+/// the functional layer from everything MRA does.
+int test_meta_gga_dedtau_polarized(World& world) {
+    if (world.rank()==0) print("\nentering test_meta_gga_dedtau_polarized");
+    int result=0;
+
+    XCfunctional xcfunc;
+    xcfunc.initialize("MGGA_X_TPSS MGGA_C_TPSS",true,world);   // spin polarized
+    MADNESS_CHECK(xcfunc.needs_tau());
+
+    // eight sample points, sweeping from nearly spin-compensated to strongly
+    // polarized -- the regime an open-shell tail lives in, where the minority
+    // channel is orders of magnitude below the majority one
+    const long n=2;
+    std::vector<double> rhoa={0.30,0.30,0.10,0.10,0.050,0.050,0.020,0.020};
+    std::vector<double> rhob={0.25,0.15,0.05,0.01,1.e-3,1.e-4,1.e-5,1.e-6};
+    const double za=0.4, zb=0.7;        // zeta = grad(ln rho), one direction
+
+    auto build=[&](double dtaua, double dtaub) {
+        std::vector<Tensor<double> > t(XCfunctional::number_xc_args);
+        auto mk=[&](int which, const std::vector<double>& v) {
+            t[which]=Tensor<double>(n,n,n);
+            double* p=t[which].ptr();
+            for (long j=0; j<n*n*n; ++j) p[j]=v[j];
+        };
+        std::vector<double> ta(n*n*n), tb(n*n*n);
+        for (long j=0; j<n*n*n; ++j) {
+            // sigma_ss = rho_s^2 zeta_s^2, and tau_s >= tau_W = sigma_ss/(8 rho_s);
+            // sit safely above the bound so the clamp in make_libxc_args is inactive
+            ta[j]=1.5*(rhoa[j]*rhoa[j]*za*za)/(8.0*rhoa[j])+dtaua;
+            tb[j]=1.5*(rhob[j]*rhob[j]*zb*zb)/(8.0*rhob[j])+dtaub;
+        }
+        mk(XCfunctional::enum_rhoa,rhoa);   mk(XCfunctional::enum_rhob,rhob);
+        mk(XCfunctional::enum_taua,ta);     mk(XCfunctional::enum_taub,tb);
+        // no chi: make_libxc_args contracts the zeta components below
+        std::vector<double> zax(n*n*n,za), zbx(n*n*n,zb), zero(n*n*n,0.0);
+        mk(XCfunctional::enum_zetaa_x,zax); mk(XCfunctional::enum_zetaa_y,zero);
+        mk(XCfunctional::enum_zetaa_z,zero);
+        mk(XCfunctional::enum_zetab_x,zbx); mk(XCfunctional::enum_zetab_y,zero);
+        mk(XCfunctional::enum_zetab_z,zero);
+        return t;
+    };
+
+    const std::vector<Tensor<double> > t0=build(0.0,0.0);
+    const Tensor<double> va=xcfunc.vxc(t0,0)[7];
+    const Tensor<double> vb=xcfunc.vxc(t0,1)[7];
+
+    for (int spin=0; spin<2; ++spin) {
+        for (long j=0; j<n*n*n; ++j) {
+            // step scaled to tau itself: tau_beta spans several decades here
+            const double tau=(spin==0 ? 1.5*rhoa[j]*za*za/8.0 : 1.5*rhob[j]*zb*zb/8.0);
+            const double h=1.e-4*std::max(tau,1.e-8);
+            const Tensor<double> ep=xcfunc.exc(spin==0 ? build(h,0.0) : build(0.0,h));
+            const Tensor<double> em=xcfunc.exc(spin==0 ? build(-h,0.0) : build(0.0,-h));
+            const double fd=(ep.ptr()[j]-em.ptr()[j])/(2.0*h);
+            const double an=(spin==0 ? va.ptr()[j] : vb.ptr()[j]);
+            // de/dtau is screened on the same-spin density (ggatol), so a point
+            // below that floor is legitimately zero and carries no information
+            const double dens=(spin==0 ? rhoa[j] : rhob[j]);
+            const bool screened=(dens<xcfunc.get_ggatol());
+            if (world.rank()==0)
+                printf("  spin %d  rho %8.1e  de/dtau %13.6e  finite diff %13.6e%s\n",
+                       spin,dens,an,fd,screened ? "   (screened)" : "");
+            if (screened) continue;
+            if (check_err(an-fd,std::max(1.e-8,std::fabs(fd)*1.e-4),
+                          "polarized de/dtau does not match the finite difference")) result=1;
+        }
+    }
+    return result;
+}
+
+
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
 
@@ -246,6 +322,7 @@ int main(int argc, char** argv) {
     result+=test_slater_exchange(world);
     result+=test_hybrid_coefficients(world);
     result+=test_meta_gga(world);
+    result+=test_meta_gga_dedtau_polarized(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");
