@@ -171,7 +171,12 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         // exchange operator does not provide; treating them as global hybrids
         // would silently give the wrong answer.
         const int flags = funcs[i].first->info->flags;
-        if ((flags & XC_FLAGS_HYB_CAM) or (flags & XC_FLAGS_HYB_CAMY)) {
+        // CAM/CAMY are not the only markers: LC/LCY flag a long-range-corrected
+        // hybrid, whose exact-exchange coefficient would otherwise be handed to
+        // the ordinary (unattenuated) Exchange operator, quietly evaluating a
+        // different functional than the one that was asked for.
+        if ((flags & XC_FLAGS_HYB_CAM) or (flags & XC_FLAGS_HYB_CAMY)
+                or (flags & XC_FLAGS_HYB_LC) or (flags & XC_FLAGS_HYB_LCY)) {
             MADNESS_EXCEPTION("range-separated hybrids are not supported: no "
                               "attenuated exchange operator is available",1);
         }
@@ -303,11 +308,12 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
             if (needs_tau()) {
                 const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
-                madness::Tensor<double> taudummy;
-                if (taua==NULL) {           // caller did not provide tau
-                    taudummy=madness::Tensor<double>(np);
-                    taua=taudummy.ptr();
-                }
+                // Substituting zeros here would evaluate the functional at the tau
+                // floor and return a plausible-looking but wrong energy, so the
+                // missing precondition has to be an error, not a default.
+                if (taua==NULL) MADNESS_EXCEPTION("meta-gga without a kinetic energy "
+                        "density: XCOperator::set_tau() must be called before the "
+                        "functional is evaluated",1);
                 tau = madness::Tensor<double>(np);
                 double * MADNESS_RESTRICT t = tau.ptr();
                 for (long i=0; i<np; i++) {
@@ -405,6 +411,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             // Substitute a zero tensor -- rho_beta is zero as well, so all beta
             // contributions vanish regardless of what zeta_beta is set to.
             madness::Tensor<double> dummy;
+            const bool no_beta_density = (rhob==NULL);
             if ((rhob==NULL) or (chiab==NULL) or (chibb==NULL)
                     or (zetab_x==NULL) or (zetab_y==NULL) or (zetab_z==NULL)) {
                 dummy=madness::Tensor<double>(np);
@@ -456,12 +463,20 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             if (needs_tau()) {
                 const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
                 const double * MADNESS_RESTRICT taub = xc_args[enum_taub].ptr();
+                if (taua==NULL) MADNESS_EXCEPTION("meta-gga without a kinetic energy "
+                        "density: XCOperator::set_tau() must be called before the "
+                        "functional is evaluated",1);
+                // a missing beta tau is legitimate only when there are no beta
+                // electrons -- the same condition under which the beta density is
+                // absent above, and then every beta contribution vanishes anyway
                 madness::Tensor<double> taudummy;
-                if ((taua==NULL) or (taub==NULL)) {
+                if (taub==NULL) {
+                    MADNESS_CHECK_THROW(no_beta_density, "meta-gga: beta kinetic "
+                            "energy density missing although beta electrons are "
+                            "present -- pass bmo to XCOperator::set_tau()");
                     taudummy=madness::Tensor<double>(np);
+                    taub=taudummy.ptr();
                 }
-                if (taua==NULL) taua=taudummy.ptr();
-                if (taub==NULL) taub=taudummy.ptr();
 
                 tau = madness::Tensor<double>(np*2L);
                 double * MADNESS_RESTRICT t = tau.ptr();
@@ -509,6 +524,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         double * MADNESS_RESTRICT work = zk.ptr();
 
         switch(funcs[i].first->info->family) {
+        case XC_FAMILY_HYB_LDA:
         case XC_FAMILY_LDA:
             xc_lda_exc(funcs[i].first, np, dens, work);
             break;
@@ -585,6 +601,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
+        case XC_FAMILY_HYB_LDA:
         case XC_FAMILY_LDA:
         {
             madness::Tensor<double> vrho(nvrho*np);
@@ -724,6 +741,13 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
     // copy quantities from t to rho and sigma
     Tensor<double> rho,sigma, rho_pt, sigma_pt;   // rho=2rho_alpha, sigma=4sigma_alpha
     std::vector<Tensor<double> > drho(3), drho_pt(3);
+    // The response path prepares rho_pt and sigma_pt only -- there is no perturbed
+    // kinetic energy density, and tau's variation is orbital-dependent rather than
+    // a functional of the perturbed density. Reject meta-ggas here instead of
+    // letting them reach the unknown-family default below, so the message names
+    // the actual limitation.
+    if (needs_tau()) MADNESS_EXCEPTION("meta-gga response is not implemented: the "
+            "xc kernel has no perturbed kinetic energy density",1);
     madness::Tensor<double> tau;
     make_libxc_args(t, rho, sigma, tau, rho_pt, sigma_pt, drho, drho_pt, true);
 
@@ -750,6 +774,7 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
+        case XC_FAMILY_HYB_LDA:
         case XC_FAMILY_LDA: {
             double * MADNESS_RESTRICT vr = v2rho2.ptr();
             const double * MADNESS_RESTRICT dens = rho.ptr();

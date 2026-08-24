@@ -474,7 +474,8 @@ real_function_3d XCOperator<T, NDIM>::get_tau(const int spin) const {
 
 /// compute tau = 1/2 sum_i |grad psi_i|^2 and store it in the intermediates
 template<typename T, std::size_t NDIM>
-void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const vecfuncT &bmo) const {
+void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aocc,
+                                  const vecfuncT &bmo, const Tensor<double> &bocc) const {
 
     MADNESS_CHECK_THROW(is_initialized(), "set_tau called before the intermediates exist");
 
@@ -487,13 +488,42 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const vecfuncT &bmo) cons
 
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
-    auto compute_tau = [&](const vecfuncT &mo) {
+    // tau_sigma = 1/2 sum_i occ_{sigma,i} |grad psi_i|^2. The occupations are not
+    // decoration: the caller's orbital vectors are sized nmo, not nalpha/nbeta, so
+    // they carry virtual orbitals whose occupation is zero. Those add nothing to
+    // the density but would inflate an unweighted sum, silently changing the
+    // meta-gga energy and potential as soon as virtuals are requested. Fractional
+    // occupations need the same weighting, exactly as make_density applies it.
+    //
+    // Spin bookkeeping: madness stores per-spin occupations, one per spin channel
+    // even when spin-restricted (SCF.cc: "madness instead stores 2 identical sets
+    // (alpha and beta) with occupation 1"), and make_libxc_args forms the total
+    // from the alpha quantities. So the weight is the occupation itself, with no
+    // further normalisation, and the usual occ = 1 reproduces the unweighted sum.
+    auto compute_tau = [&](const vecfuncT &mo, const Tensor<double> &occ) {
+        MADNESS_CHECK_THROW(occ.size() >= long(mo.size()),
+                            "set_tau: fewer occupation numbers than orbitals");
+
+        // fold the weight into the orbitals as sqrt(w): the derivative is linear,
+        // so dot(D(sqrt(w) psi), D(sqrt(w) psi)) is sum_i w_i |grad psi_i|^2 and
+        // the vectorised path is preserved. w == 1 is passed through untouched, so
+        // integer-occupied cases are bit-identical to an unweighted sum rather
+        // than picking up the noise of a redundant scalar multiplication.
+        vecfuncT wmo;
+        for (size_t i = 0; i < mo.size(); ++i) {
+            const double w = occ(long(i));
+            if (w == 0.0) continue;             // virtuals carry no density, no tau
+            MADNESS_CHECK_THROW(w > 0.0, "set_tau: negative occupation number");
+            wmo.push_back(w == 1.0 ? mo[i] : std::sqrt(w) * mo[i]);
+        }
+
         real_function_3d result = real_factory_3d(world).compressed();
+        if (wmo.empty()) return result;
         for (int axis = 0; axis < 3; ++axis) {
             real_derivative_3d D(world, axis);
             if (dft_deriv == "bspline") D.set_bspline1();
             else if (dft_deriv == "ble") D.set_ble1();
-            vecfuncT mo_copy = copy(world, mo);
+            vecfuncT mo_copy = copy(world, wmo);
             refine(world, mo_copy);
             vecfuncT dmo = apply(world, D, mo_copy);
             result += dot(world, dmo, dmo);
@@ -502,11 +532,11 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const vecfuncT &bmo) cons
         return (0.5 * result).truncate(extra_truncation);
     };
 
-    xc_args[XCfunctional::enum_taua] = compute_tau(amo);
+    xc_args[XCfunctional::enum_taua] = compute_tau(amo, aocc);
     if (have_beta) {
         MADNESS_CHECK_THROW(bmo.size() > 0, "set_tau needs beta orbitals for an "
                                             "open-shell meta-gga calculation");
-        xc_args[XCfunctional::enum_taub] = compute_tau(bmo);
+        xc_args[XCfunctional::enum_taub] = compute_tau(bmo, bocc);
     }
     world.gop.fence();
 }
@@ -582,6 +612,14 @@ double XCOperator<T, NDIM>::compute_xc_energy() const {
 
     if (not is_initialized()) {
         MADNESS_EXCEPTION("calling xc energy without intermediates ", 1);
+    }
+    // same precondition as make_xc_potential(): without it a meta-gga energy is
+    // evaluated at the tau floor instead of the orbital tau, which is wrong but
+    // finite and therefore easy to miss
+    if (has_tau_term() and (not xc_args[XCfunctional::enum_taua].is_initialized())) {
+        MADNESS_EXCEPTION("meta-gga functional without a kinetic energy density: "
+                          "call XCOperator::set_tau() with the occupied orbitals "
+                          "before compute_xc_energy()", 1);
     }
 
     refine_to_common_level(world, xc_args);

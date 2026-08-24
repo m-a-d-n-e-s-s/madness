@@ -168,7 +168,11 @@ int test_meta_gga(World& world) {
 
     XCOperator<double,3> xc(world,"MGGA_X_TPSS",false,copy(dens),copy(dens));
     MADNESS_CHECK(xc.has_tau_term());
-    xc.set_tau(vecfuncT(1,psi));
+    // per-spin occupation: madness stores one occupied set per spin channel with
+    // occupation 1, and tau is stored per spin -- the closed-shell factor 2 is
+    // applied by the consumer, as the int(tau) check below does explicitly
+    Tensor<double> occ(1l); occ(0l)=1.0;
+    xc.set_tau(vecfuncT(1,psi),occ);
 
     // (a) int(tau) == T. tau is stored per spin, so the total is twice the alpha
     //     value for a closed-shell system.
@@ -200,6 +204,26 @@ int test_meta_gga(World& world) {
         if (world.rank()==0) print("  <phi|v_tau|ket>",lhs," weak form",rhs);
         if (check_err(lhs-rhs,std::max(1.e-8,std::fabs(rhs)*1.e-3),
                       "meta-gga operator does not match its weak form")) result=1;
+    }
+
+    // (c) an unoccupied orbital must not contribute to tau. The SCF hands
+    //     set_tau() its orbital vectors, which are sized nmo and therefore carry
+    //     the virtuals; an unweighted sum of |grad psi|^2 over them inflates tau,
+    //     and with it the meta-gga energy and potential, without changing the
+    //     density -- so nothing else in this file would notice.
+    {
+        real_function_3d virt=real_factory_3d(world).f(slater2);
+        virt.scale(1.0/virt.norm2());
+        XCOperator<double,3> xc2(world,"MGGA_X_TPSS",false,copy(dens),copy(dens));
+        Tensor<double> occ2(2l); occ2(0l)=1.0; occ2(1l)=0.0;   // one occupied, one virtual
+        xc2.set_tau({psi,virt},occ2);
+        // relative, like the int(tau) check: tau is O(100) here, so the two
+        // independently truncated operators differ by truncation noise. Including
+        // the virtual would add 0.5|grad virt|^2, which is of the same order as
+        // tau itself -- orders of magnitude above this tolerance.
+        const double dtau=(xc2.get_tau(0)-xc.get_tau(0)).norm2()/xc.get_tau(0).norm2();
+        if (world.rank()==0) print("  ||tau(occ+virtual) - tau(occ)|| / ||tau||",dtau);
+        if (check_err(dtau,thresh*10.0,"a virtual orbital changed tau")) result=1;
     }
 
     return result;

@@ -777,9 +777,17 @@ public:
     /// from what the ctors are given -- it has to be supplied separately. Call
     /// this after construction and before make_xc_potential() whenever
     /// has_tau_term() is true; make_xc_potential() throws otherwise.
-    /// @param[in]  amo alpha orbitals (nemos if a nuclear correlation factor is set)
-    /// @param[in]  bmo beta orbitals, ignored if the calculation is spin-restricted
-    void set_tau(const vecfuncT& amo, const vecfuncT& bmo=vecfuncT()) const;
+    /// The occupation numbers are required, not optional: amo/bmo may carry
+    /// virtual orbitals (occupation zero), which contribute nothing to the
+    /// density but would inflate an unweighted sum of |grad psi|^2, and
+    /// occupations may be fractional.
+    /// @param[in]  amo  alpha orbitals (nemos if a nuclear correlation factor is set)
+    /// @param[in]  aocc occupation numbers of amo
+    /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
+    /// @param[in]  bocc occupation numbers of bmo
+    void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
+                 const vecfuncT& bmo=vecfuncT(),
+                 const Tensor<double>& bocc=Tensor<double>()) const;
 
     /// the kinetic energy density of one spin channel, as set by set_tau()
 

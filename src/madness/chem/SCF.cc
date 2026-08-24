@@ -1475,7 +1475,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         xcoperator->set_print_level(param.print_level());
         // the kinetic energy density is orbital-dependent, so unlike the density
         // it cannot be recovered from what the ctor is given
-        if (xcoperator->has_tau_term()) xcoperator->set_tau(this->amo, this->bmo);
+        // occupations included on purpose: amo/bmo are sized nmo and carry the
+        // virtuals, which must not contribute to tau
+        if (xcoperator->has_tau_term())
+            xcoperator->set_tau(this->amo, this->aocc, this->bmo, this->bocc);
         // accumulate: for a hybrid, exc already holds the exact-exchange
         // contribution from the block above. compute_xc_energy() returns the
         // spin-summed DFT energy, hence the ispin==0 guard -- it is counted once,
