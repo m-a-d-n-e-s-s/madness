@@ -569,6 +569,9 @@ namespace madness {
                 if (!filtered_out())
                   break;
               }
+              // This isn't *logically* impossible, (c.f. PR774), but practically,
+              // you should never hit this. If you really do have a practical use case
+              // for this assert failing, remove it.
               MADNESS_ASSERT(have_another_surface_layer);
             }
 

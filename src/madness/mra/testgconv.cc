@@ -367,55 +367,8 @@ int test_gconv(World& world) {
     // test convolution with range restricted Gaussians
     ///////////////////////////////////////////////////
 
-    // validate BoxSurfaceDisplacementRange by making sure
-    // - it does not produce duplicate displacements
-    {
-      constexpr auto ND = 2;
-      const int n = 4;
-      Key<ND> key(n, Vector<Translation, ND>(1<<(n-1)));
-
-      std::size_t disp_count = 0;
-      const auto process_surface_displacements =
-          [&]() {
-            std::array<std::optional<std::int64_t>, ND> box_radius;
-            std::array<std::optional<std::int64_t>, ND> surface_thickness;
-            for (int d = 0; d != ND; ++d) {
-              box_radius[d] = 1;
-              surface_thickness[d] = 1;
-            }
-            BoxSurfaceDisplacementRange<ND> range_boundary_face_displacements(
-                key, box_radius, surface_thickness, array_of_bools<ND>{false},
-                [&](const auto level, const auto &dest, const auto &displacement) -> bool {
-                  // skip displacements not in domain
-                  const auto twon = (1 << level);
-                  for (auto d = 0; d != ND; ++d) {
-                    if (dest[d].has_value()) {
-                      if (dest[d] < 0 ||
-                          dest[d] >= twon)
-                        return false;
-                    }
-                  }
-                  return true;
-                });
-            std::vector<Key<ND>> disps;
-            for (auto &&disp : range_boundary_face_displacements) {
-//              std::cout << "disp = " << disp << " dest = " << key.neighbor(disp)
-//                        << std::endl;
-              disps.push_back(disp);
-              ++disp_count;
-            }
-            std::sort(disps.begin(), disps.end());
-            auto it = std::unique(disps.begin(), disps.end());
-
-            if (it != disps.end()) {
-              std::cout << "Duplicates found!!" << std::endl;
-              success++;
-            }
-          };
-      process_surface_displacements();
-    }
-
-    // now test the convolutions
+    // validation of BoxSurfaceDisplacementRange located in test_displacements.cc
+    // here, test the convolutions
     if constexpr (NDIM == 1) {
 
       int nerrors = 0;
