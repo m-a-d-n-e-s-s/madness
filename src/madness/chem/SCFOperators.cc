@@ -767,7 +767,15 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
     if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(brho.reconstruct());  // beta density
     world.gop.fence();
 
-    // compute the chi quantity such that sigma = rho^2 * chi
+    // zeta_sigma = grad(ln rho_sigma), so that grad(rho_sigma) = rho_sigma zeta_sigma
+    // and sigma_st = rho_s rho_t (zeta_s.zeta_t). Only zeta is stored: the
+    // contractions zeta_s.zeta_t are formed pointwise in
+    // XCfunctional::make_libxc_args, where they are guaranteed to be the exact Gram
+    // matrix of the gradients. Carrying them as their own multiwavelet functions
+    // (as this used to) meant the projected product disagreed with the zeta
+    // components at the quadrature points, by O(1) near the nuclear cusp -- enough
+    // for the sum of squares chi_aa to turn negative and for the total sigma handed
+    // to libxc to follow it.
     if (xc->needs_sigma()) {
 
         real_function_3d logdensa = unary_op(arho, logme());
@@ -775,8 +783,6 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
         if (dft_deriv == "bspline") grada = grad_bspline_one(logdensa); // b-spline
         else if (dft_deriv == "ble") grada = grad_ble_one(logdensa);    // BLE
         else grada = grad(logdensa);                                   // Default is abgv
-        real_function_3d chi = dot(world, grada, grada);
-        xcargs[XCfunctional::enum_chi_aa] = chi;
         xcargs[XCfunctional::enum_zetaa_x] = grada[0];
         xcargs[XCfunctional::enum_zetaa_y] = grada[1];
         xcargs[XCfunctional::enum_zetaa_z] = grada[2];
@@ -788,13 +794,9 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
             if (dft_deriv == "bspline") gradb = grad_bspline_one(logdensb);  // b-spline
             else if (dft_deriv == "ble") gradb = grad_ble_one(logdensb);     // BLE
             else gradb = grad(logdensb);                                    // Default is abgv
-            real_function_3d chib = dot(world, gradb, gradb);
-            real_function_3d chiab = dot(world, grada, gradb);
             xcargs[XCfunctional::enum_zetab_x] = gradb[0];
             xcargs[XCfunctional::enum_zetab_y] = gradb[1];
             xcargs[XCfunctional::enum_zetab_z] = gradb[2];
-            xcargs[XCfunctional::enum_chi_bb] = chib;
-            xcargs[XCfunctional::enum_chi_ab] = chiab;
         }
     }
 

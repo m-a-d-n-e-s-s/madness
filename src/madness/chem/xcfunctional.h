@@ -82,9 +82,13 @@ public:
         enum_zetab_x=19,        ///< \f$ \zeta_{b,x} = \partial/{\partial x} \ln(\rho_b)  \f$
         enum_zetab_y=20,        ///< \f$ \zeta_{b,y} = \partial/{\partial y} \ln(\rho_b)  \f$
         enum_zetab_z=21,        ///< \f$ \zeta_{b,z} = \partial/{\partial z} \ln(\rho_b)  \f$
-        enum_chi_aa=22,         ///< \f$ \chi_{aa} = \nabla \zeta_{\alpha}.\nabla \zeta_{\alpha} \f$
-        enum_chi_ab=23,         ///< \f$ \chi_{ab} = \nabla \zeta_{\alpha}.\nabla \zeta_{\beta} \f$
-        enum_chi_bb=24,         ///< \f$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} \f$
+        // Slots 22-24 held chi_st = zeta_s.zeta_t as three separately represented
+        // functions. They are gone: a projected product is not pointwise consistent
+        // with the zeta components it is built from, so the sigma matrix handed to
+        // libxc was not the Gram matrix of the density gradients -- chi_aa, a sum of
+        // squares, could come out negative near the nuclear cusp, and the total sigma
+        // followed it. make_libxc_args contracts zeta pointwise instead. Left as a
+        // hole rather than reused, so the surviving indices keep their meaning.
         enum_ddens_ptx=25,      ///< \f$ \nabla\rho_{pt}\f$
         enum_ddens_pty=26,      ///< \f$ \nabla\rho_{pt}\f$
         enum_ddens_ptz=27       ///< \f$ \nabla\rho_{pt}\f$

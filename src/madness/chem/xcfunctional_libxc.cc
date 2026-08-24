@@ -243,6 +243,44 @@ bool XCfunctional::has_kxc() const
 }
 
 
+/// contract two zeta vectors at grid point i: chi_st = zeta_s . zeta_t
+
+/// chi is the reduced density gradient in the logarithmic representation,
+/// sigma_st = rho_s rho_t chi_st. It used to be carried as its own multiwavelet
+/// function (dot(grad(ln rho_s), grad(ln rho_t)) projected and truncated), but a
+/// separately represented product is not pointwise consistent with the zeta
+/// components it came from: near the nuclear cusp the projection error in
+/// |grad ln rho|^2 is O(1), so chi_aa -- a sum of squares -- came out negative,
+/// sigma_aa/sigma_bb were clamped to their positivity floor while sigma_ab kept
+/// its (now unbounded) value, and the total sigma_aa + 2 sigma_ab + sigma_bb went
+/// negative. Measured against libxc alone: with the diagonals on the floor and
+/// sigma_ab swept, exc stays finite and independent of sigma_ab while vsigma of
+/// GGA_C_PBE and MGGA_C_TPSS turns NaN exactly when the total crosses zero. The
+/// exchange kernels never fail, so this corrupts the potential and not the energy,
+/// and it hits plain gga as hard as meta-gga. libxc's own two-sided clamp
+/// |sigma_ab| <= (sigma_aa + sigma_bb)/2 keeps the total non-negative while the
+/// diagonals are physical, which is why a floored diagonal is a precondition.
+///
+/// Contracting the zeta components here instead makes the sigma matrix the exact
+/// Gram matrix of the gradients at every grid point, so non-negativity of the
+/// diagonals, Cauchy-Schwarz, and non-negativity of the total all hold by
+/// construction rather than up to projection error. It is also cheaper: three
+/// multiwavelet products per spin pair disappear from prep_xc_args.
+///
+/// The pointers are deliberately not MADNESS_RESTRICT: with no beta electrons the
+/// three beta components all point at the same zero-filled scratch tensor.
+static inline double chi_of(const double* sx, const double* sy, const double* sz,
+                            const double* tx, const double* ty, const double* tz,
+                            const long i) {
+    return sx[i]*tx[i] + sy[i]*ty[i] + sz[i]*tz[i];
+}
+
+/// contract a zeta vector with itself: chi_ss = |zeta_s|^2 >= 0
+static inline double chi_of(const double* sx, const double* sy, const double* sz,
+                            const long i) {
+    return sx[i]*sx[i] + sy[i]*sy[i] + sz[i]*sz[i];
+}
+
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
            madness::Tensor<double>& tau,
@@ -280,7 +318,6 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             // the reduced density gradient sigma is given by
             // sigma = rho * rho * chi
             const double * MADNESS_RESTRICT rhoa = xc_args[enum_rhoa].ptr();
-            const double * MADNESS_RESTRICT chiaa = xc_args[enum_chi_aa].ptr();
             const double * MADNESS_RESTRICT zetaa_x = xc_args[enum_zetaa_x].ptr();
             const double * MADNESS_RESTRICT zetaa_y = xc_args[enum_zetaa_y].ptr();
             const double * MADNESS_RESTRICT zetaa_z = xc_args[enum_zetaa_z].ptr();
@@ -300,10 +337,12 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
             for (long i=0; i<np; i++) {
                 dens[i]=munge(2.0*rhoa[i]);     // full dens is twice alpha dens
-                sig[i] = std::max(1.e-14,dens[i]*dens[i] * chiaa[i]);   // 2 factors 2 included in dens
                 ddensx[i]=dens[i]*zetaa_x[i];
                 ddensy[i]=dens[i]*zetaa_y[i];
                 ddensz[i]=dens[i]*zetaa_z[i];
+                // sigma = |grad rho|^2 contracted from the very gradient handed to
+                // libxc, not read from a separately represented chi -- see chi_of()
+                sig[i] = std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
             }
 
             if (needs_tau()) {
@@ -318,12 +357,19 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 double * MADNESS_RESTRICT t = tau.ptr();
                 for (long i=0; i<np; i++) {
                     double ti = std::max(tautol,2.0*taua[i]);   // full tau is twice alpha tau
-                    // tau >= tau_W = sigma/(8 rho) is exact, so the Fermi hole
-                    // curvature stays positive and the iso-orbital indicators stay in
-                    // range. Bounding tau from below rather than clamping sigma down
-                    // (which is what libxc's XC_FLAGS_ENFORCE_FHC does) leaves the
-                    // density gradient untouched.
-                    if (dens[i] > rhotol) ti = std::max(ti,sig[i]/(8.0*dens[i]));
+                    // tau >= tau_W is exact, so the Fermi hole curvature stays positive
+                    // and the iso-orbital indicators stay in range. Bounding tau from
+                    // below rather than clamping sigma down (which is what libxc's
+                    // XC_FLAGS_ENFORCE_FHC does) leaves the density gradient untouched.
+                    //
+                    // tau_W = |grad rho|^2/(8 rho) = sigma/(8 rho), but sigma is rho^2
+                    // chi, so tau_W = rho chi/8 -- a product. Forming it as sigma/(8 rho)
+                    // reintroduces the division by the density that the chi
+                    // representation exists to avoid, and picks up sigma's positivity
+                    // floor, which then grows like 1/rho instead of vanishing. The
+                    // product needs no guard against rho -> 0 either, so the bound
+                    // applies everywhere rather than being skipped where rho is munged.
+                    ti = std::max(ti,dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i)/8.0);
                     t[i] = ti;
                 }
             }
@@ -394,10 +440,6 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const double * MADNESS_RESTRICT rhoa  = xc_args[enum_rhoa].ptr();
             const double * MADNESS_RESTRICT rhob  = xc_args[enum_rhob].ptr();
 
-            const double * MADNESS_RESTRICT chiaa = xc_args[enum_chi_aa].ptr();
-            const double * MADNESS_RESTRICT chiab = xc_args[enum_chi_ab].ptr();
-            const double * MADNESS_RESTRICT chibb = xc_args[enum_chi_bb].ptr();
-
             const double * MADNESS_RESTRICT zetaa_x = xc_args[enum_zetaa_x].ptr();
             const double * MADNESS_RESTRICT zetaa_y = xc_args[enum_zetaa_y].ptr();
             const double * MADNESS_RESTRICT zetaa_z = xc_args[enum_zetaa_z].ptr();
@@ -412,13 +454,11 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             // contributions vanish regardless of what zeta_beta is set to.
             madness::Tensor<double> dummy;
             const bool no_beta_density = (rhob==NULL);
-            if ((rhob==NULL) or (chiab==NULL) or (chibb==NULL)
+            if ((rhob==NULL)
                     or (zetab_x==NULL) or (zetab_y==NULL) or (zetab_z==NULL)) {
                 dummy=madness::Tensor<double>(np);
             }
             if (rhob==NULL) rhob=dummy.ptr();
-            if (chiab==NULL) chiab=dummy.ptr();
-            if (chibb==NULL) chibb=dummy.ptr();
             if (zetab_x==NULL) zetab_x=dummy.ptr();
             if (zetab_y==NULL) zetab_y=dummy.ptr();
             if (zetab_z==NULL) zetab_z=dummy.ptr();
@@ -443,12 +483,6 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
-                sig[3*i  ]  = std::max(1.e-14,ra * ra * chiaa[i]);  // aa
-                // sigma_ab = grad(rho_a).grad(rho_b) is bilinear and may legitimately
-                // be negative; only its magnitude is bounded (by Cauchy-Schwarz on the
-                // zeta vectors, which holds automatically here). Do not clamp the sign.
-                sig[3*i+1]  = ra * rb * chiab[i];                   // ab
-                sig[3*i+2]  = std::max(1.e-14,rb * rb * chibb[i]);  // bb
 
                 ddensx[2*i  ]=ra * zetaa_x[i];
                 ddensx[2*i+1]=rb * zetab_x[i];
@@ -457,7 +491,28 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 ddensz[2*i  ]=ra * zetaa_z[i];
                 ddensz[2*i+1]=rb * zetab_z[i];
 
+                // Contract the sigma matrix from the same zeta vectors, so that it is
+                // the exact Gram matrix of grad(rho_a), grad(rho_b) at this point:
+                // both diagonals are non-negative, |sigma_ab| obeys Cauchy-Schwarz,
+                // and sigma_aa + 2 sigma_ab + sigma_bb = |grad rho|^2 >= 0. libxc
+                // relies on all three -- the total in particular: the correlation
+                // kernels return NaN for vsigma as soon as it goes negative.
+                double saa = ra * ra * chi_of(zetaa_x,zetaa_y,zetaa_z,i);
+                double sbb = rb * rb * chi_of(zetab_x,zetab_y,zetab_z,i);
+                // sigma_ab = grad(rho_a).grad(rho_b) is bilinear and may legitimately
+                // be negative; only its magnitude is bounded. Do not clamp the sign.
+                double sab = ra * rb * chi_of(zetaa_x,zetaa_y,zetaa_z,
+                                              zetab_x,zetab_y,zetab_z,i);
+                // the positivity floor is for libxc's benefit; raising a diagonal
+                // could break Cauchy-Schwarz on its own, so re-impose the bound after
+                saa = std::max(1.e-14,saa);
+                sbb = std::max(1.e-14,sbb);
+                const double cs = std::sqrt(saa*sbb);
+                sab = std::min(cs,std::max(-cs,sab));
 
+                sig[3*i  ]  = saa;   // aa
+                sig[3*i+1]  = sab;   // ab
+                sig[3*i+2]  = sbb;   // bb
             }
 
             if (needs_tau()) {
@@ -483,9 +538,10 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 for (long i=0; i<np; i++) {
                     double ta = std::max(tautol,taua[i]);
                     double tb = std::max(tautol,taub[i]);
-                    // tau_s >= sigma_ss/(8 rho_s) in each spin channel, see above
-                    if (dens[2*i  ] > rhotol) ta = std::max(ta,sig[3*i  ]/(8.0*dens[2*i  ]));
-                    if (dens[2*i+1] > rhotol) tb = std::max(tb,sig[3*i+2]/(8.0*dens[2*i+1]));
+                    // tau_W,s = rho_s chi_ss/8 in each spin channel, as a product rather
+                    // than sigma_ss/(8 rho_s) -- see the spin-restricted branch above
+                    ta = std::max(ta,dens[2*i  ]*chi_of(zetaa_x,zetaa_y,zetaa_z,i)/8.0);
+                    tb = std::max(tb,dens[2*i+1]*chi_of(zetab_x,zetab_y,zetab_z,i)/8.0);
                     t[2*i  ] = ta;
                     t[2*i+1] = tb;
                 }
