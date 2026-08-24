@@ -94,7 +94,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("plotdens",false,"If true print the density at convergence");
 		initialize<bool>  ("plotcoul",false,"If true plot the total coulomb potential at convergence");
 		initialize<bool>  ("plotcube",false,"If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx");
-		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","new_sys","canon"});
+		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","new_sys","cholesky","canon"});
 		initialize<std::string> ("pointgroup","c1","use point (sub) group symmetry if not localized",{"c1","c2","ci","cs","c2v","c2h","d2","d2h"});
 		initialize<std::string>("restart","auto","where the initial orbitals come from: auto picks "
 				"between none/iterate/read_only by what is on disk",

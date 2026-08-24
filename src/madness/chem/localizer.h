@@ -142,6 +142,11 @@ private:
                                        const bool doprint = false) const;
 
     template<typename T, std::size_t NDIM>
+    DistributedMatrix<T> localize_cholesky(World& world,
+                                           const std::vector<Function<T, NDIM>>& mo,
+                                           const std::vector<int>& set) const;
+
+    template<typename T, std::size_t NDIM>
     DistributedMatrix<T> localize_new(World& world,
                                       const std::vector<Function<T, NDIM>>& mo,
                                       const std::vector<int>& set,
