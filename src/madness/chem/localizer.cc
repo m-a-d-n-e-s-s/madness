@@ -82,6 +82,8 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
         dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
     } else if (method == "new_sys") {
         dUT = localize_new_systolic(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
+    } else if (method == "cholesky") {
+        dUT = localize_cholesky(world, psi, mo_in.get_localize_sets());
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
@@ -624,6 +626,145 @@ DistributedMatrix<T> Localizer::localize_new_systolic(World& world, const std::v
     prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
     // randomize is ignored, as in the PM path
     return distributed_localize_new(world, C, set, at_to_bf, at_nbf, thresh, thetamax);
+}
+
+
+/// Cholesky localization: deterministic and non-iterative
+
+/// A pivoted Cholesky factorization of the density in the orthonormal
+/// atomic-eigenfunction basis: repeatedly pick the basis function carrying the largest
+/// remaining diagonal density, take its coefficient column as the next orbital, and
+/// orthonormalize (Aquilante, Pedersen, Koch, J. Chem. Phys. 125, 174101 (2006)).
+/// No objective is optimized, so successive SCF iterations cannot hop between the
+/// near-degenerate maxima an iterative localizer wanders over. The pivot diagonal is
+/// divided over ranks; slices evolve by identical per-function arithmetic on
+/// replicated data, so the pivot sequence -- and U -- are independent of the rank
+/// count. Each pivot step costs two scalar allreduces.
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                                  const std::vector<int>& set) const {
+    typedef Tensor<T> tensorT;
+    const long nmo = mo.size();
+
+    tensorT C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
+    const long nao = C.dim(1);
+
+    // this rank owns the pivot-diagonal slice [mulo, muhi)
+    const long nproc = world.size(), me = world.rank();
+    const long mulo = (nao * me) / nproc, muhi = (nao * (me + 1)) / nproc;
+
+    tensorT U(nmo, nmo);
+
+    // factor each localize-set separately: rotations never mix core and valence
+    std::vector<int> setids;
+    for (long i = 0; i < nmo; ++i)
+        if (std::find(setids.begin(), setids.end(), set[i]) == setids.end()) setids.push_back(set[i]);
+
+    for (int s : setids) {
+        std::vector<long> idx;
+        for (long i = 0; i < nmo; ++i) if (set[i] == s) idx.push_back(i);
+        const long ns = long(idx.size());
+
+        // remaining diagonal density of the owned basis functions
+        tensorT d(nao);
+        for (long ii = 0; ii < ns; ++ii)
+            for (long mu = mulo; mu < muhi; ++mu) d(mu) += C(idx[ii], mu) * C(idx[ii], mu);
+
+        tensorT u(ns, ns); // columns = the new orbitals in terms of the set's orbitals
+        long k = 0;
+        while (k < ns) {
+            long piv = -1;
+            double dmax = -1.0;
+            for (long mu = mulo; mu < muhi; ++mu)
+                if (d(mu) > dmax) { dmax = d(mu); piv = mu; }
+            double dglob = dmax;
+            world.gop.max(dglob);
+            if (dglob < 1e-10) break; // density exhausted; U is completed below
+            long cand = (piv >= 0 && dmax == dglob) ? piv : nao; // lowest index wins ties
+            world.gop.min(cand);
+
+            // the pivot's coefficient column, orthonormalized against u_0..u_{k-1}
+            tensorT w(ns);
+            for (long ii = 0; ii < ns; ++ii) w(ii) = C(idx[ii], cand);
+            for (int pass = 0; pass < 2; ++pass) {
+                for (long l = 0; l < k; ++l) {
+                    T ov = 0.0;
+                    for (long ii = 0; ii < ns; ++ii) ov += u(ii, l) * w(ii);
+                    for (long ii = 0; ii < ns; ++ii) w(ii) -= ov * u(ii, l);
+                }
+            }
+            double nrm2 = 0.0;
+            for (long ii = 0; ii < ns; ++ii) nrm2 += w(ii) * w(ii);
+            if (nrm2 < 1e-12) { // pivot already spanned: discard it and pick again
+                if (cand >= mulo && cand < muhi) d(cand) = 0.0;
+                continue;
+            }
+            const double scale = 1.0 / std::sqrt(nrm2);
+            for (long ii = 0; ii < ns; ++ii) u(ii, k) = w(ii) * scale;
+
+            // downdate the owned slice: d_mu -= (u_k . C(:,mu))^2
+            for (long mu = mulo; mu < muhi; ++mu) {
+                T z = 0.0;
+                for (long ii = 0; ii < ns; ++ii) z += u(ii, k) * C(idx[ii], mu);
+                d(mu) -= z * z;
+                if (d(mu) < 0.0) d(mu) = 0.0;
+            }
+            ++k;
+        }
+
+        // the projected basis can span fewer than ns dimensions; complete with
+        // coordinate vectors so the transform stays exactly unitary
+        for (long j = 0; k < ns && j < ns; ++j) {
+            tensorT w(ns);
+            w(j) = 1.0;
+            for (int pass = 0; pass < 2; ++pass) {
+                for (long l = 0; l < k; ++l) {
+                    T ov = 0.0;
+                    for (long ii = 0; ii < ns; ++ii) ov += u(ii, l) * w(ii);
+                    for (long ii = 0; ii < ns; ++ii) w(ii) -= ov * u(ii, l);
+                }
+            }
+            double nrm2 = 0.0;
+            for (long ii = 0; ii < ns; ++ii) nrm2 += w(ii) * w(ii);
+            if (nrm2 < 1e-6) continue;
+            const double scale = 1.0 / std::sqrt(nrm2);
+            for (long ii = 0; ii < ns; ++ii) u(ii, k) = w(ii) * scale;
+            ++k;
+        }
+        MADNESS_CHECK_THROW(k == ns, "cholesky localization failed to complete the rotation");
+
+        for (long kk = 0; kk < ns; ++kk)
+            for (long ii = 0; ii < ns; ++ii) U(idx[ii], idx[kk]) = u(ii, kk);
+    }
+
+    // least-rotation ordering and phases, as in the other methods
+    bool switched = true;
+    while (switched) {
+        switched = false;
+        for (long i = 0; i < nmo; i++) {
+            for (long j = i + 1; j < nmo; j++) {
+                if (set[i] == set[j]) {
+                    double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                    double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                    if (snew > sold) {
+                        tensorT tmp = copy(U(_, i));
+                        U(_, i) = U(_, j);
+                        U(_, j) = tmp;
+                        switched = true;
+                    }
+                }
+            }
+        }
+    }
+    for (long i = 0; i < nmo; ++i) {
+        if (U(i, i) < 0.0) U(_, i).scale(-1.0);
+    }
+
+    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+    dUT.copy_from_replicated(transpose(U));
+    return dUT;
 }
 
 
