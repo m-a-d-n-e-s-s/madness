@@ -186,9 +186,12 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
     }
 
     tensorT U(nmo, nmo);
-    default_random_generator.setstate(
-            182041 + world.rank() * 10101); // To help with reproducibility for debugging, etc.
-    if (world.rank() == 0) {
+    // Runs replicated on every rank: dip and the seed are identical everywhere, so all
+    // ranks compute the same U in lockstep. Keep it rank-independent -- an idle rank
+    // would trip the MAD_WAIT_TIMEOUT watchdog on long calls.
+    default_random_generator.setstate(182041);
+    const bool doprint0 = doprint && (world.rank() == 0);
+    {
         for (long i = 0; i < nmo; ++i)
             U(i, i) = 1.0;
 
@@ -209,7 +212,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                 }
             }
             double maxg = g.absmax();
-            if (doprint)
+            if (doprint0)
                 printf("iteration %ld W=%.8f maxg=%.2e\n", iter, W, maxg);
             if (maxg < thresh) break;
 
@@ -217,7 +220,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
             tensorT x = copy(g);
             if (!rprev) { // Only apply conjugacy if did LS with real gradient
                 double gamma = g.trace(g - gprev) / gprev.trace(gprev);
-                if (doprint) print("gamma", gamma);
+                if (doprint0) print("gamma", gamma);
                 x.gaxpy(1.0, xprev, gamma);
             }
 
@@ -225,7 +228,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
             rprev = false;
             double dxgrad = x.trace(g) * 2.0;
             if (dxgrad < 0 || ((iter + 1) % N) == 0) {
-                if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                if (doprint0) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
                 x = copy(g);
                 dxgrad = x.trace(g) * 2.0; // 2*2 = 4 which should be prefactor on integrals in gradient
             }
@@ -248,7 +251,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                 double f1 = newW;
                 double hess = 2.0 * (f1 - f0 - mu * dxgrad) / (mu * mu);
                 if (hess >= 0) {
-                    if (doprint) print("+ve hessian", hess);
+                    if (doprint0) print("+ve hessian", hess);
                     hess = -2.0 * dxgrad; // force a bigish step to get out of bad region
                     rprev = true; // since did not do line search
                 }
@@ -258,7 +261,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                     rprev = true; // since did not do line search
                 }
                 double f2p = f0 + dxgrad * mu2 + 0.5 * hess * mu2 * mu2;
-                if (doprint) print(f0, f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
+                if (doprint0) print(f0, f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
                 mu = mu2;
             }
 
@@ -295,6 +298,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
 
     }
 
+    // every rank computed an identical U; the broadcast is kept as cheap insurance
     world.gop.broadcast(U.ptr(), U.size(), 0);
 
     DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
@@ -419,12 +423,14 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
 
 
-    default_random_generator.setstate(
-            182041 + world.rank() * 10101); // To help with reproducibility for debugging, etc.
+    // The optimization runs replicated and in lockstep on every rank: the seed is
+    // rank-independent and makeGW's allreduces leave every rank with the same gradient,
+    // so all control-flow decisions coincide. Only the row fan-outs inside makeGW are
+    // divided over ranks.
+    default_random_generator.setstate(182041);
+    const bool doprint0 = doprint && (world.rank() == 0);
 
-    if (world.rank() == 0) {
-        //MKL_Set_Num_Threads_Local(16);
-
+    {
         tensorT Q(nmo, natom);
         double breaksym = 0.0; // was 1e-3;
         auto QQ = [&at_to_bf, &at_nbf, &breaksym](const tensorT& C, int i, int j, int a) -> double {
@@ -438,23 +444,34 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
 
         // The fan-out is local, so it must be awaited with Future::get(), never gop.fence(). Rows
         // are disjoint: row i writes only g(i,j<i) and g(j<i,i). W is summed outside the fan-out to
-        // keep it independent of scheduling order.
+        // keep it independent of scheduling order. Rows are dealt round-robin over ranks (the cost
+        // of row i grows with i, so striding balances) and combined with gop.sum, an allreduce:
+        // every rank ends up holding the same Q and g bit for bit.
         typedef Range<int> rangeT;
-        auto makeGW = [&world, &Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
-            auto q_row = [&Q, &natom, &QQ, &C](const rangeT::iterator& it) -> bool {
+        const long nproc = world.size();
+        const long me = world.rank();
+        auto makeGW = [&world, &Q, &nmo, &natom, &QQ, &nproc, &me](const tensorT& C, double& W, tensorT& g) -> void {
+            // zero both accumulators: each rank contributes only its rows, and the
+            // line search reuses g across calls -- stale rows would survive the sum
+            Q.fill(0.0);
+            g.fill(0.0);
+            auto q_row = [&Q, &natom, &QQ, &C, &nproc, &me](const rangeT::iterator& it) -> bool {
                 const int i = it;
+                if (i % nproc != me) return true;
                 for (int a = 0; a < natom; ++a) Q(i, a) = QQ(C, i, i, a);
                 return true;
             };
             MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), q_row).get());
+            world.gop.sum(Q.ptr(), Q.size());
 
             W = 0.0;
             for (int i = 0; i < nmo; ++i)
                 for (int a = 0; a < natom; ++a) W += Q(i, a) * Q(i, a);
 
             // the gradient is O(nmo^2*natom) and the hot spot of localize_new
-            auto grad_row = [&Q, &natom, &QQ, &C, &g](const rangeT::iterator& it) -> bool {
+            auto grad_row = [&Q, &natom, &QQ, &C, &g, &nproc, &me](const rangeT::iterator& it) -> bool {
                 const int i = it;
+                if (i % nproc != me) return true;
                 for (int j = 0; j < i; ++j) {
                     double Qiiij = 0.0, Qijjj = 0.0;
                     for (int a = 0; a < natom; ++a) {
@@ -468,6 +485,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                 return true;
             };
             MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), grad_row).get());
+            world.gop.sum(g.ptr(), g.size());
         };
 
         tensorT xprev; // previous search direction
@@ -490,14 +508,14 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             }
 
             double maxg = g.absmax();
-            if (doprint) printf("iteration %d W=%.8f maxg=%.2e\n", iter, W, maxg);
+            if (doprint0) printf("iteration %d W=%.8f maxg=%.2e\n", iter, W, maxg);
             if (maxg < thresh) break;
 
             // construct search direction using conjugate gradient approach
             tensorT x = copy(g);
             if (!rprev) { // Only apply conjugacy if did LS with real gradient
                 double gamma = g.trace(g - gprev) / gprev.trace(gprev);
-                if (doprint) print("gamma", gamma);
+                if (doprint0) print("gamma", gamma);
                 x.gaxpy(1.0, xprev, gamma);
             }
 
@@ -505,7 +523,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             rprev = false;
             double dxgrad = x.trace(g) * 2.0;  // 2*2 = 4 which should be prefactor on integrals in gradient
             if (dxgrad < 0 || ((iter + 1) % N) == 0) {
-                if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                if (doprint0) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
                 x = copy(g);
                 dxgrad = x.trace(g) * 2.0;
             }
@@ -528,7 +546,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                 //double hess = 2.0*(f1-f0-mu*dxgrad)/(mu*mu);
                 double hess = (dxgnew - dxgrad) / mu; // Near convergence this is more accurate
                 if (hess >= 0) {
-                    if (doprint) print("+ve hessian", hess);
+                    if (doprint0) print("+ve hessian", hess);
                     hess = -2.0 * dxgrad; // force a bigish step to get out of bad region
                     rprev = true; // since did not do line search
                 }
@@ -538,7 +556,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                     rprev = true; // since did not do line search
                 }
                 double f2p = f0 + dxgrad * mu2 + 0.5 * hess * mu2 * mu2;
-                if (doprint) print(f0, f1, f0 - f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
+                if (doprint0) print(f0, f1, f0 - f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
                 mu = mu2;
             }
 
@@ -575,9 +593,9 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             if (U(i, i) < 0.0)
                 U(_, i).scale(-1.0);
         }
-        //MKL_Set_Num_Threads_Local(1);
     }
     //done:
+    // every rank computed an identical U; the broadcast is kept as cheap insurance
     world.gop.broadcast(U.ptr(), U.size(), 0);
 
     DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
