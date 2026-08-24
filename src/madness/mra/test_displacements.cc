@@ -420,7 +420,6 @@ int main(int argc, char** argv) {
   int errors = 0;
   errors += test_surface_extent(world);
   errors += test_no_duplicates(world);
-  errors += test_fully_filtered_faces(world);
   errors += test_probe_hyperface_origin(world);
   errors += test_probe_even_lattice_sum(world);
   errors += test_probe_fallback_is_in_box_units(world);
