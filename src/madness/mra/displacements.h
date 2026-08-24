@@ -767,7 +767,7 @@ namespace madness {
       }
 
     private:
-      // If all dimensions are lattice-summed and even, then the standard
+      // If all periodic dimensions are lattice-summed and even, then the standard
       // algorithm to compute the probe displacement fails...
       Displacement compute_probe() {
         const auto n = center_.level();
@@ -812,46 +812,49 @@ namespace madness {
         // We're going to be greedy. Let's try choosing one dimension's displacement to exceed bmax_default.
         // If we can do that, keep shrinking the distance if possible.
         // If we wanted the *best* direction for this trick, we'd start with the smallest real-space length.
+        const Translation bmax = Displacements<NDIM>::bmax_default();
         for (size_t d = 0; d != NDIM; ++d) {
           if (d == backup_face.value()) continue;
-          if (center_[d] - Displacements<NDIM>::bmax_default() - 1 >= box_[d].first) {
-            // If displacing past bmax_default *to the left* keeps us in the box...
-            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
-              probing_displacement_vec[d] = -disp;
-              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
-              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
-                // Let's use the last valid key.
-                probing_displacement_vec[d] -= 1;
-                return Displacement(n, probing_displacement_vec);
-              }
-              probing_displacement_vec[d] = 0;
+
+          // Can we displace past bmax in any direction?
+	      // For dimensions with a box_radius_, these if-conditions are equivalent, but the equivalence
+	      // does not hold for open dimensions.
+          Translation sign = 0;
+          if (center_[d] - box_[d].first >= bmax + 1)
+            sign = -1;
+          else if (bmax + 1 <= box_[d].second - center_[d])
+            sign = +1;
+          else
+            continue;
+
+          // If we made it here, we're displacing along this direction. We want the least displacement
+          // such that the displacement is both valid and nonzero. Zero displacements is exactly
+          // want to avoid.
+          for (Translation disp = bmax; disp != 0; --disp) {
+            probing_displacement_vec[d] = sign * disp;
+            auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
+            if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
+              // This one is filtered out, so the last valid key was one step longer.
+              probing_displacement_vec[d] = sign * (disp + 1);
+              break;
             }
-            return Displacement(n, probing_displacement_vec);
-          } else if (center_[d] + Displacements<NDIM>::bmax_default() + 1 <= box_[d].second) {
-            // If displacing past bmax_default *to the right* keeps us in the box...
-            for (Translation disp = Displacements<NDIM>::bmax_default(); disp != 0; --disp) {
-              probing_displacement_vec[d] = +disp;
-              auto trial_disp = std::make_optional<Key<NDIM>>(center_.level(),  probing_displacement_vec);
-              if (!validator_(n, center_.translation() + probing_displacement_vec, trial_disp)) {
-                // Let's use the last valid key.
-                probing_displacement_vec[d] += 1;
-                return Displacement(n, probing_displacement_vec);
-              }
-              probing_displacement_vec[d] = 0;
-            }
-          return Displacement(n, probing_displacement_vec);
           }
-	}
+          return Displacement(n, probing_displacement_vec);
+        }
         // If we can't, set all the distances to the maximum and greedily reduce until we get something invalid.
         // We could maybe decay some more, but this is fine.
         Translation max_permissible_abs = 0;
         for (size_t d = 0; d != NDIM; ++d) {
           if (d == backup_face.value()) continue;
-          // n.b.: If !box_radius_[d]_, we should have returned by now - dimension d isn't lattice-summed.'
-          max_permissible_abs = std::max({max_permissible_abs, *box_radius_[d]});
+          // dimensions of unlimited extent have no surface to probe; leave their component at 0
+          if (!box_radius_[d]) continue;
+          // N.B. box_radius_ and r hold the same information, but r is in units of boxes
+          // rather than half-simulation cells.
+          const Translation r = box_[d].second - center_[d];
+          max_permissible_abs = std::max(max_permissible_abs, r);
           // +/- displacements are equivalent for lattice-summed dimensions.
           // + is the canonical choice the displacement code makes.
-          probing_displacement_vec[d] = *box_radius_[d];
+          probing_displacement_vec[d] = r;
         }
         bool can_shrink = true;
         max_permissible_abs--;
