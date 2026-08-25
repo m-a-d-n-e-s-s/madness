@@ -63,8 +63,10 @@ node26 once simple-dftd3 is available there.
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
 | `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
+| `nemo_he_pbe` | `nemo` | He | the only DFT deck on the nemo path — the regularized density-gradient path, and why its value is 70 uHa below the moldft one at the same settings | 12 s | medium |
 | `scf_he_pbe0` | `scf` | He | the only hybrid — exact exchange plus a semilocal functional | 9 s | medium |
 | `scf_he_tpss` | `scf` | He | the only meta-GGA — the non-multiplicative kinetic-energy-density term | 17 s | medium |
+| `scf_li_tpss` | `scf` | Li | the only open-shell meta-GGA — unequal spin densities, hence the spin-polarized sigma matrix and the cross-spin flux term | 15 s | medium |
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |

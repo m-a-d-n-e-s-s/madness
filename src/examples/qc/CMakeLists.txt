@@ -28,6 +28,11 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
+  # the only DFT deck on the nemo path; see the deck for why the asserted value
+  # is the nemo one and not the (70 uHa higher) moldft number at the same settings
+  if (TARGET Libxc::xc)
+    add_qctest(nemo_he_pbe     madqc "qctest;medium;applications")    #  12 s
+  endif()
   # the only case with k varying across the protocol; must agree with nemo_he_hf
   add_qctest(nemo_he_varyk     madqc "qctest;medium;applications")    #  13 s
   add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #   9 s
