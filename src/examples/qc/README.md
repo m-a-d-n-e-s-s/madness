@@ -64,6 +64,7 @@ node26 once simple-dftd3 is available there.
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
 | `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
 | `nemo_he_pbe` | `nemo` | He | the only DFT deck on the nemo path — the regularized density-gradient path, and why its value is 70 uHa below the moldft one at the same settings | 12 s | medium |
+| `nemo_he_tpss` | `nemo` | He | meta-GGA on the nemo path — tau from the nemos via the psi = R F product rule, and the non-multiplicative term with the R factors cancelled analytically | 24 s | medium |
 | `scf_he_pbe0` | `scf` | He | the only hybrid — exact exchange plus a semilocal functional | 9 s | medium |
 | `scf_he_tpss` | `scf` | He | the only meta-GGA — the non-multiplicative kinetic-energy-density term | 17 s | medium |
 | `scf_li_tpss` | `scf` | Li | the only open-shell meta-GGA — unequal spin densities, hence the spin-polarized sigma matrix and the cross-spin flux term | 15 s | medium |

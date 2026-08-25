@@ -781,6 +781,9 @@ public:
     /// virtual orbitals (occupation zero), which contribute nothing to the
     /// density but would inflate an unweighted sum of |grad psi|^2, and
     /// occupations may be fractional.
+    /// With a nuclear correlation factor the vectors are the nemos F, psi = R F,
+    /// and the product rule grad psi = R (grad F - U1 F) is applied here -- the
+    /// cusp stays in the analytic U1 and only the cusp-free F is differentiated.
     /// @param[in]  amo  alpha orbitals (nemos if a nuclear correlation factor is set)
     /// @param[in]  aocc occupation numbers of amo
     /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
@@ -810,6 +813,11 @@ public:
     /// is symmetric only up to discretization error and needs \f$\nabla^2\psi\f$.
     /// Requires make_xc_potential() to have been called first, which is where
     /// \f$ v_\tau \f$ is computed.
+    ///
+    /// With a nuclear correlation factor the kets are the nemos \f$ F \f$ and the
+    /// result is the term already divided by \f$ R \f$, which is what nemo's
+    /// equations for \f$ F \f$ need. The \f$ R \f$ factors cancel analytically
+    /// (see the implementation), so nothing is ever divided by \f$ R \f$.
     std::vector<Function<T,NDIM> > apply_tau_term(const std::vector<Function<T,NDIM> >& vket) const;
 
     /// construct the xc kernel and apply it directly on the (response) density

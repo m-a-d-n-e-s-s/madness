@@ -32,6 +32,9 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # is the nemo one and not the (70 uHa higher) moldft number at the same settings
   if (TARGET Libxc::xc)
     add_qctest(nemo_he_pbe     madqc "qctest;medium;applications")    #  12 s
+    # meta-gga on the nemo path: tau from the nemos and the non-multiplicative
+    # term with the R factors cancelled; cross-checks against the moldft path
+    add_qctest(nemo_he_tpss    madqc "qctest;medium;applications")    #  24 s
   endif()
   # the only case with k varying across the protocol; must agree with nemo_he_hf
   add_qctest(nemo_he_varyk     madqc "qctest;medium;applications")    #  13 s

@@ -479,12 +479,24 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
 
     MADNESS_CHECK_THROW(is_initialized(), "set_tau called before the intermediates exist");
 
-    // In nemo mode the orbitals handed in are the nemos F with psi = R F, so
-    // grad psi = R (grad F - U1 F). Not implemented yet -- refuse rather than
-    // silently returning the kinetic energy density of the nemos.
-    if (ncf) MADNESS_EXCEPTION("meta-gga with a nuclear correlation factor is not "
-                               "implemented yet: tau must be built from grad(R F), "
-                               "not grad(F)", 1);
+    // In nemo mode the vectors handed in are the nemos F, with psi = R F, so
+    //
+    //   grad psi = R (grad F - U1 F),        U1 = -grad(R)/R
+    //   |grad psi|^2 = R^2 (|grad F|^2 - 2 F U1.grad F + |U1|^2 F^2)
+    //
+    // and the whole nuclear cusp sits in U1, which is analytic and precomputed.
+    // Only the cusp-free F is differentiated numerically. Forming psi = R F and
+    // differentiating that instead would put the cusp straight back under the
+    // derivative operator, which is what the regularization exists to avoid.
+    // Same decomposition as OEP::compute_total_kinetic_density.
+    vecfuncT U1;
+    real_function_3d U1dot, R_square;
+    if (ncf) {
+        U1 = ncf->U1vec();
+        NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
+        U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
+        R_square = ncf->square();
+    }
 
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
@@ -519,6 +531,8 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
 
         real_function_3d result = real_factory_3d(world).compressed();
         if (wmo.empty()) return result;
+        // the |U1|^2 F^2 term of the product rule; absent without an ncf
+        if (ncf) result += U1dot * dot(world, wmo, wmo);
         for (int axis = 0; axis < 3; ++axis) {
             real_derivative_3d D(world, axis);
             if (dft_deriv == "bspline") D.set_bspline1();
@@ -527,7 +541,12 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
             refine(world, mo_copy);
             vecfuncT dmo = apply(world, D, mo_copy);
             result += dot(world, dmo, dmo);
+            // the cross term -2 F U1.grad F
+            if (ncf) result -= 2.0 * U1[axis] * dot(world, mo_copy, dmo);
         }
+        // the R^2 of |grad psi|^2 = R^2 (...); tau is the physical kinetic energy
+        // density, so the regularization factor has to be put back here
+        if (ncf) result = result * R_square;
         // libxc convention: tau = 1/2 sum_i |grad psi_i|^2  (since libxc 2.0.0)
         return (0.5 * result).truncate(extra_truncation);
     };
@@ -579,17 +598,35 @@ XCOperator<T, NDIM>::apply_tau_term(const std::vector<Function<T, NDIM> > &vket)
         }
     }
 
+    // In nemo mode the kets are the nemos F and what the caller needs back is the
+    // term divided by R, since its equations are for F rather than psi = R F:
+    //
+    //   R^{-1} [ -1/2 div( v_tau grad(R F) ) ]
+    //
+    // With grad(R F) = R (grad F - U1 F) and W = v_tau (grad F - U1 F),
+    //
+    //   div(R W) = R div W + grad(R).W = R (div W - U1.W)
+    //
+    // so the R factors cancel exactly and the result is -1/2 (div W - U1.W). No
+    // division by R anywhere, and the cusp stays in the analytic U1 rather than
+    // under a derivative operator. Without an ncf, U1 drops out and W = v_tau
+    // grad(psi), which is the plain nested form.
+    vecfuncT U1;
+    if (ncf) U1 = ncf->U1vec();
+
     std::vector<Function<T, NDIM> > result =
             zero_functions_compressed<T, NDIM>(world, vket.size());
     for (int axis = 0; axis < 3; ++axis) {
         auto D = make_derivative(axis);
         std::vector<Function<T, NDIM> > vket_copy = copy(world, vket);
         refine(world, vket_copy);
-        std::vector<Function<T, NDIM> > dket = apply(world, *D, vket_copy);
+        std::vector<Function<T, NDIM> > W = apply(world, *D, vket_copy);
+        if (ncf) W = sub(world, W, mul(world, U1[axis], vket_copy));
         // vtau is only ever multiplied, never differentiated
-        dket = mul_sparse(world, vtau, dket, vtol);
-        refine(world, dket);
-        result = add(world, result, apply(world, *D, dket));
+        W = mul_sparse(world, vtau, W, vtol);
+        refine(world, W);
+        result = add(world, result, apply(world, *D, W));
+        if (ncf) result = sub(world, result, mul(world, U1[axis], W));
     }
     scale(world, result, -0.5);
     truncate(world, result);

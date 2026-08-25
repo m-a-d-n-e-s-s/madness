@@ -396,6 +396,16 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
   }
   if (calc->xc.is_dft()) {
     XCOperator<double, 3> xcoperator(world, this, ispin);
+    // A meta-gga's xc contribution is not a multiplicative potential, so it
+    // cannot be registered as a LocalPotentialOperator the way the rungs below
+    // it are. The ground-state SCF does not come through here -- it uses
+    // compute_nemo_potentials, which does handle the term -- so refuse rather
+    // than hand back a Fock operator that silently drops it. The consumers are
+    // TDHF (which rejects meta-ggas up front anyway) and test_SCFOperators.
+    MADNESS_CHECK_THROW(not xcoperator.has_tau_term(),
+        "Nemo::make_fock_operator: a meta-gga cannot be expressed as a "
+        "multiplicative operator; register the XCOperator itself, or add a "
+        "second operator for the non-multiplicative term");
     real_function_3d xc_pot = xcoperator.make_xc_potential();
 
     // compute the asymptotic correction of exchange-correlation potential
@@ -657,6 +667,11 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
   double exc = 0.0;
   if (calc->xc.is_dft()) {
     XCOperator<double, 3> xcoperator(world, this, ispin);
+    // tau is an orbital functional, so it cannot be recovered from the density
+    // the constructor was handed; the operator applies the psi = R F product rule
+    // to the nemos itself
+    if (xcoperator.has_tau_term())
+      xcoperator.set_tau(nemo, calc->aocc);
     exc = xcoperator.compute_xc_energy();
   }
 
@@ -759,6 +774,9 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
     // compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
       XCOperator<double, 3> xcoperator(world, this, ispin);
+      // see compute_energy_regularized: tau comes from the orbitals, not the density
+      if (xcoperator.has_tau_term())
+        xcoperator.set_tau(nemo, calc->aocc);
       // double exc = 0.0;
       // if (ispin == 0) exc = xcoperator.compute_xc_energy();
       real_function_3d xc_pot = xcoperator.make_xc_potential();
@@ -774,6 +792,10 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
       }
 
       xcnemo = truncate(xc_pot * nemo);
+      // the non-multiplicative meta-gga term. apply_tau_term returns it already
+      // divided by R, so it adds straight onto the other nemo-side potentials.
+      if (xcoperator.has_tau_term())
+        xcnemo += xcoperator.apply_tau_term(nemo);
       t.tag("compute XCnemo");
     }
 

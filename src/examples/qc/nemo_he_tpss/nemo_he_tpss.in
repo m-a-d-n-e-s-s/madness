@@ -1,0 +1,55 @@
+# TPSS on helium with regularized (nuclear-cusp-free) orbitals.
+#
+# The meta-GGA counterpart of nemo_he_pbe, and the deck that covers meta-GGA on
+# the nemo path. Three things had to exist for this to run at all, none of which
+# the moldft path needs:
+#
+#   * tau from the nemos. tau is an orbital functional, and with psi = R F the
+#     product rule gives grad psi = R (grad F - U1 F), so
+#         tau = 1/2 R^2 sum_i w_i |grad F_i - U1 F_i|^2
+#     with U1 = -grad(R)/R analytic and precomputed. Only the cusp-free F is
+#     differentiated numerically -- forming psi = R F and differentiating that
+#     would put the nuclear cusp straight back under the derivative operator.
+#
+#   * the non-multiplicative term, divided by R. nemo's equations are for F, so
+#     what is needed is R^{-1}[-1/2 div(v_tau grad(R F))]. With
+#     W = v_tau (grad F - U1 F) and div(R W) = R (div W - U1.W) the R factors
+#     cancel exactly, giving -1/2 (div W - U1.W) -- no division by R anywhere.
+#
+#   * a place to put it. nemo registers the xc contribution as a
+#     LocalPotentialOperator, which cannot carry a differential operator; the
+#     term is added to the nemo-side potentials in compute_nemo_potentials
+#     instead. Nemo::make_fock_operator therefore refuses a meta-GGA outright
+#     rather than returning a Fock operator that silently drops it.
+#
+# CROSS-CHECK, which is what makes this deck a real test rather than a smoke
+# test. The same system and functional through `--wf=scf` (moldft) builds tau by
+# differentiating the physical orbitals across the cusp, with no U1 anywhere --
+# a completely different code path to the same physics. Tightened to
+# `protocol [1e-4, 1e-6, 1e-8]` the two agree to ~1e-08 at -2.9096637. A sign
+# error or a missing term in either the tau product rule or the R cancellation
+# would show up there immediately, and nothing else in the tree would catch it.
+#
+# EXTERNAL ANCHOR. TURBOMOLE TPSS/aug-cc-pV6Z, grid m5, is -2.90964927, so the
+# converged MRA value sits 14.4 uHa below the largest Gaussian basis -- the same
+# sign and magnitude as the closed-shell PBE case (7.9 uHa), with the larger
+# offset expected of a meta-GGA, and reproducing an independent earlier He/TPSS
+# cross-check to the digit.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_he_tpss.in)
+
+dft
+    xc       tpss
+    k        7
+    maxiter  20
+    econv    1e-5
+    dconv    1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end
