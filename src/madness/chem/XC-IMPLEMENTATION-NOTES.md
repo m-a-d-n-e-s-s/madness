@@ -527,6 +527,37 @@ nucleus. The same reasoning is why the OEP is grid-hungry: its Slater term
 contains $\nabla\partial e_{XC}/\partial\tau$ explicitly and cannot integrate it
 away **[V]**.
 
+**With a regularizing prefactor, the same trick applies twice. [M]** If the code
+solves for $F$ with $\psi=RF$ for some smooth positive $R$ (a nuclear correlation
+factor, a Jastrow prefactor, an augmentation), then $\tau$ and the operator both
+want the product rule rather than a numerical derivative of $\psi$:
+
+$$
+\nabla\psi=R(\nabla F-\mathbf U_1F),\qquad \mathbf U_1=-\nabla R/R
+$$
+$$
+\tau_\sigma=\tfrac12R^2\sum_iw_i|\nabla F_i-\mathbf U_1F_i|^2
+$$
+
+and for the operator, writing $\mathbf W=v_\tau(\nabla F-\mathbf U_1F)$ so that
+$v_\tau\nabla\psi=R\mathbf W$,
+
+$$
+\nabla\!\cdot\!(R\mathbf W)=R\bigl(\nabla\!\cdot\!\mathbf W-\mathbf U_1\!\cdot\!\mathbf W\bigr)
+\;\Longrightarrow\;
+R^{-1}\Bigl[-\tfrac12\nabla\!\cdot\!(v_\tau\nabla\psi)\Bigr]
+ = -\tfrac12\bigl(\nabla\!\cdot\!\mathbf W-\mathbf U_1\!\cdot\!\mathbf W\bigr).
+$$
+
+**The $R$ factors cancel identically — nothing is divided by $R$**, and if
+$\mathbf U_1$ is analytic (as it is when $R$ is chosen to carry the nuclear cusp)
+then every remaining derivative acts on the smooth $F$. Forming $\psi=RF$ and
+differentiating that instead puts the cusp back under the derivative operator,
+which defeats the regularization. Verified in MADNESS by agreement to 1.2e-08
+between this route and the direct one on He/TPSS (`XC-MADNESS-ASSESSMENT.md`
+§4.4) — but note the regularized route was ~20x more expensive there, and its
+memory profile did not survive the tightest threshold (§5.4 of the same).
+
 ### 6.3 Where the noise comes from — the $\alpha\approx1$ mechanism
 
 The most useful diagnostic result in the literature surveyed. Yang et al.
@@ -1074,6 +1105,8 @@ Per SCF iteration, per spin sigma:
   6.  log min/max v_tau ; check 1 + min v_tau > 0
   7.  W psi_i = V_mult psi_i - (1/2) sum_x D_x( v_tau * D_x psi_i )
       # NEVER form grad(v_tau)
+      # with psi = R F, instead:  -(1/2)( div W - U1.W ),
+      #   W = v_tau (grad F - U1 F)      -- the R factors cancel (6.2)
   8.  psi_i <- -2 G_{mu_i}[ W psi_i + (other potentials) psi_i ]
       optionally rescale G by a mean (1 + v_bar) to shrink the order-0 term
   9.  Functional order of attack: TPSS (z-based, no alpha=1 oscillation),

@@ -123,7 +123,12 @@ matters.
 - It is applied to the orbitals alongside exact exchange, not folded into `vloc`.
 - TPSS first, with r²SCAN and SCAN as aliases; the deck comments record why that
   order (companion §6.3).
-- The ellipticity diagnostic $1+\min v_\tau>0$ is logged at `print_level>=2`.
+- The ellipticity diagnostic $1+\min v_\tau>0$ is logged at `print_level>=2`
+  (moldft only — nemo does not set the operator's print level).
+- It works on the regularized path too: with a nuclear correlation factor both
+  $\tau$ and the non-multiplicative term are built by the $\psi=RF$ product rule,
+  with the cusp confined to the analytic $\mathbf U_1$ and the $R$ factors of the
+  operator cancelling identically. See §4.4.
 - The tau floor is $\tau_s\ge\rho_s\chi_{ss}/8$ — the von Weizsäcker bound as a
   *product*, so no division by the density and no contact with $\sigma$'s
   positivity floor, which fed into $\sigma/(8\rho)$ would grow like $1/\rho$
@@ -166,11 +171,6 @@ energies *and* eigenvalues) and at tensor level by
 
 ### 3.2 Still live
 
-- **String-literal throws survive** at `xcfunctional_libxc.cc:44`, `:51`, `:795`
-  (`throw "bad stuff!!!!!!!!!!"`, `"bad stuff xxx"`, `"bad stuff yyy"`), despite
-  `f8ce69454` ("libxc: throw real exceptions, not string literals"). These are
-  reachable: `:51` fires on any unrecognised functional name, and produces an
-  uninformative abort.
 - **`has_fxc()` and `has_kxc()` return `false` unconditionally**
   (`xcfunctional_libxc.cc:235`, `:240`, comment "not thought about this yet")
   while `fxc_apply` is fully implemented and used. Called nowhere, so
@@ -199,26 +199,31 @@ energies *and* eigenvalues) and at tensor level by
 |---|---|---|
 | `test_dft.cc` | **short** | `LDA_X`, hybrid coefficients, meta-GGA identities, polarized `de/dtau` (tensor level) |
 | `test_SCFOperators.cc` | **long** | closed-shell `lda`, `LDA_X`, `pbe`, `bp` against hardwired references |
-| `testxc.cc` | **not registered at all** | — |
+| `testxc.cc` | **built, but not a test** | — |
 | `scf_he_pbe0`, `scf_he_tpss`, `scf_li_tpss` (qctest) | **medium** | closed-shell hybrid + meta-GGA, open-shell meta-GGA |
+| `nemo_he_pbe`, `nemo_he_tpss` (qctest) | **medium** | GGA and meta-GGA on the regularized path, each cross-checked against its moldft counterpart |
 
 Both C++ tests are gated on `TARGET Libxc::xc`.
 
 Remaining gaps:
 
-- **No polarized GGA/meta-GGA unit test asserting on the `Function`-level
-  potential.** `scf_li_tpss` covers the path end-to-end, which is what caught
-  §4.5's class of bug, but a unit test would localize a regression instead of
-  just failing an SCF. The companion §10 test — the same closed-shell system
-  through `nspin=1` and `nspin=2`, agreeing to roundoff on energy, potential
-  *and* kernel — is still the highest-value one to add, with the caveat that it
-  provably **cannot** catch a Gram-matrix violation (companion §6.9).
-- **Nemo + DFT has no coverage whatsoever.** All six nemo qctest decks specify
-  `xc hf`. So the entire nemo GGA path — where the cusp is in play and where the
-  analytic decomposition is bypassed (§4.4) — is exercised by nothing. This must
-  precede any work on §4.4.
-- `testxc.cc` is not in `CHEM_TEST_SOURCES_{SHORT,LONG}`, so it builds only if
-  someone names the target.
+- **No *reference-valued* polarized test, and no `nspin=1` vs `nspin=2`
+  consistency test.** `test_XCOperator` does assert on the polarized
+  `Function`-level potential, and on a genuinely spin-asymmetric density: it
+  checks the exact symmetry $v_\alpha[\rho_a,\rho_b]=v_\beta[\rho_b,\rho_a]$
+  pointwise, needing no reference values. What is missing is a polarized case
+  pinned to a reference number, and the companion §10 test — the same
+  closed-shell system through `nspin=1` and `nspin=2`, agreeing to roundoff on
+  energy, potential *and* kernel. Note two things that test provably cannot
+  catch: a Gram-matrix violation (companion §6.9), and anything symmetric under
+  the spin swap, which is why §4.5's defect survived `test_XCOperator` even
+  though that test asserts on exactly the right object. Its densities are also
+  smooth Gaussians, so the O(1) cusp projection error never arises there at all.
+- `testxc.cc` is not in `CHEM_TEST_SOURCES_{SHORT,LONG}` but *is* built, as
+  `CHEM_OTHER_TESTS` via `add_mad_executable` with the comment "not included in
+  the unit tests". So it compiles on every build and produces no ctest entry —
+  a manually-run executable, like `plotxc`. `testlda.cc` and
+  `test_exchangeoperator.cc` are genuinely absent from `CMakeLists.txt`.
 
 ---
 
@@ -300,9 +305,11 @@ either and not user-adjustable). `rhomin = 0.0` means `munge` maps the tail to
 *exactly zero*, which is what makes the $\sigma$ floor the only thing standing
 between libxc and a zero density — see §4.5.
 
-### 4.4 The nuclear cusp: nemo's information is available and discarded
+### 4.4 The nuclear cusp: half fixed, half still open
 
-**The clearest actionable finding that is still open.**
+**Status.** The $\tau$ half is implemented (`nemo: meta-gga on the regularized
+path`). The $\zeta$/$\sigma$ half — the GGA reduced gradient — is still open, and
+is now the clearest actionable finding here.
 
 `XCOperator`'s nemo constructor forms the **full physical density**, cusp
 included, and hands it to the same code path as moldft:
@@ -313,8 +320,9 @@ the entire point of the nemo factorization for this quantity.
 
 Meanwhile `XCOperator` holds `ncf`, documented verbatim as "the nuclear
 correlation factor, if it exists, **for computing derivatives for GGA**". It is
-read by exactly one XC method: `set_tau`, which uses it only to *refuse*
-meta-GGA in nemo mode. Otherwise dead storage with a comment describing the fix.
+now read by `set_tau` and `apply_tau_term`, which use it to apply the product rule
+below — but *not* by `prep_xc_args`, which is the one place the comment actually
+names. The GGA path still differentiates `log(arho)` numerically across the cusp.
 
 **The fix is an identity, not an approximation.** With $\rho=R^2\rho_{\rm nemo}$
 and $\mathbf U_1=-\nabla R/R$ (`correlationfactor.h`),
@@ -344,23 +352,49 @@ the nuclear Hessian. Reviving `make_sigma` is smaller than writing the
 decomposition fresh, but check it against the current ζ interface rather than
 assuming it correct after years without a caller.
 
-**The same applies to $\tau$, and there the code already exists and is live.**
-With $\psi_i=RF_i$, $\nabla\psi_i=R(\nabla F_i-\mathbf U_1F_i)$, so
+**The same applies to $\tau$, and that half is now done.** With $\psi_i=RF_i$,
+$\nabla\psi_i=R(\nabla F_i-\mathbf U_1F_i)$, so
 
 $$
 \boxed{\;\tau_\sigma=\tfrac12R^2\sum_iw_i\bigl|\nabla F_i-\mathbf U_1F_i\bigr|^2\;}
 $$
 
-and `OEP::compute_total_kinetic_density` (`oep.h`) computes exactly this, term for
-term, returning $\tau/R^2$ without the closed-shell factor 2. It is called from
-`oep.cc` and `oep.h`, and it **already honours `dft_deriv`** — unlike the GGA flux
-path (§4.2). So the nemo route is a matter of **lifting that method out of `OEP`
-into `NemoBase`** rather than writing anything new.
+which is the decomposition `OEP::compute_total_kinetic_density` (`oep.h`) already
+used — and which already honoured `dft_deriv`, unlike the GGA flux path (§4.2).
+`set_tau` now applies it directly, branching on its own `ncf`, so callers just
+pass what they have.
 
-This would make the nemo $\tau$ path **more accurate than the moldft one**, where
-$\nabla\psi_i$ must be taken across the cusp directly — an argument for validating
-future meta-GGA work in nemo mode. Until it is done, `set_tau` correctly refuses
-rather than silently returning the kinetic energy density of the nemos.
+The non-multiplicative term needed a second identity. nemo's equations are for
+$F$, so what `apply_tau_term` must return is
+$R^{-1}[-\tfrac12\nabla\!\cdot\!(v_\tau\nabla(RF))]$. With
+$\mathbf W=v_\tau(\nabla F-\mathbf U_1F)$, so that $v_\tau\nabla(RF)=R\mathbf W$,
+
+$$
+\nabla\!\cdot\!(R\mathbf W)=R\,\nabla\!\cdot\!\mathbf W+\nabla R\!\cdot\!\mathbf W
+ = R\bigl(\nabla\!\cdot\!\mathbf W-\mathbf U_1\!\cdot\!\mathbf W\bigr)
+$$
+
+so the $R$ factors cancel identically, leaving
+$-\tfrac12(\nabla\!\cdot\!\mathbf W-\mathbf U_1\!\cdot\!\mathbf W)$. **Nothing is
+divided by $R$**, $v_\tau$ is still only multiplied, and with no ncf $\mathbf U_1$
+drops out and it reduces to the plain nested form — so the moldft path is
+untouched. Wired into `compute_nemo_potentials` and
+`compute_energy_regularized`; `Nemo::make_fock_operator` refuses a meta-GGA
+instead, since a `LocalPotentialOperator` cannot carry a differential operator.
+
+**Measured, and this is the check worth keeping.** moldft builds $\tau$ by
+differentiating the physical orbitals across the cusp with no $\mathbf U_1$
+anywhere — a wholly different code path to the same physics. On He/TPSS at
+`protocol [1e-4, 1e-6, 1e-8]`, nemo gives $-2.90966373$ (one iteration short of
+its 1e-06 residual target) against moldft's converged $-2.909663718$, agreeing to
+1.2e-08, both 14.4 uHa below TURBOMOLE TPSS/aug-cc-pV6Z. A sign error or a
+dropped term in either identity shows up there and nowhere else. `nemo_he_tpss`
+registers it at cheap settings.
+
+Note the earlier expectation in this section — that the nemo $\tau$ path would be
+*more accurate* than moldft's — is not what was observed: the two agree, and it is
+nemo that is far more expensive (see §5.4). The accuracy argument for the
+regularized path shows up instead in how fast it converges in `thresh` (§5.4).
 
 Corroborating evidence that second derivatives of the density are the wrong road
 here, from the tree itself (`nemo.h`):
@@ -505,25 +539,64 @@ iteration. **The single largest easy performance win, and untouched.**
 - No caching anywhere: a fresh `XCOperator` per use site per iteration, in
   `SCF.cc`, `nemo.cc` (three sites) and `TDHF.cc` (two).
 
+### 5.4 Measured: nemo meta-GGA is expensive, and the memory is the problem
+
+**[M]** Unlike everything above, these are measurements. He/TPSS at
+`protocol [1e-4, 1e-6, 1e-8]`, node26, `MAD_NUM_THREADS=20`:
+
+| path | wall time | outcome |
+|---|---|---|
+| moldft | 2 m 52 s | converged, -2.909663718 |
+| nemo | 56 m 16 s | **killed** at 167 GB resident (of 187 GB), no progress after a fock-matrix build |
+
+So ~20x the wall time for the same number on the same system, and a memory
+profile that does not survive the tightest rung. Per-rung timings show where it
+goes: ~5 s per energy evaluation at 1e-4, ~190 s at 1e-8 with $k=10$. The
+$O(1)\to O(N)$ shift in derivative applications (§5.1) accounts for the time; it
+does not by itself account for 167 GB.
+
+Prime suspect is the `refine()` traffic in the $\tau$ machinery. `set_tau` refines
+a copy of the orbital vector per axis, and `apply_tau_term` refines both the ket
+copy and $\mathbf W$ per axis, so at $k=10$ several refined orbital vectors are
+live simultaneously. That makes §6's gradient-sharing item a memory fix as much
+as a speed one: the inner $D_x\psi_i$ in `apply_tau_term` is **the same object**
+as the $\nabla\psi_i$ `set_tau` needs, and computing it once would cut both the
+time and the peak.
+
+Nothing registered goes near this — `nemo_he_tpss` is 24 s — but a molecule at
+1e-8 on this path is not currently feasible.
+
+**The regularized path converges faster in `thresh`, and that is where its
+accuracy argument lives.** He/PBE, same settings both paths: at thresh 1e-6 nemo
+gives -2.892934590 and moldft -2.892864, 70 uHa apart; tightened to 1e-8 they
+agree to 6e-09 at -2.89293476. The 70 uHa is moldft's remaining discretization
+error, which nemo has already shed two rungs earlier. That is the property
+`nemo_he_pbe` asserts on, and the one §4.4's $\zeta$ work should preserve.
+
 ---
 
 ## 6. Recommended order of work
 
+Done since the first revision: a nemo GGA regression deck (`nemo_he_pbe`), and
+meta-GGA on the nemo path with its deck (`nemo_he_tpss`) — the former item 1, the
+latter item 8 plus the nemo half of the operator work.
+
 | # | Item | § | Effort | Value |
 |---|---|---|---|---|
-| 1 | A nemo + GGA regression deck (none exists) | 3.3 | small | you cannot improve what nothing measures |
+| 1 | Share the orbital gradients between `set_tau` and `apply_tau_term` | 5.1, 5.4 | small | **now a memory fix, not just 2×** — 167 GB at $k=10$ |
 | 2 | Fuse `exc`/`vxc` via `xc_{gga,mgga}_exc_vxc` | 5.2 | small | ~2× on the XC step |
-| 3 | Share the orbital gradients between `set_tau` and `apply_tau_term` | 5.1 | small | largest meta-GGA win |
-| 4 | Share intermediates across the two spin operators | 5.1 | small | 2× on polarized GGA |
-| 5 | Variant-selectable `div`, so `dft_deriv` reaches the flux divergence | 4.2 | small | smoothing where it is needed |
-| 6 | `nspin=1` vs `nspin=2` consistency test on energy, potential and kernel | 3.3 | small | companion §9 rows 1,2,3,5,8,9 |
-| 7 | Wire up analytic ζ/σ in nemo — revive `make_sigma` | 4.4 | medium | accuracy at the cusp |
-| 8 | Lift `compute_total_kinetic_density` into `NemoBase`; enable meta-GGA + NCF | 4.4 | medium | removes the `set_tau` refusal |
-| 9 | `logme` on a $C^2$ ramp instead of a hard clamp | 4.3 | small | tree size and noise in the tail |
-| 10 | Housekeeping: string throws, `has_fxc`/`has_kxc`, `is_dft` semantics, dead `plot()`/`expme`, unread enum slots | 3.2 | small | — |
-| 11 | Register `testxc.cc`, or delete it | 3.3 | trivial | — |
+| 3 | Share intermediates across the two spin operators | 5.1 | small | 2× on polarized GGA |
+| 4 | Variant-selectable `div`, so `dft_deriv` reaches the flux divergence | 4.2 | small | smoothing where it is needed |
+| 5 | `nspin=1` vs `nspin=2` consistency test, and a reference-valued polarized case | 3.3 | small | companion §9 rows 1,2,3,5,8,9 |
+| 6 | Wire up analytic ζ/σ in nemo — revive `make_sigma` | 4.4 | medium | the remaining half of the cusp work; `nemo_he_pbe` now measures it |
+| 7 | `logme` on a $C^2$ ramp instead of a hard clamp | 4.3 | small | tree size and noise in the tail |
+| 8 | A unit-level $\int\tau=T$ check *with* an ncf | 3.3 | small | localizes a nemo τ regression instead of failing an SCF |
+| 9 | Housekeeping: `has_fxc`/`has_kxc`, `is_dft` semantics, dead `plot()`/`expme`, unread enum slots 10–13 | 3.2 | small | — |
+| 10 | `Nemo::make_fock_operator` refuses a meta-GGA; register the `XCOperator` itself, or add a second operator for the τ term | 4.4 | medium | only TDHF consumes it, and TDHF rejects meta-GGAs anyway |
+| 11 | Decide `testxc.cc`'s fate — promote to a test or delete | 3.3 | trivial | — |
 
-Item 1 must precede items 7 and 8.
+Item 1 is now the highest-value entry: it is the difference between a molecule at
+thresh 1e-8 being feasible on the nemo meta-GGA path and not (§5.4).
 
 **Explicitly deferred.** Response/TDDFT with $\tau$ — `fxc_apply` refuses
 meta-GGA up front, since there is no perturbed kinetic energy density and $\tau$'s
@@ -555,11 +628,18 @@ Not verified:
   a correct derivation and a suspect implementation.
 - **The accuracy benefit of the analytic-ζ fix (§4.4) is predicted, not
   demonstrated.** The identity is exact; whether it measurably improves converged
-  energies at production thresholds needs a test — hence item 1 before item 7.
+  energies at production thresholds needs a test. `nemo_he_pbe` is now that test's
+  baseline (§5.4), so the measurement is available but has not been made.
+- **The τ half of §4.4 *is* demonstrated** — two independent code paths agreeing
+  to 1.2e-08 (§4.4) — but only on one system, He, closed shell. Nothing has
+  exercised the regularized τ on more than one atom, and `set_tau`'s open-shell
+  branch has never run with an ncf at all.
 - **The BSH conditioning concern** (companion §7) is unsupported by any published
-  source. It has *not* been measured on the now-working meta-GGA path;
-  $\|\partial e/\partial\tau\|_\infty$ is logged at `print_level>=2` and the
-  measurement is now cheap. Worth doing before designing around it.
+  source and still unmeasured, on either path. $\|\partial e/\partial\tau\|_\infty$
+  is logged at `print_level>=2` in moldft; nemo does not set the print level, so
+  it logs nothing. Worth wiring up and reading before designing around it — and
+  note §5.4's stall at the 1e-8 rung is a candidate symptom, though memory is the
+  more likely cause there.
 - **`clang-tidy` has not been run** on this subsystem: it is installed on neither
   development machine and neither build tree exports `compile_commands.json`.
 - **The sign convention $\mathbf U_1=-\nabla R/R$ is confirmed** from three places
