@@ -771,75 +771,92 @@ namespace madness {
       }
 
     private:
-      const Displacement compute_probing_displacement() {
-        // Our probe displacement must satisfy two criteria:
-        // (1) It is on a boundary face, perpendicular to a dimension with finite box_radius_.
-        //     Define the dimension perpendicular to the target face as the face dimension.
-        // (2) To the extent possible, it is not lattice-equivalent to center_.
-        // The furthest away you can get from lattice-equivalent to center_ is differing from center_
-        //     by a half-simulation cell. If the face dimension has an odd box_radius_, the entire cell
-        //     is already half-away for one dimension. Any cell will do.
-        //     But if the face dimension has even box_radius_, we choose a different dimension
-        //     to be half a simulation cell away.
-
+      /// @return a displacement to a point on the box surface suitable for screening the entire surface
+      /// @note the probe must satisfy two criteria:
+      ///       -# it lies on a boundary face, i.e. it is perpendicular to a dimension with finite
+      ///          `box_radius_`; call that dimension the *face dimension*;
+      ///       -# to the extent possible, it is not lattice-equivalent to `center_`. A displacement that
+      ///          reduces to zero under lattice summation carries the on-site operator norm, hence can
+      ///          never screen anything out.
+      /// @note along face dimension `d` the probe has component `N_d * 2^{n-1}` boxes, i.e. `N_d/2`
+      ///       simulation cells. That is lattice-equivalent to zero only if `d` is lattice summed *and*
+      ///       `N_d` is even; otherwise (not lattice summed, or `N_d` odd) the component survives
+      ///       reduction and criterion 2 holds for free. When it does not hold we displace by an extra
+      ///       half simulation cell along some other dimension, which is as far from lattice equivalence
+      ///       as one can get.
+      /// @note criterion 2 is unattainable for `NDIM == 1` with a lattice-summed even `N`, and for
+      ///       `n == 0` (where the entire simulation cell is a single box); there the probe is
+      ///       lattice-equivalent to `center_` and screening of the surface will never trigger.
+      Displacement compute_probing_displacement() const {
         const auto n = center_.level();
-        // minimal_X.first == NDIM is our check that an X was never found.
-        std::pair<size_t, Translation> minimal_odd = {NDIM, std::numeric_limits<Translation>::max()};
-        std::pair<size_t, Translation> minimal_even = {NDIM, std::numeric_limits<Translation>::max()};
+
+        // does using d as the face dimension leave the probe lattice-equivalent to center_?
+        const auto needs_offset = [this](size_t d) {
+          return is_lattice_summed_[d] && (*box_radius_[d] % 2 == 0);
+        };
+
+        // rank candidate face dimensions by how close the probe ends up to center_ *after* lattice
+        // reduction, since that is what op->norm() sees; the closer it is, the more conservative a bound
+        // on the surface its norm is. In units of 2^{n-1} boxes the reduced distance is
+        //   - 1 along a lattice-summed dimension: N_d odd folds to a half cell, N_d even folds to zero and
+        //     is then rescued by the half-cell offset. Either way this is the smallest nonzero value there
+        //     is, so a lattice-summed dimension is always a best pick;
+        //   - N_d along a dimension that is not lattice summed, since nothing folds.
+        // Ties are broken toward a dimension needing no offset, then toward the smaller radius.
+        const auto rank = [&](size_t d) {
+          const auto N = *box_radius_[d];
+          return std::make_tuple(is_lattice_summed_[d] ? Translation(1) : N, needs_offset(d), N);
+        };
+        size_t face_dimension = NDIM;
         for (size_t d=0; d != NDIM; ++d) {
-          if (box_radius_[d]) {
-            auto r = *box_radius_[d];
-            if (r % 2 and r < minimal_odd.second) {
-              minimal_odd = {d, r};
-            } else if (!(r % 2) and r < minimal_even.second) {
-              minimal_even = {d, r};
-            }
-          }
+          if (!box_radius_[d]) continue;
+          if (face_dimension == NDIM || rank(d) < rank(face_dimension)) face_dimension = d;
         }
+        MADNESS_ASSERT(face_dimension != NDIM);  // guaranteed by has_finite_dimensions in the ctor
 
+        // criterion 1
         Vector<Translation, NDIM> probing_displacement_vec(0);
-        // If NDIM = 1 for an even dimension or if n = 0, the boundary is already equivalent to the face
-        // and thus accounted for it. We can choose any displacement we wish, and to make life easy
-        // we're going to make the same choice as in the case of an odd dimension.
-        // We get rid of these special cases because they would break our standard algorithm below.
-        if ((NDIM == 1 || n == 0) && minimal_odd.first == NDIM) minimal_odd = minimal_even;
-        auto face_dimension = minimal_odd.first < NDIM ? minimal_odd.first : minimal_even.first;
-
-        // d defines our face dimension. Requirement one will now be satisfied.
         auto r = *box_radius_[face_dimension];  // in units of 2^{n-1}
         // n = 0 is special b/c << -1 is undefined
-        r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
+        r = (n == 0) ? (r+1)/2 : (r * (Translation(1) << (n-1)));
         MADNESS_ASSERT(r > 0);
         probing_displacement_vec[face_dimension] = r;
 
-        if (minimal_odd.first < NDIM) {
+        // criterion 2 ... already satisfied, or out of reach (see the notes above)
+        if (!needs_offset(face_dimension) || n == 0 || NDIM == 1)
           return Displacement(n, probing_displacement_vec);
-        }
 
-        // If we haven't returned, minimal_even gives our face dimension.
-        // It remains to choose a dimension on this face which we'll move by one half-SimulationCell.
-        // We can always do this because NDIM == 1 and n == 0 cases have already been eliminated.
-        MADNESS_ASSERT(face_dimension != NDIM);
-        std::pair<size_t, Translation> minimal_second_even = {NDIM, std::numeric_limits<Translation>::max()};
-        size_t minimal_undefined = NDIM;
+        // choose the dimension to displace along by half a simulation cell. The offset magnitude is
+        // 2^{n-1} whichever dimension we pick, so in units of boxes the choice is immaterial; prefer the
+        // narrowest finite dimension, else the first unrestricted one.
+        // N.B. whether the chosen dimension is lattice summed does not matter: 2^{n-1} is exactly half the
+        //      period, so it survives reduction either way.
+        size_t offset_dimension = NDIM;
+        size_t unrestricted_dimension = NDIM;
         for (size_t d=0; d != NDIM; ++d) {
           if (d == face_dimension) continue;
           if (box_radius_[d]) {
-            auto r = *box_radius_[d];
-            if (r < minimal_second_even.second)
-                minimal_second_even = {d, r};
-          } else {
-            minimal_undefined = std::min(minimal_undefined, d);
+            if (offset_dimension == NDIM || *box_radius_[d] < *box_radius_[offset_dimension])
+              offset_dimension = d;
+          } else if (unrestricted_dimension == NDIM) {
+            unrestricted_dimension = d;
           }
         }
-        if (minimal_second_even.first < NDIM) {
-            probing_displacement_vec[minimal_second_even.first] = Translation(1) << (n-1);
+
+        const Translation half_cell = Translation(1) << (n-1);
+        if (offset_dimension != NDIM) {
+          // the offset stays on the face: box_radius_ >= 1 means the box spans at least a half
+          // simulation cell along this dimension
+          probing_displacement_vec[offset_dimension] = half_cell;
         } else {
-            auto d = minimal_undefined;
-            auto left_distance = center_[d] - box_[d].first;
-            auto right_distance = box_[d].second - center_[d];
-            auto sign = right_distance >= left_distance ? +1 : -1;
-            probing_displacement_vec[d] = sign * Translation(1) << (n-1);
+          // an unrestricted dimension is bounded by the simulation cell, so displace toward whichever
+          // side of center_ has more room
+          MADNESS_ASSERT(unrestricted_dimension != NDIM);  // NDIM > 1, so some dimension was found
+          const auto d = unrestricted_dimension;
+          const auto left_distance = center_[d] - box_[d].first;
+          const auto right_distance = box_[d].second - center_[d];
+          const auto sign = right_distance >= left_distance ? +1 : -1;
+          probing_displacement_vec[d] = sign * half_cell;
         }
         return Displacement(n, probing_displacement_vec);
       }   // compute_probing_displacement
