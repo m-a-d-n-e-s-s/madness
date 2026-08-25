@@ -698,7 +698,6 @@ namespace madness {
         // initialize bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
-        Vector<Translation, NDIM> probing_displacement_vec(0);
         for (size_t d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
@@ -706,15 +705,13 @@ namespace madness {
             r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
             MADNESS_ASSERT(r > 0);
             box_[d] = {center_[d] - r, center_[d] + r};
-            if (!has_finite_dimensions) // first finite dimension? probing displacement will be nonzero along it, zero along all others
-              probing_displacement_vec[d] = r;
             has_finite_dimensions = true;
           } else {
             box_[d] = {0, (1 << center_.level()) - 1};
           }
         }
         MADNESS_ASSERT(has_finite_dimensions);
-        probing_displacement_ = Displacement(n, probing_displacement_vec);
+        probing_displacement_ = compute_probing_displacement();
         for (size_t d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
@@ -771,6 +768,81 @@ namespace madness {
       const Displacement& probing_displacement() const {
         return probing_displacement_;
       }
+
+    private:
+      const Displacement compute_probing_displacement() {
+        // Our probe displacement must satisfy two criteria:
+        // (1) It is on a boundary face, perpendicular to a dimension with finite box_radius_.
+        //     Define the dimension perpendicular to the target face as the face dimension.
+        // (2) To the extent possible, it is not lattice-equivalent to center_.
+        // The furthest away you can get from lattice-equivalent to center_ is differing from center_
+        //     by a half-simulation cell. If the face dimension has an odd box_radius_, the entire cell
+        //     is already half-away for one dimension. Any cell will do.
+        //     But if the face dimension has even box_radius_, we choose a different dimension
+        //     to be half a simulation cell away.
+
+        const auto n = center_.level();
+        std::pair<size_t, Translation> minimal_odd = {NDIM, std::numeric_limits<Translation>::max()};
+        std::pair<size_t, Translation> minimal_even = {NDIM, std::numeric_limits<Translation>::max()};
+        for (size_t d=0; d != NDIM; ++d) {
+          if (box_radius_[d]) {
+            auto r = *box_radius_[d];
+            if (r % 2 and r < minimal_odd.second) {
+              minimal_odd = {d, r};
+            } else if (!(r % 2) and r < minimal_even.second) {
+              minimal_even = {d, r};
+            }
+          }
+        }
+        // Possibility One. The face dimension is odd. Choose the simplest possible displacement onto it.
+        Vector<Translation, NDIM> probing_displacement_vec(0);
+        // If NDIM = 1 for an even dimension or if n = 0, the boundary is already equivalent to the face
+        // and thus accounted for it. We can choose any displacement we wish, and to make life easy
+        // we're going to make the same choice as in the case of an odd dimension.
+        // We get rid of these special cases becuase they would break our standard algorithm below.
+        if (NDIM == 1 || n == 0) minimal_odd = {0, 0};
+        if (minimal_odd.first < NDIM) {
+          auto d = minimal_odd.first;
+          // minimal_odd.first defines our face dimension. Both requirements are satisfied automatically.
+          auto r = *box_radius_[d];  // in units of 2^{n-1}
+          // n = 0 is special b/c << -1 is undefined
+          r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
+          MADNESS_ASSERT(r > 0);
+          probing_displacement_vec[d] = r;
+          return Displacement(n, probing_displacement_vec);
+        }
+
+        // If we haven't returned, minimal_even gives our face dimension.
+        // It remains to choose a dimension on this face which we'll move by one half-SimulationCell.
+        // We can always do this because NDIM == 1 and n == 0 cases have already been eliminated.
+        auto face_dimension = minimal_even.first;
+        MADNESS_ASSERT(face_dimension != NDIM);
+        std::pair<size_t, Translation> minimal_second_even = {NDIM, std::numeric_limits<Translation>::max()};
+        size_t minimal_undefined = NDIM;
+        for (size_t d=0; d != NDIM; ++d) {
+          if (d == face_dimension) continue;
+          if (box_radius_[d]) {
+            auto r = *box_radius_[d];
+            if (r < minimal_second_even.second)
+                minimal_second_even = {d, r};
+          } else {
+            minimal_undefined = std::min(minimal_undefined, d);
+          }
+        }
+        if (minimal_even.first < NDIM) {
+            probing_displacement_vec[minimal_even.first] = minimal_second_even.second * Translation(1) << (n-1);
+        } else {
+            auto d = minimal_undefined;
+            auto left_distance = center_[d] - box_[d].first;
+            auto right_distance = box_[d].second - center_[d];
+            if (right_distance >= left_distance) {
+                probing_displacement_vec[d] = right_distance * Translation(1) << (n-1);
+            } else {
+                probing_displacement_vec[d] = -left_distance * Translation(1) << (n-1);
+            }
+        }
+        return Displacement(n, probing_displacement_vec);
+      }   // compute_probing_displacement
     };  // BoxSurfaceDisplacementRange
 
 
