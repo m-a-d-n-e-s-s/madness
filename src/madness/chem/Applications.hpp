@@ -554,6 +554,12 @@ private:
     nlohmann::json h;
     h["xc"] = cp.xc();
     h["localize"] = cp.localize_method();
+    // an added/removed/re-parameterized dispersion correction shifts the total
+    // energy without touching the orbitals, so a checkpoint written without it
+    // would otherwise be reused and its energy reported as this run's answer
+    h["dispersion"] = cp.dispersion();
+    h["dispersion_functional"] = cp.dispersion_functional();
+    h["dispersion_atm"] = cp.dispersion_atm();
     if constexpr (!std::is_same_v<Calc, SCF>) {
       // Same spelling SCF::restart_ncf uses, so the checkpoint and the
       // restartdata header agree on what "the same ncf" means.
@@ -1089,6 +1095,7 @@ struct moldft_lib {
     }
     // vama
     scf->set_protocol<3>(world, scf->param.protocol()[0]);
+    scf->dispersion.print_citation(world);
     double energy = 0.0;
     // An SCF task computes an energy at one geometry. Geometry optimization is
     // its own workflow task now -- `madqc --optimize --wf=scf`,
@@ -1135,6 +1142,8 @@ struct moldft_lib {
 
     scf_res.aeps = scf->aeps;
     scf_res.beps = scf->beps;
+    scf_res.scf_dispersion_correction_energy =
+        scf->dispersion.energy(world, scf->molecule);
     scf_res.properties = prop_res;
 
     return results;
@@ -1234,6 +1243,8 @@ struct nemo_lib {
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
+    sr.scf_dispersion_correction_energy = nm->get_calc()->dispersion.energy(
+        world, nm->get_calc()->molecule);
     // The geometry this reference was solved at. Without it, results_["molecule"]
     // (and therefore the checkpoint and ctx.molecule) reports an empty molecule,
     // and checkpoint_geometry_matches compares 0 atoms against N and rejects

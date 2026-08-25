@@ -196,6 +196,24 @@ if (MADNESS_HAS_LIBXC AND NOT TARGET Libxc::xc)
     get_filename_component(_libxc_config_dir "@Libxc_CONFIG@" DIRECTORY)
     find_dependency(Libxc CONFIG REQUIRED PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
 endif()
+
+########### simple-dftd3 ############
+# Only re-found when MADNESS actually linked the imported target; a
+# FindDFTD3-based discovery is already baked into the exported target as an
+# absolute library path and needs nothing here. Gated on the explicit
+# MADNESS_DFTD3_VIA_CONFIG rather than on madness_DFTD3_CONFIG being non-empty:
+# both are falsy whenever the module path was used, so the two agree, but only
+# the flag says so outright. What is being avoided is re-finding a config that
+# reports NOT FOUND -- under find_dependency's REQUIRED that would fail this
+# consumer's configure over a dependency MADNESS never used.
+set(MADNESS_HAS_DFTD3 @MADNESS_HAS_DFTD3@)
+set(madness_DFTD3_VIA_CONFIG @MADNESS_DFTD3_VIA_CONFIG@)
+set(madness_DFTD3_CONFIG "@s-dftd3_CONFIG@")
+if (MADNESS_HAS_DFTD3 AND madness_DFTD3_VIA_CONFIG AND NOT TARGET s-dftd3::s-dftd3)
+    include( CMakeFindDependencyMacro )
+    get_filename_component(_sdftd3_config_dir "${madness_DFTD3_CONFIG}" DIRECTORY)
+    find_dependency(s-dftd3 CONFIG REQUIRED PATHS "${_sdftd3_config_dir}" NO_DEFAULT_PATH)
+endif()
   
 ### LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
 if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)

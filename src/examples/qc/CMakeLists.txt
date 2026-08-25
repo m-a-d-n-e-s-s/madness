@@ -43,6 +43,16 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   add_qctest(nemo_h2o_boys     madqc "qctest;long;applications")      #  83 s
   add_qctest(nemo_h2o_new      madqc "qctest;long;applications")      #  79 s
 
+  # Grimme's D3 dispersion correction in the energy and the single-point
+  # gradient. Needs simple-dftd3, since without it the deck's `dispersion d3bj`
+  # aborts by design rather than silently doing nothing -- and needs libxc too,
+  # because its `xc pbe` is unsupported by the LDA-only functional build (which
+  # throws a bare `char const*` from xcfunctional_ldaonly.cc). `xc lda` would not
+  # rescue it: simple-dftd3 has no LDA damping parameters either.
+  if (MADNESS_HAS_DFTD3 AND TARGET Libxc::xc)
+    add_qctest(scf_lih_pbe_d3  madqc "qctest;medium;applications")     #  12 s, laptop
+  endif()
+
 endif()
 
 # The decks are user-facing documentation, not just fixtures: install them so the

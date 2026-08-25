@@ -111,6 +111,14 @@ inline void write_scf_section(std::ostream &os, const nlohmann::json &t) {
        << std::setw(18) << e << " Ha   " << std::setprecision(4)
        << std::setw(14) << e * kHa2eV << " eV\n";
 
+  // Empirical dispersion correction, already contained in the total above.
+  if (t.contains("scf")) {
+    double ed = t["scf"].value("scf_dispersion_correction_energy", 0.0);
+    if (ed != 0.0)
+      os << "    Dispersion (D3)  : " << std::fixed << std::setprecision(9)
+         << std::setw(18) << ed << " Ha   (included above)\n";
+  }
+
   // Dipole moment (a.u. + Debye).
   if (props.contains("dipole")) {
     auto d = tensor_vals(props["dipole"]);
