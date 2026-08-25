@@ -555,13 +555,19 @@ goes: ~5 s per energy evaluation at 1e-4, ~190 s at 1e-8 with $k=10$. The
 $O(1)\to O(N)$ shift in derivative applications (§5.1) accounts for the time; it
 does not by itself account for 167 GB.
 
-Prime suspect is the `refine()` traffic in the $\tau$ machinery. `set_tau` refines
-a copy of the orbital vector per axis, and `apply_tau_term` refines both the ket
-copy and $\mathbf W$ per axis, so at $k=10$ several refined orbital vectors are
-live simultaneously. That makes §6's gradient-sharing item a memory fix as much
-as a speed one: the inner $D_x\psi_i$ in `apply_tau_term` is **the same object**
-as the $\nabla\psi_i$ `set_tau` needs, and computing it once would cut both the
-time and the peak.
+**Investigated at length; see `XC-NEMO-MEMORY-INVESTIGATION.md`.** The prime
+suspect named in the first version of this section — `refine()` traffic in the
+$\tau$ machinery — is **wrong**: every $\tau$ object measures $\le0.05$ GB against
+a 167 GB blowup. Ten candidate causes have been tested and refuted, including
+that one, the truncation threshold on $\tau$, `eprec`, the $\tau$ operator's
+feedback path, and `div` as an amplifier.
+
+What is established is a loop: the potential arrives at the orbital update with
+132x the orbital's tree (`Vnemo` 60185 nodes against a 457-node orbital),
+`truncate` cuts it only to 65x, and that becomes the next orbital. What is *not*
+established is why `Vnemo` is large on the first pass of a rung, before any
+feedback — and per-term numbers taken on later passes are worthless for that
+question, which is the trap that produced three wrong conclusions here.
 
 Nothing registered goes near this — `nemo_he_tpss` is 24 s — but a molecule at
 1e-8 on this path is not currently feasible.
@@ -583,7 +589,10 @@ latter item 8 plus the nemo half of the operator work.
 
 | # | Item | § | Effort | Value |
 |---|---|---|---|---|
-| 1 | Share the orbital gradients between `set_tau` and `apply_tau_term` | 5.1, 5.4 | small | **now a memory fix, not just 2×** — 167 GB at $k=10$ |
+| 1 | Cap the xc potential's tree before it multiplies the orbitals | 5.4 | small | the most direct interruption of the runaway, and needs no culprit identified |
+| 1b | Route the flux divergence through `dft_deriv` (`div()` hardcodes ABGV) | 4.2 | small | closes §4.2; ~10% fewer nodes and depth 14 vs 20 with BLE |
+| 1c | Share the orbital gradients between `set_tau` and `apply_tau_term` | 5.1 | small | 2× on the meta-gga term; **not** the memory fix it was billed as |
+| 1d | Cache `ncf->square()`; it re-projects a functor 4× per SCF iteration | 4.4 | trivial | pure waste |
 | 2 | Fuse `exc`/`vxc` via `xc_{gga,mgga}_exc_vxc` | 5.2 | small | ~2× on the XC step |
 | 3 | Share intermediates across the two spin operators | 5.1 | small | 2× on polarized GGA |
 | 4 | Variant-selectable `div`, so `dft_deriv` reaches the flux divergence | 4.2 | small | smoothing where it is needed |
@@ -595,8 +604,12 @@ latter item 8 plus the nemo half of the operator work.
 | 10 | `Nemo::make_fock_operator` refuses a meta-GGA; register the `XCOperator` itself, or add a second operator for the τ term | 4.4 | medium | only TDHF consumes it, and TDHF rejects meta-GGAs anyway |
 | 11 | Decide `testxc.cc`'s fate — promote to a test or delete | 3.3 | trivial | — |
 
-Item 1 is now the highest-value entry: it is the difference between a molecule at
-thresh 1e-8 being feasible on the nemo meta-GGA path and not (§5.4).
+Items 1-1d come out of the memory investigation. Item 1 is the highest-value
+entry and the only one that addresses the runaway; 1b-1d are real fixes to real
+defects that the investigation happened to surface, none of which cures it. Keep
+U1 out of per-axis products while in the area — only the contraction and
+$|\mathbf U_1|^2$ are shallow (depth 11 against 18), which is what makes nemo's
+$\tau$ depth 22 against moldft's 10.
 
 **Explicitly deferred.** Response/TDDFT with $\tau$ — `fxc_apply` refuses
 meta-GGA up front, since there is no perturbed kinetic energy density and $\tau$'s
