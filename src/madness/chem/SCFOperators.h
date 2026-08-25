@@ -741,6 +741,9 @@ public:
     /// set the spin state this operator is acting on
     void set_ispin(const int i) const {ispin=i;}
 
+    /// print the meta-gga de/dtau range each time the operator is applied
+    XCOperator& set_print_level(const int p) {print_level=p; return *this;}
+
     /// apply the xc potential on a set of orbitals
     std::vector<Function<T,NDIM> > operator()(const std::vector<Function<T,NDIM> >& vket) const;
 
@@ -765,6 +768,50 @@ public:
     /// return the local xc potential
     real_function_3d make_xc_potential() const;
 
+    /// true if the functional contributes a non-multiplicative (meta-gga) term
+    bool has_tau_term() const;
+
+    /// compute the kinetic energy density and add it to the intermediates
+
+    /// tau is orbital-dependent, so unlike the density it cannot be recovered
+    /// from what the ctors are given -- it has to be supplied separately. Call
+    /// this after construction and before make_xc_potential() whenever
+    /// has_tau_term() is true; make_xc_potential() throws otherwise.
+    /// The occupation numbers are required, not optional: amo/bmo may carry
+    /// virtual orbitals (occupation zero), which contribute nothing to the
+    /// density but would inflate an unweighted sum of |grad psi|^2, and
+    /// occupations may be fractional.
+    /// @param[in]  amo  alpha orbitals (nemos if a nuclear correlation factor is set)
+    /// @param[in]  aocc occupation numbers of amo
+    /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
+    /// @param[in]  bocc occupation numbers of bmo
+    void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
+                 const vecfuncT& bmo=vecfuncT(),
+                 const Tensor<double>& bocc=Tensor<double>()) const;
+
+    /// the kinetic energy density of one spin channel, as set by set_tau()
+
+    /// exposed for diagnostics and for the exact check int(tau) == T
+    real_function_3d get_tau(const int spin=0) const;
+
+    /// de/dtau, as computed by make_xc_potential()
+    real_function_3d get_vtau() const {return vtau;}
+
+    /// apply the non-multiplicative meta-gga term on a set of orbitals
+
+    /// \f[
+    ///   \hat v_\tau \psi_i = -\frac{1}{2}\nabla\cdot
+    ///        \left(\frac{\partial e_{xc}}{\partial\tau_\sigma}\nabla\psi_i\right)
+    /// \f]
+    /// evaluated as \f$ -\frac{1}{2}\sum_x D_x(v_\tau D_x\psi_i) \f$, so that
+    /// \f$ v_\tau \f$ is only ever multiplied and never differentiated. That
+    /// nested form is also self-adjoint by construction, while the expanded
+    /// \f$ -\frac{1}{2}(v_\tau\nabla^2\psi + \nabla v_\tau\cdot\nabla\psi) \f$
+    /// is symmetric only up to discretization error and needs \f$\nabla^2\psi\f$.
+    /// Requires make_xc_potential() to have been called first, which is where
+    /// \f$ v_\tau \f$ is computed.
+    std::vector<Function<T,NDIM> > apply_tau_term(const std::vector<Function<T,NDIM> >& vket) const;
+
     /// construct the xc kernel and apply it directly on the (response) density
 
     /// the xc kernel is the second derivative of the xc functions wrt the density
@@ -780,6 +827,9 @@ private:
 
     /// which derivative operator to use
     std::string dft_deriv;
+
+    /// print level; >=2 logs the meta-gga de/dtau range
+    int print_level=0;
 
 public:
     /// interface to the actual XC functionals
@@ -810,6 +860,15 @@ private:
     /// corresponding vector components may be left empty.
     /// For the ordering of the intermediates see xcfunctional::xc_arg
     mutable vecfuncT xc_args;
+
+    /// de/dtau, the prefactor of the non-multiplicative meta-gga term
+
+    /// falls out of the same pointwise pass as the multiplicative potential, so
+    /// it is stashed by make_xc_potential() rather than recomputed
+    mutable real_function_3d vtau;
+
+    /// gradient operator honouring dft_deriv, for the meta-gga term
+    std::shared_ptr<Derivative<T,NDIM> > make_derivative(const int axis) const;
 
     /// compute the intermediates for the XC functionals
 
