@@ -239,7 +239,6 @@ public:
     double converged_for_thresh=1.e10;   ///< mos are converged for this threshold
     double converged_for_dconv=1.e10;    ///< mos are converged for this density
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
-    bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
     /// what amo/bmo actually hold, recorded in the restartdata header
     ///
