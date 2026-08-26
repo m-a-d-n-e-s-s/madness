@@ -123,7 +123,7 @@ int test_singular(World& world) {
                                             array_of_bools<NDIM>{true} /* lattice_summed */);
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++) {
-      t.checkpoint(probe[d] == expected[d], "1D n=" + std::to_string(n) + "N=" + what + " component " + std::to_string(d));
+      t.checkpoint(probe[d] == expected[d], std::to_string(NDIM) + "D n=" + std::to_string(n) + " N=" + what + " component " + std::to_string(d));
     }
   };
 
@@ -184,15 +184,15 @@ int test_all_evens(World& world) {
                                             array_of_bools<NDIM>{true} /* lattice_summed */);
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++) {
-      t.checkpoint(probe[d] == expected[d], "2D n=4 component " + std::to_string(d));
+      t.checkpoint(probe[d] == expected[d], std::to_string(NDIM) + "D n=" + std::to_string(n) + " N=" + what + " component " + std::to_string(d));
     }
   };
 
-  check_probe(level, {4, 6, 2}, {radius_in_boxes(1, level), 0, radius_in_boxes(2, level)}, "3D n=4 N={4,6,2}");
-  check_probe(level, {6, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "3D n=4 N={6,2,2}");
-  check_probe(level, {8, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "3D n=4 N={8,2,2}");
-  check_probe(level, {6, 4, 2}, {0, radius_in_boxes(1, level), radius_in_boxes(2, level)}, "3D n=4 N={6,4,2}");
-  check_probe(level, {4, 6, 4}, {radius_in_boxes(4, level), 0, radius_in_boxes(1, level)}, "3D n=4 N={4,6,2}");
+  check_probe(level, {4, 6, 2}, {radius_in_boxes(1, level), 0, radius_in_boxes(2, level)}, "{4,6,2}");
+  check_probe(level, {6, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "{6,2,2}");
+  check_probe(level, {8, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "{8,2,2}");
+  check_probe(level, {6, 4, 2}, {0, radius_in_boxes(1, level), radius_in_boxes(2, level)}, "{6,4,2}");
+  check_probe(level, {4, 6, 4}, {radius_in_boxes(4, level), 0, radius_in_boxes(1, level)}, "{4,6,2}");
 
   return t.end();
 }
