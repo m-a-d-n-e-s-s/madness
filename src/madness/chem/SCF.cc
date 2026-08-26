@@ -2452,14 +2452,6 @@ void SCF::solve(World& world) {
         //     //do_this_iter = false;
         //     param.maxsub = maxsub_save;
         // }
-        // The first localization starts from the atomic guess, where CG can spend hundreds of
-        // iterations chasing 1e-6 while still bouncing above it. Later iterations re-localize
-        // anyway, so loosen that one call.
-        double localize_tolloc_scale = 1.0;
-        if (param.do_localize() && do_this_iter && !initial_localization_done) {
-            localize_tolloc_scale = 100.0;
-            initial_localization_done = true;
-        }
         // Tiling the transform bounds the transient memory of the rotated orbitals, which only
         // threatens at high precision. Below that it only buys an extra truncation per tile.
         // Take the untiled path except at the tight protocols.
@@ -2491,7 +2483,6 @@ void SCF::solve(World& world) {
             START_TIMER(world);
             Localizer localizer(world, aobasis, molecule, ao);
             localizer.set_method(param.localize_method());
-            localizer.set_tolloc_scale(localize_tolloc_scale);
             {
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 const double t_loc0 = wall_time();

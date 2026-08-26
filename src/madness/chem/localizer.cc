@@ -79,9 +79,9 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
     } else if (method == "boys") {
         dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
     } else if (method == "new_sys") {
-        dUT = localize_new_systolic(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
+        dUT = localize_new_systolic(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
     } else if (method == "cholesky") {
         dUT = localize_cholesky(world, psi, mo_in.get_localize_sets());
     } else {
