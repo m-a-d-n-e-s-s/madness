@@ -729,9 +729,17 @@ protected:
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
+	/// @param[out] xcflux  weak form only: the vector field Y_i that the caller
+	///                     pushes through the Green's function, see
+	///                     XCOperator::weak_xc_terms. Optional.
+	/// @param[out] fock_xc weak form only: the xc block of the Fock matrix,
+	///                     which cannot be recovered from xcnemo any more.
+	///                     Optional.
 	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
-			vecfuncT& Unemo) const;
+			vecfuncT& Unemo,
+			std::vector<vecfuncT>* xcflux = nullptr,
+			tensorT* fock_xc = nullptr) const;
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;

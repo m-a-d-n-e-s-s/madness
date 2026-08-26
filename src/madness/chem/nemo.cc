@@ -43,6 +43,7 @@
 #include<madness/chem/projector.h>
 #include<madness/chem/molecular_optimizer.h>
 #include<madness/chem/SCFOperators.h>
+#include<madness/chem/xcfunctional.h>
 #include<madness/chem/Results.h>
 #include <madness/constants.h>
 #include<madness/chem/vibanal.h>
@@ -448,16 +449,24 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT &nemo,
   truncate(world, R2nemo);
 
   // compute potentials the Fock matrix: J - K + Vnuc
-  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
+  std::vector<vecfuncT> xcflux;
+  tensorT fock_xc;
+  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo, &xcflux,
+                          &fock_xc);
+  const bool weak_xc = (not xcflux.empty());
 
   //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
   vecfuncT JKUpsi = Unemo + Jnemo - Knemo;
   if (do_pcm())
     JKUpsi += pcmnemo;
-  if (calc->xc.is_dft())
+  // in weak form the xc block has no multiplicative representation and comes
+  // from XCOperator::weak_xc_matrix instead
+  if (calc->xc.is_dft() and not weak_xc)
     JKUpsi += xcnemo;
   tensorT fock =
       matrix_inner(world, R2nemo, JKUpsi, false); // not symmetric actually
+  if (weak_xc)
+    fock += fock_xc;
   Kinetic<double, 3> T(world);
   fock += T(R2nemo, nemo);
   JKUpsi.clear();
@@ -466,6 +475,46 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT &nemo,
 }
 
 /// solve the HF equations
+namespace {
+
+/// the commuted Green's-function form of the non-multiplicative xc terms
+
+/// The orbital update needs \f$ G_i*(-2 V\psi_i) \f$, and the piece of
+/// \f$ V\psi_i \f$ that has no multiplicative representation is
+/// \f$ -\nabla\cdot\mathbf Y_i \f$. Since \f$ G \f$ is a radial convolution it
+/// commutes with the gradient, so
+/// \f[
+///   G_i*\bigl(-2(-\nabla\cdot\mathbf Y_i)\bigr) = 2\,\nabla\cdot(G_i*\mathbf Y_i),
+/// \f]
+/// and the divergence acts on \f$ G_i*\mathbf Y_i \f$, which is \f$ C^1 \f$. The
+/// jump that \f$ \mathbf Y_i \f$ inherits from the flux at every nucleus is only
+/// ever convolved, never differentiated. Costs three extra Green's-function
+/// applications per orbital.
+///
+/// The Green's function must be built exactly as BSHApply builds it -- same
+/// eps_in_green clamp, same lo, same bshtol -- or the two halves of the update
+/// belong to different operators.
+vecfuncT flux_bsh_term(const std::vector<vecfuncT> &flux, const tensorT &fock,
+                       const BSHApply<double, 3> &bsh) {
+
+  MADNESS_CHECK(not flux.empty());
+  World &world = flux[0][0].world();
+  vecfuncT result(flux.size());
+
+  for (size_t i = 0; i < flux.size(); ++i) {
+    const double e =
+        (fock.ndim() == 2) ? fock(long(i), long(i)) : fock(long(i));
+    auto op = BSHOperatorPtr<3>(world, sqrt(-2.0 * bsh.eps_in_green(e)), bsh.lo,
+                                bsh.bshtol);
+    vecfuncT GY = apply(world, *op, flux[i]);
+    result[i] = 2.0 * div(GY, false);
+  }
+  truncate(world, result);
+  return result;
+}
+
+} // namespace
+
 double Nemo::solve(const SCFProtocol &proto) {
 
   // guess has already been performed in value()
@@ -511,7 +560,11 @@ double Nemo::solve(const SCFProtocol &proto) {
       solver.initialize(nemo);
 
     // compute potentials the Fock matrix: J - K + Vnuc
-    compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
+    std::vector<vecfuncT> xcflux;
+    tensorT fock_xc;
+    compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+                            &xcflux, &fock_xc);
+    const bool weak_xc = (not xcflux.empty());
 
     // compute the energy
     std::vector<double> oldenergies = energies;
@@ -523,10 +576,18 @@ double Nemo::solve(const SCFProtocol &proto) {
     vecfuncT Vnemo = Unemo + Jnemo - Knemo;
     if (do_pcm())
       Vnemo += pcmnemo;
-    if (calc->xc.is_dft())
+    tensorT fock;
+    if (weak_xc) {
+      // the xc block comes from the weak form, so it must not also be read off
+      // xcnemo -- xcnemo goes into Vnemo for the orbital update only
+      fock = matrix_inner(world, R2nemo, Vnemo, false);
+      fock += fock_xc;
       Vnemo += xcnemo;
-    tensorT fock =
-        matrix_inner(world, R2nemo, Vnemo, false); // not symmetric actually
+    } else {
+      if (calc->xc.is_dft())
+        Vnemo += xcnemo;
+      fock = matrix_inner(world, R2nemo, Vnemo, false); // not symmetric actually
+    }
     Kinetic<double, 3> T(world);
     fock += T(R2nemo, nemo);
     t_fock.end("compute fock matrix");
@@ -550,6 +611,15 @@ double Nemo::solve(const SCFProtocol &proto) {
 
       nemo = transform(world, nemo, U, trantol(), true);
       Vnemo = transform(world, Vnemo, U, trantol(), true);
+      // Y_i is linear in F_i, so the same rotation applies componentwise
+      for (int axis = 0; weak_xc and axis < 3; ++axis) {
+        vecfuncT comp(xcflux.size());
+        for (size_t i = 0; i < xcflux.size(); ++i)
+          comp[i] = xcflux[i][axis];
+        comp = transform(world, comp, U, trantol(), true);
+        for (size_t i = 0; i < xcflux.size(); ++i)
+          xcflux[i][axis] = comp[i];
+      }
       // rotate_subspace(world, U, solver, 0, nemo.size());
 
       truncate(world, nemo);
@@ -569,6 +639,19 @@ double Nemo::solve(const SCFProtocol &proto) {
     bsh_apply.lo = get_calc()->param.lo();
     bsh_apply.levelshift = get_calc_param().orbitalshift();
     auto [update, eps_update] = bsh_apply(nemo, fock, Vnemo);
+    if (weak_xc) {
+      // Commute the divergence through the Green's function. G is a radial
+      // convolution, so it commutes with the gradient, and
+      //
+      //   G * (-2 * (-div Y_i)) = 2 G * div(Y_i) = 2 div(G * Y_i).
+      //
+      // The right-hand side never differentiates the flux: G*Y_i is C^1, whereas
+      // div(Y_i) would resolve the jump that Y_i inherits from X at every
+      // nucleus. That jump is what produces the 1e5 excursions of the
+      // multiplicative potential.
+      update += flux_bsh_term(xcflux, fock, bsh_apply);
+      t_bsh.tag("BSH apply (xc flux)");
+    }
     auto residual = nemo - update;
     t_bsh.tag("BSH apply");
 
@@ -723,7 +806,9 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
 void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
                                    vecfuncT &Knemo, vecfuncT &xcnemo,
-                                   vecfuncT &pcmnemo, vecfuncT &Unemo) const {
+                                   vecfuncT &pcmnemo, vecfuncT &Unemo,
+                                   std::vector<vecfuncT> *xcflux,
+                                   tensorT *fock_xc) const {
 
   {
     timer t(world, get_calc_param().print_level() > 2);
@@ -774,6 +859,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
     // compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
       XCOperator<double, 3> xcoperator(world, this, ispin);
+      // this is the only site that implements the weak-form split
+      xcoperator.allow_weak_form();
       // see compute_energy_regularized: tau comes from the orbitals, not the density
       if (xcoperator.has_tau_term())
         xcoperator.set_tau(nemo, calc->aocc);
@@ -792,10 +879,26 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
       }
 
       xcnemo = truncate(xc_pot * nemo);
-      // the non-multiplicative meta-gga term. apply_tau_term returns it already
-      // divided by R, so it adds straight onto the other nemo-side potentials.
-      if (xcoperator.has_tau_term())
-        xcnemo += xcoperator.apply_tau_term(nemo);
+
+      if (xcoperator.is_weak_form()) {
+        // xc_pot is de/drho only. The semilocal divergence and the meta-gga term
+        // are split into a multiplicative piece, which joins xcnemo, and a vector
+        // field, which the orbital update pushes through the Green's function --
+        // see XCOperator::weak_xc_terms and Nemo::solve.
+        vecfuncT mult;
+        std::vector<vecfuncT> flux;
+        xcoperator.weak_xc_terms(nemo, mult, flux);
+        xcnemo += mult;
+        if (xcflux) *xcflux = flux;
+        // the Fock matrix can no longer be read off xcnemo: what is missing from
+        // it is precisely the term that has no multiplicative representation
+        if (fock_xc) *fock_xc = xcoperator.weak_xc_matrix(nemo, xc_pot);
+      } else {
+        // the non-multiplicative meta-gga term. apply_tau_term returns it already
+        // divided by R, so it adds straight onto the other nemo-side potentials.
+        if (xcoperator.has_tau_term())
+          xcnemo += xcoperator.apply_tau_term(nemo);
+      }
       t.tag("compute XCnemo");
     }
 
@@ -811,6 +914,33 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
     Unemo = Unuc(nemo);
     double size1 = get_size(world, Unemo);
     t.tag("compute Unemo " + stringify(size1));
+
+    // TEMPORARY per-term census: the open question of
+    // XC-NEMO-MEMORY-INVESTIGATION.md is which term makes Vnemo large on the
+    // *first* pass of a protocol rung, when the orbital is still small. Late-pass
+    // numbers only show inheritance, so this prints every pass and the first one
+    // per rung is what counts.
+    if (xc_probe_level() >= 1) {
+      // norm2/tree_size reduce globally, so they must be called on every rank and
+      // only the printing is guarded
+      auto census = [&](const char* tag, const vecfuncT& v) {
+        if (v.empty() or (not v.front().is_initialized())) {
+          if (world.rank() == 0) printf("VNEMO %-10s  uninitialized\n", tag);
+          return;
+        }
+        const double nrm = v.front().norm2();
+        const std::size_t tree = v.front().tree_size();
+        const std::size_t depth = v.front().max_depth();
+        if (world.rank() == 0)
+          printf("VNEMO %-10s  norm %12.5e  tree %8lu  depth %3lu\n", tag, nrm,
+                 (unsigned long) tree, (unsigned long) depth);
+      };
+      census("nemo", nemo);
+      census("Unemo", Unemo);
+      census("Jnemo", Jnemo);
+      census("Knemo", Knemo);
+      census("xcnemo", xcnemo);
+    }
   }
   world.gop.fence();
 }

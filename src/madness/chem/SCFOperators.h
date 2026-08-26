@@ -800,6 +800,62 @@ public:
     /// de/dtau, as computed by make_xc_potential()
     real_function_3d get_vtau() const {return vtau;}
 
+    /// opt in to the weak form, if MAD_XC_WEAK_GGA asks for it
+
+    /// Load-bearing: in weak form make_xc_potential() returns only de/drho, so a
+    /// caller that does not also apply weak_xc_terms()/weak_xc_matrix() would
+    /// silently drop the whole semilocal contribution and return a plausible but
+    /// wrong energy. Only Nemo::compute_nemo_potentials implements the split, so
+    /// only it opts in; SCF, OEP, TDHF and the response kernels keep the
+    /// multiplicative potential whatever the environment says.
+    XCOperator& allow_weak_form() {weak_form_ok=true; return *this;}
+
+    /// true if this operator is running in weak form, i.e. make_xc_potential()
+    /// returns only de/drho and the flux is carried separately
+    bool is_weak_form() const;
+
+    /// the semilocal flux X_sigma = 2 (de/dsigma_ss) grad(rho_s) + (de/dsigma_ab) grad(rho_s')
+
+    /// only assigned in weak form, by make_xc_potential(). The same-spin and
+    /// cross-spin contributions are summed: they enter the potential as a single
+    /// divergence, so nothing needs them apart.
+    const vecfuncT& get_semilocal_flux() const {return semilocal_flux;}
+
+    /// weak-form split of the non-multiplicative xc terms
+
+    /// Writes the decomposition
+    /// \f[
+    ///   \hat v_{xc}^{semilocal+\tau}\psi_i = \mathrm{mult}_i - \nabla\cdot\mathbf Y_i
+    /// \f]
+    /// with (nemo kets \f$ F_i \f$, \f$ W_i = v_\tau(\nabla F_i - U_1 F_i) \f$)
+    /// \f[
+    ///   \mathrm{mult}_i = \mathbf X\cdot\nabla F_i + \tfrac12 U_1\cdot\mathbf W_i,
+    ///   \qquad \mathbf Y_i = \mathbf X F_i + \tfrac12 \mathbf W_i .
+    /// \f]
+    /// `mult` is an ordinary multiplicative-style term and goes into \f$ V\psi \f$;
+    /// `flux` is what the caller pushes through the Green's function, as
+    /// \f$ 2\nabla\cdot(G*\mathbf Y_i) \f$, so that neither \f$\mathbf X\f$ nor
+    /// \f$ v_\tau \f$ is ever differentiated. Requires make_xc_potential() first.
+    void weak_xc_terms(const std::vector<Function<T,NDIM> >& vket,
+                       std::vector<Function<T,NDIM> >& mult,
+                       std::vector<std::vector<Function<T,NDIM> > >& flux) const;
+
+    /// xc contribution to the Fock matrix in weak form
+
+    /// \f[
+    ///   F_{ij} = \langle\psi_i|\tfrac{\partial f}{\partial\rho}|\psi_j\rangle
+    ///          + \int \mathbf X\cdot\nabla(\psi_i\psi_j)
+    ///          + \tfrac12\int v_\tau \nabla\psi_i\cdot\nabla\psi_j
+    /// \f]
+    /// symmetric by construction, and no derivative touches \f$\mathbf X\f$ or
+    /// \f$ v_\tau \f$. With a nuclear correlation factor the kets are the nemos and
+    /// \f$ \nabla(\psi_i\psi_j) = R^2[F_j\nabla F_i + F_i\nabla F_j - 2U_1F_iF_j] \f$,
+    /// so the cusp stays in the analytic \f$ U_1 \f$.
+    /// @param[in] vket    the orbitals (nemos if an ncf is set)
+    /// @param[in] v_local de/drho, i.e. what make_xc_potential() returned
+    Tensor<T> weak_xc_matrix(const std::vector<Function<T,NDIM> >& vket,
+                             const real_function_3d& v_local) const;
+
     /// apply the non-multiplicative meta-gga term on a set of orbitals
 
     /// \f[
@@ -869,6 +925,12 @@ private:
     /// For the ordering of the intermediates see xcfunctional::xc_arg
     mutable vecfuncT xc_args;
 
+    /// caller has opted in to the weak form, see allow_weak_form()
+    bool weak_form_ok=false;
+
+    /// the semilocal flux, assigned by make_xc_potential() in weak form only
+    mutable vecfuncT semilocal_flux;
+
     /// de/dtau, the prefactor of the non-multiplicative meta-gga term
 
     /// falls out of the same pointwise pass as the multiplicative potential, so
@@ -878,12 +940,27 @@ private:
     /// gradient operator honouring dft_deriv, for the meta-gga term
     std::shared_ptr<Derivative<T,NDIM> > make_derivative(const int axis) const;
 
+    /// divergence of a vector field, honouring dft_deriv
+
+    /// vmra.h's div() hardcodes a plain ABGV gradient, so the `dft_deriv` setting
+    /// reached grad(log rho) -- the well-conditioned derivative -- and never the
+    /// flux divergence, which is the badly conditioned one.
+    real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
     /// compute the intermediates for the XC functionals
 
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+    /// @param[in]  arho_reg  regularized alpha density rho_a/R^2, nemo only, optional
+    /// @param[in]  brho_reg  regularized beta density rho_b/R^2, nemo only, optional
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+
+    /// If the regularized densities are supplied, zeta = grad log(rho) is built as
+    /// grad log(rho_reg) - 2 U1 -- exact, and it keeps the nuclear cusp of
+    /// rho = R^2 rho_reg out from under the numerical derivative.
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
+                          const real_function_3d& arho_reg = real_function_3d(),
+                          const real_function_3d& brho_reg = real_function_3d()) const;
 
     /// compute the intermediates for the XC functionals
 

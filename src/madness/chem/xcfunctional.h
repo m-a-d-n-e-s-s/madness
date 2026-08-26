@@ -15,6 +15,9 @@ MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
 #include <madness/tensor/tensor.h>
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
+#include <cmath>
+#include <string>
 #include <utility>
 #include <madness/mra/key.h>
 #include <madness/world/MADworld.h>
@@ -25,6 +28,114 @@ MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
 #endif
 
 namespace madness {
+
+/// TEMPORARY investigation switches for the XC path (see XC-NEMO-MEMORY-INVESTIGATION.md)
+
+/// All MRA functions carry noise at O(thresh); a derivative operator amplifies
+/// that noise by 2^n at level n, so every numerical derivative on the XC path is
+/// a noise amplifier. These switches select reformulations that keep the
+/// derivative off the noisy/cusped object, in the same spirit as the existing
+/// zeta = grad log(rho) representation. They exist so both forms can be measured
+/// with one binary and are meant to disappear once the better form is settled.
+
+/// MAD_XC_FACTORED_GGA: form the semilocal potential as
+/// -div(rho B) = -rho (div B + 2 de/dsigma |zeta|^2), B = 2 de/dsigma zeta,
+/// so the differentiated object carries no factor of rho and the noise of the
+/// divergence is damped by rho instead of spread over the whole box.
+inline bool xc_factored_gga_potential() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_FACTORED_GGA");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_NEMO_ZETA: with a nuclear correlation factor, build
+/// zeta = grad log(rho) = grad log(rho_reg) - 2 U1 from the *regularized*
+/// density and the analytic U1, so the nuclear cusp of rho = R^2 rho_reg never
+/// goes under a numerical derivative.
+inline bool xc_nemo_zeta() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_NEMO_ZETA");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_WEAK_GGA: abandon the multiplicative xc potential.
+
+/// The semilocal potential is -div(X), X = 2 de/dsigma grad(rho), and X has a jump
+/// discontinuity at every nucleus (zeta = grad log rho -> -2Z r_hat, whose
+/// Cartesian components flip sign across the origin). Differentiating that jump is
+/// what produces the +-8e4 excursions; no algebraic rearrangement of the
+/// multiplicative form avoids it, because div(X) *is* a derivative of X.
+///
+/// The weak form never differentiates X:
+///     <phi|v|psi> = int (df/drho) phi psi + int X . grad(phi psi)
+/// and in a Green's-function code the same holds for the orbital update, because a
+/// radial convolution commutes with the gradient:
+///     G * (psi div X) = div(G * (X psi)) - G * (X . grad psi)
+/// so the divergence acts on G*(X psi), which is C^1, and the jump is only ever
+/// convolved. Same for the meta-gga term -1/2 div(v_tau grad psi).
+inline bool xc_weak_gga() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_WEAK_GGA");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_SMOOTH_VTAU: replace the hard binary_munge screen on de/dtau by the C^2
+/// ramp of XCfunctional::gga_ramp. The hard screen puts a jump of up to O(10^2) on
+/// the rho = ggatol iso-surface, and apply_tau_term differentiates exactly that
+/// product -- a jump is unrepresentable in a multiwavelet basis and its derivative
+/// refines without bound.
+inline bool xc_smooth_vtau() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_SMOOTH_VTAU");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_FLUX_TRUNC: truncate the semilocal flux at this multiple of thresh before
+/// taking its divergence (0 = off, the current behaviour).
+
+/// refine_to_common_level lifts every xc_arg to tau's refinement level, so on the
+/// nemo path the flux is represented at depth 20-22 where moldft has 10-13. Its
+/// genuine content needs neither: the flux norm is identical at every depth. What
+/// the extra levels carry is O(thresh) noise, and d/dx multiplies a level-n
+/// coefficient by 2^n -- measured, div(flux)'s pointwise max grows like 2^depth
+/// while its norm does not move at all.
+inline double xc_flux_truncation() {
+    static const double fac = []() {
+        const char* e = std::getenv("MAD_XC_FLUX_TRUNC");
+        return (e == nullptr) ? 0.0 : std::atof(e);
+    }();
+    return fac;
+}
+
+/// MAD_XC_TAU_NO_U1: DIAGNOSTIC ONLY, gives a wrong tau. Drops the two U1 terms of
+/// the product rule in set_tau, whose per-axis products are what force tau to depth
+/// 20-22 (U1 ~ x/r is non-smooth at the origin componentwise). Use it to test
+/// whether the common refinement level is what drives the runaway.
+inline bool xc_tau_no_u1() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_TAU_NO_U1");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_PROBE: 1 = per-term tree/depth/norm census, 2 = also pointwise min/max
+inline int xc_probe_level() {
+    static const int level = []() {
+        const char* e = std::getenv("MAD_XC_PROBE");
+        return (e == nullptr) ? 0 : std::atoi(e);
+    }();
+    return level;
+}
+
 /// Compute the spin-restricted LDA potential using unaryop (only for the initial guess)
 struct xc_lda_potential {
     xc_lda_potential() {}
@@ -110,6 +221,23 @@ public:
     /// in the denominator, so tau needs a floor well above libxc's own 1e-20
     /// default for a real-space code, where tau is a numerical derivative
     double get_tautol() const {return tautol;}
+
+    /// C^2 ramp from 0 (rho <= rhotol) to 1 (rho >= ggatol), smooth in log(rho)
+
+    /// The semilocal flux 2 de/dsigma grad(rho) is switched off by munge(), which
+    /// sets the density hard to zero below rhotol -- a jump discontinuity in the
+    /// flux at the rho = rhotol iso-surface. That jump is negligible while the
+    /// flux carries a factor rho, but the factored form divides it out and
+    /// de/dsigma grows like rho^{-1/3} in the tail, so the jump becomes O(10^2)
+    /// and its divergence is unrepresentable. This ramp replaces it with a C^2
+    /// switch over the three decades rhotol..ggatol, which is where the tail
+    /// screening of the meta-gga term already lives.
+    double gga_ramp(const double rho) const {
+        if (rho >= ggatol) return 1.0;
+        if (rho <= rhotol) return 0.0;
+        const double t = std::log(rho/rhotol)/std::log(ggatol/rhotol);
+        return t*t*t*(t*(6.0*t - 15.0) + 10.0);
+    }
 
 protected:
 

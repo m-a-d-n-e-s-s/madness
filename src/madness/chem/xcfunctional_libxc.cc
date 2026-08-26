@@ -663,6 +663,29 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
     const double * MADNESS_RESTRICT ddensy = drho[1].ptr();  // nspin * np
     const double * MADNESS_RESTRICT ddensz = drho[2].ptr();  // nspin * np
 
+    // The unfactored semilocal flux needs only drho = rho*zeta, the factored form
+    // (see xc_factored_gga_potential) needs zeta itself. Beta intermediates may be
+    // unassigned when there are no beta electrons -- rho_beta is zero there, so a
+    // zero substitute makes every beta contribution vanish, exactly as in
+    // make_libxc_args.
+    const bool factored = xc_factored_gga_potential() and needs_sigma();
+    madness::Tensor<double> zero_np;
+    const double *za_x=NULL, *za_y=NULL, *za_z=NULL;
+    const double *zb_x=NULL, *zb_y=NULL, *zb_z=NULL;
+    if (factored) {
+        zero_np = madness::Tensor<double>(np);
+        auto zeta_ptr = [&](const int e) {
+            const double* p = t[e].ptr();
+            return (p == NULL) ? zero_np.ptr() : p;
+        };
+        za_x = zeta_ptr(enum_zetaa_x);
+        za_y = zeta_ptr(enum_zetaa_y);
+        za_z = zeta_ptr(enum_zetaa_z);
+        zb_x = zeta_ptr(enum_zetab_x);
+        zb_y = zeta_ptr(enum_zetab_y);
+        zb_z = zeta_ptr(enum_zetab_z);
+    }
+
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
         case XC_FAMILY_HYB_LDA:
@@ -724,6 +747,42 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                 double * MADNESS_RESTRICT r5 = result[5].ptr();
                 double * MADNESS_RESTRICT r6 = result[6].ptr();
 
+                if (factored) {
+                    // zeta of the spin this operator acts on, and of the other one
+                    const double * MADNESS_RESTRICT sx = (ispin==0) ? za_x : zb_x;
+                    const double * MADNESS_RESTRICT sy = (ispin==0) ? za_y : zb_y;
+                    const double * MADNESS_RESTRICT sz = (ispin==0) ? za_z : zb_z;
+                    const double * MADNESS_RESTRICT ox = (ispin==0) ? zb_x : za_x;
+                    const double * MADNESS_RESTRICT oy = (ispin==0) ? zb_y : za_y;
+                    const double * MADNESS_RESTRICT oz = (ispin==0) ? zb_z : za_z;
+
+                    for (long j=0; j<np; j++) {
+                        const double rs = dens[nvrho*j + ispin];        // rho_sigma
+                        const double ro = dens[nvrho*j + (1-ispin)];    // rho_sigma'
+                        // same-spin flux  A_ss   = rho_s  * (2 de/dsigma_ss) zeta_s
+                        // cross-spin flux A_ss'  = rho_s' * (de/dsigma_ab)   zeta_s'
+                        const double us = 2.0*vs[nvsig*j + 2*ispin]*funcs[i].second
+                                          *gga_ramp(rs);
+                        const double uc = vs[nvsig*j + 1]*funcs[i].second
+                                          *gga_ramp(ro);
+
+                        // div(rho B) = rho div B + rho (zeta.B); the second piece is
+                        // pointwise and folds into the local term, and it enters the
+                        // potential with a minus sign
+                        r0[j] += vr[nvrho*j+ispin]*funcs[i].second
+                                 - rs*us*chi_of(sx,sy,sz,j)
+                                 - ro*uc*chi_of(ox,oy,oz,j);
+
+                        r1[j] += us*sx[j];
+                        r2[j] += us*sy[j];
+                        r3[j] += us*sz[j];
+
+                        r4[j] += uc*ox[j];
+                        r5[j] += uc*oy[j];
+                        r6[j] += uc*oz[j];
+                    }
+                } else {
+
                 for (long j=0; j<np; j++) {
                     // Vrhoa
                     r0[j] += vr[nvrho*j+ispin] * funcs[i].second;
@@ -745,6 +804,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                             *ddensz[nvrho*j + (1-ispin)];                     // b or a in steps of 2
 
                 }
+                }
             }
             else {
                 double * MADNESS_RESTRICT r0 = result[0].ptr();
@@ -752,14 +812,29 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                 double * MADNESS_RESTRICT r2 = result[2].ptr();
                 double * MADNESS_RESTRICT r3 = result[3].ptr();
 
-                for (long j=0; j<np; j++) {
-                    // Vrhoa
-                    r0[j] += vr[j]*funcs[i].second;
+                if (factored) {
+                    for (long j=0; j<np; j++) {
+                        // the flux is A = rho * B with B = 2 de/dsigma zeta, and
+                        //   div A = rho div B + rho (zeta.B) = rho div B + rho u chi
+                        // The caller multiplies div B by rho; the pointwise piece is
+                        // folded in here. Both terms enter the potential negatively.
+                        const double u = 2.0*vs[j]*funcs[i].second*gga_ramp(dens[j]);
+                        r0[j] += vr[j]*funcs[i].second
+                                 - dens[j]*u*chi_of(za_x,za_y,za_z,j);
+                        r1[j] += u*za_x[j];
+                        r2[j] += u*za_y[j];
+                        r3[j] += u*za_z[j];
+                    }
+                } else {
+                    for (long j=0; j<np; j++) {
+                        // Vrhoa
+                        r0[j] += vr[j]*funcs[i].second;
 
-                    // Vsigaa
-                    r1[j] += 2.0 * vs[j]*funcs[i].second*ddensx[j];    // total density
-                    r2[j] += 2.0 * vs[j]*funcs[i].second*ddensy[j];    // total density
-                    r3[j] += 2.0 * vs[j]*funcs[i].second*ddensz[j];    // total density
+                        // Vsigaa
+                        r1[j] += 2.0 * vs[j]*funcs[i].second*ddensx[j];    // total density
+                        r2[j] += 2.0 * vs[j]*funcs[i].second*ddensy[j];    // total density
+                        r3[j] += 2.0 * vs[j]*funcs[i].second*ddensz[j];    // total density
+                    }
                 }
             }
 
@@ -772,9 +847,20 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                 // That does not vanish nearly as fast, and de/dtau itself diverges
                 // where the density is negligible -- it reaches O(100) on the atomic
                 // initial guess. Screen it on the density, as the response kernel does.
-                for (long j=0; j<np; j++)
-                    rt[j] += binary_munge(vt[nvrho*j+ispin]*funcs[i].second,
-                                          dens[nvrho*j+ispin],ggatol);
+                // binary_munge is a hard cutoff, i.e. a jump discontinuity of the
+                // size de/dtau happens to have at the rho = ggatol iso-surface.
+                // apply_tau_term multiplies de/dtau onto grad(psi) and then
+                // differentiates the product, so that jump goes straight under a
+                // derivative operator -- see xc_smooth_vtau().
+                if (xc_smooth_vtau()) {
+                    for (long j=0; j<np; j++)
+                        rt[j] += vt[nvrho*j+ispin]*funcs[i].second
+                                 *gga_ramp(dens[nvrho*j+ispin]);
+                } else {
+                    for (long j=0; j<np; j++)
+                        rt[j] += binary_munge(vt[nvrho*j+ispin]*funcs[i].second,
+                                              dens[nvrho*j+ispin],ggatol);
+                }
             }
         }
         break;
