@@ -657,6 +657,18 @@ DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vecto
 
     tensorT U(nmo, nmo);
 
+    // Pivot memory: reuse last iteration's pivot order unless a candidate decisively
+    // beats it. Near-ties in the diagonal density otherwise flip the greedy order under
+    // tiny density changes, and a flip cascades a discontinuous rotation through every
+    // later factorization step -- a constant residual-noise floor. With the order held,
+    // the factorization is a smooth function of the density and the noise shrinks with
+    // the residual. Slot indexing is call-order-stable (sets iterate identically), and
+    // the hysteresis decision uses replicated values only, so determinism and
+    // rank-independence are preserved.
+    const bool have_memory = pivot_state && !pivot_state->empty();
+    std::vector<long> used_pivots;
+    used_pivots.reserve(nmo);
+
     // factor each localize-set separately: rotations never mix core and valence
     std::vector<int> setids;
     for (long i = 0; i < nmo; ++i)
@@ -684,6 +696,12 @@ DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vecto
             if (dglob < 1e-10) break; // density exhausted; U is completed below
             long cand = (piv >= 0 && dmax == dglob) ? piv : nao; // lowest index wins ties
             world.gop.min(cand);
+            if (have_memory && used_pivots.size() < pivot_state->size()) {
+                const long prev = (*pivot_state)[used_pivots.size()];
+                double dprev = (prev >= mulo && prev < muhi) ? d(prev) : -1.0;
+                world.gop.max(dprev);
+                if (dprev > 1e-10 && 2.0 * dprev >= dglob) cand = prev;
+            }
 
             // the pivot's coefficient column, orthonormalized against u_0..u_{k-1}
             tensorT w(ns);
@@ -711,6 +729,7 @@ DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vecto
                 d(mu) -= z * z;
                 if (d(mu) < 0.0) d(mu) = 0.0;
             }
+            used_pivots.push_back(cand);
             ++k;
         }
 
@@ -731,6 +750,7 @@ DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vecto
             if (nrm2 < 1e-6) continue;
             const double scale = 1.0 / std::sqrt(nrm2);
             for (long ii = 0; ii < ns; ++ii) u(ii, k) = w(ii) * scale;
+            used_pivots.push_back(-1); // completion slot: no pivot to remember
             ++k;
         }
         MADNESS_CHECK_THROW(k == ns, "cholesky localization failed to complete the rotation");
@@ -738,6 +758,8 @@ DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vecto
         for (long kk = 0; kk < ns; ++kk)
             for (long ii = 0; ii < ns; ++ii) U(idx[ii], idx[kk]) = u(ii, kk);
     }
+
+    if (pivot_state) *pivot_state = used_pivots;
 
     // least-rotation ordering and phases, as in the other methods
     bool switched = true;

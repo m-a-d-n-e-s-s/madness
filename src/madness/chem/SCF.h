@@ -221,6 +221,8 @@ public:
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
+    /// cholesky localization's pivot order from the previous iteration (per spin)
+    std::vector<long> localize_pivot_state_a, localize_pivot_state_b;
 
     /// MRA projection of the minimal basis set
     vecfuncT ao;
