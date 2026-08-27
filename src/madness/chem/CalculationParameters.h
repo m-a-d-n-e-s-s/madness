@@ -69,9 +69,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
-		initialize<long>  ("hfex_batch_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
-		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
-		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
+		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<std::string>("bsh_apply","auto","BSH apply backend; auto=macrotask when multinode or at tight thresh, else tile",{"auto","tile","macrotask","plain"});
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
@@ -228,9 +229,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool dispersion_atm() const {return get<bool>("dispersion_atm");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
-    long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
-    bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
-    int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
+    long hfex_granularity() const {return get<long>("hfex_granularity");}
+    bool hfex_cost_aware() const {return get<bool>("hfex_cost_aware");}
+    int hfex_accumulation() const {return get<int>("hfex_accumulation");}
+	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 

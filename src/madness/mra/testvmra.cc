@@ -141,6 +141,100 @@ void test_add(World& world) {
 
 
 
+/// Assignment factories: owners in range, deterministic, LPT balances a skewed load.
+void test_assignment_factories(World& world) {
+    if (world.rank()==0) print("\nentering test_assignment_factories");
+    const int nranks=5;
+    const std::size_t nfunc=17;
+
+    auto rr = assign_round_robin(nfunc, nranks);
+    for (std::size_t j=0; j<nfunc; ++j) MADNESS_CHECK(rr[j] == ProcessID(j % nranks));
+
+    // skewed costs: one heavy function per light three
+    std::vector<double> cost(nfunc);
+    for (std::size_t j=0; j<nfunc; ++j) cost[j] = (j%4==0) ? 90.0 : 10.0;
+    auto ca  = assign_cost_aware(cost, nranks);
+    auto ca2 = assign_cost_aware(cost, nranks);
+    MADNESS_CHECK(ca == ca2);                       // deterministic
+    std::vector<double> load(nranks, 0.0);
+    for (std::size_t j=0; j<nfunc; ++j) {
+        MADNESS_CHECK(ca[j] >= 0 && ca[j] < nranks);
+        load[ca[j]] += cost[j];
+    }
+    const double lmax=*std::max_element(load.begin(), load.end());
+    const double lmin=*std::min_element(load.begin(), load.end());
+    // total 570 over 5 ranks; LPT lands every rank within one light function of the mean,
+    // where a naive round-robin of this pattern would stack two heavies on one rank
+    MADNESS_CHECK(lmax - lmin <= 20.0);
+    if (world.rank()==0) print("test_assignment_factories OK, max/min load", lmax, lmin);
+}
+
+/// redistribute_to_batches: (1) single-owner pmap installed, (2) every box of v[j] on
+/// owner[j] and nowhere else, (3) global box count conserved, (4) coefficients and tree
+/// state unchanged. Reconstructed with round-robin, compressed with cost-aware (the move
+/// must be state-agnostic).
+template <typename T, std::size_t NDIM>
+void test_redistribute_to_batches(World& world) {
+    if (world.rank()==0) print("\nentering test_redistribute_to_batches, NDIM =", NDIM);
+    const double thresh=1.e-6;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) { cell(i,0)=-10.0; cell(i,1)=10.0; }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const std::size_t nvec=7;
+    std::vector<Function<T,NDIM> > v(nvec);
+    for (std::size_t i=0; i<nvec; ++i) {
+        const double s = 0.3*double(i+1);   // distinct functions -> real, differing trees
+        v[i]=FunctionFactory<T,NDIM>(world).functor([s](const Vector<double,NDIM>& r) {
+            return std::exp(-inner(r,r))*std::cos(s*r[0]); });
+    }
+
+    for (const TreeState state : {reconstructed, compressed}) {
+        change_tree_state(v, state);
+        world.gop.fence();
+
+        // invariants BEFORE
+        std::vector<double> norm_before(nvec);
+        std::vector<long> count_before(nvec);
+        for (std::size_t j=0; j<nvec; ++j) {
+            norm_before[j]=v[j].norm2();
+            long global=long(v[j].get_impl()->get_coeffs().size());
+            world.gop.sum(global);
+            count_before[j]=global;
+        }
+        world.gop.fence();
+
+        const auto owner = (state==reconstructed)
+            ? assign_round_robin(nvec, world.size())
+            : assign_cost_aware(function_costs(world, v), world.size());
+        redistribute_to_batches(world, v, owner);
+
+        // invariants AFTER
+        for (std::size_t j=0; j<nvec; ++j) {
+            // (1) single-owner pmap installed and reporting owner[j]
+            MADNESS_CHECK(v[j].get_impl()->get_pmap()->single_owner()==owner[j]);
+            // (2) all boxes on owner[j], none elsewhere
+            long local=long(v[j].get_impl()->get_coeffs().size());
+            long global=local; world.gop.sum(global);
+            if (world.rank()==owner[j]) MADNESS_CHECK(local==global);
+            else                        MADNESS_CHECK(local==0);
+            // (3) box count conserved
+            MADNESS_CHECK(global==count_before[j]);
+            // (4) tree state preserved, coefficients unchanged
+            MADNESS_CHECK(v[j].get_impl()->get_tree_state()==state);
+            double nrm=v[j].norm2();
+            MADNESS_CHECK(std::abs(nrm-norm_before[j]) < 1.e-10*(1.0+norm_before[j]));
+        }
+        world.gop.fence();
+        if (world.rank()==0) print("test_redistribute_to_batches OK,", state);
+    }
+}
+
 template <typename T, typename R, int NDIM, bool sym>
 void test_inner(World& world) {
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
@@ -664,6 +758,9 @@ int main(int argc, char**argv) {
 
         test_add<double,3>(world);
         test_add<std::complex<double>,3 >(world);
+
+        test_assignment_factories(world);
+        test_redistribute_to_batches<double,3>(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);
