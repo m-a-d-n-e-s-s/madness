@@ -2479,17 +2479,36 @@ void SCF::solve(World& world) {
             normalize(world, v);
         };
 
+        // Applying a near-identity localization rotation churns the trees and de-syncs
+        // the KAIN history (the stored subspace is never rotated), so skip the transform
+        // when the localizer barely moved anything: accumulated drift re-engages it by
+        // growing past the threshold on a later iteration.
+        auto max_offdiag = [](const tensorT& U) {
+            double m = 0.0;
+            for (long i = 0; i < U.dim(0); ++i)
+                for (long j = 0; j < U.dim(1); ++j)
+                    if (i != j) m = std::max(m, std::abs(U(i, j)));
+            return m;
+        };
+        const double localize_skip_tol = 0.01;
+
         if (param.do_localize() && do_this_iter) {
             START_TIMER(world);
             Localizer localizer(world, aobasis, molecule, ao);
             localizer.set_method(param.localize_method());
             {
                 MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+                localizer.set_pivot_state(&localize_pivot_state_a);
                 const double t_loc0 = wall_time();
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 const double t_loc1 = wall_time();
-                UT.screen(trantol);
-                rotate_orbitals(amo, UT);
+                const double offdiag = max_offdiag(UT);
+                if (offdiag > localize_skip_tol) {
+                    UT.screen(trantol);
+                    rotate_orbitals(amo, UT);
+                } else if (world.rank() == 0 && param.print_level() >= 3) {
+                    printf("  localize: rotation skipped (max offdiag %.1e)\n", offdiag);
+                }
                 // split the localize timer: matrix = the localizer optimization (incl. U
                 // replication); transform = screen + the nmo^2 orbital rotation
                 if (world.rank() == 0 && param.print_level() >= 3)
@@ -2498,9 +2517,12 @@ void SCF::solve(World& world) {
             }
             if (!param.spin_restricted() && param.nbeta() != 0) {
                 MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                localizer.set_pivot_state(&localize_pivot_state_b);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-                UT.screen(trantol);
-                rotate_orbitals(bmo, UT);
+                if (max_offdiag(UT) > localize_skip_tol) {
+                    UT.screen(trantol);
+                    rotate_orbitals(bmo, UT);
+                }
             }
             END_TIMER(world, "localize");
         }

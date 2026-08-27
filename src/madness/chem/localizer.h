@@ -49,6 +49,13 @@ public:
         return aobasis;
     }
 
+    /// hand the cholesky method last iteration's pivot order; it reads the order and
+    /// overwrites it with the one it used (see localize_cholesky)
+    Localizer& set_pivot_state(std::vector<long>* state) {
+        pivot_state = state;
+        return *this;
+    }
+
     void print_info() const {
         print("Localizer info");
         print("method  ",method);
@@ -182,6 +189,7 @@ private:
     double thresh_degenerate;           /// when are orbitals degenerate
     bool enforce_core_valence_separation=false;  /// no rotations between core and valence orbitals (distinguished by 'set')
     std::string method="new";           /// localization method
+    std::vector<long>* pivot_state = nullptr;  /// cholesky pivot memory across SCF iterations
 
 };
 
