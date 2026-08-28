@@ -99,9 +99,11 @@ include(external/versions.cmake)
 # failure to find the library is an error. 
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
-#redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+option(ENABLE_ARMPL "Search for Arm Performance Libraries (ARMPL) for BLAS and LAPACK support" ON)
+option(ENABLE_BLIS "Search for BLIS (serial) for BLAS support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
+option(ENABLE_OPENBLAS "Allow use of OpenBLAS for BLAS/LAPACK (unsafe for multithreading on ARM)" OFF)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 option(ENABLE_GPERFTOOLS "Enable use of full Google Performance Tools (gperftools)" OFF)
 option(ENABLE_LIBUNWIND
@@ -622,6 +624,16 @@ check_cxx_source_compiles(
     template void g(int* a);
     int main() { return 0; }
     " HAVE_UNQUALIFIED_STATIC_DECL)
+
+# If on ARM disable useless warning about pair<double,double> return in lambda in mra/kernel_range.h --- doing it via local pragma does not work due to nested includes
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Matches arm64 (macOS/Linux), aarch64 (Linux), and ARM64 (Windows)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|amd64)")
+        # Do nothing for x86_64
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch64|arm64|ARM64)")
+        add_compile_options(-Wno-psabi)
+    endif()
+endif()
 
 # Check linker feature support ===============================================
 
