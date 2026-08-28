@@ -134,6 +134,12 @@ function(madness_check_is_openblas _lib_list _out_var)
   endif()
 endfunction()
 
+set(LAPACK_FOUND FALSE)
+set(HAVE_INTEL_MKL 0)
+set(HAVE_ARMPL 0)
+set(HAVE_BLIS 0)
+set(HAVE_ACML 0)
+
 if(NOT LAPACK_LIBRARIES)
   set(USER_LAPACK_LIBRARIES FALSE)
 
@@ -439,6 +445,7 @@ set(LAPACK_FOUND TRUE)
 message(STATUS "Found LAPACK: ${LAPACK_LIBRARIES}")
 
 # Introspect LAPACK_LIBRARIES (both user-specified and auto-detected)
+unset(USER_LAPACK_LIBRARIES_IS_MKL CACHE)
 check_function_exists(mkl_get_version USER_LAPACK_LIBRARIES_IS_MKL)
 if(USER_LAPACK_LIBRARIES_IS_MKL)
   message(STATUS "LAPACK provides an MKL library")
@@ -447,12 +454,14 @@ if(USER_LAPACK_LIBRARIES_IS_MKL)
   list(REMOVE_DUPLICATES LAPACK_COMPILE_DEFINITIONS)
 endif()
 
+unset(USER_LAPACK_LIBRARIES_IS_ARMPL CACHE)
 check_function_exists(armplversion USER_LAPACK_LIBRARIES_IS_ARMPL)
 if(USER_LAPACK_LIBRARIES_IS_ARMPL)
   message(STATUS "LAPACK provides an ARMPL library")
   set(HAVE_ARMPL 1)
 endif()
 
+unset(USER_LAPACK_LIBRARIES_IS_BLIS CACHE)
 check_function_exists(bli_info_get_version_str USER_LAPACK_LIBRARIES_IS_BLIS)
 if(USER_LAPACK_LIBRARIES_IS_BLIS)
   message(STATUS "LAPACK provides a BLIS library")
@@ -462,6 +471,7 @@ if(USER_LAPACK_LIBRARIES_IS_BLIS)
   )
 endif()
 
+unset(USER_LAPACK_LIBRARIES_IS_ACML CACHE)
 check_function_exists(acmlversion USER_LAPACK_LIBRARIES_IS_ACML)
 if(USER_LAPACK_LIBRARIES_IS_ACML)
   message(STATUS "LAPACK provides an ACML library")
@@ -504,6 +514,7 @@ if(USER_LAPACK_LIBRARIES_IS_MKL)
     set(CMAKE_REQUIRED_DEFINITIONS "${CMAKE_REQUIRED_DEFINITIONS};-D${def}")
   endforeach()
   set(CMAKE_REQUIRED_FLAGS ${LAPACK_COMPILE_OPTIONS})
+  unset(MADNESS_CAN_INCLUDE_MKL_H CACHE)
   check_cxx_source_compiles(
     "
     #include <mkl.h>
@@ -521,6 +532,7 @@ if(USER_LAPACK_LIBRARIES_IS_ARMPL AND LAPACK_INCLUDE_DIRS)
   cmake_push_check_state()
   set(CMAKE_REQUIRED_INCLUDES ${LAPACK_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_FLAGS ${LAPACK_COMPILE_OPTIONS})
+  unset(MADNESS_CAN_INCLUDE_ARMPL_H CACHE)
   check_cxx_source_compiles(
     "
     #include <armpl.h>
@@ -536,6 +548,7 @@ if(USER_LAPACK_LIBRARIES_IS_BLIS AND LAPACK_INCLUDE_DIRS)
   set(CMAKE_REQUIRED_INCLUDES ${LAPACK_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_FLAGS ${LAPACK_COMPILE_OPTIONS})
   set(CMAKE_REQUIRED_LIBRARIES ${PROCESSED_LAPACK_LIBRARIES} Threads::Threads)
+  unset(MADNESS_CAN_INCLUDE_BLIS_H CACHE)
   check_cxx_source_compiles(
     "
     #include <blis.h>
@@ -547,6 +560,7 @@ if(USER_LAPACK_LIBRARIES_IS_BLIS AND LAPACK_INCLUDE_DIRS)
     message("${missing_lapack_message_level}" "LAPACK provides BLIS but cannot include its headers; ensure that corresponding LAPACK_INCLUDE_DIRS, LAPACK_COMPILE_DEFINITIONS, or LAPACK_COMPILE_OPTIONS were provided")
   endif()
   if(NOT CMAKE_CROSSCOMPILING)
+    unset(MADNESS_BLIS_IS_SERIAL CACHE)
     check_cxx_source_runs(
       "
       #include <blis.h>
