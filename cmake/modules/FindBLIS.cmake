@@ -55,15 +55,20 @@ if(NOT BLIS_FOUND)
     list(APPEND _blis_roots "$ENV{AMD_ROOT}")
   endif()
 
-  # System paths including Debian/Ubuntu multiarch directories and AOCL paths on x86
+  # System paths including Debian/Ubuntu multiarch directories, Fedora/RHEL lib64, and AOCL paths on x86
   list(APPEND _blis_roots
+    ${CMAKE_PREFIX_PATH}
     "/usr/include/${CMAKE_LIBRARY_ARCHITECTURE}"
     "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}"
     "/usr/include/aarch64-linux-gnu"
     "/usr/lib/aarch64-linux-gnu"
     "/usr/include/x86_64-linux-gnu"
     "/usr/lib/x86_64-linux-gnu"
+    "/usr/local/lib64"
+    "/usr/local/lib"
     "/usr/local"
+    "/usr/lib64"
+    "/usr/lib"
     "/usr"
     "/opt/blis"
     "/opt/local"
@@ -78,7 +83,7 @@ if(NOT BLIS_FOUND)
 
   # Search for BLIS include directory
   # If BLIS_SERIAL_ONLY is set, search serial-specific subdirectories first to avoid
-  # picking up symlinks in /usr/include/aarch64-linux-gnu/ that point to blis-openmp
+  # picking up symlinks in /usr/include/aarch64-linux-gnu/ or /usr/include/ that point to blis-openmp
   if(BLIS_SERIAL_ONLY)
     find_path(BLIS_INCLUDE_DIR
       NAMES blis.h
@@ -111,6 +116,8 @@ if(NOT BLIS_FOUND)
         blis
         blis-serial
         blis-openmp
+        bliso
+        blisp
         include/blis
         include
     )
@@ -119,7 +126,7 @@ if(NOT BLIS_FOUND)
   # Check that include path is actually serial if BLIS_SERIAL_ONLY is ON
   if(BLIS_SERIAL_ONLY AND BLIS_INCLUDE_DIR)
     get_filename_component(_blis_inc_real "${BLIS_INCLUDE_DIR}/blis.h" REALPATH)
-    if(_blis_inc_real MATCHES "openmp" AND NOT _blis_inc_real MATCHES "serial")
+    if(_blis_inc_real MATCHES "openmp|pthread|bliso|blisp" AND NOT _blis_inc_real MATCHES "serial")
       message(STATUS "Rejecting non-serial BLIS include directory: ${BLIS_INCLUDE_DIR} (resolves to ${_blis_inc_real})")
       unset(BLIS_INCLUDE_DIR CACHE)
       unset(BLIS_INCLUDE_DIR)
@@ -132,48 +139,95 @@ if(NOT BLIS_FOUND)
     list(APPEND _blis_lib_hints "${BLIS_LIBRARY_DIR}")
   endif()
   foreach(_root ${_blis_roots})
-    list(APPEND _blis_lib_hints "${_root}/blis-serial" "${_root}/lib/blis-serial" "${_root}/lib64/blis-serial" "${_root}/lib" "${_root}/lib64" "${_root}")
+    list(APPEND _blis_lib_hints
+      "${_root}/blis-serial" "${_root}/lib/blis-serial" "${_root}/lib64/blis-serial"
+      "${_root}/lib64" "${_root}/lib" "${_root}"
+    )
   endforeach()
 
   if(BLIS_SERIAL_ONLY)
     if(BLA_STATIC OR BLIS_STATIC)
       find_library(BLIS_LIBRARY
-        NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blis${CMAKE_STATIC_LIBRARY_SUFFIX}" blis
+        NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blis${CMAKE_STATIC_LIBRARY_SUFFIX}"
+              "${CMAKE_STATIC_LIBRARY_PREFIX}blis-serial${CMAKE_STATIC_LIBRARY_SUFFIX}"
+              blis blis-serial
         HINTS ${_blis_lib_hints}
         PATH_SUFFIXES blis-serial lib/blis-serial lib64/blis-serial
         NO_DEFAULT_PATH
       )
+      if(NOT BLIS_LIBRARY)
+        find_library(BLIS_LIBRARY
+          NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blis${CMAKE_STATIC_LIBRARY_SUFFIX}"
+                "${CMAKE_STATIC_LIBRARY_PREFIX}blis-serial${CMAKE_STATIC_LIBRARY_SUFFIX}"
+                blis blis-serial
+          HINTS ${_blis_lib_hints}
+          PATH_SUFFIXES blis-serial lib/blis-serial lib64/blis-serial lib64 lib
+        )
+      endif()
     else()
       find_library(BLIS_LIBRARY
-        NAMES blis
+        NAMES blis blis-serial
         HINTS ${_blis_lib_hints}
         PATH_SUFFIXES blis-serial lib/blis-serial lib64/blis-serial
         NO_DEFAULT_PATH
       )
-    endif()
-    if(NOT BLIS_LIBRARY)
-      find_library(BLIS_LIBRARY
-        NAMES blis
-        HINTS ${_blis_lib_hints}
-        PATH_SUFFIXES blis-serial lib/blis-serial lib64/blis-serial lib lib64
-      )
+      if(NOT BLIS_LIBRARY)
+        find_library(BLIS_LIBRARY
+          NAMES blis blis-serial
+          HINTS ${_blis_lib_hints}
+          PATH_SUFFIXES blis-serial lib/blis-serial lib64/blis-serial lib64 lib
+        )
+      endif()
     endif()
   else()
     find_library(BLIS_LIBRARY
-      NAMES blis
+      NAMES blis blis-serial blis-openmp blis-threads bliso blisp blis-mt
       HINTS ${_blis_lib_hints}
-      PATH_SUFFIXES lib lib64 blis-serial blis-openmp
+      PATH_SUFFIXES lib64 lib blis-serial blis-openmp
     )
   endif()
 
   # Check that library is actually serial if BLIS_SERIAL_ONLY is ON
   if(BLIS_SERIAL_ONLY AND BLIS_LIBRARY)
     get_filename_component(_blis_lib_real "${BLIS_LIBRARY}" REALPATH)
-    if(_blis_lib_real MATCHES "openmp|pthread" AND NOT _blis_lib_real MATCHES "serial")
+    if(_blis_lib_real MATCHES "(openmp|pthread|bliso|blisp|-mt|_mt)" AND NOT _blis_lib_real MATCHES "serial")
       message(STATUS "Rejecting non-serial BLIS library: ${BLIS_LIBRARY} (resolves to ${_blis_lib_real})")
       unset(BLIS_LIBRARY CACHE)
       unset(BLIS_LIBRARY)
     endif()
+  endif()
+
+  # Runtime/compile check to ensure BLIS is single-threaded when BLIS_SERIAL_ONLY is ON
+  if(BLIS_SERIAL_ONLY AND BLIS_LIBRARY AND BLIS_INCLUDE_DIR)
+    include(CheckCSourceRuns)
+    include(CMakePushCheckState)
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_LIBRARIES "${BLIS_LIBRARY}")
+    find_library(_blis_m_check NAMES m)
+    if(_blis_m_check)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${_blis_m_check}")
+    endif()
+    find_package(Threads QUIET)
+    if(TARGET Threads::Threads)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES Threads::Threads)
+    endif()
+    set(CMAKE_REQUIRED_INCLUDES "${BLIS_INCLUDE_DIR}")
+    if(NOT CMAKE_CROSSCOMPILING)
+      check_c_source_runs(
+        "
+        #include <blis.h>
+        int main(void) {
+          return (bli_info_get_enable_threading() == 0) ? 0 : 1;
+        }
+        " _BLIS_RUN_CHECK_SERIAL)
+      if(NOT _BLIS_RUN_CHECK_SERIAL)
+        message(STATUS "Rejecting multithreaded BLIS library: ${BLIS_LIBRARY} (bli_info_get_enable_threading() != 0)")
+        unset(BLIS_LIBRARY CACHE)
+        unset(BLIS_LIBRARY)
+        unset(_BLIS_RUN_CHECK_SERIAL CACHE)
+      endif()
+    endif()
+    cmake_pop_check_state()
   endif()
 
   # Extract version if header found

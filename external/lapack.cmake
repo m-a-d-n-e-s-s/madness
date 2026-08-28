@@ -13,6 +13,7 @@ endif (MADNESS_BUILD_MADWORLD_ONLY)
 include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
 include(CheckCXXSourceCompiles)
+include(CheckCXXSourceRuns)
 include(CheckFunctionExists)
 
 # Helper function: Check if a library or list of libraries is OpenBLAS
@@ -34,11 +35,13 @@ function(madness_check_is_openblas _lib_list _out_var)
   # 2. Symbol check by test compilation/linking
   cmake_push_check_state()
   set(CMAKE_REQUIRED_LIBRARIES ${_lib_list})
+  unset(_has_openblas_symbol CACHE)
   check_function_exists(openblas_get_config _has_openblas_symbol)
   cmake_pop_check_state()
   if(_has_openblas_symbol)
     set(${_out_var} TRUE PARENT_SCOPE)
   endif()
+  unset(_has_openblas_symbol CACHE)
 endfunction()
 
 if(NOT LAPACK_LIBRARIES)
@@ -73,18 +76,35 @@ if(NOT LAPACK_LIBRARIES)
     if(BLIS_FOUND)
       # BLIS provides BLAS; find a compatible LAPACK library (e.g. Netlib LAPACK)
       # Search specifically in Netlib directories first to avoid picking up OpenBLAS symlinks
+      set(_lapack_hints
+        ${LAPACK_ROOT}
+        ${LAPACK_DIR}
+        ${LAPACK_ROOT_DIR}
+        $ENV{LAPACK_DIR}
+        $ENV{LAPACK_ROOT}
+        ${BLIS_ROOT_DIR}
+        ${BLIS_DIR}
+        ${BLIS_ROOT}
+        /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/lapack
+        /usr/lib/aarch64-linux-gnu/lapack
+        /usr/lib/x86_64-linux-gnu/lapack
+        /usr/lib/lapack
+        /usr/lib64/lapack
+        /usr/lib64
+        /usr/local/lib64
+        /usr/local/lib/lapack
+        /usr/local/lib
+        /usr/lib
+      )
       find_library(BLIS_LAPACK_LIBRARY NAMES lapack
-        HINTS
-          /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/lapack
-          /usr/lib/aarch64-linux-gnu/lapack
-          /usr/lib/x86_64-linux-gnu/lapack
-          /usr/lib/lapack
-          /usr/lib64/lapack
-          /usr/local/lib/lapack
-          /usr/local/lib
-          /usr/lib
+        HINTS ${_lapack_hints}
         PATH_SUFFIXES lapack
       )
+      if(NOT BLIS_LAPACK_LIBRARY)
+        find_library(BLIS_LAPACK_LIBRARY NAMES lapack
+          HINTS ${_lapack_hints}
+        )
+      endif()
       if(BLIS_LAPACK_LIBRARY AND NOT ENABLE_OPENBLAS)
         madness_check_is_openblas("${BLIS_LAPACK_LIBRARY}" _lapack_is_openblas)
         if(_lapack_is_openblas)
@@ -99,6 +119,8 @@ if(NOT LAPACK_LIBRARIES)
         set(LAPACK_LIBRARIES ${BLIS_LIBRARIES} ${BLIS_LAPACK_LIBRARY})
         set(LAPACK_INCLUDE_DIRS ${BLIS_INCLUDE_DIRS})
         set(HAVE_BLIS 1)
+      else()
+        message(STATUS "BLIS BLAS found (${BLIS_LIBRARY}), but accompanying Netlib LAPACK library (liblapack) was not found.")
       endif()
     endif()
   endif()
@@ -122,30 +144,52 @@ if(NOT LAPACK_LIBRARIES)
 
   # 6. Search for Netlib lapack and blas libraries
   if(NOT LAPACK_FOUND)
+    set(_netlib_hints
+      ${LAPACK_ROOT}
+      ${LAPACK_DIR}
+      ${LAPACK_ROOT_DIR}
+      $ENV{LAPACK_DIR}
+      $ENV{LAPACK_ROOT}
+      ${BLAS_ROOT}
+      ${BLAS_DIR}
+      ${BLAS_ROOT_DIR}
+      $ENV{BLAS_DIR}
+      $ENV{BLAS_ROOT}
+      /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/lapack
+      /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/blas
+      /usr/lib/aarch64-linux-gnu/lapack
+      /usr/lib/aarch64-linux-gnu/blas
+      /usr/lib/x86_64-linux-gnu/lapack
+      /usr/lib/x86_64-linux-gnu/blas
+      /usr/lib/lapack
+      /usr/lib/blas
+      /usr/lib64/lapack
+      /usr/lib64/blas
+      /usr/lib64
+      /usr/local/lib64
+      /usr/local/lib/lapack
+      /usr/local/lib/blas
+      /usr/local/lib
+      /usr/lib
+    )
     find_library(LAPACK_lapack_LIBRARY NAMES lapack
-      HINTS
-        /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/lapack
-        /usr/lib/aarch64-linux-gnu/lapack
-        /usr/lib/x86_64-linux-gnu/lapack
-        /usr/lib/lapack
-        /usr/lib64/lapack
-        /usr/local/lib/lapack
-        /usr/local/lib
-        /usr/lib
+      HINTS ${_netlib_hints}
       PATH_SUFFIXES lapack
     )
+    if(NOT LAPACK_lapack_LIBRARY)
+      find_library(LAPACK_lapack_LIBRARY NAMES lapack
+        HINTS ${_netlib_hints}
+      )
+    endif()
     find_library(LAPACK_blas_LIBRARY NAMES blas
-      HINTS
-        /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/blas
-        /usr/lib/aarch64-linux-gnu/blas
-        /usr/lib/x86_64-linux-gnu/blas
-        /usr/lib/blas
-        /usr/lib64/blas
-        /usr/local/lib/blas
-        /usr/local/lib
-        /usr/lib
+      HINTS ${_netlib_hints}
       PATH_SUFFIXES blas
     )
+    if(NOT LAPACK_blas_LIBRARY)
+      find_library(LAPACK_blas_LIBRARY NAMES blas
+        HINTS ${_netlib_hints}
+      )
+    endif()
 
     if(LAPACK_lapack_LIBRARY AND NOT ENABLE_OPENBLAS)
       madness_check_is_openblas("${LAPACK_lapack_LIBRARY}" _lapack_is_ob)
@@ -182,6 +226,14 @@ if(NOT LAPACK_LIBRARIES)
 
 else()
   set(USER_LAPACK_LIBRARIES TRUE)
+endif()
+
+if(NOT LAPACK_LIBRARIES)
+  message("${missing_lapack_message_level}"
+    "No suitable BLAS/LAPACK library found.\n"
+    "Preference order: Intel MKL, ARMPL (ARM), BLIS (serial) + Netlib LAPACK, ACML, Accelerate (macOS), Netlib LAPACK+BLAS.\n"
+    "Please install required packages (e.g. 'blis-devel lapack-devel' on Fedora / RHEL, or 'libblis4-serial liblapack-dev' on Ubuntu / Debian) or specify LAPACK_LIBRARIES.")
+  return()
 endif()
 
 cmake_push_check_state()
@@ -322,6 +374,7 @@ if(USER_LAPACK_LIBRARIES_IS_BLIS AND LAPACK_INCLUDE_DIRS)
   cmake_push_check_state()
   set(CMAKE_REQUIRED_INCLUDES ${LAPACK_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_FLAGS ${LAPACK_COMPILE_OPTIONS})
+  set(CMAKE_REQUIRED_LIBRARIES ${PROCESSED_LAPACK_LIBRARIES} Threads::Threads)
   check_cxx_source_compiles(
     "
     #include <blis.h>
@@ -329,5 +382,21 @@ if(USER_LAPACK_LIBRARIES_IS_BLIS AND LAPACK_INCLUDE_DIRS)
       return 0;
     }
     " MADNESS_CAN_INCLUDE_BLIS_H)
+  if(NOT MADNESS_CAN_INCLUDE_BLIS_H)
+    message("${missing_lapack_message_level}" "LAPACK provides BLIS but cannot include its headers; ensure that corresponding LAPACK_INCLUDE_DIRS, LAPACK_COMPILE_DEFINITIONS, or LAPACK_COMPILE_OPTIONS were provided")
+  endif()
+  if(NOT CMAKE_CROSSCOMPILING)
+    check_cxx_source_runs(
+      "
+      #include <blis.h>
+      int main(int argc, char** argv) {
+        // Return 0 if single-threaded (serial), 1 if multithreaded
+        return (bli_info_get_enable_threading() == 0) ? 0 : 1;
+      }
+      " MADNESS_BLIS_IS_SERIAL)
+    if(NOT MADNESS_BLIS_IS_SERIAL)
+      message("${missing_lapack_message_level}" "The detected BLIS library is multithreaded (OpenMP/pthreads). MADNESS strictly requires thread-safe sequential (single-thread) BLIS. Please install serial BLIS (e.g. 'blis' package on Fedora, 'libblis4-serial' on Ubuntu).")
+    endif()
+  endif()
   cmake_pop_check_state()
 endif()
