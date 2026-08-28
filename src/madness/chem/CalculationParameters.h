@@ -364,11 +364,13 @@ struct CalculationParameters : public QCCalculationParametersBase {
     	}
 
 
-        //NWChem only supports Boys localization (or canonical)
+        // The nwchem guess replaces the internal minimal aobasis with the NWChem basis,
+        // so localizers that need the atomic-eigenfunction machinery (pm, new, new_sys)
+        // cannot run; boys, cholesky and canon work from the MOs alone.
         if (nwfile() != "none") {
              set_derived_value("localize",std::string("boys"));
-             //Error if user requested something other than Boys
-             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
+             if (localize_method() != "boys" and localize_method() != "cholesky" and localize_method() != "canon")
+                 error("NWchem initialization supports only localize boys, cholesky or canon");
         }
 	}
 };

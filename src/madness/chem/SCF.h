@@ -770,7 +770,10 @@ public:
 
 
         to_json(j, int_vals);
-        double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+        // current_energy, not value(): a re-solve here would run on rank 0 only
+        // (non-collective), and the nwfile guess translates the molecule, which
+        // stales value()'s coords cache.
+        double_vals.push_back({"return_energy", calc.current_energy});
         to_json(j, double_vals);
         double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
         if (param.nbeta() != 0 && !param.spin_restricted()) {
