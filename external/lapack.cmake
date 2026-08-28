@@ -12,13 +12,18 @@ endif (MADNESS_BUILD_MADWORLD_ONLY)
 
 include(CheckCFortranFunctionExists)
 include(CMakePushCheckState)
+include(CheckCSourceRuns)
 include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 include(CheckFunctionExists)
 
-# Helper function: Check if a library or list of libraries is OpenBLAS
+# Helper function: Check if a library or list of libraries resolves to or dynamically loads OpenBLAS
 function(madness_check_is_openblas _lib_list _out_var)
   set(${_out_var} FALSE PARENT_SCOPE)
+  if(NOT _lib_list)
+    return()
+  endif()
+
   # 1. Path check (including resolved symlinks)
   foreach(_lib ${_lib_list})
     if(EXISTS "${_lib}")
@@ -27,12 +32,41 @@ function(madness_check_is_openblas _lib_list _out_var)
         set(${_out_var} TRUE PARENT_SCOPE)
         return()
       endif()
+      # On Linux, inspect ELF dynamic dependencies (DT_NEEDED) using readelf if available
+      if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND _lib MATCHES "\\.so")
+        find_program(READELF_EXECUTABLE NAMES readelf)
+        if(READELF_EXECUTABLE)
+          execute_process(
+            COMMAND ${READELF_EXECUTABLE} -d "${_lib}"
+            OUTPUT_VARIABLE _readelf_out
+            ERROR_QUIET
+          )
+          if(_readelf_out MATCHES "NEEDED.*openblas")
+            set(${_out_var} TRUE PARENT_SCOPE)
+            return()
+          endif()
+          if(_readelf_out MATCHES "NEEDED.*libblas\\.so")
+            find_file(_sys_libblas NAMES libblas.so.3 libblas.so
+              PATHS /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE} /usr/lib /lib/${CMAKE_LIBRARY_ARCHITECTURE} /lib
+              NO_DEFAULT_PATH
+            )
+            if(_sys_libblas)
+              get_filename_component(_sys_libblas_real "${_sys_libblas}" REALPATH)
+              if(_sys_libblas_real MATCHES "openblas")
+                set(${_out_var} TRUE PARENT_SCOPE)
+                return()
+              endif()
+            endif()
+          endif()
+        endif()
+      endif()
     elseif(_lib MATCHES "openblas")
       set(${_out_var} TRUE PARENT_SCOPE)
       return()
     endif()
   endforeach()
-  # 2. Symbol check by test compilation/linking
+
+  # 2. Static symbol check by test compilation/linking
   cmake_push_check_state()
   set(CMAKE_REQUIRED_LIBRARIES ${_lib_list})
   unset(_has_openblas_symbol CACHE)
@@ -40,8 +74,64 @@ function(madness_check_is_openblas _lib_list _out_var)
   cmake_pop_check_state()
   if(_has_openblas_symbol)
     set(${_out_var} TRUE PARENT_SCOPE)
+    return()
   endif()
   unset(_has_openblas_symbol CACHE)
+
+  # 3. Dynamic runtime check (checks if OpenBLAS was loaded into memory at runtime)
+  if(NOT CMAKE_CROSSCOMPILING)
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_LIBRARIES ${_lib_list})
+    find_package(Threads QUIET)
+    if(TARGET Threads::Threads)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES Threads::Threads)
+    endif()
+    find_library(_m_chk_lib NAMES m)
+    if(_m_chk_lib)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${_m_chk_lib}")
+    endif()
+    find_library(_gfort_chk_lib NAMES gfortran)
+    if(_gfort_chk_lib)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${_gfort_chk_lib}")
+    endif()
+    unset(_CHECK_DL_NO_OPENBLAS CACHE)
+    check_c_source_runs(
+      "
+      #define _GNU_SOURCE
+      #include <stdio.h>
+      #include <string.h>
+      #if defined(__linux__)
+      #include <link.h>
+      static int callback(struct dl_phdr_info *info, size_t size, void *data) {
+          if (info->dlpi_name != NULL && info->dlpi_name[0] != 0) {
+              if (strstr(info->dlpi_name, \"openblas\") != NULL) {
+                  *((int*)data) = 1;
+              }
+          }
+          return 0;
+      }
+      #endif
+      extern void sgemm_(const char*, const char*, const int*, const int*, const int*, const float*, const float*, const int*, const float*, const int*, const float*, float*, const int*);
+      int main(void) {
+          int has_openblas = 0;
+      #if defined(__linux__)
+          char trans = 'N';
+          int m = 0, n = 0, k = 0, lda = 1, ldb = 1, ldc = 1;
+          float alpha = 1.0f, beta = 0.0f, a[1] = {0}, b[1] = {0}, c[1] = {0};
+          sgemm_(&trans, &trans, &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+          dl_iterate_phdr(callback, &has_openblas);
+      #endif
+          return (has_openblas == 0) ? 0 : 1;
+      }
+      " _CHECK_DL_NO_OPENBLAS
+    )
+    cmake_pop_check_state()
+    if(NOT _CHECK_DL_NO_OPENBLAS)
+      set(${_out_var} TRUE PARENT_SCOPE)
+      return()
+    endif()
+    unset(_CHECK_DL_NO_OPENBLAS CACHE)
+  endif()
 endfunction()
 
 if(NOT LAPACK_LIBRARIES)
@@ -96,31 +186,58 @@ if(NOT LAPACK_LIBRARIES)
         /usr/local/lib
         /usr/lib
       )
-      find_library(BLIS_LAPACK_LIBRARY NAMES lapack
+      # Search for static liblapack.a first (prevents DT_NEEDED libblas.so.3 alternative poisoning on Ubuntu/Debian)
+      find_library(BLIS_LAPACK_LIBRARY
+        NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}" lapack
         HINTS ${_lapack_hints}
         PATH_SUFFIXES lapack
       )
       if(NOT BLIS_LAPACK_LIBRARY)
-        find_library(BLIS_LAPACK_LIBRARY NAMES lapack
+        find_library(BLIS_LAPACK_LIBRARY
+          NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}" lapack
           HINTS ${_lapack_hints}
         )
       endif()
+
+      # Check if pairing with BLIS_LAPACK_LIBRARY pulls in OpenBLAS
       if(BLIS_LAPACK_LIBRARY AND NOT ENABLE_OPENBLAS)
-        madness_check_is_openblas("${BLIS_LAPACK_LIBRARY}" _lapack_is_openblas)
-        if(_lapack_is_openblas)
-          message(STATUS "Rejecting OpenBLAS library found for LAPACK: ${BLIS_LAPACK_LIBRARY}")
+        madness_check_is_openblas("${BLIS_LAPACK_LIBRARY};${BLIS_LIBRARIES}" _blis_lapack_is_openblas)
+        if(_blis_lapack_is_openblas)
+          # Try falling back specifically to static liblapack.a
           unset(BLIS_LAPACK_LIBRARY CACHE)
           unset(BLIS_LAPACK_LIBRARY)
+          find_library(BLIS_LAPACK_LIBRARY
+            NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}"
+            HINTS ${_lapack_hints}
+            PATH_SUFFIXES lapack
+          )
+          if(BLIS_LAPACK_LIBRARY)
+            madness_check_is_openblas("${BLIS_LAPACK_LIBRARY};${BLIS_LIBRARIES}" _blis_lapack_is_ob2)
+            if(_blis_lapack_is_ob2)
+              message(STATUS "Rejecting LAPACK library that pulls in OpenBLAS: ${BLIS_LAPACK_LIBRARY}")
+              unset(BLIS_LAPACK_LIBRARY CACHE)
+              unset(BLIS_LAPACK_LIBRARY)
+            endif()
+          endif()
         endif()
       endif()
 
       if(BLIS_LAPACK_LIBRARY)
         set(LAPACK_FOUND TRUE)
-        set(LAPACK_LIBRARIES ${BLIS_LIBRARIES} ${BLIS_LAPACK_LIBRARY})
+        set(_extra_lapack_libs)
+        if(BLIS_LAPACK_LIBRARY MATCHES "${CMAKE_STATIC_LIBRARY_SUFFIX}$")
+          find_library(_gfortran_lib NAMES gfortran)
+          if(_gfortran_lib)
+            list(APPEND _extra_lapack_libs "${_gfortran_lib}")
+          else()
+            list(APPEND _extra_lapack_libs "-lgfortran")
+          endif()
+        endif()
+        set(LAPACK_LIBRARIES ${BLIS_LAPACK_LIBRARY} ${BLIS_LIBRARIES} ${_extra_lapack_libs})
         set(LAPACK_INCLUDE_DIRS ${BLIS_INCLUDE_DIRS})
         set(HAVE_BLIS 1)
       else()
-        message(STATUS "BLIS BLAS found (${BLIS_LIBRARY}), but accompanying Netlib LAPACK library (liblapack) was not found.")
+        message(STATUS "BLIS BLAS found (${BLIS_LIBRARY}), but accompanying compatible Netlib LAPACK library was not found.")
       endif()
     endif()
   endif()
@@ -172,21 +289,25 @@ if(NOT LAPACK_LIBRARIES)
       /usr/local/lib
       /usr/lib
     )
-    find_library(LAPACK_lapack_LIBRARY NAMES lapack
+    find_library(LAPACK_lapack_LIBRARY
+      NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}" lapack
       HINTS ${_netlib_hints}
       PATH_SUFFIXES lapack
     )
     if(NOT LAPACK_lapack_LIBRARY)
-      find_library(LAPACK_lapack_LIBRARY NAMES lapack
+      find_library(LAPACK_lapack_LIBRARY
+        NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}" lapack
         HINTS ${_netlib_hints}
       )
     endif()
-    find_library(LAPACK_blas_LIBRARY NAMES blas
+    find_library(LAPACK_blas_LIBRARY
+      NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blas${CMAKE_STATIC_LIBRARY_SUFFIX}" blas
       HINTS ${_netlib_hints}
       PATH_SUFFIXES blas
     )
     if(NOT LAPACK_blas_LIBRARY)
-      find_library(LAPACK_blas_LIBRARY NAMES blas
+      find_library(LAPACK_blas_LIBRARY
+        NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blas${CMAKE_STATIC_LIBRARY_SUFFIX}" blas
         HINTS ${_netlib_hints}
       )
     endif()
@@ -194,24 +315,59 @@ if(NOT LAPACK_LIBRARIES)
     if(LAPACK_lapack_LIBRARY AND NOT ENABLE_OPENBLAS)
       madness_check_is_openblas("${LAPACK_lapack_LIBRARY}" _lapack_is_ob)
       if(_lapack_is_ob)
-        message(STATUS "Rejecting OpenBLAS library found for LAPACK: ${LAPACK_lapack_LIBRARY}")
         unset(LAPACK_lapack_LIBRARY CACHE)
         unset(LAPACK_lapack_LIBRARY)
+        find_library(LAPACK_lapack_LIBRARY
+          NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}lapack${CMAKE_STATIC_LIBRARY_SUFFIX}"
+          HINTS ${_netlib_hints}
+          PATH_SUFFIXES lapack
+        )
+        if(LAPACK_lapack_LIBRARY)
+          madness_check_is_openblas("${LAPACK_lapack_LIBRARY}" _lapack_is_ob2)
+          if(_lapack_is_ob2)
+            message(STATUS "Rejecting OpenBLAS library found for LAPACK: ${LAPACK_lapack_LIBRARY}")
+            unset(LAPACK_lapack_LIBRARY CACHE)
+            unset(LAPACK_lapack_LIBRARY)
+          endif()
+        endif()
       endif()
     endif()
 
     if(LAPACK_blas_LIBRARY AND NOT ENABLE_OPENBLAS)
       madness_check_is_openblas("${LAPACK_blas_LIBRARY}" _blas_is_ob)
       if(_blas_is_ob)
-        message(STATUS "Rejecting OpenBLAS library found for BLAS: ${LAPACK_blas_LIBRARY}")
         unset(LAPACK_blas_LIBRARY CACHE)
         unset(LAPACK_blas_LIBRARY)
+        find_library(LAPACK_blas_LIBRARY
+          NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}blas${CMAKE_STATIC_LIBRARY_SUFFIX}"
+          HINTS ${_netlib_hints}
+          PATH_SUFFIXES blas
+        )
+        if(LAPACK_blas_LIBRARY)
+          madness_check_is_openblas("${LAPACK_blas_LIBRARY}" _blas_is_ob2)
+          if(_blas_is_ob2)
+            message(STATUS "Rejecting OpenBLAS library found for BLAS: ${LAPACK_blas_LIBRARY}")
+            unset(LAPACK_blas_LIBRARY CACHE)
+            unset(LAPACK_blas_LIBRARY)
+          endif()
+        endif()
       endif()
     endif()
 
     if(LAPACK_lapack_LIBRARY AND LAPACK_blas_LIBRARY)
-      set(LAPACK_LIBRARIES ${LAPACK_lapack_LIBRARY} ${LAPACK_blas_LIBRARY})
-      set(LAPACK_FOUND TRUE)
+      madness_check_is_openblas("${LAPACK_lapack_LIBRARY};${LAPACK_blas_LIBRARY}" _pair_is_ob)
+      if(_pair_is_ob AND NOT ENABLE_OPENBLAS)
+        message(STATUS "Rejecting LAPACK+BLAS combination that pulls in OpenBLAS: ${LAPACK_lapack_LIBRARY} ${LAPACK_blas_LIBRARY}")
+      else()
+        set(LAPACK_LIBRARIES ${LAPACK_lapack_LIBRARY} ${LAPACK_blas_LIBRARY})
+        if(LAPACK_lapack_LIBRARY MATCHES "${CMAKE_STATIC_LIBRARY_SUFFIX}$" OR LAPACK_blas_LIBRARY MATCHES "${CMAKE_STATIC_LIBRARY_SUFFIX}$")
+          find_library(_gfortran_lib NAMES gfortran)
+          if(_gfortran_lib)
+            list(APPEND LAPACK_LIBRARIES "${_gfortran_lib}")
+          endif()
+        endif()
+        set(LAPACK_FOUND TRUE)
+      endif()
     endif()
   endif()
 
@@ -268,12 +424,14 @@ else()
 endif()
 
 # Check for OpenBLAS rejection/warning
-check_function_exists(openblas_get_config LAPACK_IS_OPENBLAS)
-if(LAPACK_IS_OPENBLAS)
-  if(USER_LAPACK_LIBRARIES OR ENABLE_OPENBLAS)
-    message(WARNING "OpenBLAS detected in LAPACK_LIBRARIES. Note: OpenBLAS is not safe for multithreaded concurrent calls on ARM.")
-  else()
-    message("${missing_lapack_message_level}" "Auto-detected LAPACK/BLAS library is OpenBLAS, which is not thread-safe on ARM. Please install ARMPL, BLIS serial, or Netlib LAPACK, or configure with -DENABLE_OPENBLAS=ON to override.")
+if(NOT ENABLE_OPENBLAS)
+  madness_check_is_openblas("${LAPACK_LIBRARIES}" LAPACK_IS_OPENBLAS)
+  if(LAPACK_IS_OPENBLAS)
+    if(USER_LAPACK_LIBRARIES)
+      message(WARNING "OpenBLAS detected in user-specified LAPACK_LIBRARIES. Note: OpenBLAS is not safe for multithreaded concurrent calls on ARM.")
+    else()
+      message("${missing_lapack_message_level}" "Auto-detected LAPACK/BLAS library is OpenBLAS (or dynamically loads OpenBLAS), which is not thread-safe on ARM. Please install ARMPL, BLIS serial, or Netlib LAPACK without OpenBLAS alternatives, or configure with -DENABLE_OPENBLAS=ON to override.")
+    endif()
   endif()
 endif()
 
