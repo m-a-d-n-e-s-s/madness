@@ -1451,7 +1451,13 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         Exchange<double, 3> K(world, this, ispin);
 
         K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
-        K.set_symmetric(true).set_printlevel(param.print_level());
+        // symmetric requires bra == ket == argument; with virtuals present
+        // (nvalpha/nvbeta > 0) the argument vector is longer than K's occupied
+        // bra/ket and the symmetric pair batching must not be used.
+        long nocc_in_k = 0;
+        for (long i = 0; i < occ.size(); ++i)
+            if (occ(i) > 0.0) ++nocc_in_k;
+        K.set_symmetric(size_t(nocc_in_k) == amo.size()).set_printlevel(param.print_level());
         K.set_macro_task_info(MacroTaskInfo::preset("default"));
         K.set_macro_task_info(param.memory());
         K.set_batch_granularity(param.hfex_granularity());
