@@ -457,6 +457,9 @@ check_function_exists(bli_info_get_version_str USER_LAPACK_LIBRARIES_IS_BLIS)
 if(USER_LAPACK_LIBRARIES_IS_BLIS)
   message(STATUS "LAPACK provides a BLIS library")
   set(HAVE_BLIS 1)
+  message(WARNING
+    "BLIS was selected as the BLAS library. Note that BLIS performance for multi-threaded small matrix contractions (critical in MADNESS MRA multiwavelet operations) is significantly slower than vendor-tuned libraries due to framework overhead and memory pool lock contention. For optimal performance, it is strongly recommended to install Intel MKL (on x86_64) or Arm Performance Libraries (ARMPL, on ARM64) if at all possible."
+  )
 endif()
 
 check_function_exists(acmlversion USER_LAPACK_LIBRARIES_IS_ACML)
