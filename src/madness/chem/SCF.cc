@@ -2504,7 +2504,15 @@ void SCF::solve(World& world) {
             localizer.set_method(param.localize_method());
             double t_matrix = 0.0, t_transform = 0.0;
             {
-                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+                // Localize the occupied orbitals only. Virtuals (nvalpha > 0) must not
+                // enter: a set spanning the occupation boundary licenses
+                // determinant-changing rotations, and even fenced virtuals are wanted
+                // canonical for eigenvalue analysis, not gauge-churned every iteration.
+                const size_t nocc = param.nalpha();
+                vecfuncT amo_occ(amo.begin(), amo.begin() + nocc);
+                MolecularOrbitals<double, 3> mo(amo_occ, copy(aeps(Slice(0, long(nocc) - 1))), {},
+                                                copy(aocc(Slice(0, long(nocc) - 1))),
+                                                std::vector<int>(aset.begin(), aset.begin() + nocc));
                 localizer.set_pivot_state(&localize_pivot_state_a);
                 const double t_loc0 = wall_time();
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
@@ -2512,7 +2520,8 @@ void SCF::solve(World& world) {
                 const double offdiag = max_offdiag(UT);
                 if (offdiag > localize_skip_tol) {
                     UT.screen(trantol);
-                    rotate_orbitals(amo, UT);
+                    rotate_orbitals(amo_occ, UT);
+                    for (size_t i = 0; i < nocc; ++i) amo[i] = amo_occ[i];
                 } else if (world.rank() == 0 && param.print_level() >= 3) {
                     printf("  localize: rotation skipped (max offdiag %.1e)\n", offdiag);
                 }
@@ -2520,14 +2529,19 @@ void SCF::solve(World& world) {
                 t_transform += wall_time() - t_loc1;
             }
             if (!param.spin_restricted() && param.nbeta() != 0) {
-                MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                const size_t noccb = param.nbeta();
+                vecfuncT bmo_occ(bmo.begin(), bmo.begin() + noccb);
+                MolecularOrbitals<double, 3> mo(bmo_occ, copy(beps(Slice(0, long(noccb) - 1))), {},
+                                                copy(bocc(Slice(0, long(noccb) - 1))),
+                                                std::vector<int>(bset.begin(), bset.begin() + noccb));
                 localizer.set_pivot_state(&localize_pivot_state_b);
                 const double t_loc0 = wall_time();
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 const double t_loc1 = wall_time();
                 if (max_offdiag(UT) > localize_skip_tol) {
                     UT.screen(trantol);
-                    rotate_orbitals(bmo, UT);
+                    rotate_orbitals(bmo_occ, UT);
+                    for (size_t i = 0; i < noccb; ++i) bmo[i] = bmo_occ[i];
                 }
                 t_matrix += t_loc1 - t_loc0;
                 t_transform += wall_time() - t_loc1;
