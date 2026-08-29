@@ -486,8 +486,8 @@ namespace madness {
         template<std::size_t LDIM>
         Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
             Vector<Translation,NDIM+LDIM> t;
-            for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
-            for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
+            if constexpr (NDIM > 0) for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
+            if constexpr (LDIM > 0) for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 
