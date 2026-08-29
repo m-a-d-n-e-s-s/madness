@@ -69,6 +69,12 @@ if (madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
   find_package(nlohmann_json REQUIRED CONFIG HINTS "${nlohmann_json_DIR}")
 endif(madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
 
+# 4. LIBXSMM (public dependency of MADtensor)
+set(madness_HAS_LIBXSMM @MADNESS_HAS_LIBXSMM@)
+if (madness_HAS_LIBXSMM AND NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
+  find_package(libxsmm QUIET CONFIG)
+endif()
+
 # Set the madness libraries target
 set(madness_LIBRARIES madness)
 

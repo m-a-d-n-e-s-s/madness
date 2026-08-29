@@ -36,11 +36,7 @@
 #define MADNESS_TENSOR_MXM_H__INCLUDED
 
 #include <madness/madness_config.h>
-
-// This just to check if config is actually working
-//#ifndef HAVE_MTXMQ
-//#error "MTXMQ missing"
-//#endif
+#include <madness/tensor/mTxmq.h>
 
 #define HAVE_FAST_BLAS
 #ifdef  HAVE_FAST_BLAS
@@ -154,36 +150,6 @@ namespace madness {
             }
         }
     }
-
-    /// Matrix = Matrix transpose * matrix ... slow reference implementation
-    
-    /// This routine does \c C=AT*B whereas mTxm does C=C+AT*B.
-    /// \code
-    ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
-    /// \endcode
-    ///
-    /// \c ldb is the last dimension of b in C storage (the leading dimension
-    /// in fortran storage).  It is here to accomodate multiplying by a matrix
-    /// stored with \c ldb>dimj which happens in madness when transforming with
-    /// low rank matrices.  A matrix in dense storage has \c ldb=dimj which is
-    /// the default for backward compatibility.
-    template <typename aT, typename bT, typename cT>
-    void mTxmq_reference(long dimi, long dimj, long dimk,
-                         cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
-        if (ldb == -1) ldb=dimj;
-        MADNESS_ASSERT(ldb>=dimj);
-        //std::cout << "IN GENERIC mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
-        for (long i=0; i<dimi; ++i,c+=dimj,++a) {
-            for (long j=0; j<dimj; ++j) c[j] = 0.0;
-            const aT *aik_ptr = a;
-            for (long k=0; k<dimk; ++k,aik_ptr+=dimi) {
-                aT aki = *aik_ptr;
-                for (long j=0; j<dimj; ++j) {
-                    c[j] += aki*b[k*ldb+j];
-                }
-            }
-        }
-    }
     
 
 #if defined(HAVE_FAST_BLAS) && !defined(HAVE_INTEL_MKL)
@@ -255,7 +221,7 @@ namespace madness {
     /// the default for backward compatibility.
     template <typename T>
     void mTxmq(long dimi, long dimj, long dimk,
-               T* MADNESS_RESTRICT c, const T* a, const T* b, long ldb=-1) {
+               T* MADNESS_RESTRICT c, const T* a, const T* b, long ldb) {
         if (ldb == -1) ldb=dimj;
         MADNESS_ASSERT(ldb>=dimj);
 
@@ -270,9 +236,6 @@ namespace madness {
     }  
 
 #ifdef HAVE_MTXMQ
-    template <>
-    void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
-
     // Bootstrap complex*real from real*real
     template <typename T>
     void mTxmq(long dimi, long dimj, long dimk, std::complex<T>* MADNESS_RESTRICT c, const std::complex<T>* a, const T* b, long ldb) {
@@ -366,7 +329,7 @@ namespace madness {
     /// the default for backward compatibility.
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb) {
         if (ldb == -1) ldb=dimj;
         MADNESS_ASSERT(ldb>=dimj);
 
@@ -379,11 +342,6 @@ namespace madness {
         const cT zero = 0.0; // beta  in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
     }
-
-#ifdef HAVE_MTXMQ
-template <>
-void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
-#endif
     
 #else
 
@@ -420,7 +378,7 @@ void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const do
 
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb=-1) {
+               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb) {
         mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
     }
 
@@ -613,134 +571,6 @@ void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const do
             }
         }
     }
-
-    /*
-     * mtxm, but with padded buffers.
-     *
-     * ext_b is the extent of the b array, so shrink() isn't needed.
-     */
-    template <typename aT, typename bT, typename cT>
-    void mTxmq_padding(long dimi, long dimj, long dimk, long ext_b,
-               cT* c, const aT* a, const bT* b) {
-        const int alignment = 4;
-        bool free_b = false;
-        long effj = dimj;
-
-        /* Setup a buffer for c if needed */
-        cT* c_buf = c;
-        if (dimj%alignment) {
-            effj = (dimj | 3) + 1;
-            c_buf = (cT*)malloc(sizeof(cT)*dimi*effj);
-        }
-
-        /* Copy b into a buffer if needed */
-        if (ext_b%alignment) {
-            free_b = true;
-            bT* b_buf = (bT*)malloc(sizeof(bT)*dimk*effj);
-
-            bT* bp = b_buf;
-            for (long k=0; k<dimk; k++, bp += effj, b += ext_b)
-                memcpy(bp, b, sizeof(bT)*dimj);
-
-            b = b_buf;
-            ext_b = effj;
-        }
-
-        cT* c_work = c_buf;
-        /* mTxm */
-        for (long i=0; i<dimi; ++i,c_work+=effj,++a) {
-            for (long j=0; j<dimj; ++j) c_work[j] = 0.0;
-            const aT *aik_ptr = a;
-            for (long k=0; k<dimk; ++k,aik_ptr+=dimi) {
-                aT aki = *aik_ptr;
-                for (long j=0; j<dimj; ++j) {
-                    c_work[j] += aki*b[k*ext_b+j];
-                }
-            }
-        }
-
-        /* Copy c out if needed */
-        if (dimj%alignment) {
-            cT* ct = c_buf;
-            for (long i=0; i<dimi; i++, ct += effj, c += dimj)
-                memcpy(c, ct, sizeof(cT)*dimj);
-
-            free(c_buf);
-        }
-
-        /* Free the buffer for b */
-        if (free_b) free((bT*)b);
-    }
-
-#ifdef HAVE_IBMBGQ
-    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
-            double* c, const double* a, const double* b);
-    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
-            __complex__ double* c, const __complex__ double* a, const __complex__ double* b);
-    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
-            __complex__ double* c, const double* a, const __complex__ double* b);
-    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
-            __complex__ double* c, const __complex__ double* a, const double* b);
-
-    template <>
-        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
-                double* c, const double* a, const double* b) {
-            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
-        }
-
-    template <>
-        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
-                __complex__ double* c, const __complex__ double* a, const __complex__ double* b) {
-            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
-        }
-
-    template <>
-        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
-                __complex__ double* c, const double* a, const __complex__ double* b) {
-            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
-        }
-
-    template <>
-        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
-                __complex__ double* c, const __complex__ double* a, const double* b) {
-            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
-        }
-#elif defined(HAVE_IBMBGP)
-    extern void bgpmTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, 
-                         const double* a, const double* b);
-    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, 
-                         const double_complex* a, const double_complex* b);
- 
-    template <>
-    inline void mTxmq(long ni, long nj, long nk, double* MADNESS_RESTRICT c, const double* a, const double* b) {
-        bgpmTxmq(ni, nj, nk, c, a, b);
-    }
-
-    template <>
-    inline void mTxmq(long ni, long nj, long nk, double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b) {
-        bgpmTxmq(ni, nj, nk, c, a, b);
-    }
-
-// #elif defined(X86_64) && !defined(DISABLE_SSE3)
-//     template <>
-//     void mTxmq(long dimi, long dimj, long dimk,
-//                double* MADNESS_RESTRICT c, const double* a, const double* b);
-
-//     template <>
-//     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double_complex* b);
-
-// #ifndef __INTEL_COMPILER
-//     template <>
-//     void mTxmq(long dimi, long dimj, long dimk,
-//                double_complex* MADNESS_RESTRICT c, const double_complex* a, const double* b);
-// #endif
-
-// #elif defined(X86_32)
-//     template <>
-//     void mTxmq(long dimi, long dimj, long dimk,
-//                double* MADNESS_RESTRICT c, const double* a, const double* b);
-#endif // HAVE_IBMBGQ
 
 #endif // HAVE_INTEL_MKL
     

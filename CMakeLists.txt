@@ -115,20 +115,14 @@ option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
 option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
+option(ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication" ON)
 
-set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
-check_cxx_source_compiles(
-    "
-    namespace madness {
-      template <typename T>
-      void mTxmq(long dimi, long dimj, long dimk,
-		 T* __restrict__ c, const T* a, const T* b, long ldb=-1);
-
-      template <>
-      void mTxmq(long dimi, long dimj, long dimk, double* __restrict__ c, const  double* a, const double* b, long ldb);
-    }
-    int main() { double a[1], b[1], c[1]; madness::mTxmq(1,1,1,c,a,b,1); return 0; }
-    " HAVE_MTXMQ)
+if (ENABLE_LIBXSMM)
+  include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchLibxsmm.cmake)
+else ()
+  set(MADNESS_HAS_LIBXSMM OFF CACHE BOOL "MADNESS has access to LIBXSMM" FORCE)
+  set(HAVE_MTXMQ OFF CACHE BOOL "MADNESS has mTxmq enabled" FORCE)
+endif ()
 
   ####### preferred task backend
 set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
@@ -179,6 +173,7 @@ else (ENABLE_ELEMENTAL)
   set(MADNESS_HAS_ELEMENTAL 0)
 endif (ENABLE_ELEMENTAL)
 add_feature_info(Elemental ENABLE_ELEMENTAL "compiles parallel linear-algebra library Elemental as part of MADNESS")
+add_feature_info(LIBXSMM ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication")
 
 option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 
@@ -397,7 +392,6 @@ check_cxx_source_compiles(
     int main() { return 0; }
     " HAVE_CRAYXT)
 if(HAVE_CRAYXE)
-  set(AMD_QUADCORE_TUNE ON CACHE BOOL "Target for tuning mtxmq kernels")
   set(USE_SPINLOCKS ON CACHE BOOL 
       "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)" FORCE)
   set(MAD_BIND_DEFAULT "1 0 2" CACHE STRING "The default binding for threads" FORCE)

@@ -2471,32 +2471,11 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         long dimi = 1;
         for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
 
-#if HAVE_IBMBGQ
-        long nij = dimi*dimj;
-        if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
-            for (long i=0; i<nij; ++i) t0[i] = 0.0;
-            mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                for (long i=0; i<nij; ++i) t1[i] = 0.0;
-                mTxm(dimi, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
-            }
-        }
-        else {
-            mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
-            }
-        }
-#else
-        // Now assume no restriction on the use of mtxmq
         mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
         for (int n=1; n<t.ndim(); ++n) {
             mTxmq(dimi, dimj, dimj, t1, t0, pc);
             std::swap(t0,t1);
         }
-#endif
         
         return result;
     }
