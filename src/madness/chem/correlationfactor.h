@@ -465,7 +465,7 @@ public:
 			}
 
 		}
-		std::vector<coord_3d> special_points() const {
+		std::vector<coord_3d> special_points() const override {
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
@@ -497,7 +497,7 @@ public:
 			}
 			return result;
 		}
-		std::vector<coord_3d> special_points() const {
+		std::vector<coord_3d> special_points() const override {
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
@@ -527,7 +527,7 @@ public:
             return ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             std::vector< madness::Vector<double,3> > c(1);
             const Atom& atom=ncf->molecule.get_atom(iatom);
             c[0][0]=atom.x;
@@ -575,7 +575,7 @@ public:
 
             return result;
         }
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
         }
     };
@@ -597,7 +597,7 @@ public:
 			}
 			return result;
 		}
-		std::vector<coord_3d> special_points() const {
+		std::vector<coord_3d> special_points() const override {
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
@@ -629,7 +629,7 @@ public:
 
 			return -1.0*result;
 		}
-		std::vector<coord_3d> special_points() const {
+		std::vector<coord_3d> special_points() const override {
 			return ncf->molecule.get_all_coords_vec();
 		}
 	};
@@ -652,7 +652,7 @@ public:
             return ncf->Spp_div_S(r,atom.q);
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             std::vector< madness::Vector<double,3> > c(1);
             const Atom& atom=ncf->molecule.get_atom(iatom);
             c[0][0]=atom.x;
@@ -697,7 +697,7 @@ public:
             return -0.5*result;
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             std::vector< madness::Vector<double,3> > c(1);
             const Atom& atom=ncf->molecule.get_atom(iatom);
             c[0][0]=atom.x;
@@ -730,7 +730,7 @@ public:
             return result*result*V;
 
         }
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
         }
     };
@@ -760,7 +760,7 @@ public:
             return result*result*Vprime;
 
         }
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
         }
     };
@@ -813,7 +813,7 @@ public:
             return result;
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
         }
 
@@ -858,7 +858,7 @@ public:
                       -S1*(ncf->dsmoothed_unitvec(vr1A,derivativeaxis)[U1axis]);
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             std::vector< madness::Vector<double,3> > c(1);
             c[0][0]=thisatom.x;
             c[0][1]=thisatom.y;
@@ -896,7 +896,7 @@ public:
             return drhodx*ncf->U2X_spherical(r,Z,rcut);
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             std::vector< madness::Vector<double,3> > c(1);
             const Atom& atom=ncf->molecule.get_atom(iatom);
             c[0][0]=atom.x;
@@ -970,7 +970,7 @@ public:
             return term;
         }
 
-        std::vector<coord_3d> special_points() const {
+        std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
         }
     };
