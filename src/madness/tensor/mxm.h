@@ -207,59 +207,6 @@ namespace madness {
         cblas::gemm(cblas::Trans,cblas::Trans,dimj,dimi,dimk,one,b,dimk,a,dimi,one,c,dimj);
     }
 
-    /// Matrix = Matrix transpose * matrix ... MKL interface version
-    
-    /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  
-    /// \code
-    ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
-    /// \endcode
-    ///
-    /// \c ldb is the last dimension of b in C storage (the leading dimension
-    /// in fortran storage).  It is here to accomodate multiplying by a matrix
-    /// stored with \c ldb>dimj which happens in madness when transforming with
-    /// low rank matrices.  A matrix in dense storage has \c ldb=dimj which is
-    /// the default for backward compatibility.
-    template <typename T>
-    void mTxmq(long dimi, long dimj, long dimk,
-               T* MADNESS_RESTRICT c, const T* a, const T* b, long ldb) {
-        if (ldb == -1) ldb=dimj;
-        MADNESS_ASSERT(ldb>=dimj);
-
-        if (dimi==0 || dimj==0) return; // nothing to do and *GEMM will complain
-        if (dimk==0) {
-            for (long i=0; i<dimi*dimj; i++) c[i] = 0.0;
-        }
-        
-        const T one = 1.0;  // alpha in *gemm
-        const T zero = 0.0; // beta  in *gemm
-        cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
-    }  
-
-#ifdef HAVE_MTXMQ
-    // Bootstrap complex*real from real*real
-    template <typename T>
-    void mTxmq(long dimi, long dimj, long dimk, std::complex<T>* MADNESS_RESTRICT c, const std::complex<T>* a, const T* b, long ldb) {
-      T* Rc = new T[dimi*dimj];
-      T* Ic = new T[dimi*dimj];
-      T* Ra = new T[dimi*dimk];
-      T* Ia = new T[dimi*dimk];
-
-      for (long i=0; i<dimi*dimk; i++) {
-	Ra[i] = a[i].real();
-	Ia[i] = a[i].imag();
-      }
-      mTxmq(dimi,dimj,dimk,Rc,Ra,b,ldb);
-      mTxmq(dimi,dimj,dimk,Ic,Ia,b,ldb);
-      for (long i=0; i<dimi*dimj; i++) c[i] = std::complex<T>(Rc[i],Ic[i]);
-      
-      delete[] Rc;
-      delete[] Ic;
-      delete[] Ra;
-      delete[] Ia;
-    }  
-  
-#endif
-
 #endif
     
 #ifdef HAVE_INTEL_MKL
@@ -315,34 +262,6 @@ namespace madness {
         cblas::gemm(cblas::Trans,cblas::Trans,dimj,dimi,dimk,one,b,dimk,a,dimi,one,c,dimj);
     }
 
-    /// Matrix = Matrix transpose * matrix ... MKL interface version
-    
-    /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  
-    /// \code
-    ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
-    /// \endcode
-    ///
-    /// \c ldb is the last dimension of b in C storage (the leading dimension
-    /// in fortran storage).  It is here to accomodate multiplying by a matrix
-    /// stored with \c ldb>dimj which happens in madness when transforming with
-    /// low rank matrices.  A matrix in dense storage has \c ldb=dimj which is
-    /// the default for backward compatibility.
-    template <typename aT, typename bT, typename cT>
-    void mTxmq(long dimi, long dimj, long dimk,
-               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb) {
-        if (ldb == -1) ldb=dimj;
-        MADNESS_ASSERT(ldb>=dimj);
-
-        if (dimi==0 || dimj==0) return; // nothing to do and *GEMM will complain
-        if (dimk==0) {
-            for (long i=0; i<dimi*dimj; i++) c[i] = 0.0;
-        }
-        
-        const cT one = 1.0;  // alpha in *gemm
-        const cT zero = 0.0; // beta  in *gemm
-        cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
-    }
-    
 #else
 
     // Fall back to reference implementations
@@ -374,12 +293,6 @@ namespace madness {
                              T* MADNESS_RESTRICT c, const Q* MADNESS_RESTRICT a,
                              const S* MADNESS_RESTRICT b) {
         mTxmT_reference(dimi, dimj, dimk, c, a, b);
-    }
-
-    template <typename aT, typename bT, typename cT>
-    void mTxmq(long dimi, long dimj, long dimk,
-               cT* MADNESS_RESTRICT c, const aT* a, const bT* b, long ldb) {
-        mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
     }
 
     // The following are restricted to double only

@@ -43,18 +43,31 @@ static double ran() {
     return ((double)(seed & 0x7fffffff)) * 4.6566128752458e-10;
 }
 
-static void ran_fill(size_t n, double* a) {
+static void ran_fill_d(size_t n, double* a) {
     for (size_t i = 0; i < n; ++i) a[i] = ran();
 }
 
-static void test_shape(long ni, long nj, long nk, long ldb,
-                       const double* a, const double* b, double* c_test, double* c_ref,
-                       long& num_tested, long& num_failed) {
+static void ran_fill_f(size_t n, float* a) {
+    for (size_t i = 0; i < n; ++i) a[i] = static_cast<float>(ran());
+}
+
+static void ran_fill_cd(size_t n, std::complex<double>* a) {
+    for (size_t i = 0; i < n; ++i) a[i] = std::complex<double>(ran(), ran());
+}
+
+static void ran_fill_cf(size_t n, std::complex<float>* a) {
+    for (size_t i = 0; i < n; ++i) a[i] = std::complex<float>(static_cast<float>(ran()), static_cast<float>(ran()));
+}
+
+template <typename T>
+static void test_shape_real(long ni, long nj, long nk, long ldb,
+                            const T* a, const T* b, T* c_test, T* c_ref,
+                            long& num_tested, long& num_failed, const char* tname, double tol) {
     if (ldb == -1) ldb = nj;
     long n_c = (ni > 0 && nj > 0) ? ni * nj : 1;
     for (long i = 0; i < n_c; ++i) {
-        c_test[i] = -999.0;
-        c_ref[i] = -999.0;
+        c_test[i] = static_cast<T>(-999.0);
+        c_ref[i] = static_cast<T>(-999.0);
     }
 
     mTxmq_reference(ni, nj, nk, c_ref, a, b, ldb);
@@ -66,12 +79,44 @@ static void test_shape(long ni, long nj, long nk, long ldb,
     for (long i = 0; i < ni * nj; ++i) {
         double diff = std::abs(c_test[i] - c_ref[i]);
         double ref_val = std::abs(c_ref[i]);
-        double tol = 1e-12 + 1e-12 * ref_val;
-        if (diff > tol) {
-            std::cerr << "FAILED test_mtxmq shape (" << ni << ", " << nj << ", " << nk
+        double cur_tol = tol + tol * ref_val;
+        if (diff > cur_tol) {
+            std::cerr << "FAILED test_mtxmq<" << tname << "> shape (" << ni << ", " << nj << ", " << nk
                       << ", ldb=" << ldb << ") at elem " << i
                       << ": test=" << c_test[i] << " ref=" << c_ref[i]
-                      << " diff=" << diff << " tol=" << tol << "\n";
+                      << " diff=" << diff << " tol=" << cur_tol << "\n";
+            num_failed++;
+            return;
+        }
+    }
+}
+
+template <typename cT, typename rT>
+static void test_shape_mixed(long ni, long nj, long nk, long ldb,
+                             const cT* a, const rT* b, cT* c_test, cT* c_ref,
+                             long& num_tested, long& num_failed, const char* tname, double tol) {
+    if (ldb == -1) ldb = nj;
+    long n_c = (ni > 0 && nj > 0) ? ni * nj : 1;
+    for (long i = 0; i < n_c; ++i) {
+        c_test[i] = cT(-999.0, -999.0);
+        c_ref[i] = cT(-999.0, -999.0);
+    }
+
+    mTxmq_reference(ni, nj, nk, c_ref, a, b, ldb);
+    mTxmq(ni, nj, nk, c_test, a, b, ldb);
+
+    num_tested++;
+    if (ni <= 0 || nj <= 0) return;
+
+    for (long i = 0; i < ni * nj; ++i) {
+        double diff = std::abs(c_test[i] - c_ref[i]);
+        double ref_val = std::abs(c_ref[i]);
+        double cur_tol = tol + tol * ref_val;
+        if (diff > cur_tol) {
+            std::cerr << "FAILED test_mtxmq<" << tname << "> shape (" << ni << ", " << nj << ", " << nk
+                      << ", ldb=" << ldb << ") at elem " << i
+                      << ": test=" << c_test[i] << " ref=" << c_ref[i]
+                      << " diff=" << diff << " tol=" << cur_tol << "\n";
             num_failed++;
             return;
         }
@@ -156,73 +201,105 @@ int main(int argc, char* argv[]) {
     const long nkmax = 64;
     const long ldbmax = 128;
 
-    double *a = nullptr, *b = nullptr, *c_test = nullptr, *c_ref = nullptr;
-    if (posix_memalign((void**)&a, 64, nimax * nkmax * sizeof(double)) != 0) return 1;
-    if (posix_memalign((void**)&b, 64, nkmax * ldbmax * sizeof(double)) != 0) return 1;
-    if (posix_memalign((void**)&c_test, 64, nimax * njmax * sizeof(double)) != 0) return 1;
-    if (posix_memalign((void**)&c_ref, 64, nimax * njmax * sizeof(double)) != 0) return 1;
+    double *a_d = nullptr, *b_d = nullptr, *c_test_d = nullptr, *c_ref_d = nullptr;
+    float *a_f = nullptr, *b_f = nullptr, *c_test_f = nullptr, *c_ref_f = nullptr;
+    std::complex<double> *a_cd = nullptr, *c_test_cd = nullptr, *c_ref_cd = nullptr;
+    std::complex<float> *a_cf = nullptr, *c_test_cf = nullptr, *c_ref_cf = nullptr;
 
-    ran_fill(nimax * nkmax, a);
-    ran_fill(nkmax * ldbmax, b);
+    if (posix_memalign((void**)&a_d, 64, nimax * nkmax * sizeof(double)) != 0) return 1;
+    if (posix_memalign((void**)&b_d, 64, nkmax * ldbmax * sizeof(double)) != 0) return 1;
+    if (posix_memalign((void**)&c_test_d, 64, nimax * njmax * sizeof(double)) != 0) return 1;
+    if (posix_memalign((void**)&c_ref_d, 64, nimax * njmax * sizeof(double)) != 0) return 1;
+
+    if (posix_memalign((void**)&a_f, 64, nimax * nkmax * sizeof(float)) != 0) return 1;
+    if (posix_memalign((void**)&b_f, 64, nkmax * ldbmax * sizeof(float)) != 0) return 1;
+    if (posix_memalign((void**)&c_test_f, 64, nimax * njmax * sizeof(float)) != 0) return 1;
+    if (posix_memalign((void**)&c_ref_f, 64, nimax * njmax * sizeof(float)) != 0) return 1;
+
+    if (posix_memalign((void**)&a_cd, 64, nimax * nkmax * sizeof(std::complex<double>)) != 0) return 1;
+    if (posix_memalign((void**)&c_test_cd, 64, nimax * njmax * sizeof(std::complex<double>)) != 0) return 1;
+    if (posix_memalign((void**)&c_ref_cd, 64, nimax * njmax * sizeof(std::complex<double>)) != 0) return 1;
+
+    if (posix_memalign((void**)&a_cf, 64, nimax * nkmax * sizeof(std::complex<float>)) != 0) return 1;
+    if (posix_memalign((void**)&c_test_cf, 64, nimax * njmax * sizeof(std::complex<float>)) != 0) return 1;
+    if (posix_memalign((void**)&c_ref_cf, 64, nimax * njmax * sizeof(std::complex<float>)) != 0) return 1;
+
+    ran_fill_d(nimax * nkmax, a_d);
+    ran_fill_d(nkmax * ldbmax, b_d);
+    ran_fill_f(nimax * nkmax, a_f);
+    ran_fill_f(nkmax * ldbmax, b_f);
+    ran_fill_cd(nimax * nkmax, a_cd);
+    ran_fill_cf(nimax * nkmax, a_cf);
 
     long num_tested = 0;
     long num_failed = 0;
 
-    std::cout << "Testing mTxmq (double precision)...\n";
-
-    // 1. Full dense sweep of small matrices: 1 <= ni <= 24, 1 <= nj <= 12, 1 <= nk <= 12
+    std::cout << "Testing mTxmq<double>...\n";
     for (long ni = 1; ni <= 24; ++ni) {
         for (long nj = 1; nj <= 12; ++nj) {
             for (long nk = 1; nk <= 12; ++nk) {
-                test_shape(ni, nj, nk, nj, a, b, c_test, c_ref, num_tested, num_failed);
+                test_shape_real(ni, nj, nk, nj, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
             }
         }
     }
 
-    // 2. Strided sweep with ldb == nk: 1 <= ni <= 24, 1 <= nj <= 12, 1 <= nk <= 12
-    for (long ni = 1; ni <= 24; ++ni) {
-        for (long nj = 1; nj <= 12; ++nj) {
-            for (long nk = 1; nk <= 12; ++nk) {
-                if (nk >= nj) {
-                    test_shape(ni, nj, nk, nk, a, b, c_test, c_ref, num_tested, num_failed);
-                }
-            }
-        }
-    }
-
-    // 3. Representative MADNESS tensor shapes
     std::vector<long> nis = {1, 2, 4, 8, 16, 32, 64, 100, 128, 216, 256, 400, 512};
-    std::vector<long> njs = {1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 30};
-    std::vector<long> nks = {1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 30};
+    std::vector<long> njs = {1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32};
+    std::vector<long> nks = {1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32};
 
     for (long ni : nis) {
         for (long nj : njs) {
             for (long nk : nks) {
-                // Dense
-                test_shape(ni, nj, nk, nj, a, b, c_test, c_ref, num_tested, num_failed);
-                // Strided (ldb = nk or arbitrary)
-                if (nk >= nj) test_shape(ni, nj, nk, nk, a, b, c_test, c_ref, num_tested, num_failed);
-                test_shape(ni, nj, nk, nj + 4, a, b, c_test, c_ref, num_tested, num_failed);
+                test_shape_real(ni, nj, nk, nj, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
+                if (nk >= nj) test_shape_real(ni, nj, nk, nk, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
             }
         }
     }
 
-    // 4. Edge cases
-    test_shape(0, 8, 8, 8, a, b, c_test, c_ref, num_tested, num_failed);
-    test_shape(8, 0, 8, 8, a, b, c_test, c_ref, num_tested, num_failed);
-    test_shape(8, 8, 0, 8, a, b, c_test, c_ref, num_tested, num_failed);
+    test_shape_real(0, 8, 8, 8, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
+    test_shape_real(8, 0, 8, 8, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
+    test_shape_real(8, 8, 0, 8, a_d, b_d, c_test_d, c_ref_d, num_tested, num_failed, "double", 1e-12);
 
-    std::cout << "Tested " << num_tested << " shapes: "
+    std::cout << "Testing mTxmq<float>...\n";
+    for (long ni : {1, 4, 8, 16, 32, 64, 128, 216}) {
+        for (long nj : {1, 4, 6, 8, 12, 16}) {
+            for (long nk : {1, 4, 6, 8, 12, 16}) {
+                test_shape_real(ni, nj, nk, nj, a_f, b_f, c_test_f, c_ref_f, num_tested, num_failed, "float", 1e-5);
+                if (nk >= nj) test_shape_real(ni, nj, nk, nk, a_f, b_f, c_test_f, c_ref_f, num_tested, num_failed, "float", 1e-5);
+            }
+        }
+    }
+
+    std::cout << "Testing mTxmq(complex<double>*, complex<double>*, double*)...\n";
+    for (long ni : {1, 4, 8, 16, 32, 64, 128}) {
+        for (long nj : {1, 4, 6, 8, 12}) {
+            for (long nk : {1, 4, 6, 8, 12}) {
+                test_shape_mixed(ni, nj, nk, nj, a_cd, b_d, c_test_cd, c_ref_cd, num_tested, num_failed, "complex<double>*double", 1e-12);
+                if (nk >= nj) test_shape_mixed(ni, nj, nk, nk, a_cd, b_d, c_test_cd, c_ref_cd, num_tested, num_failed, "complex<double>*double", 1e-12);
+            }
+        }
+    }
+
+    std::cout << "Testing mTxmq(complex<float>*, complex<float>*, float*)...\n";
+    for (long ni : {1, 4, 8, 16, 32, 64}) {
+        for (long nj : {1, 4, 6, 8}) {
+            for (long nk : {1, 4, 6, 8}) {
+                test_shape_mixed(ni, nj, nk, nj, a_cf, b_f, c_test_cf, c_ref_cf, num_tested, num_failed, "complex<float>*float", 1e-5);
+            }
+        }
+    }
+
+    std::cout << "Tested " << num_tested << " shapes across double, float, and mixed types: "
               << (num_failed == 0 ? "ALL PASSED" : "FAILURES DETECTED") << "!\n";
 
     if (run_bench) {
-        run_benchmarks(nimax, njmax, nkmax, a, b, c_test);
+        run_benchmarks(nimax, njmax, nkmax, a_d, b_d, c_test_d);
     }
 
-    free(a);
-    free(b);
-    free(c_test);
-    free(c_ref);
+    free(a_d); free(b_d); free(c_test_d); free(c_ref_d);
+    free(a_f); free(b_f); free(c_test_f); free(c_ref_f);
+    free(a_cd); free(c_test_cd); free(c_ref_cd);
+    free(a_cf); free(c_test_cf); free(c_ref_cf);
 
     SafeMPI::Finalize();
     return num_failed == 0 ? 0 : 1;

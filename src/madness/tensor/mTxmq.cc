@@ -21,16 +21,17 @@
 
 #include <madness/madness_config.h>
 #include <madness/tensor/mTxmq.h>
-#include <madness/tensor/mxm.h>
 #include <madness/tensor/cblas.h>
-
-#ifdef HAVE_MTXMQ
-
-#include <libxsmm.h>
+#include <complex>
+#include <cstring>
 #include <atomic>
 #include <mutex>
 #include <cassert>
 #include <cstdint>
+
+#ifdef HAVE_MTXMQ
+#include <libxsmm.h>
+#endif
 
 #if defined(MTXMQ_PROFILE)
 #include <iostream>
@@ -45,25 +46,29 @@
 
 namespace madness {
 
+#ifdef HAVE_MTXMQ
+
 namespace {
 
 using namespace mTxmq_detail;
 
-// Dual 3D Lock-Free Atomic Cache Tables:
-// 1. Dense Table: ldb == dimj (1.91 MB)
-// 2. Strided Table: ldb == dimk (1.91 MB)
+// Dual 3D Lock-Free Atomic Cache Tables for double:
+// 1. Dense Table: ldb == dimj
+// 2. Strided Table: ldb == dimk
 static std::atomic<libxsmm_gemmfunction> s_dense_table[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
 static std::atomic<libxsmm_gemmfunction> s_strided_table[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
+
+// Dual 3D Lock-Free Atomic Cache Tables for float:
+static std::atomic<libxsmm_gemmfunction> s_float_dense_table[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
+static std::atomic<libxsmm_gemmfunction> s_float_strided_table[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
 
 static std::atomic<bool> s_initialized{false};
 static std::mutex s_init_mutex;
 
 #if defined(MTXMQ_PROFILE)
-// Call statistics counters for dense and strided domains
 static std::atomic<uint64_t> s_dense_counts[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
 static std::atomic<uint64_t> s_strided_counts[MAX_DIMI + 1][MAX_DIMJ + 1][MAX_DIMK + 1] = {{{}}};
 
-// Call statistics for general / out-of-domain shapes
 struct GeneralShapeKey {
     long dimi, dimj, dimk, ldb;
     int tier; // 1 = Table, 2 = Dynamic JIT, 3 = Fallback BLAS
@@ -92,13 +97,13 @@ void init_kernels_internal() {
     s_initialized.store(true, std::memory_order_release);
 }
 
-// Automatically initialize runtime on library load
 __attribute__((constructor))
 void mTxmq_auto_init() {
     init_kernels_internal();
 }
 
 inline libxsmm_gemmfunction dispatch_and_cache(long dimi, long dimj, long dimk, long ldb,
+                                               libxsmm_datatype dtype,
                                                std::atomic<libxsmm_gemmfunction>& slot) {
     const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
         static_cast<libxsmm_blasint>(dimj),
@@ -107,8 +112,7 @@ inline libxsmm_gemmfunction dispatch_and_cache(long dimi, long dimj, long dimk, 
         static_cast<libxsmm_blasint>(ldb),
         static_cast<libxsmm_blasint>(dimi),
         static_cast<libxsmm_blasint>(dimj),
-        LIBXSMM_DATATYPE_F64, LIBXSMM_DATATYPE_F64,
-        LIBXSMM_DATATYPE_F64, LIBXSMM_DATATYPE_F64
+        dtype, dtype, dtype, dtype
     );
     const libxsmm_bitfield flags = LIBXSMM_GEMM_FLAG_TRANS_B | LIBXSMM_GEMM_FLAG_BETA_0;
     libxsmm_gemmfunction kernel = libxsmm_dispatch_gemm(shape, flags, LIBXSMM_GEMM_PREFETCH_NONE);
@@ -138,11 +142,8 @@ void render_profile_stream(std::ostream& os) {
     std::vector<ShapeRecord> records;
     uint64_t total_calls = 0;
     double total_flops = 0;
-    uint64_t t1 = 0;
-    uint64_t t2 = 0;
-    uint64_t t3 = 0;
+    uint64_t t1 = 0, t2 = 0, t3 = 0;
 
-    // Collect dense table counts (Tier 1, ldb == dimj)
     for (long i = 1; i <= MAX_DIMI; ++i) {
         for (long j = 1; j <= MAX_DIMJ; ++j) {
             for (long k = 1; k <= MAX_DIMK; ++k) {
@@ -158,11 +159,10 @@ void render_profile_stream(std::ostream& os) {
         }
     }
 
-    // Collect strided table counts (Tier 1, ldb == dimk != dimj)
     for (long i = 1; i <= MAX_DIMI; ++i) {
         for (long j = 1; j <= MAX_DIMJ; ++j) {
             for (long k = 1; k <= MAX_DIMK; ++k) {
-                if (k == j) continue; // already counted in dense table
+                if (k == j) continue;
                 uint64_t cnt = s_strided_counts[i][j][k].load(std::memory_order_relaxed);
                 if (cnt > 0) {
                     double flops = 2.0 * i * j * k * cnt;
@@ -175,7 +175,6 @@ void render_profile_stream(std::ostream& os) {
         }
     }
 
-    // Collect general / fallback counts (Tier 2 & 3)
     {
         std::lock_guard<std::mutex> lock(s_profile_mutex);
         for (const auto& [key, cnt] : s_general_counts) {
@@ -193,7 +192,6 @@ void render_profile_stream(std::ostream& os) {
 
     if (total_calls == 0) return;
 
-    // Sort descending by call count
     std::sort(records.begin(), records.end(), [](const ShapeRecord& a, const ShapeRecord& b) {
         if (a.count != b.count) return a.count > b.count;
         return a.flops > b.flops;
@@ -207,52 +205,13 @@ void render_profile_stream(std::ostream& os) {
        << std::setw(6)  << "ldb"
        << std::setw(9)  << "Tier"
        << std::right
-       << std::setw(14) << "Calls"
-       << std::setw(10) << "% Calls"
-       << std::setw(10) << "Cum %"
-       << std::setw(12) << "FLOPs/call"
-       << std::setw(15) << "Total GFLOP"
-       << std::setw(10) << "% GFLOP\n";
-    os << std::string(120, '-') << "\n";
-
-    size_t max_rows = 50;
-    const char* env_max = std::getenv("MTXMQ_PROFILE_MAX_ROWS");
-    if (env_max) {
-        std::string s_max(env_max);
-        if (s_max == "all" || s_max == "0") {
-            max_rows = records.size();
-        } else {
-            max_rows = std::stoul(s_max);
-        }
-    }
-
-    double cum_calls = 0.0;
-    size_t displayed = std::min(records.size(), max_rows);
-    int rank = 1;
-
-    for (size_t idx = 0; idx < displayed; ++idx) {
-        const auto& r = records[idx];
-        double pct_calls = (100.0 * r.count) / total_calls;
-        cum_calls += pct_calls;
-        double gflops = r.flops * 1e-9;
-        double pct_flops = total_flops > 0 ? (100.0 * r.flops) / total_flops : 0.0;
-        uint64_t flops_per_call = 2ULL * r.dimi * r.dimj * r.dimk;
-
-        std::string shape_str = "(" + std::to_string(r.dimi) + " x " + std::to_string(r.dimj) + " x " + std::to_string(r.dimk) + ")";
-        std::string tier_str = "Tier " + std::to_string(r.tier);
-
-        os << std::left << " " << std::setw(5) << rank++
-           << std::setw(21) << shape_str
-           << std::setw(6)  << r.ldb
-           << std::setw(9)  << tier_str
-           << std::right
-           << std::setw(14) << format_with_commas(r.count)
-           << std::fixed << std::setprecision(2)
-           << std::setw(9)  << pct_calls << "%"
-           << std::setw(9)  << cum_calls << "%"
-           << std::setw(12) << format_with_commas(flops_per_call)
-           << std::setw(15) << std::setprecision(3) << gflops
-           << std::setw(9)  << std::setprecision(2) << pct_flops << "%\n";
+       << std::setw(14) << format_with_commas(r.count)
+       << std::fixed << std::setprecision(2)
+       << std::setw(9)  << pct_calls << "%"
+       << std::setw(9)  << cum_calls << "%"
+       << std::setw(12) << format_with_commas(flops_per_call)
+       << std::setw(15) << std::setprecision(3) << gflops
+       << std::setw(9)  << std::setprecision(2) << pct_flops << "%\n";
     }
 
     if (records.size() > displayed) {
@@ -291,7 +250,6 @@ void render_profile_stream(std::ostream& os) {
     os.flush();
 }
 
-// Automatic exit reporter singleton
 struct ProfileAutoReporter {
     ~ProfileAutoReporter() {
         if (!s_profile_printed.load(std::memory_order_relaxed)) {
@@ -358,7 +316,7 @@ void mTxmq_init() {
     }
 }
 
-// Explicit specialization for double precision in the madness namespace
+// Explicit specialization for double precision with LIBXSMM
 template <>
 void mTxmq(long dimi, long dimj, long dimk,
            double* MADNESS_RESTRICT c,
@@ -372,18 +330,15 @@ void mTxmq(long dimi, long dimj, long dimk,
         return;
     }
 
-    // Ensure LIBXSMM runtime is initialized with acquire barrier
     if (__builtin_expect(!s_initialized.load(std::memory_order_acquire), 0)) {
         init_kernels_internal();
     }
 
-    // Fast path: Primary domain (dimi <= 400, dimj <= 24, dimk <= 24)
     if (dimi <= MAX_DIMI && dimj <= MAX_DIMJ && dimk <= MAX_DIMK) {
         if (ldb == dimj) {
-            // Dense Table Lookup (ldb == dimj)
             libxsmm_gemmfunction kernel = s_dense_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
             if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, s_dense_table[dimi][dimj][dimk]);
+                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_dense_table[dimi][dimj][dimk]);
             }
             if (__builtin_expect(kernel != nullptr, 1)) {
 #if defined(MTXMQ_PROFILE)
@@ -400,10 +355,9 @@ void mTxmq(long dimi, long dimj, long dimk,
                 return;
             }
         } else if (ldb == dimk) {
-            // Strided Table Lookup (ldb == dimk)
             libxsmm_gemmfunction kernel = s_strided_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
             if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, s_strided_table[dimi][dimj][dimk]);
+                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_strided_table[dimi][dimj][dimk]);
             }
             if (__builtin_expect(kernel != nullptr, 1)) {
 #if defined(MTXMQ_PROFILE)
@@ -422,7 +376,6 @@ void mTxmq(long dimi, long dimj, long dimk,
         }
     }
 
-    // Dynamic dispatch path: for general dimensions or arbitrary strides
     const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
         static_cast<libxsmm_blasint>(dimj),
         static_cast<libxsmm_blasint>(dimi),
@@ -454,7 +407,6 @@ void mTxmq(long dimi, long dimj, long dimk,
         return;
     }
 
-    // Fallback path: BLAS fallback
 #if defined(MTXMQ_PROFILE)
     {
         std::lock_guard<std::mutex> lock(s_profile_mutex);
@@ -468,6 +420,221 @@ void mTxmq(long dimi, long dimj, long dimk,
     cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, 1.0, b, ldb, a, dimi, 0.0, c, dimj);
 }
 
-} // namespace madness
+// Explicit specialization for float precision with LIBXSMM
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           float* MADNESS_RESTRICT c,
+           const float* a,
+           const float* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
+        return;
+    }
+
+    if (__builtin_expect(!s_initialized.load(std::memory_order_acquire), 0)) {
+        init_kernels_internal();
+    }
+
+    if (dimi <= MAX_DIMI && dimj <= MAX_DIMJ && dimk <= MAX_DIMK) {
+        if (ldb == dimj) {
+            libxsmm_gemmfunction kernel = s_float_dense_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
+            if (__builtin_expect(kernel == nullptr, 0)) {
+                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_dense_table[dimi][dimj][dimk]);
+            }
+            if (__builtin_expect(kernel != nullptr, 1)) {
+                libxsmm_gemm_param param;
+                param.a.primary = const_cast<float*>(b);
+                param.b.primary = const_cast<float*>(a);
+                param.c.primary = c;
+                kernel(&param);
+                return;
+            }
+        } else if (ldb == dimk) {
+            libxsmm_gemmfunction kernel = s_float_strided_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
+            if (__builtin_expect(kernel == nullptr, 0)) {
+                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_strided_table[dimi][dimj][dimk]);
+            }
+            if (__builtin_expect(kernel != nullptr, 1)) {
+                libxsmm_gemm_param param;
+                param.a.primary = const_cast<float*>(b);
+                param.b.primary = const_cast<float*>(a);
+                param.c.primary = c;
+                kernel(&param);
+                return;
+            }
+        }
+    }
+
+    const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
+        static_cast<libxsmm_blasint>(dimj),
+        static_cast<libxsmm_blasint>(dimi),
+        static_cast<libxsmm_blasint>(dimk),
+        static_cast<libxsmm_blasint>(ldb),
+        static_cast<libxsmm_blasint>(dimi),
+        static_cast<libxsmm_blasint>(dimj),
+        LIBXSMM_DATATYPE_F32, LIBXSMM_DATATYPE_F32,
+        LIBXSMM_DATATYPE_F32, LIBXSMM_DATATYPE_F32
+    );
+    const libxsmm_bitfield flags = LIBXSMM_GEMM_FLAG_TRANS_B | LIBXSMM_GEMM_FLAG_BETA_0;
+    libxsmm_gemmfunction kernel = libxsmm_dispatch_gemm(shape, flags, LIBXSMM_GEMM_PREFETCH_NONE);
+
+    if (kernel != nullptr) {
+        libxsmm_gemm_param param;
+        param.a.primary = const_cast<float*>(b);
+        param.b.primary = const_cast<float*>(a);
+        param.c.primary = c;
+        kernel(&param);
+        return;
+    }
+
+    cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, 1.0f, b, ldb, a, dimi, 0.0f, c, dimj);
+}
+
+#else // !HAVE_MTXMQ (Fallback implementations when LIBXSMM is disabled)
+
+void print_mtxmq_profile() {}
+void reset_mtxmq_profile() {}
+void mTxmq_init() {}
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           double* MADNESS_RESTRICT c,
+           const double* a,
+           const double* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0;
+        return;
+    }
+    cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, 1.0, b, ldb, a, dimi, 0.0, c, dimj);
+}
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           float* MADNESS_RESTRICT c,
+           const float* a,
+           const float* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
+        return;
+    }
+    cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, 1.0f, b, ldb, a, dimi, 0.0f, c, dimj);
+}
 
 #endif // HAVE_MTXMQ
+
+// Explicit specialization for std::complex<double> (Complex * Complex)
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<double>* MADNESS_RESTRICT c,
+           const std::complex<double>* a,
+           const std::complex<double>* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<double>(0.0, 0.0);
+        return;
+    }
+    const std::complex<double> one(1.0, 0.0);
+    const std::complex<double> zero(0.0, 0.0);
+    cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, one, b, ldb, a, dimi, zero, c, dimj);
+}
+
+// Explicit specialization for std::complex<float> (Complex * Complex)
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<float>* MADNESS_RESTRICT c,
+           const std::complex<float>* a,
+           const std::complex<float>* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<float>(0.0f, 0.0f);
+        return;
+    }
+    const std::complex<float> one(1.0f, 0.0f);
+    const std::complex<float> zero(0.0f, 0.0f);
+    cblas::gemm(cblas::NoTrans, cblas::Trans, dimj, dimi, dimk, one, b, ldb, a, dimi, zero, c, dimj);
+}
+
+// Explicit specialization for Complex double * Real double (zero heap allocations)
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<double>* MADNESS_RESTRICT c,
+           const std::complex<double>* a,
+           const double* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<double>(0.0, 0.0);
+        return;
+    }
+
+    const double* a_dbl = reinterpret_cast<const double*>(a);
+    double* c_dbl = reinterpret_cast<double*>(c);
+
+    for (long i = 0; i < dimi; ++i) {
+        double* ci_ptr = c_dbl + 2 * i * dimj;
+        for (long j = 0; j < 2 * dimj; ++j) ci_ptr[j] = 0.0;
+
+        const double* aki_ptr = a_dbl + 2 * i;
+        for (long k = 0; k < dimk; ++k, aki_ptr += 2 * dimi) {
+            double re_aki = aki_ptr[0];
+            double im_aki = aki_ptr[1];
+            const double* bk_ptr = b + k * ldb;
+            for (long j = 0; j < dimj; ++j) {
+                double bkj = bk_ptr[j];
+                ci_ptr[2 * j]     += re_aki * bkj;
+                ci_ptr[2 * j + 1] += im_aki * bkj;
+            }
+        }
+    }
+}
+
+// Explicit specialization for Complex float * Real float (zero heap allocations)
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<float>* MADNESS_RESTRICT c,
+           const std::complex<float>* a,
+           const float* b,
+           long ldb) {
+    if (ldb == -1) ldb = dimj;
+    if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
+    if (__builtin_expect(dimk <= 0, 0)) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<float>(0.0f, 0.0f);
+        return;
+    }
+
+    const float* a_flt = reinterpret_cast<const float*>(a);
+    float* c_flt = reinterpret_cast<float*>(c);
+
+    for (long i = 0; i < dimi; ++i) {
+        float* ci_ptr = c_flt + 2 * i * dimj;
+        for (long j = 0; j < 2 * dimj; ++j) ci_ptr[j] = 0.0f;
+
+        const float* aki_ptr = a_flt + 2 * i;
+        for (long k = 0; k < dimk; ++k, aki_ptr += 2 * dimi) {
+            float re_aki = aki_ptr[0];
+            float im_aki = aki_ptr[1];
+            const float* bk_ptr = b + k * ldb;
+            for (long j = 0; j < dimj; ++j) {
+                float bkj = bk_ptr[j];
+                ci_ptr[2 * j]     += re_aki * bkj;
+                ci_ptr[2 * j + 1] += im_aki * bkj;
+            }
+        }
+    }
+}
+
+} // namespace madness

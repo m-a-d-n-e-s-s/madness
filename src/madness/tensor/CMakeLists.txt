@@ -21,10 +21,7 @@ set(MADTENSOR_HEADERS
     tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
     tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
     tensortrain.h SVDTensor.h tensor_json.hpp)
-set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
-if(ENABLE_LIBXSMM)
-  list(APPEND MADTENSOR_SOURCES mTxmq.cc)
-endif()
+set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc mTxmq.cc)
 
 # logically these headers should be part of their own library (MADclapack)
 # however CMake right now does not support a mechanism to properly handle header-only libs.

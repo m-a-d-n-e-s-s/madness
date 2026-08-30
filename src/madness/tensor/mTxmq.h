@@ -25,6 +25,7 @@
 #include <madness/madness_config.h>
 #include <cstddef>
 #include <type_traits>
+#include <complex>
 
 #if !defined(MADNESS_RESTRICT)
 #  if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
@@ -60,7 +61,7 @@ void mTxmq_reference(long dimi, long dimj, long dimk,
         return;
     }
     for (long i = 0; i < dimi; ++i, c += dimj, ++a) {
-        for (long j = 0; j < dimj; ++j) c[j] = 0.0;
+        for (long j = 0; j < dimj; ++j) c[j] = cT(0);
         const aT *aik_ptr = a;
         for (long k = 0; k < dimk; ++k, aik_ptr += dimi) {
             aT aki = *aik_ptr;
@@ -71,7 +72,7 @@ void mTxmq_reference(long dimi, long dimj, long dimk,
     }
 }
 
-/// Base generic template function matching MADNESS signature:
+/// Primary generic template function matching MADNESS signature:
 /// Matrix = Matrix transpose * matrix
 /// \code
 ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
@@ -83,24 +84,75 @@ void mTxmq(long dimi, long dimj, long dimk,
            const T* b,
            long ldb = -1);
 
-#ifdef HAVE_MTXMQ
-/// Explicit template specialization for double precision using libxsmm automatic dispatch.
-/// Optimized for small matrices: dimi in [1, 400], dimj in [1, 24], dimk in [1, 24].
+/// Explicit template specializations (implemented in mTxmq.cc)
 template <>
 void mTxmq(long dimi, long dimj, long dimk,
            double* MADNESS_RESTRICT c,
            const double* a,
            const double* b,
            long ldb);
-#endif
 
-/// Overload for mixed precision types
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           float* MADNESS_RESTRICT c,
+           const float* a,
+           const float* b,
+           long ldb);
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<double>* MADNESS_RESTRICT c,
+           const std::complex<double>* a,
+           const std::complex<double>* b,
+           long ldb);
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<float>* MADNESS_RESTRICT c,
+           const std::complex<float>* a,
+           const std::complex<float>* b,
+           long ldb);
+
+/// Mixed precision: complex matrix multiplied by real matrix
 template <typename aT, typename bT, typename cT>
 void mTxmq(long dimi, long dimj, long dimk,
            cT* MADNESS_RESTRICT c,
            const aT* a,
            const bT* b,
            long ldb = -1);
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<double>* MADNESS_RESTRICT c,
+           const std::complex<double>* a,
+           const double* b,
+           long ldb);
+
+template <>
+void mTxmq(long dimi, long dimj, long dimk,
+           std::complex<float>* MADNESS_RESTRICT c,
+           const std::complex<float>* a,
+           const float* b,
+           long ldb);
+
+/// Generic template definitions for any other unspecialized types
+template <typename T>
+inline void mTxmq(long dimi, long dimj, long dimk,
+                  T* MADNESS_RESTRICT c,
+                  const T* a,
+                  const T* b,
+                  long ldb) {
+    mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
+}
+
+template <typename aT, typename bT, typename cT>
+inline void mTxmq(long dimi, long dimj, long dimk,
+                  cT* MADNESS_RESTRICT c,
+                  const aT* a,
+                  const bT* b,
+                  long ldb) {
+    mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
+}
 
 /// Print call profile and shape statistics for mTxmq (automatically called at exit)
 void print_mtxmq_profile();
