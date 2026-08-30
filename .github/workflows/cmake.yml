@@ -104,6 +104,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache libxc-dev
         sudo apt install intel-oneapi-mkl-devel
+        echo "MKLROOT=/opt/intel/oneapi/mkl/latest" >> $GITHUB_ENV
         if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
           sudo apt-get install intel-oneapi-tbb-devel
           echo "TBBROOT=/opt/intel/oneapi/tbb/latest" >> $GITHUB_ENV
