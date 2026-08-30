@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <complex>
+#include <vector>
 
 #if !defined(MADNESS_RESTRICT)
 #  if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
@@ -72,7 +73,7 @@ void mTxmq_reference(long dimi, long dimj, long dimk,
     }
 }
 
-/// Primary generic template function matching MADNESS signature:
+/// Base generic template function matching MADNESS signature:
 /// Matrix = Matrix transpose * matrix
 /// \code
 ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
@@ -84,7 +85,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const T* b,
            long ldb = -1);
 
-/// Explicit template specializations (implemented in mTxmq.cc)
+/// Explicit template specializations for homogeneous types (implemented in mTxmq.cc)
 template <>
 void mTxmq(long dimi, long dimj, long dimk,
            double* MADNESS_RESTRICT c,
@@ -114,26 +115,57 @@ void mTxmq(long dimi, long dimj, long dimk,
            long ldb);
 
 /// Mixed precision: complex matrix multiplied by real matrix
-template <typename aT, typename bT, typename cT>
-void mTxmq(long dimi, long dimj, long dimk,
-           cT* MADNESS_RESTRICT c,
-           const aT* a,
-           const bT* b,
-           long ldb = -1);
+/// Optimized inline decomposition into 2 real mTxmq calls with fast stack workspace (avoiding heap allocations)
+template <typename T>
+inline void mTxmq(long dimi, long dimj, long dimk,
+                  std::complex<T>* MADNESS_RESTRICT c,
+                  const std::complex<T>* a,
+                  const T* b,
+                  long ldb = -1) {
+    if (ldb == -1) ldb = dimj;
+    if (dimi <= 0 || dimj <= 0) return;
+    if (dimk <= 0) {
+        for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<T>(0, 0);
+        return;
+    }
 
-template <>
-void mTxmq(long dimi, long dimj, long dimk,
-           std::complex<double>* MADNESS_RESTRICT c,
-           const std::complex<double>* a,
-           const double* b,
-           long ldb);
+    const long c_sz = dimi * dimj;
+    const long a_sz = dimi * dimk;
 
-template <>
-void mTxmq(long dimi, long dimj, long dimk,
-           std::complex<float>* MADNESS_RESTRICT c,
-           const std::complex<float>* a,
-           const float* b,
-           long ldb);
+    // Use fast stack workspace for small/medium matrices to avoid heap allocation
+    constexpr long STACK_CAP = 4096;
+    T stack_buf[STACK_CAP];
+    T *Ra = nullptr, *Ia = nullptr, *Rc = nullptr, *Ic = nullptr;
+    std::vector<T> heap_buf;
+
+    if (2 * a_sz + 2 * c_sz <= STACK_CAP) {
+        Ra = stack_buf;
+        Ia = Ra + a_sz;
+        Rc = Ia + a_sz;
+        Ic = Rc + c_sz;
+    } else {
+        heap_buf.resize(2 * a_sz + 2 * c_sz);
+        Ra = heap_buf.data();
+        Ia = Ra + a_sz;
+        Rc = Ia + a_sz;
+        Ic = Rc + c_sz;
+    }
+
+    const T* a_raw = reinterpret_cast<const T*>(a);
+    for (long i = 0; i < a_sz; ++i) {
+        Ra[i] = a_raw[2 * i];
+        Ia[i] = a_raw[2 * i + 1];
+    }
+
+    mTxmq(dimi, dimj, dimk, Rc, Ra, b, ldb);
+    mTxmq(dimi, dimj, dimk, Ic, Ia, b, ldb);
+
+    T* c_raw = reinterpret_cast<T*>(c);
+    for (long i = 0; i < c_sz; ++i) {
+        c_raw[2 * i]     = Rc[i];
+        c_raw[2 * i + 1] = Ic[i];
+    }
+}
 
 /// Generic template definitions for any other unspecialized types
 template <typename T>
@@ -150,7 +182,7 @@ inline void mTxmq(long dimi, long dimj, long dimk,
                   cT* MADNESS_RESTRICT c,
                   const aT* a,
                   const bT* b,
-                  long ldb) {
+                  long ldb = -1) {
     mTxmq_reference(dimi, dimj, dimk, c, a, b, ldb);
 }
 
