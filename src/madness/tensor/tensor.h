@@ -2480,6 +2480,70 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         return result;
     }
 
+    /// Optimized fast_transform for complex tensor * real matrix.
+    /// Completely eliminates repeated unpacking and repacking of complex coefficients
+    /// by transforming the real and imaginary parts across all dimensions in real space,
+    /// unpacking once at the beginning and repacking once into result at the end.
+    template <class R>
+    Tensor<std::complex<R>>& fast_transform(const Tensor<std::complex<R>>& t,
+                                            const Tensor<R>& c,
+                                            Tensor<std::complex<R>>& result,
+                                            Tensor<std::complex<R>>& workspace) {
+        const R* pc = c.ptr();
+        const long ndim = t.ndim();
+        const long sz = t.size();
+
+        long dimj = c.dim(1);
+        long dimi = 1;
+        for (int n = 1; n < ndim; ++n) dimi *= dimj;
+
+        constexpr long STACK_CAP = 8192;
+        R stack_buf[STACK_CAP];
+        R *bufA_re = nullptr, *bufA_im = nullptr, *bufB_re = nullptr, *bufB_im = nullptr;
+        std::vector<R> heap_buf;
+
+        if (4 * sz <= STACK_CAP) {
+            bufA_re = stack_buf;
+            bufA_im = bufA_re + sz;
+            bufB_re = bufA_im + sz;
+            bufB_im = bufB_re + sz;
+        } else {
+            heap_buf.resize(4 * sz);
+            bufA_re = heap_buf.data();
+            bufA_im = bufA_re + sz;
+            bufB_re = bufA_im + sz;
+            bufB_im = bufB_re + sz;
+        }
+
+        // 1. Unpack complex input into Real and Imag arrays ONCE at the start
+        const R* t_raw = reinterpret_cast<const R*>(t.ptr());
+        for (long i = 0; i < sz; ++i) {
+            bufA_re[i] = t_raw[2 * i];
+            bufA_im[i] = t_raw[2 * i + 1];
+        }
+
+        R* in_re = bufA_re;
+        R* in_im = bufA_im;
+        R* out_re = bufB_re;
+        R* out_im = bufB_im;
+
+        for (int n = 0; n < ndim; ++n) {
+            mTxmq(dimi, dimj, dimj, out_re, in_re, pc);
+            mTxmq(dimi, dimj, dimj, out_im, in_im, pc);
+            std::swap(in_re, out_re);
+            std::swap(in_im, out_im);
+        }
+
+        // 2. Repack into result ONCE at the end
+        R* res_raw = reinterpret_cast<R*>(result.ptr());
+        for (long i = 0; i < sz; ++i) {
+            res_raw[2 * i]     = in_re[i];
+            res_raw[2 * i + 1] = in_im[i];
+        }
+
+        return result;
+    }
+
     /// Separated transform with a distinct matrix per dimension, reusing caller buffers.
     ///
     /// Computes, with no internal allocation,
@@ -2556,6 +2620,86 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             in_r = out;
             out  = (out == buf0) ? buf1 : buf0;
         }
+        return result;
+    }
+
+    /// Optimized general_fast_transform for complex tensor * real matrices.
+    template <class R>
+    Tensor<std::complex<R>>&
+    general_fast_transform(const Tensor<std::complex<R>>& t,
+                           const Tensor<R>* c,
+                           Tensor<std::complex<R>>& result,
+                           Tensor<std::complex<R>>& workspace) {
+        MADNESS_CHECK(t.iscontiguous() && result.iscontiguous() && workspace.iscontiguous());
+        MADNESS_CHECK(result.ptr() != workspace.ptr());
+        MADNESS_CHECK(t.ptr() != result.ptr() && t.ptr() != workspace.ptr());
+
+        const long D = t.ndim();
+
+        long running = t.size();
+        long max_running = running;
+        for (long d = 0; d < D; ++d) {
+            MADNESS_CHECK(c[d].ndim() == 2 && c[d].dim(0) > 0);
+            MADNESS_CHECK(running % c[d].dim(0) == 0);
+            running = (running / c[d].dim(0)) * c[d].dim(1);
+            if (running > max_running) max_running = running;
+        }
+        MADNESS_CHECK(result.size() >= max_running &&
+                      workspace.size() >= max_running);
+
+        constexpr long STACK_CAP = 8192;
+        R stack_buf[STACK_CAP];
+        R *bufA_re = nullptr, *bufA_im = nullptr, *bufB_re = nullptr, *bufB_im = nullptr;
+        std::vector<R> heap_buf;
+
+        if (4 * max_running <= STACK_CAP) {
+            bufA_re = stack_buf;
+            bufA_im = bufA_re + max_running;
+            bufB_re = bufA_im + max_running;
+            bufB_im = bufB_re + max_running;
+        } else {
+            heap_buf.resize(4 * max_running);
+            bufA_re = heap_buf.data();
+            bufA_im = bufA_re + max_running;
+            bufB_re = bufA_im + max_running;
+            bufB_im = bufB_re + max_running;
+        }
+
+        // 1. Unpack complex input into Real and Imag arrays ONCE
+        const long sz0 = t.size();
+        const R* t_raw = reinterpret_cast<const R*>(t.ptr());
+        for (long i = 0; i < sz0; ++i) {
+            bufA_re[i] = t_raw[2 * i];
+            bufA_im[i] = t_raw[2 * i + 1];
+        }
+
+        R* in_re = bufA_re;
+        R* in_im = bufA_im;
+        R* out_re = bufB_re;
+        R* out_im = bufB_im;
+        long n = sz0;
+
+        for (long d = 0; d < D; ++d) {
+            const long dimk = c[d].dim(0);
+            const long dimj = c[d].dim(1);
+            const long dimi = n / dimk;
+
+            mTxmq(dimi, dimj, dimk, out_re, in_re, c[d].ptr());
+            mTxmq(dimi, dimj, dimk, out_im, in_im, c[d].ptr());
+
+            n = dimi * dimj;
+            std::swap(in_re, out_re);
+            std::swap(in_im, out_im);
+        }
+
+        // 2. Repack into result ONCE
+        const long final_sz = n;
+        R* res_raw = reinterpret_cast<R*>(result.ptr());
+        for (long i = 0; i < final_sz; ++i) {
+            res_raw[2 * i]     = in_re[i];
+            res_raw[2 * i + 1] = in_im[i];
+        }
+
         return result;
     }
 

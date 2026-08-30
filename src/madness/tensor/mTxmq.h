@@ -133,7 +133,7 @@ inline void mTxmq(long dimi, long dimj, long dimk,
     const long a_sz = dimi * dimk;
 
     // Use fast stack workspace for small/medium matrices to avoid heap allocation
-    constexpr long STACK_CAP = 4096;
+    constexpr long STACK_CAP = 8192;
     T stack_buf[STACK_CAP];
     T *Ra = nullptr, *Ia = nullptr, *Rc = nullptr, *Ic = nullptr;
     std::vector<T> heap_buf;
