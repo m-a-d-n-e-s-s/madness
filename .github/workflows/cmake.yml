@@ -86,7 +86,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja boost eigen open-mpi bison ccache libxc
+        brew install ninja boost eigen open-mpi bison ccache libxc blis
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
@@ -99,11 +99,12 @@ jobs:
     - name: Install prerequisites Ubuntu packages
       if: ${{ matrix.os == 'ubuntu-24.04' }}
       run: |
+        wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
+        sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
         sudo apt-get update
         sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache libxc-dev
+        sudo apt install intel-oneapi-mkl-devel
         if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
-          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
-          sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
           sudo apt-get install intel-oneapi-tbb-devel
           echo "TBBROOT=/opt/intel/oneapi/tbb/latest" >> $GITHUB_ENV
         fi
