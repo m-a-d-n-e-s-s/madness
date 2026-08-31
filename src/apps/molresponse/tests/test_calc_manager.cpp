@@ -38,7 +38,7 @@ bool wave_has(const std::vector<WorkItem> &w, const std::string &id) {
   return false;
 }
 
-NodeAction action_in(const std::vector<WorkItem> &w, const std::string &id) {
+[[maybe_unused]] NodeAction action_in(const std::vector<WorkItem> &w, const std::string &id) {
   for (const auto &it : w)
     if (it.node->id == id) return it.action;
   return NodeAction::Skip; // sentinel "not present"

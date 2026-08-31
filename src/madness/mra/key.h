@@ -74,15 +74,15 @@ namespace madness {
 
     private:
         friend class KeyChildIterator<NDIM> ;
-        Level n;
-        Vector<Translation, NDIM> l;
-        hashT hashval;
+        Level n = 0;
+        Vector<Translation, NDIM> l = Vector<Translation, NDIM>(0);
+        hashT hashval = 0;
 
 
     public:
 
-        /// Default constructor makes an \em uninitialized key
-        Key() {}
+        /// Default constructor makes an initialized key
+        Key() : n(0), l(0), hashval(0) {}
 
         /// Constructor with given n, l
         Key(Level n, const Vector<Translation, NDIM>& l) : n(n), l(l) 

@@ -570,6 +570,8 @@ int test_XCOperator(World& world) {
         XCOperator<double,3> xc(world,xcfunc,false,arho,arho);
         double tol = 1e-6;
         if (xcfunc=="bp") tol = 2e-6;
+        // tolerance for density-weighted potential comparisons
+        double potential_tol = 1.e-4;
         print("xc functional ",xcfunc,tol);
 
         double a0=xc.compute_xc_energy();
@@ -593,24 +595,61 @@ int test_XCOperator(World& world) {
         if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0-a2*9.0/4.0)<tol);
         MADNESS_CHECK(similar(a2,refvalues[i++],tol));  // bp fails this without relaxed tol
 
-        // do spin-polarized
+        // spin-polarized with a spin-symmetric density: must reproduce the
+        // restricted result for BOTH the energy and the potential. The potential
+        // is the part that matters -- the energy only depends on rho and sigma,
+        // so it stays correct under errors in the density gradients.
+        XCOperator<double,3> xc1(world,xcfunc,true,arho,arho);
         for (int ispin=0; ispin<2   ; ++ispin) {
-            XCOperator<double,3> xc1(world,xcfunc,true,arho,arho);
             xc1.set_ispin(ispin);
 
             double a0a=xc1.compute_xc_energy();
             print("energy ", a0a);
             MADNESS_CHECK(similar(a0,a0a));
 
-            double a1a=2.0*std::real(inner(f1,xc(f1))); // factor 2 for RHF
-            real_function_3d lda_pot=xc.make_xc_potential();
-            double a11a=2.0*inner(arho,lda_pot);
-            print("potential ",a1a);
+            real_function_3d pol_pot=xc1.make_xc_potential();
+            double a11a=2.0*inner(arho,pol_pot);
             print("potential ",a11a);
-            print("ratio ",a0a,a1a*3.0/4.0);
-            if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0a-a1a*3.0/4.0)<1.e-6);
-            MADNESS_CHECK(similar(a1,a1a));
+            print("ratio ",a0a,a11a*3.0/4.0);
+            if (xcfunc=="LDA_X") MADNESS_CHECK(std::fabs(a0a-a11a*3.0/4.0)<1.e-6);
+            MADNESS_CHECK(similar(a11,a11a,tol));
 
+            // and pointwise, not just its integral against the density. Weight by
+            // the density: the restricted path munges the TOTAL density while the
+            // polarized path munges each spin density, so the two munge isosurfaces
+            // differ by a factor 2 and the bare difference is dominated by a shell
+            // in the far tail where the potential is not meaningful anyway.
+            double poterr=(arho*(pol_pot-lda_pot)).norm2();
+            print("|rho(v_pol-v_res)| ",poterr,"  bare ",(pol_pot-lda_pot).norm2());
+            MADNESS_CHECK(poterr<potential_tol);
+        }
+
+        // spin-polarized with a genuinely spin-ASYMMETRIC density. No reference
+        // values needed: E_xc is invariant under relabelling both spins, so
+        //     v_alpha[rho_a,rho_b] == v_beta[rho_b,rho_a]
+        // must hold identically. This is what catches a same-spin/other-spin
+        // mix-up in the density gradients, which a symmetric density cannot see.
+        {
+            real_function_3d brho=abs_square(f2);
+
+            XCOperator<double,3> xc_ab(world,xcfunc,true,arho,brho);
+            xc_ab.set_ispin(0);
+            real_function_3d v_a=xc_ab.make_xc_potential();
+            double e_ab=xc_ab.compute_xc_energy();
+
+            XCOperator<double,3> xc_ba(world,xcfunc,true,brho,arho);
+            xc_ba.set_ispin(1);
+            real_function_3d v_b=xc_ba.make_xc_potential();
+            double e_ba=xc_ba.compute_xc_energy();
+
+            print("spin-swap energy   ",e_ab,e_ba);
+            MADNESS_CHECK(similar(e_ab,e_ba,tol));
+
+            // both sides go through the polarized path, so the munging is symmetric
+            // under the swap and this is a genuine like-for-like comparison
+            double swaperr=(arho*(v_a-v_b)).norm2();
+            print("spin-swap |rho(v_a-v_b)|",swaperr,"  bare ",(v_a-v_b).norm2());
+            MADNESS_CHECK(swaperr<potential_tol);
         }
         print("\n");
 

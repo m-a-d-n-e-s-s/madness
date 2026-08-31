@@ -15,6 +15,17 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # Re-measure before retagging; short+medium gate every CI run via
   # check-short-madness.
   add_qctest(scf_he_hf         madqc "qctest;short;applications")     #   6 s
+  # Without libxc, xcfunctional_ldaonly.cc stands in and understands only `lda`
+  # and `hf`, so any deck naming a functional beyond those has to be registered
+  # conditionally -- same guard the chem unit tests use. This is also why every
+  # other deck here is `xc hf` or `xc lda`.
+  if (TARGET Libxc::xc)
+    add_qctest(scf_he_pbe0     madqc "qctest;medium;applications")    #   9 s
+    add_qctest(scf_he_tpss     madqc "qctest;medium;applications")    #  17 s
+    # the open-shell counterpart of scf_he_tpss: the only deck with unequal spin
+    # densities, hence the only one exercising the spin-polarized sigma matrix
+#    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+  endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
   # the only case with k varying across the protocol; must agree with nemo_he_hf
@@ -42,6 +53,16 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s
   add_qctest(nemo_h2o_boys     madqc "qctest;long;applications")      #  83 s
   add_qctest(nemo_h2o_new      madqc "qctest;long;applications")      #  79 s
+
+  # Grimme's D3 dispersion correction in the energy and the single-point
+  # gradient. Needs simple-dftd3, since without it the deck's `dispersion d3bj`
+  # aborts by design rather than silently doing nothing -- and needs libxc too,
+  # because its `xc pbe` is unsupported by the LDA-only functional build (which
+  # throws a bare `char const*` from xcfunctional_ldaonly.cc). `xc lda` would not
+  # rescue it: simple-dftd3 has no LDA damping parameters either.
+  if (MADNESS_HAS_DFTD3 AND TARGET Libxc::xc)
+    add_qctest(scf_lih_pbe_d3  madqc "qctest;medium;applications")     #  12 s, laptop
+  endif()
 
 endif()
 
