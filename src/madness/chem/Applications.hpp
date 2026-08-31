@@ -34,11 +34,123 @@ struct StepContext {
   std::optional<Molecule> molecule;
   /// Live ground-state reference engine, if an upstream SCF step exposed one.
   std::shared_ptr<SCF> reference;
+  /// Live Nemo-based ground-state reference, if an upstream nemo step exposed
+  /// one. Deliberately a SECOND field rather than a widening of `reference`:
+  /// SCF (SCF.h) and Nemo (via NemoBase) share no base class, and aliasing a
+  /// Nemo's inner SCF into `reference` would silently re-point consumers that
+  /// expect a standalone SCF engine (ResponseApplication).
+  std::shared_ptr<Nemo> nemo_reference;
   /// Named archive/output paths (absolute), e.g. "restartdata" -> path.
   std::map<std::string, std::filesystem::path> archives;
   /// Free-form JSON for artifacts not yet first-class.
   nlohmann::json blob = nlohmann::json::object();
 };
+
+/// True iff `a` and `b` describe the same nuclear framework: equal atom count
+/// and, per atom, equal element/charge/mass and a displacement below the 1e-10
+/// threshold Atom::operator== already applies.
+///
+/// Deliberately ignores derived state (rcut, pointgroup, field, molecular
+/// parameters). Those differ across a JSON round trip -- from_json re-orients
+/// the molecule -- which is why Molecule::operator== is not usable as a geometry
+/// guard. Lives here rather than in molecule.h only to avoid making every
+/// translation unit in the tree rebuild for it; molecule.h is its natural home
+/// once something outside this header needs it.
+inline bool same_nuclear_framework(const Molecule &a, const Molecule &b) {
+  if (a.natom() != b.natom())
+    return false;
+  for (unsigned int i = 0; i < a.natom(); ++i)
+    if (!(a.get_atom(i) == b.get_atom(i)))
+      return false;
+  return true;
+}
+
+/// Consumer-side precondition for the steps that cannot adopt an upstream
+/// reference (madqc ARCHITECTURE_ROADMAP change 1).
+///
+/// CC2, TDHF and OEP build their engine from a reference captured when the
+/// workflow is ASSEMBLED, not when it runs: CC2's ctor calls set_protocol on it
+/// and builds its own TDHF + CCPotentials from it, TDHF freezes its derived
+/// parameters off it, and OEP's own Nemo base is constructed FROM it. So a
+/// reference or geometry published later cannot be adopted, and the partial
+/// hooks that look like they would do it (TDHF::set_reference,
+/// OEP::set_reference, CCPotentials::reset_nemo) each swap only part of the
+/// state and would leave a silently inconsistent object. Until engine
+/// construction moves into run(), the honest thing a consumer can do is verify
+/// that the threaded context agrees with what it was built on -- so a
+/// mis-chained workflow fails loudly instead of writing out a correlation
+/// energy computed at the wrong geometry.
+///
+/// @param[in] ctx         the context Workflow::run threads task-to-task
+/// @param[in] reference    the build-time reference this step's engine uses
+/// @param[in] step_label  "cc2" / "cis" / "oep", for diagnostics only
+/// @param[in] world       for rank-0 printing
+inline void check_context_matches_reference(const StepContext &ctx,
+                                            const Nemo &reference,
+                                            const char *step_label,
+                                            World &world) {
+  // Messages passed to MADNESS_CHECK_THROW must be string literals:
+  // MadnessException stores a bare const char* and does not copy it, so a
+  // temporary std::string's c_str() would dangle by the time what() is called.
+  // Runtime detail goes into the rank-0 print next to each check instead.
+  if (ctx.nemo_reference && ctx.nemo_reference.get() != &reference) {
+    if (world.rank() == 0)
+      print("StepContext reference mismatch in step", step_label);
+    MADNESS_CHECK_THROW(
+        false,
+        "StepContext carries a different ground-state reference than this step "
+        "was constructed with; cc2/cis/oep build their engine when the workflow "
+        "is assembled and cannot adopt a reference published later. See "
+        "src/apps/madqc/STEP_CONTEXT.md");
+  }
+
+  // Only meaningful when the published molecule came from some producer other
+  // than our own reference. When the upstream reference IS our engine,
+  // ctx.molecule is by construction the geometry it ran at, and any difference
+  // is JSON-round-trip / re-orientation noise against a 1e-10 threshold.
+  if (!ctx.nemo_reference && ctx.molecule && ctx.molecule->natom() > 0) {
+    if (!same_nuclear_framework(*ctx.molecule, reference.molecule())) {
+      if (world.rank() == 0) {
+        print("geometry published by an upstream step, in step", step_label);
+        ctx.molecule->print();
+        print("geometry this step's engine was constructed with:");
+        reference.molecule().print();
+      }
+      MADNESS_CHECK_THROW(
+          false,
+          "An upstream step published a geometry that differs from the one this "
+          "step's engine was constructed with; cc2/cis/oep freeze the nuclear "
+          "framework at workflow-assembly time and cannot run at an upstream "
+          "optimized or displaced geometry. Run the method as its own workflow "
+          "at that geometry; see src/apps/madqc/STEP_CONTEXT.md");
+    }
+  }
+
+  // A reference engine that was constructed but never solved or reloaded has no
+  // orbitals: CC2 would call compute_fock_matrix on an empty amo, TDHF and OEP
+  // would fail their own check_converged gate much deeper in. Reachable when the
+  // upstream SCF results were reused (NextAction::ReloadOnly) and no restartdata
+  // archive existed to reload the MOs from -- i.e. the deck set `save false`.
+  if (reference.get_calc()->get_amo().empty()) {
+    if (world.rank() == 0)
+      print("empty reference orbitals in step", step_label);
+    MADNESS_CHECK_THROW(
+        false,
+        "The upstream ground state has no orbitals: its results were reused from "
+        "a checkpoint, but no restartdata archive was available to reload the "
+        "MOs from, so the reference engine was only constructed. cc2/cis/oep "
+        "need a live converged reference. Set `save 1` in the dft group, or "
+        "delete the reference step's calc_info.json to recompute");
+  }
+
+  if (world.rank() == 0) {
+    print("step", step_label,
+          ": ground-state reference confirmed via StepContext");
+    const auto it = ctx.archives.find("restartdata");
+    if (it != ctx.archives.end())
+      print("  upstream restartdata archive:", it->second.string());
+  }
+}
 
 // Scoped CWD: changes the current directory to the given one, and restores when
 // the object goes out of scope
@@ -211,19 +323,27 @@ public:
         scf_results = empty_results;
         action = madness::NextAction::Redo;
       }
-      // If we are restarting from an existing archive, the SCF engine must be
-      // told to load its MOs from <prefix>.restartdata. This flag has to be set
-      // on params_ BEFORE the engine is constructed — set_calc_workdir() below
-      // builds the SCF (via calc()->initialize_(), which freezes params into
-      // mad.in), so a flag set afterwards (as the old moldft_lib::run did, on a
-      // discarded local copy) never reaches the constructor and "Restart"
-      // silently recomputed from scratch. (raman thread brief, defect 3)
-      if (action == madness::NextAction::Restart) {
-        params_.get<CalculationParameters>().set_user_defined_value("restart",
-                                                                    true);
+      // ... and against reusing one computed for a DIFFERENT Hamiltonian. The
+      // engine makes this call for itself once it is built (plan_restart), but
+      // nothing here builds it: valid() looks only at thresholds, properties and
+      // the archive, all of which a changed `xc` leaves intact. So `madqc
+      // --dft="xc=lda"` in a directory holding an `xc=hf` checkpoint returned the
+      // HF energy as the LDA answer without ever constructing an SCF.
+      if (action != madness::NextAction::Redo &&
+          !checkpoint_hamiltonian_matches(j)) {
         if (world_.rank() == 0)
-          print("Restart requested: loading MOs from restartdata archive");
+          print("WARNING: checkpoint was computed for a different Hamiltonian "
+                "(or does not record which); ignoring checkpoint and recomputing.");
+        scf_results = empty_results;
+        action = madness::NextAction::Redo;
       }
+      // NB: nothing needs to be pushed into params_ for a restart. The engine
+      // decides for itself where its orbitals come from (plan_restart, called
+      // from MolecularEnergy::value and Nemo::value), reading the archive's
+      // header rather than a flag set from out here. What used to live at this
+      // point -- set_user_defined_value("restart", true) before the engine was
+      // constructed, because a flag set afterwards never reached the ctor -- is
+      // therefore gone along with the boolean it set.
       world_.gop.fence();
       set_calc_workdir(pm.dir());
       auto params_copy = params_;
@@ -258,11 +378,36 @@ public:
 
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
-        // Restart vs Redo is now carried by the 'restart' flag set on params_
-        // above (Restart => load restartdata; Redo => fresh). Pass the real
-        // action through rather than a hardcoded Restart.
+        // Both actions mean the same thing here -- run the engine. Restart vs
+        // Redo used to select where the orbitals came from; that is now the
+        // engine's own decision (plan_restart, from the archive header), so the
+        // distinction survives only as a diagnostic. The action is still passed
+        // through for the log rather than hardcoding one.
         scf_results = lib_.run(world_, params_, action);
+      } else if (action == madness::NextAction::Ok) {
+        // Results stand as checkpointed -- but the engine must not be left as a
+        // bare construction: a downstream cc2/cis/oep step needs a reference with
+        // orbitals. Ok implies the restartdata archive exists (see valid()), so
+        // the MOs can be reloaded from it.
+        //
+        // NOTE: Ok is currently UNREACHABLE, for a different reason on each path,
+        // so this branch is correct-but-dormant rather than exercised:
+        //  - nemo: valid() tests at_protocol as
+        //    `converged_for_thresh == protocol().back()`, but Nemo::value drives
+        //    its SCFProtocol from econv, so converged_for_thresh never equals the
+        //    final protocol rung -> must_redo stays true -> Restart.
+        //  - moldft: valid() looks for `params.prefix() + ".restartdata.00000"`,
+        //    while the engine is constructed from the mad.in written by
+        //    moldft_lib::initialize_ and so writes `mad.restartdata.00000`
+        //    -> archive_exists is always false -> Redo.
+        // Both are recorded in ARCHITECTURE_ROADMAP.md. Reuse still works today
+        // via Restart (which reloads the MOs), it just costs the archive read.
+        lib_.reload(world_, params_);
       } else {
+        // ReloadOnly: results stand, and there is no archive to reload from, so
+        // the engine has no orbitals. Harmless for a standalone scf/nemo run;
+        // check_context_matches_reference reports it if a chained step then
+        // needs a live reference.
         lib_.calc(world_, params_); // just set up the calc without running
       }
 
@@ -274,6 +419,9 @@ public:
       results_["convergence"] = std::get<2>(scf_results).to_json();
       results_["molecule"] = std::get<0>(scf_results).scf_molecule.to_json();
       results_["optimization_results"] = std::get<3>(scf_results).to_json();
+      // what these numbers are a solution of, so the next invocation can tell
+      // whether they answer its question -- see checkpoint_hamiltonian_matches
+      results_["hamiltonian"] = checkpoint_hamiltonian();
       // Backward-compatible top-level fields expected by existing scripted tests.
       // Keep these in sync with the nested "scf/properties/convergence" schema.
       results_["model"] = "scf";
@@ -329,12 +477,27 @@ public:
   void publish_to_context(StepContext &ctx) override {
     if constexpr (std::is_same_v<Calc, SCF>) {
       ctx.reference = calc(); // shared_ptr<SCF>
+    } else if constexpr (std::is_base_of_v<Nemo, Calc>) {
+      // The nemo-based ground state used by the cc2/cis/oep chains. NOT also
+      // published as ctx.reference: that field means "a standalone SCF engine",
+      // and re-pointing it at a Nemo's inner SCF would change what
+      // ResponseApplication consumes.
+      ctx.nemo_reference = calc(); // shared_ptr<Nemo>
     }
+    // Publish the geometry this step actually ran at. The natom() guard matters:
+    // a producer that leaves SCFResults::scf_molecule unset would otherwise
+    // publish a DEFAULT-CONSTRUCTED empty Molecule, and a consumer that assigns
+    // ctx.molecule straight into its params (as ResponseApplication does) would
+    // wipe its geometry. params_'s Molecule is the correct fallback -- on the
+    // Ok/ReloadOnly path run() has already refreshed it from the checkpoint.
     if (results_.contains("molecule")) {
       try {
         Molecule m;
         m.from_json(results_["molecule"]);
-        ctx.molecule = std::move(m);
+        if (m.natom() > 0)
+          ctx.molecule = std::move(m);
+        else
+          ctx.molecule = params_.get<Molecule>();
       } catch (...) {
         // leave ctx.molecule unset -> downstream falls back to input geometry
       }
@@ -374,13 +537,51 @@ private:
     } catch (...) {
       return true; // can't parse -> let other validation decide
     }
-    const Molecule &want = params_.get<Molecule>();
-    if (ckpt_mol.natom() != want.natom())
+    return same_nuclear_framework(params_.get<Molecule>(), ckpt_mol);
+  }
+
+  /// what operator this checkpoint's numbers are a solution OF
+  ///
+  /// The molecule alone does not identify a calculation. Changing `xc` in place
+  /// and rerunning is an everyday thing to do, and the geometry, the thresholds
+  /// and the archive are all still valid for it -- so without this the cached
+  /// results passed every test valid() applies and the engine was never built.
+  /// `localize` is included because it selects the orbitals the eigenvalues and
+  /// the Fock matrix in this file describe, even though it leaves the energy
+  /// alone.
+  nlohmann::json checkpoint_hamiltonian() const {
+    const auto &cp = params_.get<CalculationParameters>();
+    nlohmann::json h;
+    h["xc"] = cp.xc();
+    h["localize"] = cp.localize_method();
+    // an added/removed/re-parameterized dispersion correction shifts the total
+    // energy without touching the orbitals, so a checkpoint written without it
+    // would otherwise be reused and its energy reported as this run's answer
+    h["dispersion"] = cp.dispersion();
+    h["dispersion_functional"] = cp.dispersion_functional();
+    h["dispersion_atm"] = cp.dispersion_atm();
+    if constexpr (!std::is_same_v<Calc, SCF>) {
+      // Same spelling SCF::restart_ncf uses, so the checkpoint and the
+      // restartdata header agree on what "the same ncf" means.
+      const auto ncf = params_.get<Nemo::NemoCalculationParameters>().ncf();
+      h["ncf"] = ncf.first + ":" + std::to_string(ncf.second);
+    }
+    return h;
+  }
+
+  /// true if the checkpoint solves the operator this run is asking about
+  ///
+  /// A checkpoint with no `hamiltonian` block was written by a build that did
+  /// not record one, so what it solved cannot be established. That is treated as
+  /// a mismatch rather than waved through: the failure being guarded against is
+  /// a wrong energy reported as this run's answer, and the cost of being wrong
+  /// here is one recompute that then writes the block. This is deliberately
+  /// stricter than checkpoint_geometry_matches(), which waves through what it
+  /// cannot parse -- there a mismatch merely wastes work, here it is silent.
+  bool checkpoint_hamiltonian_matches(const nlohmann::json &j) const {
+    if (!j.contains("hamiltonian"))
       return false;
-    for (unsigned int i = 0; i < want.natom(); ++i)
-      if (!(want.get_atom(i) == ckpt_mol.get_atom(i)))
-        return false;
-    return true;
+    return j.at("hamiltonian") == checkpoint_hamiltonian();
   }
 
   World &world_;
@@ -473,6 +674,13 @@ public:
       params_.get<CCParameters>().print(CCParameters::tag, "end");
   }
 
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "cc2", world_);
+  }
+
   void run(const std::filesystem::path &workdir) override {
     // 1) set up a namedspaced directory for this run
     std::string label = "cc2";
@@ -533,6 +741,13 @@ public:
   void print_parameters(World &world) const override {
     if (world.rank() == 0)
       params_.get<TDHFParameters>().print(TDHFParameters::tag, "end");
+  }
+
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "cis", world_);
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -610,6 +825,13 @@ public:
   void print_parameters(World &world) const override {
     if (world.rank() == 0)
       params_.get<OEP_Parameters>().print(OEP_Parameters::tag, "end");
+  }
+
+  /// Verify-only participation in the StepContext dataflow: this step's engine
+  /// was built from a reference captured at workflow-assembly time and cannot be
+  /// re-pointed. See check_context_matches_reference.
+  void consume_context(const StepContext &ctx) override {
+    check_context_matches_reference(ctx, *reference_, "oep", world_);
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -711,8 +933,11 @@ inline NextAction decide_next_action(bool at_protocol, bool archive_needed,
 template <typename SCFParams>
 NextAction valid(World &world, const SCFResultsTuple &results,
                  const SCFParams &params) {
-  // Take a copy of the parameters
-  auto [sr, pr, cr, optr] = results;
+  // Take a copy of the parameters. The 4th element (OptimizationResults) is
+  // deliberately not bound: an SCF task no longer optimizes, so there is
+  // nothing of it to validate here.
+  auto [sr, pr, cr, optr_unused] = results;
+  (void)optr_unused;
 
   // Required convergence for "final" protocol
   const auto vthresh = params.protocol().back(); // final protocol
@@ -745,8 +970,11 @@ NextAction valid(World &world, const SCFResultsTuple &results,
 
   // State in resultout the threshold refinement.
   //
+  // "at least as good as requested", not "exactly equal": these are thresholds,
+  // and exact float equality on them made a run converged to 1e-6 look invalid
+  // against a request for 1e-6 whenever the two were computed differently.
   const bool at_protocol =
-      (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
+      (cr.converged_for_thresh <= vthresh && cr.converged_for_dconv <= vdconv);
 
   const auto pjson = sr.properties.to_json();
   const bool energy_ok = pjson.contains("energy");
@@ -767,29 +995,16 @@ NextAction valid(World &world, const SCFResultsTuple &results,
                                        (need_dipole ? dipole_ok : true) &&
                                        (need_gradient ? gradient_ok : true);
 
-  bool is_gopt = false;
-  bool gopt_ok = true;
-  if (params.gopt()) {
-    is_gopt = true;
-  }
-  if (is_gopt) {
-    // check if the optimized geometry is available
-    try {
-
-      double gtol = params.gtol();
-      // A geometry optimization is only valid if the max gradient has
-      // dropped below gtol; otherwise it must be restarted/redone.
-      // (Previously this set gopt_ok=true on non-convergence, which made an
-      //  unconverged optimization look valid and suppressed the redo.)
-      gopt_ok = (optr.max_gradient < gtol);
-    } catch (...) {
-      gopt_ok = false;
-    }
-  }
+  // NB: no geometry-optimization validity test here any more. An SCF task no
+  // longer optimizes anything -- that is qcapp::OptimizeDriver's job, and it
+  // keeps no checkpoint of its own to validate (the optimizer's hessian and
+  // step history are not persisted, so an interrupted optimization restarts
+  // from the input geometry while the SCF underneath still restarts per
+  // geometry as usual).
 
   // Decide action
   const bool must_redo = !at_protocol || (archive_needed && !archive_exists) ||
-                         !all_properties_computed || !gopt_ok;
+                         !all_properties_computed;
 
   // if we don't need to redo, we can either reload or return ok
   if (!must_redo)
@@ -801,7 +1016,6 @@ NextAction valid(World &world, const SCFResultsTuple &results,
     print("archive_needed: ", archive_needed);
     print("archive_exists: ", archive_exists);
     print("all_properties_computed: ", all_properties_computed);
-    print("gopt_ok: ", gopt_ok);
   }
   // with we need to redo we can restart from the exisiting archive
   return archive_exists ? NextAction::Restart : NextAction::Redo;
@@ -829,6 +1043,18 @@ struct moldft_lib {
   }
 
   static void print_parameters() { Calc::print_parameters(); }
+
+  /// Rehydrate the engine when the checkpoint results are reused, so a
+  /// downstream step gets a reference with orbitals rather than a bare
+  /// freshly-constructed SCF. load_mos handles k-projection and the threshold
+  /// itself; the protocol is set first to match the order Nemo::value uses.
+  void reload(World &world, const Params &params) {
+    auto scf = calc(world, params);
+    scf->set_protocol<3>(world,
+                         params.get<CalculationParameters>().protocol().back());
+    scf->load_mos(world);
+  }
+
   // params get's changed by SCF constructor
   SCFResultsTuple run(World &world, const Params &params,
                       const NextAction next_action_) {
@@ -837,7 +1063,6 @@ struct moldft_lib {
 
     SCFResultsTuple results;
     auto &scf_res = std::get<0>(results);
-    auto &opt_res = std::get<3>(results);
     auto &prop_res = std::get<1>(results);
     auto &conv_res = std::get<2>(results);
 
@@ -847,10 +1072,9 @@ struct moldft_lib {
       return last_results_;
     }
 
-    // NOTE: for NextAction::Restart, the SCF engine is already told to load
-    // MOs from restartdata by the caller (SCFApplication::run sets the
-    // 'restart' flag on params_ BEFORE the engine is constructed). Setting it
-    // here on a local copy was dead code — the engine was already built.
+    // NOTE: NextAction::Restart needs nothing done here. The engine reads the
+    // restartdata header itself and decides whether to load, iterate or skip
+    // (plan_restart); NextAction only says whether the engine has to run at all.
     auto scf = calc(world, params_copy);
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
@@ -871,70 +1095,21 @@ struct moldft_lib {
     }
     // vama
     scf->set_protocol<3>(world, scf->param.protocol()[0]);
+    scf->dispersion.print_citation(world);
     double energy = 0.0;
-    scf_res.is_opt = scf->param.gopt();
+    // An SCF task computes an energy at one geometry. Geometry optimization is
+    // its own workflow task now -- `madqc --optimize --wf=scf`,
+    // qcapp::OptimizeDriver in chem/Drivers.hpp -- which drives the same MolOpt
+    // over the same MolecularEnergy target, derives its thresholds from the
+    // `optimization` group, and publishes the optimized geometry downstream.
+    // scf_res.is_opt stays false; the field and the OptimizationResults slot in
+    // SCFResultsTuple remain because the driver fills them.
+    MolecularEnergy E(world, *scf);
+    scf_res.scf_molecule = molecule;
 
-    if (scf_res.is_opt) {
-      // Geometry convergence thresholds tied to final SCF protocol
-      // following the Dalton-style rules:
-      //
-      //   wf_thresh = final SCF threshold (protocol().back())
-      //
-      //   |ΔE|   < max(1e-6, 2 * wf_thresh)
-      //   ||g||  < max(1e-4, 2 * wf_thresh)
-      //   ||dx|| < max(1e-4, 2 * wf_thresh)
-      //
-      // MolOpt uses:
-      //   etol -> energy change tolerance
-      //   gtol -> max gradient tolerance
-      //   xtol -> max Cartesian step tolerance
-      //
-      const double wf_thresh = scf->param.protocol().back();
-      const double etol = std::max(1.0e-7, 2.0 * wf_thresh);
-      const double gxtol = std::max(1.0e-5, 2.0 * wf_thresh);
-      const double gprec = std::max(1.0e-6, wf_thresh);
-
-      MolOpt opt(scf->param.gmaxiter(), // maximum geometry iterations
-                 0.1,   // maximum step in any Cartesian coordinate
-                 etol,  // energy-change tolerance
-                 gxtol, // gradient tolerance
-                 gxtol, // step (Cartesian) tolerance
-                 etol,  // assumed energy precision
-                 gprec, // assumed gradient precision
-                 (world.rank() == 0) ? 1 : 0, // print_level
-                 scf->param.algopt());
-
-      MolecularEnergy target(world, *scf);
-      opt_res = opt.optimize_app(scf->molecule, target);
-      auto new_mol = opt_res.final_geometry;
-
-      Tensor<double> gradient;
-      target.energy_and_gradient(new_mol, energy, gradient);
-      scf_res.scf_molecule = new_mol;
-
-      scf_res.properties.energy = energy;
-      scf_res.properties.gradient = gradient;
-
-      // write out the optimized geometry
-      if (world.rank() == 0) {
-        std::string geomfile = scf->param.prefix() + "_opt.xyz";
-        std::ofstream ofs(geomfile);
-        new_mol.print(ofs);
-        ofs.close();
-        print("optimized geometry written to ", geomfile);
-        // write out mad.in with optimized geometry
-      }
-
-      // MolecularEnergy E(world, *scf);
-      // energy = E.value(new_mol.get_all_coords().flat());
-    } else {
-      MolecularEnergy E(world, *scf);
-      scf_res.scf_molecule = molecule;
-
-      energy = E.value(scf->molecule.get_all_coords().flat());
-      if (world.rank() == 0 && scf->param.print_level() > 0)
-        E.output_calc_info_schema();
-    }
+    energy = E.value(scf->molecule.get_all_coords().flat());
+    if (world.rank() == 0 && scf->param.print_level() > 0)
+      E.output_calc_info_schema();
 
     functionT rho = scf->make_density(world, scf->aocc, scf->amo);
     functionT brho = rho;
@@ -956,14 +1131,19 @@ struct moldft_lib {
 
     scf->do_plots(world);
 
-    conv_res.set_converged_thresh(FunctionDefaults<3>::get_thresh());
-    conv_res.set_converged_dconv(scf->param.dconv());
+    // report what the SCF actually achieved, not what was requested -- taking
+    // these from FunctionDefaults/param made an unconverged run checkpoint as
+    // converged, so the next invocation skipped it.
+    conv_res.set_converged_thresh(scf->converged_for_thresh);
+    conv_res.set_converged_dconv(scf->converged_for_dconv);
     prop_res.energy = energy;
     prop_res.dipole = dip;
     prop_res.gradient = grad;
 
     scf_res.aeps = scf->aeps;
     scf_res.beps = scf->beps;
+    scf_res.scf_dispersion_correction_energy =
+        scf->dispersion.energy(world, scf->molecule);
     scf_res.properties = prop_res;
 
     return results;
@@ -983,6 +1163,15 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // `prefix` must be carried explicitly. It is the one parameter that is
+        // DERIVED from information the engine cannot recompute -- the name of
+        // the original input file (ParameterManager.hpp) -- and this round trip
+        // keeps only user-defined values. Without it the engine falls back to
+        // the "mad" default and writes mad.restartdata, while valid() looks for
+        // <prefix>.restartdata.00000: archive_exists is then always false and
+        // the restart can never fire. Everything else that set_derived_values()
+        // computes is re-derived identically by the SCF ctor.
+        in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
         write_json_to_input_file(in, {"dft"}, ofs);
         mol.print_defined_only(ofs);
@@ -1021,6 +1210,20 @@ struct nemo_lib {
 
   static void print_parameters() { Calc::print_parameters(); }
 
+  /// Rehydrate the engine when the checkpoint results are reused, so downstream
+  /// steps (cc2/cis/oep) get a reference with orbitals rather than a bare
+  /// freshly-constructed Nemo. Goes through the engine's own no_compute path:
+  /// Nemo::value then loads the MOs from the archive, builds the nuclear
+  /// correlation factor via set_protocol, records coords_sum (so check_converged
+  /// passes downstream) and skips the SCF iterations. Setting no_compute after
+  /// construction is safe because it is read in value(), unlike `restart` which
+  /// SCFApplication::run must set before the engine is built.
+  void reload(World &world, const Params &params) {
+    auto nm = calc(world, params);
+    nm->get_calc()->param.set_user_defined_value("no_compute", true);
+    nm->value(nm->molecule().get_all_coords());
+  }
+
   SCFResultsTuple run(World &world, const Params &params,
                       NextAction action = NextAction::Redo) {
     SCFResultsTuple results;
@@ -1040,6 +1243,13 @@ struct nemo_lib {
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
+    sr.scf_dispersion_correction_energy = nm->get_calc()->dispersion.energy(
+        world, nm->get_calc()->molecule);
+    // The geometry this reference was solved at. Without it, results_["molecule"]
+    // (and therefore the checkpoint and ctx.molecule) reports an empty molecule,
+    // and checkpoint_geometry_matches compares 0 atoms against N and rejects
+    // every nemo-path checkpoint -- so restarts always recomputed.
+    sr.scf_molecule = nm->get_calc()->molecule;
 
     if (nm->get_nemo_param().hessian())
       sr.properties.vibrations =

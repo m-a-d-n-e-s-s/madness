@@ -6,12 +6,16 @@
     "tasks": [
         {
             "convergence": {
-                "converged_for_dconv": 0.0001,
+                "converged_for_dconv": 0.001,
                 "converged_for_thresh": 1e-06
             },
             "convergence_info": {
-                "converged_for_dconv": 0.0001,
+                "converged_for_dconv": 0.001,
                 "converged_for_thresh": 1e-06
+            },
+            "hamiltonian": {
+                "localize": "new",
+                "xc": "pbe0"
             },
             "metadata": {
                 "mpi_size": 1
@@ -20,14 +24,9 @@
             "molecule": {
                 "geometry": [
                     [
-                        5.826316913092736e-20,
-                        -1.855719703207657e-19,
-                        0.7550352565754748
-                    ],
-                    [
-                        4.1764278442781355e-19,
-                        -1.3390551195543208e-18,
-                        -2.280035256575475
+                        0.0,
+                        0.0,
+                        0.0
                     ]
                 ],
                 "parameters": {
@@ -41,34 +40,22 @@
                     "no_orient": false,
                     "psp_calc": false,
                     "pure_ae": true,
-                    "source_name": "mad.in",
+                    "source_name": "scf_he_pbe0.in",
                     "source_type": "inputfile",
                     "symtol": -0.01,
                     "units": "atomic"
                 },
                 "symbols": [
-                    "Li",
-                    "H"
+                    "He"
                 ]
             },
             "optimization_results": {
-                "final_energy": -7.987363075124275,
+                "final_energy": 0.0,
                 "final_geometry": {
-                    "geometry": [
-                        [
-                            5.826316913092736e-20,
-                            -1.855719703207657e-19,
-                            0.7550352565754748
-                        ],
-                        [
-                            4.1764278442781355e-19,
-                            -1.3390551195543208e-18,
-                            -2.280035256575475
-                        ]
-                    ],
+                    "geometry": null,
                     "parameters": {
                         "core_type": "none",
-                        "eprec": 1e-06,
+                        "eprec": 0.0001,
                         "field": [
                             0.0,
                             0.0,
@@ -77,45 +64,37 @@
                         "no_orient": false,
                         "psp_calc": false,
                         "pure_ae": true,
-                        "source_name": "mad.in",
+                        "source_name": "tbd",
                         "source_type": "inputfile",
                         "symtol": -0.01,
                         "units": "atomic"
                     },
-                    "symbols": [
-                        "Li",
-                        "H"
-                    ]
+                    "symbols": null
                 },
-                "max_gradient": 4.83491473191058e-07,
+                "max_gradient": 0.0,
                 "max_step": 0.0,
-                "nsteps": 2
+                "nsteps": 0
             },
             "properties": {
                 "dipole": {
                     "ndim": -1,
                     "size": 0
                 },
-                "energy": -7.987363036391323,
+                "energy": -2.8951775217907465,
                 "gradient": {
                     "ndim": -1,
                     "size": 0
                 }
             },
             "scf": {
-                "is_opt": true,
+                "is_opt": false,
                 "model": "scf",
                 "molecule": {
                     "geometry": [
                         [
-                            5.826316913092736e-20,
-                            -1.855719703207657e-19,
-                            0.7550352565754748
-                        ],
-                        [
-                            4.1764278442781355e-19,
-                            -1.3390551195543208e-18,
-                            -2.280035256575475
+                            0.0,
+                            0.0,
+                            0.0
                         ]
                     ],
                     "parameters": {
@@ -129,14 +108,13 @@
                         "no_orient": false,
                         "psp_calc": false,
                         "pure_ae": true,
-                        "source_name": "mad.in",
+                        "source_name": "scf_he_pbe0.in",
                         "source_type": "inputfile",
                         "symtol": -0.01,
                         "units": "atomic"
                     },
                     "symbols": [
-                        "Li",
-                        "H"
+                        "He"
                     ]
                 },
                 "properties": {
@@ -144,7 +122,7 @@
                         "ndim": -1,
                         "size": 0
                     },
-                    "energy": -7.987363036391323,
+                    "energy": -2.8951775217907465,
                     "gradient": {
                         "ndim": -1,
                         "size": 0
@@ -152,13 +130,12 @@
                 },
                 "scf_eigenvalues_a": {
                     "dims": [
-                        2
+                        1
                     ],
                     "ndim": 1,
-                    "size": 2,
+                    "size": 1,
                     "vals": [
-                        -2.4460336504965845,
-                        -0.30133004154662646
+                        -0.6696224277127458
                     ]
                 },
                 "scf_eigenvalues_b": {
@@ -173,13 +150,12 @@
             },
             "scf_eigenvalues_a": {
                 "dims": [
-                    2
+                    1
                 ],
                 "ndim": 1,
-                "size": 2,
+                "size": 1,
                 "vals": [
-                    -2.4460336504965845,
-                    -0.30133004154662646
+                    -0.6696224277127458
                 ]
             },
             "scf_eigenvalues_b": {

@@ -653,30 +653,18 @@ namespace madness {
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
             //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
-            double prodR=1.0, prodT=1.0;
+            double prod=1.0, sum=0.0;
             for (std::size_t d=0; d<NDIM; ++d) {
-                prodR *= ops[d]->Rnormf;
-                prodT *= ops[d]->Tnormf;
-
+                double a = ops[d]->NSnormf;
+                double b = ops[d]->Tnormf;
+                double aa = std::min(a,b);
+                double bb = std::max(a,b);
+                prod *= bb;
+                if (bb > 0.0) sum +=(aa/bb);
             }
-//            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
+            if (n) prod *= sum;
 
-            // this kicks in if the line above has no numerically significant digits.
-//            if (prodR < 1e-8*prodT) {
-                double prod=1.0, sum=0.0;
-                for (std::size_t d=0; d<NDIM; ++d) {
-                    double a = ops[d]->NSnormf;
-                    double b = ops[d]->Tnormf;
-                    double aa = std::min(a,b);
-                    double bb = std::max(a,b);
-                    prod *= bb;
-                    if (bb > 0.0) sum +=(aa/bb);
-                }
-                if (n) prod *= sum;
-                prodR = prod;
-//            }
-
-            return prodR;
+            return prod;
         }
 
 

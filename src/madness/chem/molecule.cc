@@ -143,7 +143,7 @@ std::string Molecule::GeometryParameters::absolute_path(const std::string &path)
 }
 
 std::string Molecule::GeometryParameters::input_tag(const commandlineparser &parser) {
-  for (const std::string &tag : {"geometry", "molecule"}) {
+  for (const char *tag : {"geometry", "molecule"}) {
     std::ifstream f(parser.value("input"));
     try {
       madness::position_stream_to_word(f, tag, '#', true, true);

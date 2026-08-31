@@ -40,7 +40,11 @@ if __name__ == "__main__":
     cmp.compare(["tasks",1,"excitations",0,"oscillator_strength_velocity"],1.e-3)
 
     referencefile="@SRCDIR@/"+prefix+"_a2.calc_info.ref.json"
-    dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'; no_compute=1"'
+    # reuse the reference converged above and redo only the CIS, for a different
+    # irrep. `no_compute=1` was retired in favour of `restart read_only`, which
+    # returns the archive's orbitals and energy without solving; the geometry is
+    # unchanged between the two runs, which read_only requires.
+    dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'; restart=read_only"'
     other_arguments=' --tdhf="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2; restart=no_restart"'
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)

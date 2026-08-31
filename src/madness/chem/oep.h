@@ -257,6 +257,10 @@ public:
 
 
     virtual double value(const Tensor<double>& x) override {
+        // OEP::compute_energy has no dispersion term while the gradient it
+        // inherits from Nemo::analyze does, so an active correction would be
+        // applied to one and not the other. Refuse rather than half-apply.
+        calc->dispersion.reject("oep");
     	MADNESS_CHECK_THROW(reference->check_converged(x),"OEP reference is not converged at this geometry");
         set_protocol(get_calc_param().econv());
         calc->copy_data(world,*(reference->get_calc()));

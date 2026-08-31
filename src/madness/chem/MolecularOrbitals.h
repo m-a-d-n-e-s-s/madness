@@ -12,6 +12,7 @@
 #include<madness/tensor/tensor.h>
 #include <madness/world/parallel_archive.h>
 #include<madness/chem/molecule.h>
+#include<madness/chem/Restart.h>
 #include<stdio.h>
 
 namespace madness {
@@ -251,58 +252,46 @@ public:
 	std::pair<MolecularOrbitals<T,NDIM>, MolecularOrbitals<T,NDIM> >
 	static read_restartdata(World& world, const std::string filename, const Molecule& molecule,
 			const std::size_t nmo_alpha, const std::size_t nmo_beta) {
-        /*
-         * save and load from SCF.cc now contain the following extra variables
-         * To read Molecular Orbitals properly we need to take care of this data
-         * even if it is unused.
-         *
-         *
-            unsigned int version;
-            double L;
-            int k;
-            Molecule molecule;
-            std::string xc;
 
-*/
-		bool spinrestricted = false;
-        double L=0;
-        int k1=0;                    // Ignored for restarting, used in response only
-        unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
-	//        unsigned int archive_version;
-		double current_energy=0, converged_to_thresh=0;
-        std::string xc, localize_method;
-
-
+		// The header layout belongs to RestartMetadata (chem/Restart.h), shared
+		// with SCF::{save,load}_mos; it reads version 4 and 5 alike.
+		//
+		// NB: the archive's molecule lands in meta and is NOT written back over
+		// the caller's. The previous open-coded read passed `molecule` straight
+		// to operator&, which const_casts, so it silently replaced the caller's
+		// geometry with the archive's -- the same trap removed from
+		// SCF::load_mos. The requested geometry wins.
 		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
-        ar & version;
-		ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
+		RestartMetadata meta;
+		meta.read(ar);
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
 		amo.load_mos(ar, molecule, nmo_alpha);
-		bool have_beta=(not spinrestricted) and (nmo_beta>0);
+		bool have_beta=(not meta.spin_restricted) and (nmo_beta>0);
 		if (have_beta) {
 			bmo.load_mos(ar,molecule,nmo_beta);
 		}
 		return std::make_pair(amo,bmo);
 	}
 
-	/// reads amo and bmo from the restartdata file
+	/// writes amo and bmo to a restartdata file
 
-	/// @return amo and bmo
+	/// The header is written through RestartMetadata, so an archive produced here
+	/// is readable by SCF::load_mos. Most header fields describe an SCF this
+	/// function does not have (energy, convergence, xc), so they keep their
+	/// "unknown" defaults -- a restart will treat these orbitals as a guess to
+	/// iterate on rather than a converged answer, which is what they are.
 	void static save_restartdata(World& world, const std::string filename, const Molecule& molecule,
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
-        // TODO there is a good chance that this needs to be modified if it is intended to be read by SCF save/load
-		bool spinrestricted = false;
-        unsigned int version=4;
-		double current_energy=0.0, converged_to_thresh=1.e10;
-        double L=0;
-        std::string xc, localize_method;
-        int k1=0;                    // Ignored for restarting, used in response only
 		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
-        ar & version;
-        ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
+
+		RestartMetadata meta;
+		meta.spin_restricted = false;
+		meta.molecule = molecule;
+		meta.k = FunctionDefaults<NDIM>::get_k();
+		meta.eprec = molecule.parameters.eprec();
+		meta.madness_version = MADNESS_PACKAGE_VERSION;
+		meta.write(ar);
 
 		amo.save_mos(ar,molecule);
 		bmo.save_mos(ar,molecule);
@@ -314,7 +303,10 @@ public:
 		unsigned int nmo = 0;
 
 		ar & nmo;
-		MADNESS_ASSERT(nmo >= nmo_from_input);
+		// must hold in release builds too: too few orbitals in the archive
+		// otherwise silently yields a short mo vector further down
+		MADNESS_CHECK_THROW(nmo >= nmo_from_input,
+				"restart archive holds fewer orbitals than requested");
 		ar & eps & occ & localize_sets;
 		mo.resize(nmo);
 		for (unsigned int i = 0; i < mo.size(); ++i)

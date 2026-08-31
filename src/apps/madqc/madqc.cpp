@@ -70,6 +70,7 @@ void help(const std::string &wf) {
   print("\nOptions:");
   print("  --help=<workflow>           : show this help message");
   print("  --print_parameters=<group>  : print all parameters and exit");
+  print("  --restart_info=<prefix>     : describe a restart archive and exit");
   print("  --workflow=<name>           : specify the workflow to run (default: "
         "scf)");
   print("  --optimize                  : optimize the geometry of the "
@@ -122,7 +123,8 @@ void help(const std::string &wf) {
     print("madqc --optimize --wf=scf --geometry=h2o --optimization=\"gtol=1.e-4; "
           "maxiter=10\"");
     print("\nsee  madqc --print_parameters=optimization  for all knobs.");
-    print("the older in-SCF form is still available as  --dft=\"gopt=1\".");
+    print("the in-SCF form (--dft=\"gopt=1\") has been removed; its keyvals are");
+    print("retired and error with a pointer to the `optimization` group.");
   }
 }
 
@@ -168,6 +170,9 @@ void print_parameters(World &world, const commandlineparser &parser,
 
 int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
+  // exit code: a run that died in the main loop must not report success --
+  // CI and driver scripts have no other way to tell the difference
+  int rc = 0;
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
@@ -178,6 +183,13 @@ int main(int argc, char **argv) {
     help(parser.value("help"));
   } else if (parser.key_exists("print_parameters")) {
     print_parameters(world, parser, parser.value("print_parameters"));
+  } else if (parser.key_exists("restart_info")) {
+    // Report what a restart archive holds and stop. No startup() needed: the
+    // header and the orbital bookkeeping are plain Molecule/Tensor data, and no
+    // MRA function is constructed.
+    std::string p = parser.value("restart_info");
+    if (p.empty() or p == "restart_info") p = "mad";
+    madness::print_restartdata_info(world, p);
   } else {
     // limit lifetime of world so that finalize() can execute cleanly
     try {
@@ -316,12 +328,14 @@ int main(int argc, char **argv) {
         qcapp::write_viz_manifest(prefix, wf.results());
       }
     } catch (const MadnessException &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a MADNESS exception in the main loop");
         print(e.what(), e.filename, e.msg, e.line);
         print_header2("ending program run");
       }
     } catch (const json::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a JSON exception in the main loop");
         print(e.what());
@@ -330,6 +344,7 @@ int main(int argc, char **argv) {
     }
 
     catch (std::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught an exception in the main loop");
         print(e.what());
@@ -344,5 +359,5 @@ int main(int argc, char **argv) {
   } // world is dead -- ready to finalize
   finalize();
 
-  return 0;
+  return rc;
 }
