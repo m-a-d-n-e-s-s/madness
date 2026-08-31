@@ -63,8 +63,26 @@ struct molresponse_v3_lib {
 
     const auto &cp = params.get<CalculationParameters>();
     const auto &rp = params.get<ResponseParameters>();
-    const std::vector<double> protocol = cp.protocol();
+    std::vector<double> protocol = cp.protocol();
     MADNESS_CHECK(!protocol.empty());
+
+    // Deck `seed.start_rung fine` — a dalton.dir-seeded run skips straight to
+    // the FINEST rung (W6 between-pole finding: the coarse rung hits maxiter
+    // unconverged and launders away the seed's head start). Must happen
+    // BEFORE set_response_protocol / gs.prepare / run_dalton_import below so
+    // the seed projection lands at the fine rung's (k, thresh). Default
+    // 'coarse' = full ladder, unchanged. Shared helper with the standalone
+    // driver (apply_seed_start_rung), so the two surfaces agree.
+    if (apply_seed_start_rung(protocol, rp.seed_start_rung(),
+                              !rp.dalton_dir().empty())) {
+      if (world.rank() == 0)
+        print("response: seed.start_rung=fine — dalton.dir seed starts the "
+              "ladder at thresh", protocol.front());
+    } else if (rp.seed_start_rung() == "fine" && rp.dalton_dir().empty() &&
+               world.rank() == 0) {
+      print("response: seed.start_rung=fine ignored — no dalton.dir seed "
+            "configured (full ladder runs)");
+    }
 
     // 1. Ground state from the moldft ARCHIVE (not the in-memory SCF). On a
     //    restart-in-place run madqc validates the SCF as "Ok" and never loads the
