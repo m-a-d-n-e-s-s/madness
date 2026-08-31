@@ -265,6 +265,7 @@ public:
     }
     [[nodiscard]] std::string excited_guess_basis() const {
         return get<std::string>("excited.guess_basis");
+    }
     [[nodiscard]] std::vector<double> excited_expect_omegas() const {
         return get<std::vector<double>>("excited.expect_omegas");
     }
