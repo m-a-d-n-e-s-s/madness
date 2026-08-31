@@ -402,6 +402,17 @@ int main(int argc, char **argv) {
         // TDA/ClosedShell only). Separate gate from --fd-tensor (FD θ path).
         if (parser.key_exists("es-tensor"))
           ctx.es_gamma_tensor = true;
+        // --es-expect-omegas=w0,w1,...: root-identity guard cross-check — after
+        // the ES solve, hard-warn (never error) for any converged root farther
+        // than --es-expect-tol (default 0.02 au) from EVERY listed value. Pass
+        // a trusted (e.g. d-aug DALTON) ladder here when the solve is seeded
+        // from a poorer basis: a seeded solve TRACKS the seeded states and
+        // does NOT guarantee the N lowest (see solvers/es_seed_guard.hpp).
+        if (parser.key_exists("es-expect-omegas"))
+          ctx.es_expect_omegas =
+              parse_csv_doubles(parser.value("es-expect-omegas"));
+        if (parser.key_exists("es-expect-tol"))
+          ctx.es_expect_tol = std::stod(parser.value("es-expect-tol"));
         // --accept-at-maxiter: accept a non-diverged FD solve that hits maxiter
         // without meeting the strict target (records converged + an `accepted`
         // marker) so a stiff channel climbs the protocol ladder and VBC
