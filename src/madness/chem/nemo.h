@@ -426,7 +426,11 @@ public:
         print("nemo --print_parameters\n");
         print("You can perform a simple calculation by running\n");
         print("nemo --geometry=h2o.xyz\n");
-        print("provided you have an xyz file in your directory.");
+        print("provided you have an xyz file in your directory.\n\n");
+        print("To see what a restart archive holds -- geometry, k, the precision it");
+        print("converged to, whether it is moldft or nemo orbitals -- without starting");
+        print("a calculation:\n");
+        print("nemo --restart_info=<prefix>\n");
 
     }
 

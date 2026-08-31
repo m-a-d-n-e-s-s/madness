@@ -159,12 +159,12 @@ inline int MPI_Group_translate_ranks(MPI_Group, int, const int [],
 }
 
 /* TODO The NO-OP implementation of may not be adequate. */
-inline int MPI_Group_incl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup) {
+inline int MPI_Group_incl(MPI_Group, int, const int [], MPI_Group *) {
     return MPI_SUCCESS;
 }
 
 /* TODO The NO-OP implementation may not be adequate. */
-inline int MPI_Group_free(MPI_Group *group) {
+inline int MPI_Group_free(MPI_Group *) {
     return MPI_SUCCESS;
 }
 
@@ -178,7 +178,7 @@ inline int MPI_Query_thread(int *provided) { *provided = MADNESS_MPI_THREAD_LEVE
 
 // Buffer functions (do nothing since no messages may be sent)
 inline int MPI_Buffer_attach(void*, int) { return MPI_SUCCESS; }
-inline int MPI_Buffer_detach(void* buffer, int* size) { return MPI_SUCCESS; }
+inline int MPI_Buffer_detach(void*, int*) { return MPI_SUCCESS; }
 
 inline int MPI_Test(MPI_Request *, int *flag, MPI_Status *) {
     *flag = 1;
@@ -216,8 +216,8 @@ inline int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status*) {
 
 // Gather = copy
 inline int MPI_Gatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
-                void *recvbuf, const int recvcounts[], const int displs[], MPI_Datatype recvtype,
-                int root, MPI_Comm) {
+                void *recvbuf, const int recvcounts[], const int [], MPI_Datatype recvtype,
+                int, MPI_Comm) {
   MPI_Aint recvtype_extent;
   MPI_Aint recvtype_lb;
   MPI_Type_get_extent(recvtype, &recvtype_lb, &recvtype_extent);
@@ -252,13 +252,13 @@ inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, 
 
 inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
 
-inline int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
+inline int MPI_Comm_split(MPI_Comm, int, int, MPI_Comm *newcomm) {
   //*newcomm = MPI_COMM_NULL;
   *newcomm = MPI_COMM_WORLD; // So that can successfully split a 1 process communicator
   return MPI_SUCCESS;
 }
 
-inline int MPI_Comm_split_type(MPI_Comm comm, int split_type, int key, MPI_Info info, MPI_Comm *newcomm) {
+inline int MPI_Comm_split_type(MPI_Comm comm, int split_type, int, MPI_Info, MPI_Comm *newcomm) {
   *newcomm = (split_type == MPI_UNDEFINED) ? MPI_COMM_NULL : comm;
   return MPI_SUCCESS;
 }
@@ -315,19 +315,19 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     return MPI_SUCCESS;
 }
 
-inline int MPI_Comm_set_errhandler(MPI_Comm comm, MPI_Errhandler errhandler) {return MPI_SUCCESS;}
+inline int MPI_Comm_set_errhandler(MPI_Comm, MPI_Errhandler) {return MPI_SUCCESS;}
 
 inline double MPI_Wtime() { return madness::wall_time(); }
 
-inline int MPI_Op_create(MPI_User_function *user_fn, int commute, MPI_Op *op) {
+inline int MPI_Op_create(MPI_User_function *, int, MPI_Op *) {
   return MPI_SUCCESS;
 }
 
-inline int MPI_Op_free(MPI_Op *op) {
+inline int MPI_Op_free(MPI_Op *) {
   return MPI_SUCCESS;
 }
 
-inline int MPI_Info_create (MPI_Info *info) { return MPI_SUCCESS; }
-inline int MPI_Info_free (MPI_Info *info) { return MPI_SUCCESS; }
+inline int MPI_Info_create (MPI_Info *) { return MPI_SUCCESS; }
+inline int MPI_Info_free (MPI_Info *) { return MPI_SUCCESS; }
 
 #endif

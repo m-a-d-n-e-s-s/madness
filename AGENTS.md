@@ -153,6 +153,13 @@ Exit code 0 on success. Reference inputs for regression checks are in
   for 6D work (MP2, CC2). Off by default and tested in only one CI cell,
   so changes in the tensor layer should be checked with it on when
   relevant.
+- **`-DENABLE_DFTD3=ON`** (default) links `simple-dftd3` for the `dispersion`
+  keyword. The usual source is conda-forge, whose build drags in conda's
+  threaded OpenBLAS and OpenMP runtimes — which collides with the
+  sequential-BLAS rule above. Export `OPENBLAS_NUM_THREADS=1` /
+  `OMP_NUM_THREADS=1`, or build without it. Absent the library everything
+  compiles and runs unchanged; only a deck that actually asks for a
+  correction aborts.
 
 ## Runtime & deployment
 

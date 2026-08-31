@@ -139,12 +139,26 @@ Tensor<double> NemoBase::compute_gradient(const real_function_3d &rhonemo,
           molecule.nuclear_repulsion_derivative(atom, axis);
     }
   }
+
+  // NB: the empirical dispersion correction is NOT added here. NemoBase has no
+  // access to CalculationParameters, and this function is shared with Znemo,
+  // where D3 is not defined. Callers that support it add
+  // calc->dispersion.gradient(world, molecule) themselves -- currently
+  // Nemo::gradient and Nemo::analyze. A new caller on a dispersion-capable path
+  // must do the same.
   return grad;
 }
 
 Nemo::Nemo(World &world, const commandlineparser &parser)
     : NemoBase(world), calc(std::make_shared<SCF>(world, parser)),
       nemo_param(world, parser), coords_sum(-1.0), ac(world, calc) {
+
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
@@ -162,6 +176,13 @@ Nemo::Nemo(World &world, const CalculationParameters &param,
            const Molecule &molecule)
     : NemoBase(world), calc(std::make_shared<SCF>(world, param, molecule)),
       nemo_param(nemo_param), coords_sum(-1.0), ac(world, calc) {
+
+  // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
+  // archive, so save_mos records it and a later load cannot mistake these for
+  // moldft orbitals -- both engines write the same filename.
+  calc->restart_representation = Representation::nemo;
+  calc->restart_ncf = get_nemo_param().ncf().first + ":" +
+                      std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
@@ -181,8 +202,11 @@ double Nemo::value(const Tensor<double> &x) {
     return calc->current_energy;
   double xsq = x.sumsq();
 
-  if (world.rank() == 0)
+  if (world.rank() == 0) {
     print_header2("computing the nemo wave function");
+  }
+  // prints at most once per object, so repeated geometry steps stay quiet
+  calc->dispersion.print_citation(world);
 
   // We get here only when the reference is NOT solved at this geometry
   // (check_converged returned false above), so if a previous solve happened
@@ -207,50 +231,73 @@ double Nemo::value(const Tensor<double> &x) {
 
   SCFProtocol p(world, get_calc_param());
 
-  // read (pre-) converged wave function from disk if there is one
-  if (get_calc_param().no_compute() or get_calc_param().restart()) {
-    // set thresh to the final rung of the ladder before loading, so load_mos
-    // compares the archive against the precision we are actually aiming for
-    set_protocol(p.end_prec);
+  // One decision, made from the archive's header before anything is read: which
+  // source the orbitals come from and which rung of the ladder to start on.
+  // nemo can read neither the AO projections nor NWChem movecs (see
+  // RestartCapabilities), so for nemo the fallback from an unusable archive is
+  // the atomic guess.
+  RestartPlan plan = make_restart_plan(
+      world, restart_mode_from_string(get_calc_param().restart()), get_calc_param(),
+      calc->molecule, calc->restart_representation,
+      RestartCapabilities::restartdata_only(), calc->restart_ncf);
+
+  // Set the basis of the rung we are about to work at BEFORE reading, so
+  // load_mos reprojects straight into it.
+  p.set_start_index(plan.protocol_start);
+  set_protocol(p.thresh);
+
+  if (plan.needs_load()) {
+    MADNESS_CHECK(plan.source == RestartSource::restartdata);
     if (world.rank() == 0 and get_calc_param().print_level() > 2)
       print("reading orbitals from disk");
     calc->load_mos(world);
-    if (world.rank() == 0 and get_calc_param().print_level() > 2) {
+    if (world.rank() == 0 and get_calc_param().print_level() > 2)
       print("orbitals are converged to ", calc->converged_for_thresh);
-    }
-    // resume at the first rung the archive has not already converged through
-    p.set_start_from_achieved(calc->converged_for_thresh);
-
     calc->ao = calc->project_ao_basis(world, calc->aobasis);
 
-  } else { // we need a guess
-
-    FunctionDefaults<3>::set_thresh(p.start_prec);
-    set_protocol(p.start_prec); // set thresh to initial value
+  } else if (calc->amo.empty()) {   // we need a guess
 
     calc->ao = calc->project_ao_basis(world, calc->aobasis);
+    calc->initial_guess(world);
+    real_function_3d R_inverse = ncf->inverse();
+    calc->amo = R_inverse * calc->amo;
+    truncate(world, calc->amo);
 
-    if (not(calc->converged_for_thresh * 0.999 < p.end_prec)) {
-      // if the orbitals are not converged to the end precision, we need to
-      // recompute the ncf
-      calc->initial_guess(world);
-      real_function_3d R_inverse = ncf->inverse();
-      calc->amo = R_inverse * calc->amo;
-      truncate(world, calc->amo);
-    }
+  } else {
+    // A later geometry along an optimization: the previous geometry's nemos are
+    // a much better guess than the atomic one, and set_protocol above has
+    // already brought them to this rung's k with the R metric. Keep them -- but
+    // note that we still iterate: they solve the previous geometry, not this
+    // one. (Reading them back through the AO expansion, which is what moldft
+    // does here, needs the representation-neutral restartaodata of phase 4.)
+    if (world.rank() == 0 and get_calc_param().print_level() > 2)
+      print("starting from the orbitals of the previous geometry");
+    calc->ao = calc->project_ao_basis(world, calc->aobasis);
   }
 
-  bool skip_solve = (get_calc_param().no_compute()) or
-                    (calc->converged_for_thresh * 0.9999 < p.end_prec);
-  if (skip_solve) {
-    if (world.rank() == 0) {
-      print("skipping the solution of the SCF equations:");
-      if (get_calc_param().no_compute())
-        print(" -> the option no_compute =1");
-      if (calc->converged_for_thresh * 0.9999 < p.end_prec)
-        print(" -> orbitals are converged to the required threshold of",
-              p.end_prec);
-    }
+  // Reading can invalidate the plan: load_mos resets converged_for_thresh
+  // whenever it has to reproject, so orbitals the header called converged may
+  // not be any more. An automatic plan changes its mind; an explicit read_only
+  // does not -- the user asserted these orbitals are the answer.
+  const double target_thresh = get_calc_param().protocol().back();
+  const double target_dconv = std::max(target_thresh, get_calc_param().dconv());
+  if (not plan.iterate and plan.mode == RestartMode::automatic and
+      not(calc->converged_for_thresh <= target_thresh and
+          calc->converged_for_dconv <= target_dconv)) {
+    plan.iterate = true;
+    plan.protocol_start = get_calc_param().protocol().size() - 1;
+    p.set_start_index(plan.protocol_start);
+    if (world.rank() == 0)
+      print("the orbitals had to be reprojected on reading and are no longer "
+            "converged; iterating at the final protocol rung after all");
+  }
+
+  if (not plan.iterate) {
+    if (world.rank() == 0)
+      print("not solving the SCF equations:", plan.why);
+    // the archive's energy, from its header -- load_mos clears current_energy
+    // whenever it has to reproject (see MolecularEnergy::value for the detail)
+    calc->current_energy = plan.stale_energy;
 
   } else {
 
@@ -296,6 +343,7 @@ nlohmann::json Nemo::analyze() const {
 
   // compute the gradient
   Tensor<double> grad = compute_gradient(rhonemo, molecule());
+  grad += calc->dispersion.gradient(world, molecule());
 
   PropertyResults pr;
   pr.energy = calc->current_energy;
@@ -531,6 +579,12 @@ double Nemo::solve(const SCFProtocol &proto) {
     converged = check_convergence(energies, oldenergies, bsh_norm, deltadens,
                                   get_calc_param(), proto.econv, proto.dconv);
 
+    // save_mos writes current_energy into the archive header, so it has to hold
+    // the energy of the orbitals being written. Without this the header carried
+    // whatever the PREVIOUS call to Nemo::value had left there -- i.e. the
+    // previous protocol rung's energy -- and a read_only restart handed back an
+    // energy one rung too coarse (1.8e-5 out on He, against a 1e-6 request).
+    calc->current_energy = energy;
     if (get_calc_param().save())
       calc->save_mos(world);
     t_bsh.tag("orbital update");
@@ -553,6 +607,7 @@ double Nemo::solve(const SCFProtocol &proto) {
     // madqc's validity test compare against a number the run never reached.
     calc->converged_for_thresh = proto.thresh;
     calc->converged_for_dconv = proto.dconv;
+    calc->current_energy = energy;
     if (get_calc_param().save())
       calc->save_mos(world);
   } else {
@@ -609,8 +664,12 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
   if (do_pcm())
     pcm_energy = pcm.compute_pcm_energy();
   const double nucrep = calc->molecule.nuclear_repulsion_energy();
+  const double edisp = calc->dispersion.energy(world, calc->molecule);
 
-  double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
+  // edisp is deliberately not appended to the vector returned below:
+  // check_convergence()'s `each_energy` criterion iterates over all of its
+  // elements, so a new one would change when the SCF is declared converged.
+  double energy = ke + J - K + exc + pe + nucrep + pcm_energy + edisp;
 
   if (world.rank() == 0 and get_calc_param().print_level() > 2) {
     printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
@@ -627,6 +686,8 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
     if (do_pcm())
       printf("   polarization (PCM) %16.8f\n", pcm_energy);
     printf("    nuclear-repulsion %16.8f\n", nucrep);
+    if (calc->dispersion.active())
+      printf("      dispersion (D3) %16.8f\n", edisp);
     printf("   regularized energy %16.8f\n", energy);
   }
   t.end("compute energy");
@@ -934,6 +995,7 @@ Tensor<double> Nemo::gradient(const Tensor<double> &x) {
   rhonemo = rhonemo.refine();
 
   Tensor<double> grad = NemoBase::compute_gradient(rhonemo, calc->molecule);
+  grad += calc->dispersion.gradient(world, calc->molecule);
 
   if (world.rank() == 0) {
     print("\n Derivatives (a.u.)\n -----------\n");
@@ -1072,6 +1134,24 @@ VibrationalResults Nemo::hessian(const Tensor<double> &x) {
   if (hessdebug) {
     print("\n nuclear Hessian (a.u.)\n");
     print(molecule().nuclear_repulsion_hessian());
+  }
+
+  // and the empirical dispersion correction, if one is active. Added here, with
+  // the nuclear-nuclear term and after the sum-rule fixup above, because like
+  // that term it already satisfies translational invariance -- it must not be
+  // folded into the electronic block that gets purified and re-summed.
+  //
+  // Without this the energy and the gradient would carry the correction and the
+  // Hessian would not, silently: this Hessian is analytic, so nothing brings the
+  // term in by accident, and the sum rules re-imposed above keep the output
+  // looking well-formed either way.
+  if (calc->dispersion.active()) {
+    const Tensor<double> hdisp = calc->dispersion.hessian(world, molecule());
+    hessian += hdisp;
+    if (hessdebug) {
+      print("\n dispersion Hessian (a.u.)\n");
+      print(hdisp);
+    }
   }
 
   if (hessdebug) {

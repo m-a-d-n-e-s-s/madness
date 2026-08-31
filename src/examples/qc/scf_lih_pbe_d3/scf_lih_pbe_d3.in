@@ -1,0 +1,35 @@
+# PBE on LiH with Grimme's D3 empirical dispersion correction.
+#
+# The `dispersion` keyword adds a closed-form, geometry-only term to the total
+# energy and to the nuclear gradient. It touches neither the density nor the
+# Fock matrix, so the SCF converges to the same orbitals it would without it;
+# what changes is the energy it reports and the forces it hands the optimizer.
+#
+#   dispersion             none | d3bj | d3zero
+#   dispersion_functional  which parameter set to use; `none` derives it from
+#                          the first token of `xc` (here: pbe)
+#   dispersion_atm         three-body Axilrod-Teller-Muto term, off by default
+#                          (and identically zero for a two-atom system)
+#
+# Requires MADNESS to be built against simple-dftd3 AND libxc; the case is not
+# registered otherwise. libxc is needed for `xc pbe` alone -- and dropping to
+# `xc lda` would not help, because simple-dftd3 carries no LDA damping
+# parameters. `derivatives 1` is on so the gradient carries the correction too --
+# this is the only deck here that asserts a single-point gradient component.
+#
+# Run:   ./run.sh          (or: madqc --wf=scf scf_lih_pbe_d3.in)
+
+dft
+    xc          pbe
+    dispersion  d3bj
+    protocol    [1e-4]
+    dconv       1e-4
+    derivatives 1
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.0
+end

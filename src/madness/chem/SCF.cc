@@ -38,8 +38,10 @@
 #include "funcdefaults.h"
 #include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
+#include <madness/world/ranks_and_hosts.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
+#include <madness/chem/Restart.h>
 #include <madchem.h>
 
 #if defined(__has_include)
@@ -203,6 +205,7 @@ scf_data::scf_data() : iter(0) {
     e_data.insert({"e_nuclear", std::vector<double>(0)});
     e_data.insert({"e_coulomb", std::vector<double>(0)});
     e_data.insert({"e_pcm", std::vector<double>(0)});
+    e_data.insert({"e_disp", std::vector<double>(0)});
     e_data.insert({"e_xc", std::vector<double>(0)});
     e_data.insert({"e_nrep", std::vector<double>(0)});
     e_data.insert({"e_tot", std::vector<double>(0)});
@@ -248,6 +251,14 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level() >= 10);
     //xc.plot();
 
+    // Constructed here, next to the functional it belongs to, and not lazily at
+    // the first energy evaluation: an unusable functional name for the D3
+    // parameter tables must abort before any work is done, and the ctor throws
+    // collectively (every rank runs it, none of it touches MPI).
+    dispersion = DispersionCorrection(param.dispersion(), param.xc(),
+                                      param.dispersion_functional(),
+                                      param.dispersion_atm());
+
     // Ensure we have enough basis functions to guess the requested
     // number of states ... a minimal basis for a closed-shell atom
     // might not have any functions for virtuals.
@@ -283,19 +294,25 @@ void SCF::save_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     auto archivename=param.prefix()+".restartdata";
     archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, archivename.c_str(), param.get<int>("nio"));
-    // IF YOU CHANGE ANYTHING HERE MAKE SURE TO UPDATE THIS VERSION NUMBER
-    /*
-     * After spin restricted
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      */
-    unsigned int version = 4;
-    ar & version;
-    ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
-    // Reorder so it doesn't affect orbital data
+
+    // The header layout lives in RestartMetadata (chem/Restart.h) -- do not
+    // open-code it here. Adding a field there is enough; this call and
+    // load_mos() below both follow.
+    RestartMetadata meta;
+    meta.current_energy = current_energy;
+    meta.spin_restricted = param.spin_restricted();
+    meta.L = param.L();
+    meta.k = FunctionDefaults<3>::get_k();
+    meta.molecule = molecule;
+    meta.xc = param.xc();
+    meta.localize = param.localize_method();
+    meta.converged_for_thresh = converged_for_thresh;
+    meta.converged_for_dconv = converged_for_dconv;
+    meta.representation = restart_representation;
+    meta.ncf = restart_ncf;
+    meta.eprec = molecule.parameters.eprec();
+    meta.madness_version = MADNESS_PACKAGE_VERSION;
+    meta.write(ar);
 
     ar & (unsigned int) (amo.size());
     ar & aeps & aocc & aset;
@@ -325,66 +342,61 @@ void SCF::load_mos(World& world) {
 
     bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
 
-    // const double thresh = FunctionDefaults<3>::get_thresh();
-    bool spinrest = false;
-
     amo.clear();
     bmo.clear();
 
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, param.prefix()+".restartdata");
 
-    /*
-      File format:
-          unsigned int version;
-          double current energy;
-      bool spinrestricted --> if true only alpha orbitals are present
-      double L;
-      int k;
-      Molecule molecule;
-      std::string xc;
-      std::string localize;
-      double converged_for_thresh
-      unsigned int nmo_alpha;
-      Tensor<double> aeps;
-      Tensor<double> aocc;
-      vector<int> aset;
-      for i from 0 to nalpha-1:
-      .   Function<double,3> amo[i]
-      repeat for beta if !spinrestricted
-     */
-    // Local copies for a basic check
-    double L=0;
-    int k1=0;                    // Ignored for restarting, used in response only
-    double converged_for_thresh1=1.e10;
-    double current_energy1=1.e10;
-    unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version=0;
+    // The header, then one block of orbitals per spin. RestartMetadata::read
+    // accepts version 4 and 5, so archives written before the header carried a
+    // representation tag or converged_for_dconv still load; the fields they lack
+    // come back as "unknown"/1e10 rather than as a claim the archive never made.
+    RestartMetadata meta;
+    meta.read(ar);
 
-    ar & archive_version;
-
-    // Some basic checks
-    std::string errmsg= "incompatible archive versions: "+std::to_string(archive_version) +
-                     " vs. input parameter: "+std::to_string(version);
-    MADNESS_CHECK_THROW(archive_version ==version, errmsg.c_str());
-
-    // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-    // EPS, SWAP, ... sigh
-    ar & current_energy1 & spinrest;
-    // Reorder
-    Molecule mol;
-    ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
-
-
-    // more basic checks
-    errmsg= "inconsistent box size in restartdata file: "+ std::to_string(L) +
-                     " vs. input parameter: "+std::to_string(param.L());
-    MADNESS_CHECK_THROW(L==param.L(), errmsg.c_str());
-
-    if (not (mol == molecule)) {
+    // NOTE: xc and localize are deliberately NOT copied back into param. The old
+    // code appeared to do so with `ar & param.xc()`, but those getters return by
+    // value and the input operator& takes const T&, so every one of those reads
+    // landed in a temporary and was discarded. Making it look intentional here
+    // rather than reviving a behaviour nobody has depended on.
+    if (not meta.representation_matches(restart_representation)) {
+        // Print before throwing: MadnessException keeps the char* it is handed
+        // without copying (world/madness_exception.h), so a c_str() from a local
+        // string dangles by the time anything prints it -- the message comes out
+        // empty. The detail is the whole value of this check, so emit it here.
         if (world.rank() == 0) {
-            print("Warning: Molecule in archive does not match the current molecule");
-            print("Restarting from this molecular geometry");
-            molecule.print();
+            print("ERROR: restartdata holds '"+madness::to_string(meta.representation)+
+                  "' functions, but this calculation wants '"+madness::to_string(restart_representation)+
+                  "'. moldft orbitals (psi) and nemo orbitals (F = psi/R) are not");
+            print("interchangeable; point the run at the right archive, or set a");
+            print("different prefix so the two engines stop sharing a filename.");
+        }
+        MADNESS_EXCEPTION("restartdata representation does not match this calculation", 1);
+    }
+
+    // more basic checks. Print before throwing: MadnessException stores the bare
+    // `const char*` without copying it (madness_exception.h), so a c_str() from a
+    // local std::string dangles and the message comes out empty -- which is what
+    // this check did until now.
+    if (meta.L!=param.L()) {
+        if (world.rank() == 0)
+            print("inconsistent box size in restartdata file:", meta.L,
+                  "vs. input parameter:", param.L());
+        MADNESS_EXCEPTION("inconsistent box size in restartdata file", 1);
+    }
+
+    // compare_geometry, not Molecule::operator==: the latter also compares rcut
+    // and the whole MolecularParameters object, including each parameter's
+    // precedence, so a deserialized molecule differs from a freshly parsed one
+    // even when every atom sits at the same place -- and this warning fired on
+    // every restart. What matters here is the atoms, in order.
+    const Molecule& mol = meta.molecule;
+    if (compare_geometry(mol, molecule) != GeometryMatch::same) {
+        if (world.rank() == 0) {
+            print("Warning: molecule in archive does not match the requested molecule");
+            print("using the orbitals as a guess for the requested geometry; the");
+            print("geometry stored in the archive was");
+            mol.print();
         }
     }
 
@@ -434,70 +446,123 @@ void SCF::load_mos(World& world) {
 
     // if everything worked out, set convergence parameters
     if (needs_redo) {
+        // reprojected in k or re-truncated, so the stored convergence no longer
+        // describes the orbitals we now hold
         converged_for_thresh=1.e10;
+        converged_for_dconv=1.e10;
         current_energy=1.e10;
     } else {
-        converged_for_thresh= converged_for_thresh1;
-        current_energy=current_energy1;
+        converged_for_thresh= meta.converged_for_thresh;
+        converged_for_dconv= meta.converged_for_dconv;
+        current_energy=meta.current_energy;
     }
-    molecule=mol;
+    // NB: the requested geometry wins. Restarting must never silently move the
+    // molecule to the one stored in the archive -- during a geometry
+    // optimization that would compute the energy at a geometry the optimizer
+    // did not ask for.
 }
 
 
-/// get the initial orbitals for a calculation
+/// get the initial orbitals for a calculation, from the source the plan names
 
-/// the ordering of initial orbitals is
-/// 1. from restartdata
-/// 2. from aobasis
-/// 3. from NWChem
-/// 4. from initial_guess()
-void SCF::get_initial_orbitals(World& world) {
+/// The precedence ladder that used to live here is gone: which source to use is
+/// decided once, up front, by plan_restart() (RestartPlan.h), from the archive's
+/// header rather than from file existence plus a handful of booleans. All this
+/// does is carry the decision out.
+///
+/// The one thing that cannot be decided from a header is whether the orbitals
+/// themselves load. If they do not, an automatic plan falls back to the initial
+/// guess -- loudly, since a header that parsed and a body that did not is a
+/// damaged archive -- while an explicitly requested source throws, because a
+/// silent fresh start is exactly what someone asking to resume a long run does
+/// not want.
+void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
 
-    auto get_initial_orbitals1=[&](World& world, std::string fromwhere) {
-        if (world.rank()==0) print("try restarting calculation from "+fromwhere);
-        bool success=false;
-        if (fromwhere=="restartdata") {
-            try {
-                load_mos(world);
-                success=true;
-            } catch (...) {
-                // could not load MOs, but user has requested so explicitly
-                if (param.restart()) {
-                    MADNESS_EXCEPTION("No initial orbitals found in restartdata",1);
-                }
-                return false;
-            }
-            MADNESS_CHECK_THROW(amo.size()==size_t(param.nalpha()),"inconsistent restart data");
+    if (plan.iterate) {
+        converged_for_thresh = 1.e10;
+        converged_for_dconv = 1.e10;
+        current_energy = 1.e10;
+    }
 
-        } else if (fromwhere=="restartao") {
-            reset_aobasis("sto-3g");
-            ao = project_ao_basis(world, aobasis);
-            success=restart_aos(world);
-
-        } else if (fromwhere=="NWChem") {
-            initial_guess_from_nwchem(world);
-            // will throw if it doesn't work
-            success=true;
-
-        } else if (fromwhere=="initial_guess") {
-            reset_aobasis(param.aobasis());
-            ao = project_ao_basis(world, aobasis);
-            make_nuclear_potential(world);
-            initial_guess(world);
-            success=true;
-
-        } else {
-            throw std::runtime_error("Unknown source of initial orbitals: "+fromwhere);
-        }
-        if (success and world.rank()==0) print("   --- successfully started from ",fromwhere);
-        return success;
+    auto from_initial_guess=[&](World& world) {
+        if (world.rank()==0) print("starting from the atomic initial guess");
+        reset_aobasis(param.aobasis());
+        ao = project_ao_basis(world, aobasis);
+        make_nuclear_potential(world);
+        initial_guess(world);
     };
 
-    bool success=false;
-    if (!success and param.restart()) success=get_initial_orbitals1(world,"restartdata");
-    if (!success and param.restartao()) success=get_initial_orbitals1(world,"restartao");
-    if (!success and param.nwfile()!="none") success=get_initial_orbitals1(world,"NWChem");
-    if (!success) get_initial_orbitals1(world,"initial_guess");
+    auto load_from=[&](World& world, const RestartSource source) {
+        if (world.rank()==0) print("reading initial orbitals from "+madness::to_string(source));
+        if (source==RestartSource::restartdata) {
+            load_mos(world);
+            // load_mos reads nmo_alpha orbitals (occupied + virtuals), so this
+            // must compare against nmo_alpha -- comparing against nalpha made
+            // every restart with nvalpha>0 throw.
+            MADNESS_CHECK_THROW(amo.size()==size_t(param.nmo_alpha()),"inconsistent restart data");
+
+        } else if (source==RestartSource::restartao) {
+            reset_aobasis("sto-3g");
+            ao = project_ao_basis(world, aobasis);
+            if (not restart_aos(world))
+                MADNESS_EXCEPTION("could not read the AO projections from restartaodata",1);
+
+        } else if (source==RestartSource::nwchem) {
+            initial_guess_from_nwchem(world);   // throws if it does not work
+
+        } else {
+            MADNESS_EXCEPTION("unhandled restart source",1);
+        }
+    };
+
+    if (not plan.needs_load()) {
+        from_initial_guess(world);
+        return;
+    }
+
+    if (plan.mode!=RestartMode::automatic) {
+        load_from(world,plan.source);        // no fallback: the user was explicit
+        return;
+    }
+
+    std::string errmsg;
+    int loaded=1;
+    try {
+        load_from(world,plan.source);
+    } catch (const std::exception& e) {
+        loaded=0;
+        errmsg=(e.what()!=nullptr) ? e.what() : "no message";
+    }
+
+    // Agree across ranks before doing anything else. A rank that loaded while
+    // another fell back would build a different set of Functions from here on and
+    // the two would diverge on the next collective -- a hang, which is worse than
+    // a wrong answer because it leaves nothing to debug. This cannot rescue a
+    // failure that happened *inside* a collective (the ranks are already out of
+    // step by then), but it does keep an asymmetric read failure from spreading.
+    world.gop.min(loaded);
+
+    if (loaded==0) {
+        if (world.rank()==0) {
+            print("WARNING: could not read the initial orbitals from",
+                  madness::to_string(plan.source));
+            if (not errmsg.empty()) print("WARNING:", errmsg);
+            print("WARNING: falling back to the atomic initial guess. If this archive"
+                  " should be readable, that is a bug or a damaged file.");
+        }
+        // The plan was built on the assumption that those orbitals would load. They
+        // did not, so the rungs it wanted to skip are not covered by anything: an
+        // atomic guess dropped straight onto the finest rung is both wasteful and a
+        // poor starting point. Start over at rung 0.
+        plan.source=RestartSource::initial_guess;
+        plan.iterate=true;
+        plan.protocol_start=0;
+        // and put FunctionDefaults back on rung 0 before building the guess, so the
+        // orbitals and k agree: the caller set the protocol to the rung the plan
+        // wanted to resume at, and nothing reprojects the first rung it runs.
+        set_protocol<3>(world,param.protocol()[0]);
+        from_initial_guess(world);
+    }
 }
 
 
@@ -744,7 +809,10 @@ bool SCF::restart_aos(World& world) {
             print("\nRestarting from AO projections on disk\n");
         }
         catch (...) {
-            // print("\nAO restart file open/reading failed --- starting from atomic guess instead\n");
+            // Say so. This used to be silent (the print was commented out), which
+            // made a wrong prefix or a truncated AO file indistinguishable from
+            // "there was nothing to read".
+            print("\nreading", param.prefix()+".restartaodata", "failed\n");
             OK = false;
         }
     }
@@ -1010,7 +1078,11 @@ void SCF::initial_guess_from_nwchem(World& world) {
 void SCF::initial_guess(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    MADNESS_CHECK_THROW(not param.restart(),"no restart in SCF::initial_guess");
+    // No guard on `restart` any more: reaching the atomic guess is a legitimate
+    // outcome of any restart mode except the explicit ones, which throw rather
+    // than fall back (see SCF::get_initial_orbitals). The nwchem guard stays --
+    // with an nwfile named, `aobasis` was read from that file (SCF.cc, the ctor),
+    // so an atomic guess here would be built in the wrong basis.
     MADNESS_CHECK_THROW(param.nwfile()=="none","no nwchem in SCF::initial_guess");
 
     // recalculate initial guess density matrix without core orbitals
@@ -1382,9 +1454,9 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_symmetric(true).set_printlevel(param.print_level());
         K.set_macro_task_info(MacroTaskInfo::preset("default"));
         K.set_macro_task_info(param.memory());
-        K.set_batch_granularity(param.hfex_batch_granularity());
-        K.set_accumulation_mode(param.hfex_local_accumulation());
-        K.set_cost_aware_assignment(param.hfex_cost_aware_assign());
+        K.set_batch_granularity(param.hfex_granularity());
+        K.set_accumulation_mode(param.hfex_accumulation());
+        K.set_cost_aware_assignment(param.hfex_cost_aware());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
@@ -1403,12 +1475,26 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     }
 
     // compute the local DFT potential for the MOs
+    // the operator has to outlive this block: a meta-gga also contributes a
+    // non-multiplicative term, which is applied to the orbitals further down
+    std::shared_ptr<XCOperator<double, 3> > xcoperator;
     if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) { //??RJH?? Won't this incorrectly exclude hybrid DFT with coeff=1.0?
         START_TIMER(world);
 
-        XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
-        if (ispin == 0) exc = xcoperator.compute_xc_energy();
-        vloc += xcoperator.make_xc_potential();
+        xcoperator.reset(new XCOperator<double, 3>(world, this, ispin, param.dft_deriv()));
+        xcoperator->set_print_level(param.print_level());
+        // the kinetic energy density is orbital-dependent, so unlike the density
+        // it cannot be recovered from what the ctor is given
+        // occupations included on purpose: amo/bmo are sized nmo and carry the
+        // virtuals, which must not contribute to tau
+        if (xcoperator->has_tau_term())
+            xcoperator->set_tau(this->amo, this->aocc, this->bmo, this->bocc);
+        // accumulate: for a hybrid, exc already holds the exact-exchange
+        // contribution from the block above. compute_xc_energy() returns the
+        // spin-summed DFT energy, hence the ispin==0 guard -- it is counted once,
+        // while the exchange part is accumulated per spin by the caller.
+        if (ispin == 0) exc += xcoperator->compute_xc_energy();
+        vloc += xcoperator->make_xc_potential();
 
         END_TIMER(world, "DFT potential");
     }
@@ -1452,6 +1538,17 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
             END_TIMER(world, "Truncate Vpsi");
             print_meminfo(world.rank(), "Truncate Vpsi");
         }
+    }
+
+    // The meta-gga term -1/2 nabla.(de/dtau nabla psi_i) is an operator on the
+    // orbitals, not a local potential, so it belongs in Vpsi alongside K rather
+    // than in vloc. It goes in after the tiling block above, which truncates only
+    // its own per-tile product and never Vpsi itself.
+    if (xcoperator and xcoperator->has_tau_term()) {
+        START_TIMER(world);
+        gaxpy(world, 1.0, Vpsi, 1.0, xcoperator->apply_tau_term(amo));
+        truncate(world, Vpsi);
+        END_TIMER(world, "meta-gga tau term");
     }
 
     world.gop.fence();
@@ -1512,7 +1609,8 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
         }
     }
     //if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
-    r += ra + ru + rc;
+    // the D3 gradient uses the same [3*atom + axis] layout, in Ha/bohr
+    r += ra + ru + rc + dispersion.gradient(world, molecule);
     END_TIMER(world, "derivatives");
 
     // Not printed while an optimizer is driving: these are the RAW derivatives,
@@ -1577,43 +1675,206 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms,
     rms = sqrt(rms / v.size());
 }
 
-vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
-                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
+/// ~10 orbitals per rank in flight; nmo (one chunk) for small systems.
+/// Shared by the tiled BSH apply and the residual transform.
+static size_t bsh_tile_size(size_t nmo, size_t nranks) {
+    const size_t min_tile = 10;
+    return std::min(std::max<size_t>(nmo, 1), min_tile * std::max<size_t>(nranks, 1));
+}
 
+/// loose/tight divide of the bsh_apply dispatch: at thresh <= this, auto switches to
+/// the memory-conservative macrotask configuration (one orbital per task).
+static constexpr double BSH_TIGHT_THRESH = 1.0e-7;
 
-    // apply the BSH operator in a Macrotask to reduce communication and possible hangs
+vecfuncT SCF::apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                                  const CalculationParameters& param, long batch,
+                                  bool redistribute) {
     class ApplyTask : public MacroTaskOperationBase {
     public:
         ApplyTask() {
-            name="applytask";
+            name="apply_bsh";
         }
-        // you need to define the exact argument(s) of operator() as tuple
         typedef std::tuple<const std::vector<real_function_3d> &, const Tensor<double>&,
         const CalculationParameters&> argtupleT;
-
-        // you need to define the result type
-        // resultT must implement gaxpy(alpha, result, beta, contribution)
-        // with resultT result, contribution;
         using resultT = std::vector<real_function_3d>;
 
-        // you need to define an empty constructor for the result
+        // Owner-pinned placement (iff the operand was redistributed): owner_[j] is where
+        // redistribute_to_batches put Vpsi[j]; running j's task there makes the auto_copy
+        // a local fetch. owner_ MUST equal the redistribute assignment and each task must
+        // span one function (batch=1). Replicated, so all ranks compute the same slot;
+        // nsubworld==nranks under the redistribute. Empty => -1 (dynamic).
+        std::vector<ProcessID> owner_;
+        long owner_hint(const madness::Batch& batch, const long nsubworld) const override {
+            if (owner_.empty() || nsubworld <= 0) return -1;
+            const long b = batch.input[0].begin;
+            if (b >= 0 && b < static_cast<long>(owner_.size()))
+                return static_cast<long>(owner_[b]) % nsubworld;
+            return b % nsubworld;   // fallback (not reached once owner_ is populated)
+        }
+
+        // called in the universe (full argtuple -> full-size result) and in each subworld
+        // (batched argtuple -> batch-size result); sizing from the input vector fits both.
         resultT allocator(World &world, const argtupleT &argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            resultT result = zero_functions_compressed<double, 3>(world, n);
-            return result;
+            return zero_functions_compressed<double, 3>(world, n);
         }
 
         resultT operator()(const std::vector<real_function_3d> &Vpsi,
             const Tensor<double>& eps, const CalculationParameters& param) const {
-            World& world=Vpsi.front().world();
+            // the framework deep-copied the batch into the subworld;
+            // Vpsi.front().world() IS the subworld
+            World& world = Vpsi.front().world();
             MADNESS_CHECK_THROW(eps.ndim()==1,"need a 1D tensor for eps in ApplyTask");
-            Tensor<double> batched_eps=eps(Slice(batch.input[0].begin,batch.input[0].end-1));
-            MADNESS_CHECK_THROW(batched_eps.size()==batch.input[0].size(),"batched eps size mismatch");
+            // slice eps to this task's batch (Slice end inclusive; full-size batch -> -1).
+            const long b = batch.input[0].begin;
+            const long e = batch.input[0].is_full_size() ? eps.size() : batch.input[0].end;
+            Tensor<double> batched_eps=eps(Slice(b, e-1));
+            MADNESS_CHECK_THROW(batched_eps.size()==static_cast<long>(Vpsi.size()),
+                                "batched eps size mismatch in ApplyTask");
             std::vector<poperatorT> ops = make_bsh_operators(world, batched_eps,param);
-            vecfuncT new_psi = apply(world, ops, Vpsi);
+            vecfuncT tmp_Vpsi = Vpsi;   // shallow copies; set_thresh mutates impl state
+            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+            // in-subworld apply+truncate; framework overhead = outer timer - this
+            const bool instr = param.print_level() >= 10;
+            const double in_gb = instr ? get_size(world, tmp_Vpsi) : 0.0;
+            const double w0 = wall_time();
+            vecfuncT new_psi = apply(world, ops, tmp_Vpsi);
+            const double w1 = wall_time();
+            truncate(world, new_psi);   // in-subworld so the universe gaxpy stays small
+            const double w2 = wall_time();
+            if (instr and world.rank() == 0)
+                printf("  [ApplyTask sw nrank=%d nfunc=%zu apply=%.2fs truncate=%.2fs in=%.3fGB out=%.3fGB]\n",
+                       world.size(), tmp_Vpsi.size(), w1 - w0, w2 - w1, in_gb,
+                       get_size(world, new_psi));
             return new_psi;
         }
     };
+
+    START_TIMER(world);
+    ApplyTask apply_task;
+    MADNESS_CHECK_THROW(!redistribute || batch == 1,
+                        "the BSH operand redistribute requires batch=1 (one owner per task)");
+    // cost-balanced assignment, computed UP FRONT from Vpsi's original distribution;
+    // it drives BOTH the redistribute and owner_hint -- they MUST share one assignment
+    std::vector<ProcessID> bsh_owner;
+    if (redistribute) {
+        bsh_owner = assign_cost_aware(function_costs(world, Vpsi), world.size());
+        apply_task.owner_ = bsh_owner;
+    }
+    if (batch > 0) {
+        apply_task.partitioner->set_max_batch_size(batch);
+        apply_task.partitioner->set_min_batch_size(batch);
+    }
+    auto factory = MacroTaskQFactory(world);
+    // small_memory = StoreFunctionViaPointer: pointers in the cloud, coeffs streamed
+    factory.set_policy(MacroTaskInfo::preset("small_memory"));
+    // owner-pinning needs nworld==nranks (subworld slot == physical rank)
+    if (redistribute) factory.set_nworld(world.size());
+    // printlevel 5 (not 3) so printtimings_detail fires -> the BSH taskq prints its own
+    // "finalize gaxpy (sw->universe)" line; still <10 so no per-task debug flood.
+    if (param.print_level() >= 10) factory.set_printlevel(5);
+    MacroTask macrotask(world, apply_task, factory);
+    const bool instr = param.print_level() >= 10;
+    const double vpsi_gb = instr ? get_size(world, Vpsi) : 0.0;
+    // localize Vpsi up front -- no convolution running, so the move runs at transport
+    // speed; the auto_copy then fetches locally. Streams, no 2x transient.
+    if (redistribute) {
+        const double t0 = wall_time();
+        redistribute_to_batches(world, Vpsi, bsh_owner);
+        if (instr) {
+            double rss = madness::get_rss_usage_in_GB();
+            world.gop.max(rss);
+            if (world.rank() == 0)
+                printf("  [BSH redistribute: Vpsi -> single-owner (%zu funcs) in %.2fs | peakRSS max=%.2fGB/rank]\n",
+                       Vpsi.size(), wall_time() - t0, rss);
+        }
+    }
+    vecfuncT new_psi = macrotask(Vpsi, eps, param);
+    Vpsi.clear();
+    world.gop.fence();
+    if (instr) {
+        const double newpsi_gb = get_size(world, new_psi);
+        // fence-free getrusage high-water; rss_max = worst rank, rss_tot = sum
+        double rss_max = madness::get_rss_usage_in_GB();
+        double rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0) {
+            auto cs = macrotask.get_taskq()->get_cloud_statistics();
+            printf("  [BSH macrotask: held Vpsi=%.2fGB (%.3f/rank) result=%.2fGB | "
+                   "comm deep-copy max=%.2fs av=%.2fs | cloud-read max=%.2fs | write=%.2fs | tgt-repl=%.2fs"
+                   " | peakRSS max=%.2fGB/rank tot=%.2fGB]\n",
+                   vpsi_gb, vpsi_gb/std::max<int>(1,world.size()), newpsi_gb,
+                   cs.value("copy_time_max_s",-1.0), cs.value("copy_time_av_s",-1.0),
+                   cs.value("reading_time_max_s",-1.0), cs.value("writing_time_s",-1.0),
+                   cs.value("target_replication_time_s",-1.0),
+                   rss_max, rss_tot);
+        }
+    }
+    END_TIMER(world, "Apply BSH (macrotask)");
+    return new_psi;
+}
+
+/// Tiled apply: bounds the nonstandard working set to ~10 orbitals/rank (bsh_tile_size);
+/// the untiled apply converts every orbital at once and OOMs large systems. Consumes Vpsi.
+vecfuncT SCF::apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param) {
+    START_TIMER(world);
+    const size_t nfunc = Vpsi.size();
+    const size_t ntile = bsh_tile_size(nfunc, world.size());
+    vecfuncT new_psi(nfunc);
+    for (size_t ilo=0; ilo<nfunc; ilo+=ntile) {
+        size_t iend = std::min(ilo+ntile,nfunc);
+        vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+        // eps(i) == min(-0.05, fock(i,i)) for the whole vector; slice it for this tile.
+        tensorT tmp_eps = eps(Slice(long(ilo), long(iend)-1));
+        std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
+        set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+        vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+        truncate(world, tmp_new_psi);
+        // results home, inputs freed as the loop advances
+        for (size_t i = ilo; i<iend; ++i){
+            new_psi[i] = std::move(tmp_new_psi[i-ilo]);
+            Vpsi[i].clear(false);
+        }
+        ops.clear();
+    }
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {   // peak RSS, comparable to the macrotask print
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH tile: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    return new_psi;
+}
+
+/// Single un-tiled apply (small systems / debugging). Consumes Vpsi.
+vecfuncT SCF::apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                              const CalculationParameters& param) {
+    START_TIMER(world);
+    std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
+    set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
+    vecfuncT new_psi = apply(world, ops, Vpsi);
+    ops.clear();
+    Vpsi.clear();
+    world.gop.fence();
+    if (param.print_level() >= 10) {
+        double rss_max = madness::get_rss_usage_in_GB(), rss_tot = rss_max;
+        world.gop.max(rss_max); world.gop.sum(rss_tot);
+        if (world.rank() == 0)
+            printf("  [BSH plain: peakRSS max=%.2fGB/rank tot=%.2fGB]\n", rss_max, rss_tot);
+    }
+    END_TIMER(world, "Apply BSH");
+    START_TIMER(world);
+    truncate(world, new_psi);
+    END_TIMER(world, "Truncate new psi");
+    return new_psi;
+}
+
+vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
+                               const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
 
     START_TIMER(world);
     PROFILE_MEMBER_FUNC(SCF);
@@ -1625,73 +1886,61 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
         eps(i) = std::min(-0.05, fock(i, i));
         fock(i, i) -= eps(i);
     }
-    vecfuncT fpsi = transform(world, psi, fock, trantol, true);
 
-    for (int i = 0; i < nmo; ++i) { // Undo the damage
+    // Vpsi -= psi*fock, tiled over output columns: untiled transform() materializes all
+    // nmo fpsi next to psi+Vpsi, ~3x orbital memory at tight thresh -- an OOM upstream
+    // of the (memory-frugal) BSH apply. ntile fpsi live at once -> ~2x + one chunk;
+    // a single chunk (identical path) for small systems. fock keeps the -eps shift
+    // across chunks (restored after the loop).
+    {
+        const size_t ntile = bsh_tile_size(nmo, world.size());
+        for (size_t ilo = 0; ilo < size_t(nmo); ilo += ntile) {
+            size_t iend = std::min(ilo + ntile, size_t(nmo));
+            vecfuncT fpsi = transform(world, psi,
+                                      fock(_, Slice(long(ilo), long(iend) - 1)), trantol, true);
+            for (size_t i = ilo; i < iend; ++i)
+                Vpsi[i].gaxpy(1.0, fpsi[i - ilo], -1.0, false);
+            world.gop.fence();
+            fpsi.clear();   // free this chunk before building the next
+        }
+    }
+
+    for (int i = 0; i < nmo; ++i) { // Undo the damage (after all chunks used the shift)
         fock(i, i) += eps(i);
     }
 
-    gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
-    fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
 
-    const bool tile_applyBSH = true;
-    vecfuncT new_psi;
-
-    if (tile_applyBSH) {
-        START_TIMER(world);
-        size_t min_tile = 10;
-        size_t ntile = std::min(amo.size(), min_tile);
-        new_psi = zero_functions<double,3>(world, Vpsi.size());
-
-        for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
-            size_t iend = std::min(ilo+ntile,Vpsi.size());
-            vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
-
-            int tmp_nmo = tmp_Vpsi.size();
-            tensorT tmp_eps(tmp_nmo);
-            for (int i = 0; i < tmp_nmo; ++i) {
-                tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
-            }
-
-            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
-            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
-
-            vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
-
-            //truncate tmp_new_psi
-            truncate(world, tmp_new_psi);
-
-            //put the results into their final home
-            for (size_t i = ilo; i<iend; ++i){
-                new_psi[i] += tmp_new_psi[i-ilo];
-            }
-            ops.clear();
-        }
-
-        Vpsi.clear();
-        world.gop.fence();
-        END_TIMER(world, "Apply BSH");
-    } else {
-        START_TIMER(world);
-
-        std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
-        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
-
-        new_psi = apply(world, ops, Vpsi);
-        
-        ops.clear();
-        Vpsi.clear();
-        world.gop.fence();
-
-        END_TIMER(world, "Apply BSH");
-        
-        START_TIMER(world);
-        truncate(world, new_psi);
-        END_TIMER(world, "Truncate new psi");
+    // bsh_apply selects the backend (executors above; eps fed identically to all).
+    // auto: macrotask when multinode (rank-local apply, no inter-node convolution comm)
+    // or at tight protocol (one orbital per task bounds the working set where memory
+    // binds); tile on a single node at loose/medium (no gather, no subworld copy).
+    std::string bsh_apply_mode = param.bsh_apply();
+    const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
+    long batch = 0;   // 0 = partitioner default
+    if (bsh_apply_mode == "auto") {
+        const long n_nodes = long(ranks_per_host(world).size());   // collective
+        bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
+        // tight: one orbital per task (memory, and required by the redistribute
+        // below); loose/medium: a modest batch amortizes per-task overhead
+        if (bsh_apply_mode == "macrotask") batch = tight ? 1 : 4;
+        if (param.print_level() >= 2 and world.rank() == 0)
+            print("BSH apply [auto]:", bsh_apply_mode, "(nodes:", n_nodes,
+                  tight ? ", tight protocol)" : ")");
     }
+    // pre-localize ONLY at tight protocol: the per-task gather serve-starves there and
+    // the redistribute + local fetch collapse it; at loose/medium the move is a net
+    // loss. Applies to auto and to explicit bsh_apply=macrotask.
+    bool redistribute = (bsh_apply_mode == "macrotask") and tight;
+    if (redistribute) batch = 1;   // one owner per task (explicit macrotask mode included)
+    if (redistribute and param.print_level() >= 2 and world.rank() == 0)
+        print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
+    vecfuncT new_psi;
+    if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch, redistribute);
+    else if (bsh_apply_mode == "plain") new_psi = apply_bsh_plain(world, Vpsi, eps, param);
+    else                                new_psi = apply_bsh_tiled(world, Vpsi, eps, param);
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and
@@ -2363,10 +2612,11 @@ void SCF::solve(World& world) {
         }
 
         double enrep = molecule.nuclear_repulsion_energy();
+        double edisp = dispersion.energy(world, molecule);
         double ekinetic = ekina + ekinb;
         double enonlocal = enla + enlb;
         double exc = exca + excb;
-        double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm;
+        double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm + edisp;
         current_energy = etot;
         //esol = etot;
 
@@ -2387,6 +2637,8 @@ void SCF::solve(World& world) {
             printf("                  PCM %16.8f\n", epcm);
             printf(" exchange-correlation %16.8f\n", exc);
             printf("    nuclear-repulsion %16.8f\n", enrep);
+            if (dispersion.active())
+                printf("      dispersion (D3) %16.8f\n", edisp);
             printf("                total %16.8f\n\n", etot);
         }
         e_data.add_data({{"e_kinetic", ekinetic},
@@ -2394,6 +2646,7 @@ void SCF::solve(World& world) {
                          {"e_nuclear", enuclear},
                          {"e_coulomb", ecoulomb},
                          {"e_pcm",     epcm},
+                         {"e_disp",    edisp},
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
@@ -2414,10 +2667,17 @@ void SCF::solve(World& world) {
 
             // do diagonalization etc if this is the last iteration, even if the calculation didn't converge
             if (converged || iter == param.maxiter() - 1) {
+                // record what we converged *to*, on every rank and independent of
+                // the print level: the restart logic keys off these two fields.
+                // The values are the thresholds of this protocol level, not
+                // param.econv()/param.dconv() -- at a loose level the latter
+                // over-claims, at the final level it under-claims.
+                if (converged) {
+                    converged_for_thresh=FunctionDefaults<3>::get_thresh();
+                    converged_for_dconv=dconv;
+                }
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
-                    converged_for_thresh=param.econv();
-                    converged_for_dconv=param.dconv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors

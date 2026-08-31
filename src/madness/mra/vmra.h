@@ -123,6 +123,7 @@
 #include <madness/mra/derivative.h>
 #include <madness/tensor/distributed_matrix.h>
 #include <cstdio>
+#include <algorithm>
 
 namespace madness {
 
@@ -574,7 +575,7 @@ namespace madness {
     	lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
 
     	// transform s to s^{-1/2} in-place
-    	int rank = 0, nlindep = 0;
+    	size_t rank = 0, nlindep = 0;
     	for(size_t i = 0; i < n; ++i) {
             const auto s_i = s(i);
     		if (s_i > lindep) {
@@ -1459,6 +1460,104 @@ namespace madness {
       }
       if (fence) world.gop.fence();
       return r;
+    }
+
+    /// owner[j] = j % nranks. For redistribute_to_batches.
+    inline std::vector<ProcessID> assign_round_robin(std::size_t nfunc, int nranks) {
+        MADNESS_CHECK(nranks > 0);
+        std::vector<ProcessID> owner(nfunc);
+        for (std::size_t j = 0; j < nfunc; ++j) owner[j] = ProcessID(j % std::size_t(nranks));
+        return owner;
+    }
+
+    /// Cost-balanced assignment: descending cost, each function to the least-loaded
+    /// rank (LPT greedy). Deterministic for a replicated cost[] (stable sort, index
+    /// tie-break), so owner[] agrees across ranks. For redistribute_to_batches.
+    /// @param[in] cost   per-function cost proxy (>= 0), identical on every rank
+    inline std::vector<ProcessID> assign_cost_aware(const std::vector<double>& cost, int nranks) {
+        MADNESS_CHECK(nranks > 0);
+        const std::size_t nfunc = cost.size();
+        std::vector<ProcessID> owner(nfunc);
+        std::vector<std::size_t> order(nfunc);
+        for (std::size_t j = 0; j < nfunc; ++j) order[j] = j;
+        // descending cost; ascending index breaks ties -> stable and reproducible
+        std::stable_sort(order.begin(), order.end(),
+                         [&](std::size_t a, std::size_t b) { return cost[a] > cost[b]; });
+        std::vector<double> load(std::size_t(nranks), 0.0);
+        for (std::size_t k = 0; k < nfunc; ++k) {
+            int best = 0;                                    // least-loaded rank; smallest
+            for (int r = 1; r < nranks; ++r)                 // rank index breaks ties
+                if (load[std::size_t(r)] < load[std::size_t(best)]) best = r;
+            const std::size_t j = order[k];
+            owner[j] = ProcessID(best);
+            load[std::size_t(best)] += std::max(1.0, cost[j]);  // floor: zero-cost funcs still rotate
+        }
+        return owner;
+    }
+
+    /// Global coefficient count per function -- one reduction, identical on every rank,
+    /// so safe for a deterministic assignment. A proxy for convolution cost; does not
+    /// predict result-tree refinement.
+    template <typename T, std::size_t NDIM>
+    std::vector<double> function_costs(World& world, const std::vector<Function<T, NDIM>>& v) {
+        std::vector<double> cost(v.size(), 0.0);
+        for (std::size_t j = 0; j < v.size(); ++j) cost[j] = double(v[j].size_local());
+        if (!v.empty()) world.gop.sum(cost.data(), cost.size());
+        return cost;
+    }
+
+    /// Move each v[j] so its whole tree lives on rank owner[j], via the coalesced
+    /// WorldContainer transport (bulk AMs, erase-after-copy: streams, no 2x transient).
+    /// State-preserving. Each function gets its OWN single-owner pmap (Key<NDIM> is
+    /// function-agnostic), and the pmap outlives the call -- until redistributed again,
+    /// every operation on v[j] runs on rank owner[j] alone.
+    ///
+    /// @param[in,out] v       functions to localize (moved in place)
+    /// @param[in] owner       destination rank per function; MUST be identical on every
+    ///                        rank (checked collectively)
+    /// @param[in] cap_bytes   soft cap per message (0 => ~1 MiB, sized for the default
+    ///                        MAD_BUFFER_SIZE; lower it if that buffer was shrunk)
+    /// @param[in] rotate      stagger destinations to reduce incast
+    template <typename T, std::size_t NDIM>
+    void redistribute_to_batches(World& world,
+                                 std::vector<Function<T, NDIM>>& v,
+                                 const std::vector<ProcessID>& owner,
+                                 std::size_t cap_bytes = 0,
+                                 bool rotate = true) {
+        MADNESS_CHECK(owner.size() == v.size());
+        if (v.empty()) return;
+
+        // owner[] must agree across ranks -- divergence silently corrupts ownership
+        {
+            long h = 0;
+            for (std::size_t j = 0; j < owner.size(); ++j) h += long(owner[j]) * long(j + 1);
+            long hmax = h, hmin = h;
+            world.gop.max(hmax);
+            world.gop.min(hmin);
+            MADNESS_CHECK(hmax == hmin);
+        }
+
+        // chunk cap in #boxes; box size bounded by the functions' own k, not
+        // FunctionDefaults (v may carry its own k)
+        if (cap_bytes == 0) cap_bytes = 1024 * 1024; // ~1 MiB, under the default RMI buffer
+        long kmax = 1;
+        for (const auto& f : v) kmax = std::max(kmax, long(f.k()));
+        std::size_t box_bytes = sizeof(T);
+        for (std::size_t d = 0; d < NDIM; ++d) box_bytes *= std::size_t(2 * kmax);
+        const std::size_t cap_boxes = std::max<std::size_t>(1, cap_bytes / box_bytes);
+
+        // fence, phase1, fence, phase2, fence: the middle fence is REQUIRED -- phase1
+        // iterates the ConcurrentHashMap and needs a quiescent window (see worlddc.h)
+        world.gop.fence();
+        for (std::size_t j = 0; j < v.size(); ++j) {
+            auto pmap = std::shared_ptr<WorldDCPmapInterface<Key<NDIM>>>(
+                new WorldDCSingleOwnerPmap<Key<NDIM>>(owner[j]));
+            v[j].get_impl()->get_coeffs().redistribute_coalesced_phase1(pmap);
+        }
+        world.gop.fence();
+        for (std::size_t j = 0; j < v.size(); ++j)
+            v[j].get_impl()->get_coeffs().redistribute_coalesced_phase2(cap_boxes, rotate);
+        world.gop.fence();
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]

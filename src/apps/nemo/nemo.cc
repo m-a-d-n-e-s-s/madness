@@ -71,6 +71,12 @@ int main(int argc, char** argv) {
     } else if (parser.key_exists("print_parameters")) {
         Nemo::print_parameters();
 
+    } else if (parser.key_exists("restart_info")) {
+        // Report what a restart archive holds and stop; see moldft.cc.
+        std::string p=parser.value("restart_info");
+        if (p.empty() or p=="restart_info") p="mad";
+        print_restartdata_info(world,p);
+
     } else {
 
         try {
@@ -83,37 +89,18 @@ int main(int argc, char** argv) {
                 nemo->molecule().print();
             }
 
-            // optimize the geometry if requested
-            if (nemo->get_calc_param().gopt()) {
-                print_header2("Geometry Optimization");
-                MolecularOptimizer geom(world, parser, nemo);
-                geom.parameters.print("geoopt", "end");
-
-                // compute the energy to get converged orbitals
-                print_header2("computing initial wave function");
-                nemo->value();
-
-                // reduce print level
-                nemo->get_calc()->param.set_derived_value("print_level",2);
-                nemo->get_calc()->param.set_derived_value("print_level",2);
-                nemo->get_calc()->set_print_timings(false);
-
-                // compute initial hessian
-                if (nemo->get_calc_param().ginitial_hessian()) {
-                    auto vib = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-                    if (vib.hessian) {
-                        geom.set_hessian(*vib.hessian);
-                    }
-                    else if (world.rank() == 0) {
-                        print("Warning: requested initial Hessian but none was returned.");
-                    }
-                }
-
-                print_header2("Starting geometry optimization");
-                Tensor<double> geomcoord = nemo->get_calc()->molecule.get_all_coords().flat();
-                geom.optimize(geomcoord);
-            }
-
+            // Geometry optimization used to run here, gated on `dft gopt` and driven
+            // by MolecularOptimizer. It has moved to a workflow task of its own:
+            //
+            //     madqc --optimize --wf=nemo <deck>
+            //
+            // qcapp::OptimizeDriver (chem/Drivers.hpp) drives MolOpt over this same
+            // Nemo -- Nemo is already an OptimizationTargetInterface via NemoBase --
+            // derives its thresholds from the `optimization` group rather than the
+            // retired `dft` g-keys, and publishes the optimized geometry to any
+            // downstream step. The MolecularOptimizer class itself is kept
+            // (chem/molecular_optimizer.h): it still supplies compute_frequencies and
+            // projector_external_dof, and is wanted for later analysis work.
 
             double energy=nemo->value();
             if (world.rank() == 0) {

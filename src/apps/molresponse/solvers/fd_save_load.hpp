@@ -385,7 +385,6 @@ try_load_fd_state(madness::World &world,
                   const std::string &dir,
                   const Perturbation &pert,
                   double freq) {
-  using State   = typename FDSolver<Type, Shell>::State;
   using Storage = typename FDSolver<Type, Shell>::Storage;
 
   const std::string active_key = protocol_key();

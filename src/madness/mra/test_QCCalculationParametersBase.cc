@@ -22,6 +22,7 @@ public:
 		initialize<int>("maxiter",15);
 		initialize<bool>("localize",true);
 		initialize<std::string>("local","BOYS","localization method",{"boys","pm","canon"});
+		initialize<std::string>("xc","hf","free-form string value, blanks and all");
 		initialize<std::vector<double> >("proto",std::vector<double>{1,2});
 		initialize<std::pair<std::string,double> >("ncf",{"slater",2.0});
 	}
@@ -41,6 +42,7 @@ public:
 	double dconv() const {return get<double>("dconv");}
 	bool localize() const {return get<bool>("localize");}
 	std::string local() const {return get<std::string>("local");}
+	std::string xc() const {return get<std::string>("xc");}
 	std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
 	int maxiter() const {return get<int>("maxiter");}
 
@@ -59,6 +61,16 @@ void test_same(const T& t1, const T& t2) {
 	}
 }
 
+/// check that an error message carries \p snippet, wherever in the message it sits
+void test_contains(const std::string& msg, const std::string& snippet) {
+	if (msg.find(snippet)==std::string::npos) {
+		std::cout << "++" << msg << "++" << std::endl;
+		std::cout << "does not contain ++" << snippet << "++" << std::endl;
+
+		throw std::runtime_error("failure in test");
+	}
+}
+
 struct inputfile {
 	std::string fname;
 	inputfile(const std::string filename, const std::string lines) {
@@ -73,6 +85,26 @@ struct inputfile {
 		remove(fname.c_str());
 	}
 };
+
+/// a deck that cannot be parsed must be rejected, naming the offending key
+
+/// these used to pass vacuously: read_input_and_commandline_options printed the
+/// error and swallowed it, so the catch block below was never entered
+void test_deck_is_rejected(World& world, const std::string& inputlines, const std::string& key) {
+	inputfile ifile("input1",inputlines);
+
+	bool found_exception=false;
+	try {
+		Parameters param;
+		commandlineparser parser;
+		parser.set_keyval("input","input1");
+		param.read_and_set_derived_values(world,parser,"mp3");
+	} catch (std::exception& err) {
+		found_exception=true;
+		test_contains(std::string(err.what()),"found an error for key >> "+key);
+	}
+	if (not found_exception) throw std::runtime_error("expected exception for key "+key);
+}
 
 bool test_serialize(World& world) {
 
@@ -164,19 +196,7 @@ bool test_type_conversion3(World& world) {
 			maxiter 12# asd 
 			ncf slater 1.2
 			end)input";
-	inputfile ifile("input1",inputlines);
-
-	try {
-		Parameters param;
-        commandlineparser parser;
-        parser.set_keyval("input","input1");
-        param.read_and_set_derived_values(world,parser,"mp3");
-
-
-	} catch (std::runtime_error& err) {
-		std::string errmsg=std::string(err.what()).substr(0,30);
-		test_same(errmsg,std::string("found an error for key >> econ"));
-	}
+	test_deck_is_rejected(world,inputlines,"econv");
 	return true;
 }
 
@@ -189,19 +209,7 @@ bool test_type_conversion4(World& world) {
 			ncf slater 1.2 
 			localize tru
 			end)input";
-	inputfile ifile("input1",inputlines);
-
-	try {
-		Parameters param;
-        commandlineparser parser;
-        parser.set_keyval("input","input1");
-        param.read_and_set_derived_values(world,parser,"mp3");
-
-
-	} catch (std::runtime_error& err) {
-		std::string errmsg=std::string(err.what()).substr(0,30);
-		test_same(errmsg,std::string("found an error for key >> loca"));
-	}
+	test_deck_is_rejected(world,inputlines,"localize");
 	return true;
 }
 
@@ -291,7 +299,10 @@ bool test_type_conversion8(World& world) {
 	return true;
 }
 
-template<typename T>
+/// a value that does not convert must abort the run, not be printed and ignored
+
+/// swallowing it left the calculation running with the default value, so a deck
+/// that asked for something the parser choked on quietly computed something else
 bool test_trailing_characters(World& world) {
 	print("entering test_trailing_characters");
 	std::string inputlines=R"input(mp3 
@@ -300,19 +311,64 @@ bool test_trailing_characters(World& world) {
 			maxiter 12# asd 
 			ncf slater 1.2
 			end)input";
-	inputfile ifile("input1",inputlines);
+	test_deck_is_rejected(world,inputlines,"econv");
+	return true;
+}
 
-	try {
+/// blank-separated values for free-form string keys, e.g. `xc GGA_X_PBE 0.75 ...`
+
+/// double quotes used to be mandatory: an unquoted line kept only the first word
+/// and then tripped the trailing-character check, so the value was discarded
+bool test_blank_separated_string(World& world) {
+	print("entering test_blank_separated_string");
+	const std::string expected("gga_x_pbe 0.75 gga_c_pbe 1.0 hf_x 0.25");
+
+	std::vector<std::string> variants={
+		"xc GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25   # spelled-out PBE0",
+		"xc \"GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25\"    # the historical spelling",
+		"xc=GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25",
+		"xc GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25\t  ",
+		// the line as print_to_string() writes it: the printed deck must be re-readable
+		"                  xc  gga_x_pbe 0.75 gga_c_pbe 1.0 hf_x 0.25 # defined   free-form"
+	};
+	for (const auto& variant : variants) {
+		inputfile ifile("input1","mp3\n"+variant+"\nend");
 		Parameters param;
-        commandlineparser parser;
-        parser.set_keyval("input","input1");
-        param.read_and_set_derived_values(world,parser,"mp3");
-
-
-	} catch (std::runtime_error& err) {
-		std::string errmsg=std::string(err.what()).substr(0,30);
-		test_same(errmsg,std::string("found an error for key >> econ"));
+		commandlineparser parser;
+		parser.set_keyval("input","input1");
+		param.read_and_set_derived_values(world,parser,"mp3");
+		test_same(param.xc(),expected);
 	}
+
+	// .. but a key with no value at all is still an error
+	{
+		inputfile ifile("input1","mp3\nxc\nend");
+		bool found_exception=false;
+		try {
+			Parameters param;
+			commandlineparser parser;
+			parser.set_keyval("input","input1");
+			param.read_and_set_derived_values(world,parser,"mp3");
+		} catch (std::exception&) {
+			found_exception=true;
+		}
+		if (not found_exception) throw std::runtime_error("expected exception for a key without a value");
+	}
+	return true;
+}
+
+/// the same values, coming in through --<tag>="key=val; key=val"
+bool test_blank_separated_string_commandline(World& world) {
+	print("entering test_blank_separated_string_commandline");
+
+	Parameters param;
+	commandlineparser parser;
+	parser.set_keyval("input","input1");   // does not exist -- defaults only
+	parser.set_keyval("mp3","xc=GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25; maxiter=7");
+	param.read_and_set_derived_values(world,parser,"mp3");
+
+	test_same(param.xc(),std::string("gga_x_pbe 0.75 gga_c_pbe 1.0 hf_x 0.25"));
+	test_same(param.maxiter(),7);
 	return true;
 }
 
@@ -362,8 +418,10 @@ bool test_not_allowed(World& world) {
 
 		found_exception=false;
     } catch (std::invalid_argument& err) {
-        std::string errmsg=std::string(err.what()).substr(0,30);
-        test_same(errmsg,std::string("\ntrying to assign a value that"));
+        // the message names the offending keyword before explaining the problem
+        std::string errmsg(err.what());
+        test_contains(errmsg,std::string("in keyword `local`"));
+        test_contains(errmsg,std::string("trying to assign a value that's not allowed"));
 	} catch (std::runtime_error& err) {
 		std::string errmsg=std::string(err.what()).substr(0,30);
 		test_same(errmsg,std::string("found an error for key >> loca"));
@@ -456,12 +514,16 @@ int main(int argc, char** argv) {
 		test_type_conversion1(world);
 		test_type_conversion2(world);
 		test_type_conversion3(world);
+		test_type_conversion4(world);
 		test_type_conversion5(world);
 		test_type_conversion6(world);
 		test_type_conversion7(world);
 		test_type_conversion8(world);
 		test_capitalization(world);
 		test_not_allowed(world);
+		test_trailing_characters(world);
+		test_blank_separated_string(world);
+		test_blank_separated_string_commandline(world);
 		test_comment_lines(world);
 		test_empty_lines(world);
 		test_derived(world);
