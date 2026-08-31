@@ -18,6 +18,7 @@ set(MADCHEM_HEADERS
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
+    dispersion.h
     distpm.h
     electronic_correlation_factor.h
     ESInterface.h
@@ -87,6 +88,7 @@ set(MADCHEM_SOURCES
     corepotential.cc
     correlationfactor.cc
     diamagneticpotentialfactor.cc
+    dispersion.cc
     distpm.cc
     exchangeoperator.cc
     gaussian.cc
@@ -146,6 +148,26 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
     target_link_libraries(${targetname} PUBLIC ${INTEGRATORXX_LIBRARIES})
   endif ()
 
+  # simple-dftd3 contributes a library to link and one header, used by exactly
+  # one translation unit (dispersion.h deliberately does not include it).
+  #
+  # The header is reached by absolute path rather than by adding -I, the same
+  # way MADNESS_MPI_HEADER reaches mpi.h. Its usual install prefix is a conda
+  # environment whose include/ also carries a copy of nlohmann/json.hpp, and an
+  # -I -- target-wide or source-scoped, the latter being placed ahead of the
+  # target's -- would shadow the nlohmann_json MADNESS actually builds against.
+  # One TU disagreeing with the rest about a header-only library's version is an
+  # ODR violation, so the -I is avoided entirely rather than ordered around.
+  if (TARGET s-dftd3::s-dftd3)
+    target_link_libraries(${targetname} PUBLIC s-dftd3::s-dftd3)
+  elseif (DFTD3_FOUND)
+    target_link_libraries(${targetname} PUBLIC ${DFTD3_LIBRARIES})
+  endif ()
+  if (DFTD3_HEADER)
+    set_source_files_properties(dispersion.cc PROPERTIES COMPILE_DEFINITIONS
+        "MADNESS_DFTD3_HEADER=\"${DFTD3_HEADER}\"")
+  endif ()
+
   if (BOOST_FOUND)
     target_link_libraries(${targetname} PUBLIC Boost::headers)
   endif ()
@@ -177,6 +199,9 @@ if(BUILD_TESTING)
   if (INTEGRATORXX_FOUND)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_IntegratorXX.cc )
   endif(INTEGRATORXX_FOUND)
+  if (MADNESS_HAS_DFTD3)
+    list(APPEND CHEM_TEST_SOURCES_SHORT test_dispersion.cc )
+  endif(MADNESS_HAS_DFTD3)
 
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
   # the rotating operand only moves between ranks, so the distributed path needs more than one

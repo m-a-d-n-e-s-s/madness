@@ -55,8 +55,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	CalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters() {
 		read_input_and_commandline_options(world, parser, "dft");
-        // convenience option -- needs to be moved to the MolecularOptimizer class
-        if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
+        // NB: `--optimize` deliberately does NOT set anything here. It selects a
+        // workflow task (WorkflowBuilders::add_optimize_workflow_drivers); the
+        // `dft` group has no say in whether a geometry is optimized.
 		std::string inputfile=parser.value("input");
 		// std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
 		// if (prefix!="input") set_derived_value("prefix",prefix);
@@ -68,9 +69,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
-		initialize<long>  ("hfex_batch_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
-		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
-		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
+		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<std::string>("bsh_apply","auto","BSH apply backend; auto=macrotask when multinode or at tight thresh, else tile",{"auto","tile","macrotask","plain"});
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
@@ -116,6 +118,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
 		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
+		initialize<std::string> ("dispersion","none","DFT-D3 dispersion correction",{"none","d3bj","d3zero"});
+		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
+		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
@@ -128,16 +133,24 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double> ("lo",1.e-10,"smallest length scale we need to resolve");
 		initialize<std::vector<double> > ("protocol",{1.e-4,1.e-6},"calculation protocol");
 
-		// geometry optimization parameters
-		// @TODO: need to be moved to molecular optimizer class
-		initialize<bool> ("gopt",false,"geometry optimizer");
-		initialize<double> ("gtol",1.e-4,"geometry tolerance");
-		initialize<bool> ("gtest",false,"geometry tolerance");
-		initialize<double> ("gval",1.e-5,"value precision");
-		initialize<double> ("gprec",1.e-4,"gradient precision");
-		initialize<int> ("gmaxiter",20,"optimization maxiter");
-		initialize<bool> ("ginitial_hessian",false,"compute inital hessian for optimization");
-		initialize<std::string> ("algopt","bfgs","algorithm used for optimization",{"bfgs","cg"});
+		// Retired geometry-optimization knobs. Geometry optimization is no longer
+		// something an SCF does to itself; it is a workflow task of its own
+		// (`madqc --optimize --wf=<scf|nemo>`, qcapp::OptimizeDriver) and every
+		// knob it has lives in the `optimization` group (ParameterManager.hpp).
+		//
+		// These stay registered, and error, rather than being deleted outright:
+		// ignore_unknown_keys is true by default, so a deleted key would let an
+		// old deck run as a plain single point after one warning nobody reads --
+		// silently returning an unoptimized geometry. See the guard at the end of
+		// set_derived_values().
+		initialize<bool> ("gopt",false,"RETIRED -- use `madqc --optimize`");
+		initialize<double> ("gtol",1.e-4,"RETIRED -- use optimization group `gtol`");
+		initialize<bool> ("gtest",false,"RETIRED -- never had an effect");
+		initialize<double> ("gval",1.e-5,"RETIRED -- use optimization group `value_precision`");
+		initialize<double> ("gprec",1.e-4,"RETIRED -- use optimization group `gradient_precision`");
+		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
+		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
+		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
 		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
@@ -211,11 +224,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
+	std::string dispersion() const {return get<std::string>("dispersion");}
+	std::string dispersion_functional() const {return get<std::string>("dispersion_functional");}
+	bool dispersion_atm() const {return get<bool>("dispersion_atm");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
-    long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
-    bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
-    int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
+    long hfex_granularity() const {return get<long>("hfex_granularity");}
+    bool hfex_cost_aware() const {return get<bool>("hfex_cost_aware");}
+    int hfex_accumulation() const {return get<int>("hfex_accumulation");}
+	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
@@ -240,13 +257,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool derivatives() const {return get<bool>("derivatives");}
 	bool dipole() const {return get<bool>("dipole");}
 
-	bool gopt() const {return get<bool>("gopt");}
-	std::string algopt() const {return get<std::string>("algopt");}
-	int gmaxiter() const {return get<int>("gmaxiter");}
-	double gtol() const {return get<double>("gtol");}
-	double gval() const {return get<double>("gval");}
-	double gprec() const {return get<double>("gprec");}
-	bool ginitial_hessian() const {return get<bool>("ginitial_hessian");}
+	// NB: no gopt()/gtol()/gval()/gprec()/gmaxiter()/ginitial_hessian()/algopt()
+	// accessors. Those keyvals are retired; see the initialize() block above and
+	// the guard in set_derived_values(). The optimizer's knobs are in
+	// OptimizationParameters (chem/ParameterManager.hpp).
 
      std::string nwfile() const {return get<std::string>("nwfile");}
 
@@ -320,8 +334,20 @@ struct CalculationParameters : public QCCalculationParametersBase {
         			"switch from local to canonical orbitals (keyword canon)\n\n");
         }
 
-        //NWChem interface doesn't support geometry optimization
-        if (get<bool>("gopt") && nwfile() != "none") error("NWchem initialization only supports single point energy calculations.");
+        // Geometry optimization left the `dft` group entirely. `gopt` in particular
+        // must not be waved through: a deck that sets it expects an optimized
+        // geometry back, and silently returning a single point at the input
+        // geometry is a wrong answer, not a missing feature. They stay registered
+        // and erroring rather than being deleted, because ignore_unknown_keys is
+        // true by default and a deleted key would run the deck as a plain single
+        // point after one warning nobody reads.
+        for (const char* key : {"gopt","gtol","gtest","gval","gprec",
+                                       "gmaxiter","ginitial_hessian","algopt"}) {
+        	if (is_user_defined(key))
+        		error(("\n\n`" + std::string(key) + "` has been retired: geometry optimization is now a task of "
+        		       "its own.\nUse `madqc --optimize --wf=<scf|nemo>` and the `optimization` "
+        		       "parameter group\n(see `madqc --print_parameters=optimization`).\n\n").c_str());
+        }
 
         // Retired keyvals. A clean break needs to be loud: ignore_unknown_keys is
         // true by default, so deleting these outright would let an old deck run
@@ -331,6 +357,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
         if (is_user_defined("no_compute"))
         	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
+
+    	// dispersion correction
+    	if (dispersion()!="none" and xc()!="hf") {
+    		set_derived_value("dispersion_functional",xc());
+    	}
+
 
         //NWChem only supports Boys localization (or canonical)
         if (nwfile() != "none") {

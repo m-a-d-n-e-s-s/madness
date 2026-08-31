@@ -75,32 +75,26 @@ int main(int argc, char** argv) {
 
             std::shared_ptr<Znemo> znemo(new Znemo(world,parser));
 
-            // optimize the geometry if requested
-            if (znemo->get_calc_param().gopt()) {
-                print_header2("Geometry Optimization");
+            // Geometry optimization used to branch here on `dft gopt`, driven by
+            // MolecularOptimizer. The `gopt` keyval is retired; znemo has no
+            // `--optimize` replacement yet (WorkflowBuilders accepts only scf and
+            // nemo), so optimizing a complex reference needs that workflow to grow a
+            // znemo arm first. MolecularOptimizer itself is kept for later analysis.
 
-                Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
-                MolecularOptimizer geom(world,parser,znemo);
-                geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",{});
-                geom.parameters.print("geometry optimization parameters","end");
-                geom.optimize(geomcoord);
+            // compute the energy to get converged orbitals
+            double energy=0.0;
+            if (not analyze_only) {
+                energy=znemo->value();
             } else {
+                auto zmos=znemo->read_reference();
+                for (int i=0; i<znemo->get_calc_param().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
+                for (int i=0; i<znemo->get_calc_param().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
+                energy=znemo->analyze();
+            }
 
-                // compute the energy to get converged orbitals
-                double energy=0.0;
-                if (not analyze_only) {
-                    energy=znemo->value();
-                } else {
-                    auto zmos=znemo->read_reference();
-                    for (int i=0; i<znemo->get_calc_param().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
-                    for (int i=0; i<znemo->get_calc_param().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
-                    energy=znemo->analyze();
-                }
-
-                if (world.rank()==0) {
-                    printf("final energy   %12.8f\n", energy);
-                    printf("finished at time %.1f\n", wall_time());
-                }
+            if (world.rank()==0) {
+                printf("final energy   %12.8f\n", energy);
+                printf("finished at time %.1f\n", wall_time());
             }
 
         } catch (const SafeMPI::Exception& e) {

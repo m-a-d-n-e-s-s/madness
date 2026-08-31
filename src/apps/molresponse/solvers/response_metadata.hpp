@@ -136,6 +136,14 @@ public:
     j_["io"] = {{"backend", backend}, {"hdf5_compiled", hdf5_compiled}};
   }
 
+  /// Record external-seed provenance (the `dalton.dir` import contract,
+  /// showcase W3): which DALTON calculation seeded this dir's initial guesses
+  /// — {dalton_dir, basis, method, geometry_hash, mra_writer{version,commit}}.
+  /// Full-replace upsert (one seed source per calc dir by contract).
+  void set_seeded_from(const nlohmann::json &prov) {
+    j_["seeded_from"] = prov;
+  }
+
   /// Stamp the ground-state archive identity this calc dir's response states
   /// were built against (restart safety — the GS fingerprint gate). `hex` is
   /// the FNV-1a-64 of the archive part bytes; a later run with a different

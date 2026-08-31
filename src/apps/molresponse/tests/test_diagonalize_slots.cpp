@@ -39,7 +39,7 @@ static void check(bool ok, const char *what) {
 }
 
 int main(int argc, char **argv) {
-  World &world = initialize(argc, argv);
+  [[maybe_unused]] World &world = initialize(argc, argv);
   {
     const double thr = 1.0e-6;
 

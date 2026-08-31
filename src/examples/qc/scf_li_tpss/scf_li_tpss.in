@@ -1,0 +1,51 @@
+# TPSS on the lithium atom -- the open-shell meta-GGA deck.
+#
+# scf_he_tpss already covers the non-multiplicative kinetic-energy-density term.
+# What this deck adds is spin polarization with *unequal* spin densities, which
+# is a different code path in three places:
+#
+#   * XCfunctional::make_libxc_args takes its spin-polarized branch, where the
+#     reduced density gradient is a 3-vector (sigma_aa, sigma_ab, sigma_bb)
+#     rather than a scalar,
+#   * XCOperator::make_xc_potential unpacks eight intermediates instead of five
+#     and adds the cross-spin flux term, and
+#   * XCOperator::set_tau builds a separate tau for each channel.
+#
+# A spin-compensated system run with `spin_restricted false` exercises none of
+# that in anger: with rho_alpha == rho_beta the cross terms are degenerate with
+# the diagonal ones. Li is the cheapest system where they are not -- alpha is
+# 1s+2s, beta is 1s alone.
+#
+# The regression this guards against: sigma used to be assembled from separately
+# represented chi = |grad ln rho|^2 functions, so the sigma matrix handed to
+# libxc was not the Gram matrix of the density gradients. Near the nuclear cusp
+# the projection error in chi is O(1) -- large enough to make a sum of squares
+# negative, which put sigma_aa and sigma_bb on their positivity floor while
+# sigma_ab kept its full value, and sent the total sigma negative -- which is
+# |grad rho|^2 and cannot be. The correlation kernels return NaN for vsigma once
+# that happens, so this deck aborted in iteration 0.
+#
+# Reference: TURBOMOLE UKS/aug-cc-pV5Z gives -7.48878242939 for the same
+# functional. This deck's single 1e-4 rung lands 135 uHa below that, and tightening
+# to a [1e-4, 1e-6] ladder takes it to -7.489068, 286 uHa below -- the expected
+# sign and magnitude of a meta-GGA basis-set increment (the closed-shell
+# counterpart scf_he_tpss shows the same behaviour). Only one Gaussian basis was
+# available for Li, so there is no increment to extrapolate against; the deck is
+# a code-path test, not a converged calculation.
+#
+# Run:   ./run.sh          (or: madqc --wf=scf scf_li_tpss.in)
+
+dft
+    xc       tpss
+    nopen    1
+    protocol [1e-4]
+    maxiter  20
+    econv    1e-4
+    dconv    1e-3
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+end

@@ -160,9 +160,18 @@ For the following workflows there are gradients implemented:
 > `nemo`, `moldft`, `znemo`
 
 ### Native optimizer
-Codes with gradients can use the built-in geometry optimizer by adding the `gopt` flag 
-in the `dft` block, geometry optimization parameters are set in the `geoopt` block.
-> `madqc --wf=nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+Geometry optimization is a task of its own, selected with `--optimize`; `--wf`
+names the reference method to optimize on. Its parameters are the `optimization`
+block (`madqc --print_parameters=optimization`).
+> `madqc --optimize --wf=nemo --dft="k=8; econv=1.e-5" --optimization="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+
+Thresholds left unset are derived from the accuracy actually available — the
+energy ones from the wavefunction threshold, the gradient ones from `dconv` —
+so a deck normally sets only `maxiter`, if anything.
+
+The older `gopt` flag in the `dft` block, and the `geoopt` block that went with
+it, have been removed. `znemo` has no replacement yet: `--optimize` accepts
+`--wf=scf` and `--wf=nemo` only.
 
 ### External optimizers
 External optimizers (e.g. [pyberny](https://jan.hermann.name/pyberny/), [geometric](https://geometric.readthedocs.io/) ) 
@@ -189,11 +198,19 @@ where `func` is a string defining the DFT XC functional. Predefined options are 
 > `func = hf, bp86, lda, pbe, b3lyp, pbe0`
 
 Other XC functionals can be created individually  as in
-> `xc "LDA_X 1.0 LDA_C_VWN 1.0"`\
-> `xc "GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25"`
+> `xc LDA_X 1.0 LDA_C_VWN 1.0`\
+> `xc GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25`
 
 where the number after the functional determines its weight. The two lines define 
-LDA and PBE0 functionals, respectively.
+LDA and PBE0 functionals, respectively. The double-quoted spelling
+(`xc "GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25"`) is equivalent and still accepted.
+
+The same forms work on the command line, where the `dft` group is passed as one
+argument and its keyvals are separated by semicolons:
+> `madqc --geometry=he --dft="xc=GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25; k=8"`
+
+Use `;` between keyvals, not blanks: a blank-separated `--dft="xc=pbe k=8"` makes
+`k=8` part of the `xc` line instead of a keyval of its own.
 
 For more details see the [libxc](https://tddft.org/programs/libxc/) webpage.
 

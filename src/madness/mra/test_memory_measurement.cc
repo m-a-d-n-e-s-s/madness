@@ -36,7 +36,7 @@ int test_size(World& world) {
     auto mmap=MemoryMeasurer::measure_and_print(world);
 
     // check that we have one entry per rank
-    if (world.rank()==0) t1.checkpoint(mmap.size()==world.size(),"memory map has one entry per rank");
+    if (world.rank()==0) t1.checkpoint(mmap.size()==size_t(world.size()),"memory map has one entry per rank");
 
     // check total memory size
     double total_mem_size=MemoryMeasurer::total_memory(mmap);
