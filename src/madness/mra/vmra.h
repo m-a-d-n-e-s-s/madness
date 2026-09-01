@@ -1193,9 +1193,15 @@ namespace madness {
                bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulsp);
         if (do_make_redundant) {
-            make_redundant(world, v, false);
-            a.make_redundant(false);
-            world.gop.fence();
+            try {
+                ensure_tree_state_respecting_fence(std::vector<Function<T,NDIM>>({a}), TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(v, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul_sparse");
+                a.make_redundant(false);
+                make_redundant(world, v, false);
+                world.gop.fence();
+            }
         } else if (!v.empty()) {
             MADNESS_CHECK_THROW(a.get_impl()->get_tree_state() == TreeState::redundant,
                                 "mul_sparse: left input must be redundant when do_make_redundant=false");
@@ -1234,11 +1240,15 @@ namespace madness {
         bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulvv);
         if (do_make_redundant) {
-            // prepare once, not once per pair: mul_sparse fences whenever it prepares.
-            // Redundant inputs make the second call a no-op, so no aliasing check is needed.
-            make_redundant(world, a, false);
-            make_redundant(world, b, false);
-            world.gop.fence();
+            try {
+                ensure_tree_state_respecting_fence(a, TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(b, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul_sparse");
+                make_redundant(world, a, false);
+                make_redundant(world, b, false);
+                world.gop.fence();
+            }
         }
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
@@ -1314,11 +1324,15 @@ namespace madness {
         bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulvv);
         if (do_make_redundant) {
-            // prepare once, not once per pair: mul_sparse fences whenever it prepares.
-            // Redundant inputs make the second call a no-op, so no aliasing check is needed.
-            make_redundant(world, a, false);
-            make_redundant(world, b, false);
-            world.gop.fence();
+            try {
+                ensure_tree_state_respecting_fence(a, TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(b, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul");
+                make_redundant(world, a, false);
+                make_redundant(world, b, false);
+                world.gop.fence();
+            }
         }
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
