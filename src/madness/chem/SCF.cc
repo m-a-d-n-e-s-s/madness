@@ -2192,27 +2192,33 @@ void SCF::update_subspace(World& world, vecfuncT& Vpsia, vecfuncT& Vpsib,
                           double& bsh_residual, double& update_residual) {
     PROFILE_MEMBER_FUNC(SCF);
     double aerr = 0.0, berr = 0.0;
+
     vecfuncT vm = amo;
 
-    // Orbitals with occ!=1.0 exactly must be solved for as eigenfunctions
-    // so zero out off diagonal lagrange multipliers
+    // Decouple the occupied and non-occupied blocks: zero the Fock coupling
+    // between orbitals of different occupation, but KEEP the off-diagonal
+    // Lagrange terms inside each block. Occupieds converge in a localized
+    // (non-eigen) gauge precisely because those terms stay in the residual;
+    // a virtual needs the same treatment, or once it drifts into a mixture of
+    // eigenstates with different eigenvalues it has no BSH fixed point and
+    // its residual floors at the mixing scale.
     for (int i = 0; i < param.nmo_alpha(); i++) {
-        if (aocc[i] != 1.0) {
-            double tmp = focka(i, i);
-            focka(i, _) = 0.0;
-            focka(_, i) = 0.0;
-            focka(i, i) = tmp;
+        for (int j = 0; j < i; j++) {
+            if ((aocc[i] == 1.0) != (aocc[j] == 1.0)) {
+                focka(i, j) = 0.0;
+                focka(j, i) = 0.0;
+            }
         }
     }
 
     vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
     if (param.nbeta() != 0 && !param.spin_restricted()) {
         for (int i = 0; i < param.nmo_beta(); i++) {
-            if (bocc[i] != 1.0) {
-                double tmp = fockb(i, i);
-                fockb(i, _) = 0.0;
-                fockb(_, i) = 0.0;
-                fockb(i, i) = tmp;
+            for (int j = 0; j < i; j++) {
+                if ((bocc[i] == 1.0) != (bocc[j] == 1.0)) {
+                    fockb(i, j) = 0.0;
+                    fockb(j, i) = 0.0;
+                }
             }
         }
 
