@@ -33,7 +33,7 @@
 #define MADNESS_MISC_RAN_H__INCLUDED
 
 #include <madness/madness_config.h>
-
+#include <algorithm>
 #include <mutex>
 
 #include <complex>

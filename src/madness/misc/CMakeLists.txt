@@ -18,6 +18,7 @@ set_source_files_properties(
 # MADmisc is a leaf: it must not include anything from world/tensor/mra/chem, so that
 # MADworld can depend on it (see world/CMakeLists.txt).
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "" "madness/misc/")
+target_link_libraries(MADmisc PUBLIC Threads::Threads)
 
 # No unit tests registered here: interp3.cc moved to src/madness/mra along with
 # interpolation_1d.h, and test_gnuplot.cc stays disabled (gnuplot missing in CI).
