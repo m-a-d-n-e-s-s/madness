@@ -459,9 +459,10 @@ void test_cross(World& world) {
     END_TIMER("project");
 
     START_TIMER;
-    compress(world,left);
-    compress(world,right);
-    END_TIMER("compress");
+    make_redundant(world,left,false);
+    make_redundant(world,right,false);
+    world.gop.fence();
+    END_TIMER("make redundant");
 
     // cross product is anti-commuting
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result1=cross(left,right)+cross(right,left);

@@ -2470,7 +2470,7 @@ namespace madness {
     /// @param[in]  f       the vector of functions on which the rot operator works on
     /// @param[in]  g       the vector of functions on which the rot operator works on
     /// @param[in]  fence   fence after completion; currently always fences
-    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// @return     the vector \frac{\partial}{\partial x_i} f, in redundant state
     /// TODO: add this to operator fusion
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > cross(const std::vector<Function<T,NDIM> >& f,
@@ -2480,8 +2480,8 @@ namespace madness {
         MADNESS_ASSERT(f.size()==3);
         MADNESS_ASSERT(g.size()==3);
         World& world=f[0].world();
-        reconstruct(world,f,false);
-        reconstruct(world,g);
+        ensure_tree_state_respecting_fence(f, TreeState::redundant, fence);
+        ensure_tree_state_respecting_fence(g, TreeState::redundant, fence);
 
         std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > d(f.size()),dd(f.size());
 
@@ -2495,14 +2495,15 @@ namespace madness {
         world.gop.fence();
 
         compress(world,d,false);
-        compress(world,dd);
+        compress(world,dd,false);
+        world.gop.fence();
 
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
-
-
         world.gop.fence();
+
+        make_redundant(world, d);
         return d;
     }
 
