@@ -62,12 +62,14 @@ public:
 
 	typedef double resultT;
 
+	using FunctionFunctorInterface<double,3>::operator();
+
     /// for explicit construction of this plane-wave function
-	double operator ()(const coord_3d& r) const;
+	double operator ()(const coord_3d& r) const override;
     /// operator for the 1D plane waves
 	double operator ()(const double& x, const int& dim) const;
     /// in case this is needed at some point
-    double operator()(const coord_1d & x, const int& dim)const{
+    double operator()(const coord_1d & x, const int& dim) const {
     	return (*this)(x[0],dim);
     }
 
@@ -98,8 +100,10 @@ public:
 	const double width_;
 	const coord_3d center=coord_3d();
 
+	using FunctionFunctorInterface<double,3>::operator();
+
 	/// explicit construction
-	double operator ()(const coord_3d& rr) const;
+	double operator ()(const coord_3d& rr) const override;
 
 
 };
@@ -113,8 +117,9 @@ public :
 	PolynomialFunctor(const std::string input, const double& damp_width=0.0, const coord_3d& c=coord_3d()) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(c) {}
 	PolynomialFunctor(const std::string input,const double& damp_width, const Tensor<double>& c) : input_string_(input), data_(read_string(input)), dampf(damp_width), center(tensor_to_coord<double,3>(c)) {}
 
+	using FunctionFunctorInterface<double,3>::operator();
 	/// construction by coordinates
-	double operator ()(const coord_3d& rr) const;
+	double operator ()(const coord_3d& rr) const override;
 
 	/// create the value of the polynomial according to the data in the data_ structure
 	double compute_value(const coord_3d& r) const;

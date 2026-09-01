@@ -481,7 +481,9 @@ protected:
 			MADNESS_ASSERT(exponent>0.0);
 		}
 
-		double_complex operator()(const coord_3d& xyz1) const {
+		using FunctionFunctorInterface<double_complex,3>::operator();
+
+		double_complex operator()(const coord_3d& xyz1) const override {
 			coord_3d xyz=xyz1-origin;
 			double r=xyz.normf();
 			return exp(-exponent*r);
@@ -500,7 +502,9 @@ protected:
 			MADNESS_ASSERT(exponent>0.0);
 		}
 
-		double_complex operator()(const coord_3d& xyz1) const {
+		using FunctionFunctorInterface<double_complex,3>::operator();
+
+		double_complex operator()(const coord_3d& xyz1) const override {
 			coord_3d xyz=xyz1-origin;
 			double r=xyz.normf();
 
