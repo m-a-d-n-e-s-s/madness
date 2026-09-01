@@ -98,5 +98,13 @@ jobs:
       run: |
         find "${{ github.workspace }}/conda-dist" \( -name '*.tar.bz2' -o -name '*.conda' \) -print0 | \
           while IFS= read -r -d '' pkg; do
-            anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg"
+            upload_out=$(anaconda -t "${ANACONDA_TOKEN}" upload --user m-a-d-n-e-s-s --force "$pkg" 2>&1); ec=$?
+            echo "$upload_out"
+            if [ $ec -ne 0 ]; then
+              if echo "$upload_out" | grep -qiE "conflict|already exists"; then
+                echo "::warning::$(basename "$pkg") already exists on Anaconda.org — skipping (not a failure)"
+              else
+                exit $ec
+              fi
+            fi
           done
