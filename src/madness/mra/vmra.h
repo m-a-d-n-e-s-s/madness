@@ -901,6 +901,8 @@ namespace madness {
         /// tasks race a task still reading those coefficients, e.g. a
         /// mul_sparse(..., fence=false) that has not been fenced yet.
         /// Cf. Function::norm2(), which does the same for a single function.
+        /// The branch is taken on the tree state, which is replicated, so all
+        /// ranks take the same branch and the global ops stay collective.
         template <typename T, std::size_t NDIM>
         void reconstruct_for_norm(World& world, const std::vector<Function<T,NDIM>>& v) {
             if (v.size()==0) return;    // nothing to sum, and nothing to fence for
