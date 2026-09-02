@@ -53,6 +53,9 @@ if(BUILD_TESTING)
   add_mpi_tests(mra test_cloud "2" "MADmra;MADgtest" "unittests;short")
   add_mpi_tests(mra test_vectormacrotask "2" "MADmra;MADgtest" "unittests;short")
   add_mpi_tests(mra test_eval "2" "MADmra;MADgtest" "unittests;short")
+  # the tree-state and norm checkpoints use gop.max/gop.sum and branch on a
+  # replicated state, so only a multi-rank run exercises them
+  add_mpi_tests(mra test_mul_sparse "2" "MADmra;MADgtest" "unittests;short")
   # the halo only carries data between ranks, so the single-rank run above cannot exercise it
   add_mpi_tests(mra test_halo "2" "MADmra;MADgtest" "unittests;short")
 
