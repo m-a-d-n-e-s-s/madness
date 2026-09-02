@@ -166,6 +166,9 @@ struct molresponse_v3_lib {
       r.kind = ResponsePropertyKind::PolarizabilityGradient;
       r.gradient_mode = GradientMode::Resonant;
       r.n_roots = static_cast<int>(rp.excited_num_states());
+      // Roots only unless the deck also asks for the two-photon contraction
+      // (excited.tpa) — the derived FD legs serve only the 2PA residue.
+      r.tpa = rp.excited_tpa();
       add(r);
     }
     if (plans.empty()) {  // default: polarizability

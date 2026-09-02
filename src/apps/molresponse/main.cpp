@@ -54,9 +54,11 @@ void print_usage() {
   print("  --calc-dir=DIR       output dir (response_metadata.json + archives)");
   print("  --print-level=0..3   verbosity (default 1)");
   print("  --beta [--beta-static]  hyperpolarizability β (SHG, or static) via VBC");
-  print("  --es-roots=N         excited states: TDA bundle of N roots + derived");
-  print("                       dipole FD at ωₙ/2 (same plan as a madqc");
-  print("                       `excited.enable` deck)");
+  print("  --es-roots=N         excited states: TDA bundle of N roots (same plan");
+  print("                       as a madqc `excited.enable` deck). Roots only —");
+  print("                       add --tpa for two-photon absorption");
+  print("  --tpa                with --es-roots: also solve the derived dipole FD");
+  print("                       legs at ωₙ/2 and run the 2PA residue contraction");
   print("  --es-guess=MODE      ES initial guess: solid_harmonics (default) |");
   print("                       virtual_ao | random. solid_harmonics is purely");
   print("                       angular — on atoms it cannot reach totally-");
@@ -149,11 +151,13 @@ int main(int argc, char **argv) {
       req.frequencies = freqs;
       if (es_roots > 0) {
         // Excited states — the same plan shape a madqc `excited.enable` deck
-        // produces (resonant gradient: ES bundle + derived dipole FD at ωₙ/2
-        // per axis).
+        // produces (resonant gradient). Roots only unless --tpa also asks for
+        // the two-photon ingredients (derived dipole FD at ωₙ/2 per axis +
+        // the residue contraction).
         req.kind = ResponsePropertyKind::PolarizabilityGradient;
         req.gradient_mode = GradientMode::Resonant;
         req.n_roots = es_roots;
+        req.tpa = parser.key_exists("tpa");
       } else if (parser.key_exists("beta")) {
         req.kind = ResponsePropertyKind::Hyperpolarizability;
         req.beta_process = parser.key_exists("beta-static") ? BetaProcess::Static

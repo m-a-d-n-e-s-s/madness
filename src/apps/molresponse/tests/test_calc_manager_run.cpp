@@ -324,6 +324,9 @@ int main(int argc, char **argv) {
         req.kind = ResponsePropertyKind::PolarizabilityGradient;
         req.gradient_mode = GradientMode::Resonant;
         req.n_roots = es_roots;
+        // Roots only unless --tpa: the derived dipole FD legs at ωₙ/2 exist
+        // solely for the 2PA residue this driver assembles below.
+        req.tpa = parser.key_exists("tpa");
       } else {
         req.kind = ResponsePropertyKind::Polarizability;
         req.frequencies = freqs;

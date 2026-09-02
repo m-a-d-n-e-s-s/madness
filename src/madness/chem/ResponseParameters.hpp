@@ -70,6 +70,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<bool>("excited.enable", false, "enable excited-state bundle planning metadata scaffolding");
         initialize<size_t>("excited.num_states", 1, "number of excited states to target when enabled");
         initialize<bool>("excited.tda", false, "use Tamm-Dancoff approximation in excited-state stage");
+        initialize<bool>("excited.tpa", false,
+                         "two-photon absorption: with excited.enable, also "
+                         "solve the derived dipole FD legs at half of each "
+                         "converged root energy (3 per root) and run the 2PA "
+                         "residue contraction. Off = roots only.");
         initialize<size_t>("excited.guess_max_iter", 5, "maximum iterations for excited-state guess stage");
         initialize<size_t>("excited.maxiter", 20, "maximum iterations for excited-state solve stage");
         initialize<size_t>("excited.maxsub", 8, "subspace size for excited-state iterative solves");
@@ -241,6 +246,9 @@ public:
     }
     [[nodiscard]] bool excited_enable() const {
         return get<bool>("excited.enable");
+    }
+    [[nodiscard]] bool excited_tpa() const {
+        return get<bool>("excited.tpa");
     }
     [[nodiscard]] size_t excited_num_states() const {
         return get<size_t>("excited.num_states");
