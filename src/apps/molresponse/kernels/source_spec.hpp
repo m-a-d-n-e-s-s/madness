@@ -25,6 +25,12 @@
 //       i.e.  Σ_k s_k F_kp  — the property-Fock matrix term of
 //       eq:tpa_compact_P/Q, or vbc.hpp's fphi term.
 //
+// SCOPE (HF exchange only): g'[..] here is J[rho] - c_xc*K. A DFT run adds
+// an xc-kernel piece f_xc[rho0]*rho_pair to the SAME g' (every J-site grows
+// an f_xc term); eval_fock_action below is one of those sites and must be
+// extended when DFT response lands — a spec evaluated for a DFT ground state
+// is silently missing that term today.
+//
 // What distinguishes V^{BC} from (P,Q) is pure DATA: which (bra,ket) legs
 // build the pair density (γ^B vs γ^{B†} vs γ_L^{BC} vs D^{BC}), which target,
 // which sign, where Q̂ sits. This header holds that data model (SourceEntry /
