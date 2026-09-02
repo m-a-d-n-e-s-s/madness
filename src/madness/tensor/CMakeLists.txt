@@ -42,7 +42,7 @@ set(MADGENTENSOR_HEADERS gentensor.h srconf.h distributed_matrix.h tensortrain.h
 set(MADGENTENSOR_SOURCES SVDTensor.cc RandomizedMatrixDecomposition.cc)
 
 # Create libraries MADtensor and MADlinalg
-add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc" "madness/tensor")
+add_mad_library(tensor MADTENSOR_SOURCES MADTENSOR_HEADERS "misc;world" "madness/tensor")
 #add_mad_library(clapack MADLINALG_HEADERS "" "madness/tensor")
 add_mad_library(linalg MADLINALG_SOURCES MADLINALG_HEADERS "tensor" "madness/tensor")
 

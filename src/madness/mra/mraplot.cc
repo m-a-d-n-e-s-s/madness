@@ -39,7 +39,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <madness/constants.h>
-#include <madness/misc/phandler.h>
+#include <madness/mra/phandler.h>
 
 using namespace madness;
 

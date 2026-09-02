@@ -29,15 +29,15 @@
   fax:   865-572-0680
 */
 
-#ifndef MADNESS_MISC_PHANDLER_H__INCLUDED
-#define MADNESS_MISC_PHANDLER_H__INCLUDED
+#ifndef MADNESS_MRA_PHANDLER_H__INCLUDED
+#define MADNESS_MRA_PHANDLER_H__INCLUDED
 
-/// \file misc/phandler.h
+/// \file mra/phandler.h
 /// \brief Interface for the muParser library for turning user-defined functions into bytecode.
 
 /* Example:
 
-   #include <madness/misc/phandler.h>
+   #include <madness/mra/phandler.h>
 
     typedef FunctionFactory<double,3> factoryT;
     typedef std::shared_ptr< FunctionFunctorInterface<double, 3> > functorT;
@@ -110,4 +110,4 @@ class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
     }
 }; // end class parserhandler
 
-#endif // MADNESS_MISC_PHANDLER_H__INCLUDED
+#endif // MADNESS_MRA_PHANDLER_H__INCLUDED
