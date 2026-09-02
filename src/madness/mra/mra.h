@@ -834,6 +834,9 @@ namespace madness {
         /// fences before it changes state: any task still reading those
         /// coefficients, e.g. a mul_sparse() invoked with fence=false, must be
         /// done with them before they are removed.
+        ///
+        /// The branch is taken on the tree state, which is replicated, so all
+        /// ranks take the same branch and the global ops stay collective.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
@@ -1277,7 +1280,7 @@ namespace madness {
         /// perform a global sum on all at the same time.
         ///
         /// Throws if the function is on-demand, and fences before reconstructing;
-        /// see norm2() for both.
+        /// see norm2() for both, including why the branch stays collective.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
