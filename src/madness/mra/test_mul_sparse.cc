@@ -436,6 +436,25 @@ int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T9: the vector norms accept an empty vector. norm2s()/norm2s_T() index
+/// norms[0] to get the buffer address, which is undefined behaviour on an
+/// empty container even with a length of zero.
+int test_empty_vector_norms(World& world) {
+    test_output t("mul_sparse T9: the vector norms on an empty vector");
+    t.set_do_print(world.rank() == 0);
+
+    const std::vector<Function<double,D>> empty;
+
+    const std::vector<double> ns = norm2s(world, empty);
+    t.checkpoint(ns.empty(), "T9 norm2s returns an empty vector");
+
+    const Tensor<double> nt = norm2s_T(world, empty);
+    t.checkpoint(nt.size() == 0, "T9 norm2s_T returns an empty tensor");
+
+    t.checkpoint(norm2(world, empty), 0.0, 1.e-15, "T9 norm2 returns zero");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -458,6 +477,7 @@ int main(int argc, char** argv) {
         success += test_operand_state(world, pairs);
         success += test_norm_tree_states(world, pairs);
         success += test_broaden_resets_norms(world, pairs);
+        success += test_empty_vector_norms(world);
     }
 
     world.gop.fence();
