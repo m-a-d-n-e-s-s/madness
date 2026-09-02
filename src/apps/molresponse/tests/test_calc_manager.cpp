@@ -152,6 +152,7 @@ int main() {
     r.kind = ResponsePropertyKind::PolarizabilityGradient;
     r.gradient_mode = GradientMode::Resonant;
     r.n_roots = 4;
+    r.tpa = true;   // this case pins the DERIVED-FD DAG mechanics, so ask for the legs
     r.protocol_thresholds = P;
     auto dag = build_dag(plan_one(r), 0);
     const CalcNode *es = find_id(dag, "es:tda_n4");
