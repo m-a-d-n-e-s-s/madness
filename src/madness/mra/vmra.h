@@ -923,6 +923,7 @@ namespace madness {
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
+        if (v.size()==0) return norms;  // &norms[0] below is UB on an empty container
         detail::reconstruct_for_norm(world,v);
         for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
@@ -938,6 +939,7 @@ namespace madness {
     Tensor<double> norm2s_T(World& world, const std::vector<Function<T, NDIM>>& v) {
         PROFILE_BLOCK(Vnorm2);
         Tensor<double> norms(v.size());
+        if (v.size()==0) return norms;  // &norms[0] below is UB on an empty container
         detail::reconstruct_for_norm(world,v);
         for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
@@ -2473,7 +2475,7 @@ namespace madness {
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
         world.gop.fence();
-    
+
         return d;
     }
 
