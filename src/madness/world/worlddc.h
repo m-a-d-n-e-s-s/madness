@@ -2213,7 +2213,10 @@ namespace madness
                 public:
                     op_inspector(const_iterator start, const_iterator end, size_t &size)
                         : start(start), end(end), size(size) {}
-                    void run(World &world)
+
+                    using TaskInterface::run;
+
+                    void run(World &world) override
                     {
                         BufferOutputArchive bo;
                         for (const_iterator it = start; it != end; ++it)
@@ -2231,7 +2234,10 @@ namespace madness
                 public:
                     op_executor(const_iterator start, const_iterator end, unsigned char *buf, size_t size)
                         : start(start), end(end), buf(buf), size(size) {}
-                    void run(World &world)
+
+                    using TaskInterface::run;
+
+                    void run(World &world) override
                     {
                         BufferOutputArchive bo(buf, size);
                         for (const_iterator it = start; it != end; ++it)

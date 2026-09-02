@@ -60,7 +60,7 @@ Tests live next to the sources they exercise and are registered through
 
 Both entries carry the `labels` passed to the macro. There is no filename
 convention — most test sources follow `test*.cc` / `test_*.cc` by habit,
-but the macro accepts any source name (e.g. `src/madness/misc/interp3.cc`,
+but the macro accepts any source name (e.g. `src/madness/mra/interp3.cc`,
 `src/examples/periodic/erfcr.cc`).
 
 The `check-short-madness` target runs everything labeled `short` or `medium`

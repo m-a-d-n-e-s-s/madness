@@ -52,7 +52,7 @@
 #include <cmath>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
-#include <madness/misc/interpolation_1d.h>
+#include <madness/mra/interpolation_1d.h>
 #include <madness/mra/mra.h>
 
 namespace madness {

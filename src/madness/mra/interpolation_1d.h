@@ -30,26 +30,26 @@
 
   $Id$
 */
-#ifndef MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED
-#define MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED
+#ifndef MADNESS_MRA_INTERPOLATION_1D_H__INCLUDED
+#define MADNESS_MRA_INTERPOLATION_1D_H__INCLUDED
 
 #include <iostream>
 #include <cmath>
 #include <vector>
 
-#include "../world/world_task_queue.h"
+#include <madness/world/world_task_queue.h>
 
 namespace madness {
 
 /*!
-  \file misc/interpolation_1d.h
+  \file mra/interpolation_1d.h
   \brief Provides 1D cubic interpolation class
-  \ingroup misc
+  \ingroup mra
  */
 
 /// An class for 1-D data interpolation based on cubic polynomials.
 
-/// \ingroup misc
+/// \ingroup mra
 /// Needs to be passed the endpoints of the interpolation: [lo,hi] and the
 /// number of grid points.
 ///
@@ -279,4 +279,4 @@ int CubicInterpolationTable<T>::min_npts_per_task_default = 1024;
 
 }  // namespace madness
 
-#endif // MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED
+#endif // MADNESS_MRA_INTERPOLATION_1D_H__INCLUDED

@@ -1,5 +1,9 @@
 # src/madness
 
+### MADmisc is the leaf component: it depends on nothing and MADworld links it,
+### so it must be configured first and must exist even in madworld-only builds.
+add_subdirectory(misc)
+
 ### MADWorld runtime
 add_subdirectory(world)
 # may need to build elemental as part of MADWorld
@@ -14,8 +18,8 @@ if (ENABLE_ELEMENTAL)
 				${ELEMENTAL_BINARY_DIR}/include)
 	endif ()
 endif(ENABLE_ELEMENTAL)
-if(MADNESS_BUILD_MADWORLD_ONLY)  # madness library includes just madworld
-	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+if(MADNESS_BUILD_MADWORLD_ONLY)  # madness library includes just madworld (+ the misc leaf it links)
+	add_library(madness $<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>)
 endif(MADNESS_BUILD_MADWORLD_ONLY)
 
 ### CLAPACK will be build if BLAS/LAPACK is available
@@ -35,7 +39,6 @@ endif(LAPACK_FOUND)
 
 ### numerics + apps
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
-	add_subdirectory(misc)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
 	add_subdirectory(chem)

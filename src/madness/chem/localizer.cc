@@ -6,6 +6,7 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/function_factory.h>
 #include <madness/tensor/jacobi.h>
+#include <madness/misc/ran.h>
 
 namespace madness {
 
@@ -197,12 +198,24 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
         for (long iter = 0; iter < 1200; ++iter) {
             tensorT g(nmo, nmo);
             double W = 0.0;
+            // Draw the nmo*(nmo-1)/2 symmetry-breaking perturbations in one batch:
+            // RandomVector takes the generator's lock once rather than once per
+            // element. getv() consumes the same stream positions in the same order
+            // as successive RandomValue<double>() calls, so the values -- and hence
+            // the localization it seeds -- are unchanged.
+            const bool do_randomize = randomize && iter == 0;
+            std::vector<double> rnd;
+            if (do_randomize && nmo > 1) {
+                rnd.resize(static_cast<std::size_t>(nmo) * (nmo - 1) / 2);
+                RandomVector<double>(static_cast<int>(rnd.size()), rnd.data());
+            }
             // cannot restrict size of individual gradients if want to do line search --- should instead modify line search direction
             for (long i = 0; i < nmo; ++i) {
                 W += DIP(dip, i, i, i, i);
                 for (long j = 0; j < i; ++j) {
                     g(j, i) = (DIP(dip, i, i, i, j) - DIP(dip, j, j, j, i));
-                    if (randomize && iter == 0) g(j, i) += 0.1 * (RandomValue<double>() - 0.5);
+                    // index of pair (i,j), j<i, in i-outer/j-inner traversal order
+                    if (do_randomize) g(j, i) += 0.1 * (rnd[i * (i - 1) / 2 + j] - 0.5);
                     g(i, j) = -g(j, i);
                 }
             }
@@ -463,10 +476,14 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
 
             makeGW(C, W, g);
 
-            if (randomize && iter == 0) {
+            if (randomize && iter == 0 && nmo > 1) {
+                // one batched draw instead of nmo*(nmo-1)/2 individually locked ones;
+                // same stream, same order, so the values are unchanged (see localize_boys)
+                std::vector<double> rnd(static_cast<std::size_t>(nmo) * (nmo - 1) / 2);
+                RandomVector<double>(static_cast<int>(rnd.size()), rnd.data());
                 for (int i = 0; i < nmo; ++i) {
                     for (int j = 0; j < i; ++j) {
-                        g(i, j) += 0.1 * (RandomValue<double>() - 0.5);
+                        g(i, j) += 0.1 * (rnd[static_cast<std::size_t>(i) * (i - 1) / 2 + j] - 0.5);
                         g(j, i) = -g(i, j);
                     }
                 }
