@@ -257,7 +257,10 @@ int test_dot(World& world, std::vector<operand_pair>& pairs) {
 int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     test_output t("mul_sparse T6: operand state and the norms read off it");
     t.set_do_print(world.rank() == 0);
-    operand_pair& p = pairs.front();
+    // this test changes the state of both operands, and the
+    // pairs are shared with every test that runs after it
+    operand_pair p{pairs.front().name, copy(pairs.front().f),
+                   copy(pairs.front().g), copy(pairs.front().fg)};
 
     // reference values, taken while the operands are still reconstructed
     p.f.reconstruct();
@@ -353,9 +356,9 @@ int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
         printf("  T7 ||f|| %.10e  redundant %.10e  compressed %.10e\n",
                exact, nt_redundant, nt_compressed);
 
-    t.checkpoint(std::abs(nt_redundant  - exact) < 1.e-10,
+    t.checkpoint(std::abs(nt_redundant  - exact) < 1.e-10 * exact,
                  "T7 root norm_tree on a redundant tree equals ||f||");
-    t.checkpoint(std::abs(nt_compressed - exact) < 1.e-10,
+    t.checkpoint(std::abs(nt_compressed - exact) < 1.e-10 * exact,
                  "T7 root norm_tree on a compressed tree equals ||f||");
 
     // ||f||^2 = ||s||^2 + ||d||^2, so dnorm_tree at the root must be strictly
