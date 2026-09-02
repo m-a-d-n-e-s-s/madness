@@ -191,7 +191,8 @@ if(BUILD_TESTING)
       test_exchange_asymmetric.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
   test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc)
-  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc
+      test_laplacian_density.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
@@ -211,6 +212,10 @@ if(BUILD_TESTING)
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
+    # a diagnostic that writes plot files, not a pass/fail test -- run by hand
+    if (TARGET Libxc::xc)
+      list(APPEND CHEM_OTHER_TESTS plot_tau_and_vxc)
+    endif(TARGET Libxc::xc)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()

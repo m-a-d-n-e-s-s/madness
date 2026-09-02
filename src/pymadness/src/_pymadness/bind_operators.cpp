@@ -16,6 +16,8 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/derivative.h>
 
+#include <stdexcept>
+
 namespace py = pybind11;
 using namespace madness;
 
@@ -155,7 +157,28 @@ void bind_operators(py::module_& m) {
                             const Function<double, 3>& f) {
             py::gil_scoped_release release;
             return D(f);
-        }, py::arg("f"), "Apply derivative to function");
+        }, py::arg("f"), "Apply derivative to function")
+        // Smoothed derivative filters. These mirror XCOperator::make_derivative
+        // (chem/SCFOperators.cc), which is the same three-way abgv/bspline/ble
+        // switch. The underlying setters throw a bare const char* on a k that is
+        // out of range, which is not a std::exception -- translate it so Python
+        // sees a RuntimeError instead of an abort.
+        .def("set_bspline1", [](Derivative<double, 3>& D) {
+            try { D.set_bspline1(); }
+            catch (const char* e) { throw std::runtime_error(e); }
+        }, "Use the B-spline first-derivative filter (requires k <= 18)")
+        .def("set_bspline2", [](Derivative<double, 3>& D) {
+            try { D.set_bspline2(); }
+            catch (const char* e) { throw std::runtime_error(e); }
+        }, "Use the B-spline second-derivative filter (requires k <= 18)")
+        .def("set_ble1", [](Derivative<double, 3>& D) {
+            try { D.set_ble1(); }
+            catch (const char* e) { throw std::runtime_error(e); }
+        }, "Use the BLE first-derivative filter (requires k <= 15)")
+        .def("set_ble2", [](Derivative<double, 3>& D) {
+            try { D.set_ble2(); }
+            catch (const char* e) { throw std::runtime_error(e); }
+        }, "Use the BLE second-derivative filter (requires k <= 15)");
 
     // =====================================================================
     // Convenience: gradient (returns list of 3 functions)

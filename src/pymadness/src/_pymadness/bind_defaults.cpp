@@ -44,6 +44,10 @@ static void bind_function_defaults(py::module_& m, const char* name) {
             py::arg("level"), "Set initial projection level")
         .def_static("get_initial_level", &FD::get_initial_level,
             "Get initial projection level")
+        .def_static("set_special_level", &FD::set_special_level,
+                    py::arg("level"),
+                    "Minimum refinement level for boxes holding a special point")
+        .def_static("get_special_level", &FD::get_special_level)
         .def_static("set_max_refine_level", &FD::set_max_refine_level,
             py::arg("level"), "Set maximum adaptive refinement level")
         .def_static("get_max_refine_level", &FD::get_max_refine_level,

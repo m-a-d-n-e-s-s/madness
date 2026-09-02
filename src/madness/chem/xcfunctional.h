@@ -22,6 +22,7 @@ MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
 #include <madness/mra/key.h>
 #include <madness/world/MADworld.h>
 #include <madness/mra/function_common_data.h>
+#include <madness/mra/function_interface.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -85,6 +86,76 @@ inline bool xc_weak_gga() {
     return flag;
 }
 
+/// MAD_XC_ONELEVEL_DIV: algorithm A'' of XC-POTENTIAL-ALGORITHMS.md 1G.3.1.
+
+/// Expand the semilocal divergence one level only,
+///     div(X) = grad(u).grad(rho) + u laplacian(rho),   u = 2 de/dsigma
+/// with laplacian(rho) = div(rho zeta) -- a single divergence of the
+/// semi-analytic gradient, which is the route measured to conserve. grad(u) is
+/// taken numerically from the projected u; the Hessian and libxc's second
+/// derivatives are deliberately NOT used.
+///
+/// This does not remove the 1/r pole (u is finite at a nucleus while
+/// laplacian(rho) ~ -4 Z rho(0)/r), but it isolates the pole in one term with a
+/// known coefficient, which is what the analytic subtraction of 1G.4 needs. What
+/// it costs is the structural int div(X) = 0 that the plain divergence has for
+/// free -- and measuring that loss is the point of the switch. Spin-restricted
+/// only.
+inline bool xc_onelevel_div() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_ONELEVEL_DIV");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_A2_MUNGED_GRAD: force algorithm A'' to use the *munged* grad(rho) that
+/// the reference flux is built from, instead of make_ddensity's unmunged one.
+
+/// With this set, u*grad(rho) == X holds exactly, so any remaining difference
+/// between A'' and algorithm A is A'''s own error rather than the two computing
+/// slightly different operators in the tail.
+/// MAD_XC_PLOT: if set, plot_plane() the assembled xc potential under this tag.
+/// Written every time make_xc_potential runs, so the file left behind is the
+/// converged one. The plotting window comes from a `plot ... end` block in a file
+/// named `input` in the run directory (plot_plane's default). Diagnostic only.
+inline std::string xc_plot_tag() {
+    static std::string tag = []{
+        const char* e = std::getenv("MAD_XC_PLOT");
+        return std::string(e ? e : "");
+    }();
+    return tag;
+}
+
+inline bool xc_a2_munged_grad() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_A2_MUNGED_GRAD");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_FLUX_NUMDIV: in weak form, evaluate 2 div(G*Y) with a numerical ABGV
+/// divergence of the Green's-function output instead of the analytic gradient of
+/// the kernel.
+
+/// The default is the analytic route, sum_a (d_a G) * Y_a, via
+/// GradBSHOperator: differentiation of a convolution may be moved onto either
+/// factor, and moving it onto the kernel means no numerical derivative appears
+/// in the flux term at all. The numerical route differentiates a function that
+/// madness computed to bshtol, and a derivative amplifies node-level error by
+/// 2^n -- at thresh 1e-8 and depth 22 that is an absolute error of order 0.04 in
+/// the orbital update, which is bounded (unlike the pole it replaced) but is the
+/// leading suspect for the weak form needing more SCF iterations. Kept as a
+/// switch so the two can be compared on one binary.
+inline bool xc_flux_numerical_div() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_FLUX_NUMDIV");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
 /// MAD_XC_SMOOTH_VTAU: replace the hard binary_munge screen on de/dtau by the C^2
 /// ramp of XCfunctional::gga_ramp. The hard screen puts a jump of up to O(10^2) on
 /// the rho = ggatol iso-surface, and apply_tau_term differentiates exactly that
@@ -125,6 +196,77 @@ inline bool xc_tau_no_u1() {
         return (e != nullptr) and (std::string(e) != "0");
     }();
     return flag;
+}
+
+/// MAD_XC_TAU_U1_POINTWISE: evaluate the two U1 terms of tau's product rule from
+/// the analytic functor at the quadrature points of the (shallow) orbital tree,
+/// instead of projecting U1 and |U1|^2 into MRA Functions and multiplying.
+/// U1 ~ x/r is non-smooth at the origin componentwise, so U1_x as a Function needs
+/// depth ~18 and every product with it inherits that depth; refine_to_common_level
+/// then lifts every xc intermediate to it. Never forming the product is phase 1 of
+/// XC-NEMO-MEMORY-INVESTIGATION.md 11.0. Unlike xc_tau_no_u1() this is not a
+/// diagnostic -- it computes the same tau, only on a tree set by the orbitals.
+inline bool xc_tau_u1_pointwise() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_TAU_U1_POINTWISE");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_NEMO_SIGMA: build grad(rho) and the sigma matrix from the split form
+
+/// With rho = R^2 n and U1 = -grad(R)/R,
+///   grad(rho_s) = R^2 (grad n_s - 2 U1 n_s) = 2 R^2 (G_s - U1 n_s),   G_s = 1/2 grad n_s
+///   sigma_st    = 4 R^4 [ G_s.G_t - n_t U1.G_s - n_s U1.G_t + n_s n_t |U1|^2 ]
+/// with the smooth pieces from MRA and U1 from its analytic functor, so nothing
+/// involving U1 is differentiated numerically or projected. The default path
+/// instead takes zeta = grad(log rho) -- a numerical derivative of a function with
+/// a kink at every nucleus -- and forms sigma = rho^2 (zeta.zeta).
+///
+/// Measured on LiH/TPSS: the two agree to 4-5 digits outside 1e-3 bohr, but inside
+/// that the default form errs by 30-70 %, with the Kato ratio |grad rho|/(2 Z rho)
+/// swinging 0.73 to 1.31 where the split form holds 1.00-1.08. At Li that drives
+/// z = tau_W/tau to 1.72 and fires the von Weizsaecker floor at the nucleus.
+///
+/// |U1|^2 must come from U1_dot_U1_functor, not from summing the squares of the
+/// components: the vector's direction is smoothed over eprec and vanishes at r = 0,
+/// which destroys the diagonal, while the scalar functor keeps (S'/S)^2 exact.
+///
+/// On by default *when the regularized pieces are present*, which is the pointwise
+/// tau route; set to 0 to fall back and isolate the two changes.
+inline bool xc_nemo_sigma() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_NEMO_SIGMA");
+        return (e == nullptr) or (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// MAD_XC_EXPORT_DFDS: hand out 2 de/dsigma (same spin) as an extra pointwise
+/// output of vxc, so a diagnostic can look at it directly. It is the coefficient
+/// whose product with grad(rho) is the semilocal flux, hence the origin of the 1/r
+/// in div(X); nothing in the potential depends on it being exported. Diagnostic
+/// only -- it changes the size of vxc's result vector, so leave it off in
+/// production and never index the result vector by a hardcoded tail offset.
+inline bool xc_export_dfds() {
+    static const bool flag = []() {
+        const char* e = std::getenv("MAD_XC_EXPORT_DFDS");
+        return (e != nullptr) and (std::string(e) != "0");
+    }();
+    return flag;
+}
+
+/// index of the 2 de/dsigma slot in vxc's result vector, or -1 when not exported
+
+/// Shared by the producer (XCfunctional::vxc) and the consumer
+/// (XCOperator::make_xc_potential) so the two cannot drift apart. The layout is
+/// [0] local, [1..3] same-spin flux, [4..6] cross-spin flux if polarized,
+/// [next] de/dtau if meta, [next] 2 de/dsigma if exported, then the A'' tail.
+inline int xc_dfds_slot(const bool spin_polarized, const bool needs_tau,
+                        const bool needs_sigma) {
+    if (not (xc_export_dfds() and needs_sigma)) return -1;
+    return (spin_polarized ? 7 : 4) + (needs_tau ? 1 : 0);
 }
 
 /// MAD_XC_PROBE: 1 = per-term tree/depth/norm census, 2 = also pointwise min/max
@@ -202,9 +344,43 @@ public:
         // hole rather than reused, so the surviving indices keep their meaning.
         enum_ddens_ptx=25,      ///< \f$ \nabla\rho_{pt}\f$
         enum_ddens_pty=26,      ///< \f$ \nabla\rho_{pt}\f$
-        enum_ddens_ptz=27       ///< \f$ \nabla\rho_{pt}\f$
+        enum_ddens_ptz=27,      ///< \f$ \nabla\rho_{pt}\f$
+
+        // ---- the nemo meta-gga decomposition, kept apart on purpose ----------
+        //
+        // With psi = R F the product rule gives
+        //   |grad psi|^2 = R^2 ( |grad F|^2 - 2 F U1.grad F + |U1|^2 F^2 ).
+        // The first group below is everything in that expression which is SMOOTH:
+        // F is cusp-free by construction, so |grad F|^2, n and G are shallow (depth
+        // 8-9 on LiH) and belong in MRA. R^2 is smooth too.
+        //
+        // U1 = -grad(R)/R is not. U1_x ~ x/r is non-smooth at every nucleus
+        // componentwise, its direction smoothed only over eprec, and as a Function
+        // it costs depth ~20. Carrying it in MRA is bad twice over: the depth taxes
+        // every intermediate through refine_to_common_level, and any *product* with
+        // it has to be projected onto a fixed tree, which is where the oscillations
+        // come from. So it is never a Function. The second group is filled by the
+        // op from the analytic functor at the quadrature points of the box it is
+        // already working on -- exactly as make_libxc_args contracts zeta pointwise
+        // rather than carrying chi. See nemo_u1_functors.
+        enum_nemo_R2=28,        ///< \f$ R^2 \f$, the ncf squared          [MRA, smooth]
+        enum_gradfa=29,         ///< \f$ \sum_i w_i|\nabla F_{i\alpha}|^2 \f$  [MRA, smooth]
+        enum_gradfb=30,         ///< beta counterpart                        [MRA, smooth]
+        enum_na=31,             ///< \f$ n_\alpha=\sum_i w_iF_{i\alpha}^2 \f$   [MRA, smooth]
+        enum_nb=32,             ///< beta counterpart                        [MRA, smooth]
+        enum_Ga_x=33,           ///< \f$ G_{\alpha,x}=\sum_i w_iF_i\partial_xF_i \f$ [MRA, smooth]
+        enum_Ga_y=34,           ///< \f$ G_{\alpha,y} \f$                    [MRA, smooth]
+        enum_Ga_z=35,           ///< \f$ G_{\alpha,z} \f$                    [MRA, smooth]
+        enum_Gb_x=36,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_y=37,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_z=38,           ///< beta counterpart                        [MRA, smooth]
+
+        enum_u1_x=39,           ///< \f$ U_{1,x} \f$        [functor, never MRA]
+        enum_u1_y=40,           ///< \f$ U_{1,y} \f$        [functor, never MRA]
+        enum_u1_z=41,           ///< \f$ U_{1,z} \f$        [functor, never MRA]
+        enum_u1sq=42            ///< \f$ |\mathbf U_1|^2 \f$ [functor, never MRA]
     };
-    const static int number_xc_args=28;     ///< max number of intermediates
+    const static int number_xc_args=43;     ///< max number of intermediates
 
     /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
@@ -517,15 +693,109 @@ public:
 };
 
 /// Class to compute the energy functional
+/// the cuspy half of the nemo tau decomposition, supplied pointwise
+
+/// Holds the four analytic ncf quantities that must never become MRA functions --
+/// \f$ U_{1,x}, U_{1,y}, U_{1,z}, |\mathbf U_1|^2 \f$ -- and writes their values
+/// into the argument vector at the quadrature points of whatever box the caller is
+/// operating on. Empty unless a nuclear correlation factor is in play, in which case
+/// active() is true and the four enum_u1* slots are filled.
+///
+/// The point is that nothing is projected. A product of U1 with anything, formed as
+/// a Function, has to be represented on some tree; on a tree too coarse for U1's
+/// eprec-scale structure the polynomial fit rings across the whole box. Evaluating
+/// U1 here instead means its values go straight into the functional's pointwise
+/// arithmetic and only the *potential* is ever projected -- which the existing
+/// machinery already does, and already has to.
+///
+/// \f$ |\mathbf U_1|^2 \f$ comes from its own functor rather than from summing the
+/// squares of the three components: that functor treats its diagonal specially,
+/// because smoothed_unitvec has norm < 1 inside eprec while the exact diagonal is
+/// \f$ (S'/S)^2 \f$.
+struct nemo_u1_functors {
+    typedef madness::FunctionFunctorInterface<double,3> functorT;
+
+    nemo_u1_functors() : cdata(madness::FunctionCommonData<double,3>::get(
+                                       madness::FunctionDefaults<3>::get_k())) {}
+
+    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors
+    explicit nemo_u1_functors(const std::vector<std::shared_ptr<functorT> >& u1)
+            : f(u1), cdata(madness::FunctionCommonData<double,3>::get(
+                                   madness::FunctionDefaults<3>::get_k())) {
+        MADNESS_CHECK_THROW(f.empty() or f.size()==4,
+                            "nemo_u1_functors wants U1_{x,y,z} and |U1|^2, in that order");
+    }
+
+    bool active() const {return f.size()==4;}
+
+    /// write U1 and |U1|^2 at this box's quadrature points into t[enum_u1*]
+    void append(const madness::Key<3>& key,
+                std::vector<madness::Tensor<double> >& t) const {
+        if (not active()) return;
+        if (long(t.size()) < XCfunctional::number_xc_args)
+            t.resize(XCfunctional::number_xc_args);
+
+        const madness::Tensor<double>& qx = cdata.quad_x;
+        const long npt = qx.dim(0);
+        // cdata was captured at construction from FunctionDefaults; if the functions
+        // actually carry a different k the quadrature points below are the wrong
+        // ones and every U1 value lands at the wrong place. Silent, and it would
+        // look like a physics error, so check rather than trust.
+        if (t[XCfunctional::enum_rhoa].size())
+            MADNESS_CHECK_THROW(t[XCfunctional::enum_rhoa].dim(0) == npt,
+                                "nemo_u1_functors: quadrature order does not match "
+                                "the xc arguments -- k changed after construction");
+        const double h = std::pow(0.5, double(key.level()));
+        const madness::Tensor<double>& cell = madness::FunctionDefaults<3>::get_cell();
+        const madness::Tensor<double>& cw = madness::FunctionDefaults<3>::get_cell_width();
+
+        const long dims[3] = {npt, npt, npt};
+        madness::Tensor<double> v[4];
+        double* p[4];
+        for (int q = 0; q < 4; ++q) {
+            v[q] = madness::Tensor<double>(3L, dims);
+            p[q] = v[q].ptr();
+        }
+
+        // the same box-to-user-coordinate construction fcube() uses, written out so
+        // this header needs no mraimpl.h
+        long idx = 0;
+        madness::Vector<double,3> c;
+        for (long i = 0; i < npt; ++i) {
+            c[0] = cell(0,0) + h*cw[0]*(key.translation()[0] + qx(i));
+            for (long j = 0; j < npt; ++j) {
+                c[1] = cell(1,0) + h*cw[1]*(key.translation()[1] + qx(j));
+                for (long k = 0; k < npt; ++k, ++idx) {
+                    c[2] = cell(2,0) + h*cw[2]*(key.translation()[2] + qx(k));
+                    for (int q = 0; q < 4; ++q) p[q][idx] = (*f[q])(c);
+                }
+            }
+        }
+        t[XCfunctional::enum_u1_x]  = v[0];
+        t[XCfunctional::enum_u1_y]  = v[1];
+        t[XCfunctional::enum_u1_z]  = v[2];
+        t[XCfunctional::enum_u1sq]  = v[3];
+    }
+
+    std::vector<std::shared_ptr<functorT> > f;
+    madness::FunctionCommonData<double,3> cdata;
+};
+
+
 struct xc_functional {
     const XCfunctional* xc;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_functional(const XCfunctional& xc) : xc(&xc) {}
+    xc_functional(const XCfunctional& xc, const nemo_u1_functors& u1) : xc(&xc), u1(u1) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        return xc->exc(t);
+        if (not u1.active()) return xc->exc(t);
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->exc(tt);
     }
 };
 
@@ -534,8 +804,12 @@ struct xc_functional {
 struct xc_potential {
     const XCfunctional* xc;
     const int ispin;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
+    {}
+    xc_potential(const XCfunctional& xc, int ispin, const nemo_u1_functors& u1)
+            : xc(&xc), ispin(ispin), u1(u1)
     {}
 
     std::size_t get_result_size() const {
@@ -547,14 +821,27 @@ struct xc_potential {
         if (xc->is_spin_polarized()) result_size+=3;
         // de/dtau, same spin -- the non-multiplicative meta-gga term
         if (xc->needs_tau()) result_size+=1;
+        // MAD_XC_EXPORT_DFDS: 2 de/dsigma, diagnostic. Sits here, before the A''
+        // block, so that block keeps its nr-4 .. nr-1 tail indexing.
+        if (xc_export_dfds() and xc->needs_sigma()) result_size+=1;
+        // algorithm A'': u = 2 de/dsigma and the munged grad(rho), appended last.
+        // grad(rho) has to come from here rather than be rebuilt as rho*zeta at
+        // the MRA level: the flux uses the *munged* density, which vanishes below
+        // rhotol, and an unmunged rho*zeta carries zeta's tail garbage all the way
+        // to the box wall, so its divergence picks up a surface term.
+        if (xc_onelevel_div() and xc->needs_sigma()) result_size+=4;
         return result_size;
     }
 
     std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
-        return r;
+        if (not u1.active()) return xc->vxc(t, ispin);
+        // U1 is cuspy, so it arrives here as values rather than as a Function --
+        // see nemo_u1_functors. Nothing involving it is ever projected.
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->vxc(tt, ispin);
     }
 };
 

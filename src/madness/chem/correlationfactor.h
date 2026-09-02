@@ -73,6 +73,7 @@
 #define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H_
 
 #include <madness/mra/mra.h>
+#include <cstdlib>
 #include<madness/chem/molecule.h>
 #include<madness/chem/potentialmanager.h>
 #include<madness/chem/atomutil.h>
@@ -322,7 +323,29 @@ public:
     ///          \frac{y \mathrm{erf}\left(\frac{r}{s}\right)}{r},
     ///          \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\}
     /// \f]
+	/// MAD_NCF_EXACT_UNITVEC: return the exact r-hat instead of the eprec-smoothed one
+
+	/// The smoothing makes the ncf self-inconsistent: U1_functor returns the
+	/// smoothed unit vector, whose length collapses to 0 at r = 0, while
+	/// U1_dot_U1_functor assumes |r-hat| = 1 on its diagonal. Outside eprec the two
+	/// agree to five digits; inside they differ by up to a factor 800, so any
+	/// expression mixing them -- assemble_nemo_sigma, assemble_nemo_tau -- stops
+	/// being the square of a vector there. See XC-NEMO-TAU-POINTWISE.md.
+	static bool exact_unitvec() {
+		static const bool flag = []() {
+			const char* e = std::getenv("MAD_NCF_EXACT_UNITVEC");
+			return (e != nullptr) and (std::string(e) != "0");
+		}();
+		return flag;
+	}
+
 	coord_3d smoothed_unitvec(const coord_3d& xyz, double smoothing=0.0) const {
+		if (exact_unitvec()) {
+			// r-hat is undefined at r = 0; the zero vector is the only finite
+			// choice and every product it appears in vanishes there anyway.
+			const double r=xyz.normf();
+			return (r>0.0) ? (1.0/r)*xyz : coord_3d{0.0,0.0,0.0};
+		}
 #if 0
 
         if (smoothing==0.0) smoothing=molecule.get_eprec();
@@ -353,6 +376,14 @@ public:
         const double cutoff=smoothing;
         if (r>cutoff) {
             return 1.0/r*xyz;
+        } else if (r==0.0) {
+            // kk/r is 0/0 here and returns NaN. The limit is the zero vector:
+            // kk = (105/32)(r/cutoff) + O(r^3), so kk/r tends to 105/(32 cutoff)
+            // and kk/r*xyz tends to 0. Unreachable from Gauss quadrature, whose
+            // points are strictly interior, but reachable from any code that
+            // evaluates this functor on a grid containing a nuclear position --
+            // which XCOperator's pointwise U1 route and every plotting harness do.
+            return coord_3d{0.0,0.0,0.0};
         } else {
             const double xi=r/cutoff;
             const double xi2=xi*xi;

@@ -49,6 +49,7 @@ class NemoBase;
 class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
+struct nemo_u1_functors;
 class MacroTaskQ;
 class Molecule;
 
@@ -694,6 +695,35 @@ private:
 };
 
 /// operator class for the handling of DFT exchange-correlation functionals
+/// divergence of a real vector field, honouring the `dft_deriv` setting
+
+/// vmra.h's div() hardcodes a plain ABGV gradient, so any caller that wants
+/// `dft_deriv bspline`/`ble` to reach a divergence must come through here.
+/// Shared by XCOperator::div_dft_deriv and by nemo's flux_bsh_term, which
+/// otherwise disagreed on the derivative operator and made the two weak-form
+/// routes incomparable -- see XC-NEMO-MEMORY-INVESTIGATION.md 9.4.
+/// `do_refine` mirrors vmra.h's div(v, do_refine): refining before
+/// differentiating helps a flux built from projected densities, and hurts one
+/// that is already the smooth output of a Green's-function apply -- measured 4x
+/// wall and 2x memory on He/PBE when switched on at the flux_bsh_term call site.
+real_function_3d div_dft_deriv(World& world, const std::vector<real_function_3d>& v,
+                               const std::string& dft_deriv, bool do_refine = true);
+
+/// how XCOperator::set_tau() evaluates the two U1 terms of the product rule
+
+/// With a nuclear correlation factor psi = R F and
+/// |grad psi|^2 = R^2 (|grad F|^2 - 2 F U1.grad F + |U1|^2 F^2). U1 = -grad(R)/R is
+/// analytic but componentwise non-smooth at each nucleus (U1_x ~ x/r), so carrying
+/// it as an MRA Function costs depth ~18 and every product with it inherits that
+/// depth -- which refine_to_common_level then imposes on every xc intermediate.
+/// See XC-NEMO-MEMORY-INVESTIGATION.md 9.2 and 9.8.
+enum class TauU1 {
+    from_env,    ///< MAD_XC_TAU_NO_U1 / MAD_XC_TAU_U1_POINTWISE decide; the default
+    mra,         ///< U1 and |U1|^2 projected into Functions and multiplied (shipped route)
+    pointwise,   ///< U1 evaluated from its functor at the quadrature points of the orbital tree
+    none         ///< drop both U1 terms -- DIAGNOSTIC ONLY, gives a wrong tau
+};
+
 template<typename T, std::size_t NDIM>
 class XCOperator : public SCFOperatorBase<T,NDIM> {
 public:
@@ -788,17 +818,54 @@ public:
     /// @param[in]  aocc occupation numbers of amo
     /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
     /// @param[in]  bocc occupation numbers of bmo
+    /// @param[in]  u1mode how the two U1 terms are evaluated; see TauU1
     void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
                  const vecfuncT& bmo=vecfuncT(),
-                 const Tensor<double>& bocc=Tensor<double>()) const;
+                 const Tensor<double>& bocc=Tensor<double>(),
+                 TauU1 u1mode=TauU1::from_env) const;
+
+    /// inject a kinetic energy density computed elsewhere
+
+    /// For diagnostics: it lets one potential be assembled from several taus on a
+    /// single density, so a difference between two potentials is the tau and not
+    /// the orbitals. Note make_libxc_args floors tau from below at the von
+    /// Weizsaecker bound rho chi/8, so tau = 0 does not reach libxc as zero.
+    /// @param[in]  taua alpha kinetic energy density
+    /// @param[in]  taub beta kinetic energy density; required iff spin-polarized
+    ///                  with beta electrons
+    void set_tau(const real_function_3d& taua,
+                 const real_function_3d& taub=real_function_3d()) const;
+
+    /// true once set_tau() has supplied tau, by either route
+
+    /// The pointwise route never builds a tau Function, so the presence of
+    /// enum_taua is not the right test any more.
+    bool has_tau_args() const;
+
+    /// the four analytic U1 quantities the xc ops evaluate at their quadrature points
+
+    /// Empty unless the pointwise route is in use. Handed to xc_functional /
+    /// xc_potential rather than projected into xc_args, because a projected product
+    /// with U1 is exactly what rings.
+    nemo_u1_functors make_u1_functors() const;
 
     /// the kinetic energy density of one spin channel, as set by set_tau()
 
-    /// exposed for diagnostics and for the exact check int(tau) == T
+    /// exposed for diagnostics and for the exact check int(tau) == T.
+    /// On the pointwise route tau is not stored as a Function: this assembles one,
+    /// which reintroduces the projection the route avoids, so the result is a
+    /// diagnostic and not what the functional saw near a nucleus.
     real_function_3d get_tau(const int spin=0) const;
 
     /// de/dtau, as computed by make_xc_potential()
     real_function_3d get_vtau() const {return vtau;}
+
+    /// 2 de/dsigma (same spin), if MAD_XC_EXPORT_DFDS asked for it
+
+    /// Diagnostic. Uninitialized unless the switch is on -- it is the coefficient of
+    /// the semilocal flux X = u grad(rho), i.e. where div(X)'s 1/r originates, and
+    /// nothing in the potential reads it back. Requires make_xc_potential() first.
+    real_function_3d get_dfdsigma() const {return dfdsigma;}
 
     /// opt in to the weak form, if MAD_XC_WEAK_GGA asks for it
 
@@ -928,6 +995,13 @@ private:
     /// caller has opted in to the weak form, see allow_weak_form()
     bool weak_form_ok=false;
 
+    /// the regularized (nemo) alpha density rho_a/R^2, if the ctor was given it
+
+    /// needed by algorithm A'' to build grad(rho) = R^2 (grad n - 2 U1 n), i.e.
+    /// make_ddensity's route, whose divergence conserves; the alternative
+    /// rho*zeta carries zeta's tail garbage to the box wall.
+    mutable real_function_3d arho_reg;
+
     /// the semilocal flux, assigned by make_xc_potential() in weak form only
     mutable vecfuncT semilocal_flux;
 
@@ -936,6 +1010,9 @@ private:
     /// falls out of the same pointwise pass as the multiplicative potential, so
     /// it is stashed by make_xc_potential() rather than recomputed
     mutable real_function_3d vtau;
+
+    /// 2 de/dsigma, same spin; only assigned when MAD_XC_EXPORT_DFDS is set
+    mutable real_function_3d dfdsigma;
 
     /// gradient operator honouring dft_deriv, for the meta-gga term
     std::shared_ptr<Derivative<T,NDIM> > make_derivative(const int axis) const;
@@ -946,6 +1023,7 @@ private:
     /// reached grad(log rho) -- the well-conditioned derivative -- and never the
     /// flux divergence, which is the badly conditioned one.
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
 
     /// compute the intermediates for the XC functionals
 

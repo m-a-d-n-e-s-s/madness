@@ -489,25 +489,52 @@ namespace {
 /// and the divergence acts on \f$ G_i*\mathbf Y_i \f$, which is \f$ C^1 \f$. The
 /// jump that \f$ \mathbf Y_i \f$ inherits from the flux at every nucleus is only
 /// ever convolved, never differentiated. Costs three extra Green's-function
-/// applications per orbital.
+/// applications per orbital, and by default no numerical derivative at all --
+/// the divergence is moved onto the kernel via GradBSHOperator, see
+/// xc_flux_numerical_div().
 ///
 /// The Green's function must be built exactly as BSHApply builds it -- same
 /// eps_in_green clamp, same lo, same bshtol -- or the two halves of the update
 /// belong to different operators.
 vecfuncT flux_bsh_term(const std::vector<vecfuncT> &flux, const tensorT &fock,
-                       const BSHApply<double, 3> &bsh) {
+                       const BSHApply<double, 3> &bsh,
+                       const std::string &dft_deriv) {
 
   MADNESS_CHECK(not flux.empty());
   World &world = flux[0][0].world();
   vecfuncT result(flux.size());
 
+  const bool numdiv = xc_flux_numerical_div();
+
   for (size_t i = 0; i < flux.size(); ++i) {
     const double e =
         (fock.ndim() == 2) ? fock(long(i), long(i)) : fock(long(i));
-    auto op = BSHOperatorPtr<3>(world, sqrt(-2.0 * bsh.eps_in_green(e)), bsh.lo,
-                                bsh.bshtol);
-    vecfuncT GY = apply(world, *op, flux[i]);
-    result[i] = 2.0 * div(GY, false);
+    const double mu = sqrt(-2.0 * bsh.eps_in_green(e));
+
+    if (numdiv) {
+      // numerical route: convolve, then differentiate the result. The divergence
+      // goes through div_dft_deriv, not vmra.h's div(): the latter hardcodes a
+      // plain ABGV gradient, which made this route use a *different* derivative
+      // operator from the analytic one below and so confounded the comparison of
+      // XC-NEMO-MEMORY-INVESTIGATION.md 9.4 -- it conflated "where the derivative
+      // sits" with "which derivative it is".
+      auto op = BSHOperatorPtr<3>(world, mu, bsh.lo, bsh.bshtol);
+      vecfuncT GY = apply(world, *op, flux[i]);
+      // do_refine=false: G*Y is already smooth, and refining it before the
+      // derivative costs 4x wall and 2x memory (measured He/PBE) for nothing.
+      // This matches the old div(GY, false) exactly at `dft_deriv abgv`.
+      result[i] = 2.0 * div_dft_deriv(world, GY, dft_deriv, false);
+    } else {
+      // analytic route: move the derivative onto the kernel, since
+      //   div(G * Y) = sum_a (d_a G) * Y_a
+      // GradBSHOperator builds d_a G from the same BSHFit expansion, so no
+      // numerical derivative is taken anywhere in this term
+      auto gradG = GradBSHOperator(world, mu, bsh.lo, bsh.bshtol);
+      vecfuncT parts(3);
+      for (int axis = 0; axis < 3; ++axis)
+        parts[axis] = apply(*gradG[axis], flux[i][axis]);
+      result[i] = 2.0 * sum(world, parts, true);
+    }
   }
   truncate(world, result);
   return result;
@@ -649,7 +676,8 @@ double Nemo::solve(const SCFProtocol &proto) {
       // div(Y_i) would resolve the jump that Y_i inherits from X at every
       // nucleus. That jump is what produces the 1e5 excursions of the
       // multiplicative potential.
-      update += flux_bsh_term(xcflux, fock, bsh_apply);
+      update += flux_bsh_term(xcflux, fock, bsh_apply,
+                              get_calc_param().dft_deriv());
       t_bsh.tag("BSH apply (xc flux)");
     }
     auto residual = nemo - update;
@@ -998,44 +1026,56 @@ real_function_3d Nemo::make_ddensity(const real_function_3d &rhonemo,
 real_function_3d
 Nemo::make_laplacian_density(const real_function_3d &rhonemo) const {
 
-  // U1^2 operator
-  NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
-  const real_function_3d U1dot =
-      real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
+  // One divergence of grad(rho), rather than the three-term expansion
+  //
+  //   laplacian(rho) = R^2 [ 2 U1^2 rho_R - 4 (U-V) rho_R + laplacian(rho_R) ]
+  //
+  // that this function used to evaluate. The expansion is algebraically correct
+  // but numerically hopeless: measured on HF/LiH at thresh 1e-6 the three terms
+  // have norms 9.5, 110 and 53 and their exact sum has integral zero, so the
+  // absolute accuracy of the result is set by the *relative* accuracy of the
+  // largest term -- which is itself a difference of two nuclear operators that
+  // each carry the -Z/r singularity. The residual came out at 7.3e-4 where the
+  // divergence theorem demands 0, and the Poisson round trip turned that into
+  // 2.54 electrons instead of 4.
+  //
+  // A divergence, by contrast, integrates to zero by construction up to surface
+  // terms and up to the truncation of the flux itself: measured -6.1e-10 here,
+  // against 7.3e-4 for the expansion. (A divergence of an *untruncated* flux
+  // reaches ~5e-14; the 1e-10 is the price of truncating each d(rho)/dx_a before
+  // the divergence sees it, and is four orders below anything that matters.)
+  //
+  // grad(rho) comes from make_ddensity, i.e. R^2 (grad rho_R - 2 U1 rho_R): the
+  // nuclear cusp stays in the analytic U1 and only the cusp-free rho_R is
+  // differentiated. Neither ble2 nor bspline2 nor dropping the `smoothen` filter
+  // rescues the expanded form; the accuracy of laplacian(rho_R) was never the
+  // limiting factor. See test_laplacian_density.cc for the measurements.
+  //
+  // Caveat on how that was measured: the Poisson round trip is sensitive to
+  // exactly the error the expansion makes (a spurious monopole, which the 1/k^2
+  // symbol amplifies) and nearly blind to near-nucleus error, which it damps by
+  // 1/k^2. It is a conservation check, not a pointwise accuracy check, and it
+  // bottoms out at the Coulomb operator's own eps -- so it establishes that the
+  // expansion leaked charge and this form does not, but it cannot rank routes
+  // that already conserve.
+  vecfuncT drho(3);
+  for (int axis = 0; axis < 3; ++axis)
+    drho[axis] = make_ddensity(rhonemo, axis);
+  truncate(world, drho);
 
-  real_function_3d result = (2.0 * U1dot * rhonemo).truncate();
+  // free-space derivatives throughout, matching make_ddensity; the operators
+  // must outlive the un-fenced applies
+  reconstruct(world, drho);
+  refine(world, drho);
+  std::vector<std::shared_ptr<real_derivative_3d>> D(3);
+  for (int axis = 0; axis < 3; ++axis)
+    D[axis] = std::shared_ptr<real_derivative_3d>(
+        new real_derivative_3d(free_space_derivative<double, 3>(world, axis)));
+  vecfuncT d2(3);
+  for (int axis = 0; axis < 3; ++axis) d2[axis] = apply(*D[axis], drho[axis], false);
+  world.gop.fence();
 
-  // U2 operator
-  const Nuclear<double, 3> U_op(world, this->ncf);
-  const Nuclear<double, 3> V_op(world, this->get_calc().get());
-
-  const real_function_3d Vrho = V_op(rhonemo); // eprec is important here!
-  const real_function_3d Urho = U_op(rhonemo);
-
-  real_function_3d term2 = 4.0 * (Urho - Vrho).truncate();
-  result -= term2;
-
-  // derivative contribution: R2 \Delta rhonemo
-  real_function_3d laplace_rhonemo = real_factory_3d(world).compressed();
-  real_function_3d rhonemo_refined = copy(rhonemo).refine();
-  for (int axis = 0; axis < 3; ++axis) {
-    real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    real_function_3d drhonemo = D(rhonemo_refined).refine();
-    smoothen(drhonemo);
-    real_function_3d d2rhonemo = D(drhonemo);
-    laplace_rhonemo += d2rhonemo;
-  }
-  save(laplace_rhonemo, "laplace_rhonemo");
-
-  result += (laplace_rhonemo).truncate();
-  result = (R_square * result).truncate();
-  save(result, "d2rho");
-
-  // double check result: recompute the density from its laplacian
-  real_function_3d rho_rec = -1. / (4. * constants::pi) * (*poisson)(result);
-  save(rho_rec, "rho_reconstructed");
-
-  return result;
+  return sum(world, d2, true).truncate();
 }
 
 real_function_3d Nemo::kinetic_energy_potential(const vecfuncT &nemo) const {

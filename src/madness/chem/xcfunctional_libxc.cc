@@ -289,6 +289,90 @@ static inline double chi_of(const double* sx, const double* sy, const double* sz
     return sx[i]*sx[i] + sy[i]*sy[i] + sz[i]*sz[i];
 }
 
+/// assemble the regularized alpha/beta tau pointwise, or return NULL
+
+/// With psi = R F the product rule gives
+/// \f[ \tau_\sigma = \tfrac12 R^2\left(\sum_i w_i|\nabla F_i|^2
+///        - 2\,\mathbf U_1\!\cdot\!\mathbf G_\sigma + |\mathbf U_1|^2 n_\sigma\right) \f]
+/// with \f$ \mathbf G_\sigma=\sum_i w_iF_i\nabla F_i \f$. Everything but U1 is smooth and
+/// arrives as an MRA function; U1 arrives as values from its functor (nemo_u1_functors),
+/// so no product involving it is ever projected onto a tree. That is the whole point:
+/// the projected form rings across a box wherever the tree is coarser than U1's
+/// eprec-scale structure, and the ringing does not converge away.
+///
+/// Returns an empty Tensor when the nemo pieces are absent, which is the moldft path --
+/// there tau is computed directly from the physical orbitals and lives in enum_taua/b.
+static madness::Tensor<double> assemble_nemo_tau(
+        const std::vector<madness::Tensor<double> >& t, const long np, const bool beta) {
+
+    const int e_grad = beta ? XCfunctional::enum_gradfb : XCfunctional::enum_gradfa;
+    const int e_n    = beta ? XCfunctional::enum_nb     : XCfunctional::enum_na;
+    const int e_gx   = beta ? XCfunctional::enum_Gb_x   : XCfunctional::enum_Ga_x;
+    const int e_gy   = beta ? XCfunctional::enum_Gb_y   : XCfunctional::enum_Ga_y;
+    const int e_gz   = beta ? XCfunctional::enum_Gb_z   : XCfunctional::enum_Ga_z;
+
+    if (long(t.size()) <= XCfunctional::enum_u1sq) return madness::Tensor<double>();
+    if (not t[e_grad].size() or not t[XCfunctional::enum_nemo_R2].size())
+        return madness::Tensor<double>();
+    if (not t[XCfunctional::enum_u1sq].size())
+        MADNESS_EXCEPTION("regularized tau pieces present but U1 was not supplied: "
+                          "the xc op must be built with nemo_u1_functors",1);
+
+    const double * MADNESS_RESTRICT gf = t[e_grad].ptr();
+    const double * MADNESS_RESTRICT n  = t[e_n].ptr();
+    const double * MADNESS_RESTRICT gx = t[e_gx].ptr();
+    const double * MADNESS_RESTRICT gy = t[e_gy].ptr();
+    const double * MADNESS_RESTRICT gz = t[e_gz].ptr();
+    const double * MADNESS_RESTRICT r2 = t[XCfunctional::enum_nemo_R2].ptr();
+    const double * MADNESS_RESTRICT ux = t[XCfunctional::enum_u1_x].ptr();
+    const double * MADNESS_RESTRICT uy = t[XCfunctional::enum_u1_y].ptr();
+    const double * MADNESS_RESTRICT uz = t[XCfunctional::enum_u1_z].ptr();
+    const double * MADNESS_RESTRICT u2 = t[XCfunctional::enum_u1sq].ptr();
+
+    madness::Tensor<double> tau_s(np);
+    double * MADNESS_RESTRICT out = tau_s.ptr();
+    for (long i=0; i<np; ++i) {
+        out[i] = 0.5*r2[i]*( gf[i] - 2.0*(ux[i]*gx[i] + uy[i]*gy[i] + uz[i]*gz[i])
+                             + u2[i]*n[i] );
+    }
+    return tau_s;
+}
+
+
+/// grad(rho_sigma) from the split form, or an empty vector when unavailable
+
+/// \f[ \nabla\rho_s = R^2(\nabla n_s - 2\mathbf U_1 n_s) = 2R^2(\mathbf G_s - \mathbf U_1 n_s) \f]
+/// Smooth pieces from MRA, U1 from its functor -- neither differentiated numerically
+/// nor projected. See xc_nemo_sigma() for why this is worth doing.
+static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
+        const std::vector<madness::Tensor<double> >& t, const long np, const bool beta) {
+
+    const int e_n  = beta ? XCfunctional::enum_nb   : XCfunctional::enum_na;
+    const int e_gx = beta ? XCfunctional::enum_Gb_x : XCfunctional::enum_Ga_x;
+
+    if (not (xc_nemo_sigma())) return {};
+    if (long(t.size()) <= XCfunctional::enum_u1sq) return {};
+    if (not t[e_n].size() or not t[XCfunctional::enum_nemo_R2].size()) return {};
+    if (not t[XCfunctional::enum_u1sq].size())
+        MADNESS_EXCEPTION("regularized density pieces present but U1 was not supplied: "
+                          "the xc op must be built with nemo_u1_functors",1);
+
+    const double * MADNESS_RESTRICT n  = t[e_n].ptr();
+    const double * MADNESS_RESTRICT r2 = t[XCfunctional::enum_nemo_R2].ptr();
+    const double * MADNESS_RESTRICT u[3] = {t[XCfunctional::enum_u1_x].ptr(),
+                                            t[XCfunctional::enum_u1_y].ptr(),
+                                            t[XCfunctional::enum_u1_z].ptr()};
+    std::vector<madness::Tensor<double> > d(3);
+    for (int ax=0; ax<3; ++ax) {
+        d[ax] = madness::Tensor<double>(np);
+        const double * MADNESS_RESTRICT g = t[e_gx+ax].ptr();
+        double * MADNESS_RESTRICT o = d[ax].ptr();
+        for (long i=0; i<np; ++i) o[i] = 2.0*r2[i]*(g[i] - u[ax][i]*n[i]);
+    }
+    return d;
+}
+
+
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
            madness::Tensor<double>& tau,
@@ -343,18 +427,44 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             double * MADNESS_RESTRICT ddensy = drho[1].ptr();
             double * MADNESS_RESTRICT ddensz = drho[2].ptr();
 
+            // grad(rho) from the split form when the regularized pieces are there:
+            // the default zeta route differentiates log(rho), which has a kink at
+            // every nucleus, and errs 30-70 % inside 1e-3 bohr. See xc_nemo_sigma().
+            const std::vector<madness::Tensor<double> > dnemo =
+                    assemble_nemo_ddens(xc_args, np, false);
+
             for (long i=0; i<np; i++) {
                 dens[i]=munge(2.0*rhoa[i]);     // full dens is twice alpha dens
-                ddensx[i]=dens[i]*zetaa_x[i];
-                ddensy[i]=dens[i]*zetaa_y[i];
-                ddensz[i]=dens[i]*zetaa_z[i];
-                // sigma = |grad rho|^2 contracted from the very gradient handed to
-                // libxc, not read from a separately represented chi -- see chi_of()
-                sig[i] = std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
+                if (dnemo.empty()) {
+                    ddensx[i]=dens[i]*zetaa_x[i];
+                    ddensy[i]=dens[i]*zetaa_y[i];
+                    ddensz[i]=dens[i]*zetaa_z[i];
+                    // sigma = |grad rho|^2 contracted from the very gradient handed to
+                    // libxc, not read from a separately represented chi -- see chi_of()
+                    sig[i] = std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
+                } else {
+                    // the pieces are per spin, and the total is twice the alpha one
+                    const double gx = 2.0*dnemo[0].ptr()[i];
+                    const double gy = 2.0*dnemo[1].ptr()[i];
+                    const double gz = 2.0*dnemo[2].ptr()[i];
+                    // follow munge(): where the density has been floored the flux
+                    // must vanish too, or div(X) picks up a surface term at the box
+                    // wall -- the same trap algorithm A'' hit with an unmunged
+                    // rho*zeta (see xc_onelevel_div()).
+                    const double m = (2.0*rhoa[i] <= rhotol) ? 0.0 : 1.0;
+                    ddensx[i]=m*gx; ddensy[i]=m*gy; ddensz[i]=m*gz;
+                    sig[i] = std::max(1.e-14, ddensx[i]*ddensx[i]
+                                            + ddensy[i]*ddensy[i]
+                                            + ddensz[i]*ddensz[i]);
+                }
             }
 
             if (needs_tau()) {
-                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
+                // the regularized route assembles tau here, from smooth MRA pieces
+                // and U1 values; the moldft route hands it over ready-made
+                const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
+                const double * MADNESS_RESTRICT taua =
+                        nemo_taua.size() ? nemo_taua.ptr() : xc_args[enum_taua].ptr();
                 // Substituting zeros here would evaluate the functional at the tau
                 // floor and return a plausible-looking but wrong energy, so the
                 // missing precondition has to be an error, not a default.
@@ -484,6 +594,13 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             double * MADNESS_RESTRICT ddensz  = drho[2].ptr();
 
 
+            // as in the unpolarized branch: split form when the pieces are present
+            const std::vector<madness::Tensor<double> > dna =
+                    assemble_nemo_ddens(xc_args, np, false);
+            const std::vector<madness::Tensor<double> > dnb =
+                    assemble_nemo_ddens(xc_args, np, true);
+            const bool split = (not dna.empty()) and (not dnb.empty());
+
             for (long i=0; i<np; i++) {
 
                 double ra=munge(rhoa[i]);
@@ -492,12 +609,20 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
 
+                if (split) {
+                    const double ma = (rhoa[i] <= rhotol) ? 0.0 : 1.0;
+                    const double mb = (rhob[i] <= rhotol) ? 0.0 : 1.0;
+                    ddensx[2*i  ]=ma*dna[0].ptr()[i];  ddensx[2*i+1]=mb*dnb[0].ptr()[i];
+                    ddensy[2*i  ]=ma*dna[1].ptr()[i];  ddensy[2*i+1]=mb*dnb[1].ptr()[i];
+                    ddensz[2*i  ]=ma*dna[2].ptr()[i];  ddensz[2*i+1]=mb*dnb[2].ptr()[i];
+                } else {
                 ddensx[2*i  ]=ra * zetaa_x[i];
                 ddensx[2*i+1]=rb * zetab_x[i];
                 ddensy[2*i  ]=ra * zetaa_y[i];
                 ddensy[2*i+1]=rb * zetab_y[i];
                 ddensz[2*i  ]=ra * zetaa_z[i];
                 ddensz[2*i+1]=rb * zetab_z[i];
+                }
 
                 // Contract the sigma matrix from the same zeta vectors, so that it is
                 // the exact Gram matrix of grad(rho_a), grad(rho_b) at this point:
@@ -505,12 +630,24 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 // and sigma_aa + 2 sigma_ab + sigma_bb = |grad rho|^2 >= 0. libxc
                 // relies on all three -- the total in particular: the correlation
                 // kernels return NaN for vsigma as soon as it goes negative.
-                double saa = ra * ra * chi_of(zetaa_x,zetaa_y,zetaa_z,i);
-                double sbb = rb * rb * chi_of(zetab_x,zetab_y,zetab_z,i);
+                // Contracted from the very gradients just written into ddens*, by
+                // either route, so the Gram-matrix property is preserved in both.
+                double saa, sbb, sab;
+                if (split) {
+                    saa = ddensx[2*i  ]*ddensx[2*i  ] + ddensy[2*i  ]*ddensy[2*i  ]
+                        + ddensz[2*i  ]*ddensz[2*i  ];
+                    sbb = ddensx[2*i+1]*ddensx[2*i+1] + ddensy[2*i+1]*ddensy[2*i+1]
+                        + ddensz[2*i+1]*ddensz[2*i+1];
+                    sab = ddensx[2*i  ]*ddensx[2*i+1] + ddensy[2*i  ]*ddensy[2*i+1]
+                        + ddensz[2*i  ]*ddensz[2*i+1];
+                } else {
+                saa = ra * ra * chi_of(zetaa_x,zetaa_y,zetaa_z,i);
+                sbb = rb * rb * chi_of(zetab_x,zetab_y,zetab_z,i);
                 // sigma_ab = grad(rho_a).grad(rho_b) is bilinear and may legitimately
                 // be negative; only its magnitude is bounded. Do not clamp the sign.
-                double sab = ra * rb * chi_of(zetaa_x,zetaa_y,zetaa_z,
+                sab = ra * rb * chi_of(zetaa_x,zetaa_y,zetaa_z,
                                               zetab_x,zetab_y,zetab_z,i);
+                }
                 // the positivity floor is for libxc's benefit; raising a diagonal
                 // could break Cauchy-Schwarz on its own, so re-impose the bound after
                 saa = std::max(1.e-14,saa);
@@ -524,8 +661,12 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
 
             if (needs_tau()) {
-                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
-                const double * MADNESS_RESTRICT taub = xc_args[enum_taub].ptr();
+                const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
+                const madness::Tensor<double> nemo_taub = assemble_nemo_tau(xc_args, np, true);
+                const double * MADNESS_RESTRICT taua =
+                        nemo_taua.size() ? nemo_taua.ptr() : xc_args[enum_taua].ptr();
+                const double * MADNESS_RESTRICT taub =
+                        nemo_taub.size() ? nemo_taub.ptr() : xc_args[enum_taub].ptr();
                 if (taua==NULL) MADNESS_EXCEPTION("meta-gga without a kinetic energy "
                         "density: XCOperator::set_tau() must be called before the "
                         "functional is evaluated",1);
@@ -834,6 +975,43 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
                         r1[j] += 2.0 * vs[j]*funcs[i].second*ddensx[j];    // total density
                         r2[j] += 2.0 * vs[j]*funcs[i].second*ddensy[j];    // total density
                         r3[j] += 2.0 * vs[j]*funcs[i].second*ddensz[j];    // total density
+                    }
+                }
+            }
+
+            // algorithm A'': hand out u = 2 de/dsigma (same spin) as its own
+            // pointwise output, so the caller can form
+            // grad(u).grad(rho) + u laplacian(rho). Restricted only.
+            if (xc_onelevel_div()) {
+                MADNESS_CHECK_THROW(not spin_polarized,
+                                    "MAD_XC_ONELEVEL_DIV is spin-restricted only");
+                const std::size_t nr = result.size();
+                double * MADNESS_RESTRICT ru  = result[nr-4].ptr();
+                double * MADNESS_RESTRICT rdx = result[nr-3].ptr();
+                double * MADNESS_RESTRICT rdy = result[nr-2].ptr();
+                double * MADNESS_RESTRICT rdz = result[nr-1].ptr();
+                for (long j=0; j<np; j++) {
+                    ru[j]  += 2.0*vs[j]*funcs[i].second;
+                    // the same munged grad(rho) the flux is built from; written
+                    // once, not accumulated over funcs
+                    if (i==0) { rdx[j] = ddensx[j]; rdy[j] = ddensy[j]; rdz[j] = ddensz[j]; }
+                }
+            }
+
+            // MAD_XC_EXPORT_DFDS: 2 de/dsigma of the same spin, unmunged and
+            // unmultiplied. Diagnostic -- nothing in the potential reads it. This is
+            // the coefficient the semilocal flux X = u grad(rho) is built from, so
+            // it is where div(X)'s 1/r comes from, which is why it is worth looking
+            // at directly. Index from the shared helper, never from a tail offset.
+            {
+                const int islot = xc_dfds_slot(spin_polarized, meta, true);
+                if (islot >= 0) {
+                    double * MADNESS_RESTRICT ru = result[islot].ptr();
+                    if (spin_polarized) {
+                        for (long j=0; j<np; j++)
+                            ru[j] += 2.0*vs[nvsig*j + 2*ispin]*funcs[i].second;
+                    } else {
+                        for (long j=0; j<np; j++) ru[j] += 2.0*vs[j]*funcs[i].second;
                     }
                 }
             }

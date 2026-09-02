@@ -139,6 +139,10 @@ from _pymadness import (
     gradient,
     diff as _diff,
 
+    # Pointwise composition over a common tree
+    multiop_values,
+    refine_to_common_level,
+
     # Tensor
     Tensor,
     tensor_to_numpy,
@@ -466,6 +470,8 @@ __all__ = [
     "SeparatedConvolution1D", "SeparatedConvolution3D",
     # Free functions
     "apply", "inner", "copy", "gradient", "diff",
+    # Pointwise composition
+    "multiop_values", "refine_to_common_level",
     # Pointwise math
     "exp", "log", "sqrt",
     # Plotting
