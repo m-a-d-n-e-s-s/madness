@@ -46,14 +46,36 @@ if(NOT NVPL_FOUND)
   if(DEFINED ENV{NVHPC_ROOT})
     list(APPEND _nvpl_roots "$ENV{NVHPC_ROOT}")
   endif()
+  if(DEFINED ENV{NVHPC_DIR})
+    list(APPEND _nvpl_roots "$ENV{NVHPC_DIR}")
+  endif()
+  if(DEFINED ENV{NVHPC})
+    list(APPEND _nvpl_roots "$ENV{NVHPC}")
+  endif()
   if(DEFINED ENV{HPCX_DIR})
     list(APPEND _nvpl_roots "$ENV{HPCX_DIR}")
   endif()
 
-  # Standard installation paths on Linux / AArch64
-  list(APPEND _nvpl_roots
-    "/opt/nvidia/nvpl"
+  # Standard installation paths on Linux / AArch64 (including NVIDIA HPC SDK paths)
+  file(GLOB _opt_nvpl_dirs
+    "/opt/nvidia/nvpl*"
+    "/opt/nvidia/nvpl/*"
+    "/opt/nvidia/nvpl/*/*"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*/math_libs/nvpl"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*/math_libs/nvpl/*"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*/REDIST/math_libs/nvpl"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*/REDIST/math_libs/nvpl/*"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*/math_libs"
+    "/opt/nvidia/hpc_sdk/Linux_aarch64/*"
     "/opt/nvidia/hpc_sdk"
+    "/opt/nvidia/*"
+  )
+  if(_opt_nvpl_dirs)
+    list(SORT _opt_nvpl_dirs ORDER DESCENDING)
+  endif()
+  list(APPEND _nvpl_roots
+    ${_opt_nvpl_dirs}
+    "/opt/nvidia/nvpl"
     "/opt/nvidia"
     "/usr/local/cuda"
     "/usr/local"
@@ -62,9 +84,6 @@ if(NOT NVPL_FOUND)
     "/usr/lib"
     "/usr"
   )
-  file(GLOB _opt_nvpl_dirs "/opt/nvidia/nvpl*")
-  file(GLOB _opt_nvhpc_dirs "/opt/nvidia/hpc_sdk/Linux_aarch64/*/math_libs")
-  list(APPEND _nvpl_roots ${_opt_nvpl_dirs} ${_opt_nvhpc_dirs})
   if(_nvpl_roots)
     list(REMOVE_DUPLICATES _nvpl_roots)
   endif()
@@ -105,9 +124,11 @@ if(NOT NVPL_FOUND)
     HINTS ${NVPL_INCLUDE_DIR} ${_nvpl_roots}
     PATH_SUFFIXES
       include
-      nvpl_include
       include/nvpl
-      math_libs/include
+      nvpl/include
+      math_libs/nvpl/include
+      REDIST/math_libs/nvpl/include
+      nvpl_include
   )
 
   # Search for NVPL library directory and libraries
@@ -120,9 +141,10 @@ if(NOT NVPL_FOUND)
   set(_nvpl_suffixes
     lib
     lib64
+    nvpl/lib
+    math_libs/nvpl/lib
+    REDIST/math_libs/nvpl/lib
     lib/aarch64-linux-gnu
-    math_libs/lib64
-    math_libs/lib
   )
 
   find_library(NVPL_BLAS_LIBRARY
@@ -141,20 +163,37 @@ if(NOT NVPL_FOUND)
     set(NVPL_LIBRARIES ${NVPL_LAPACK_LIBRARY} ${NVPL_BLAS_LIBRARY})
     set(NVPL_INCLUDE_DIRS ${NVPL_INCLUDE_DIR})
 
-    find_package_handle_standard_args(NVPL
-      REQUIRED_VARS NVPL_LIBRARIES
-    )
-
-    if(NVPL_FOUND AND NOT TARGET NVPL::NVPL)
-      add_library(NVPL::NVPL INTERFACE IMPORTED)
-      set_target_properties(NVPL::NVPL PROPERTIES
-        INTERFACE_LINK_LIBRARIES "${NVPL_LIBRARIES}"
-      )
-      if(NVPL_INCLUDE_DIRS)
-        set_target_properties(NVPL::NVPL PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${NVPL_INCLUDE_DIRS}"
-        )
+    # Try to extract version from nvpl_blas_version.h
+    if(NVPL_INCLUDE_DIR AND EXISTS "${NVPL_INCLUDE_DIR}/nvpl_blas_version.h")
+      file(STRINGS "${NVPL_INCLUDE_DIR}/nvpl_blas_version.h" _ver_major
+           REGEX "^#define[ \t]+NVPL_BLAS_VERSION_MAJOR[ \t]+[0-9]+")
+      file(STRINGS "${NVPL_INCLUDE_DIR}/nvpl_blas_version.h" _ver_minor
+           REGEX "^#define[ \t]+NVPL_BLAS_VERSION_MINOR[ \t]+[0-9]+")
+      file(STRINGS "${NVPL_INCLUDE_DIR}/nvpl_blas_version.h" _ver_patch
+           REGEX "^#define[ \t]+NVPL_BLAS_VERSION_PATCH[ \t]+[0-9]+")
+      string(REGEX REPLACE ".*NVPL_BLAS_VERSION_MAJOR[ \t]+([0-9]+).*" "\\1" _ver_major "${_ver_major}")
+      string(REGEX REPLACE ".*NVPL_BLAS_VERSION_MINOR[ \t]+([0-9]+).*" "\\1" _ver_minor "${_ver_minor}")
+      string(REGEX REPLACE ".*NVPL_BLAS_VERSION_PATCH[ \t]+([0-9]+).*" "\\1" _ver_patch "${_ver_patch}")
+      if(_ver_major MATCHES "^[0-9]+$" AND _ver_minor MATCHES "^[0-9]+$")
+        set(NVPL_VERSION "${_ver_major}.${_ver_minor}.${_ver_patch}")
       endif()
+    endif()
+  endif()
+
+  find_package_handle_standard_args(NVPL
+    REQUIRED_VARS NVPL_LIBRARIES
+    VERSION_VAR NVPL_VERSION
+  )
+
+  if(NVPL_FOUND AND NOT TARGET NVPL::NVPL)
+    add_library(NVPL::NVPL INTERFACE IMPORTED)
+    set_target_properties(NVPL::NVPL PROPERTIES
+      INTERFACE_LINK_LIBRARIES "${NVPL_LIBRARIES}"
+    )
+    if(NVPL_INCLUDE_DIRS)
+      set_target_properties(NVPL::NVPL PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${NVPL_INCLUDE_DIRS}"
+      )
     endif()
   endif()
 
