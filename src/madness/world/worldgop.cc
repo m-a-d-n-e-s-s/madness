@@ -30,6 +30,7 @@
 */
 
 #include <limits>
+#include <worldmutex.h>
 #include <madness/world/worldgop.h>
 #include <madness/world/MADworld.h>
 #ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC
@@ -90,13 +91,13 @@ namespace madness {
                 nsent1 = world_.am.nsent;
                 nrecv1 = world_.am.nrecv;
 
-                __asm__ __volatile__ (" " : : : "memory");
+                MADNESS_COMPILER_BARRIER;
 
                 ntask2 = world_.taskq.size();
                 nsent2 = world_.am.nsent;
                 nrecv2 = world_.am.nrecv;
 
-                __asm__ __volatile__ (" " : : : "memory");
+                MADNESS_COMPILER_BARRIER;
 
                 finished = (ntask2==0) && (ntask1==0) && (nsent1==nsent2) && (nrecv1==nrecv2);
             }
