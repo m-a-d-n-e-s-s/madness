@@ -891,13 +891,42 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    namespace detail {
+        /// put a vector of functions into a state whose coefficients sum to ||f||^2
+
+        /// norm2sq_local() adds up the coefficients of every node, which is the
+        /// norm only in a state that carries them once -- a redundant tree holds
+        /// them on every level and overcounts.  Reconstructing is a mutation: it
+        /// discards the interior coefficients.  So fence first, or the removal
+        /// tasks race a task still reading those coefficients, e.g. a
+        /// mul_sparse(..., fence=false) that has not been fenced yet.
+        /// Cf. Function::norm2(), which does the same for a single function.
+        /// The branch is taken on the tree state, which is replicated, so all
+        /// ranks take the same branch and the global ops stay collective.
+        template <typename T, std::size_t NDIM>
+        void reconstruct_for_norm(World& world, const std::vector<Function<T,NDIM>>& v) {
+            if (v.size()==0) return;    // nothing to sum, and nothing to fence for
+            const TreeState state=get_tree_state(v);
+            if (state==compressed or state==reconstructed) return;
+            MADNESS_CHECK_THROW(std::none_of(v.begin(), v.end(),
+                [](const Function<T,NDIM>& f) {return f.is_initialized() and f.is_on_demand();}),
+                "norm2/norm2s are not defined for an on-demand function; materialize it first");
+            world.gop.fence();
+            reconstruct(world,v);
+        }
+    }
+
     /// Computes the 2-norms of a vector of functions
+
+    /// Reconstructs the functions if their state does not admit a direct sum;
+    /// see detail::reconstruct_for_norm for what that costs.
     template <typename T, std::size_t NDIM>
     std::vector<double> norm2s(World& world,
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
-        if (not (get_tree_state(v)==compressed or get_tree_state(v)==reconstructed)) reconstruct(world,v);
+        if (v.size()==0) return norms;  // &norms[0] below is UB on an empty container
+        detail::reconstruct_for_norm(world,v);
         for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
         for (unsigned int i=0; i<v.size(); ++i) norms[i] = sqrt(norms[i]);
@@ -905,11 +934,15 @@ namespace madness {
         return norms;
     }
     /// Computes the 2-norms of a vector of functions
+
+    /// Reconstructs the functions if their state does not admit a direct sum;
+    /// see detail::reconstruct_for_norm for what that costs.
     template <typename T, std::size_t NDIM>
     Tensor<double> norm2s_T(World& world, const std::vector<Function<T, NDIM>>& v) {
         PROFILE_BLOCK(Vnorm2);
         Tensor<double> norms(v.size());
-        if (not (get_tree_state(v)==compressed or get_tree_state(v)==reconstructed)) reconstruct(world,v);
+        if (v.size()==0) return norms;  // &norms[0] below is UB on an empty container
+        detail::reconstruct_for_norm(world,v);
         for (unsigned int i = 0; i < v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
         for (unsigned int i = 0; i < v.size(); ++i) norms[i] = sqrt(norms[i]);
@@ -918,11 +951,14 @@ namespace madness {
     }
 
     /// Computes the 2-norm of a vector of functions
+
+    /// Reconstructs the functions if their state does not admit a direct sum;
+    /// see detail::reconstruct_for_norm for what that costs.
     template <typename T, std::size_t NDIM>
     double norm2(World& world,const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         if (v.size()==0) return 0.0;
-        if (not (get_tree_state(v)==compressed or get_tree_state(v)==reconstructed)) reconstruct(world,v);
+        detail::reconstruct_for_norm(world,v);
         std::vector<double> norms(v.size());
         for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
@@ -2419,7 +2455,8 @@ namespace madness {
         MADNESS_ASSERT(g.size()==3);
         World& world=f[0].world();
         reconstruct(world,f,false);
-        reconstruct(world,g);
+        reconstruct(world,g,false);
+        world.gop.fence();
 
         std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > d(f.size()),dd(f.size());
 
@@ -2433,14 +2470,14 @@ namespace madness {
         world.gop.fence();
 
         compress(world,d,false);
-        compress(world,dd);
+        compress(world,dd,false);
+        world.gop.fence();
 
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
-
-
         world.gop.fence();
+
         return d;
     }
 

@@ -252,6 +252,212 @@ int test_dot(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// T6: mul_sparse leaves its operands redundant. The global norm2()/trace()
+/// entry points must stay correct across that state.
+int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T6: operand state and the norms read off it");
+    t.set_do_print(world.rank() == 0);
+    // this test changes the state of both operands, and the
+    // pairs are shared with every test that runs after it
+    operand_pair p{pairs.front().name, copy(pairs.front().f),
+                   copy(pairs.front().g), copy(pairs.front().fg)};
+
+    // reference values, taken while the operands are still reconstructed
+    p.f.reconstruct();
+    p.g.reconstruct();
+    const double norm_before    = p.f.norm2();
+    const double trace_before   = p.f.trace();
+    const double g_trace_before = p.g.trace();
+
+    Function<double,D> q = mul_sparse(p.f, p.g, 1.e-6);
+    world.gop.fence();
+
+    t.checkpoint(get_tree_state(p.f) == redundant,
+                 "T6 left operand is left redundant");
+    t.checkpoint(get_tree_state(p.g) == redundant,
+                 "T6 right operand is left redundant");
+
+    // each entry point has to be called on a tree that is still redundant at
+    // the point of the call, and norm2()/trace() reconstruct as a side effect
+    // -- so they cannot be measured one after the other on the same operand
+    const double norm_after  = p.f.norm2();     // p.f: redundant -> reconstructed
+    const double trace_after = p.g.trace();     // p.g: redundant -> reconstructed
+    if (world.rank() == 0)
+        printf("  T6 norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
+               norm_before, norm_after, g_trace_before, trace_after);
+
+    t.checkpoint(norm_after,  norm_before,    1.e-10, "T6 norm2 on a redundant function");
+    t.checkpoint(trace_after, g_trace_before, 1.e-10, "T6 trace on a redundant function");
+    t.checkpoint(get_tree_state(p.f) == reconstructed and
+                 get_tree_state(p.g) == reconstructed,
+                 "T6 norm2/trace leave the operand reconstructed");
+
+    // the vector overload already reconstructs; it must still agree.  p.f is
+    // reconstructed by now, so put it back into redundant form first
+    p.f.make_redundant(true);
+    t.checkpoint(get_tree_state(p.f) == redundant,
+                 "T6 norm2s operand is redundant on entry");
+    std::vector<Function<double,D>> v = {p.f};
+    t.checkpoint(norm2s(world, v)[0], norm_before, 1.e-10,
+                 "T6 vector norm2s agrees");
+
+    // p.f has now been through reconstructed -> redundant -> reconstructed;
+    // its trace must still be the value measured at the top
+    t.checkpoint(p.f.trace(), trace_before, 1.e-10,
+                 "T6 trace round-trips through redundant form");
+    return t.end();
+}
+
+/// T7: norm_tree means ||f|| on the box, in every tree state. compress()
+/// clears leaf coefficients, and the leaf norm has to be read before that
+/// happens or a zero propagates to the root.
+int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T7: norm_tree across tree states");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+    const double exact = f.norm2();
+
+    auto root_norm_tree = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double nt = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            nt = g.get_impl()->get_coeffs().find(key0).get()->second.get_norm_tree();
+        world.gop.max(nt);
+        return nt;
+    };
+
+    auto root_dnorm_tree = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double dnt = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            dnt = g.get_impl()->get_coeffs().find(key0).get()->second.get_dnorm_tree();
+        world.gop.max(dnt);
+        return dnt;
+    };
+
+    auto root_snorm = [&world](const Function<double,D>& g) {
+        const Key<D> key0 = g.get_impl()->get_cdata().key0;
+        double sn = 0.0;
+        if (g.get_impl()->get_coeffs().probe(key0))
+            sn = g.get_impl()->get_coeffs().find(key0).get()->second.get_snorm();
+        world.gop.max(sn);
+        return sn;
+    };
+
+    f.make_redundant(true);
+    const double nt_redundant = root_norm_tree(f);
+    f.reconstruct();
+    f.compress();
+    const double nt_compressed = root_norm_tree(f);
+
+    if (world.rank() == 0)
+        printf("  T7 ||f|| %.10e  redundant %.10e  compressed %.10e\n",
+               exact, nt_redundant, nt_compressed);
+
+    t.checkpoint(std::abs(nt_redundant  - exact) < 1.e-10 * exact,
+                 "T7 root norm_tree on a redundant tree equals ||f||");
+    t.checkpoint(std::abs(nt_compressed - exact) < 1.e-10 * exact,
+                 "T7 root norm_tree on a compressed tree equals ||f||");
+
+    // ||f||^2 = ||s||^2 + ||d||^2, so dnorm_tree at the root must be strictly
+    // below ||f||: equality means the scaling block was counted as detail
+    const double dnt_compressed = root_dnorm_tree(f);
+    if (world.rank() == 0)
+        printf("  T7 root dnorm_tree compressed %.10e  (||f|| %.10e)\n",
+               dnt_compressed, exact);
+    t.checkpoint(dnt_compressed < 0.999 * exact,
+                 "T7 root dnorm_tree excludes the scaling block");
+
+    // The multiwavelet basis is orthonormal, so the root scaling block and every
+    // difference coefficient below it are mutually orthogonal:
+    //   ||f||^2 == ||s_root||^2 + sum_nodes ||d||^2 == snorm^2 + dnorm_tree^2
+    // This pins dnorm_tree rather than merely bounding it, and so also catches a
+    // dnorm that comes out too small.
+    const double sn_compressed = root_snorm(f);
+    const double recomposed = std::sqrt(sn_compressed * sn_compressed
+                                      + dnt_compressed * dnt_compressed);
+    if (world.rank() == 0)
+        printf("  T7 snorm %.14e  dnorm_tree %.14e\n"
+               "  T7 sqrt(s^2+d^2) %.14e  ||f|| %.14e\n",
+               sn_compressed, dnt_compressed, recomposed, exact);
+    t.checkpoint(std::abs(recomposed - exact) < 1.e-12 * exact,
+                 "T7 snorm^2 + dnorm_tree^2 == ||f||^2 at the root");
+    return t.end();
+}
+
+/// T8: broaden() resets the per-node norms through zero_norm_tree(). The
+/// screening criterion reads norm_tree and dnorm_tree as a pair, so a reset
+/// that clears one and leaves the other in place is worse than no reset at
+/// all: norm_tree = 0 with a small stale dnorm_tree passes the test in
+/// mulXXveca() and multiplies at a level that is too coarse.
+int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T8: broaden resets norm_tree and dnorm_tree");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+
+    // redundant form writes both norms on every node, and undoing it only
+    // drops the internal coefficients -- so the tree carries computed norms
+    // into broaden()
+    f.make_redundant(true);
+    f.reconstruct();
+
+    // counts local nodes, summed over ranks: (computed dnorm_tree, nonzero
+    // norm_tree)
+    auto count = [&world](const Function<double,D>& g) {
+        long computed = 0, nonzero = 0;
+        const auto& c = g.get_impl()->get_coeffs();
+        for (auto it = c.begin(); it != c.end(); ++it) {
+            if (it->second.get_dnorm_tree() != NORM_TREE_UNCOMPUTED) ++computed;
+            if (it->second.get_norm_tree() != 0.0) ++nonzero;
+        }
+        world.gop.sum(computed);
+        world.gop.sum(nonzero);
+        return std::make_pair(computed, nonzero);
+    };
+
+    const auto before = count(f);
+    if (world.rank() == 0)
+        printf("  T8 before broaden: %ld nodes with a computed dnorm_tree, "
+               "%ld with a nonzero norm_tree\n", before.first, before.second);
+    // without this the test would pass on an empty premise
+    t.checkpoint(before.first > 0 and before.second > 0,
+                 "T8 the tree carries computed norms into broaden");
+
+    f.broaden();
+    world.gop.fence();
+
+    const auto after = count(f);
+    if (world.rank() == 0)
+        printf("  T8 after broaden:  %ld nodes with a computed dnorm_tree, "
+               "%ld with a nonzero norm_tree\n", after.first, after.second);
+    t.checkpoint(after.second == 0, "T8 broaden clears norm_tree");
+    t.checkpoint(after.first == 0,  "T8 broaden clears dnorm_tree");
+    return t.end();
+}
+
+/// T9: the vector norms accept an empty vector. norm2s()/norm2s_T() index
+/// norms[0] to get the buffer address, which is undefined behaviour on an
+/// empty container even with a length of zero.
+int test_empty_vector_norms(World& world) {
+    test_output t("mul_sparse T9: the vector norms on an empty vector");
+    t.set_do_print(world.rank() == 0);
+
+    const std::vector<Function<double,D>> empty;
+
+    const std::vector<double> ns = norm2s(world, empty);
+    t.checkpoint(ns.empty(), "T9 norm2s returns an empty vector");
+
+    const Tensor<double> nt = norm2s_T(world, empty);
+    t.checkpoint(nt.size() == 0, "T9 norm2s_T returns an empty tensor");
+
+    t.checkpoint(norm2(world, empty), 0.0, 1.e-15, "T9 norm2 returns zero");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -271,6 +477,10 @@ int main(int argc, char** argv) {
         success += test_screening_accuracy(world, pairs);
         success += test_self_consistency(world, pairs);
         success += test_dot(world, pairs);
+        success += test_operand_state(world, pairs);
+        success += test_norm_tree_states(world, pairs);
+        success += test_broaden_resets_norms(world, pairs);
+        success += test_empty_vector_norms(world);
     }
 
     world.gop.fence();

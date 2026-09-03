@@ -3057,8 +3057,12 @@ template<size_t NDIM>
 
             if (lc.size() == 0) {
                 MADNESS_CHECK(lit != left->coeffs.end());
+                // redundant form puts coefficients and computed norms on every
+                // node; without them the screen below reads garbage
+                MADNESS_CHECK(lit->second.has_coeff());
                 lnorm = lit->second.get_norm_tree();
                 ldnorm = lit->second.get_dnorm_tree();
+                MADNESS_CHECK(ldnorm < NORM_TREE_UNCOMPUTED);
                 l_is_leaf = !lit->second.has_children();
             }
             else {
@@ -3094,20 +3098,14 @@ template<size_t NDIM>
                 riterT rit = right->coeffs.find(key).get();
                 if (rc.size() == 0) {
                     MADNESS_CHECK(rit != right->coeffs.end());
+                    MADNESS_CHECK(rit->second.has_coeff());
                     rnorm = rit->second.get_norm_tree();
                     rdnorm = rit->second.get_dnorm_tree();
+                    MADNESS_CHECK(rdnorm < NORM_TREE_UNCOMPUTED);
                 }
                 else {
                     rnorm = rc.normf();
                     rdnorm = 0.0;
-                }
-
-                if (ldnorm >= NORM_TREE_UNCOMPUTED || rdnorm >= NORM_TREE_UNCOMPUTED) {
-                    static std::atomic<bool> warned{false};
-                    bool expected = false;
-                    if (warned.compare_exchange_strong(expected, true))
-                        print("WARNING: mul_sparse operand has an uncomputed dnorm_tree; "
-                              "screening is disabled for those nodes (missing make_redundant?)");
                 }
 
                 // the neglected cross terms are below threshold: multiply here (requires redundant form)
@@ -3137,7 +3135,11 @@ template<size_t NDIM>
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
                     riterT rit = vright[i]->coeffs.find(key).get();
+                    // coefficients handed down from the parent stand in for a node
+                    // that need not exist here; without them the node must exist
+                    MADNESS_CHECK(vrc[i].size() || rit != vright[i]->coeffs.end());
                     if (vrc[i].size() || !rit->second.has_children()) {
+                        MADNESS_CHECK(vrc[i].size() || rit->second.has_coeff());
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = (vrc[i].size() ? vrc[i] : rit->second.coeff().full_tensor_copy())(___);
                         vrss[i] = vright[i]->unfilter(rd);
@@ -6558,6 +6560,12 @@ template<size_t NDIM>
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
+                    // snorm > 0 stands in for "this node holds coefficients", which
+                    // holds only because innerXX() runs compute_snorm_and_dnorm()
+                    // over both trees first (mra.h, the prepare step) and that zeroes
+                    // snorm on an empty node.  A compressed leaf left by
+                    // compress_spawn(keepleaves=false) carries a non-zero snorm and
+                    // no coefficients, so without that step this test reads false.
                     bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;

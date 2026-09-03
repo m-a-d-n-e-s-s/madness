@@ -1301,12 +1301,14 @@ namespace madness {
         }
     }
 
-    // For each local node sets value of norm tree, snorm and dnorm to 0.0
+    // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
+    // dnorm_tree as uncomputed.
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::zero_norm_tree() {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             it->second.set_norm_tree(0.0);
+            it->second.set_dnorm_tree(NORM_TREE_UNCOMPUTED);
             it->second.set_snorm(0.0);
             it->second.set_dnorm(0.0);
         }
@@ -1716,14 +1718,22 @@ namespace madness {
         TensorArgs targs2=targs;
         targs2.thresh*=0.1;
 
-        // need the deep copy for contiguity
-        coeffT ss=coeffT(copy(d(cdata.s0)));
-        double snorm=ss.normf();
+        // need the deep copy for contiguity; ss shares it rather than taking a
+        // second one, so this k^NDIM block is the only temporary on the path
+        const tensorT s0block = copy(d(cdata.s0));
+        coeffT ss = coeffT(s0block);
+        double snorm = ss.normf();
 
-        if (key.level()> 0 && !nonstandard1) d(cdata.s0) = 0.0;
+        // dnorm must mean ||d|| in every tree state. The stored tensor keeps its
+        // s0 block at the root and everywhere in nonstandard form, so zero s0
+        // unconditionally to measure and put it back when the stored tensor is
+        // one that keeps it.
+        const bool stored_tensor_keeps_s0 = (key.level() == 0) or nonstandard1;
+        d(cdata.s0) = 0.0;
+        const double dnorm = d.normf();
+        if (stored_tensor_keeps_s0) d(cdata.s0) = s0block;
 
         coeffT dd=coeffT(d,targs2);
-        double dnorm=dd.normf();
         double norm_tree=sqrt(norm_tree2);
         // dnorm_tree accumulates this node's d coefficients and all those below it
         double dnorm_tree=sqrt(dnorm_tree2+dnorm*dnorm);
@@ -1975,8 +1985,15 @@ namespace madness {
         const double d=sizeof(T);
         const double fac=1024*1024*1024;
 
+        // norm2sq_local sums the coefficients of every node, which is ||f||^2
+        // only when the tree carries them once -- on a redundant or nonstandard
+        // tree it counts every level and overcounts (cf. Function::norm2()).
+        // This is a diagnostic and must not mutate the tree, so report the norm
+        // only where it means something.  The tree state is replicated, so all
+        // ranks take the same branch and the global ops stay collective.
+        const bool norm_is_meaningful = is_compressed() or is_reconstructed();
         double norm=0.0;
-        {
+        if (norm_is_meaningful) {
             double local = norm2sq_local();
             this->world.gop.sum(local);
             this->world.gop.fence();
@@ -1987,8 +2004,14 @@ namespace madness {
 
             constexpr std::size_t bufsize=128;
             char buf[bufsize];
-            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
-                   (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
+            // the two cases differ in one field only, so format that field first
+            // and keep a single line format.  32 chars holds "%7.5f" of any
+            // norm below 1e25, well past anything a converged tree carries.
+            char normbuf[32];
+            if (norm_is_meaningful) snprintf(normbuf, sizeof(normbuf), "%7.5f", norm);
+            else                    snprintf(normbuf, sizeof(normbuf), "%7s", "n/a");
+            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %s %zu, %6.3f m, %6.3f GByte",
+                   (name.c_str()), wall, normbuf, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
             print(std::string(buf));
         }
     }
@@ -3453,9 +3476,10 @@ template <typename T, std::size_t NDIM>
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
+                const double snorm = node.coeff().normf();
+
                 if (not keepleaves) node.clear_coeff();
 
-                auto snorm=(keepleaves) ? node.coeff().normf() : 0.0;
                 node.set_norm_tree(snorm);
                 node.set_dnorm_tree(0.0);
                 node.set_snorm(snorm);
