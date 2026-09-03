@@ -995,6 +995,10 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
+
+        /// N.B. with fence=false the per-node norm reset is skipped: norm_tree
+        /// keeps the -1.0 broadened marker and dnorm_tree its previous value,
+        /// so broadening cannot be repeated until the norms are recomputed.
         void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                      bool fence = true) const {
             verify();
