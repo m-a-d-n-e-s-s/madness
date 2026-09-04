@@ -117,8 +117,11 @@ option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT qua
 option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
 option(ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication" ON)
+option(ENABLE_MTXMQ_PROFILE "Instrument mTxmq to record a per-shape call/FLOP profile, reported at exit" OFF)
 
-if (ENABLE_LIBXSMM)
+# LIBXSMM only backs src/madness/tensor, which MADNESS_BUILD_MADWORLD_ONLY does not
+# build; fetching+building it there would cost a network clone for nothing.
+if (ENABLE_LIBXSMM AND NOT MADNESS_BUILD_MADWORLD_ONLY)
   include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchLibxsmm.cmake)
 else ()
   set(MADNESS_HAS_LIBXSMM OFF CACHE BOOL "MADNESS has access to LIBXSMM" FORCE)
@@ -175,6 +178,8 @@ else (ENABLE_ELEMENTAL)
 endif (ENABLE_ELEMENTAL)
 add_feature_info(Elemental ENABLE_ELEMENTAL "compiles parallel linear-algebra library Elemental as part of MADNESS")
 add_feature_info(LIBXSMM ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication")
+add_feature_info(MTXMQ_PROFILE ENABLE_MTXMQ_PROFILE "Instrument mTxmq to record a per-shape call/FLOP profile, reported at exit")
+set(MTXMQ_PROFILE ${ENABLE_MTXMQ_PROFILE})
 
 option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 

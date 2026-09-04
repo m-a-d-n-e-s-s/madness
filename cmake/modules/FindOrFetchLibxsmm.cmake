@@ -28,8 +28,21 @@ if (NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
     set(Python3_EXECUTABLE "/usr/bin/python3")
   endif ()
 
-  set(CMAKE_Fortran_COMPILER NOTFOUND CACHE FILEPATH "Fortran compiler" FORCE)
+  # LIBXSMM's CMakeLists.txt runs check_language(Fortran) and, if a Fortran
+  # compiler turns up, FORCEs LIBXSMM_FORTRAN=ON and enables the language.
+  # MADNESS needs none of that, so suppress the probe -- but do it with a
+  # *directory-scope normal variable*, never a cache entry: check_language()
+  # short-circuits on `if(NOT DEFINED CMAKE_Fortran_COMPILER)`, so a normal
+  # variable suffices, and writing NOTFOUND into the cache would clobber the
+  # Fortran compiler of a parent project that consumes MADNESS via
+  # add_subdirectory()/FetchContent (TiledArray, MPQC).
   set(LIBXSMM_FORTRAN OFF CACHE BOOL "Disable Fortran support in LIBXSMM" FORCE)
+  set(_madness_saved_fortran_compiler_defined FALSE)
+  if (DEFINED CMAKE_Fortran_COMPILER)
+    set(_madness_saved_fortran_compiler_defined TRUE)
+    set(_madness_saved_fortran_compiler "${CMAKE_Fortran_COMPILER}")
+  endif ()
+  set(CMAKE_Fortran_COMPILER NOTFOUND)
 
   set(MADNESS_TRACKED_LIBXSMM_TAG "main" CACHE STRING "The tag/branch of LIBXSMM repository to track")
 
@@ -41,6 +54,15 @@ if (NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
   )
   FetchContent_MakeAvailable(libxsmm)
 
+  # restore whatever the enclosing project had (usually: nothing at all)
+  if (_madness_saved_fortran_compiler_defined)
+    set(CMAKE_Fortran_COMPILER "${_madness_saved_fortran_compiler}")
+  else ()
+    unset(CMAKE_Fortran_COMPILER)
+  endif ()
+  unset(_madness_saved_fortran_compiler_defined)
+  unset(_madness_saved_fortran_compiler)
+
   # Export libxsmm targets for build tree so MADNESS can export targets that depend on it
   export(EXPORT libxsmm-targets FILE "${PROJECT_BINARY_DIR}/libxsmm-targets.cmake")
 endif ()
@@ -50,7 +72,7 @@ if (TARGET xsmm AND NOT TARGET libxsmm::libxsmm)
 endif ()
 
 if (TARGET libxsmm::libxsmm OR TARGET xsmm)
-  set(MADNESS_HAS_LIBXSMM ON CACHE BOOL "MADNESS has access to LIBXSMM")
+  set(MADNESS_HAS_LIBXSMM ON CACHE BOOL "MADNESS has access to LIBXSMM" FORCE)
   set(HAVE_MTXMQ ON CACHE BOOL "MADNESS has mTxmq enabled" FORCE)
 else ()
   message(FATAL_ERROR "FindOrFetchLibxsmm could not make libxsmm::libxsmm target available")
