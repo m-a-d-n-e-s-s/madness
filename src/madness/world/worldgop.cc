@@ -30,7 +30,7 @@
 */
 
 #include <limits>
-#include <worldmutex.h>
+#include <madness/world/worldmutex.h>
 #include <madness/world/worldgop.h>
 #include <madness/world/MADworld.h>
 #ifdef MADNESS_HAS_GOOGLE_PERF_TCMALLOC

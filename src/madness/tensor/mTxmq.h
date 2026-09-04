@@ -23,6 +23,7 @@
 #define MADNESS_TENSOR_MTXMQ_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <madness/world/madness_exception.h>
 #include <cstddef>
 #include <type_traits>
 #include <complex>
@@ -56,6 +57,7 @@ void mTxmq_reference(long dimi, long dimj, long dimk,
                      const bT* b,
                      long ldb = -1) {
     if (ldb == -1) ldb = dimj;
+    MADNESS_ASSERT(ldb >= dimj);
     if (dimi <= 0 || dimj <= 0) return;
     if (dimk <= 0) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = cT(0);
@@ -123,6 +125,7 @@ inline void mTxmq(long dimi, long dimj, long dimk,
                   const T* b,
                   long ldb = -1) {
     if (ldb == -1) ldb = dimj;
+    MADNESS_ASSERT(ldb >= dimj);
     if (dimi <= 0 || dimj <= 0) return;
     if (dimk <= 0) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<T>(0, 0);

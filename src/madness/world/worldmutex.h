@@ -746,7 +746,7 @@ namespace madness {
                 return true;
             }
             else {
-                if (id > MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+                if (id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
                 bool lsense = sense; // Local copy of sense
                 bool result = nworking.dec_and_test();
                 if (result) {

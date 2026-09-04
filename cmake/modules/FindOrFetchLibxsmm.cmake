@@ -28,7 +28,6 @@ if (NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
     set(Python3_EXECUTABLE "/usr/bin/python3")
   endif ()
 
-  set(CMAKE_Fortran_COMPILER NOTFOUND CACHE FILEPATH "Fortran compiler" FORCE)
   set(LIBXSMM_FORTRAN OFF CACHE BOOL "Disable Fortran support in LIBXSMM" FORCE)
 
   set(MADNESS_TRACKED_LIBXSMM_TAG "main" CACHE STRING "The tag/branch of LIBXSMM repository to track")

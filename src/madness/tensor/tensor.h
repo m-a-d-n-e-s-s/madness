@@ -2489,9 +2489,15 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
                                             const Tensor<R>& c,
                                             Tensor<std::complex<R>>& result,
                                             Tensor<std::complex<R>>& workspace) {
+        (void)workspace;
+        MADNESS_CHECK(t.iscontiguous() && result.iscontiguous() && workspace.iscontiguous());
+        MADNESS_CHECK(result.ptr() != workspace.ptr());
+        MADNESS_CHECK(t.ptr() != result.ptr() && t.ptr() != workspace.ptr());
+
         const R* pc = c.ptr();
         const long ndim = t.ndim();
         const long sz = t.size();
+        MADNESS_CHECK(result.size() >= sz && workspace.size() >= sz);
 
         long dimj = c.dim(1);
         long dimi = 1;
