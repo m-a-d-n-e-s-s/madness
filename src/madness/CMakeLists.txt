@@ -45,7 +45,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY)
     # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
-    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
+    	$<TARGET_OBJECTS:MADtensor-obj>
     	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
     	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>
 		$<TARGET_OBJECTS:MADchem-obj>)
@@ -91,9 +91,9 @@ if(MPI_FOUND)
   target_link_libraries(madness PUBLIC ${MPI_LINK_FLAGS})
   target_link_libraries(madness PUBLIC ${MPI_LIBRARIES})
 endif()
-if(HAVE_IBMBGQ OR HAVE_IBMBGP)
-  target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-endif()
+if (ENABLE_LIBXSMM)
+  target_link_libraries(madness PUBLIC libxsmm::libxsmm)
+endif ()
 if (LAPACK_FOUND)
 
 	# if LAPACK_LIBRARIES includes IMPORTED targets make sure they are available

@@ -99,9 +99,12 @@ include(external/versions.cmake)
 # failure to find the library is an error. 
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
-#redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+option(ENABLE_ARMPL "Search for Arm Performance Libraries (ARMPL) for BLAS and LAPACK support" ON)
+option(ENABLE_NVPL "Search for NVIDIA Performance Libraries (NVPL) for BLAS and LAPACK support on ARM" ON)
+option(ENABLE_BLIS "Search for BLIS (serial) for BLAS support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
+option(ENABLE_OPENBLAS "Allow use of OpenBLAS for BLAS/LAPACK (unsafe for multithreading on ARM)" OFF)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 option(ENABLE_GPERFTOOLS "Enable use of full Google Performance Tools (gperftools)" OFF)
 option(ENABLE_LIBUNWIND
@@ -113,20 +116,14 @@ option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
 option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
+option(ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication" ON)
 
-set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
-check_cxx_source_compiles(
-    "
-    namespace madness {
-      template <typename T>
-      void mTxmq(long dimi, long dimj, long dimk,
-		 T* __restrict__ c, const T* a, const T* b, long ldb=-1);
-
-      template <>
-      void mTxmq(long dimi, long dimj, long dimk, double* __restrict__ c, const  double* a, const double* b, long ldb);
-    }
-    int main() { double a[1], b[1], c[1]; madness::mTxmq(1,1,1,c,a,b,1); return 0; }
-    " HAVE_MTXMQ)
+if (ENABLE_LIBXSMM)
+  include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchLibxsmm.cmake)
+else ()
+  set(MADNESS_HAS_LIBXSMM OFF CACHE BOOL "MADNESS has access to LIBXSMM" FORCE)
+  set(HAVE_MTXMQ OFF CACHE BOOL "MADNESS has mTxmq enabled" FORCE)
+endif ()
 
   ####### preferred task backend
 set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
@@ -177,6 +174,7 @@ else (ENABLE_ELEMENTAL)
   set(MADNESS_HAS_ELEMENTAL 0)
 endif (ENABLE_ELEMENTAL)
 add_feature_info(Elemental ENABLE_ELEMENTAL "compiles parallel linear-algebra library Elemental as part of MADNESS")
+add_feature_info(LIBXSMM ENABLE_LIBXSMM "Enable LIBXSMM library for accelerated small matrix multiplication")
 
 option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 
@@ -395,7 +393,6 @@ check_cxx_source_compiles(
     int main() { return 0; }
     " HAVE_CRAYXT)
 if(HAVE_CRAYXE)
-  set(AMD_QUADCORE_TUNE ON CACHE BOOL "Target for tuning mtxmq kernels")
   set(USE_SPINLOCKS ON CACHE BOOL 
       "Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)" FORCE)
   set(MAD_BIND_DEFAULT "1 0 2" CACHE STRING "The default binding for threads" FORCE)
@@ -622,6 +619,16 @@ check_cxx_source_compiles(
     template void g(int* a);
     int main() { return 0; }
     " HAVE_UNQUALIFIED_STATIC_DECL)
+
+# If on ARM disable useless warning about pair<double,double> return in lambda in mra/kernel_range.h --- doing it via local pragma does not work due to nested includes
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Matches arm64 (macOS/Linux), aarch64 (Linux), and ARM64 (Windows)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|amd64)")
+        # Do nothing for x86_64
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch64|arm64|ARM64)")
+        add_compile_options(-Wno-psabi)
+    endif()
+endif()
 
 # Check linker feature support ===============================================
 

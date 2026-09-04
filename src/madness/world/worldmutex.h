@@ -33,10 +33,24 @@
 #ifndef MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 #define MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 
+#include <atomic>
 #include <madness/madness_config.h>
 #include <pthread.h>
 #include <thread>
 #include <cstdio>
+
+// Ensures compiler does not migrate memory instructions past the barrier --- but does NOT enforce HW ordering
+#define MADNESS_COMPILER_BARRIER std::atomic_signal_fence(std::memory_order_seq_cst)
+//#define MADNESS_COMPILER_BARRIER __asm__ __volatile__("" : : : "memory")
+
+// Has effect of compiler barrier and ensures ordering of stores
+#define MADNESS_MEMORY_STORE_BARRIER std::atomic_thread_fence(std::memory_order_release)
+//#if defined(__aarch64__) || defined(_M_ARM64)
+//#define MADNESS_MEMORY_STORE_BARRIER __asm__ __volatile__("dmb ish" : : : "memory")
+//#else
+//#define MADNESS_MEMORY_STORE_BARRIER __asm__ __volatile__("" : : : "memory")
+//#endif 
+
 #ifdef ON_A_MAC
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
 
@@ -696,12 +710,13 @@ namespace madness {
     typedef Mutex SCALABLE_MUTEX_TYPE;
 #endif
 
-    // I THINK THIS IS NO LONGER USED???????????????????????????????????
+    // Fast barrier for nthread threads --- uses sense-changing barrier in which threads spin on cache-local value --- used in tensor/systolic.h
     class Barrier {
+        static const int MAX_NTHREAD = 128;
         const int nthread;
         volatile bool sense;
         AtomicInt nworking;
-        volatile bool* pflags[128];
+        volatile bool* pflags[MAX_NTHREAD];
 
     public:
         Barrier(int nthread)
@@ -716,7 +731,7 @@ namespace madness {
         /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
         /// thread-local bool (probably in the thread's stack)
         void register_thread(int id, volatile bool* pflag) {
-            if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+            if (id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
             pflags[id] = pflag;
             *pflag=!sense;
         }
@@ -731,18 +746,20 @@ namespace madness {
                 return true;
             }
             else {
-                if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+                if (id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
                 bool lsense = sense; // Local copy of sense
                 bool result = nworking.dec_and_test();
                 if (result) {
                     // Reset counter and sense for next entry
                     nworking = nthread;
                     sense = !sense;
-                    __asm__ __volatile__("" : : : "memory");
-
+                    
+                    MADNESS_MEMORY_STORE_BARRIER;
+                    
                     // Notify everyone including me
                     for (int i = 0; i < nthread; ++i)
                         *(pflags[i]) = lsense;
+
                 } else {
                     volatile bool* myflag = pflags[id]; // Local flag;
                     while (*myflag != lsense) {
