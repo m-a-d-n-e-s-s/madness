@@ -5189,13 +5189,33 @@ template<size_t NDIM>
             if (max_distsq_reached)
               validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
 
+            // Where the surviving surface begins, in boxes -- this is where the probing displacement must
+            // sit to represent the largest-norm survivor. `validator` discards a surface displacement only
+            // if it duplicates a standard displacement that was already applied, i.e. only if it is both
+            // within `bmax` along every axis (beyond that it was never in the standard list) and no farther
+            // than the standard pass reached. So the innermost survivor is one box past min(reach, bmax).
+            std::optional<Translation> probe_offset_radius;
+            if (max_distsq_reached) {
+              // default_real_distance_squared measures cell_width*(|l|-1) per axis (see Key::real_distsq_bc);
+              // invert it. The offset axis is not known here, so use the widest one, which yields the
+              // smallest radius and hence the most conservative probe.
+              const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
+              const std::size_t d0 = (op->particle() == 1) ? 0 : NDIM - opdim;
+              double widest = 0.;
+              for (std::size_t d = d0; d != d0 + opdim; ++d) widest = std::max(widest, cell_width(d));
+              const Translation reach = 1 + static_cast<Translation>(std::sqrt(*max_distsq_reached) / widest);
+              probe_offset_radius = std::min<Translation>(reach, Displacements<opdim>::bmax_default()) + 1;
+            } else  // no validator installed => nothing is filtered out, the surface reaches in to the source
+              probe_offset_radius = 0;
+
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
             BoxSurfaceDisplacementRange<opdim>
                 range_boundary_face_displacements(opkey, box_radius,
                                                   surface_thickness,
                                                   op->lattice_summed(),
-                                                  validator);
+                                                  validator,
+                                                  probe_offset_radius);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included

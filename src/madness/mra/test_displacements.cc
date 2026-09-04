@@ -248,6 +248,56 @@ int test_lattice_summation_awareness(World& world) {
   return t.end();
 }
 
+/// The probe stands in for the largest-norm surviving surface displacement, which sits at the inner rim
+/// of what the duplicate filter leaves behind -- not at the farthest-folded point of the face. So the
+/// offset magnitude is that rim, clamped to a half simulation cell (beyond which a step folds back down).
+int test_probe_offset_radius(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: offset magnitude follows the filter rim", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 3;
+  const Level n = 6;                       // half-cell = 32 boxes, so the clamp is far away
+  const auto check = [&](std::optional<Translation> rim, std::array<std::int64_t, NDIM> expected,
+                         const std::string& what) {
+    Radii<NDIM> box_radius, surface_thickness;
+    for (std::size_t d = 0; d != NDIM; ++d) { box_radius[d] = 2; surface_thickness[d] = 1; }  // all even
+    BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
+                                            array_of_bools<NDIM>{true} /* lattice_summed */,
+                                            typename BoxSurfaceDisplacementRange<NDIM>::Validator{}, rim);
+    const auto probe = range.probing_displacement().translation();
+    for (size_t d = 0; d < NDIM; d++)
+      t.checkpoint(probe[d] == expected[d], what + " component " + std::to_string(d));
+  };
+
+  const auto face = radius_in_boxes(2, n);         // 64
+  const auto half_cell = radius_in_boxes(1, n);    // 32
+
+  // unknown rim => the maximal (half-cell) offset, i.e. the behavior when nothing better is known
+  check(std::nullopt, {face, half_cell, 0}, "rim unknown");
+  // a rim inside the half cell is used verbatim -- this is the case that matters in practice, since
+  // the rim is capped by bmax_default() (4 in 3D) while the half cell grows as 2^{n-1}
+  check(Translation(5), {face, 5, 0}, "rim=5");
+  check(Translation(2), {face, 2, 0}, "rim=2");
+  // a rim beyond the half cell is clamped: a step of 2^{n-1}+k folds back down to 2^{n-1}-k
+  check(Translation(1000), {face, half_cell, 0}, "rim beyond half cell");
+  // a rim of zero says nothing is filtered, so the surface reaches the source and no offset helps;
+  // fall back to the bare face probe, whose norm is the on-site norm and screens nothing
+  check(Translation(0), {face, 0, 0}, "rim=0 (nothing filtered)");
+
+  // the same clamping applies when the offset lands on an unrestricted dimension
+  {
+    Radii<2> box_radius, surface_thickness;
+    box_radius[1] = 2; surface_thickness[1] = 1;
+    BoxSurfaceDisplacementRange<2> range(centered_key<2>(n), box_radius, surface_thickness,
+                                         array_of_bools<2>{true},
+                                         typename BoxSurfaceDisplacementRange<2>::Validator{}, Translation(3));
+    const auto probe = range.probing_displacement().translation();
+    t.checkpoint(probe[0] == -3, "2D N={*,2} rim=3 component 0");
+    t.checkpoint(probe[1] == radius_in_boxes(2, n), "2D N={*,2} rim=3 component 1");
+  }
+
+  return t.end();
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -261,6 +311,7 @@ int main(int argc, char** argv) {
   errors += test_mixed(world);
   errors += test_all_evens(world);
   errors += test_lattice_summation_awareness(world);
+  errors += test_probe_offset_radius(world);
 
   world.gop.fence();
   madness::finalize();

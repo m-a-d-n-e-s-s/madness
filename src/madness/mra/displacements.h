@@ -355,6 +355,7 @@ namespace madness {
       Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
       Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
       Validator validator_;      ///< optional validator function
+      std::optional<Translation> probe_offset_radius_;  ///< if given, the smallest displacement magnitude (in boxes) that `validator_` does not discard as a duplicate of the standard displacement list; see compute_probing_displacement()
       // TODO: Double-check legitimacy of choosing probing displacement arbitrarily. For isotropic kernels, wouldn't you want it on the face where the boundary is closest (in real-space)?
       //       That depends on both the surface thickness and the side lengths of the simulation cell.
       Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
@@ -686,6 +687,7 @@ namespace madness {
        * @param surface_thickness Surface thickness in each dimension, measured in number of addl. boxes *on each half* of the surface box proper. Omit for dim `i` if and only if omitted in `box_radius`
        * @param is_lattice_summed whether each dimension is lattice summed; along lattice summed dimensions only one side of the box is iterated over.
        * @param validator Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
+       * @param probe_offset_radius the smallest displacement magnitude, in boxes, that `validator` does *not* discard as a duplicate of the standard displacement list, i.e. the inner rim of the surviving surface. Used to place the probing displacement; see compute_probing_displacement(). Pass 0 to signal that nothing is filtered out (the surface then reaches all the way in to `center` and no probe can screen it). Omit if unknown, in which case the maximal (half-simulation-cell) offset is used.
        * @pre `surface_radius[d]>0 && surface_thickness[d]<=surface_radius[d]`
        *
        */
@@ -693,9 +695,11 @@ namespace madness {
                                            const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
                                            const array_of_bools<NDIM>& is_lattice_summed,
-                                           Validator validator = {})
+                                           Validator validator = {},
+                                           std::optional<Translation> probe_offset_radius = {})
           : center_(center), box_radius_(box_radius),
-            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)) {
+            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)),
+            probe_offset_radius_(probe_offset_radius) {
         // initialize bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
@@ -781,9 +785,15 @@ namespace madness {
       /// @note along face dimension `d` the probe has component `N_d * 2^{n-1}` boxes, i.e. `N_d/2`
       ///       simulation cells. That is lattice-equivalent to zero only if `d` is lattice summed *and*
       ///       `N_d` is even; otherwise (not lattice summed, or `N_d` odd) the component survives
-      ///       reduction and criterion 2 holds for free. When it does not hold we displace by an extra
-      ///       half simulation cell along some other dimension, which is as far from lattice equivalence
-      ///       as one can get.
+      ///       reduction and criterion 2 holds for free. When it does not hold we displace along some other
+      ///       dimension instead, far enough to escape lattice equivalence.
+      /// @note how far is set by `probe_offset_radius_`. The probe should stand in for the *closest*
+      ///       surviving surface displacement, since that is the one with the largest norm. Displacements
+      ///       nearer than the standard displacement pass reached are discarded by the validator as
+      ///       duplicates, so the closest survivor sits at that rim -- which is also capped by
+      ///       `Displacements::bmax_default()`, because displacements beyond `bmax` were never in the
+      ///       standard list and so are never discarded. Folding caps the useful step at a half
+      ///       simulation cell: a step of `2^{n-1}+k` folds back down to `2^{n-1}-k`.
       /// @note criterion 2 is unattainable for `NDIM == 1` with a lattice-summed even `N`, and for
       ///       `n == 0` (where the entire simulation cell is a single box); there the probe is
       ///       lattice-equivalent to `center_` and screening of the surface will never trigger.
@@ -826,11 +836,17 @@ namespace madness {
         if (!needs_offset(face_dimension) || n == 0 || NDIM == 1)
           return Displacement(n, probing_displacement_vec);
 
-        // choose the dimension to displace along by half a simulation cell. The offset magnitude is
-        // 2^{n-1} whichever dimension we pick, so in units of boxes the choice is immaterial; prefer the
-        // narrowest finite dimension, else the first unrestricted one.
-        // N.B. whether the chosen dimension is lattice summed does not matter: 2^{n-1} is exactly half the
-        //      period, so it survives reduction either way.
+        // a rim of zero says nothing is filtered out of the surface, so it reaches all the way in to
+        // center_ and no offset can make the probe representative; keep the conservative face probe
+        // (whose norm is the on-site norm, hence screens nothing -- which is the correct answer here)
+        if (probe_offset_radius_ && *probe_offset_radius_ <= 0)
+          return Displacement(n, probing_displacement_vec);
+
+        // choose the dimension to displace along. The offset magnitude is the same whichever dimension we
+        // pick, so in units of boxes the choice is immaterial; prefer the narrowest finite dimension, else
+        // the first unrestricted one.
+        // N.B. whether the chosen dimension is lattice summed does not matter: the offset never exceeds
+        //      2^{n-1}, half the period, so it survives reduction either way.
         size_t offset_dimension = NDIM;
         size_t unrestricted_dimension = NDIM;
         for (size_t d=0; d != NDIM; ++d) {
@@ -844,10 +860,13 @@ namespace madness {
         }
 
         const Translation half_cell = Translation(1) << (n-1);
+        const Translation offset = probe_offset_radius_
+                                       ? std::clamp(*probe_offset_radius_, Translation(1), half_cell)
+                                       : half_cell;
         if (offset_dimension != NDIM) {
           // the offset stays on the face: box_radius_ >= 1 means the box spans at least a half
-          // simulation cell along this dimension
-          probing_displacement_vec[offset_dimension] = half_cell;
+          // simulation cell along this dimension, and offset <= half_cell
+          probing_displacement_vec[offset_dimension] = offset;
         } else {
           // an unrestricted dimension is bounded by the simulation cell, so displace toward whichever
           // side of center_ has more room
@@ -856,7 +875,7 @@ namespace madness {
           const auto left_distance = center_[d] - box_[d].first;
           const auto right_distance = box_[d].second - center_[d];
           const auto sign = right_distance >= left_distance ? +1 : -1;
-          probing_displacement_vec[d] = sign * half_cell;
+          probing_displacement_vec[d] = sign * offset;
         }
         return Displacement(n, probing_displacement_vec);
       }   // compute_probing_displacement
