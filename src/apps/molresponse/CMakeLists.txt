@@ -67,6 +67,13 @@ add_mad_executable(test_tpa_regroup_identities
 add_mad_executable(test_tpa_pq_vs_vbc
                    "tests/test_tpa_pq_vs_vbc.cpp;GroundState.cpp"
                    "MADchem")
+# Term-RESOLVED comparison of the two quadratic sources (V^BC vs (P,Q)):
+# every SourceEntry evaluated separately, aligned slots, per-term norms and
+# contractions (2026-09-04 review: catch compensation the contracted scalar
+# gates cannot see). Informational — the equality gates stay separate.
+add_mad_executable(test_vbc_pq_terms
+                   "tests/test_vbc_pq_terms.cpp;GroundState.cpp"
+                   "MADchem")
 # Gate for the spec-path VBC source (source-unification step 2,
 # kernels/source_spec.hpp + vbc::compute_vbc_spec): per-channel equality with
 # compute_vbc at summation-order precision, beta via both paths, Kleinman pair.
@@ -265,6 +272,9 @@ if (BUILD_TESTING)
                      --calc-dir=ctest_vbc_spec_equiv)
     add_test(NAME madness/test/molresponse/test_tpa_pq_vs_vbc/run
              COMMAND test_tpa_pq_vs_vbc
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_vbc_pq_terms/run
+             COMMAND test_vbc_pq_terms
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
     add_test(NAME madness/test/molresponse/test_tpa_regroup_identities/run
              COMMAND test_tpa_regroup_identities
