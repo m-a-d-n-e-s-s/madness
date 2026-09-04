@@ -227,8 +227,8 @@ int test_self_consistency(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
-/// T5: dot routes through the screened kernel; check it against the analytic sum
-int test_dot(World& world, std::vector<operand_pair>& pairs) {
+/// T5: dot_sparse routes through the screened kernel; check it against the analytic sum
+int test_dot_sparse(World& world, std::vector<operand_pair>& pairs) {
     test_output t("mul_sparse T5: dot vs the analytic sum of products");
     t.set_do_print(world.rank() == 0);
 
@@ -242,12 +242,12 @@ int test_dot(World& world, std::vector<operand_pair>& pairs) {
     }
 
     for (double tol : {0.0, 1.e-6}) {
-        Function<double,D> q = dot(world, a, b, true, true, tol);
+        Function<double,D> q = dot_sparse(world, a, b, tol, true, true);
         const double err = (q - ref).norm2();
         const double bound = (tol == 0.0) ? EXACT_FLOOR : C_MAX * tol;
         if (world.rank() == 0)
-            printf("  T5 dot tol %.1e  err %.3e  bound %.1e\n", tol, err, bound);
-        t.checkpoint(err, bound, "T5 dot tol=" + fmt_tol(tol));
+            printf("  T5 dot_sparse tol %.1e  err %.3e  bound %.1e\n", tol, err, bound);
+        t.checkpoint(err, bound, "T5 dot_sparse tol=" + fmt_tol(tol));
     }
     return t.end();
 }
@@ -270,7 +270,7 @@ int main(int argc, char** argv) {
         success += test_tree_state(world, pairs);
         success += test_screening_accuracy(world, pairs);
         success += test_self_consistency(world, pairs);
-        success += test_dot(world, pairs);
+        success += test_dot_sparse(world, pairs);
     }
 
     world.gop.fence();

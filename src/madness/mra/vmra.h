@@ -1193,9 +1193,15 @@ namespace madness {
                bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulsp);
         if (do_make_redundant) {
-            make_redundant(world, v, false);
-            a.make_redundant(false);
-            world.gop.fence();
+            try {
+                ensure_tree_state_respecting_fence(std::vector<Function<T,NDIM>>({a}), TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(v, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul_sparse");
+                a.make_redundant(false);
+                make_redundant(world, v, false);
+                world.gop.fence();
+            }
         } else if (!v.empty()) {
             MADNESS_CHECK_THROW(a.get_impl()->get_tree_state() == TreeState::redundant,
                                 "mul_sparse: left input must be redundant when do_make_redundant=false");
@@ -1203,6 +1209,53 @@ namespace madness {
                                 "mul_sparse: right inputs must be redundant when do_make_redundant=false");
         }
         return vmulXX(a, v, tol, fence);
+    }
+
+    /// Multiplies two vectors of functions using sparsity of a[i] and b[i] --- q[i] = a[i] * b[i]
+    ///
+    /// Box pairs whose estimated contribution falls below the tolerance are skipped instead
+    /// of being multiplied. Both inputs are made redundant; the screening reads their
+    /// norm_tree and dnorm_tree.
+    ///
+    /// Leaves both inputs in redundant form. Function is a shallow handle, so this is visible
+    /// to the caller: logically const, not bitwise const. Converting back is not free, so a
+    /// caller that reuses the operands afterwards must do it itself.
+    ///
+    /// @param[in] tol  target absolute accuracy of the product; the safety margin is applied
+    ///                 internally (FunctionImpl::MUL_SCREENING_SAFETY), so pass the accuracy
+    ///                 wanted, not a pre-scaled value. tol=0 multiplies exactly. The criterion
+    ///                 estimates the neglected cross terms rather than bounding them: the error
+    ///                 tracks tol up to a measured O(1-20) constant and decays as ~tol^0.75
+    ///                 rather than ~tol (see test_mul_sparse.cc). The meaning differs from the
+    ///                 earlier norm_tree-based screen, so a previously tuned value needs
+    ///                 re-checking.
+    /// @param[in] do_make_redundant  if false, both inputs must already be redundant
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    mul_sparse(World& world,
+        const std::vector< Function<T,NDIM> >& a,
+        const std::vector< Function<R,NDIM> >& b,
+        double tol,
+        bool fence=true,
+        bool do_make_redundant=true) {
+        PROFILE_BLOCK(Vmulvv);
+        if (do_make_redundant) {
+            try {
+                ensure_tree_state_respecting_fence(a, TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(b, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul_sparse");
+                make_redundant(world, a, false);
+                make_redundant(world, b, false);
+                world.gop.fence();
+            }
+        }
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
+        for (unsigned int i=0; i<a.size(); ++i) {
+            q[i] = mul_sparse(a[i], b[i], tol, false, false);
+        }
+        if (fence) world.gop.fence();
+        return q;
     }
 
 
@@ -1261,28 +1314,29 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
-    /// Multiplies two vectors of functions q[i] = a[i] * b[i]
-
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Multiplies two vectors of functions q[i] = a[i] * b[i]; see mul_sparse to screen
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_make_redundant=true,
-        double tol=0.0) {
+        bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulvv);
         if (do_make_redundant) {
-            // prepare once, not once per pair: mul_sparse fences whenever it prepares.
-            // Redundant inputs make the second call a no-op, so no aliasing check is needed.
-            make_redundant(world, a, false);
-            make_redundant(world, b, false);
-            world.gop.fence();
+            try {
+                ensure_tree_state_respecting_fence(a, TreeState::redundant, fence);
+                ensure_tree_state_respecting_fence(b, TreeState::redundant, fence);
+            } catch (...) {
+                print("could not respect fence in mul");
+                make_redundant(world, a, false);
+                make_redundant(world, b, false);
+                world.gop.fence();
+            }
         }
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false, false, tol);
+            q[i] = mul(a[i], b[i], false, false);
         }
         if (fence) world.gop.fence();
         return q;
@@ -1737,21 +1791,29 @@ namespace madness {
     }
 
     /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
+    template <typename T, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(T,R), NDIM>
+    dot_sparse(World& world,
+        const std::vector< Function<T,NDIM> >& a,
+        const std::vector< Function<R,NDIM> >& b,
+        double tol,
+        bool fence=true,
+        bool do_make_redundant=true) {
+        MADNESS_CHECK(a.size()==b.size());
+        return sum(world,mul_sparse(world,a,b,tol,/*fence=*/true,do_make_redundant),fence);
+    }
 
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]; see dot_sparse for screening
     template <typename T, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(T,R), NDIM>
     dot(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
-        bool do_make_redundant=true,
-        double tol=0.0) {
+        bool do_make_redundant=true) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true,do_make_redundant,tol),fence);
+        return sum(world,mul(world,a,b,/*fence=*/true,do_make_redundant),fence);
     }
-
-
 
     /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
@@ -2408,7 +2470,7 @@ namespace madness {
     /// @param[in]  f       the vector of functions on which the rot operator works on
     /// @param[in]  g       the vector of functions on which the rot operator works on
     /// @param[in]  fence   fence after completion; currently always fences
-    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// @return     the vector \frac{\partial}{\partial x_i} f, in redundant state
     /// TODO: add this to operator fusion
     template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > cross(const std::vector<Function<T,NDIM> >& f,
@@ -2418,8 +2480,8 @@ namespace madness {
         MADNESS_ASSERT(f.size()==3);
         MADNESS_ASSERT(g.size()==3);
         World& world=f[0].world();
-        reconstruct(world,f,false);
-        reconstruct(world,g);
+        ensure_tree_state_respecting_fence(f, TreeState::redundant, fence);
+        ensure_tree_state_respecting_fence(g, TreeState::redundant, fence);
 
         std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > d(f.size()),dd(f.size());
 
@@ -2433,14 +2495,15 @@ namespace madness {
         world.gop.fence();
 
         compress(world,d,false);
-        compress(world,dd);
+        compress(world,dd,false);
+        world.gop.fence();
 
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
-
-
         world.gop.fence();
+
+        make_redundant(world, d);
         return d;
     }
 

@@ -1935,14 +1935,12 @@ namespace madness {
         return mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_make_redundant)[0];
     }
 
-    /// Same as \c operator* but with optional fence
-
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Same as \c operator* but with optional fence; see mul_sparse to screen
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true,
-        bool do_make_redundant=true, double tol=0.0) {
-        return mul_sparse(left,right,tol,fence,do_make_redundant);
+        bool do_make_redundant=true) {
+        return mul_sparse(left,right,/*tol=*/0.0,fence,do_make_redundant);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values
