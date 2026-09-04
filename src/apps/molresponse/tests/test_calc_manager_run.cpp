@@ -526,6 +526,14 @@ int main(int argc, char **argv) {
                 " lock_converged=", (ctx.es_lock_converged ? "on" : "off"),
                 " warmup_cache=", (ctx.es_warmup_cache ? "on" : "off"));
         }
+        // DFT + quadratic gate — same refusal as run_response_with_ground
+        // (this driver bypasses the workflow and assembles directly).
+        if (ctx.gs.scf().xc.is_dft() &&
+            (!plan.vbc.empty() || !plan.derived_fd.empty()))
+          throw std::runtime_error(
+              "quadratic response (beta / Raman / 2PA) on a DFT ground state "
+              "needs the second xc kernel g''_xc, which is not implemented; "
+              "use an HF ground state for quadratic properties.");
         FdResponseExecutor exec(ctx);
         mgr.run(world, exec);
 

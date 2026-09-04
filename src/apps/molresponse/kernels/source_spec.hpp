@@ -25,11 +25,14 @@
 //       i.e.  Σ_k s_k F_kp  — the property-Fock matrix term of
 //       eq:tpa_compact_P/Q, or vbc.hpp's fphi term.
 //
-// SCOPE (HF exchange only): g'[..] here is J[rho] - c_xc*K. A DFT run adds
-// an xc-kernel piece f_xc[rho0]*rho_pair to the SAME g' (every J-site grows
-// an f_xc term); eval_fock_action below is one of those sites and must be
-// extended when DFT response lands — a spec evaluated for a DFT ground state
-// is silently missing that term today.
+// SCOPE: g'[..] here is J[rho] - c_xc*K, plus f_xc[rho0]*rho when the ground
+// state carries a DFT xc handle (response_local_potential in the jcache).
+// That makes the g' PIECE of a quadratic source DFT-correct — but a DFT
+// quadratic source ALSO needs the second xc kernel g''_xc[rho^B rho^C],
+// which does not exist anywhere in this codebase yet (it is exactly zero
+// for HF). Quadratic properties on a DFT ground state are therefore
+// hard-refused upstream (run_response_with_ground / the test driver) until
+// g''_xc lands.
 //
 // What distinguishes V^{BC} from (P,Q) is pure DATA: which (bra,ket) legs
 // build the pair density (γ^B vs γ^{B†} vs γ_L^{BC} vs D^{BC}), which target,
@@ -219,7 +222,8 @@ eval_fock_action(madness::World &world, const ResponseGroundState &g0,
     auto key = static_cast<const void *>(e.coulomb_density.get_impl().get());
     auto it = jcache.find(key);
     if (it == jcache.end())
-      it = jcache.emplace(key, apply(*g0.coulop, e.coulomb_density)).first;
+      it = jcache.emplace(
+          key, g0.response_local_potential(e.coulomb_density)).first;
     // runtime-sized view onto the entry's legs for apply_gamma_raw
     std::vector<two_electron::ExchangePair> legs;
     legs.reserve(e.pairs.size());

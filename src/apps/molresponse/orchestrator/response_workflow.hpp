@@ -134,6 +134,19 @@ run_response_with_ground(madness::World &world, GroundState &gs, double L,
                          const ResponseWorkflowInput &in) {
   ResponseWorkflowOutput out;
   MADNESS_CHECK(!in.protocols.empty());
+  // DFT + quadratic response gate. The quadratic sources (V^BC for beta and
+  // Raman, the derived-FD legs + residue for 2PA) need the SECOND xc kernel
+  // g''_xc[rho^B rho^C] in addition to f_xc. g''_xc is exactly zero for HF
+  // and is not implemented for any functional — running would silently drop
+  // it and return plausible-looking wrong numbers. Refuse instead. Linear
+  // response (alpha) and excited states are fully supported with f_xc.
+  if (gs.scf().xc.is_dft() &&
+      (!in.plan.vbc.empty() || !in.plan.derived_fd.empty()))
+    throw std::runtime_error(
+        "quadratic response (beta / Raman / 2PA) on a DFT ground state needs "
+        "the second xc kernel g''_xc, which is not implemented. Use an HF "
+        "ground state for quadratic properties, or request linear response / "
+        "excited states (f_xc supported) with this functional.");
   nlohmann::json timing;
 
   // 2a. Build the DAG.

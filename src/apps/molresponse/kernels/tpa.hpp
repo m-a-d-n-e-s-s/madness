@@ -235,7 +235,7 @@ tpa_e3_residue(madness::World &world, const ResponseGroundState &g0,
   rho12 += common_ops::dot(world, phi, nzetaD);
   rho12.scale(2.0);
   rho12.truncate();
-  auto J12 = apply(*g0.coulop, rho12);
+  auto J12 = g0.response_local_potential(rho12);  // + f_xc·rho12 for DFT/hybrid
   auto t1x = two_electron::apply_gamma_raw(
       world, J12, phi, {{yf, yb}, {xb, xf}, {phi, nzetaD}}, cxc, lo);
   auto t1y = two_electron::apply_gamma_raw(
@@ -248,7 +248,7 @@ tpa_e3_residue(madness::World &world, const ResponseGroundState &g0,
   rhoB += common_ops::dot(world, phi, yb);
   rhoB.scale(2.0);
   rhoB.truncate();
-  auto JB = apply(*g0.coulop, rhoB);
+  auto JB = g0.response_local_potential(rhoB);  // + f_xc·rhoB for DFT/hybrid
   auto gB = [&](const vecfuncT &t) {
     return two_electron::apply_gamma_raw(world, JB, t, {{xb, phi}, {phi, yb}},
                                          cxc, lo);
@@ -263,7 +263,7 @@ tpa_e3_residue(madness::World &world, const ResponseGroundState &g0,
   rhoF += common_ops::dot(world, phi, yf);
   rhoF.scale(2.0);
   rhoF.truncate();
-  auto JF = apply(*g0.coulop, rhoF);
+  auto JF = g0.response_local_potential(rhoF);  // + f_xc·rhoF for DFT/hybrid
   auto gFt = [&](const vecfuncT &t) {
     return two_electron::apply_gamma_raw(world, JF, t, {{phi, xf}, {yf, phi}},
                                          cxc, lo);

@@ -141,6 +141,10 @@ compute_gamma_flat(madness::World &world, const ResponseGroundState &g0,
   // Coulomb: J_s = Poisson(ρ_s) for ALL roots, one wave (per-function identical
   // to the reference's per-root apply(*coulop, rho1)).
   auto J = apply(world, *g0.coulop, rho);
+  // DFT/hybrid: fold f_xc·rho_s into each root's local potential (the batched
+  // analogue of response_local_potential; the Poisson stays one wave).
+  if (g0.xc)
+    for (std::size_t s = 0; s < M; ++s) J[s] += g0.xc->apply_xc_kernel(rho[s]);
   std::vector<State> out(M);
   for (std::size_t s = 0; s < M; ++s) {
     auto g = mul(world, J[s], g0.amo, true);                    // J_s·φ
