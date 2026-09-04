@@ -193,6 +193,36 @@ int main(int argc, char **argv) {
       const double got_full =
           inner(xf, PQ_full.x_alpha) + inner(yf, PQ_full.y_alpha);
 
+      // ============ gate 4: symmetrized builder == two-ordering sum =======
+      // tpa_pq_spec_sym exploits the family-D collapse (D(B,C)==B(C,B), the
+      // adjoint identity Gbar=G^T); this gate keeps the CURRENT per-ordering
+      // builder as the validation reference for the simplified one.
+      {
+        auto PQ_cb = tpa::assemble_tpa_pq(world, g0, C, B);
+        vecfuncT refx = madness::copy(world, PQ.x_alpha);
+        gaxpy(world, 1.0, refx, 1.0, PQ_cb.x_alpha);
+        vecfuncT refy = madness::copy(world, PQ.y_alpha);
+        gaxpy(world, 1.0, refy, 1.0, PQ_cb.y_alpha);
+        auto symr = source_spec::assemble_source(
+            world, g0, tpa::tpa_pq_spec_sym(world, g0, B, C));
+        truncate(world, symr[0]);
+        truncate(world, symr[1]);
+        auto nrm = [&](const vecfuncT &v) {
+          return std::sqrt(std::abs(inner(world, v, v).sum()));
+        };
+        vecfuncT dx = madness::copy(world, symr[0]);
+        gaxpy(world, 1.0, dx, -1.0, refx);
+        vecfuncT dy = madness::copy(world, symr[1]);
+        gaxpy(world, 1.0, dy, -1.0, refy);
+        const double ex = nrm(dx) / std::max(1e-30, nrm(refx));
+        const double ey = nrm(dy) / std::max(1e-30, nrm(refy));
+        const bool ok4 = ex < 1.0e-9 && ey < 1.0e-9;
+        if (world.rank() == 0)
+          print("gate 4 (sym == sum of orderings):  rel dx=", ex,
+                " rel dy=", ey, ok4 ? " PASS" : " FAIL");
+        if (!ok4) rc = 1;
+      }
+
       // ============ (3) V^{bc} two-electron part (informational) =========
       // Zero one-electron operators isolate the two-electron content.
       real_function_3d zop = madness::copy(phi[0]); zop.scale(0.0);

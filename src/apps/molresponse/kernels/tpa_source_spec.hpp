@@ -36,11 +36,15 @@
 //    Each leg is its own entry (own Coulomb density), matching the validated
 //    op-for-op assembly; the ± of eq:tpa_dbc is the entry sign.
 //
-//  family D — the mixed-transposition C-leg kernel of eq:tpa_compact_P
-//    (its genuinely-VBC-less family):
+//  family D — the C-leg kernel of eq:tpa_compact_P. IDENTITY (2026-09-04,
+//    term-resolved measurement + adjoint identity g'[γ†]=(g'[γ])†, Ḡ=G^T):
+//    family D of ordering (B,C) EQUALS family B of ordering (C,B), entry for
+//    entry — it is NOT independent content. Kept here so the per-ordering
+//    P^{BC} matches eq:tpa_compact_P as published; the symmetrized builder
+//    tpa_pq_spec_sym below exploits the identity (drops D, doubles B).
 //      - g'[γ^{C†}] x^B_p         apply move, legs {(φ,x^C),(y^C,φ)}
-//      + Σ_k x^B_k G^C_kp         occupied-matrix move, UNtransposed block,
-//                                 G^C = <φ|g'[γ^C]|φ>
+//      + Σ_k x^B_k Ḡ^C_kp         occupied-matrix move, daggered legs,
+//                                 Ḡ^C = <φ|g'[γ^{C†}]|φ> = (G^C)^T
 //
 //  family 1e (optional, both orderings) — the v^B part of F^B/F̄^B (which
 //    the dagger leaves untouched):
@@ -185,6 +189,49 @@ tpa_pq_spec(madness::World &world, const ResponseGroundState &g0,
   }
 
   return {std::move(P), std::move(Q)};
+}
+
+/// SYMMETRIZED residue source: P_sym = P^{BC} + P^{CB} (and Q_sym), built
+/// via the family-D collapse (see family-D note above): family D of one
+/// ordering equals family B of the other, so the two-ordering sum needs only
+/// family B (signs doubled) of both orderings plus the D^{BC}/D^{CB} legs —
+/// 12 two-electron entries instead of 16 (saves 4 exchange applies per
+/// source). Implemented by post-processing tpa_pq_spec so the two builders
+/// cannot drift: entries are taken from the validated per-ordering tables.
+/// 1e entries are emitted ONCE (a single tpa_pq_spec call already carries
+/// both orderings' 1e content). Gate: test_tpa_pq_vs_vbc gate 4 asserts
+/// equality with tpa_pq_spec(B,C) + tpa_pq_spec(C,B) (2e part) at
+/// summation-order precision.
+inline std::vector<source_spec::SourceSpec>
+tpa_pq_spec_sym(madness::World &world, const ResponseGroundState &g0,
+                const ResponseStateXY<ClosedShell> &B,
+                const ResponseStateXY<ClosedShell> &C,
+                const madness::real_function_3d &VB_op = {},
+                const madness::real_function_3d &VC_op = {}) {
+  auto bc = tpa_pq_spec(world, g0, B, C, VB_op, VC_op);
+  auto cb = tpa_pq_spec(world, g0, C, B);  // 2e only
+  // per-channel entry layout (2e): [0,1]=family B, [2..5]=family F (D legs),
+  // [6,7]=family D (dropped — equals the OTHER ordering's family B),
+  // [8..]=1e (bc only).
+  std::vector<source_spec::SourceSpec> sym(2);
+  for (int ch = 0; ch < 2; ++ch) {
+    auto &out = sym[static_cast<size_t>(ch)].entries;
+    for (int i : {0, 1}) {                       // family B, both orderings, x2
+      auto e = bc[static_cast<size_t>(ch)].entries[static_cast<size_t>(i)];
+      e.sign *= 2.0;
+      out.push_back(std::move(e));
+      auto f = cb[static_cast<size_t>(ch)].entries[static_cast<size_t>(i)];
+      f.sign *= 2.0;
+      out.push_back(std::move(f));
+    }
+    for (int i : {2, 3, 4, 5}) {                 // family F, both orderings
+      out.push_back(bc[static_cast<size_t>(ch)].entries[static_cast<size_t>(i)]);
+      out.push_back(cb[static_cast<size_t>(ch)].entries[static_cast<size_t>(i)]);
+    }
+    for (size_t i = 8; i < bc[static_cast<size_t>(ch)].entries.size(); ++i)
+      out.push_back(bc[static_cast<size_t>(ch)].entries[i]);   // 1e, once
+  }
+  return sym;
 }
 
 /// Evaluate the (P,Q) spec into a response-shaped pair (x_alpha = P,
