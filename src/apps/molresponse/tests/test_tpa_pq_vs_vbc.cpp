@@ -198,15 +198,20 @@ int main(int argc, char **argv) {
       // adjoint identity Gbar=G^T); this gate keeps the CURRENT per-ordering
       // builder as the validation reference for the simplified one.
       {
-        auto PQ_cb = tpa::assemble_tpa_pq(world, g0, C, B);
-        vecfuncT refx = madness::copy(world, PQ.x_alpha);
-        gaxpy(world, 1.0, refx, 1.0, PQ_cb.x_alpha);
-        vecfuncT refy = madness::copy(world, PQ.y_alpha);
-        gaxpy(world, 1.0, refy, 1.0, PQ_cb.y_alpha);
+        // Reference and sym both UNTRUNCATED raw engine output: the internal
+        // truncations of assemble_tpa_pq differ per path (each ordering
+        // truncated separately vs one final truncate) and inject O(thresh)
+        // relative noise that has nothing to do with the identity.
+        auto ref_bc = source_spec::assemble_source(
+            world, g0, tpa::tpa_pq_spec(world, g0, B, C));
+        auto ref_cb = source_spec::assemble_source(
+            world, g0, tpa::tpa_pq_spec(world, g0, C, B));
+        vecfuncT refx = std::move(ref_bc[0]);
+        gaxpy(world, 1.0, refx, 1.0, ref_cb[0]);
+        vecfuncT refy = std::move(ref_bc[1]);
+        gaxpy(world, 1.0, refy, 1.0, ref_cb[1]);
         auto symr = source_spec::assemble_source(
             world, g0, tpa::tpa_pq_spec_sym(world, g0, B, C));
-        truncate(world, symr[0]);
-        truncate(world, symr[1]);
         auto nrm = [&](const vecfuncT &v) {
           return std::sqrt(std::abs(inner(world, v, v).sum()));
         };
@@ -259,7 +264,7 @@ int main(int argc, char **argv) {
         const double relx = nrm(PQ.x_alpha) > 1e-12 ? nrm(dpx) / nrm(PQ.x_alpha) : 0.0;
         const double rely = nrm(PQ.y_alpha) > 1e-12 ? nrm(dqy) / nrm(PQ.y_alpha) : 0.0;
         printf("  relative:  ||P-Vx||/||P|| = %.4f     ||Q-Vy||/||Q|| = %.4f\n", relx, rely);
-        rc = (rel < 200.0 * t && relf < 200.0 * t) ? 0 : 1;
+        if (!(rel < 200.0 * t && relf < 200.0 * t)) rc = 1;   // sticky: keep gate-4 verdict
         print("\n", rc == 0 ? "PQ_SOURCE_SPEC VALIDATED" : "PQ_SOURCE_SPEC FAILED");
       }
       world.gop.broadcast(rc, 0);
