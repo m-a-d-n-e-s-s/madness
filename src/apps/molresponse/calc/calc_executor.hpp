@@ -104,7 +104,12 @@ struct ExecutorSettings {
   // form (tpa::tpa_moment_residue — X_f in the residue slot against V^{bc}
   // built from the two photon responses) instead of the legacy beta-reuse
   // candidate. --tpa-prefactor scales the residue moment (normalization C_N).
-  bool              tpa_residue           = false;
+  // DEFAULT TRUE since 2026-09-05: running WITHOUT this flag silently used the
+  // legacy beta-reuse contraction, which is the "reuse V^BC and negate" form —
+  // measured 3-11% below the validated composition (and DALTON) on H2O
+  // per-root moments (reports/2026-09-04_report_pq_vbc_reconciliation). The
+  // legacy form is kept behind --tpa-legacy as the measured comparison arm.
+  bool              tpa_residue           = true;
   double            tpa_prefactor         = 1.0;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the

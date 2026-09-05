@@ -471,7 +471,8 @@ int main(int argc, char **argv) {
         // --tpa-residue [--tpa-prefactor=X]: corrected single-residue 2PA
         // contraction (kernels/tpa.hpp tpa_moment_residue) instead of the
         // legacy beta-reuse candidate.
-        if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;
+        if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;   // no-op (default)
+        if (parser.key_exists("tpa-legacy"))  ctx.tpa_residue = false;  // beta-reuse arm
         if (parser.key_exists("tpa-prefactor"))
           ctx.tpa_prefactor = std::stod(parser.value("tpa-prefactor"));
         if (parser.key_exists("tpa-decompose")) ctx.tpa_decompose = true;
