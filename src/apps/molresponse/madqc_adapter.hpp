@@ -63,8 +63,26 @@ struct molresponse_v3_lib {
 
     const auto &cp = params.get<CalculationParameters>();
     const auto &rp = params.get<ResponseParameters>();
-    const std::vector<double> protocol = cp.protocol();
+    std::vector<double> protocol = cp.protocol();
     MADNESS_CHECK(!protocol.empty());
+
+    // Deck `seed.start_rung fine` — a dalton.dir-seeded run skips straight to
+    // the FINEST rung (W6 between-pole finding: the coarse rung hits maxiter
+    // unconverged and launders away the seed's head start). Must happen
+    // BEFORE set_response_protocol / gs.prepare / run_dalton_import below so
+    // the seed projection lands at the fine rung's (k, thresh). Default
+    // 'coarse' = full ladder, unchanged. Shared helper with the standalone
+    // driver (apply_seed_start_rung), so the two surfaces agree.
+    if (apply_seed_start_rung(protocol, rp.seed_start_rung(),
+                              !rp.dalton_dir().empty())) {
+      if (world.rank() == 0)
+        print("response: seed.start_rung=fine — dalton.dir seed starts the "
+              "ladder at thresh", protocol.front());
+    } else if (rp.seed_start_rung() == "fine" && rp.dalton_dir().empty() &&
+               world.rank() == 0) {
+      print("response: seed.start_rung=fine ignored — no dalton.dir seed "
+            "configured (full ladder runs)");
+    }
 
     // 1. Ground state from the moldft ARCHIVE (not the in-memory SCF). On a
     //    restart-in-place run madqc validates the SCF as "Ok" and never loads the
@@ -148,6 +166,9 @@ struct molresponse_v3_lib {
       r.kind = ResponsePropertyKind::PolarizabilityGradient;
       r.gradient_mode = GradientMode::Resonant;
       r.n_roots = static_cast<int>(rp.excited_num_states());
+      // Roots only unless the deck also asks for the two-photon contraction
+      // (excited.tpa) — the derived FD legs serve only the 2PA residue.
+      r.tpa = rp.excited_tpa();
       add(r);
     }
     if (plans.empty()) {  // default: polarizability
@@ -168,6 +189,11 @@ struct molresponse_v3_lib {
     // excited.tda=false → Full (X,Y) ES bundle (default TDA).
     if (rp.excited_enable() && !rp.excited_tda())
       for (auto &e : in.plan.es) e.tda = false;
+    // excited.expect_omegas / excited.expect_tol → the root-identity guard's
+    // expected-ω cross-check (hard warning, never an error). Deck spelling of
+    // the standalone --es-expect-omegas / --es-expect-tol flags.
+    in.settings.es_expect_omegas = rp.excited_expect_omegas();
+    in.settings.es_expect_tol    = rp.excited_expect_tol();
     // ResponseApplication::run has already chdir'd (ScopedCWD) into `outdir`, and
     // `outdir` is RELATIVE — so the calc dir is the cwd ("."). Using outdir here
     // would double the path (outdir/outdir) and the metadata would be written/read
@@ -193,16 +219,29 @@ struct molresponse_v3_lib {
       const bool hdf5_on = false;
 #endif
       if (!hdf5_on)
-        print("response: WARNING — subworlds with the NATIVE backend will hit "
-              "the cross-np archive guard at property assembly on a multi-node "
-              "run (states saved per-subworld, reloaded at universe scale). Use "
-              "`response { io { backend hdf5 } }` for multi-node subworld runs, "
-              "or set MADRESPONSE_ALLOW_NP_MISMATCH=1 if the archives are known "
-              "portable. Single-node subworld runs are unaffected.");
+        print("response: NOTE — subworlds with the NATIVE backend: per-subworld "
+              "archives are treated as np-portable by default at property "
+              "assembly (nio=1); set MADRESPONSE_STRICT_NP=1 to hard-block a "
+              "cross-np reload instead. `response { io { backend hdf5 } }` "
+              "sidesteps the question entirely on multi-node runs.");
     }
     in.settings.policy.dconv_user = rp.dconv();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
+    // ES initial-guess knobs (deck: response { excited.guess virtual_ao,
+    // excited.guess_basis aug-cc-pvtz }). Deck default (solid_harmonics /
+    // aug-cc-pvdz) maps to the ExecutorSettings default — existing decks are
+    // unchanged. virtual_ao is the energy-ordered AO-virtual guess; it is
+    // required to reach totally-symmetric / radially-excited states on atoms,
+    // which the angular-only solid-harmonic trials structurally cannot span.
+    in.settings.es_guess       = parse_es_guess_mode(rp.excited_guess());
+    in.settings.es_guess_basis = rp.excited_guess_basis();
+    if (world.rank() == 0 && rp.excited_enable() &&
+        in.settings.es_guess != ESGuessMode::SolidHarmonics)
+      print("response: excited.guess =", to_string(in.settings.es_guess),
+            (in.settings.es_guess == ESGuessMode::VirtualAO
+                 ? std::string("(basis " + in.settings.es_guess_basis + ")")
+                 : std::string()));
     // Deck-level HDF5 opt-in (response.hdf5 true) — the env var
     // MADRESPONSE_IO_HDF5 still works; the deck parameter wins when set.
     if (rp.hdf5()) {

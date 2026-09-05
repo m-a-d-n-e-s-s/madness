@@ -46,9 +46,11 @@
 #include "../solvers/fd_problem.hpp"
 #include "../solvers/fd_save_load.hpp"
 #include "../kernels/beta.hpp"
+#include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/es_analysis.hpp"
 #include "../solvers/es_save_load.hpp"
+#include "../solvers/es_seed_guard.hpp"
 #include "../solvers/es_solver.hpp"
 #include "../solvers/fd_solver.hpp"
 #include "../solvers/iterate_protocol.hpp"
@@ -94,11 +96,28 @@ struct ExecutorSettings {
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
   // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
+  // AO basis projected for the VirtualAO guess (CLI --es-guess-basis / deck
+  // response.excited.guess_basis). Radial rank per l-sector = #shells(l) −
+  // #occupied(l), so a larger basis reaches further up the radial ladder
+  // (Rydberg series want d-aug-cc-pvtz or similar). Ignored by other modes.
+  std::string       es_guess_basis        = "aug-cc-pvdz";
   // --tpa-residue: contract the 2PA moment with the corrected single-residue
   // form (tpa::tpa_moment_residue — X_f in the residue slot against V^{bc}
   // built from the two photon responses) instead of the legacy beta-reuse
   // candidate. --tpa-prefactor scales the residue moment (normalization C_N).
-  bool              tpa_residue           = false;
+  // DEFAULT TRUE since 2026-09-05: running WITHOUT this flag silently used the
+  // legacy beta-reuse contraction, which is the "reuse V^BC and negate" form —
+  // measured 3-11% below the validated composition (and DALTON) on H2O
+  // per-root moments (reports/2026-09-04_report_pq_vbc_reconciliation). The
+  // legacy form is kept behind --tpa-legacy as the measured comparison arm.
+  bool              tpa_residue           = true;
+  // Contraction composition for the two-electron residue when tpa_residue:
+  // false (DEFAULT) = the Parker-style state-free (P,Q) source via the spec
+  // engine (kernels/tpa_source_spec.hpp, symmetrized builder) — the form that
+  // matches V^BC term-for-term (one dagger + one reorientation). true = the
+  // c-grouped composition (tpa_e3_residue) — gate-equal (test_tpa_pq_vs_vbc,
+  // 3e-7) and kept as the production comparison arm (--tpa-cgrouped).
+  bool              tpa_cgrouped          = false;
   double            tpa_prefactor         = 1.0;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the
@@ -154,6 +173,16 @@ struct ExecutorSettings {
   // Exchange operator per root per iter. A/B-to-floor vs the reference (~1e-3
   // rel in θ → ~1e-6 in a converged ω), NOT bitwise. Off by default.
   bool              es_gamma_tensor   = false;
+  // Root-identity guard cross-check (--es-expect-omegas / deck
+  // excited.expect_omegas): after the ES solve, hard-warn (never error) for any
+  // converged root farther than es_expect_tol (au) from EVERY listed value.
+  // This is how a campaign passes a trusted (e.g. d-aug DALTON) ladder to a
+  // solve seeded from a poorer basis — the W5 tracking failure mode. Empty =
+  // check off. The seeded-solve visibility part of the guard (overlap table +
+  // basin-escape / tracking warnings) needs no knob; it always runs on a
+  // seeded ES solve. See solvers/es_seed_guard.hpp.
+  std::vector<double> es_expect_omegas;
+  double            es_expect_tol     = kSeedGuardExpectTolDefault;
   // Best-effort acceptance at maxiter (FD nodes). When true, a non-diverged FD
   // solve that exhausts max_iters WITHOUT meeting the strict target is recorded
   // converged (with an `accepted` marker + its real residual). NOTE: ladder
@@ -544,9 +573,19 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): keep a deep copy of the seed the solve starts
+  // from, so we can report per-root seed overlap / ω shift after convergence
+  // (a seeded ES solve TRACKS the seeded states — see es_seed_guard.hpp).
+  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = capture_es_seed_reference(world, loaded->state,
+                                           loaded->bundle_dir,
+                                           loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+    }
   }
   if (!seeded) {
     const long n_warm = std::max<long>(
@@ -555,7 +594,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
                                static_cast<double>(n_roots))));
     s0 = run_oversampled_tda_warmup<ClosedShell>(
         world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-        c_xc, lo, ctx.print_level, ctx.es_guess);
+        c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
   }
 
   Solver solver(world, std::move(problem), main_policy, ctx.print_level);
@@ -621,6 +660,23 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5): visibility on what a SEEDED solve actually did
+  // (seed overlap / ω shift per root, basin-escape + pure-tracking warnings)
+  // plus the optional expected-ω cross-check. Collective evaluate; rank-0
+  // print + metadata write. A fresh solve runs the expect-check only.
+  {
+    std::optional<EsSeedGuardReport> guard;
+    if (seed_ref)
+      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
+                                     ctx.es_expect_omegas, ctx.es_expect_tol);
+    else if (!ctx.es_expect_omegas.empty())
+      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
+                                      ctx.es_expect_tol);
+    if (guard) {
+      print_es_seed_guard(world, *guard);
+      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
+    }
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the IN-MEMORY converged state `sf` at the solve's
   // own process count and writes only a rank-0 JSON — it does NOT reload the
@@ -683,9 +739,20 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): deep-copy the seed for the post-solve overlap /
+  // ω-shift report (see es_seed_guard.hpp). NB: the cached TDA warmup guess
+  // below is NOT a seed in this sense (it is this solver's own cold-start
+  // artifact), so seed_ref stays empty on that path.
+  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = capture_es_seed_reference(world, loaded->state,
+                                           loaded->bundle_dir,
+                                           loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+    }
   }
   if (!seeded) {
     const std::string cache_base =
@@ -718,7 +785,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
                                  static_cast<double>(n_roots))));
       auto tda = run_oversampled_tda_warmup<ClosedShell>(
           world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-          c_xc, lo, ctx.print_level, ctx.es_guess);
+          c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
       s0 = promote_tda_to_full_closed_shell(world, tda);
       if (ctx.es_warmup_cache) {
         save_es_roots<Full, ClosedShell>(world, s0, warm_cache,
@@ -779,6 +846,20 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5) — same contract as the TDA path above.
+  {
+    std::optional<EsSeedGuardReport> guard;
+    if (seed_ref)
+      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
+                                     ctx.es_expect_omegas, ctx.es_expect_tol);
+    else if (!ctx.es_expect_omegas.empty())
+      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
+                                      ctx.es_expect_tol);
+    if (guard) {
+      print_es_seed_guard(world, *guard);
+      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
+    }
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the in-memory `sf` (no bundle reload), so it never
   // hits the cross-np load path that caused the parked ES heap-OOB (now guarded
@@ -1785,6 +1866,9 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       // correctness assertion (DALTON's E3 shows the same invariance).
       if (world.rank() == 0) {
         print("[TPA] contraction: single-residue, S = sqrt2*(1e + E3corr),"
+              " 2e composition =",
+              (ctx.tpa_cgrouped ? "c-grouped (tpa_e3_residue)"
+                                : "Parker (P,Q) spec [production]"),
               " prefactor =", ctx.tpa_prefactor);
         fflush(stdout);
       }
@@ -1795,23 +1879,45 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       for (int b3 = 0; b3 < 3; ++b3) {
         for (int c3 = b3; c3 < 3; ++c3) {
           if (world.rank() == 0) {
-            printf("  [TPA e3corr] root %ld pair %c%c%s ...\n", f,
+            printf("  [TPA e3corr] root %ld pair %c%c%s (%s) ...\n", f,
                    "xyz"[b3], "xyz"[c3],
-                   (b3 != c3 ? " (both orderings)" : ""));
+                   (b3 != c3 ? " (both orderings)" : ""),
+                   (ctx.tpa_cgrouped ? "c-grouped" : "Parker spec"));
             fflush(stdout);
           }
-          const double ebc = tpa::tpa_e3_residue(
-              world, g0, mu_resp[static_cast<size_t>(b3)],
-              mu_resp[static_cast<size_t>(c3)], Xf);
-          double e = ebc;
-          if (b3 != c3) {
-            const double ecb = tpa::tpa_e3_residue(
-                world, g0, mu_resp[static_cast<size_t>(c3)],
-                mu_resp[static_cast<size_t>(b3)], Xf);
-            max_asym = std::max(max_asym, std::abs(ebc - ecb));
-            e = 0.5 * (ebc + ecb);
+          double e = 0.0;
+          if (!ctx.tpa_cgrouped) {
+            // PRODUCTION (2026-09-05): the Parker-style state-free (P,Q)
+            // source, symmetrized builder (family-D collapse). Gate 1 of
+            // test_tpa_pq_vs_vbc pins <x^f|P>+<y^f|Q> (one ordering, 2e)
+            // == tpa_e3_residue/sqrt2, and the sym builder returns the
+            // ordering SUM, so 0.5*<f|P_sym,Q_sym> lands in the same units
+            // as the averaged e/sqrt2 below — the outer sqrt2*(1e+E3corr)
+            // stays untouched.
+            auto pq = source_spec::assemble_source(
+                world, g0,
+                tpa::tpa_pq_spec_sym(world, g0,
+                                     mu_resp[static_cast<size_t>(b3)],
+                                     mu_resp[static_cast<size_t>(c3)]));
+            const double sp =
+                inner(world, Xf.x_alpha, pq[0]).sum() +
+                inner(world, Xf.y_alpha, pq[1]).sum();
+            e = 0.5 * sp;
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e;
+          } else {
+            const double ebc = tpa::tpa_e3_residue(
+                world, g0, mu_resp[static_cast<size_t>(b3)],
+                mu_resp[static_cast<size_t>(c3)], Xf);
+            e = ebc;
+            if (b3 != c3) {
+              const double ecb = tpa::tpa_e3_residue(
+                  world, g0, mu_resp[static_cast<size_t>(c3)],
+                  mu_resp[static_cast<size_t>(b3)], Xf);
+              max_asym = std::max(max_asym, std::abs(ebc - ecb));
+              e = 0.5 * (ebc + ecb);
+            }
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
           }
-          S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
         }
       }
       S = madness::copy(S_1e);
