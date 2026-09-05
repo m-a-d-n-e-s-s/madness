@@ -1,0 +1,5 @@
+<map id="madness::detail::ThreadBindingMessage" name="madness::detail::ThreadBindingMessage">
+<area shape="rect" id="Node000001" title="Owns the (long) diagnostic text of a ThreadBindingException." alt="" coords="15,5,243,45"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ThreadBindingException.html" title="Thrown by check_thread_binding() when the CPU binding cannot support the thread pool." alt="" coords="5,93,252,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="131,59,131,93,126,93,126,59"/>
+</map>

@@ -1,0 +1,14 @@
+<map id="Globally addressable objects (WorldObject)" name="Globally addressable objects (WorldObject)">
+<area shape="rect" id="Node000005" href="$group__atomics.html" title=" " alt="" coords="513,5,654,31"/>
+<area shape="rect" id="Node000003" href="$group__function.html" title=" " alt="" coords="545,55,622,80"/>
+<area shape="rect" id="Node000006" href="$group__futures.html" title=" " alt="" coords="548,104,619,129"/>
+<area shape="rect" id="Node000010" href="$group__hashing.html" title=" " alt="" coords="546,153,621,179"/>
+<area shape="rect" id="Node000011" href="$group__mpi.html" title=" " alt="" coords="502,203,665,243"/>
+<area shape="rect" id="Node000012" href="$group__mutexes.html" title=" " alt="" coords="545,268,622,293"/>
+<area shape="rect" id="Node000002" href="$group__parallel__runtime.html" title=" " alt="" coords="5,233,168,273"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="217,233,384,273"/>
+<area shape="rect" id="Node000008" href="$group__taskq.html" title=" " alt="" coords="536,317,631,343"/>
+<area shape="rect" id="Node000004" href="$group__tensor.html" title=" " alt="" coords="551,367,615,392"/>
+<area shape="rect" id="Node000007" href="$group__world.html" title=" " alt="" coords="492,416,675,471"/>
+<area shape="rect" id="Node000009" href="$group__worlddc.html" title=" " alt="" coords="546,495,621,520"/>
+</map>

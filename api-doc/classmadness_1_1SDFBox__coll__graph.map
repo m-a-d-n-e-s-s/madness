@@ -1,0 +1,7 @@
+<map id="madness::SDFBox" name="madness::SDFBox">
+<area shape="rect" id="Node000001" title="A box (3 dimensions)" alt="" coords="179,108,319,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1SignedDFInterface.html" title=" " alt="" coords="5,5,252,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,37,237,106,233,110,151,41"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector." alt="" coords="277,5,463,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="347,41,264,110,261,106,344,37"/>
+</map>

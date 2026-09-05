@@ -1,0 +1,29 @@
+<map id="gaussian.h" name="gaussian.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="271,5,363,31"/>
+<area shape="rect" id="Node000002" href="$NWChem_8cc.html" title=" " alt="" coords="5,152,107,177"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="286,40,78,154,75,150,283,35"/>
+<area shape="rect" id="Node000003" href="$NWChem_8h.html" title=" " alt="" coords="227,79,322,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="306,44,284,80,279,77,301,41"/>
+<area shape="rect" id="Node000008" href="$madchem_8h.html" title=" " alt="" coords="448,152,547,177"/>
+<area shape="poly" id="edge14_Node000001_Node000008" title=" " alt="" coords="334,41,357,72,387,102,429,130,469,149,467,154,426,134,384,106,353,75,330,44"/>
+<area shape="rect" id="Node000013" href="$madness_2chem_2gaussian_8cc.html" title=" " alt="" coords="397,79,496,104"/>
+<area shape="poly" id="edge13_Node000001_Node000013" title=" " alt="" coords="352,35,427,76,424,81,349,40"/>
+<area shape="poly" id="edge7_Node000003_Node000002" title=" " alt="" coords="227,111,92,154,91,149,226,106"/>
+<area shape="rect" id="Node000004" href="$InitParameters_8h.html" title=" " alt="" coords="131,152,261,177"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="254,115,211,154,207,150,250,111"/>
+<area shape="poly" id="edge8_Node000003_Node000008" title=" " alt="" coords="324,106,462,149,460,154,322,111"/>
+<area shape="rect" id="Node000012" href="$molecularbasis_8cc.html" title=" " alt="" coords="285,152,424,177"/>
+<area shape="poly" id="edge12_Node000003_Node000012" title=" " alt="" coords="299,111,343,150,340,154,296,115"/>
+<area shape="rect" id="Node000005" href="$DF_8h.html" title=" " alt="" coords="171,225,221,251"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="199,191,199,225,193,225,193,191"/>
+<area shape="rect" id="Node000006" href="$DF_8cc.html" title=" " alt="" coords="119,299,175,324"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="182,264,157,300,152,297,178,261"/>
+<area shape="rect" id="Node000007" href="$DFdriver_8cc.html" title=" " alt="" coords="199,299,294,324"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="215,261,241,297,236,300,210,264"/>
+<area shape="rect" id="Node000009" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="351,225,414,251"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="469,187,403,227,400,223,466,182"/>
+<area shape="rect" id="Node000010" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="438,225,557,251"/>
+<area shape="poly" id="edge10_Node000008_Node000010" title=" " alt="" coords="500,191,500,225,495,225,495,191"/>
+<area shape="rect" id="Node000011" href="$simple__hf_8cpp.html" title=" " alt="" coords="580,225,692,251"/>
+<area shape="poly" id="edge11_Node000008_Node000011" title=" " alt="" coords="533,181,615,223,612,227,530,186"/>
+</map>

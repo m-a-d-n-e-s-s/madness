@@ -1,0 +1,7 @@
+<map id="madness::archive::BaseParallelArchive&lt; Archive &gt;" name="madness::archive::BaseParallelArchive&lt; Archive &gt;">
+<area shape="rect" id="Node000001" title="Base class for input and output parallel archives." alt="" coords="5,37,231,77"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1archive_1_1ParallelInputArchive.html" title="An archive for storing local or parallel data, wrapping a BinaryFstreamInputArchive." alt="" coords="284,5,505,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="244,40,283,35,284,41,245,45"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1archive_1_1ParallelOutputArchive.html" title="An archive for storing local or parallel data wrapping a BinaryFstreamOutputArchive." alt="" coords="279,69,511,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="244,69,279,73,278,79,244,75"/>
+</map>

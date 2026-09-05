@@ -1,0 +1,7 @@
+<map id="Greet" name="Greet">
+<area shape="rect" id="Node000001" title=" " alt="" coords="78,152,137,177"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface." alt="" coords="5,79,209,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,118,110,152,105,152,105,118"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task." alt="" coords="16,5,199,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="110,44,110,79,105,79,105,44"/>
+</map>
