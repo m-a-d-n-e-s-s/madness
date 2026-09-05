@@ -41,6 +41,7 @@
 #include <array>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -354,8 +355,8 @@ namespace madness {
       Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
       Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
       Validator validator_;      ///< optional validator function
-      // TODO: Double-check legitimacy of choosing probing displacement arbitrarily. For isotropic kernels, wouldn't you want it on the face where the boundary is closest (in real-space)?
-      //       That depends on both the surface thickness and the side lengths of the simulation cell.
+      std::optional<Translation> probe_offset_radius_; ///< least N such that being N boxes away from origin guarantees
+                                                       ///   the point was not a short-range point already considered
       Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
 
       /**
@@ -686,19 +687,21 @@ namespace madness {
        * @param is_lattice_summed whether each dimension is lattice summed; along lattice summed dimensions only one side of the box is iterated over.
        * @param validator Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
        * @pre `surface_radius[d]>0 && surface_thickness[d]<=surface_radius[d]`
+       * @param probe_offset_radius the smallest displacement magnitude, in boxes, that `validator` does *not* discard as a duplicate of the standard/short-range displacement list, Pass 0 to signal that nothing is filtered out (the surface then reaches all the way in to `center` and no probe can screen it). Omit if unknown, in which case the half-simulation-cell offset is used.
        *
        */
       explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
                                            const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
                                            const array_of_bools<NDIM>& is_lattice_summed,
-                                           Validator validator = {})
+                                           Validator validator = {},
+                                           std::optional<Translation> probe_offset_radius = {})
           : center_(center), box_radius_(box_radius),
-            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)) {
+            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)),
+            probe_offset_radius_(probe_offset_radius) {
         // initialize bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
-        Vector<Translation, NDIM> probing_displacement_vec(0);
         for (size_t d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
@@ -706,15 +709,13 @@ namespace madness {
             r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
             MADNESS_ASSERT(r > 0);
             box_[d] = {center_[d] - r, center_[d] + r};
-            if (!has_finite_dimensions) // first finite dimension? probing displacement will be nonzero along it, zero along all others
-              probing_displacement_vec[d] = r;
             has_finite_dimensions = true;
           } else {
             box_[d] = {0, (1 << center_.level()) - 1};
           }
         }
         MADNESS_ASSERT(has_finite_dimensions);
-        probing_displacement_ = Displacement(n, probing_displacement_vec);
+        probing_displacement_ = compute_probing_displacement();
         for (size_t d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
@@ -771,6 +772,113 @@ namespace madness {
       const Displacement& probing_displacement() const {
         return probing_displacement_;
       }
+
+    private:
+      const Displacement compute_probing_displacement() {
+        // Large boxes we must consider are both those near the center (because 1/r is large
+        // for small r), and near the box radius (because going from 1/r to 0 is a sharp change).
+        // The probe displacement is a way to screen out cases where the box radius is negligible.
+        // Our probe displacement must satisfy:
+        // (1) It must actually be on the box, e.g., on a boundary face, perpendicular to a
+        //     dimension with finite box_radius_. We call those the target face and dimensions.
+        // To ensure we're probing the box radius effect and not the near-center effect, we require:
+        // (2) If at all possible, it must be distinct from the zero displacement and
+        //     from the displacements "near" the center, both of which should have already been considered.
+        //     Zero displacements are especially pernicious, because self-interaction is always large.
+        //  n.b.: Beware that for lattice summed-dimensions, displacements must be distinct in the space
+        //     of equivalence classes. For lattice-summed dimensions of an even number of boxes, the origin
+        //     of the target face is equivalent the origin.
+        //  n.b.: If N even and lattice-summed and 1D, the entire boundary is already equivalent to
+        //     the displacements "near" the center.
+        // To keep the estimate sharp, we prefer:
+        // (3) We want the displacement of minimal real-space r within the above constraints.
+        //     Such displacements are more suitable as a heuristic upper bound of the matrix element
+        //     controlling the 1/r to 0 change. Not explicitly accounting for this does not seem to
+        //     affect whether we're within epsilon, but it's still good practice.
+        //     For the same reason, the sigma should matter as well.
+
+        const auto face_origin_is_center = [this](size_t d) {
+          return is_lattice_summed_[d] && (*box_radius_[d] % 2 == 0);
+        };
+
+        // Create a sort key on candidates for the target dimension.
+        // 1. The "effective number of half cells away" the face is. Even cells are treated as 1,
+        //    even though they're actually 0, to account for the offset we'll need to add.
+        // 2. Is an offset needed? Avoiding it is preferred.
+        // 3. Choose the smallest N possible.
+        // Requirement (3) would be better formulated in real-space, but the expected
+        // bound improvement doesn't justify expanding the argument signature.
+        const auto sort_key = [&](size_t d) {
+          const auto N = *box_radius_[d];
+          return std::make_tuple(is_lattice_summed_[d] ? Translation(1) : N, face_origin_is_center(d), N);
+        };
+
+        // The initial value registers "not set yet".
+        size_t face_dimension = NDIM;
+        for (size_t d=0; d != NDIM; ++d) {
+          if (!box_radius_[d]) continue;
+          if (face_dimension == NDIM || sort_key(d) < sort_key(face_dimension)) face_dimension = d;
+        }
+        MADNESS_ASSERT(face_dimension != NDIM);  // guaranteed by has_finite_dimensions in the ctor
+
+        // Enforce requirement (1)
+        Vector<Translation, NDIM> probing_displacement_vec(0);
+        const auto n = center_.level();
+        auto r = *box_radius_[face_dimension];  // in units of 2^{n-1}
+        // n = 0 is special b/c << -1 is undefined
+        r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
+        MADNESS_ASSERT(r > 0);
+        probing_displacement_vec[face_dimension] = r;
+
+        // In these cases, requirement (2) is already satisfied or unsatisfiable.
+        // Choosing 0 for all other dimensions satisfies requirement (3).
+        if (!face_origin_is_center(face_dimension) || n == 0 || NDIM == 1)
+          return Displacement(n, probing_displacement_vec);
+
+        // No (or negative) radius means none of the surface points have been processed
+        // 
+        if (probe_offset_radius_ && *probe_offset_radius_ <= 0)
+          return Displacement(n, probing_displacement_vec);
+
+        // Else, we still need to satisfy requirement (2) while trying to obey (3). We need to displace along
+        // a different dimension.
+
+        // choose the dimension to displace along. The offset magnitude is dimension-independent;
+        // prefer the narrowest finite dimension, else the first unrestricted one.
+        size_t offset_dimension = NDIM;
+        size_t unrestricted_dimension = NDIM;
+        for (size_t d=0; d != NDIM; ++d) {
+          if (d == face_dimension) continue;
+          if (box_radius_[d]) {
+            if (offset_dimension == NDIM || *box_radius_[d] < *box_radius_[offset_dimension])
+              offset_dimension = d;
+          } else if (unrestricted_dimension == NDIM) {
+              unrestricted_dimension = d;
+            }
+        }
+
+        // Cap the offset at half a cell. If our dimension is lattice-summed, it's even, and half a cell
+        // is where it's furthest from the origin. Else, half a cell is the furthest away we can
+        // guarantee we can displace to, in the case of an open dimension and the center_ is the origin.
+        const Translation half_cell = Translation(1) << (n-1);
+        const Translation offset = probe_offset_radius_
+                                       ? std::clamp(*probe_offset_radius_, Translation(1), half_cell)
+                                       : half_cell;
+        if (offset_dimension != NDIM) {
+          // the offset stays on the face: box_radius_ >= 1 means the box spans at least a half
+          // simulation cell along this dimension, and offset <= half_cell
+          probing_displacement_vec[offset_dimension] = offset;
+        } else {
+          // we're bounded by the simulation cell; displace toward whichever side of center_ has more room
+          MADNESS_ASSERT(unrestricted_dimension != NDIM);  // NDIM > 1, so some dimension was found
+          const auto d = unrestricted_dimension;
+          const auto left_distance = center_[d] - box_[d].first;
+          const auto right_distance = box_[d].second - center_[d];
+          const auto sign = right_distance >= left_distance ? +1 : -1;
+          probing_displacement_vec[d] = sign * offset;
+        }
+        return Displacement(n, probing_displacement_vec);
+      }   // compute_probing_displacement
     };  // BoxSurfaceDisplacementRange
 
 
