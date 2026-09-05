@@ -219,12 +219,11 @@ struct molresponse_v3_lib {
       const bool hdf5_on = false;
 #endif
       if (!hdf5_on)
-        print("response: WARNING — subworlds with the NATIVE backend will hit "
-              "the cross-np archive guard at property assembly on a multi-node "
-              "run (states saved per-subworld, reloaded at universe scale). Use "
-              "`response { io { backend hdf5 } }` for multi-node subworld runs, "
-              "or set MADRESPONSE_ALLOW_NP_MISMATCH=1 if the archives are known "
-              "portable. Single-node subworld runs are unaffected.");
+        print("response: NOTE — subworlds with the NATIVE backend: per-subworld "
+              "archives are treated as np-portable by default at property "
+              "assembly (nio=1); set MADRESPONSE_STRICT_NP=1 to hard-block a "
+              "cross-np reload instead. `response { io { backend hdf5 } }` "
+              "sidesteps the question entirely on multi-node runs.");
     }
     in.settings.policy.dconv_user = rp.dconv();
     in.settings.print_level =
