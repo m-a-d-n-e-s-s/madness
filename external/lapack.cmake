@@ -36,10 +36,12 @@ function(madness_report_lapack_error _reason)
   string(APPEND _help_msg "[1] ARM Architecture (AArch64 / Apple Silicon):\n")
   string(APPEND _help_msg "    Preference Hierarchy: (1) ARMPL  ->  (2) NVPL  ->  (3) BLIS (serial) + Netlib LAPACK\n")
   string(APPEND _help_msg "    * macOS (Apple Silicon M1/M2/M3/M4):\n")
-  string(APPEND _help_msg "      - Apple Accelerate is built-in and supported automatically:\n")
-  string(APPEND _help_msg "          (No installation needed; CMake detects -framework Accelerate)\n")
-  string(APPEND _help_msg "      - Or install BLIS & Netlib LAPACK via Homebrew:\n")
-  string(APPEND _help_msg "          brew install blis lapack\n")
+  string(APPEND _help_msg "      - Apple Accelerate is built-in, is what MADNESS prefers here, and needs\n")
+  string(APPEND _help_msg "        no installation (CMake detects -framework Accelerate automatically).\n")
+  string(APPEND _help_msg "        If you are seeing this message on macOS something has gone wrong;\n")
+  string(APPEND _help_msg "        please report it.\n")
+  string(APPEND _help_msg "      - Note: 'brew install blis' yields an OpenMP-threaded BLIS, which MADNESS\n")
+  string(APPEND _help_msg "        rejects, and a serial BLIS does not scale under MADNESS's task threads.\n")
   string(APPEND _help_msg "    * Ubuntu / Debian (ARM64):\n")
   string(APPEND _help_msg "      - (1) Arm Performance Libraries (ARMPL, Best Performance):\n")
   string(APPEND _help_msg "          Download DEB from: https://developer.arm.com/downloads/-/arm-performance-libraries\n")
@@ -268,7 +270,29 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()
 
-  # 4. Search for BLIS (serial) + LAPACK (Netlib)
+  # 4. Apple Accelerate (Darwin).  This sits above BLIS deliberately: on macOS
+  # Accelerate is the vendor-tuned library, the peer of MKL and ARMPL rather
+  # than of a portable fallback, and it is always present.
+  #
+  # Measured on an Apple M2 Max over the FLOP-weighted shape mix of a moldft
+  # water/LDA run (785 distinct shapes), aggregate GF/s from 1 -> 8 concurrent
+  # MADNESS worker threads:
+  #
+  #     Accelerate        28.7 -> 144.7
+  #     BLIS (serial)     17.4 ->  17.5
+  #
+  # BLIS does not scale under concurrent callers even in a --enable-threading=no
+  # build, and the small shapes that dominate MRA go backwards: (36x6x6) falls
+  # from 5.5 to 3.1 GF/s between 1 and 8 threads.  That is the memory-pool
+  # contention the BLIS warning further down describes.  Letting BLIS displace
+  # Accelerate here would cost ~8x on the BLAS path.
+  if(NOT LAPACK_FOUND AND CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # Accelerate is always present, so no need to search
+    set(LAPACK_LIBRARIES "-framework Accelerate")
+    set(LAPACK_FOUND TRUE)
+  endif()
+
+  # 5. Search for BLIS (serial) + LAPACK (Netlib)
   if(ENABLE_BLIS AND NOT LAPACK_FOUND)
     find_package(BLIS)
     if(BLIS_FOUND)
@@ -350,7 +374,7 @@ if(NOT LAPACK_LIBRARIES)
     endif()
   endif()
 
-  # 5. Search for ACML
+  # 6. Search for ACML
   if(ENABLE_ACML AND NOT LAPACK_FOUND)
     find_package(ACML)
     if(ACML_FOUND)
@@ -358,13 +382,6 @@ if(NOT LAPACK_LIBRARIES)
       set(LAPACK_LIBRARIES ${ACML_LIBRARIES})
       set(HAVE_ACML 1)
     endif()
-  endif()
-
-  # 6. Search for system specific BLAS/LAPACK checks (Darwin / Accelerate)
-  if(NOT LAPACK_FOUND AND CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    # Accelerate is always present, so no need to search
-    set(LAPACK_LIBRARIES "-framework Accelerate")
-    set(LAPACK_FOUND TRUE)
   endif()
 
   # 7. Search for Netlib lapack and blas libraries
