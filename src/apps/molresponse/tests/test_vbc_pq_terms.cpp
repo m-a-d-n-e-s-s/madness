@@ -329,6 +329,35 @@ int main(int argc, char **argv) {
         }
       }
 
+      // ============ conjugation check: Q == S[P] (x<->y swap on legs) ======
+      // Claim (2026-09-05, user observation): the Q channel is EXACTLY the P
+      // channel with every response leg's x and y halves swapped (the
+      // negative-frequency exchange rule at the source level) — one generator
+      // functional, evaluated at +/- frequency legs. Verified here numerically;
+      // it also holds entry-for-entry in tpa_pq_spec's tables.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== conjugation: Q vs P at swapped legs =====");
+      {
+        ResponseStateXY<ClosedShell> Bs, Cs;   // x<->y swapped legs
+        Bs.x_alpha = madness::copy(world, yb); Bs.y_alpha = madness::copy(world, xb);
+        Cs.x_alpha = madness::copy(world, yc); Cs.y_alpha = madness::copy(world, xc);
+        auto PQswap = eval_per_entry(world, g0, tpa::tpa_pq_spec(world, g0, Bs, Cs));
+        auto Pswap_tot = vsum(world, PQswap[0], {0,1,2,3,4,5,6,7});
+        auto Q_tot     = vsum(world, Pbc[1],    {0,1,2,3,4,5,6,7});
+        auto d = vdiff(world, Pswap_tot, Q_tot);
+        if (world.rank() == 0)
+          printf("  ||P[swapped legs] - Q|| = %.3e   (||Q|| = %.3e)\n",
+                 vnorm(world, d), vnorm(world, Q_tot));
+        // Reversed contraction pairing <y|P>+<x|Q>: the -omega_f (emission-
+        // side) residue pairing. Informational — differs on stand-ins; on a
+        // true eigenvector its magnitude should match the absorption pairing.
+        auto P_tot = vsum(world, Pbc[0], {0,1,2,3,4,5,6,7});
+        if (world.rank() == 0)
+          printf("  pairing  <x|P>+<y|Q> = %+.8e    reversed <y|P>+<x|Q> = %+.8e\n",
+                 vinner(world, xf, P_tot) + vinner(world, yf, Q_tot),
+                 vinner(world, yf, P_tot) + vinner(world, xf, Q_tot));
+      }
+
       // ============ beta contraction convention probe =====================
       // Production (kernels/beta.hpp): b1 = -(<xA|Vx> + <yA|Vy>) with the A
       // leg SOLVED AT +omega_sigma. The x<->y exchange-rule pairing would be
