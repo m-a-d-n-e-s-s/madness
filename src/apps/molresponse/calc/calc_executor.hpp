@@ -46,6 +46,7 @@
 #include "../solvers/fd_problem.hpp"
 #include "../solvers/fd_save_load.hpp"
 #include "../kernels/beta.hpp"
+#include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/es_analysis.hpp"
 #include "../solvers/es_save_load.hpp"
@@ -110,6 +111,13 @@ struct ExecutorSettings {
   // per-root moments (reports/2026-09-04_report_pq_vbc_reconciliation). The
   // legacy form is kept behind --tpa-legacy as the measured comparison arm.
   bool              tpa_residue           = true;
+  // Contraction composition for the two-electron residue when tpa_residue:
+  // false (DEFAULT) = the Parker-style state-free (P,Q) source via the spec
+  // engine (kernels/tpa_source_spec.hpp, symmetrized builder) — the form that
+  // matches V^BC term-for-term (one dagger + one reorientation). true = the
+  // c-grouped composition (tpa_e3_residue) — gate-equal (test_tpa_pq_vs_vbc,
+  // 3e-7) and kept as the production comparison arm (--tpa-cgrouped).
+  bool              tpa_cgrouped          = false;
   double            tpa_prefactor         = 1.0;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the
@@ -1858,6 +1866,9 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       // correctness assertion (DALTON's E3 shows the same invariance).
       if (world.rank() == 0) {
         print("[TPA] contraction: single-residue, S = sqrt2*(1e + E3corr),"
+              " 2e composition =",
+              (ctx.tpa_cgrouped ? "c-grouped (tpa_e3_residue)"
+                                : "Parker (P,Q) spec [production]"),
               " prefactor =", ctx.tpa_prefactor);
         fflush(stdout);
       }
@@ -1868,23 +1879,45 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       for (int b3 = 0; b3 < 3; ++b3) {
         for (int c3 = b3; c3 < 3; ++c3) {
           if (world.rank() == 0) {
-            printf("  [TPA e3corr] root %ld pair %c%c%s ...\n", f,
+            printf("  [TPA e3corr] root %ld pair %c%c%s (%s) ...\n", f,
                    "xyz"[b3], "xyz"[c3],
-                   (b3 != c3 ? " (both orderings)" : ""));
+                   (b3 != c3 ? " (both orderings)" : ""),
+                   (ctx.tpa_cgrouped ? "c-grouped" : "Parker spec"));
             fflush(stdout);
           }
-          const double ebc = tpa::tpa_e3_residue(
-              world, g0, mu_resp[static_cast<size_t>(b3)],
-              mu_resp[static_cast<size_t>(c3)], Xf);
-          double e = ebc;
-          if (b3 != c3) {
-            const double ecb = tpa::tpa_e3_residue(
-                world, g0, mu_resp[static_cast<size_t>(c3)],
-                mu_resp[static_cast<size_t>(b3)], Xf);
-            max_asym = std::max(max_asym, std::abs(ebc - ecb));
-            e = 0.5 * (ebc + ecb);
+          double e = 0.0;
+          if (!ctx.tpa_cgrouped) {
+            // PRODUCTION (2026-09-05): the Parker-style state-free (P,Q)
+            // source, symmetrized builder (family-D collapse). Gate 1 of
+            // test_tpa_pq_vs_vbc pins <x^f|P>+<y^f|Q> (one ordering, 2e)
+            // == tpa_e3_residue/sqrt2, and the sym builder returns the
+            // ordering SUM, so 0.5*<f|P_sym,Q_sym> lands in the same units
+            // as the averaged e/sqrt2 below — the outer sqrt2*(1e+E3corr)
+            // stays untouched.
+            auto pq = source_spec::assemble_source(
+                world, g0,
+                tpa::tpa_pq_spec_sym(world, g0,
+                                     mu_resp[static_cast<size_t>(b3)],
+                                     mu_resp[static_cast<size_t>(c3)]));
+            const double sp =
+                inner(world, Xf.x_alpha, pq[0]).sum() +
+                inner(world, Xf.y_alpha, pq[1]).sum();
+            e = 0.5 * sp;
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e;
+          } else {
+            const double ebc = tpa::tpa_e3_residue(
+                world, g0, mu_resp[static_cast<size_t>(b3)],
+                mu_resp[static_cast<size_t>(c3)], Xf);
+            e = ebc;
+            if (b3 != c3) {
+              const double ecb = tpa::tpa_e3_residue(
+                  world, g0, mu_resp[static_cast<size_t>(c3)],
+                  mu_resp[static_cast<size_t>(b3)], Xf);
+              max_asym = std::max(max_asym, std::abs(ebc - ecb));
+              e = 0.5 * (ebc + ecb);
+            }
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
           }
-          S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
         }
       }
       S = madness::copy(S_1e);
