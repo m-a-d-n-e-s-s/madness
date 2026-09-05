@@ -5080,7 +5080,7 @@ template<size_t NDIM>
               -> bool {
             return false;
           };
-          const auto for_each = [&](const auto &displacements,
+          const auto for_each = [&](auto &displacements,
                                     const auto &real_distance_squared,
                                     const auto &lattice_distance_squared,
                                     const auto &skip_predicate) -> std::optional<double> {
@@ -5102,14 +5102,23 @@ template<size_t NDIM>
             std::optional<double> real_last_distsq;
             std::optional<std::uint64_t> lattice_last_distsq;
 
-            // displacements to the kernel range boundary are typically same magnitude (modulo variation)
-            // estimate the norm of the resulting contributions and skip all if one is too small
+            // displacements to a face of the kernel range boundary are typically same magnitude (modulo variation),
+            // but faces can be at quite different distances (anisotropic cells, lattice summation along some axes only,
+            // mixed-parity ranges). Estimate the norm of the contributions from each face using its probing
+            // displacement, skip the faces whose contributions are negligible, and skip everything if all are.
             if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
-              const auto &probing_displacement =
-                  displacements.probing_displacement();
-              const double opnorm =
-                  op->norm(key.level(), probing_displacement, source);
-              if (cnorm * opnorm <= tol / fac) {
+              bool any_face_survives = false;
+              const auto &probing_displacements = displacements.probing_displacements();
+              for (std::size_t d = 0; d != opdim; ++d) {
+                if (!probing_displacements[d]) continue;  // no face normal to an unlimited dimension
+                const double opnorm =
+                    op->norm(key.level(), *probing_displacements[d], source);
+                if (cnorm * opnorm <= tol / fac)
+                  displacements.skip_face(d);
+                else
+                  any_face_survives = true;
+              }
+              if (!any_face_survives) {
                 return {};
               }
             }

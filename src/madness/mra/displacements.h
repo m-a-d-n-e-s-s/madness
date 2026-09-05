@@ -363,7 +363,8 @@ namespace madness {
       Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
       Validator validator_;      ///< optional validator function
       std::optional<StandardDisplacementsReach> standard_reach_;  ///< what the validator filters out; null if nothing is known to be filtered
-      Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
+      std::array<std::optional<Displacement>, NDIM> probing_displacements_;  ///< for each finite-radius dimension, a displacement to a nearby point on the face normal to it; it may not be able to pass the filter, but is sufficiently representative of that face's displacements to allow screening with decaying kernels
+      std::array<bool, NDIM> skip_face_{};  ///< faces excluded from iteration (see skip_face())
 
       /**
      * @brief Iterator class for lazy generation of surface points
@@ -388,6 +389,7 @@ namespace madness {
                                                     ///  the edge points shared with the processed hyperfaces. So, we need to evaluate effective hyperfaces
                                                     ///  [-3, 3] x [-6, -4] and [-3, 3] x [4, 6]. The unprocessed_bounds are reset to [-3, 3] x [-6, 6].
         bool done;                                  ///< Flag indicating iteration completion
+        bool positioned = false;                    ///< whether the iterator is positioned on a point that has been (or is about to be) yielded; false until the first advance_till_valid() completes
 
         // return true if we have another surface layer for the fixed_dim
         // if we do, translate point onto that next surface layer
@@ -467,29 +469,13 @@ namespace madness {
           }
 
           // we finished this fixed dimension, so update unprocessed bounds to exclude the layers of the current fixed dimension
-          // if box along this dimension is not hollow, the new interval would be [0, 0] - we are done!
-          if (parent->hollowness_[fixed_dim]) {
-            unprocessed_bounds[fixed_dim] = {
-                parent->box_[fixed_dim].first +
-                    parent->surface_thickness_[fixed_dim].value_or(0) + 1,
-                parent->box_[fixed_dim].second -
-                    parent->surface_thickness_[fixed_dim].value_or(0) - 1};
-          }
-          else {
+          if (!exclude_face(fixed_dim)) {
             done = true;
             return;
           }
           // (3) switch to next fixed dimension with finite radius
-          ++fixed_dim;
-          while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
-            ++fixed_dim;
-          }
-
-          // Exit if we've displaced along all dimensions of finite radius
-          if (fixed_dim >= NDIM) {
-            done = true;
-            return;
-          }
+          select_face(fixed_dim + 1);
+          if (done) return;
 
           // reset our search along all non-fixed dimensions
           // the reset along the fixed_dim returns silently
@@ -498,23 +484,53 @@ namespace madness {
           }
         }
 
-        /// Perform advance, repeating if you are at a filtered point
+        /// Excludes the layers of the face normal to `dim` from the faces that remain to be processed,
+        /// so that the edge boxes shared with it are not visited twice.
+        /// @return false if nothing remains, i.e. the box along `dim` is not hollow and every remaining box lies on this face
+        bool exclude_face(size_t dim) {
+          if (!parent->hollowness_[dim]) return false;
+          const auto t = parent->surface_thickness_[dim].value_or(0);
+          if (parent->is_lattice_summed_[dim]) {
+            // the box is at least as wide as the simulation cell, so the Z interval between the two faces wraps
+            // around and covers the layers just processed; what remains is the complement of the layer classes
+            // [box.second-t, box.second+t] within one period, expressed as a contiguous interval
+            const auto period = Translation(1) << parent->center_.level();
+            unprocessed_bounds[dim] = {parent->box_[dim].second + t + 1,
+                                       parent->box_[dim].second + period - t - 1};
+          } else {
+            unprocessed_bounds[dim] = {parent->box_[dim].first + t + 1,
+                                       parent->box_[dim].second - t - 1};
+          }
+          return true;
+        }
+
+        /// Sets `fixed_dim` to the first finite-radius dimension at or after `from` whose face is not skipped.
+        /// Sets `done` if no face remains.
+        /// N.B. a skipped face is not excluded from the remaining faces (unlike a processed one), so the
+        /// edge boxes it shares with them are still visited through them; hence a box is visited iff it
+        /// lies on at least one face that is not skipped, regardless of the order in which faces are visited.
+        void select_face(size_t from) {
+          for (fixed_dim = from; fixed_dim < NDIM; ++fixed_dim) {
+            if (parent->box_radius_[fixed_dim] && !parent->skip_face_[fixed_dim]) return;
+          }
+          done = true;
+        }
+
+        /// Leave the current point (if positioned on one) and advance to the next point that passes the filter
         void advance_till_valid() {
+          if (positioned && !done) this->advance();
+          positioned = true;
+
           if (parent->validator_) {
             const auto filtered_out = [&]() -> bool {
               this->displacement(); // ensure disp is up to date
               return !parent->validator_(point.level(), point.translation(), disp);
             };
 
-            // if displacement has value, filter has already been applied to it, just advance it
-            if (!done && disp) this->advance();
-
             while (!done && filtered_out()) {
               this->advance();
             }
           }
-          else
-            this->advance();
         }
 
         // Recall that the surface is a union of hyperfaces, i.e., direct products of intervals.
@@ -609,17 +625,19 @@ namespace madness {
         Iterator(const BoxSurfaceDisplacementRange* p, Type type)
             : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
           if (type != End) {
-            // skip to first dimensions with limited range
-            while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
-              ++fixed_dim;
-            }
-
             for (size_t d = 0; d != NDIM; ++d) {
               // min/max displacements along this axis ... N.B. take into account surface thickness!
               unprocessed_bounds[d] = parent->box_radius_[d] ? std::pair{parent->box_[d].first -
                                 parent->surface_thickness_[d].value_or(0),
                          parent->box_[d].second +
                              parent->surface_thickness_[d].value_or(0)} : parent->box_[d];
+            }
+
+            // skip to first dimension with limited range whose face is not skipped
+            select_face(0);
+            if (done) return;
+
+            for (size_t d = 0; d != NDIM; ++d) {
               reset_along_dim(d);
             }
             advance_till_valid();
@@ -723,12 +741,20 @@ namespace madness {
           }
         }
         MADNESS_ASSERT(has_finite_dimensions);
-        probing_displacement_ = compute_probing_displacement();
+        for (size_t d=0; d!= NDIM; ++d) {
+          if (box_radius_[d]) probing_displacements_[d] = compute_probing_displacement(d);
+        }
         for (size_t d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
           MADNESS_ASSERT(surface_thickness_[d].value_or(0) >= 0);
-          hollowness_[d] = surface_thickness_[d] ? (box_[d].first + surface_thickness_[d].value() < box_[d].second - surface_thickness_[d].value()) : false;
+          // hollow = there are boxes between the two faces (with their thickness) ... for lattice-summed dimensions
+          // the box is at least as wide as the simulation cell, so the question is whether the layers of the single
+          // face cover every equivalence class of the cell
+          hollowness_[d] = surface_thickness_[d]
+                               ? (is_lattice_summed_[d] ? (Translation(1) << n) > 2 * surface_thickness_[d].value() + 1
+                                                        : box_[d].first + surface_thickness_[d].value() < box_[d].second - surface_thickness_[d].value())
+                               : false;
         }
       }
 
@@ -775,20 +801,51 @@ namespace madness {
       const array_of_bools<NDIM>& is_lattice_summed() const { return is_lattice_summed_; }
 
       /**
-       * @return 'probing" displacement to a nearby point *on* the surface; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of the surface displacements for the purposes of screening
+       * @param face_dimension a dimension with finite radius; the face is the pair of hyperplanes normal to it (one, if lattice summed)
+       * @return "probing" displacement to a nearby point *on* the face normal to `face_dimension`; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of that face's displacements for the purposes of screening
        */
-      const Displacement& probing_displacement() const {
-        return probing_displacement_;
+      const Displacement& probing_displacement(size_t face_dimension) const {
+        MADNESS_ASSERT(face_dimension < NDIM && probing_displacements_[face_dimension].has_value());
+        return *probing_displacements_[face_dimension];
+      }
+
+      /**
+       * @return probing displacements for every face; null for dimensions of unlimited size, which have no face
+       * @sa probing_displacement()
+       */
+      const std::array<std::optional<Displacement>, NDIM>& probing_displacements() const {
+        return probing_displacements_;
+      }
+
+      /**
+       * Excludes the face normal to `face_dimension` from iteration, e.g. because its probing displacement
+       * showed its contributions to be negligible. The edge boxes it shares with faces that are not skipped
+       * are still visited through those faces, i.e. a box is visited iff it lies on at least one face that is not skipped.
+       * @param face_dimension a dimension with finite radius
+       * @pre no iterator has been obtained from this object yet
+       */
+      void skip_face(size_t face_dimension) {
+        MADNESS_ASSERT(face_dimension < NDIM && box_radius_[face_dimension].has_value());
+        skip_face_[face_dimension] = true;
+      }
+
+      /**
+       * @return whether the face normal to `face_dimension` is excluded from iteration
+       */
+      bool face_skipped(size_t face_dimension) const {
+        return skip_face_[face_dimension];
       }
 
     private:
-      Displacement compute_probing_displacement() const {
+      Displacement compute_probing_displacement(const size_t face_dimension) const {
         // Large boxes we must consider are both those near the center (because 1/r is large
         // for small r), and near the box radius (because going from 1/r to 0 is a sharp change).
         // The probe displacement is a way to screen out cases where the box radius is negligible.
-        // Our probe displacement must satisfy:
-        // (1) It must actually be on the box, e.g., on a boundary face, perpendicular to a
-        //     dimension with finite box_radius_. We call those the target face and dimensions.
+        // Each face (the pair of hyperplanes normal to a dimension with finite box_radius_, or one hyperplane
+        // if that dimension is lattice summed) gets its own probe, so that faces at different real-space
+        // distances (anisotropic cells, lattice summation along some dimensions only, mixed-parity radii)
+        // can be screened independently. Our probe displacement for the face normal to face_dimension must satisfy:
+        // (1) It must actually be on that face.
         // To ensure we're probing the box radius effect and not the near-center effect, we require:
         // (2) If at all possible, it must be distinct from the zero displacement and
         //     from the displacements "near" the center, both of which should have already been considered.
@@ -805,29 +862,10 @@ namespace madness {
         //     affect whether we're within epsilon, but it's still good practice.
         //     For the same reason, the sigma should matter as well.
 
+        MADNESS_ASSERT(face_dimension < NDIM && box_radius_[face_dimension].has_value());
         const auto face_origin_is_center = [this](size_t d) {
           return is_lattice_summed_[d] && (*box_radius_[d] % 2 == 0);
         };
-
-        // Create a sort key on candidates for the target dimension.
-        // 1. The "effective number of half cells away" the face is. Even cells are treated as 1,
-        //    even though they're actually 0, to account for the offset we'll need to add.
-        // 2. Is an offset needed? Avoiding it is preferred.
-        // 3. Choose the smallest N possible.
-        // Requirement (3) would be better formulated in real-space (cell widths are available via
-        // standard_reach_, when given), as is done for the offset below.
-        const auto sort_key = [&](size_t d) {
-          const auto N = *box_radius_[d];
-          return std::make_tuple(is_lattice_summed_[d] ? Translation(1) : N, face_origin_is_center(d), N);
-        };
-
-        // The initial value registers "not set yet".
-        size_t face_dimension = NDIM;
-        for (size_t d=0; d != NDIM; ++d) {
-          if (!box_radius_[d]) continue;
-          if (face_dimension == NDIM || sort_key(d) < sort_key(face_dimension)) face_dimension = d;
-        }
-        MADNESS_ASSERT(face_dimension != NDIM);  // guaranteed by has_finite_dimensions in the ctor
 
         // Enforce requirement (1)
         Vector<Translation, NDIM> probing_displacement_vec(0);
@@ -862,7 +900,7 @@ namespace madness {
         const Translation bmax = Displacements<NDIM>::bmax_default();
         const auto offset_along = [&](size_t d) -> Translation {
           const double width = standard_reach_->cell_width[d];
-          MADNESS_ASSERT(width > 0);
+          MADNESS_CHECK_THROW(width > 0, "BoxSurfaceDisplacementRange: cell widths in StandardDisplacementsReach must be positive");
           const Translation reach = 1 + static_cast<Translation>(std::sqrt(standard_reach_->max_distsq) / width);
           return std::min(std::min(reach, bmax) + 1, half_cell);
         };
