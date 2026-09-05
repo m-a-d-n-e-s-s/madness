@@ -221,7 +221,14 @@ int main(int argc, char **argv) {
         gaxpy(world, 1.0, dy, -1.0, refy);
         const double ex = nrm(dx) / std::max(1e-30, nrm(refx));
         const double ey = nrm(dy) / std::max(1e-30, nrm(refy));
-        const bool ok4 = ex < 1.0e-9 && ey < 1.0e-9;
+        // Tolerance: the sym path applies the DAGGERED kernel where the
+        // reference transposes the undaggered occupied block — the adjoint
+        // identity holds to MRA operator-apply precision (measured ~1e-2 x
+        // thresh; same scaling as the M1 identity in
+        // test_tpa_regroup_identities), not to roundoff. A real bookkeeping
+        // error shows at O(0.1-1) relative; gate at 0.1 x thresh.
+        const double tol4 = 0.1 * t;
+        const bool ok4 = ex < tol4 && ey < tol4;
         if (world.rank() == 0)
           print("gate 4 (sym == sum of orderings):  rel dx=", ex,
                 " rel dy=", ey, ok4 ? " PASS" : " FAIL");
