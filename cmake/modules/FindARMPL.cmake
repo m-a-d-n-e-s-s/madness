@@ -3,7 +3,10 @@
 # This module defines:
 #  ARMPL_FOUND - System has ARMPL
 #  ARMPL_INCLUDE_DIRS - The ARMPL include directories
-#  ARMPL_LIBRARIES - The libraries needed to use ARMPL
+#  ARMPL_LIBRARIES - The libraries needed to use ARMPL.  Note this shadows the
+#                    environment variable of the same name exported by ARMPL's
+#                    own armpl_env_vars.sh, which holds a *directory*; do not
+#                    pass -DARMPL_LIBRARIES=$ARMPL_LIBRARIES.
 #  ARMPL_VERSION - The version string for ARMPL
 #  ARMPL::ARMPL - Imported target for ARMPL
 #
@@ -116,6 +119,27 @@ if(NOT ARMPL_FOUND)
     find_library(ARMPL_armpl_LIBRARY NAMES ${_armpl_lib_names} HINTS ${_armpl_lib_hints})
     find_library(ARMPL_amath_LIBRARY NAMES amath amath_repro HINTS ${_armpl_lib_hints})
     find_library(ARMPL_astring_LIBRARY NAMES astring HINTS ${_armpl_lib_hints})
+  endif()
+
+  # MADNESS owns its own parallelism; a BLAS that spawns its own threads inside a
+  # task oversubscribes the machine and, worse, is the class of hazard that makes
+  # OpenBLAS unusable here.  ARMPL ships both a sequential and an OpenMP build, so
+  # say plainly which one got picked -- BLIS is screened for this, and ARMPL
+  # should not be quietly exempt.
+  if(ARMPL_armpl_LIBRARY)
+    get_filename_component(_armpl_lib_real "${ARMPL_armpl_LIBRARY}" REALPATH)
+    if(_armpl_lib_real MATCHES "_mp")
+      message(WARNING
+        "Selected the OpenMP-threaded ARM Performance Libraries (${ARMPL_armpl_LIBRARY}). "
+        "MADNESS drives its own task parallelism and expects a sequential BLAS; a threaded "
+        "one oversubscribes cores from inside tasks. Use the sequential build "
+        "(-DARMPL_THREADING=seq, the default) unless you know you want this.")
+    elseif(ARMPL_THREADING MATCHES "omp|mp|openmp")
+      message(STATUS
+        "ARMPL_THREADING requested a threaded ARMPL but no libarmpl_*_mp was found; "
+        "using the sequential library ${ARMPL_armpl_LIBRARY} instead (which is what "
+        "MADNESS wants anyway).")
+    endif()
   endif()
 
   find_library(ARMPL_m_LIBRARY NAMES m)
