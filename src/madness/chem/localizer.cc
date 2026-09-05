@@ -80,7 +80,11 @@ Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOr
     } else if (method == "boys") {
         dUT = localize_boys(world, psi, mo_in.get_localize_sets(), tolloc, randomize);
     } else if (method == "new") {
-        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc * tolloc_scale, randomize, false);
+        dUT = localize_new(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
+    } else if (method == "new_sys") {
+        dUT = localize_new_systolic(world, psi, mo_in.get_localize_sets(), tolloc, randomize, false);
+    } else if (method == "cholesky") {
+        dUT = localize_cholesky(world, psi, mo_in.get_localize_sets());
     } else {
         print("unknown localization method", method);
         MADNESS_EXCEPTION("unknown localization method", 1);
@@ -185,9 +189,12 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
     }
 
     tensorT U(nmo, nmo);
-    default_random_generator.setstate(
-            182041 + world.rank() * 10101); // To help with reproducibility for debugging, etc.
-    if (world.rank() == 0) {
+    // Runs replicated on every rank: dip and the seed are identical everywhere, so all
+    // ranks compute the same U in lockstep. Keep it rank-independent -- an idle rank
+    // would trip the MAD_WAIT_TIMEOUT watchdog on long calls.
+    default_random_generator.setstate(182041);
+    const bool doprint0 = doprint && (world.rank() == 0);
+    {
         for (long i = 0; i < nmo; ++i)
             U(i, i) = 1.0;
 
@@ -220,7 +227,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                 }
             }
             double maxg = g.absmax();
-            if (doprint)
+            if (doprint0)
                 printf("iteration %ld W=%.8f maxg=%.2e\n", iter, W, maxg);
             if (maxg < thresh) break;
 
@@ -228,7 +235,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
             tensorT x = copy(g);
             if (!rprev) { // Only apply conjugacy if did LS with real gradient
                 double gamma = g.trace(g - gprev) / gprev.trace(gprev);
-                if (doprint) print("gamma", gamma);
+                if (doprint0) print("gamma", gamma);
                 x.gaxpy(1.0, xprev, gamma);
             }
 
@@ -236,7 +243,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
             rprev = false;
             double dxgrad = x.trace(g) * 2.0;
             if (dxgrad < 0 || ((iter + 1) % N) == 0) {
-                if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                if (doprint0) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
                 x = copy(g);
                 dxgrad = x.trace(g) * 2.0; // 2*2 = 4 which should be prefactor on integrals in gradient
             }
@@ -259,7 +266,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                 double f1 = newW;
                 double hess = 2.0 * (f1 - f0 - mu * dxgrad) / (mu * mu);
                 if (hess >= 0) {
-                    if (doprint) print("+ve hessian", hess);
+                    if (doprint0) print("+ve hessian", hess);
                     hess = -2.0 * dxgrad; // force a bigish step to get out of bad region
                     rprev = true; // since did not do line search
                 }
@@ -269,7 +276,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
                     rprev = true; // since did not do line search
                 }
                 double f2p = f0 + dxgrad * mu2 + 0.5 * hess * mu2 * mu2;
-                if (doprint) print(f0, f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
+                if (doprint0) print(f0, f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
                 mu = mu2;
             }
 
@@ -306,6 +313,7 @@ DistributedMatrix<T> Localizer::localize_boys(World& world, const std::vector<Fu
 
     }
 
+    // every rank computed an identical U; the broadcast is kept as cheap insurance
     world.gop.broadcast(U.ptr(), U.size(), 0);
 
     DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
@@ -326,18 +334,17 @@ DistributedMatrix<T> Localizer::localize_PM(World& world, const std::vector<Func
 }
 
 
+/// Build the "new" method's working basis: transform the AO-projection matrix C into the
+/// orthonormal atomic-eigenfunction basis and construct the per-atom localization blocks
+/// (1s / 2s2p / rest). Shared by localize_new (rank-0 CG) and localize_new_systolic.
 template<typename T, std::size_t NDIM>
-DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
-                                             const std::vector<int>& set, double thresh,
-                                             const bool randomize, const bool doprint) const {
-    // PROFILE_MEMBER_FUNC(SCF);
+void Localizer::prepare_new_basis(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                  Tensor<T>& C, std::vector<int>& at_to_bf,
+                                  std::vector<int>& at_nbf) const {
     typedef Tensor<T> tensorT;
-
-    int nmo = mo.size();
     int nao = ao.size();
 
-    tensorT C = matrix_inner(world, mo, ao);
-    std::vector<int> at_to_bf, at_nbf; // OVERRIDE DATA IN CLASS OBJ TO USE ATOMS OR SHELLS FOR TESTING
+    C = matrix_inner(world, mo, ao);
 
     bool use_atomic_evecs = true;
     if (use_atomic_evecs) {
@@ -407,6 +414,22 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
         //aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
     }
 
+}
+
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                             const std::vector<int>& set, double thresh,
+                                             const bool randomize, const bool doprint) const {
+    // PROFILE_MEMBER_FUNC(SCF);
+    typedef Tensor<T> tensorT;
+
+    int nmo = mo.size();
+    int nao = ao.size();
+
+    tensorT C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
+
     // Below here atoms may be shells or atoms --- by default shells
 
     int natom = at_to_bf.size();
@@ -415,12 +438,14 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     for (int i = 0; i < nmo; ++i) U(i, i) = 1.0;
 
 
-    default_random_generator.setstate(
-            182041 + world.rank() * 10101); // To help with reproducibility for debugging, etc.
+    // The optimization runs replicated and in lockstep on every rank: the seed is
+    // rank-independent and makeGW's allreduces leave every rank with the same gradient,
+    // so all control-flow decisions coincide. Only the row fan-outs inside makeGW are
+    // divided over ranks.
+    default_random_generator.setstate(182041);
+    const bool doprint0 = doprint && (world.rank() == 0);
 
-    if (world.rank() == 0) {
-        //MKL_Set_Num_Threads_Local(16);
-
+    {
         tensorT Q(nmo, natom);
         double breaksym = 0.0; // was 1e-3;
         auto QQ = [&at_to_bf, &at_nbf, &breaksym](const tensorT& C, int i, int j, int a) -> double {
@@ -434,23 +459,34 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
 
         // The fan-out is local, so it must be awaited with Future::get(), never gop.fence(). Rows
         // are disjoint: row i writes only g(i,j<i) and g(j<i,i). W is summed outside the fan-out to
-        // keep it independent of scheduling order.
+        // keep it independent of scheduling order. Rows are dealt round-robin over ranks (the cost
+        // of row i grows with i, so striding balances) and combined with gop.sum, an allreduce:
+        // every rank ends up holding the same Q and g bit for bit.
         typedef Range<int> rangeT;
-        auto makeGW = [&world, &Q, &nmo, &natom, &QQ](const tensorT& C, double& W, tensorT& g) -> void {
-            auto q_row = [&Q, &natom, &QQ, &C](const rangeT::iterator& it) -> bool {
+        const long nproc = world.size();
+        const long me = world.rank();
+        auto makeGW = [&world, &Q, &nmo, &natom, &QQ, &nproc, &me](const tensorT& C, double& W, tensorT& g) -> void {
+            // zero both accumulators: each rank contributes only its rows, and the
+            // line search reuses g across calls -- stale rows would survive the sum
+            Q.fill(0.0);
+            g.fill(0.0);
+            auto q_row = [&Q, &natom, &QQ, &C, &nproc, &me](const rangeT::iterator& it) -> bool {
                 const int i = it;
+                if (i % nproc != me) return true;
                 for (int a = 0; a < natom; ++a) Q(i, a) = QQ(C, i, i, a);
                 return true;
             };
             MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), q_row).get());
+            world.gop.sum(Q.ptr(), Q.size());
 
             W = 0.0;
             for (int i = 0; i < nmo; ++i)
                 for (int a = 0; a < natom; ++a) W += Q(i, a) * Q(i, a);
 
             // the gradient is O(nmo^2*natom) and the hot spot of localize_new
-            auto grad_row = [&Q, &natom, &QQ, &C, &g](const rangeT::iterator& it) -> bool {
+            auto grad_row = [&Q, &natom, &QQ, &C, &g, &nproc, &me](const rangeT::iterator& it) -> bool {
                 const int i = it;
+                if (i % nproc != me) return true;
                 for (int j = 0; j < i; ++j) {
                     double Qiiij = 0.0, Qijjj = 0.0;
                     for (int a = 0; a < natom; ++a) {
@@ -464,6 +500,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                 return true;
             };
             MADNESS_CHECK(world.taskq.for_each(rangeT(0, nmo), grad_row).get());
+            world.gop.sum(g.ptr(), g.size());
         };
 
         tensorT xprev; // previous search direction
@@ -490,14 +527,14 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             }
 
             double maxg = g.absmax();
-            if (doprint) printf("iteration %d W=%.8f maxg=%.2e\n", iter, W, maxg);
+            if (doprint0) printf("iteration %d W=%.8f maxg=%.2e\n", iter, W, maxg);
             if (maxg < thresh) break;
 
             // construct search direction using conjugate gradient approach
             tensorT x = copy(g);
             if (!rprev) { // Only apply conjugacy if did LS with real gradient
                 double gamma = g.trace(g - gprev) / gprev.trace(gprev);
-                if (doprint) print("gamma", gamma);
+                if (doprint0) print("gamma", gamma);
                 x.gaxpy(1.0, xprev, gamma);
             }
 
@@ -505,7 +542,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             rprev = false;
             double dxgrad = x.trace(g) * 2.0;  // 2*2 = 4 which should be prefactor on integrals in gradient
             if (dxgrad < 0 || ((iter + 1) % N) == 0) {
-                if (doprint) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
+                if (doprint0) print("resetting since dxgrad -ve or due to dimension", dxgrad, iter, N);
                 x = copy(g);
                 dxgrad = x.trace(g) * 2.0;
             }
@@ -528,7 +565,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                 //double hess = 2.0*(f1-f0-mu*dxgrad)/(mu*mu);
                 double hess = (dxgnew - dxgrad) / mu; // Near convergence this is more accurate
                 if (hess >= 0) {
-                    if (doprint) print("+ve hessian", hess);
+                    if (doprint0) print("+ve hessian", hess);
                     hess = -2.0 * dxgrad; // force a bigish step to get out of bad region
                     rprev = true; // since did not do line search
                 }
@@ -538,7 +575,7 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
                     rprev = true; // since did not do line search
                 }
                 double f2p = f0 + dxgrad * mu2 + 0.5 * hess * mu2 * mu2;
-                if (doprint) print(f0, f1, f0 - f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
+                if (doprint0) print(f0, f1, f0 - f1, f2p, "dxg", dxgrad, "hess", hess, "mu", mu, "mu2", mu2);
                 mu = mu2;
             }
 
@@ -575,9 +612,9 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
             if (U(i, i) < 0.0)
                 U(_, i).scale(-1.0);
         }
-        //MKL_Set_Num_Threads_Local(1);
     }
     //done:
+    // every rank computed an identical U; the broadcast is kept as cheap insurance
     world.gop.broadcast(U.ptr(), U.size(), 0);
 
     DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
@@ -588,6 +625,187 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     //print(UT);
     return dUT;
 }
+
+/// The "new" objective optimized with distributed systolic Jacobi sweeps
+
+/// In the orthonormal atomic-eigenfunction basis the "new" objective is Pipek-Mezey
+/// (q_ij(a) with identity overlap), so it can reuse localize_PM's systolic machinery:
+/// every rank works every call, where localize_new's rank-0 optimizer leaves all other
+/// ranks idle -- beyond ~1500 orbitals a single call then exceeds the runtime idle
+/// watchdog (MAD_WAIT_TIMEOUT). A different optimizer on the same objective: it reaches
+/// a different, equally valid local maximum.
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_new_systolic(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                                      const std::vector<int>& set, double thresh,
+                                                      const bool randomize, const bool doprint) const {
+    Tensor<T> C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
+    // randomize is ignored, as in the PM path
+    return distributed_localize_new(world, C, set, at_to_bf, at_nbf, thresh, thetamax);
+}
+
+
+/// Cholesky localization: deterministic and non-iterative
+
+/// A pivoted Cholesky factorization of the density in the orthonormal
+/// atomic-eigenfunction basis: repeatedly pick the basis function carrying the largest
+/// remaining diagonal density, take its coefficient column as the next orbital, and
+/// orthonormalize (Aquilante, Pedersen, Koch, J. Chem. Phys. 125, 174101 (2006)).
+/// No objective is optimized, so successive SCF iterations cannot hop between the
+/// near-degenerate maxima an iterative localizer wanders over. The pivot diagonal is
+/// divided over ranks; slices evolve by identical per-function arithmetic on
+/// replicated data, so the pivot sequence -- and U -- are independent of the rank
+/// count. Each pivot step costs two scalar allreduces.
+template<typename T, std::size_t NDIM>
+DistributedMatrix<T> Localizer::localize_cholesky(World& world, const std::vector<Function<T, NDIM>>& mo,
+                                                  const std::vector<int>& set) const {
+    typedef Tensor<T> tensorT;
+    const long nmo = mo.size();
+
+    tensorT C;
+    std::vector<int> at_to_bf, at_nbf;
+    prepare_new_basis(world, mo, C, at_to_bf, at_nbf);
+    const long nao = C.dim(1);
+
+    // this rank owns the pivot-diagonal slice [mulo, muhi)
+    const long nproc = world.size(), me = world.rank();
+    const long mulo = (nao * me) / nproc, muhi = (nao * (me + 1)) / nproc;
+
+    tensorT U(nmo, nmo);
+
+    // Pivot memory: reuse last iteration's pivot order unless a candidate decisively
+    // beats it. Near-ties in the diagonal density otherwise flip the greedy order under
+    // tiny density changes, and a flip cascades a discontinuous rotation through every
+    // later factorization step -- a constant residual-noise floor. With the order held,
+    // the factorization is a smooth function of the density and the noise shrinks with
+    // the residual. Slot indexing is call-order-stable (sets iterate identically), and
+    // the hysteresis decision uses replicated values only, so determinism and
+    // rank-independence are preserved.
+    const bool have_memory = pivot_state && !pivot_state->empty();
+    std::vector<long> used_pivots;
+    used_pivots.reserve(nmo);
+
+    // factor each localize-set separately: rotations never mix core and valence
+    std::vector<int> setids;
+    for (long i = 0; i < nmo; ++i)
+        if (std::find(setids.begin(), setids.end(), set[i]) == setids.end()) setids.push_back(set[i]);
+
+    for (int s : setids) {
+        std::vector<long> idx;
+        for (long i = 0; i < nmo; ++i) if (set[i] == s) idx.push_back(i);
+        const long ns = long(idx.size());
+
+        // remaining diagonal density of the owned basis functions
+        tensorT d(nao);
+        for (long ii = 0; ii < ns; ++ii)
+            for (long mu = mulo; mu < muhi; ++mu) d(mu) += C(idx[ii], mu) * C(idx[ii], mu);
+
+        tensorT u(ns, ns); // columns = the new orbitals in terms of the set's orbitals
+        long k = 0;
+        while (k < ns) {
+            long piv = -1;
+            double dmax = -1.0;
+            for (long mu = mulo; mu < muhi; ++mu)
+                if (d(mu) > dmax) { dmax = d(mu); piv = mu; }
+            double dglob = dmax;
+            world.gop.max(dglob);
+            if (dglob < 1e-10) break; // density exhausted; U is completed below
+            long cand = (piv >= 0 && dmax == dglob) ? piv : nao; // lowest index wins ties
+            world.gop.min(cand);
+            if (have_memory && used_pivots.size() < pivot_state->size()) {
+                const long prev = (*pivot_state)[used_pivots.size()];
+                double dprev = (prev >= mulo && prev < muhi) ? d(prev) : -1.0;
+                world.gop.max(dprev);
+                if (dprev > 1e-10 && 2.0 * dprev >= dglob) cand = prev;
+            }
+
+            // the pivot's coefficient column, orthonormalized against u_0..u_{k-1}
+            tensorT w(ns);
+            for (long ii = 0; ii < ns; ++ii) w(ii) = C(idx[ii], cand);
+            for (int pass = 0; pass < 2; ++pass) {
+                for (long l = 0; l < k; ++l) {
+                    T ov = 0.0;
+                    for (long ii = 0; ii < ns; ++ii) ov += u(ii, l) * w(ii);
+                    for (long ii = 0; ii < ns; ++ii) w(ii) -= ov * u(ii, l);
+                }
+            }
+            double nrm2 = 0.0;
+            for (long ii = 0; ii < ns; ++ii) nrm2 += w(ii) * w(ii);
+            if (nrm2 < 1e-12) { // pivot already spanned: discard it and pick again
+                if (cand >= mulo && cand < muhi) d(cand) = 0.0;
+                continue;
+            }
+            const double scale = 1.0 / std::sqrt(nrm2);
+            for (long ii = 0; ii < ns; ++ii) u(ii, k) = w(ii) * scale;
+
+            // downdate the owned slice: d_mu -= (u_k . C(:,mu))^2
+            for (long mu = mulo; mu < muhi; ++mu) {
+                T z = 0.0;
+                for (long ii = 0; ii < ns; ++ii) z += u(ii, k) * C(idx[ii], mu);
+                d(mu) -= z * z;
+                if (d(mu) < 0.0) d(mu) = 0.0;
+            }
+            used_pivots.push_back(cand);
+            ++k;
+        }
+
+        // the projected basis can span fewer than ns dimensions; complete with
+        // coordinate vectors so the transform stays exactly unitary
+        for (long j = 0; k < ns && j < ns; ++j) {
+            tensorT w(ns);
+            w(j) = 1.0;
+            for (int pass = 0; pass < 2; ++pass) {
+                for (long l = 0; l < k; ++l) {
+                    T ov = 0.0;
+                    for (long ii = 0; ii < ns; ++ii) ov += u(ii, l) * w(ii);
+                    for (long ii = 0; ii < ns; ++ii) w(ii) -= ov * u(ii, l);
+                }
+            }
+            double nrm2 = 0.0;
+            for (long ii = 0; ii < ns; ++ii) nrm2 += w(ii) * w(ii);
+            if (nrm2 < 1e-6) continue;
+            const double scale = 1.0 / std::sqrt(nrm2);
+            for (long ii = 0; ii < ns; ++ii) u(ii, k) = w(ii) * scale;
+            used_pivots.push_back(-1); // completion slot: no pivot to remember
+            ++k;
+        }
+        MADNESS_CHECK_THROW(k == ns, "cholesky localization failed to complete the rotation");
+
+        for (long kk = 0; kk < ns; ++kk)
+            for (long ii = 0; ii < ns; ++ii) U(idx[ii], idx[kk]) = u(ii, kk);
+    }
+
+    if (pivot_state) *pivot_state = used_pivots;
+
+    // least-rotation ordering and phases, as in the other methods
+    bool switched = true;
+    while (switched) {
+        switched = false;
+        for (long i = 0; i < nmo; i++) {
+            for (long j = i + 1; j < nmo; j++) {
+                if (set[i] == set[j]) {
+                    double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
+                    double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+                    if (snew > sold) {
+                        tensorT tmp = copy(U(_, i));
+                        U(_, i) = U(_, j);
+                        U(_, j) = tmp;
+                        switched = true;
+                    }
+                }
+            }
+        }
+    }
+    for (long i = 0; i < nmo; ++i) {
+        if (U(i, i) < 0.0) U(_, i).scale(-1.0);
+    }
+
+    DistributedMatrix<double> dUT = column_distributed_matrix<double>(world, nmo, nmo);
+    dUT.copy_from_replicated(transpose(U));
+    return dUT;
+}
+
 
 template<typename T>
 std::size_t Localizer::determine_frozen_orbitals(const Tensor<T> fmat) {
