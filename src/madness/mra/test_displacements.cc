@@ -21,6 +21,28 @@ Key<NDIM> centered_key(Level n) {
   return Key<NDIM>(n, Vector<Translation, NDIM>(n == 0 ? 0 : (Translation(1) << (n - 1))));
 }
 
+template <std::size_t NDIM>
+using Reach = typename BoxSurfaceDisplacementRange<NDIM>::StandardDisplacementsReach;
+
+/// standard displacements of unit-width cells reached out to real distance squared \p max_distsq
+template <std::size_t NDIM>
+Reach<NDIM> unit_reach(double max_distsq) {
+  Reach<NDIM> reach{max_distsq, {}};
+  reach.cell_width.fill(1.);
+  return reach;
+}
+
+/// standard displacements that reached (far) beyond bmax boxes, so that the least unfiltered
+/// offset is bmax+1 boxes, capped at a half cell
+template <std::size_t NDIM>
+Reach<NDIM> far_reach() {
+  return unit_reach<NDIM>(1e6);
+}
+template <std::size_t NDIM>
+Translation far_offset(Level n) {
+  return std::min<Translation>(Displacements<NDIM>::bmax_default() + 1, Translation(1) << (n - 1));
+}
+
 /// keeps only destinations inside the simulation cell
 template <std::size_t NDIM>
 typename BoxSurfaceDisplacementRange<NDIM>::Validator in_domain_only() {
@@ -146,7 +168,7 @@ int test_mixed(World& world) {
       if (box_radius[d]) surface_thickness[d] = 1;
     }
     BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
-                                            array_of_bools<NDIM>{true} /* lattice_summed */);
+                                            array_of_bools<NDIM>{true} /* lattice_summed */, {}, far_reach<NDIM>());
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++) {
       t.checkpoint(probe[d] == expected[d], what + " component " + std::to_string(d));
@@ -156,7 +178,7 @@ int test_mixed(World& world) {
 
   Radii<2> radii2d;
   radii2d[1] = 2;
-  check_probe(level, radii2d, {-radius_in_boxes(1, level), radius_in_boxes(2, level)}, "2D n=4 N={*,2}");
+  check_probe(level, radii2d, {-far_offset<2>(level), radius_in_boxes(2, level)}, "2D n=4 N={*,2}");
   radii2d[1] = 3;
   check_probe(level, radii2d, {0, radius_in_boxes(3, level)}, "2D n=4 N={*,3}");
   Radii<3> radii3d;
@@ -167,7 +189,7 @@ int test_mixed(World& world) {
 }
 
 /// Test the case in which every box radius is even, so that the face dimension alone cannot satisfy
-/// criterion 2 and a half-simulation-cell offset along a second dimension is needed.
+/// criterion 2 and an offset along a second dimension is needed.
 int test_all_evens(World& world) {
   test_output t("BoxSurfaceDisplacementRange: pure evens", world.rank() == 0);
 
@@ -182,18 +204,19 @@ int test_all_evens(World& world) {
       surface_thickness[d] = 1;
     }
     BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
-                                            array_of_bools<NDIM>{true} /* lattice_summed */);
+                                            array_of_bools<NDIM>{true} /* lattice_summed */, {}, far_reach<NDIM>());
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++) {
       t.checkpoint(probe[d] == expected[d], std::to_string(NDIM) + "D n=" + std::to_string(n) + " N=" + what + " component " + std::to_string(d));
     }
   };
 
-  check_probe(level, {4, 6, 2}, {radius_in_boxes(1, level), 0, radius_in_boxes(2, level)}, "{4,6,2}");
-  check_probe(level, {6, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "{6,2,2}");
-  check_probe(level, {8, 2, 2}, {0, radius_in_boxes(2, level), radius_in_boxes(1, level)}, "{8,2,2}");
-  check_probe(level, {6, 4, 2}, {0, radius_in_boxes(1, level), radius_in_boxes(2, level)}, "{6,4,2}");
-  check_probe(level, {4, 6, 4}, {radius_in_boxes(4, level), 0, radius_in_boxes(1, level)}, "{4,6,4}");
+  const auto off = far_offset<3>(level);
+  check_probe(level, {4, 6, 2}, {off, 0, radius_in_boxes(2, level)}, "{4,6,2}");
+  check_probe(level, {6, 2, 2}, {0, radius_in_boxes(2, level), off}, "{6,2,2}");
+  check_probe(level, {8, 2, 2}, {0, radius_in_boxes(2, level), off}, "{8,2,2}");
+  check_probe(level, {6, 4, 2}, {0, off, radius_in_boxes(2, level)}, "{6,4,2}");
+  check_probe(level, {4, 6, 4}, {radius_in_boxes(4, level), 0, off}, "{4,6,4}");
 
   return t.end();
 }
@@ -212,7 +235,7 @@ int test_lattice_summation_awareness(World& world) {
       if (box_radius[d]) surface_thickness[d] = 1;
     }
     BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
-                                            is_lattice_summed);
+                                            is_lattice_summed, {}, far_reach<NDIM>());
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++) {
       t.checkpoint(probe[d] == expected[d], what + " component " + std::to_string(d));
@@ -221,74 +244,95 @@ int test_lattice_summation_awareness(World& world) {
 
   Level level = 4;
   const auto r = [&](std::int64_t N) { return radius_in_boxes(N, level); };
+  const auto off3 = far_offset<3>(level);
 
   // all even, nothing lattice summed => no offset, and the probe is the nearest surface point
   check_probe(level, Radii<3>{2, 2, 2}, array_of_bools<3>{false}, {r(2), 0, 0}, "3D N={2,2,2} not summed");
   check_probe(level, Radii<3>{4, 2, 6}, array_of_bools<3>{false}, {0, r(2), 0}, "3D N={4,2,6} not summed");
   // ... the same radii with lattice summation on do need the offset
-  check_probe(level, Radii<3>{2, 2, 2}, array_of_bools<3>{true}, {r(2), r(1), 0}, "3D N={2,2,2} summed");
+  check_probe(level, Radii<3>{2, 2, 2}, array_of_bools<3>{true}, {r(2), off3, 0}, "3D N={2,2,2} summed");
 
   // with only the first dimension lattice summed, that dimension is the best face even though it has to
-  // pay for an offset: it folds to a half cell (8 boxes), whereas y or z would leave the probe a full
+  // pay for an offset: it folds to the origin plus a few boxes, whereas y or z would leave the probe a full
   // 2 half-cells out with nothing to fold it back
-  check_probe(level, Radii<3>{2, 2, 2}, array_of_bools<3>{true, false, false}, {r(2), r(1), 0},
+  check_probe(level, Radii<3>{2, 2, 2}, array_of_bools<3>{true, false, false}, {r(2), off3, 0},
                  "3D N={2,2,2} summed along x only");
   // ... and all the more so when the unsummed dimensions are wider
-  check_probe(level, Radii<3>{2, 4, 4}, array_of_bools<3>{true, false, false}, {r(2), r(1), 0},
+  check_probe(level, Radii<3>{2, 4, 4}, array_of_bools<3>{true, false, false}, {r(2), off3, 0},
                  "3D N={2,4,4} summed along x only");
 
   // an unrestricted dimension absorbs the offset, but again only when one is needed
   Radii<2> radii2d;
   radii2d[1] = 2;
-  check_probe(level, radii2d, array_of_bools<2>{false, true}, {-r(1), r(2)}, "2D N={*,2} summed along y");
+  check_probe(level, radii2d, array_of_bools<2>{false, true}, {-far_offset<2>(level), r(2)}, "2D N={*,2} summed along y");
   check_probe(level, radii2d, array_of_bools<2>{false, false}, {0, r(2)}, "2D N={*,2} not summed");
 
   return t.end();
 }
 
-/// The offset for all-even radii is set by the caller.
-int test_probe_offset_radius(World& world) {
-  test_output t("BoxSurfaceDisplacementRange: offset magnitude follows the filter shortrange", world.rank() == 0);
+/// The offset for all-even radii is derived from the real-space reach of the standard displacements,
+/// as supplied by the caller: it is the least number of boxes that the validator does not filter out.
+int test_standard_reach(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: offset follows the reach of the standard displacements", world.rank() == 0);
 
   constexpr std::size_t NDIM = 3;
-  const Level n = 6;                       // half-cell = 32 boxes, so the clamp is far away
-  const auto check = [&](std::optional<Translation> cutoff, std::array<std::int64_t, NDIM> expected,
+  const Translation bmax = Displacements<NDIM>::bmax_default();  // 4
+  const auto check = [&](Level n, std::optional<Reach<NDIM>> reach, std::array<std::int64_t, NDIM> expected,
                          const std::string& what) {
     Radii<NDIM> box_radius, surface_thickness;
     for (std::size_t d = 0; d != NDIM; ++d) { box_radius[d] = 2; surface_thickness[d] = 1; }  // all even
     BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(n), box_radius, surface_thickness,
-                                            array_of_bools<NDIM>{true} /* lattice_summed */,
-                                            typename BoxSurfaceDisplacementRange<NDIM>::Validator{}, cutoff);
+                                            array_of_bools<NDIM>{true} /* lattice_summed */, {}, reach);
     const auto probe = range.probing_displacement().translation();
     for (size_t d = 0; d < NDIM; d++)
       t.checkpoint(probe[d] == expected[d], what + " component " + std::to_string(d));
   };
+  const auto anisotropic_reach = [](double max_distsq, std::array<double, NDIM> cell_width) {
+    return Reach<NDIM>{max_distsq, cell_width};
+  };
 
-  const auto face = radius_in_boxes(2, n);         // 64
-  const auto half_cell = radius_in_boxes(1, n);    // 32
-
-  // unknown shortrange cutoff => the maximal (half-cell) offset, i.e. the behavior when nothing better is known
-  check(std::nullopt, {face, half_cell, 0}, "cutoff unknown");
-  // a cutoff inside the half cell is used verbatim -- this is the case that matters in practice, since
-  // the cutoff is capped by bmax_default() (4 in 3D) while the half cell grows as 2^{n-1}
-  check(Translation(5), {face, 5, 0}, "cutoff=5");
-  check(Translation(2), {face, 2, 0}, "cutoff=2");
-  // a cutoff beyond the half cell is clamped: a step of 2^{n-1}+k folds back down to 2^{n-1}-k
-  check(Translation(1000), {face, half_cell, 0}, "cutoff beyond half cell");
-  // a cutoff of zero says nothing is filtered, so the surface reaches the source and no offset helps;
-  // fall back to the bare face probe, whose norm is the on-site norm and screens nothing
-  check(Translation(0), {face, 0, 0}, "cutoff=0 (nothing filtered)");
-
-  // the same clamping applies when the offset lands on an unrestricted dimension
   {
+    const Level n = 6;                     // half-cell = 32 boxes, so the cap is far away
+    const auto face = radius_in_boxes(2, n);  // 64
+
+    // nothing is known to be filtered => the surface reaches the source and no offset helps;
+    // fall back to the bare face probe, whose norm is the on-site norm and screens nothing
+    check(n, std::nullopt, {face, 0, 0}, "nothing filtered");
+
+    // unit cell widths: the real distance of a displacement l along an axis is |l|-1 (see Key::real_distsq_bc),
+    // so the least offset beyond real distance sqrt(max_distsq) is floor(sqrt(max_distsq))+2 boxes ...
+    check(n, unit_reach<NDIM>(0.), {face, 2, 0}, "unit widths, only the nearest neighbors reached");
+    check(n, unit_reach<NDIM>(6.25), {face, 4, 0}, "unit widths, sqrt(max_distsq)=2.5");
+    check(n, unit_reach<NDIM>(9.), {face, 5, 0}, "unit widths, sqrt(max_distsq)=3");
+    // ... but never more than bmax+1, beyond which nothing is a standard displacement
+    check(n, unit_reach<NDIM>(1e6), {face, bmax + 1, 0}, "unit widths, reached beyond bmax");
+
+    // anisotropic cell: the offset goes along the axis with the least *real-space* offset.
+    // With sqrt(max_distsq)=5 and width 1 the offset is capped at bmax+1=5 boxes, i.e. 4 real units ...
+    check(n, anisotropic_reach(25., {10., 1., 10.}), {face, 5, 0}, "widths {10,1,10}");
+    check(n, anisotropic_reach(25., {10., 10., 1.}), {face, 0, 5}, "widths {10,10,1}");
+    // ... whereas a wider axis can need fewer boxes yet be farther in real space (width 2: 4 boxes = 6 units) ...
+    check(n, anisotropic_reach(25., {1., 2., 100.}), {face, 4, 0}, "widths {1,2,100}");
+    // ... or fewer boxes *and* nearer in real space (width 2.6: 3 boxes = 5.2 units vs. width 2: 4 boxes = 6 units)
+    check(n, anisotropic_reach(25., {1., 2., 2.6}), {face, 0, 3}, "widths {1,2,2.6}");
+  }
+
+  // the offset is capped at a half cell: a step of 2^{n-1}+k folds back down to 2^{n-1}-k
+  {
+    const Level n = 2;  // half cell = 2 boxes < bmax+1
+    check(n, unit_reach<NDIM>(1e6), {radius_in_boxes(2, n), 2, 0}, "n=2, reached beyond bmax");
+  }
+
+  // the same cap applies when the offset lands on an unrestricted dimension
+  {
+    const Level n = 6;
     Radii<2> box_radius, surface_thickness;
     box_radius[1] = 2; surface_thickness[1] = 1;
     BoxSurfaceDisplacementRange<2> range(centered_key<2>(n), box_radius, surface_thickness,
-                                         array_of_bools<2>{true},
-                                         typename BoxSurfaceDisplacementRange<2>::Validator{}, Translation(3));
+                                         array_of_bools<2>{true}, {}, unit_reach<2>(4.));
     const auto probe = range.probing_displacement().translation();
-    t.checkpoint(probe[0] == -3, "2D N={*,2} cutoff=3 component 0");
-    t.checkpoint(probe[1] == radius_in_boxes(2, n), "2D N={*,2} cutoff=3 component 1");
+    t.checkpoint(probe[0] == -4, "2D N={*,2} sqrt(max_distsq)=2 component 0");
+    t.checkpoint(probe[1] == radius_in_boxes(2, n), "2D N={*,2} sqrt(max_distsq)=2 component 1");
   }
 
   return t.end();
@@ -307,7 +351,7 @@ int main(int argc, char** argv) {
   errors += test_mixed(world);
   errors += test_all_evens(world);
   errors += test_lattice_summation_awareness(world);
-  errors += test_probe_offset_radius(world);
+  errors += test_standard_reach(world);
 
   world.gop.fence();
   madness::finalize();
