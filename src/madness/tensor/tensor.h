@@ -2481,9 +2481,14 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     }
 
     /// Optimized fast_transform for complex tensor * real matrix.
-    /// Completely eliminates repeated unpacking and repacking of complex coefficients
-    /// by transforming the real and imaginary parts across all dimensions in real space,
-    /// unpacking once at the beginning and repacking once into result at the end.
+    /// Transforms the real and imaginary parts across all dimensions in real
+    /// space, unpacking once on entry and repacking once into result on exit.
+    ///
+    /// Allocates nothing: the two caller-supplied complex tensors hold 2*sz
+    /// reals each, which is exactly the four real buffers of length sz that the
+    /// split needs.  The initial assignment is chosen so that the ndim swaps
+    /// below leave the live buffer in the workspace, letting the final repack
+    /// into result run without aliasing its own source.
     template <class R>
     Tensor<std::complex<R>>& fast_transform(const Tensor<std::complex<R>>& t,
                                             const Tensor<R>& c,
@@ -2503,35 +2508,27 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         long dimi = 1;
         for (int n = 1; n < ndim; ++n) dimi *= dimj;
 
-        constexpr long STACK_CAP = 8192;
-        R stack_buf[STACK_CAP];
-        R *bufA_re = nullptr, *bufA_im = nullptr, *bufB_re = nullptr, *bufB_im = nullptr;
-        std::vector<R> heap_buf;
+        MADNESS_CHECK(t.iscontiguous() && result.iscontiguous() && workspace.iscontiguous());
+        MADNESS_CHECK(result.ptr() != workspace.ptr());
+        MADNESS_CHECK(t.ptr() != result.ptr() && t.ptr() != workspace.ptr());
+        MADNESS_CHECK(result.size() >= sz && workspace.size() >= sz);
 
-        if (4 * sz <= STACK_CAP) {
-            bufA_re = stack_buf;
-            bufA_im = bufA_re + sz;
-            bufB_re = bufA_im + sz;
-            bufB_im = bufB_re + sz;
-        } else {
-            heap_buf.resize(4 * sz);
-            bufA_re = heap_buf.data();
-            bufA_im = bufA_re + sz;
-            bufB_re = bufA_im + sz;
-            bufB_im = bufB_re + sz;
-        }
+        R* res_raw = reinterpret_cast<R*>(result.ptr());
+        R* wrk_raw = reinterpret_cast<R*>(workspace.ptr());
+        R* bufA = (ndim & 1) ? res_raw : wrk_raw;
+        R* bufB = (ndim & 1) ? wrk_raw : res_raw;
+
+        R* in_re  = bufA;
+        R* in_im  = bufA + sz;
+        R* out_re = bufB;
+        R* out_im = bufB + sz;
 
         // 1. Unpack complex input into Real and Imag arrays ONCE at the start
         const R* t_raw = reinterpret_cast<const R*>(t.ptr());
         for (long i = 0; i < sz; ++i) {
-            bufA_re[i] = t_raw[2 * i];
-            bufA_im[i] = t_raw[2 * i + 1];
+            in_re[i] = t_raw[2 * i];
+            in_im[i] = t_raw[2 * i + 1];
         }
-
-        R* in_re = bufA_re;
-        R* in_im = bufA_im;
-        R* out_re = bufB_re;
-        R* out_im = bufB_im;
 
         for (int n = 0; n < ndim; ++n) {
             mTxmq(dimi, dimj, dimj, out_re, in_re, pc);
@@ -2540,8 +2537,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             std::swap(in_im, out_im);
         }
 
-        // 2. Repack into result ONCE at the end
-        R* res_raw = reinterpret_cast<R*>(result.ptr());
+        // 2. Repack into result ONCE at the end (in_* is in the workspace here)
         for (long i = 0; i < sz; ++i) {
             res_raw[2 * i]     = in_re[i];
             res_raw[2 * i + 1] = in_im[i];
@@ -2653,23 +2649,19 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         MADNESS_CHECK(result.size() >= max_running &&
                       workspace.size() >= max_running);
 
-        constexpr long STACK_CAP = 8192;
-        R stack_buf[STACK_CAP];
-        R *bufA_re = nullptr, *bufA_im = nullptr, *bufB_re = nullptr, *bufB_im = nullptr;
-        std::vector<R> heap_buf;
+        // Allocates nothing: result and workspace hold 2*max_running reals
+        // each, exactly the four real buffers the split needs.  Chosen so the
+        // D swaps below leave the live buffer in the workspace, so the final
+        // repack into result does not alias its own source.
+        R* res_raw = reinterpret_cast<R*>(result.ptr());
+        R* wrk_raw = reinterpret_cast<R*>(workspace.ptr());
+        R* bufA = (D & 1) ? res_raw : wrk_raw;
+        R* bufB = (D & 1) ? wrk_raw : res_raw;
 
-        if (4 * max_running <= STACK_CAP) {
-            bufA_re = stack_buf;
-            bufA_im = bufA_re + max_running;
-            bufB_re = bufA_im + max_running;
-            bufB_im = bufB_re + max_running;
-        } else {
-            heap_buf.resize(4 * max_running);
-            bufA_re = heap_buf.data();
-            bufA_im = bufA_re + max_running;
-            bufB_re = bufA_im + max_running;
-            bufB_im = bufB_re + max_running;
-        }
+        R* bufA_re = bufA;
+        R* bufA_im = bufA + max_running;
+        R* bufB_re = bufB;
+        R* bufB_im = bufB + max_running;
 
         // 1. Unpack complex input into Real and Imag arrays ONCE
         const long sz0 = t.size();
@@ -2698,9 +2690,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             std::swap(in_im, out_im);
         }
 
-        // 2. Repack into result ONCE
+        // 2. Repack into result ONCE (in_* is in the workspace here)
         const long final_sz = n;
-        R* res_raw = reinterpret_cast<R*>(result.ptr());
         for (long i = 0; i < final_sz; ++i) {
             res_raw[2 * i]     = in_re[i];
             res_raw[2 * i + 1] = in_im[i];

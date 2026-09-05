@@ -167,9 +167,13 @@ function(madness_check_is_openblas _lib_list _out_var)
     if(_gfort_chk_lib)
       list(APPEND CMAKE_REQUIRED_LIBRARIES "${_gfort_chk_lib}")
     endif()
-    unset(_CHECK_DL_NO_OPENBLAS CACHE)
-    check_c_source_runs(
-      "
+    # A probe that fails to build or link says nothing about OpenBLAS, but
+    # check_c_source_runs() reports that identically to "ran and found it".
+    # Gate on a compile+link check first so an unbuildable probe is treated as
+    # inconclusive rather than as a positive identification -- otherwise an
+    # unusual Fortran mangling or a missing runtime library gets a perfectly
+    # good BLAS rejected with a fatal error.
+    set(_madness_openblas_probe_src "
       #define _GNU_SOURCE
       #include <stdio.h>
       #include <string.h>
@@ -196,13 +200,26 @@ function(madness_check_is_openblas _lib_list _out_var)
       #endif
           return (has_openblas == 0) ? 0 : 1;
       }
-      " _CHECK_DL_NO_OPENBLAS
-    )
-    cmake_pop_check_state()
-    if(NOT _CHECK_DL_NO_OPENBLAS)
-      set(${_out_var} TRUE PARENT_SCOPE)
-      return()
+      ")
+
+    unset(_CHECK_DL_PROBE_BUILDS CACHE)
+    unset(_CHECK_DL_NO_OPENBLAS CACHE)
+    check_c_source_compiles("${_madness_openblas_probe_src}" _CHECK_DL_PROBE_BUILDS)
+    if(_CHECK_DL_PROBE_BUILDS)
+      check_c_source_runs("${_madness_openblas_probe_src}" _CHECK_DL_NO_OPENBLAS)
+      cmake_pop_check_state()
+      if(NOT _CHECK_DL_NO_OPENBLAS)
+        unset(_CHECK_DL_PROBE_BUILDS CACHE)
+        unset(_CHECK_DL_NO_OPENBLAS CACHE)
+        set(${_out_var} TRUE PARENT_SCOPE)
+        return()
+      endif()
+    else()
+      cmake_pop_check_state()
+      message(STATUS "OpenBLAS runtime probe could not be built with these libraries; "
+                     "treating the runtime check as inconclusive")
     endif()
+    unset(_CHECK_DL_PROBE_BUILDS CACHE)
     unset(_CHECK_DL_NO_OPENBLAS CACHE)
   endif()
 endfunction()

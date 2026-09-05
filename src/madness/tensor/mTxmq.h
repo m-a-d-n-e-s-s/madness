@@ -24,6 +24,7 @@
 
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
+#include <madness/world/thread_specific.h>
 #include <cstddef>
 #include <type_traits>
 #include <complex>
@@ -43,7 +44,35 @@ namespace mTxmq_detail {
     constexpr long MAX_DIMI = 400;
     constexpr long MAX_DIMJ = 24;
     constexpr long MAX_DIMK = 24;
+
+    /// Per-thread grow-on-demand scratch for the complex*real decomposition.
+    ///
+    /// Backed by a reclaimable thread_specific pool rather than a large stack
+    /// array.  The four real buffers scale as dimi*(dimj+dimk), which for 3-D
+    /// nonstandard-form blocks (dimi = (2k)^2) already exceeds any sane stack
+    /// budget, and an unconditional array sized for the good case enlarges
+    /// every frame -- including the calls that end up on the heap path.
+    /// Buffers grow monotonically to the largest need seen on that thread and
+    /// are never shared across threads; mTxmq_scratch_clear<T>() reclaims them.
+    template <typename T> struct Scratch { std::vector<T> buf; };
+
+    template <typename T>
+    ::madness::detail::thread_specific<Scratch<T>>& scratch_pool() {
+        static ::madness::detail::thread_specific<Scratch<T>> pool;
+        return pool;
+    }
+
+    template <typename T>
+    T* scratch(std::size_t need) {
+        Scratch<T>& s = scratch_pool<T>().local();
+        if (s.buf.size() < need) s.buf.resize(need);
+        return s.buf.data();
+    }
 }
+
+/// Free every thread's mTxmq scratch buffers.  Call only at a quiescent point.
+template <typename T>
+void mTxmq_scratch_clear() { mTxmq_detail::scratch_pool<T>().clear(); }
 
 /// Initialize libxsmm and pre-dispatch JIT kernels for the small matrix domain
 /// Calling this is optional; initialization will happen lazily on first call if omitted.
@@ -117,7 +146,8 @@ void mTxmq(long dimi, long dimj, long dimk,
            long ldb);
 
 /// Mixed precision: complex matrix multiplied by real matrix
-/// Optimized inline decomposition into 2 real mTxmq calls with fast stack workspace (avoiding heap allocations)
+/// Decomposes into 2 real mTxmq calls over per-thread scratch (see
+/// mTxmq_detail::scratch), so steady-state calls allocate nothing.
 template <typename T>
 inline void mTxmq(long dimi, long dimj, long dimk,
                   std::complex<T>* MADNESS_RESTRICT c,
@@ -135,24 +165,10 @@ inline void mTxmq(long dimi, long dimj, long dimk,
     const long c_sz = dimi * dimj;
     const long a_sz = dimi * dimk;
 
-    // Use fast stack workspace for small/medium matrices to avoid heap allocation
-    constexpr long STACK_CAP = 8192;
-    T stack_buf[STACK_CAP];
-    T *Ra = nullptr, *Ia = nullptr, *Rc = nullptr, *Ic = nullptr;
-    std::vector<T> heap_buf;
-
-    if (2 * a_sz + 2 * c_sz <= STACK_CAP) {
-        Ra = stack_buf;
-        Ia = Ra + a_sz;
-        Rc = Ia + a_sz;
-        Ic = Rc + c_sz;
-    } else {
-        heap_buf.resize(2 * a_sz + 2 * c_sz);
-        Ra = heap_buf.data();
-        Ia = Ra + a_sz;
-        Rc = Ia + a_sz;
-        Ic = Rc + c_sz;
-    }
+    T* Ra = mTxmq_detail::scratch<T>(static_cast<std::size_t>(2 * a_sz + 2 * c_sz));
+    T* Ia = Ra + a_sz;
+    T* Rc = Ia + a_sz;
+    T* Ic = Rc + c_sz;
 
     const T* a_raw = reinterpret_cast<const T*>(a);
     for (long i = 0; i < a_sz; ++i) {
