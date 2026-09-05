@@ -22,6 +22,7 @@
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
 #include <madness/tensor/mTxmq.h>
+#include <madness/world/madness_exception.h>
 #include <madness/tensor/cblas.h>
 #include <complex>
 #include <cstring>
@@ -353,7 +354,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const double* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0;
@@ -458,7 +459,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const float* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
@@ -537,7 +538,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const double* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0;
@@ -553,7 +554,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const float* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
@@ -572,7 +573,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const std::complex<double>* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<double>(0.0, 0.0);
@@ -591,7 +592,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const std::complex<float>* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<float>(0.0f, 0.0f);
