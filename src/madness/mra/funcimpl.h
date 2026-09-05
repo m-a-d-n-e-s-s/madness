@@ -5199,29 +5199,26 @@ template<size_t NDIM>
             if (max_distsq_reached)
               validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
 
-            // Least N such that being N boxes away from origin_ guarantees you're outside of the short-range region.
-            std::optional<Translation> probe_offset_radius;
+            // real-space extent of what the validator filters out, so that the range can place its probing
+            // displacement just outside of it. If there is no validator, nothing is filtered and the surface
+            // reaches all the way in to the center; leave this empty so that the probe screens nothing.
+            using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
+            std::optional<typename SurfaceRange::StandardDisplacementsReach> standard_reach;
             if (max_distsq_reached) {
-              // default_real_distance_squared measures cell_width*(|l|-1) per axis (see Key::real_distsq_bc);
-              // invert it. The offset axis is not known here, so use the widest one, which yields the
-              // smallest radius and hence the most conservative probe.
+              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
               const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
-              const std::size_t d0 = (op->particle() == 1) ? 0 : NDIM - opdim;
-              double widest = 0.;
-              for (std::size_t d = d0; d != d0 + opdim; ++d) widest = std::max(widest, cell_width(d));
-              const Translation reach = 1 + static_cast<Translation>(std::sqrt(*max_distsq_reached) / widest);
-              probe_offset_radius = std::min<Translation>(reach, Displacements<opdim>::bmax_default()) + 1;
-            } else  // no validator => no treatment of short-range point. let surface handle everything
-              probe_offset_radius = 0;
+              std::array<double, opdim> widths;
+              for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);
+              standard_reach = typename SurfaceRange::StandardDisplacementsReach{*max_distsq_reached, widths};
+            }
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
-            BoxSurfaceDisplacementRange<opdim>
-                range_boundary_face_displacements(opkey, box_radius,
-                                                  surface_thickness,
-                                                  op->lattice_summed(),
-                                                  validator,
-                                                  probe_offset_radius);
+            SurfaceRange range_boundary_face_displacements(opkey, box_radius,
+                                                           surface_thickness,
+                                                           op->lattice_summed(),
+                                                           validator,
+                                                           standard_reach);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
