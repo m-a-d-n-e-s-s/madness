@@ -448,6 +448,39 @@ int main(int argc, char **argv) {
           printf("  (equal only if the source/contraction conventions match; "
                  "difference = %+.3e)\n", neg - swap);
         }
+
+        // ===== THE SCALAR QUESTION (user, 2026-09-05): with plain V^BC
+        // (normal legs, no daggers), does ANY pairing of the state halves
+        // against the two V channels reproduce <x|P>+<y|Q>?  All four inner
+        // products printed, all candidate pairings compared, both sides
+        // symmetrized over orderings (Vfull is (B,C)+(C,B); P/Q summed the
+        // same way). Density-level theory predicts NO pairing matches at
+        // c_x=1 (the dagger + transposition are real); this measures it.
+        auto P_tot = vsum(world, Pbc[0], {0,1,2,3,4,5,6,7});
+        {
+          auto pcb = vsum(world, Pcb[0], {0,1,2,3,4,5,6,7});
+          gaxpy(world, 1.0, P_tot, 1.0, pcb);
+        }
+        auto Q_tot = vsum(world, Pbc[1], {0,1,2,3,4,5,6,7});
+        {
+          auto qcb = vsum(world, Pcb[1], {0,1,2,3,4,5,6,7});
+          gaxpy(world, 1.0, Q_tot, 1.0, qcb);
+        }
+        const double xVx = vinner(world, xf, Vfull.x_alpha);
+        const double yVy = vinner(world, yf, Vfull.y_alpha);
+        const double yVx = vinner(world, yf, Vfull.x_alpha);
+        const double xVy = vinner(world, xf, Vfull.y_alpha);
+        const double S_ours = vinner(world, xf, P_tot) + vinner(world, yf, Q_tot);
+        if (world.rank() == 0) {
+          print("\n[TERMS] ===== scalar pairings: plain V^BC vs <x|P>+<y|Q> =====");
+          printf("  <x|Vx> = %+.8e   <y|Vy> = %+.8e\n", xVx, yVy);
+          printf("  <y|Vx> = %+.8e   <x|Vy> = %+.8e\n", yVx, xVy);
+          printf("  S_ours  = <x|P>+<y|Q>          = %+.8e   (both orderings)\n", S_ours);
+          printf("  S_a     =  <y|Vx>+<x|Vy>       = %+.8e   dev = %+.3e\n",  yVx + xVy,  (yVx + xVy) - S_ours);
+          printf("  S_b     = -(<x|Vx>+<y|Vy>)     = %+.8e   dev = %+.3e\n", -(xVx + yVy), -(xVx + yVy) - S_ours);
+          printf("  S_c     = -(<y|Vx>+<x|Vy>)     = %+.8e   dev = %+.3e\n", -(yVx + xVy), -(yVx + xVy) - S_ours);
+          printf("  S_d     =  <x|Vx>+<y|Vy>       = %+.8e   dev = %+.3e\n",  (xVx + yVy),  (xVx + yVy) - S_ours);
+        }
       }
 
       if (world.rank() == 0)
