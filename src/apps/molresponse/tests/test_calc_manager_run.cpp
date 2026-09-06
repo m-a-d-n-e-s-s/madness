@@ -3,6 +3,7 @@
 // 15a). Sets up a ground state from a moldft archive (same recipe as the FD
 // skeleton test), plans a polarizability request, then lets CalcManager +
 // FdResponseExecutor schedule and solve every FD protocol step. Validates by
+// reading back response_metadata.json and checking the expected FD states
 // converged.
 //
 // This is an ALLOCATION test (it runs real MRA solves). Usage:
@@ -580,7 +581,9 @@ int main(int argc, char **argv) {
                   want_derived, " derived FD)");
             rc = ok ? 0 : 1;
           } else {
+            int expected = 0, converged = 0;
             for (const auto &r : plan.fd) {
+              ++expected;
               const std::string pert = r.pert.description();
               const std::string fk = ResponseMetadata::freq_key(r.freq);
               bool ok =
@@ -593,6 +596,9 @@ int main(int argc, char **argv) {
               print("  ", ok ? "[PASS]" : "[FAIL]", pert, "@", r.freq,
                     " key=", top_key);
             }
+            print("\n", (converged == expected) ? "PASSED" : "FAILED", " (",
+                  converged, "/", expected, " FD states converged)");
+            rc = (converged == expected) ? 0 : 1;
           }
 
           // DAG identity invariant (mode-independent): every FD node's id must
