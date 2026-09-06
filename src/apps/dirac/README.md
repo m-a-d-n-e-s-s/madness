@@ -127,7 +127,7 @@ By specifying `Krestricted` in the input deck, `DFdriver`:
 - **Reduces computational cost significantly**: Solves and iterates over only $N_{\text{pairs}}$ independent 4-spinors (half the total electrons). This yields ~2× fewer 3D Poisson solves in exchange ($N(N+1)$ vs $2N^2+N$), an exact 2× reduction in BSH operator applications, and 50% lower memory usage compared to an unrestricted calculation.
 - **Generates time-reversed partners algebraically**: $\bar{\psi}$ is constructed on the fly without numerical integration, and the quaternionic Fock matrix is formed and diagonalized directly.
 - **Preserves Kramers degeneracies**: Exact partner degeneracy ($\varepsilon_i = \varepsilon_{\bar{i}}$) is maintained to $< 10^{-6}$ Ha.
-- **Preserves spherical symmetry**: For atoms with closed subshells (e.g. $p^6$ in neon), it preserves spherical isotropy and correctly resolves the physical spin-orbit splitting ($p_{1/2}$ doublet vs $p_{3/2}$ quartet) without unphysical $z$-polarization.
+- **Preserves spherical symmetry**: For atoms with closed subshells (e.g. $p^6$ in neon and magnesium), it preserves spherical isotropy and correctly resolves the physical spin-orbit splitting ($p_{1/2}$ doublet vs $p_{3/2}$ quartet) without unphysical $z$-polarization.
 
 ---
 
