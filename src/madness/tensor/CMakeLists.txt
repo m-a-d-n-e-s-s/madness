@@ -17,11 +17,11 @@ endif()
 
 # Source lists for MADtensor
 set(MADTENSOR_HEADERS 
-    aligned.h mxm.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
+    aligned.h mxm.h mTxmq.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
     tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
     tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
     tensortrain.h SVDTensor.h tensor_json.hpp)
-set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc)
+set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc mTxmq.cc)
 
 # logically these headers should be part of their own library (MADclapack)
 # however CMake right now does not support a mechanism to properly handle header-only libs.
@@ -68,10 +68,9 @@ endif()
     target_compile_definitions(${t_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
   endif (LAPACK_COMPILE_DEFINITIONS)
 
-  if (HAVE_IBMBGQ)
-    message(FATAL_ERROR "IBM BG/Q support ended")
-  elseif (HAVE_IBMBGP)
-    message(FATAL_ERROR "IBM BG/P support ended")
+  if (MADNESS_HAS_LIBXSMM)
+    target_link_libraries(${t_target} PUBLIC libxsmm::libxsmm)
+    target_include_directories(${t_target} PUBLIC $<TARGET_PROPERTY:libxsmm::libxsmm,INTERFACE_INCLUDE_DIRECTORIES>)
   endif ()
 
   if (ELEMENTAL_FOUND AND MADNESS_HAS_ELEMENTAL_EMBEDDED)
