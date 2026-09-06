@@ -245,8 +245,11 @@ int main(int argc, char **argv) {
             world, cdir, Perturbation::dipole(ba), freq);
         auto rcc = try_load_fd_state<Full, ClosedShell>(
             world, cdir, Perturbation::dipole(ca), freq);
+        if (world.rank() == 0) { print("[DBG] loads returned: rb=", bool(rb), " rcc=", bool(rcc)); fflush(stdout); }
         if (rb && rcc) {
+          if (world.rank() == 0) { print("[DBG] responses sizes:", rb->state.responses.size(), rcc->state.responses.size()); fflush(stdout); }
           xb = madness::copy(world, rb->state.responses[0].x_alpha);
+          if (world.rank() == 0) { print("[DBG] xb copied, n=", xb.size()); fflush(stdout); }
           yb = madness::copy(world, rb->state.responses[0].y_alpha);
           xc = madness::copy(world, rcc->state.responses[0].x_alpha);
           yc = madness::copy(world, rcc->state.responses[0].y_alpha);
@@ -255,6 +258,7 @@ int main(int argc, char **argv) {
           print("  !! no stored FD record at (pert,freq) — using stand-ins");
         }
       }
+      if (world.rank() == 0) { print("[DBG] entering table build"); fflush(stdout); }
       if (world.rank() == 0) {
         print("\n[TERMS] source vectors:", src);
         print("[TERMS] archive:", archive_path, " thresh:", t,
