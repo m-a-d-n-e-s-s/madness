@@ -45,6 +45,7 @@
 #include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/build_response_ground_state.hpp"
+#include "../solvers/es_save_load.hpp"
 #include "../solvers/fd_save_load.hpp"
 #include "../solvers/response_state.hpp"
 
@@ -103,8 +104,26 @@ eval_per_entry(World &world, const ResponseGroundState &g0,
   return out;
 }
 
+// Full contraction grid: every term against BOTH eigenvector halves.
+// Columns: |V| <x|V> <y|V> | |P| <x|P> <y|P>  (V columns blank for P-only rows).
+void row2(World &world, const char *label, const vecfuncT *v, const vecfuncT *p,
+          const vecfuncT &fx, const vecfuncT &fy) {
+  if (world.rank() != 0 && v && p) { /* inners are collective */ }
+  double vn=0, vx=0, vy=0, pn=0, px=0, py=0;
+  if (v) { vn=vnorm(world,const_cast<vecfuncT&>(*v)); vx=vinner(world,fx,*v); vy=vinner(world,fy,*v); }
+  if (p) { pn=vnorm(world,const_cast<vecfuncT&>(*p)); px=vinner(world,fx,*p); py=vinner(world,fy,*p); }
+  if (world.rank() == 0) {
+    if (v && p)
+      printf("  %-30s |V|=%10.3e <x|V>=%+12.5e <y|V>=%+12.5e | |P|=%10.3e <x|P>=%+12.5e <y|P>=%+12.5e\n",
+             label, vn, vx, vy, pn, px, py);
+    else if (p)
+      printf("  %-30s %-56s | |P|=%10.3e <x|P>=%+12.5e <y|P>=%+12.5e\n",
+             label, "", pn, px, py);
+  }
+}
 void row(World &world, const char *label, const vecfuncT *v, const vecfuncT *p,
          const vecfuncT &f) {
+  // kept for the leg-resolved section; single-contraction variant
   if (v && p) {
     auto d = vdiff(world, *p, *v);
     if (world.rank() == 0)
@@ -194,9 +213,32 @@ int main(int argc, char **argv) {
       vecfuncT yf = comb(1.0, d2,  0.71, d0,  0.43);
 
       std::string src = "stand-in (dipole combinations + phi admixture)";
-      if (parser.key_exists("calc-dir") && parser.key_exists("freq")) {
+      // --es-root=N (+ --calc-dir): use the CONVERGED eigenvector of root N as
+      // (x^f,y^f), and default --freq to omega_N/2 (the physical leg freq).
+      double freq_from_root = -1.0;
+      if (parser.key_exists("calc-dir") && parser.key_exists("es-root")) {
         const std::string cdir = parser.value_raw("calc-dir");
-        const double freq = std::stod(parser.value("freq"));
+        const int nroot = std::stoi(parser.value("es-root"));
+        auto es = try_load_es_bundle<Full, ClosedShell>(world, cdir);
+        if (es && nroot < static_cast<int>(es->state.roots.size())) {
+          xf = madness::copy(world, es->state.roots[nroot].x_alpha);
+          yf = madness::copy(world, es->state.roots[nroot].y_alpha);
+          freq_from_root = 0.5 * es->state.omega(nroot);
+          if (world.rank() == 0)
+            print("[TERMS] eigenvector: CONVERGED root", nroot,
+                  " omega=", es->state.omega(nroot),
+                  " -> leg freq", freq_from_root,
+                  " (", es->source_protocol_key, ")");
+        } else if (world.rank() == 0) {
+          print("  !! --es-root requested but no usable ES bundle — stand-in f");
+        }
+      }
+      if (parser.key_exists("calc-dir") &&
+          (parser.key_exists("freq") || freq_from_root > 0.0)) {
+        const std::string cdir = parser.value_raw("calc-dir");
+        const double freq = parser.key_exists("freq")
+                                ? std::stod(parser.value("freq"))
+                                : freq_from_root;
         const int ba = parser.key_exists("baxis") ? std::stoi(parser.value("baxis")) : 2;
         const int ca = parser.key_exists("caxis") ? std::stoi(parser.value("caxis")) : 2;
         auto rb = try_load_fd_state<Full, ClosedShell>(
@@ -258,27 +300,27 @@ int main(int argc, char **argv) {
       {
         auto v_fphi  = vslot(0, 2);              // +Σ x^C F^B_kp (+ BC image)
         auto p_bmat  = pslot(0, {0});            // +Σ x^C F̄^B_kp (+ image)
-        row(world, "property-Fock MATRIX (fphi|B_mat)", &v_fphi, &p_bmat, xf);
+        row2(world, "property-Fock MATRIX", &v_fphi, &p_bmat, xf, yf);
 
         auto v_fb    = vslot(0, 1);              // -Q̂ F^B x^C (+ image)
         auto p_bapp  = pslot(0, {1});            // -g'[γ^B†] x^C (+ image)
-        row(world, "property-Fock APPLY  (fb|B_app)", &v_fb, &p_bapp, xf);
+        row2(world, "property-Fock APPLY", &v_fb, &p_bapp, xf, yf);
 
         auto v_gz    = vslot(0, 0);              // -Q̂ g'[γ_ζ] φ (+ image)
         auto p_F     = pslot(0, {2, 3, 4, 5});   // -g'[D^{BC}] φ (+ image)
-        row(world, "pair density (gzeta|D-legs)", &v_gz, &p_F, xf);
+        row2(world, "pair density", &v_gz, &p_F, xf, yf);
 
         auto p_Dapp  = pslot(0, {6});            // -g'[γ^C†] x^B (+ image)
         auto p_Dmat  = pslot(0, {7});            // +Σ x^B G^C_kp (+ image)
-        row(world, "R family APPLY  -g'[γ^C†]x^B", nullptr, &p_Dapp, xf);
-        row(world, "R family MATRIX +Σ x^B G^C_kp", nullptr, &p_Dmat, xf);
+        row2(world, "R family APPLY", nullptr, &p_Dapp, xf, yf);
+        row2(world, "R family MATRIX", nullptr, &p_Dmat, xf, yf);
         auto p_R = pslot(0, {6, 7});
-        row(world, "R family TOTAL", nullptr, &p_R, xf);
+        row2(world, "R family TOTAL", nullptr, &p_R, xf, yf);
 
         // totals + engine-sum sanity
         auto v_tot = vsum(world, {v_gz, v_fb, v_fphi}, {0, 1, 2});
         auto p_tot = vsum(world, {p_bmat, p_bapp, p_F, p_R}, {0, 1, 2, 3});
-        row(world, "TOTAL (V^BC.x | P)", &v_tot, &p_tot, xf);
+        row2(world, "TOTAL (V.x | P)", &v_tot, &p_tot, xf, yf);
       }
 
       if (world.rank() == 0)
@@ -286,18 +328,18 @@ int main(int argc, char **argv) {
       {
         auto v_fphi = vslot(1, 2);
         auto q_bmat = pslot(1, {1});             // Q entry order: [0]=B_app
-        row(world, "property-Fock MATRIX", &v_fphi, &q_bmat, yf);
+        row2(world, "property-Fock MATRIX", &v_fphi, &q_bmat, xf, yf);
         auto v_fb   = vslot(1, 1);
         auto q_bapp = pslot(1, {0});
-        row(world, "property-Fock APPLY", &v_fb, &q_bapp, yf);
+        row2(world, "property-Fock APPLY", &v_fb, &q_bapp, xf, yf);
         auto v_gz   = vslot(1, 0);
         auto q_F    = pslot(1, {2, 3, 4, 5});
-        row(world, "pair density", &v_gz, &q_F, yf);
+        row2(world, "pair density", &v_gz, &q_F, xf, yf);
         auto q_R = pslot(1, {6, 7});
-        row(world, "R family TOTAL", nullptr, &q_R, yf);
+        row2(world, "R family TOTAL", nullptr, &q_R, xf, yf);
         auto v_tot = vsum(world, {v_gz, v_fb, v_fphi}, {0, 1, 2});
         auto q_tot = vsum(world, {q_bmat, q_bapp, q_F, q_R}, {0, 1, 2, 3});
-        row(world, "TOTAL (V^BC.y | Q)", &v_tot, &q_tot, yf);
+        row2(world, "TOTAL (V.y | Q)", &v_tot, &q_tot, xf, yf);
       }
 
       // ============ the v^C question: the 1e family, explicitly ==========
@@ -314,10 +356,10 @@ int main(int argc, char **argv) {
             tpa::tpa_pq_spec(world, g0, B, C, mu_b, mu_c));
         const auto &PT = Pfull[0];
         if (PT.size() >= 12) {
-          row(world, "1e: -Q̂ v^B x^C", nullptr, &PT[8], xf);
-          row(world, "1e: +Σ x^C <φ|v^B|φ>_kp", nullptr, &PT[9], xf);
-          row(world, "1e: -Q̂ v^C x^B  (the missing v^C)", nullptr, &PT[10], xf);
-          row(world, "1e: +Σ x^B <φ|v^C|φ>_kp", nullptr, &PT[11], xf);
+          row2(world, "1e: -Qv^B x^C", nullptr, &PT[8], xf, yf);
+          row2(world, "1e: +Sum x^C <p|v^B|p>", nullptr, &PT[9], xf, yf);
+          row2(world, "1e: -Qv^C x^B", nullptr, &PT[10], xf, yf);
+          row2(world, "1e: +Sum x^B <p|v^C|p>", nullptr, &PT[11], xf, yf);
           // R + 1e(C,B) = would-be full property-Fock at mixed transposition
           vecfuncT rfull = madness::copy(world, PT[10]);
           gaxpy(world, 1.0, rfull, 1.0, PT[11]);
