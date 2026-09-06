@@ -43,6 +43,7 @@
 #include <map>
 #include <fstream>
 #include <cstdlib>
+#include <cstdio>
 #endif
 
 namespace madness {
@@ -206,13 +207,40 @@ void render_profile_stream(std::ostream& os) {
        << std::setw(6)  << "ldb"
        << std::setw(9)  << "Tier"
        << std::right
-       << std::setw(14) << format_with_commas(r.count)
-       << std::fixed << std::setprecision(2)
-       << std::setw(9)  << pct_calls << "%"
-       << std::setw(9)  << cum_calls << "%"
-       << std::setw(12) << format_with_commas(flops_per_call)
-       << std::setw(15) << std::setprecision(3) << gflops
-       << std::setw(9)  << std::setprecision(2) << pct_flops << "%\n";
+       << std::setw(14) << "Calls"
+       << std::setw(10) << "% Calls"
+       << std::setw(10) << "Cum %"
+       << std::setw(12) << "FLOP/call"
+       << std::setw(15) << "GFLOP"
+       << std::setw(10) << "% FLOP" << "\n";
+    os << std::string(120, '-') << "\n";
+
+    const size_t displayed = std::min<size_t>(records.size(), 40);
+    double cum_calls = 0.0;
+    for (size_t idx = 0; idx < displayed; ++idx) {
+        const ShapeRecord& r = records[idx];
+        const double pct_calls = (100.0 * r.count) / total_calls;
+        cum_calls += pct_calls;
+        const uint64_t flops_per_call =
+            static_cast<uint64_t>(2) * r.dimi * r.dimj * r.dimk;
+        const double gflops = r.flops * 1e-9;
+        const double pct_flops = total_flops > 0 ? (100.0 * r.flops) / total_flops : 0.0;
+        const char* tier_str = (r.tier == 1) ? "Table" : ((r.tier == 2) ? "DynJIT" : "BLAS");
+        char shape_buf[32];
+        snprintf(shape_buf, sizeof(shape_buf), "(%ld x %ld x %ld)", r.dimi, r.dimj, r.dimk);
+
+        os << std::left  << std::setw(6)  << (idx + 1)
+           << std::setw(21) << shape_buf
+           << std::setw(6)  << r.ldb
+           << std::setw(9)  << tier_str
+           << std::right
+           << std::setw(14) << format_with_commas(r.count)
+           << std::fixed << std::setprecision(2)
+           << std::setw(9)  << pct_calls << "%"
+           << std::setw(9)  << cum_calls << "%"
+           << std::setw(12) << format_with_commas(flops_per_call)
+           << std::setw(15) << std::setprecision(3) << gflops
+           << std::setw(9)  << std::setprecision(2) << pct_flops << "%\n";
     }
 
     if (records.size() > displayed) {
@@ -325,7 +353,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const double* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0;
@@ -430,7 +458,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const float* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
@@ -509,7 +537,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const double* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0;
@@ -525,7 +553,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const float* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = 0.0f;
@@ -544,7 +572,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const std::complex<double>* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<double>(0.0, 0.0);
@@ -563,7 +591,7 @@ void mTxmq(long dimi, long dimj, long dimk,
            const std::complex<float>* b,
            long ldb) {
     if (ldb == -1) ldb = dimj;
-    MADNESS_ASSERT(ldb >= dimj);
+    MADNESS_CHECK(ldb >= dimj);
     if (__builtin_expect(dimi <= 0 || dimj <= 0, 0)) return;
     if (__builtin_expect(dimk <= 0, 0)) {
         for (long i = 0; i < dimi * dimj; ++i) c[i] = std::complex<float>(0.0f, 0.0f);

@@ -52,6 +52,9 @@
 #cmakedefine MADNESS_CAN_USE_TBB_PRIORITY 1
 #cmakedefine HAVE_PARSEC 1
 #cmakedefine HAVE_INTEL_MKL 1
+/* Instrument mTxmq to record a per-shape call/FLOP profile */
+#cmakedefine MTXMQ_PROFILE 1
+
 #cmakedefine HAVE_ARMPL 1
 #cmakedefine HAVE_BLIS 1
 #cmakedefine HAVE_PAPI 1

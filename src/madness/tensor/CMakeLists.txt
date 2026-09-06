@@ -68,7 +68,7 @@ endif()
     target_compile_definitions(${t_target} PUBLIC ${LAPACK_COMPILE_DEFINITIONS})
   endif (LAPACK_COMPILE_DEFINITIONS)
 
-  if (ENABLE_LIBXSMM)
+  if (MADNESS_HAS_LIBXSMM)
     target_link_libraries(${t_target} PUBLIC libxsmm::libxsmm)
     target_include_directories(${t_target} PUBLIC $<TARGET_PROPERTY:libxsmm::libxsmm,INTERFACE_INCLUDE_DIRECTORIES>)
   endif ()

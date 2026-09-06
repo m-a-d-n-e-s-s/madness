@@ -45,6 +45,11 @@
 
 // Has effect of compiler barrier and ensures ordering of stores
 #define MADNESS_MEMORY_STORE_BARRIER std::atomic_thread_fence(std::memory_order_release)
+
+// Has effect of compiler barrier and ensures ordering of loads.  A store barrier
+// on the producing side orders nothing unless the consuming side pairs it with
+// this (or with an acquire load); one-sided use is not a barrier.
+#define MADNESS_MEMORY_LOAD_BARRIER std::atomic_thread_fence(std::memory_order_acquire)
 //#if defined(__aarch64__) || defined(_M_ARM64)
 //#define MADNESS_MEMORY_STORE_BARRIER __asm__ __volatile__("dmb ish" : : : "memory")
 //#else
@@ -711,12 +716,23 @@ namespace madness {
 #endif
 
     // Fast barrier for nthread threads --- uses sense-changing barrier in which threads spin on cache-local value --- used in tensor/systolic.h
+    //
+    // The per-thread flags and the shared sense are std::atomic, not volatile:
+    // volatile provides neither atomicity nor inter-thread ordering.  Ordering
+    // comes from a fence pair -- a release fence before the notifier's relaxed
+    // flag stores, an acquire fence after the waiter's relaxed spin -- which is
+    // what establishes happens-before across the barrier ([atomics.fences]).
+    // The fence form is used rather than store-release/load-acquire on each
+    // flag because it pays for ordering once instead of per spin iteration.
+    // Without the acquire on the waiting side, weakly-ordered machines (AArch64)
+    // may reorder a waiter's post-barrier loads ahead of the flag load and so
+    // observe stale data written by its peers before the barrier.
     class Barrier {
         static const int MAX_NTHREAD = 128;
         const int nthread;
-        volatile bool sense;
+        std::atomic<bool> sense;
         AtomicInt nworking;
-        volatile bool* pflags[MAX_NTHREAD];
+        std::atomic<bool>* pflags[MAX_NTHREAD];
 
     public:
         Barrier(int nthread)
@@ -729,11 +745,11 @@ namespace madness {
         /// Each thread calls this once before first use
 
         /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
-        /// thread-local bool (probably in the thread's stack)
-        void register_thread(int id, volatile bool* pflag) {
-            if (id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+        /// a thread-local atomic flag (probably in the thread's stack)
+        void register_thread(int id, std::atomic<bool>* pflag) {
+            if (id < 0 || id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
             pflags[id] = pflag;
-            *pflag=!sense;
+            pflag->store(!sense.load(std::memory_order_relaxed), std::memory_order_relaxed);
         }
 
         /// Each thread calls this with its id (0,..,nthread-1) to enter the barrier
@@ -746,25 +762,38 @@ namespace madness {
                 return true;
             }
             else {
-                if (id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
-                bool lsense = sense; // Local copy of sense
-                bool result = nworking.dec_and_test();
+                if (id < 0 || id >= MAX_NTHREAD) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+                const bool lsense = sense.load(std::memory_order_relaxed); // Local copy of sense
+                const bool result = nworking.dec_and_test();
                 if (result) {
-                    // Reset counter and sense for next entry
+                    // Reset counter and sense for next entry.  AtomicInt is
+                    // seq_cst, so this thread has already acquired the work of
+                    // every other thread via their decrements.
                     nworking = nthread;
-                    sense = !sense;
-                    
+                    sense.store(!lsense, std::memory_order_relaxed);
+
+                    // One release fence, then relaxed stores -- cheaper than
+                    // nthread release stores, and it publishes everything
+                    // sequenced before it: this thread's work, the sense and
+                    // nworking resets, and (via dec_and_test) transitively the
+                    // other threads' pre-barrier work.
                     MADNESS_MEMORY_STORE_BARRIER;
-                    
+
                     // Notify everyone including me
                     for (int i = 0; i < nthread; ++i)
-                        *(pflags[i]) = lsense;
+                        pflags[i]->store(lsense, std::memory_order_relaxed);
 
                 } else {
-                    volatile bool* myflag = pflags[id]; // Local flag;
-                    while (*myflag != lsense) {
+                    std::atomic<bool>* myflag = pflags[id]; // Local flag;
+                    // Spin on cheap relaxed loads and pay for ordering exactly
+                    // once, on exit.  The relaxed load that finally observes
+                    // lsense, followed by this acquire fence, synchronizes with
+                    // the release fence above ([atomics.fences]) -- so the other
+                    // threads' pre-barrier work is visible from here on.
+                    while (myflag->load(std::memory_order_relaxed) != lsense) {
                         cpu_relax();
                     }
+                    MADNESS_MEMORY_LOAD_BARRIER;
                 }
                 return result;
             }

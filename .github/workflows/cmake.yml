@@ -86,7 +86,10 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja boost eigen open-mpi bison ccache libxc blis
+        # No blis here: Homebrew ships an OpenMP-threaded build, which
+        # external/lapack.cmake rejects, so installing it tested nothing.
+        # macOS uses Accelerate, which is built in.
+        brew install ninja boost eigen open-mpi bison ccache libxc
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
