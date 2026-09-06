@@ -112,10 +112,22 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `lb_iter <n>` | `int` | `20` | Interval (in iterations) between adaptive load balancing passes. |
 | `speed_of_light`| `double` | `137.035999...`| Speed of light in atomic units (CODATA 2022). |
 | `bohr_rad <val>` | `double` | `52917.72...`  | Bohr radius in fm (CODATA 2022). |
+| `Krestricted` | flag | `false` | Enforce time-reversal symmetry (Kramers pairs) for closed-shell systems. Recommended for closed shells. |
 | `lineplot` | flag | `false` | Generate 1D lineplots of large and small spinor components along the x-axis. |
 | `no_compute` | flag | `false` | Skip SCF iterations and exit after setup. |
 
 ---
+
+## Closed-Shell Calculations & Kramers Pairs
+
+In relativistic electronic structure, time-reversal symmetry ($\mathcal{K}$) plays the role of spin-degeneracy in non-relativistic closed-shell systems. Each spatial orbital splits into a Kramers doublet $(\psi, \bar{\psi})$, where the time-reversed partner is:
+$$\bar{\psi} = \mathcal{K} \psi = \begin{pmatrix} -\psi_1^* \\ \psi_0^* \\ -\psi_3^* \\ \psi_2^* \end{pmatrix}$$
+
+By specifying `Krestricted` in the input deck, `DFdriver`:
+- Only solves and iterates over $N_{\text{pairs}}$ independent 4-spinors (half the total electrons).
+- Generates time-reversed partners $\bar{\psi}$ on the fly and constructs the quaternionic Fock matrix.
+- Automatically preserves exact Kramers degeneracy ($\varepsilon_i = \varepsilon_{\bar{i}}$).
+- Preserves spherical symmetry for closed subshells (e.g. $p^6$ in neon), resolving physical spin-orbit splitting ($p_{1/2}$ vs $p_{3/2}$) without unphysical $z$-polarization.
 
 ## Restarting Calculations
 

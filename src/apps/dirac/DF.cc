@@ -522,10 +522,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           temp = conj(world, temp);
 
           //multiply by phi_i
-          temp0 = occupieds[i][0]*temp;
-          temp1 = occupieds[i][1]*temp;
-          temp2 = occupieds[i][2]*temp;
-          temp3 = occupieds[i][3]*temp;
+          temp0 = mul_sparse(world, occupieds[i][0], temp, DFparams.thresh);
+          temp1 = mul_sparse(world, occupieds[i][1], temp, DFparams.thresh);
+          temp2 = mul_sparse(world, occupieds[i][2], temp, DFparams.thresh);
+          temp3 = mul_sparse(world, occupieds[i][3], temp, DFparams.thresh);
 
           //acummulate
           for(unsigned int j = i+1; j < n; j++){
@@ -593,11 +593,14 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                Kpsis[i][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh));
                Kpsis[i][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh));
                
-               //Now for the next part (accumulating the n-i "symmetric" contributions), we already have the complex conjugate of temp, so we can go straight to multiplication by the time-reversal of phi_i
-               temp0 = conj(occupieds[i][1])*temp;
-               temp1 = -1.0*conj(occupieds[i][0])*temp;
-               temp2 = conj(occupieds[i][3])*temp;
-               temp3 = -1.0*conj(occupieds[i][2])*temp;
+                // Now accumulate the (num_contrib - i - 1) symmetric contributions from \bar{\phi}_i to K(\phi_j) (j > i).
+                // Since \bar{\phi}_i^\dagger \phi_j = -\bar{\phi}_j^\dagger \phi_i, the potential is V_{\bar{i}j} = -V_{\bar{j}i} = -temp.
+                // Thus the exchange term is V_{\bar{i}j} \bar{\phi}_i = -temp * \bar{\phi}_i = temp * (-\bar{\phi}_i).
+                // With \bar{\phi}_i = (-\phi_{i,1}^*, \phi_{i,0}^*, -\phi_{i,3}^*, \phi_{i,2}^*)^T, -\bar{\phi}_i = (\phi_{i,1}^*, -\phi_{i,0}^*, \phi_{i,3}^*, -\phi_{i,2}^*)^T.
+                temp0 = mul_sparse(world, conj(occupieds[i][1]), temp, DFparams.thresh);
+                temp1 = mul_sparse(world, -1.0*conj(occupieds[i][0]), temp, DFparams.thresh);
+                temp2 = mul_sparse(world, conj(occupieds[i][3]), temp, DFparams.thresh);
+                temp3 = mul_sparse(world, -1.0*conj(occupieds[i][2]), temp, DFparams.thresh);
 
                //accumulate
                for(int j = i+1; j < num_contrib; j++){
