@@ -66,12 +66,27 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
       endif(${_dep}_is_mad_hdr_lib)
 
       if(TARGET ${deptargetname})
-        target_compile_definitions(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_COMPILE_DEFINITIONS>)
-        target_include_directories(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_INCLUDE_DIRECTORIES>)
-        target_compile_options(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_COMPILE_OPTIONS>)
+        # copy the dependency's *already-resolved* usage requirements rather than a live
+        # $<TARGET_PROPERTY:${deptargetname},...> reference: the latter is stored verbatim in
+        # ${targetname}'s own property and only resolves inside a real build graph that knows
+        # about ${deptargetname}. Downstream tooling that reads ${targetname}'s properties
+        # directly (e.g. TiledArray's DetectMADNESSConfig.cmake, in a standalone try_compile)
+        # has no such target and fails with "Target \"${deptargetname}\" not found."
+        get_target_property(_deptargetname_interface_compile_definitions ${deptargetname} INTERFACE_COMPILE_DEFINITIONS)
+        if (_deptargetname_interface_compile_definitions)
+          target_compile_definitions(${targetname} PUBLIC ${_deptargetname_interface_compile_definitions})
+        endif()
+        get_target_property(_deptargetname_interface_include_directories ${deptargetname} INTERFACE_INCLUDE_DIRECTORIES)
+        if (_deptargetname_interface_include_directories)
+          target_include_directories(${targetname} PUBLIC ${_deptargetname_interface_include_directories})
+        endif()
+        get_target_property(_deptargetname_interface_compile_options ${deptargetname} INTERFACE_COMPILE_OPTIONS)
+        if (_deptargetname_interface_compile_options)
+          target_compile_options(${targetname} PUBLIC ${_deptargetname_interface_compile_options})
+        endif()
+        unset(_deptargetname_interface_compile_definitions)
+        unset(_deptargetname_interface_include_directories)
+        unset(_deptargetname_interface_compile_options)
         if (${_dep}_is_mad_hdr_lib)
           target_link_libraries(${targetname} INTERFACE ${_dep})
         else()
@@ -125,17 +140,26 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
       add_dependencies(install-madness-${_name} install-madness-${_dep})
     endif()
     if(TARGET ${_dep})
-        target_compile_definitions(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_DEFINITIONS>)
-        target_include_directories(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_INCLUDE_DIRECTORIES>)
-        target_compile_options(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_OPTIONS>)
-      if (${_dep}_is_mad_hdr_lib)
+        # see add_mad_library() for why this copies resolved values instead of a live
+        # $<TARGET_PROPERTY:${_dep},...> reference
+        # MAD${_name} is a plain INTERFACE library (no sources), so only the INTERFACE
+        # scope is valid here -- PUBLIC/PRIVATE are rejected by CMake for such targets.
+        get_target_property(_dep_interface_compile_definitions ${_dep} INTERFACE_COMPILE_DEFINITIONS)
+        if (_dep_interface_compile_definitions)
+          target_compile_definitions(MAD${_name} INTERFACE ${_dep_interface_compile_definitions})
+        endif()
+        get_target_property(_dep_interface_include_directories ${_dep} INTERFACE_INCLUDE_DIRECTORIES)
+        if (_dep_interface_include_directories)
+          target_include_directories(MAD${_name} INTERFACE ${_dep_interface_include_directories})
+        endif()
+        get_target_property(_dep_interface_compile_options ${_dep} INTERFACE_COMPILE_OPTIONS)
+        if (_dep_interface_compile_options)
+          target_compile_options(MAD${_name} INTERFACE ${_dep_interface_compile_options})
+        endif()
+        unset(_dep_interface_compile_definitions)
+        unset(_dep_interface_include_directories)
+        unset(_dep_interface_compile_options)
         target_link_libraries(MAD${_name} INTERFACE ${_dep})
-      else()
-        target_link_libraries(MAD${_name} PUBLIC ${_dep})
-      endif()
     endif()
   endforeach()
   
