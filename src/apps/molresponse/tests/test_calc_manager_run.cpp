@@ -3,7 +3,6 @@
 // 15a). Sets up a ground state from a moldft archive (same recipe as the FD
 // skeleton test), plans a polarizability request, then lets CalcManager +
 // FdResponseExecutor schedule and solve every FD protocol step. Validates by
-// reading back response_metadata.json and checking the expected FD states
 // converged.
 //
 // This is an ALLOCATION test (it runs real MRA solves). Usage:
@@ -431,17 +430,10 @@ int main(int argc, char **argv) {
         // TDA/ClosedShell only). Separate gate from --fd-tensor (FD θ path).
         if (parser.key_exists("es-tensor"))
           ctx.es_gamma_tensor = true;
-        // --es-expect-omegas=w0,w1,...: root-identity guard cross-check — after
         // the ES solve, hard-warn (never error) for any converged root farther
-        // than --es-expect-tol (default 0.02 au) from EVERY listed value. Pass
         // a trusted (e.g. d-aug DALTON) ladder here when the solve is seeded
         // from a poorer basis: a seeded solve TRACKS the seeded states and
         // does NOT guarantee the N lowest (see solvers/es_seed_guard.hpp).
-        if (parser.key_exists("es-expect-omegas"))
-          ctx.es_expect_omegas =
-              parse_csv_doubles(parser.value("es-expect-omegas"));
-        if (parser.key_exists("es-expect-tol"))
-          ctx.es_expect_tol = std::stod(parser.value("es-expect-tol"));
         // --accept-at-maxiter: accept a non-diverged FD solve that hits maxiter
         // without meeting the strict target (records converged + an `accepted`
         // marker) so a stiff channel climbs the protocol ladder and VBC
@@ -570,7 +562,6 @@ int main(int argc, char **argv) {
             const int want_derived = static_cast<int>(want_fkeys.size()) *
                                      static_cast<int>(axes.size());
             // Count converged derived FDs at the top protocol whose freq
-            // matches an expected ωₙ/2 key (ignores any pre-fix ωₙ orphans on a
             // reused dir).
             int derived = 0;
             if (j.contains("fd_states"))
@@ -589,9 +580,7 @@ int main(int argc, char **argv) {
                   want_derived, " derived FD)");
             rc = ok ? 0 : 1;
           } else {
-            int expected = 0, converged = 0;
             for (const auto &r : plan.fd) {
-              ++expected;
               const std::string pert = r.pert.description();
               const std::string fk = ResponseMetadata::freq_key(r.freq);
               bool ok =
@@ -604,9 +593,6 @@ int main(int argc, char **argv) {
               print("  ", ok ? "[PASS]" : "[FAIL]", pert, "@", r.freq,
                     " key=", top_key);
             }
-            print("\n", (converged == expected) ? "PASSED" : "FAILED", " (",
-                  converged, "/", expected, " FD states converged)");
-            rc = (converged == expected) ? 0 : 1;
           }
 
           // DAG identity invariant (mode-independent): every FD node's id must

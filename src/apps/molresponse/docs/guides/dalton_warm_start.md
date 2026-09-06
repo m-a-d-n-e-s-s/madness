@@ -94,12 +94,10 @@ state (2PA residues) and a trap when you mean "give me the N lowest". Every
 seeded solve therefore prints a `[SEED-GUARD]` block — per-root seed overlap,
 seed ω, and ω shift, recorded under `excited_states/<key>/seed_guard` in
 `response_metadata.json` — with a loud warning on basin escape (overlap < 0.5
-with every seed root) and a note when the solve was pure tracking. For
-campaigns, additionally pass a trusted ladder via `--es-expect-omegas=w0,w1,...`
-(deck: `excited.expect_omegas`; tolerance `--es-expect-tol`, default 0.02 au):
-any converged root farther than the tolerance from every expected value is
-hard-warned by name. That is the intended cross-check for running a cc-seeded
-solve against a d-aug reference ladder.
+with every seed root) and a note when the solve was pure tracking. When a
+reference ladder from a better basis is available (validation campaigns),
+compare the reported energies against it by hand — the guard records them in
+the metadata for exactly that purpose.
 
 ## Choosing where to start the protocol ladder
 

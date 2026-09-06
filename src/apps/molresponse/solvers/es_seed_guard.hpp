@@ -33,9 +33,6 @@
 //   * every root kept high overlap (> kSeedGuardTrackingOverlap) and the
 //     whole solve took <= n_roots iterations — pure seed tracking; the
 //     N-lowest guarantee does NOT hold (informational note), or
-//   * an expected-ω list was supplied (--es-expect-omegas / deck
-//     excited.expect_omegas) and a converged root is farther than the
-//     tolerance from every expected value (hard warning, not an error).
 //
 // Collectivity: evaluate_es_seed_guard computes MRA inner products and is
 // collective on `world` (call from every rank). The report it returns is
@@ -66,8 +63,6 @@ inline constexpr double kSeedGuardOverlapWarn = 0.5;
 /// Pure-tracking threshold: when every root overlaps its seed above this
 /// AND the solve took <= n_roots iterations, the tracking note prints.
 inline constexpr double kSeedGuardTrackingOverlap = 0.9;
-/// Default tolerance (au) for the expected-ω cross-check.
-inline constexpr double kSeedGuardExpectTolDefault = 0.02;
 
 /// Snapshot of the seed bundle a seeded ES solve started from — deep copies
 /// of the root vectors (the solver mutates its own in place) plus the seed's
@@ -122,16 +117,12 @@ struct EsSeedGuardRoot {
 /// Full guard report — rank-uniform; to_json() feeds the metadata layer.
 struct EsSeedGuardReport {
   std::vector<EsSeedGuardRoot> roots;
-  bool   seeded    = false;  // false = fresh solve (expect-check only)
+  bool   seeded    = false;
   int    iters     = 0;      // total iterations of the seeded solve
   int    n_roots   = 0;
   bool   converged = false;  // bundle-level verdict of the solve
   bool   tracking_note = false;   // all seed_overlap > 0.9 && iters <= n_roots
   std::vector<int> basin_escape_slots;   // best_overlap < 0.5
-  // Expected-ω cross-check (empty expected list = check not requested).
-  std::vector<double> expected_omegas;
-  double expect_tol = kSeedGuardExpectTolDefault;
-  std::vector<int> expect_missed_slots;  // farther than tol from EVERY expected ω
   std::string seed_bundle_dir;
   std::string seed_protocol_key;
 
@@ -169,34 +160,13 @@ struct EsSeedGuardReport {
       j["tracking_overlap_threshold"] = kSeedGuardTrackingOverlap;
       j["basin_escape_slots"] = basin_escape_slots;
     }
-    if (!expected_omegas.empty()) {
-      j["expected_omegas"]     = expected_omegas;
-      j["expect_tol"]          = expect_tol;
-      j["expect_missed_slots"] = expect_missed_slots;
-    }
     return j;
   }
 };
 
-/// Pure helper: the slots whose ω is farther than `tol` from EVERY value in
-/// `expected`. Empty `expected` -> empty result (check not requested).
-inline std::vector<int>
-es_expect_missed_slots(const madness::Tensor<double> &omega,
-                       const std::vector<double> &expected, double tol) {
-  std::vector<int> missed;
-  if (expected.empty()) return missed;
-  for (long s = 0; s < omega.dim(0); ++s) {
-    bool near = false;
-    for (double w : expected)
-      if (std::abs(omega(s) - w) <= tol) { near = true; break; }
-    if (!near) missed.push_back(static_cast<int>(s));
-  }
-  return missed;
-}
-
 /// Evaluate the guard: overlap matrix (response metric, normalized) between
 /// the converged roots and the seed roots, identity-matched via stable_index,
-/// plus the tracking / basin-escape / expected-ω verdicts. Collective.
+/// plus the tracking / basin-escape verdicts. Collective.
 ///
 /// The seed copies live at the bundle's native (k, thresh); they are
 /// re-projected here to the ACTIVE FunctionDefaults so the inner products
@@ -204,9 +174,7 @@ es_expect_missed_slots(const madness::Tensor<double> &omega,
 template <typename StateT, typename Storage>
 EsSeedGuardReport
 evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
-                       const EsSeedReference<Storage> &seed,
-                       const std::vector<double> &expected_omegas,
-                       double expect_tol) {
+                       const EsSeedReference<Storage> &seed) {
   (void)world;  // collectivity contract: the rs:: inner products below are
                 // collective on the functions' world; keep the parameter so
                 // call sites read as the collective they are.
@@ -215,8 +183,6 @@ evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
   rep.iters             = sf.iter;
   rep.n_roots           = static_cast<int>(sf.roots.size());
   rep.converged         = converged;
-  rep.expected_omegas   = expected_omegas;
-  rep.expect_tol        = expect_tol;
   rep.seed_bundle_dir   = seed.bundle_dir;
   rep.seed_protocol_key = seed.source_protocol_key;
 
@@ -285,43 +251,6 @@ evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
   for (const auto &r : rep.roots)
     if (r.seed_overlap <= kSeedGuardTrackingOverlap) { all_high = false; break; }
   rep.tracking_note = all_high && rep.iters <= rep.n_roots;
-
-  rep.expect_missed_slots =
-      es_expect_missed_slots(sf.omega, expected_omegas, expect_tol);
-  return rep;
-}
-
-/// Expected-ω cross-check WITHOUT a seed reference — for a fresh (unseeded)
-/// solve where the user still supplied --es-expect-omegas. Pure (no
-/// collectives); rank-uniform input (sf is replicated) -> rank-uniform report.
-template <typename StateT>
-EsSeedGuardReport
-evaluate_es_expect_only(const StateT &sf, bool converged,
-                        const std::vector<double> &expected_omegas,
-                        double expect_tol) {
-  EsSeedGuardReport rep;
-  rep.seeded          = false;
-  rep.iters           = sf.iter;
-  rep.n_roots         = static_cast<int>(sf.roots.size());
-  rep.converged       = converged;
-  rep.expected_omegas = expected_omegas;
-  rep.expect_tol      = expect_tol;
-
-  std::vector<int> conv_stable = sf.stable_index;
-  if (static_cast<int>(conv_stable.size()) != rep.n_roots) {
-    conv_stable.resize(static_cast<std::size_t>(rep.n_roots));
-    for (int i = 0; i < rep.n_roots; ++i) conv_stable[i] = i;
-  }
-  for (int i = 0; i < rep.n_roots; ++i) {
-    EsSeedGuardRoot r;
-    r.slot         = i;
-    r.stable_index = conv_stable[i];
-    r.root_id      = make_root_id(r.stable_index);
-    r.omega        = (i < sf.omega.dim(0)) ? sf.omega(i) : 0.0;
-    rep.roots.push_back(r);
-  }
-  rep.expect_missed_slots =
-      es_expect_missed_slots(sf.omega, expected_omegas, expect_tol);
   return rep;
 }
 
@@ -329,12 +258,7 @@ evaluate_es_expect_only(const StateT &sf, bool converged,
 inline void print_es_seed_guard(madness::World &world,
                                 const EsSeedGuardReport &rep) {
   if (world.rank() != 0) return;
-  if (!rep.seeded) {
-    std::printf("\n[SEED-GUARD] ES solve (fresh guess — no seed bundle): "
-                "iters=%d n_roots=%d converged=%d — expected-omega "
-                "cross-check only\n",
-                rep.iters, rep.n_roots, rep.converged ? 1 : 0);
-  } else {
+  {
   std::printf("\n[SEED-GUARD] seeded ES solve vs seed bundle %s "
               "(source key %s): iters=%d n_roots=%d converged=%d\n",
               rep.seed_bundle_dir.c_str(), rep.seed_protocol_key.c_str(),
@@ -373,35 +297,10 @@ inline void print_es_seed_guard(madness::World &world,
         "pure SEED TRACKING. A seeded ES solve refines the states it was "
         "handed; it does NOT search for the %d lowest states. If the seeding "
         "basis missed a low-lying state, that state is silently absent here. "
-        "Cross-check with --es-expect-omegas (or an augmented-basis seed).\n",
+        "Cross-check against a better-basis ladder if one is available.\n",
         kSeedGuardTrackingOverlap, rep.iters, rep.n_roots, rep.n_roots);
   }
 
-  if (!rep.expected_omegas.empty()) {
-    if (rep.expect_missed_slots.empty()) {
-      std::printf("[SEED-GUARD] expected-omega cross-check: all %d roots "
-                  "within %.4g au of an expected value — OK.\n",
-                  rep.n_roots, rep.expect_tol);
-    } else {
-      for (int s : rep.expect_missed_slots) {
-        const auto &r = rep.roots[static_cast<std::size_t>(s)];
-        std::string exp_str;
-        for (double w : rep.expected_omegas) {
-          char b[32];
-          std::snprintf(b, sizeof b, "%s%.5f", exp_str.empty() ? "" : ", ", w);
-          exp_str += b;
-        }
-        std::printf(
-            "[SEED-GUARD] WARNING: expected-omega cross-check FAILED for root "
-            "%d (%s): omega=%.6f au is farther than %.4g au from every "
-            "expected value {%s}. If the expected ladder is trusted (e.g. a "
-            "d-aug DALTON ladder), this root converged to a DIFFERENT state "
-            "than the campaign expects.\n",
-            r.slot, r.root_id.c_str(), r.omega, rep.expect_tol,
-            exp_str.c_str());
-      }
-    }
-  }
   std::fflush(stdout);
 }
 

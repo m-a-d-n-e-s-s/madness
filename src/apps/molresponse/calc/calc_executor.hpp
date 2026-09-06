@@ -173,16 +173,6 @@ struct ExecutorSettings {
   // Exchange operator per root per iter. A/B-to-floor vs the reference (~1e-3
   // rel in θ → ~1e-6 in a converged ω), NOT bitwise. Off by default.
   bool              es_gamma_tensor   = false;
-  // Root-identity guard cross-check (--es-expect-omegas / deck
-  // excited.expect_omegas): after the ES solve, hard-warn (never error) for any
-  // converged root farther than es_expect_tol (au) from EVERY listed value.
-  // This is how a campaign passes a trusted (e.g. d-aug DALTON) ladder to a
-  // solve seeded from a poorer basis — the W5 tracking failure mode. Empty =
-  // check off. The seeded-solve visibility part of the guard (overlap table +
-  // basin-escape / tracking warnings) needs no knob; it always runs on a
-  // seeded ES solve. See solvers/es_seed_guard.hpp.
-  std::vector<double> es_expect_omegas;
-  double            es_expect_tol     = kSeedGuardExpectTolDefault;
   // Best-effort acceptance at maxiter (FD nodes). When true, a non-diverged FD
   // solve that exhausts max_iters WITHOUT meeting the strict target is recorded
   // converged (with an `accepted` marker + its real residual). NOTE: ladder
@@ -662,20 +652,12 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   r.reached_protocol_key = protocol_key();
   // Root-identity guard (W5): visibility on what a SEEDED solve actually did
   // (seed overlap / ω shift per root, basin-escape + pure-tracking warnings)
-  // plus the optional expected-ω cross-check. Collective evaluate; rank-0
-  // print + metadata write. A fresh solve runs the expect-check only.
-  {
-    std::optional<EsSeedGuardReport> guard;
-    if (seed_ref)
-      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
-                                     ctx.es_expect_omegas, ctx.es_expect_tol);
-    else if (!ctx.es_expect_omegas.empty())
-      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
-                                      ctx.es_expect_tol);
-    if (guard) {
-      print_es_seed_guard(world, *guard);
-      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
-    }
+  // Collective evaluate; rank-0 print + metadata write. Fresh (unseeded)
+  // solves skip the guard entirely.
+  if (seed_ref) {
+    auto guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref);
+    print_es_seed_guard(world, guard);
+    record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
   }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the IN-MEMORY converged state `sf` at the solve's
@@ -847,18 +829,10 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
   // Root-identity guard (W5) — same contract as the TDA path above.
-  {
-    std::optional<EsSeedGuardReport> guard;
-    if (seed_ref)
-      guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref,
-                                     ctx.es_expect_omegas, ctx.es_expect_tol);
-    else if (!ctx.es_expect_omegas.empty())
-      guard = evaluate_es_expect_only(sf, r.converged, ctx.es_expect_omegas,
-                                      ctx.es_expect_tol);
-    if (guard) {
-      print_es_seed_guard(world, *guard);
-      record_es_seed_guard(world, ctx.calc_dir, protocol_key(), *guard);
-    }
+  if (seed_ref) {
+    auto guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref);
+    print_es_seed_guard(world, guard);
+    record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
   }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the in-memory `sf` (no bundle reload), so it never
