@@ -398,6 +398,37 @@ int main(int argc, char **argv) {
         }
       }
 
+      // ============ UNIFICATION CANDIDATE: P == V^BC built at swapped legs
+      // (2026-09-05, user question): can 2PA be computed with the V^BC
+      // builder itself? The conjugation + D==gamma_L^T theorems say YES with
+      // one amendment: swap the x/y halves of the PHOTON LEGS fed to the
+      // builder (legs at -omega), keep the natural state pairing. This row
+      // measures || vbc_half_spec(swapped legs) - P^{BC}(2e) || — if ~0 (up
+      // to the Q-projection difference on the fb slot, which is null against
+      // a Q-projected state), tpa_pq_spec can be RETIRED in favor of the one
+      // V^BC builder for all three quadratic properties.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== unification: V^BC(swapped legs) vs P(2e) =====");
+      {
+        real_function_3d zop2 = madness::copy(phi[0]); zop2.scale(0.0);
+        // swap (x,y)->(y,x) on both legs; V's zeta_bc = make_zeta(y_B, x_C)
+        // becomes make_zeta(x_B, y_C) under the swap.
+        auto zeta_sw = vbc::make_zeta(world, xb, yc, phi);
+        auto Vsw = source_spec::assemble_source(
+            world, g0,
+            vbc::vbc_half_spec(world, g0, yb, xb, yc, xc, zeta_sw, zop2));
+        auto p2e = vsum(world, Pbc[0], {0, 1, 2, 3, 4, 5});   // famB+famF, one ordering
+        auto d = vdiff(world, Vsw[0], p2e);
+        if (world.rank() == 0)
+          printf("  ||V^BC.x(swapped) - P(2e)|| = %.3e   (|Vsw|=%.3e |P2e|=%.3e)\n",
+                 vnorm(world, d), vnorm(world, Vsw[0]), vnorm(world, p2e));
+        auto q2e = vsum(world, Pbc[1], {0, 1, 2, 3, 4, 5});
+        auto dy = vdiff(world, Vsw[1], q2e);
+        if (world.rank() == 0)
+          printf("  ||V^BC.y(swapped) - Q(2e)|| = %.3e   (|Vsw|=%.3e |Q2e|=%.3e)\n",
+                 vnorm(world, dy), vnorm(world, Vsw[1]), vnorm(world, q2e));
+      }
+
       // ============ beta contraction convention probe =====================
       // Production (kernels/beta.hpp): b1 = -(<xA|Vx> + <yA|Vy>) with the A
       // leg SOLVED AT +omega_sigma. The x<->y exchange-rule pairing would be
