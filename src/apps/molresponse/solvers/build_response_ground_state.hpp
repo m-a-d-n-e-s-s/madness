@@ -131,11 +131,13 @@ build_es_problem_full(madness::World &world, GroundState &gs, int n_roots,
 
 /// Assemble the ESSolverGuess output (vector<ResponseStateX<ClosedShell>>)
 /// into the solver's per-root State. Trial-function shape is selected by
-/// `mode`; see ESGuessMode docs in ESSolverGuess.hpp.
+/// `mode`; see ESGuessMode docs in ESSolverGuess.hpp. `virtual_ao_basis` is
+/// the Gaussian AO basis projected by the VirtualAO mode (ignored otherwise).
 inline ESSolver<TDA, ClosedShell>::State
 build_initial_guess_tda_closed_shell(
     madness::World &world, GroundState &gs, long n_roots,
-    ESGuessMode mode = ESGuessMode::SolidHarmonics) {
+    ESGuessMode mode = ESGuessMode::SolidHarmonics,
+    const std::string &virtual_ao_basis = "aug-cc-pvdz") {
   std::vector<ResponseStateX<ClosedShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
@@ -145,15 +147,34 @@ build_initial_guess_tda_closed_shell(
       guess = create_solid_harmonics_guess(world, gs, n_roots);
       break;
     case ESGuessMode::VirtualAO:
-      guess = create_virtual_ao_guess(world, gs, n_roots);
+      guess = create_virtual_ao_guess(world, gs, n_roots, virtual_ao_basis);
       break;
   }
   // Top-up: a guess may produce fewer than n_roots trials (e.g. VirtualAO with
   // a small basis returns empty/short). Pad with solid-harmonic trials so the
-  // bundle is full; the warmup/solver sorts the mixed set out.
+  // bundle is full; the warmup/solver sorts the mixed set out. This is LOUD on
+  // purpose: solid-harmonic trials are purely angular (l>=1 x occupied), so a
+  // padded trial may not span the symmetry sector the primary guess was chosen
+  // to reach (on atoms the totally-symmetric / radially-excited sector), and a
+  // silently degraded bundle converges to the wrong states with no diagnostic.
   if (static_cast<long>(guess.size()) < n_roots) {
-    auto extra = create_solid_harmonics_guess(
-        world, gs, n_roots - static_cast<long>(guess.size()));
+    const long produced = static_cast<long>(guess.size());
+    const long padded   = n_roots - produced;
+    if (world.rank() == 0) {
+      madness::print(
+          "\n[ES GUESS] WARNING: primary guess '", to_string(mode),
+          "' produced", produced, "of", n_roots,
+          "requested trial states — padding the remaining", padded,
+          "with solid-harmonic trials.");
+      madness::print(
+          "[ES GUESS] WARNING: solid-harmonic pad trials are purely angular "
+          "(l>=1) and may NOT span the symmetry sectors the primary guess "
+          "targets (e.g. totally-symmetric / radially-excited states on "
+          "atoms); the padded roots can converge to different states than "
+          "intended. For virtual_ao, consider a larger AO basis "
+          "(--es-guess-basis / response.excited.guess_basis).\n");
+    }
+    auto extra = create_solid_harmonics_guess(world, gs, padded);
     for (auto &e : extra) guess.push_back(std::move(e));
   }
   MADNESS_CHECK(static_cast<long>(guess.size()) >= n_roots);
@@ -183,10 +204,15 @@ build_initial_guess_tda_closed_shell(
 }
 
 /// OpenShell TDA — both α and β response components populated.
+/// `virtual_ao_basis` is accepted for signature parity with the closed-shell
+/// adapter but unused: VirtualAO has no open-shell variant and falls back to
+/// solid harmonics (loudly) below.
 inline ESSolver<TDA, OpenShell>::State
 build_initial_guess_tda_open_shell(
     madness::World &world, GroundState &gs, long n_roots,
-    ESGuessMode mode = ESGuessMode::SolidHarmonics) {
+    ESGuessMode mode = ESGuessMode::SolidHarmonics,
+    const std::string &virtual_ao_basis = "aug-cc-pvdz") {
+  (void)virtual_ao_basis;
   std::vector<ResponseStateX<OpenShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
@@ -323,7 +349,9 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
                             double c_xc = 1.0, double lo = 1.0e-10,
                             PrintLevel print_level = PrintLevel::Normal,
                             ESGuessMode guess_mode =
-                                ESGuessMode::SolidHarmonics) {
+                                ESGuessMode::SolidHarmonics,
+                            const std::string &virtual_ao_basis =
+                                "aug-cc-pvdz") {
   MADNESS_CHECK(n_roots_warmup >= n_roots_final);
   MADNESS_CHECK(warmup_iters >= 0);
 
@@ -331,10 +359,12 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
     // No-op fast path — caller wants neither oversample nor warmup.
     if constexpr (std::is_same_v<Shell, ClosedShell>)
       return build_initial_guess_tda_closed_shell(world, gs, n_roots_final,
-                                                   guess_mode);
+                                                   guess_mode,
+                                                   virtual_ao_basis);
     else
       return build_initial_guess_tda_open_shell(world, gs, n_roots_final,
-                                                 guess_mode);
+                                                 guess_mode,
+                                                 virtual_ao_basis);
   }
 
   // Force-disable KAIN during warmup — iterate_trial-style pure BSH
@@ -345,10 +375,17 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   warmup_policy.tda_warmup_iters  = 0;
 
   if (world.rank() == 0 && print_level >= PrintLevel::Normal) {
-    print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
-          "  n_roots_final =", n_roots_final,
-          "  warmup_iters =", warmup_iters,
-          "  guess =", to_string(guess_mode));
+    if (guess_mode == ESGuessMode::VirtualAO)
+      print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
+            "  n_roots_final =", n_roots_final,
+            "  warmup_iters =", warmup_iters,
+            "  guess =", to_string(guess_mode),
+            "  basis =", virtual_ao_basis);
+    else
+      print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
+            "  n_roots_final =", n_roots_final,
+            "  warmup_iters =", warmup_iters,
+            "  guess =", to_string(guess_mode));
   }
 
   // Build the oversampled problem and the warm-up solver. Use a
@@ -361,10 +398,12 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   typename ESSolver<TDA, Shell>::State state;
   if constexpr (std::is_same_v<Shell, ClosedShell>)
     state = build_initial_guess_tda_closed_shell(world, gs, n_roots_warmup,
-                                                  guess_mode);
+                                                  guess_mode,
+                                                  virtual_ao_basis);
   else
     state = build_initial_guess_tda_open_shell(world, gs, n_roots_warmup,
-                                                guess_mode);
+                                                guess_mode,
+                                                virtual_ao_basis);
 
   for (int i = 0; i < warmup_iters; ++i) {
     state = warmup_solver.step(std::move(state));

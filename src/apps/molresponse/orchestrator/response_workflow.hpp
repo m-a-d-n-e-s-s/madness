@@ -313,6 +313,11 @@ run_response_with_ground(madness::World &world, GroundState &gs, double L,
   assemble_alpha(ctx, in.plan, in.protocols.back());
   if (!in.plan.vbc.empty())
     assemble_beta(ctx, in.plan, in.protocols.back());
+  // 2PA: derived FD legs are only planned when the request asked for the
+  // two-photon contraction (request.tpa), so their presence IS the gate.
+  // assemble_tpa self-guards (returns if no ES bundle; ClosedShell only).
+  if (!in.plan.derived_fd.empty())
+    assemble_tpa(ctx, in.plan, in.protocols.back());
   timing["assemble"] = t_assemble.lap();
 
   // 4. Collect the Output from the aggregate metadata (rank 0 authoritative).
