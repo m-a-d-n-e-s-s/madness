@@ -563,7 +563,8 @@ int main(int argc, char **argv) {
             const int want_derived = static_cast<int>(want_fkeys.size()) *
                                      static_cast<int>(axes.size());
             // Count converged derived FDs at the top protocol whose freq
-            // reused dir).
+            // matches an expected omega_n/2 key (ignores any pre-fix omega_n
+            // orphans on a reused dir).
             int derived = 0;
             if (j.contains("fd_states"))
               for (auto &kv : j["fd_states"].items())
