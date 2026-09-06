@@ -718,9 +718,12 @@ namespace madness {
     // Fast barrier for nthread threads --- uses sense-changing barrier in which threads spin on cache-local value --- used in tensor/systolic.h
     //
     // The per-thread flags and the shared sense are std::atomic, not volatile:
-    // volatile provides neither atomicity nor inter-thread ordering, so the
-    // releasing thread's store-release and the waiting threads' load-acquire on
-    // the same flag are what establish happens-before across the barrier.
+    // volatile provides neither atomicity nor inter-thread ordering.  Ordering
+    // comes from a fence pair -- a release fence before the notifier's relaxed
+    // flag stores, an acquire fence after the waiter's relaxed spin -- which is
+    // what establishes happens-before across the barrier ([atomics.fences]).
+    // The fence form is used rather than store-release/load-acquire on each
+    // flag because it pays for ordering once instead of per spin iteration.
     // Without the acquire on the waiting side, weakly-ordered machines (AArch64)
     // may reorder a waiter's post-barrier loads ahead of the flag load and so
     // observe stale data written by its peers before the barrier.

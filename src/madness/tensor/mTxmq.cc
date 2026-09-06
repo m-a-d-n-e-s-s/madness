@@ -22,7 +22,6 @@
 #include <madness/madness_config.h>
 #include <madness/world/madness_exception.h>
 #include <madness/tensor/mTxmq.h>
-#include <madness/world/madness_exception.h>
 #include <madness/tensor/cblas.h>
 #include <complex>
 #include <cstring>
