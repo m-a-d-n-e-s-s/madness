@@ -1,0 +1,23 @@
+<map id="test_dalton_import.cpp" name="test_dalton_import.cpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="507,5,679,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,209,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="515,33,200,79,199,74,514,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="234,79,309,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="540,33,323,81,322,76,539,28"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="333,79,399,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="557,33,413,78,412,73,555,28"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="423,79,485,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="572,33,490,75,488,70,569,28"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="509,79,575,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="586,33,560,69,556,66,582,29"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="599,79,690,104"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="603,29,630,66,626,69,599,33"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="715,79,788,104"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="619,28,714,71,712,75,617,33"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="812,79,899,104"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="636,28,800,72,799,78,634,33"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="923,79,982,104"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="664,28,776,48,910,76,909,81,775,53,663,33"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="1007,79,1069,104"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="679,27,822,46,993,76,993,81,821,52,678,32"/>
+</map>

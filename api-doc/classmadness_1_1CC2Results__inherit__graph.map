@@ -1,0 +1,7 @@
+<map id="madness::CC2Results" name="madness::CC2Results">
+<area shape="rect" id="Node000001" title=" " alt="" coords="9,152,171,177"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CISResults.html" title=" " alt="" coords="11,79,169,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,118,93,152,87,152,87,118"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1ResultsBase.html" title=" " alt="" coords="5,5,175,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="93,44,93,79,87,79,87,44"/>
+</map>

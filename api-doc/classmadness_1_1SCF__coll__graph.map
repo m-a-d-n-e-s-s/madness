@@ -1,0 +1,51 @@
+<map id="madness::SCF" name="madness::SCF">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1307,381,1421,406"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="1000,230,1148,255"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1162,250,1224,267,1255,280,1284,296,1308,316,1328,339,1357,379,1353,382,1324,342,1304,320,1281,301,1253,285,1223,272,1161,255"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,217,677,242"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="691,225,937,229,1000,233,1000,239,937,235,691,231"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="119,183,178,209"/>
+<area shape="poly" id="edge29_Node000001_Node000004" title=" " alt="" coords="181,174,242,142,315,115,560,52,662,31,759,19,854,19,954,33,1064,63,1188,111,1228,135,1263,168,1291,206,1315,247,1347,325,1362,380,1357,381,1342,327,1310,249,1287,209,1259,171,1225,139,1185,116,1062,68,953,38,854,24,759,24,663,36,561,57,317,120,244,147,184,178"/>
+<area shape="poly" id="edge6_Node000002_Node000004" title=" " alt="" coords="191,190,316,184,505,185,707,192,938,205,1033,227,1032,233,937,211,707,197,505,190,316,189,192,196"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="192,199,316,213,443,222,442,227,316,219,191,204"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1PCM.html" title="interface class to the PCMSolver library" alt="" coords="1015,549,1133,574"/>
+<area shape="poly" id="edge16_Node000011_Node000004" title=" " alt="" coords="171,218,317,389,395,475,425,504,444,519,491,535,555,547,715,560,882,563,1015,561,1015,566,882,568,715,565,554,552,490,540,441,524,421,508,391,478,313,392,167,221"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1DispersionCorrection.html" title="interface class to simple&#45;dftd3, Grimme&#39;s D3 empirical dispersion correction" alt="" coords="961,279,1187,305"/>
+<area shape="poly" id="edge18_Node000013_Node000004" title=" " alt="" coords="192,206,304,237,373,253,443,265,582,280,722,289,961,292,961,297,722,294,582,286,442,271,372,258,303,243,190,212"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1AtomicBasisSet.html" title="Contracted Gaussian basis." alt="" coords="724,113,915,138"/>
+<area shape="poly" id="edge21_Node000014_Node000004" title=" " alt="" coords="190,179,249,161,316,147,425,133,535,125,724,121,724,126,535,130,425,138,316,152,250,167,192,184"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,455,663,481"/>
+<area shape="poly" id="edge28_Node000001_Node000005" title=" " alt="" coords="677,472,977,485,1110,487,1186,483,1233,467,1277,446,1344,404,1347,408,1280,450,1235,472,1187,488,1110,493,976,490,677,477"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="597,446,637,422,675,390,686,371,690,362,700,354,733,339,764,334,794,337,822,342,850,347,878,348,906,342,936,325,945,312,947,297,949,280,959,265,978,253,999,245,1001,250,981,258,963,269,954,282,952,297,950,313,939,329,908,347,878,353,849,352,821,347,793,342,764,340,735,344,703,358,695,366,691,374,679,394,640,426,600,451"/>
+<area shape="poly" id="edge15_Node000011_Node000005" title=" " alt="" coords="636,482,679,498,691,506,702,513,826,531,1015,552,1014,558,825,536,700,519,688,511,676,502,634,487"/>
+<area shape="poly" id="edge19_Node000013_Node000005" title=" " alt="" coords="601,447,648,429,701,413,754,408,823,406,890,400,917,393,936,383,946,368,947,351,948,332,959,314,977,303,980,307,963,318,953,334,952,351,951,370,939,387,918,398,891,405,823,411,754,413,702,419,650,434,603,452"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,571,230,597"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="206,565,442,497,511,478,513,483,443,503,208,570"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="471,583,649,609"/>
+<area shape="poly" id="edge14_Node000012_Node000006" title=" " alt="" coords="244,584,471,591,470,596,244,589"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,340,641,380"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="642,333,676,319,700,304,778,280,859,263,999,244,1000,250,860,268,780,285,702,309,679,324,644,338"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,382,292,407"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="305,379,479,364,480,369,306,384"/>
+<area shape="rect" id="Node000009" href="$structmadness_1_1CalculationParameters.html" title=" " alt="" coords="701,418,937,443"/>
+<area shape="poly" id="edge10_Node000009_Node000008" title=" " alt="" coords="306,400,701,422,701,427,305,406"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="951,419,1306,395,1307,400,951,424"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals." alt="" coords="989,329,1159,354"/>
+<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="1174,353,1283,372,1311,378,1310,383,1282,377,1173,358"/>
+<area shape="poly" id="edge12_Node000001_Node000011" title=" " alt="" coords="1147,564,1180,563,1215,557,1250,547,1281,531,1311,503,1333,467,1348,432,1357,405,1362,407,1353,434,1338,470,1315,506,1284,536,1252,552,1217,563,1181,568,1147,570"/>
+<area shape="poly" id="edge13_Node000011_Node000012" title=" " alt="" coords="663,599,794,601,866,598,937,592,986,583,1031,572,1032,577,987,588,938,597,866,604,794,606,663,605"/>
+<area shape="poly" id="edge17_Node000001_Node000013" title=" " alt="" coords="1170,305,1227,320,1284,340,1318,359,1347,378,1344,383,1316,363,1282,345,1225,325,1168,310"/>
+<area shape="poly" id="edge20_Node000001_Node000014" title=" " alt="" coords="929,126,1013,137,1106,157,1154,173,1200,192,1244,216,1284,245,1315,277,1337,316,1362,380,1357,382,1332,318,1310,281,1281,249,1241,221,1198,197,1152,178,1105,163,1012,142,928,131"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1Function.html" title=" " alt="" coords="997,616,1151,656"/>
+<area shape="poly" id="edge22_Node000001_Node000015" title=" " alt="" coords="1164,628,1226,611,1255,598,1281,579,1300,560,1315,537,1338,487,1352,440,1358,406,1364,407,1357,442,1343,489,1320,540,1304,563,1284,583,1257,602,1227,616,1165,633"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="463,633,657,673"/>
+<area shape="poly" id="edge23_Node000015_Node000016" title=" " alt="" coords="670,647,996,636,996,641,671,652"/>
+<area shape="rect" id="Node000017" title=" " alt="" coords="531,698,589,723"/>
+<area shape="poly" id="edge24_Node000015_Node000017" title=" " alt="" coords="603,705,751,692,937,667,998,653,1000,659,938,672,751,697,603,711"/>
+<area shape="rect" id="Node000018" href="$classmadness_1_1scf__data.html" title=" " alt="" coords="1002,681,1146,706"/>
+<area shape="poly" id="edge25_Node000001_Node000018" title=" " alt="" coords="1159,688,1191,682,1224,673,1254,658,1281,638,1304,611,1322,580,1335,546,1345,513,1356,450,1360,406,1365,406,1362,451,1350,514,1340,548,1326,582,1308,614,1285,642,1257,663,1226,678,1193,687,1160,693"/>
+<area shape="rect" id="Node000019" title=" " alt="" coords="535,753,585,778"/>
+<area shape="poly" id="edge26_Node000018_Node000019" title=" " alt="" coords="598,774,666,790,754,800,801,800,848,794,894,782,936,762,945,752,947,741,950,728,960,715,979,704,1001,696,1002,702,981,709,963,719,955,730,952,742,949,755,939,766,896,787,849,799,801,805,754,805,665,795,597,779"/>
+<area shape="rect" id="Node000020" title=" " alt="" coords="997,730,1151,755"/>
+<area shape="poly" id="edge27_Node000001_Node000020" title=" " alt="" coords="1143,755,1178,757,1215,755,1250,746,1281,727,1298,704,1313,668,1337,572,1352,474,1359,406,1364,406,1357,475,1342,573,1318,669,1303,707,1284,731,1252,750,1216,760,1178,762,1143,760"/>
+</map>
