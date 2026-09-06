@@ -11,6 +11,7 @@ using namespace madness;
 
 class Fcwf{
      std::vector<complex_function_3d> m_psi;
+     double speed_of_light;
      bool m_initialized;
 
 public:
@@ -20,25 +21,30 @@ public:
      Fcwf(const complex_function_3d& wf1,
           const complex_function_3d& wf2,
           const complex_function_3d& wf3,
-          const complex_function_3d& wf4);
+          const complex_function_3d& wf4,
+          const double myc);
 
-     Fcwf(World& world);
+     Fcwf(World& world, const double myc);
 
      complex_function_3d& operator[](const int i);
 
      const complex_function_3d& operator[](const int i) const ;
      
-     explicit Fcwf(std::vector<complex_function_3d>& phi);
+     explicit Fcwf(const std::vector<complex_function_3d>& phi, const double myc);
 
      bool getinitialize();
 
      bool getinitialize() const ;
 
+     double get_myc();
+
+     double get_myc() const ;
+
      unsigned int size();
 
      unsigned int size() const ;
 
-     Fcwf(const Fcwf& phi);
+     Fcwf(const Fcwf& phi, const double myc);
 
      Fcwf operator=(const Fcwf& phi);
 
@@ -61,6 +67,10 @@ public:
      Fcwf operator*(madness::complex_function_3d& phi);
 
      Fcwf operator*(madness::real_function_3d& phi);
+
+     Fcwf mul_sparse(const madness::real_function_3d& phi, double tol) const;
+
+     Fcwf mul_sparse(const madness::complex_function_3d& phi, double tol) const;
 
      void truncate();
 
@@ -108,13 +118,21 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
 
 std::vector<Fcwf> transform(World& world, std::vector<Fcwf>& a, Tensor<std::complex<double>> U);
 
+Fcwf mul_sparse(const Fcwf& psi, const madness::real_function_3d& phi, double tol);
+Fcwf mul_sparse(const madness::real_function_3d& phi, const Fcwf& psi, double tol);
+Fcwf mul_sparse(const Fcwf& psi, const madness::complex_function_3d& phi, double tol);
+Fcwf mul_sparse(const madness::complex_function_3d& phi, const Fcwf& psi, double tol);
+
+using FWF = Fcwf;
+
 //allocator class needed for KAIN
 class Fcwf_vector_allocator {
      World& world;
      unsigned int m_size;
+     double speed_of_light;
      public:
           //Constructor
-          Fcwf_vector_allocator(World& world, unsigned int m_size);
+          Fcwf_vector_allocator(World& world, unsigned int m_size, const double& myc);
 
           //Overloading () operator
           std::vector<Fcwf> operator()();

@@ -1,10 +1,32 @@
+# Sample input for DFdriver (Dirac Hartree-Fock solver)
 DiracFock
-archive /gpfs/projects/rjh/JoelsRestartData/H2Orestartdata
-job 0
-small 1e-5
-thresh 1e-6
-k 8
-kain
-maxsub 5
-no_save
+  # Path or prefix of moldft restart archive (accepts mad.restartdata, mad.restartdata.00000, or mad)
+  archive mad.restartdata
+
+  # Job type: 0 = DF on occupied orbitals only
+  job 0
+
+  # Refinement parameters
+  thresh 1e-6          # Accuracy criterion for truncation
+  dconv 1e-6           # Charge density convergence criterion
+  k 8                  # Wavelet polynomial order
+  small 1e-5           # Minimum length scale resolved
+
+  # Nonlinear solver settings
+  kain                 # Enable KAIN solver
+  maxsub 5             # Maximum subspace size for KAIN
+  maxrotn 0.25         # Maximum step allowed by KAIN
+  max_iter 20          # Maximum number of iterations
+
+  # Nuclear model: 0 = Gaussian (default), 1 = Fermi, 2 = Point
+  nucleus 0
+
+  # Enforce time-reversal symmetry (Kramers pairs) for closed shells
+  # (recommended for closed-shell atoms and molecules)
+  Krestricted
+
+  # Checkpointing / save options
+  # savefile DFrestartdata
+  no_save              # Disable saving restart data at each iteration
 end
+
