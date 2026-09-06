@@ -58,6 +58,18 @@ int test_no_duplicates(World& world) {
     const auto last = std::unique(disps.begin(), disps.end());
     t.checkpoint(!disps.empty(), what + ": surface is non-empty");
     t.checkpoint(last == disps.end(), what + ": all displacements distinct");
+    if (lattice_summed) {  // displacements that differ by a period along a lattice-summed axis are the same displacement
+      const auto period = Translation(1) << n;
+      std::vector<Key<NDIM>> canonical;
+      for (const auto& disp : disps) {
+        auto l = disp.translation();
+        for (std::size_t d = 0; d != NDIM; ++d) l[d] = ((l[d] % period) + period) % period;
+        canonical.emplace_back(n, l);
+      }
+      std::sort(canonical.begin(), canonical.end());
+      const auto ndup = canonical.end() - std::unique(canonical.begin(), canonical.end());
+      t.checkpoint(ndup == 0, what + ": all displacements distinct modulo the lattice (" + std::to_string(ndup) + " duplicates)");
+    }
   };
 
   constexpr auto d2 = std::integral_constant<std::size_t, 2>{};
@@ -76,6 +88,36 @@ int test_no_duplicates(World& world) {
   check_unique(d3, 3, {2, 2, 2}, true, false, "3D n=3 N={2,2,2} lattice-summed");
   check_unique(d3, 3, {1, 2, 3}, true, false, "3D n=3 N={1,2,3} lattice-summed (mixed parity)");
 
+  return t.end();
+}
+
+/// The iteration must not depend on whether a validator is given: a validator that accepts
+/// everything must yield the same displacements as no validator at all.
+int test_validator_agnostic(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: iteration does not depend on the presence of a validator", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 2;
+  const auto disps_of = [](typename BoxSurfaceDisplacementRange<NDIM>::Validator validator) {
+    Radii<NDIM> box_radius, surface_thickness;
+    for (std::size_t d = 0; d != NDIM; ++d) {
+      box_radius[d] = 1;
+      surface_thickness[d] = 1;
+    }
+    BoxSurfaceDisplacementRange<NDIM> range(centered_key<NDIM>(4), box_radius, surface_thickness,
+                                            array_of_bools<NDIM>{false}, std::move(validator));
+    std::vector<Key<NDIM>> disps;
+    for (auto&& disp : range) disps.push_back(disp);
+    std::sort(disps.begin(), disps.end());
+    return disps;
+  };
+
+  const auto without = disps_of({});
+  const auto with = disps_of([](const Level, const typename BoxSurfaceDisplacementRange<NDIM>::PointPattern&,
+                                std::optional<Key<NDIM>>&) { return true; });
+  t.checkpoint(!with.empty(), "2D n=4 N={1,1}: surface is non-empty");
+  t.checkpoint(without.size() == with.size(), "2D n=4 N={1,1}: same number of displacements with and without a validator (" +
+                                                  std::to_string(without.size()) + " vs " + std::to_string(with.size()) + ")");
+  t.checkpoint(without == with, "2D n=4 N={1,1}: same displacements with and without a validator");
   return t.end();
 }
 
@@ -302,6 +344,7 @@ int main(int argc, char** argv) {
 
   int errors = 0;
   errors += test_no_duplicates(world);
+  errors += test_validator_agnostic(world);
   errors += test_odds(world);
   errors += test_singular(world);
   errors += test_mixed(world);
