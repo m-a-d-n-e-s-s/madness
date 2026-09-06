@@ -358,6 +358,46 @@ int main(int argc, char **argv) {
                  vinner(world, yf, P_tot) + vinner(world, xf, Q_tot));
       }
 
+      // ============ V^BC pair density: LEG-RESOLVED + the relabeling identity
+      // (2026-09-05, user request): expand V's gzeta into its individual legs
+      // with norms, and verify numerically that the "opposite orientation"
+      // relaxation block of D is the SAME kernel:
+      //     sum_i phi_i(r) zbar_i(r')  ==  sum_i zeta_i(r) phi_i(r')
+      // (index relabeling; zbar_i = sum_j phi_j <y_j|x_i>, zeta_i =
+      //  sum_j phi_j <y_i|x_j>), hence D == gamma_L^dagger EXACTLY.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== V^BC pair density, leg-resolved + relabeling identity =====");
+      {
+        using source_spec::apply_entry;
+        auto dot2 = [&](const vecfuncT &a, const vecfuncT &b) {
+          auto r = common_ops::dot(world, a, b); r.scale(2.0); r.truncate();
+          return r;
+        };
+        // zbar_i = sum_j phi_j <yb_j|xc_i>   (the Parker orientation)
+        // zeta_i = sum_j phi_j <yb_i|xc_j>   (the VBC orientation)
+        auto zbar = tpa::pq_detail::zblk(world, phi, yb, xc);
+        auto zeta = tpa::pq_detail::zblk(world, phi, xc, yb);
+        // V's gzeta legs, one entry each (J splits linearly with per-leg rho):
+        source_spec::SourceSpec L1, L2a, L2b;
+        L1.entries.push_back(apply_entry(dot2(xb, yc), {{xb, yc}}, phi, -1.0, true));
+        L2a.entries.push_back(apply_entry(dot2(phi, zeta), {{phi, zeta}}, phi, -1.0, true));
+        L2b.entries.push_back(apply_entry(dot2(zbar, phi), {{zbar, phi}}, phi, -1.0, true));
+        auto l1  = source_spec::assemble_source(world, g0, {L1})[0];
+        auto l2a = source_spec::assemble_source(world, g0, {L2a})[0];
+        auto l2b = source_spec::assemble_source(world, g0, {L2b})[0];
+        if (world.rank() == 0) {
+          printf("  V gzeta leg (x^B,y^C):            |leg|=%11.4e  <f|leg>=%+13.6e\n",
+                 vnorm(world, l1), vinner(world, xf, l1));
+          printf("  V gzeta leg (phi,zeta)  [VBC or.] |leg|=%11.4e  <f|leg>=%+13.6e\n",
+                 vnorm(world, l2a), vinner(world, xf, l2a));
+          printf("  D leg      (zbar,phi) [Parker or.]|leg|=%11.4e  <f|leg>=%+13.6e\n",
+                 vnorm(world, l2b), vinner(world, xf, l2b));
+          auto d = vdiff(world, l2a, l2b);
+          printf("  RELABELING IDENTITY  ||(phi,zeta)-(zbar,phi)|| = %.3e  (0 => D == gamma_L^T, no new math)\n",
+                 vnorm(world, d));
+        }
+      }
+
       // ============ beta contraction convention probe =====================
       // Production (kernels/beta.hpp): b1 = -(<xA|Vx> + <yA|Vy>) with the A
       // leg SOLVED AT +omega_sigma. The x<->y exchange-rule pairing would be
