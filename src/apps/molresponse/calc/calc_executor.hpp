@@ -563,16 +563,16 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
-  // Root-identity guard (W5): keep a deep copy of the seed the solve starts
-  // from, so we can report per-root seed overlap / ω shift after convergence
-  // (a seeded ES solve TRACKS the seeded states — see es_seed_guard.hpp).
-  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
+  // Root-identity guard (W5): remember WHERE the seed came from; the guard
+  // reloads it from disk at evaluation time (no bundle copy held in memory
+  // during the solve — see es_seed_guard.hpp).
+  std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
     if (loaded) {
-      seed_ref = capture_es_seed_reference(world, loaded->state,
-                                           loaded->bundle_dir,
-                                           loaded->source_protocol_key);
+      seed_ref = EsSeedReference{ctx.calc_dir + "/" + loaded->bundle_dir,
+                                 loaded->bundle_dir,
+                                 loaded->source_protocol_key};
       s0 = std::move(loaded->state);
       seeded = true;
     }
@@ -655,7 +655,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   // Collective evaluate; rank-0 print + metadata write. Fresh (unseeded)
   // solves skip the guard entirely.
   if (seed_ref) {
-    auto guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref);
+    auto guard = evaluate_es_seed_guard<TDA, ClosedShell>(world, sf, r.converged, *seed_ref);
     print_es_seed_guard(world, guard);
     record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
   }
@@ -725,13 +725,13 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   // ω-shift report (see es_seed_guard.hpp). NB: the cached TDA warmup guess
   // below is NOT a seed in this sense (it is this solver's own cold-start
   // artifact), so seed_ref stays empty on that path.
-  std::optional<EsSeedReference<Solver::Storage>> seed_ref;
+  std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
     if (loaded) {
-      seed_ref = capture_es_seed_reference(world, loaded->state,
-                                           loaded->bundle_dir,
-                                           loaded->source_protocol_key);
+      seed_ref = EsSeedReference{ctx.calc_dir + "/" + loaded->bundle_dir,
+                                 loaded->bundle_dir,
+                                 loaded->source_protocol_key};
       s0 = std::move(loaded->state);
       seeded = true;
     }
@@ -830,7 +830,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   r.reached_protocol_key = protocol_key();
   // Root-identity guard (W5) — same contract as the TDA path above.
   if (seed_ref) {
-    auto guard = evaluate_es_seed_guard(world, sf, r.converged, *seed_ref);
+    auto guard = evaluate_es_seed_guard<Full, ClosedShell>(world, sf, r.converged, *seed_ref);
     print_es_seed_guard(world, guard);
     record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
   }

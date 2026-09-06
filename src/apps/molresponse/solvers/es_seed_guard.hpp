@@ -41,6 +41,7 @@
 // =========================================================================
 
 #include "es_root_identity.hpp"           // make_root_id
+#include "es_save_load.hpp"               // load_es_roots (guard-time reload)
 #include "response_metadata.hpp"          // ResponseMetadata (aggregate writer)
 #include "response_state.hpp"             // ResponseStateX/XY storage
 #include "../kernels/response_space_ops.hpp"  // rs::metric (RPA-metric overlap)
@@ -64,41 +65,19 @@ inline constexpr double kSeedGuardOverlapWarn = 0.5;
 /// AND the solve took <= n_roots iterations, the tracking note prints.
 inline constexpr double kSeedGuardTrackingOverlap = 0.9;
 
-/// Snapshot of the seed bundle a seeded ES solve started from — deep copies
-/// of the root vectors (the solver mutates its own in place) plus the seed's
-/// recorded ω ladder and stable identity. Captured at load time by
-/// capture_es_seed_reference; consumed once after the solve.
-template <typename Storage>
+/// WHERE the seed bundle lives — strings only. The guard RELOADS the bundle
+/// from disk at evaluation time (2026-09-05) instead of holding a deep copy
+/// in memory for the whole solve: the old capture cost a full extra bundle
+/// of resident memory (fine for h2o, real at 30+ occupied orbitals) while
+/// the bundle sits unchanged on disk anyway. The solve never rewrites the
+/// seed's own bundle dir (converged states save under their own
+/// protocol-keyed dirs), so the reload sees exactly what the solve started
+/// from.
 struct EsSeedReference {
-  std::vector<Storage>    roots;         // deep copies, at the bundle's (k,thresh)
-  madness::Tensor<double> omega;         // recorded seed ω (DALTON ladder for
-                                         // seed_from_dalton bundles)
-  std::vector<int>        stable_index;  // seed slot -> stable identity
-  std::string             bundle_dir;    // provenance (basename under calc_dir)
-  std::string             source_protocol_key;
+  std::string bundle_path;           // calc_dir + '/' + bundle basename
+  std::string bundle_dir;            // basename (provenance/report)
+  std::string source_protocol_key;
 };
-
-/// Deep-copy the just-loaded seed state so the guard can compare against it
-/// after the solve. Collective (madness::copy of every function).
-template <typename StateT>
-auto capture_es_seed_reference(madness::World &world, const StateT &s,
-                               const std::string &bundle_dir,
-                               const std::string &source_protocol_key) {
-  using Storage = typename std::decay_t<decltype(s.roots)>::value_type;
-  EsSeedReference<Storage> ref;
-  ref.roots.reserve(s.roots.size());
-  for (const auto &r : s.roots) ref.roots.push_back(r.copy(world));
-  ref.omega = madness::copy(s.omega);
-  ref.stable_index = s.stable_index;
-  // Legacy bundles may lack identity — fall back to slot order, matching
-  // what load_es_roots/assign_initial_stable_index would do.
-  if (ref.stable_index.size() != ref.roots.size()) {
-    ref.stable_index.resize(ref.roots.size());
-    for (std::size_t i = 0; i < ref.roots.size(); ++i)
-      ref.stable_index[i] = static_cast<int>(i);
-  }
-  return ref;
-}
 
 /// Per-root guard record (one converged slot).
 struct EsSeedGuardRoot {
@@ -168,13 +147,14 @@ struct EsSeedGuardReport {
 /// the converged roots and the seed roots, identity-matched via stable_index,
 /// plus the tracking / basin-escape verdicts. Collective.
 ///
-/// The seed copies live at the bundle's native (k, thresh); they are
-/// re-projected here to the ACTIVE FunctionDefaults so the inner products
-/// are well-defined at the final protocol (same path prepare() uses).
-template <typename StateT, typename Storage>
+/// The seed is RELOADED from disk here (bundle-native (k, thresh)) and
+/// re-projected to the ACTIVE FunctionDefaults so the inner products are
+/// well-defined at the final protocol (same path prepare() uses).
+/// Type/Shell select the bundle format (TDA vs Full), matching the solve.
+template <typename Type, typename Shell, typename StateT>
 EsSeedGuardReport
 evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
-                       const EsSeedReference<Storage> &seed) {
+                       const EsSeedReference &seed) {
   (void)world;  // collectivity contract: the rs:: inner products below are
                 // collective on the functions' world; keep the parameter so
                 // call sites read as the collective they are.
@@ -186,13 +166,22 @@ evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
   rep.seed_bundle_dir   = seed.bundle_dir;
   rep.seed_protocol_key = seed.source_protocol_key;
 
+  // Disk reload — one read at guard time, zero memory held during the solve.
+  auto seed_state = load_es_roots<Type, Shell>(world, seed.bundle_path);
+  std::vector<int> seed_stable = seed_state.stable_index;
+  if (seed_stable.size() != seed_state.roots.size()) {
+    seed_stable.resize(seed_state.roots.size());
+    for (std::size_t i = 0; i < seed_stable.size(); ++i)
+      seed_stable[i] = static_cast<int>(i);
+  }
+
   const int M = static_cast<int>(sf.roots.size());
-  const int Ns = static_cast<int>(seed.roots.size());
+  const int Ns = static_cast<int>(seed_state.roots.size());
   if (M == 0 || Ns == 0) return rep;
 
-  // Re-project the seed copies to the active (k, thresh). Assigning the
-  // projection rebinds the local copy's handles only.
-  std::vector<Storage> seedp = seed.roots;
+  // Re-project the reloaded seed to the active (k, thresh) — in place on the
+  // temporary; the projection rebinds handles only.
+  auto &seedp = seed_state.roots;
   {
     const int    k = madness::FunctionDefaults<3>::get_k();
     const double t = madness::FunctionDefaults<3>::get_thresh();
@@ -219,7 +208,7 @@ evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
     for (int i = 0; i < M; ++i) conv_stable[i] = i;
   }
 
-  const long n_omega_seed = seed.omega.dim(0);
+  const long n_omega_seed = seed_state.omega.dim(0);
   for (int i = 0; i < M; ++i) {
     EsSeedGuardRoot r;
     r.slot         = i;
@@ -228,11 +217,11 @@ evaluate_es_seed_guard(madness::World &world, const StateT &sf, bool converged,
     r.omega        = (i < sf.omega.dim(0)) ? sf.omega(i) : 0.0;
 
     for (int j = 0; j < Ns; ++j)
-      if (seed.stable_index[j] == conv_stable[i]) { r.seed_slot = j; break; }
+      if (seed_stable[j] == conv_stable[i]) { r.seed_slot = j; break; }
     if (r.seed_slot >= 0) {
       r.seed_overlap = norm_ov(i, r.seed_slot);
       if (r.seed_slot < n_omega_seed) {
-        r.omega_seed  = seed.omega(r.seed_slot);
+        r.omega_seed  = seed_state.omega(r.seed_slot);
         r.omega_shift = r.omega - r.omega_seed;
       }
     }
