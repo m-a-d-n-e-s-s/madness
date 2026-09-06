@@ -4,6 +4,7 @@
 // -----------------------------------------------------------------------------
 // molresponse_v3_lib — madqc adapter (doc 16 R3 / doc 05 seam).
 //
+// Satisfies the duck-typed interface ResponseApplication<Library> expects
 // (Applications.hpp): `Library::label()` + `Library::run_response(world, params,
 // scf, outdir) -> Results{metadata, properties, vibrational_analysis,
 // raman_spectra}`. So `ResponseApplication<molresponse_v3_lib>` runs the v3
