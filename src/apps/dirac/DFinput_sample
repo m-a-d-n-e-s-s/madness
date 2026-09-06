@@ -21,6 +21,10 @@ DiracFock
   # Nuclear model: 0 = Gaussian (default), 1 = Fermi, 2 = Point
   nucleus 0
 
+  # Enforce time-reversal symmetry (Kramers pairs) for closed shells
+  # (recommended for closed-shell atoms and molecules)
+  Krestricted
+
   # Checkpointing / save options
   # savefile DFrestartdata
   no_save              # Disable saving restart data at each iteration
