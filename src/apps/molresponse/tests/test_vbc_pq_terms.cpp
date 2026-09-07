@@ -475,6 +475,47 @@ int main(int argc, char **argv) {
         }
       }
 
+      // ============ DENSITY-LEVEL probe (2026-09-07): the residual pair-
+      // density ratio. Bundling was proven exact and is norm-NEUTRAL, so it
+      // cannot explain the ~6x. Decompose what's left: compare the DENSITIES
+      // themselves (rho_D vs rho_gammaL) and the applied results with the
+      // exchange switched off (J-only), which separates Coulomb from exchange.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== density-level probe =====");
+      {
+        auto dot2t = [&](const vecfuncT &a, const vecfuncT &b) {
+          auto r = common_ops::dot(world, a, b); r.scale(2.0); r.truncate(); return r;
+        };
+        // V's FULL gamma_L density (both halves, as the two calls sum to)
+        auto rho_gL = common_ops::dot(world, xb, yc);
+        rho_gL += common_ops::dot(world, xc, yb);
+        rho_gL += common_ops::dot(world, phi, zeta_bc);
+        rho_gL += common_ops::dot(world, phi, zeta_cb);
+        rho_gL.scale(2.0); rho_gL.truncate();
+        // P's FULL D density (one call already carries both leg orders)
+        auto z1 = tpa::pq_detail::zblk(world, phi, yb, xc);
+        auto z2 = tpa::pq_detail::zblk(world, phi, xb, yc);
+        auto rho_D = common_ops::dot(world, xc, yb);
+        rho_D += common_ops::dot(world, xb, yc);
+        rho_D -= common_ops::dot(world, z1, phi);
+        rho_D -= common_ops::dot(world, phi, z2);
+        rho_D.scale(2.0); rho_D.truncate();
+        auto dd = rho_D - rho_gL;
+        if (world.rank() == 0) {
+          printf("  ||rho_gammaL|| = %11.4e   trace = %+13.6e\n",
+                 rho_gL.norm2(), rho_gL.trace());
+          printf("  ||rho_D||      = %11.4e   trace = %+13.6e\n",
+                 rho_D.norm2(), rho_D.trace());
+          printf("  ||rho_D - rho_gammaL|| = %.4e  <== 0 if the two densities agree\n",
+                 dd.norm2());
+        }
+        // number of exchange legs actually applied in each entry family
+        if (world.rank() == 0)
+          printf("  legs: V gzeta per call = 2 (x2 calls = 4);  P family F per call = 4\n"
+                 "        (P's family F is ordering-COMPLETE in one call -> summing both\n"
+                 "         calls in the aligned table double-counts it: factor 2 of the ratio)\n");
+      }
+
       // ============ UNIFICATION CANDIDATE: P == V^BC built at swapped legs
       // (2026-09-05, user question): can 2PA be computed with the V^BC
       // builder itself? The conjugation + D==gamma_L^T theorems say YES with
