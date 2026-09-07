@@ -442,6 +442,39 @@ int main(int argc, char **argv) {
         }
       }
 
+      // ============ BUNDLING CHECK (2026-09-07): is the ~6x pair-density
+      // norm ratio purely an accounting difference?  Compare, for ONE
+      // ordering: (a) the four unbundled family-F entries summed, (b) the
+      // same physics as ONE bundled entry (untruncated -> must EQUAL (a)),
+      // (c) bundled + truncated like vbc's gzeta -> the apples-to-apples
+      // partner for |V_gzeta|.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== pair-density bundling check =====");
+      {
+        auto F_unb = vsum(world, Pbc[0], {2, 3, 4, 5});
+        source_spec::SourceSpec sb, sbt;
+        sb.entries.push_back(tpa::pq_family_F_bundled(world, g0, B, C, false));
+        sbt.entries.push_back(tpa::pq_family_F_bundled(world, g0, B, C, true));
+        auto F_bun  = source_spec::assemble_source(world, g0, {sb})[0];
+        auto F_bunt = source_spec::assemble_source(world, g0, {sbt})[0];
+        auto v_gz1  = source_spec::assemble_source(
+            world, g0,
+            vbc::vbc_half_spec(world, g0, xb, yb, xc, yc, zeta_bc, zop))[0];
+        auto d = vdiff(world, F_bun, F_unb);
+        if (world.rank() == 0) {
+          printf("  (a) 4 unbundled entries summed : |F|=%11.4e  <x|F>=%+13.6e\n",
+                 vnorm(world, F_unb), vinner(world, xf, F_unb));
+          printf("  (b) 1 bundled entry (untrunc.) : |F|=%11.4e  <x|F>=%+13.6e\n",
+                 vnorm(world, F_bun), vinner(world, xf, F_bun));
+          printf("      ||(b)-(a)|| = %.3e   <== 0 proves bundling is EXACT\n",
+                 vnorm(world, d));
+          printf("  (c) 1 bundled entry (truncated): |F|=%11.4e  <x|F>=%+13.6e\n",
+                 vnorm(world, F_bunt), vinner(world, xf, F_bunt));
+          printf("  NOTE |V.x whole-channel| = %11.4e (gzeta+fb+fphi, one ordering)\n",
+                 vnorm(world, v_gz1));
+        }
+      }
+
       // ============ UNIFICATION CANDIDATE: P == V^BC built at swapped legs
       // (2026-09-05, user question): can 2PA be computed with the V^BC
       // builder itself? The conjugation + D==gamma_L^T theorems say YES with

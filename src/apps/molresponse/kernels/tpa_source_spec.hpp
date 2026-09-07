@@ -191,6 +191,52 @@ tpa_pq_spec(madness::World &world, const ResponseGroundState &g0,
   return {std::move(P), std::move(Q)};
 }
 
+/// BUNDLED pair-density family F, as ONE entry (2026-09-07).
+///
+/// WHY: tpa_pq_spec emits family F as FOUR entries, one per leg of D^{BC},
+/// each with its own density carrying the closed-shell factor 2. vbc.hpp's
+/// gzeta emits the SAME physics as ONE entry: one combined density (factor 2
+/// applied once, truncated) with all its legs attached. Both are correct --
+/// the engine sums them -- but the four-entry form (a) convolves FOUR Coulomb
+/// potentials where one suffices and (b) makes the intermediate norms
+/// non-comparable with vbc's (measured: |P_F|/|V_gzeta| = 5.8-6.4, constant
+/// across all 4 roots x 6 component pairs -- the fingerprint of an accounting
+/// difference, not physics; the contractions differ only ~2x and the final
+/// moments are unaffected).
+///
+/// The bundling is exact because g' is linear in the pair density and K is
+/// linear in its (bra,ket): the per-entry signs are folded into the density
+/// and into the z-blocks (z -> -z), leaving one entry of overall sign -1.
+/// `truncate_density` = true reproduces vbc's truncation point (apples-to-
+/// apples for norm comparison); false keeps the unbundled path's untruncated
+/// densities (exact equality with the four-entry sum).
+inline source_spec::SourceEntry
+pq_family_F_bundled(madness::World &world, const ResponseGroundState &g0,
+                    const ResponseStateXY<ClosedShell> &B,
+                    const ResponseStateXY<ClosedShell> &C,
+                    bool truncate_density) {
+  using namespace madness;
+  (void)g0;
+  const vecfuncT &phi = g0.amo;
+  const vecfuncT &xb = B.x_alpha, &yb = B.y_alpha;
+  const vecfuncT &xc = C.x_alpha, &yc = C.y_alpha;
+  // z-blocks with their sign folded in (the +1 entries become part of the
+  // single -1 entry).
+  vecfuncT zn1 = pq_detail::zblk(world, phi, yb, xc);
+  vecfuncT zn2 = pq_detail::zblk(world, phi, xb, yc);
+  scale(world, zn1, -1.0);
+  scale(world, zn2, -1.0);
+  real_function_3d rho = pq_detail::vdot(world, xc, yb);
+  rho += pq_detail::vdot(world, xb, yc);
+  rho += pq_detail::vdot(world, zn1, phi);
+  rho += pq_detail::vdot(world, phi, zn2);
+  rho.scale(2.0);
+  if (truncate_density) rho.truncate();
+  return source_spec::apply_entry(rho,
+                                  {{yb, xc}, {yc, xb}, {phi, zn1}, {zn2, phi}},
+                                  phi, -1.0, /*Q=*/false);
+}
+
 /// SYMMETRIZED residue source: P_sym = P^{BC} + P^{CB} (and Q_sym), built
 /// via the family-D collapse (see family-D note above): family D of one
 /// ordering equals family B of the other, so the two-ordering sum needs only
