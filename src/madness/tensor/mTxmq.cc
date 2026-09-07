@@ -104,6 +104,19 @@ void mTxmq_auto_init() {
     init_kernels_internal();
 }
 
+// A table slot holds one of three things:
+//   nullptr             -- this shape has never been dispatched
+//   KERNEL_UNSUPPORTED  -- it was dispatched and libxsmm declined it
+//   anything else       -- a JITted kernel
+// The sentinel matters because libxsmm reports "I have no kernel for this" by
+// returning nullptr, which is exactly what an untouched slot already holds.
+// Caching that verbatim makes the two states indistinguishable, so every later
+// call for a declined shape repeats the dispatch -- a registry lookup and a
+// fresh JIT attempt -- before falling through to the path it was always going
+// to take.
+static libxsmm_gemmfunction const KERNEL_UNSUPPORTED =
+    reinterpret_cast<libxsmm_gemmfunction>(~static_cast<uintptr_t>(0));
+
 inline libxsmm_gemmfunction dispatch_and_cache(long dimi, long dimj, long dimk, long ldb,
                                                libxsmm_datatype dtype,
                                                std::atomic<libxsmm_gemmfunction>& slot) {
@@ -118,8 +131,20 @@ inline libxsmm_gemmfunction dispatch_and_cache(long dimi, long dimj, long dimk, 
     );
     const libxsmm_bitfield flags = LIBXSMM_GEMM_FLAG_TRANS_B | LIBXSMM_GEMM_FLAG_BETA_0;
     libxsmm_gemmfunction kernel = libxsmm_dispatch_gemm(shape, flags, LIBXSMM_GEMM_PREFETCH_NONE);
-    slot.store(kernel, std::memory_order_release);
+    slot.store(kernel != nullptr ? kernel : KERNEL_UNSUPPORTED, std::memory_order_release);
     return kernel;
+}
+
+/// Cached kernel for this shape, or nullptr if libxsmm has no kernel for it.
+/// Both outcomes are cached, so a declined shape is dispatched at most once.
+inline libxsmm_gemmfunction lookup_or_dispatch(long dimi, long dimj, long dimk, long ldb,
+                                               libxsmm_datatype dtype,
+                                               std::atomic<libxsmm_gemmfunction>& slot) {
+    const libxsmm_gemmfunction kernel = slot.load(std::memory_order_relaxed);
+    if (__builtin_expect(kernel != nullptr, 1)) {
+        return __builtin_expect(kernel == KERNEL_UNSUPPORTED, 0) ? nullptr : kernel;
+    }
+    return dispatch_and_cache(dimi, dimj, dimk, ldb, dtype, slot);
 }
 
 #if defined(MTXMQ_PROFILE)
@@ -366,10 +391,8 @@ void mTxmq(long dimi, long dimj, long dimk,
 
     if (dimi <= MAX_DIMI && dimj <= MAX_DIMJ && dimk <= MAX_DIMK) {
         if (ldb == dimj) {
-            libxsmm_gemmfunction kernel = s_dense_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
-            if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_dense_table[dimi][dimj][dimk]);
-            }
+            libxsmm_gemmfunction kernel = lookup_or_dispatch(
+                dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_dense_table[dimi][dimj][dimk]);
             if (__builtin_expect(kernel != nullptr, 1)) {
 #if defined(MTXMQ_PROFILE)
                 s_dense_counts[dimi][dimj][dimk].fetch_add(1, std::memory_order_relaxed);
@@ -385,10 +408,8 @@ void mTxmq(long dimi, long dimj, long dimk,
                 return;
             }
         } else if (ldb == dimk) {
-            libxsmm_gemmfunction kernel = s_strided_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
-            if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_strided_table[dimi][dimj][dimk]);
-            }
+            libxsmm_gemmfunction kernel = lookup_or_dispatch(
+                dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F64, s_strided_table[dimi][dimj][dimk]);
             if (__builtin_expect(kernel != nullptr, 1)) {
 #if defined(MTXMQ_PROFILE)
                 s_strided_counts[dimi][dimj][dimk].fetch_add(1, std::memory_order_relaxed);
@@ -471,10 +492,8 @@ void mTxmq(long dimi, long dimj, long dimk,
 
     if (dimi <= MAX_DIMI && dimj <= MAX_DIMJ && dimk <= MAX_DIMK) {
         if (ldb == dimj) {
-            libxsmm_gemmfunction kernel = s_float_dense_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
-            if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_dense_table[dimi][dimj][dimk]);
-            }
+            libxsmm_gemmfunction kernel = lookup_or_dispatch(
+                dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_dense_table[dimi][dimj][dimk]);
             if (__builtin_expect(kernel != nullptr, 1)) {
                 libxsmm_gemm_param param;
                 param.a.primary = const_cast<float*>(b);
@@ -484,10 +503,8 @@ void mTxmq(long dimi, long dimj, long dimk,
                 return;
             }
         } else if (ldb == dimk) {
-            libxsmm_gemmfunction kernel = s_float_strided_table[dimi][dimj][dimk].load(std::memory_order_relaxed);
-            if (__builtin_expect(kernel == nullptr, 0)) {
-                kernel = dispatch_and_cache(dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_strided_table[dimi][dimj][dimk]);
-            }
+            libxsmm_gemmfunction kernel = lookup_or_dispatch(
+                dimi, dimj, dimk, ldb, LIBXSMM_DATATYPE_F32, s_float_strided_table[dimi][dimj][dimk]);
             if (__builtin_expect(kernel != nullptr, 1)) {
                 libxsmm_gemm_param param;
                 param.a.primary = const_cast<float*>(b);
