@@ -1250,8 +1250,12 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
                 t.first->set_event(event_list->event());
 #endif // MADNESS_TASK_PROFILING
-                if (t.first->run_multi_threaded())         // What we are here to do
-                    delete t.first;
+                // Same ownership rule as run_tasks(): the task belongs to
+                // whichever thread handles its last queue entry, not to
+                // whichever leaves the barrier last.
+                PoolTaskInterface* const task = t.first;
+                task->run_multi_threaded();                // What we are here to do
+                if (task->release_nqueued()) delete task;
             }
             return t.second;
 #endif
