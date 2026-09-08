@@ -41,6 +41,7 @@
 #include <madness/world/thread_info.h>
 #include <madness/world/dqueue.h>
 #include <madness/world/function_traits.h>
+#include <atomic>
 #include <vector>
 #include <cstddef>
 #include <cstdio>
@@ -976,7 +977,7 @@ namespace madness {
             }
             else {
                 int id = count++;
-                volatile bool barrier_flag;
+                std::atomic<bool> barrier_flag{false};
                 barrier->register_thread(id, &barrier_flag);
 
 #ifdef MADNESS_TASK_PROFILING

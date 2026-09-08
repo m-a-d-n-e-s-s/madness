@@ -69,6 +69,19 @@ if (madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
   find_package(nlohmann_json REQUIRED CONFIG HINTS "${nlohmann_json_DIR}")
 endif(madness_HAS_NLOHMANN_JSON AND NOT TARGET nlohmann_json::nlohmann_json)
 
+# 4. LIBXSMM (public dependency of MADtensor)
+set(madness_HAS_LIBXSMM @MADNESS_HAS_LIBXSMM@)
+if (madness_HAS_LIBXSMM AND NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
+  # Hint both the config found at MADNESS configure time (system libxsmm) and
+  # the MADNESS install prefix (fetched libxsmm, installed alongside us).
+  get_filename_component(libxsmm_DIR "@libxsmm_CONFIG@" DIRECTORY)
+  find_package(libxsmm QUIET CONFIG HINTS "${libxsmm_DIR}" "${PACKAGE_PREFIX_DIR}")
+  if (NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
+    message(WARNING "madness was built against LIBXSMM but no libxsmm CONFIG package was found; "
+                    "set libxsmm_DIR to the directory containing libxsmm-config.cmake")
+  endif()
+endif()
+
 # Set the madness libraries target
 set(madness_LIBRARIES madness)
 

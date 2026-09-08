@@ -61,7 +61,7 @@ namespace madness {
         void iteration(const int nthread) {
 
             // Parallel initialization hook
-            tbb::parallel_for(0, nthread, [=](const int id) {
+            tbb::parallel_for(0, nthread, [=,this](const int id) {
                 this->start_iteration_hook(TaskThreadEnv(nthread, id));
             });
 
@@ -99,7 +99,7 @@ namespace madness {
             }
 
             // Parallel finalization hook
-            tbb::parallel_for(0, nthread, [=](const int id) {
+            tbb::parallel_for(0, nthread, [=,this](const int id) {
                 this->end_iteration_hook(TaskThreadEnv(nthread, id));
             });
 
@@ -410,7 +410,7 @@ namespace madness {
             do {
                 iteration(nthread);
                 done = tbb::parallel_reduce(tbb::blocked_range<int>(0,nthread), true,
-                    [=] (const tbb::blocked_range<int>& range, bool init) -> bool {
+                    [=,this] (const tbb::blocked_range<int>& range, bool init) -> bool {
                         for(int id = range.begin(); id < range.end(); ++id)
                             init = init &&
                                 this->converged(TaskThreadEnv(nthread, id));
