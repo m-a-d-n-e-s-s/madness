@@ -40,6 +40,7 @@
 #include <memory>
 #include <math.h>
 #include <cmath>
+#include <madness/misc/misc.h>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/worldhashmap.h>
@@ -2001,18 +2002,19 @@ namespace madness {
         }
 
         if (this->world.rank()==0) {
-
-            constexpr std::size_t bufsize=128;
-            char buf[bufsize];
-            // the two cases differ in one field only, so format that field first
-            // and keep a single line format.  32 chars holds "%7.5f" of any
-            // norm below 1e25, well past anything a converged tree carries.
-            char normbuf[32];
-            if (norm_is_meaningful) snprintf(normbuf, sizeof(normbuf), "%7.5f", norm);
-            else                    snprintf(normbuf, sizeof(normbuf), "%7s", "n/a");
-            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %s %zu, %6.3f m, %6.3f GByte",
-                   (name.c_str()), wall, normbuf, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
-            print(std::string(buf));
+            std::ostringstream oss;
+            oss << std::setw(40) << name << " at time "
+                << std::fixed << std::setprecision(1) << wall
+                << "s: norm/tree/#coeff/size: ";
+            if (norm_is_meaningful)
+                oss << std::setw(7) << std::setprecision(5) << norm;
+            else
+                oss << std::setw(7) << "n/a";
+            oss << " " << tsize
+                << ", " << std::setw(6) << std::setprecision(3) << double(ncoeff)*1.e-6
+                << " m, " << std::setw(6) << std::setprecision(3) << double(ncoeff)/fac*d
+                << " GByte";
+            print(oss.str());
         }
     }
 
