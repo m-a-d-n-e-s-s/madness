@@ -72,7 +72,7 @@ void matrix_inner(DistributedMatrix<T>& A,
 static inline double PM_q(const tensorT & S, const double * MADNESS_RESTRICT Ci, const double * MADNESS_RESTRICT Cj, int lo, int nbf)
 {
     double qij = 0.0;
-    if (S.size() == 0) { // empty S marks an orthonormal block (S == identity): the "new" method
+    if (S.size() == 0) { // an empty S signals an orthonormal basis (overlap = identity): the "new" method
         for(int mu = 0;mu < nbf;++mu) qij += Ci[mu + lo] * Cj[mu + lo];
     }
     else if (nbf == 1) { // H atom in STO-3G ... often lots of these!
