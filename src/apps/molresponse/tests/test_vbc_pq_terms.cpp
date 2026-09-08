@@ -562,6 +562,8 @@ int main(int argc, char **argv) {
         print("\n[TERMS] ===== CLEAN TEST: V^BC vs (P,Q) at the eigenvector =====");
       {
         // reference: validated c-grouped 2e answer, ONE ordering (B,C)
+        ResponseStateXY<ClosedShell> F;   // the eigenvector as a state
+        F.x_alpha = madness::copy(world, xf); F.y_alpha = madness::copy(world, yf);
         const double e3   = tpa::tpa_e3_residue(world, g0, B, C, F);
         const double ref  = e3 / std::sqrt(2.0);
         // (P,Q), one ordering
