@@ -118,6 +118,13 @@ struct ExecutorSettings {
   // c-grouped composition (tpa_e3_residue) — gate-equal (test_tpa_pq_vs_vbc,
   // 3e-7) and kept as the production comparison arm (--tpa-cgrouped).
   bool              tpa_cgrouped          = false;
+  // DIAGNOSTIC (2026-09-08): swap which eigenvector half contracts which
+  // channel, i.e. <y^f|P> + <x^f|Q> instead of <x^f|P> + <y^f|Q>. Parker's
+  // Eqs. (28a,b) can be read — under one inferred index convention for the two
+  // exchange orderings in H^+/H^- — as assigning the daggered Fock operator to
+  // the OPPOSITE channel from ours. This flag makes that reading testable
+  // against DALTON. Never for production.
+  bool              tpa_swap_pq           = false;
   double            tpa_prefactor         = 1.0;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the
@@ -1874,8 +1881,11 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
                                      mu_resp[static_cast<size_t>(b3)],
                                      mu_resp[static_cast<size_t>(c3)]));
             const double sp =
-                inner(world, Xf.x_alpha, pq[0]).sum() +
-                inner(world, Xf.y_alpha, pq[1]).sum();
+                ctx.tpa_swap_pq
+                    ? (inner(world, Xf.y_alpha, pq[0]).sum() +
+                       inner(world, Xf.x_alpha, pq[1]).sum())
+                    : (inner(world, Xf.x_alpha, pq[0]).sum() +
+                       inner(world, Xf.y_alpha, pq[1]).sum());
             e = 0.5 * sp;
             S_e3c(b3, c3) = S_e3c(c3, b3) = e;
           } else {

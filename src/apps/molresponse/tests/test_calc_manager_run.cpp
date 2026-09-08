@@ -467,6 +467,7 @@ int main(int argc, char **argv) {
         if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;   // no-op (default)
         if (parser.key_exists("tpa-legacy"))  ctx.tpa_residue = false;  // beta-reuse arm
         if (parser.key_exists("tpa-cgrouped")) ctx.tpa_cgrouped = true; // c-grouped comparison arm
+        if (parser.key_exists("tpa-swap-pq")) ctx.tpa_swap_pq = true;   // Parker index-convention probe
         if (parser.key_exists("tpa-prefactor"))
           ctx.tpa_prefactor = std::stod(parser.value("tpa-prefactor"));
         if (parser.key_exists("tpa-decompose")) ctx.tpa_decompose = true;
