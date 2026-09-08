@@ -956,6 +956,19 @@ namespace madness {
         Barrier* barrier; ///< Barrier, only allocated for multithreaded tasks.
         AtomicInt count; ///< Used to count threads as they start.
 
+        /// Number of queue entries still referring to this task.
+        ///
+        /// A multithreaded task is enqueued once per requested thread, so the
+        /// task outlives the barrier: it may only be destroyed once every one of
+        /// those entries has been taken off the queue and handled.  Tying
+        /// destruction to the barrier instead lets the last thread out free the
+        /// task while copies of its pointer are still queued, and the allocator
+        /// then hands the same address to the next task -- two generations live
+        /// at one address, `count` restarted by the new constructor, duplicate
+        /// participant ids, and a barrier waiting forever for an id that was
+        /// never issued.
+        AtomicInt nqueued;
+
     	/// Returns true for the one thread that should invoke the destructor.
 
         /// \return True for the one thread that should invoke the destructor.
@@ -1008,6 +1021,7 @@ namespace madness {
 #endif
         {
     	    count = 0;
+            nqueued = 1;
     	}
 
         /// Constructor setting the specified task attributes.
@@ -1021,7 +1035,20 @@ namespace madness {
 #endif
         {
             count = 0;
+            nqueued = 1;
         }
+
+        /// Set the number of queue entries that refer to this task.
+
+        /// Called by ThreadPool::add() before the task is enqueued.
+        /// \param[in] n The number of entries about to be pushed.
+        void set_nqueued(int n) { nqueued = n; }
+
+        /// Release one queue entry once it has been handled.
+
+        /// \return True if this was the last outstanding entry, i.e. the caller
+        ///         now owns the task and must destroy it.
+        bool release_nqueued() { return nqueued.dec_and_test(); }
 
         /// Destructor.
         /// \todo Should we either use a unique_ptr for barrier or check that barrier != nullptr here?
@@ -1224,8 +1251,12 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
                 t.first->set_event(event_list->event());
 #endif // MADNESS_TASK_PROFILING
-                if (t.first->run_multi_threaded())         // What we are here to do
-                    delete t.first;
+                // Same ownership rule as run_tasks(): the task belongs to
+                // whichever thread handles its last queue entry, not to
+                // whichever leaves the barrier last.
+                PoolTaskInterface* const task = t.first;
+                task->run_multi_threaded();                // What we are here to do
+                if (task->release_nqueued()) delete task;
             }
             return t.second;
 #endif
@@ -1263,9 +1294,11 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
                     taskbuf[i]->set_event(event_list->event());
 #endif // MADNESS_TASK_PROFILING
-                    if (taskbuf[i]->run_multi_threaded()) {
-                        delete taskbuf[i];
-                    }
+                    PoolTaskInterface* const task = taskbuf[i];
+                    task->run_multi_threaded();  // returns true for the last thread
+                                                 // out of the barrier -- informational
+                                                 // only; it does not confer ownership
+                    if (task->release_nqueued()) delete task;
                 }
             }
 #if HAVE_PARSEC
@@ -1361,6 +1394,13 @@ namespace madness {
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int task_threads = task->get_nthread();
+            // One reference per queue entry, established before the task becomes
+            // visible to the pool.  The task is destroyed by whichever thread
+            // handles the last entry, not by whichever leaves the barrier last:
+            // those are the same thread in the common case, but not always, and
+            // getting it wrong frees the task while copies of its pointer are
+            // still queued.
+            task->set_nqueued(task_threads);
             // Currently multithreaded tasks must be shoved on the end of the q
             // to avoid a race condition as multithreaded task is starting up
             if (task->is_high_priority() && (task_threads == 1)) {
