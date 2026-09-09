@@ -458,6 +458,44 @@ int test_empty_vector_norms(World& world) {
     return t.end();
 }
 
+/// T11: compress() clears the leaf coefficients, and snorm has to go with them.
+/// recur_down_for_contraction_map() reads snorm > 0 as "this node holds s
+/// coefficients" and then skips building them, so a stale snorm on an emptied
+/// node sends the recursion into unfilter() with an empty tensor. The norm the
+/// parent filters with is norm_tree, which does keep the leaf norm -- reading it
+/// after the coefficients are gone is what propagates a zero to the root.
+int test_compress_clears_snorm(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T11: compress clears snorm with the coefficients");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+    const double exact = f.norm2();
+    f.compress();
+
+    long empty_nodes = 0, empty_with_snorm = 0;
+    const auto& c = f.get_impl()->get_coeffs();
+    for (auto it = c.begin(); it != c.end(); ++it) {
+        if (it->second.has_coeff()) continue;
+        ++empty_nodes;
+        if (it->second.get_snorm() > 0.0) ++empty_with_snorm;
+    }
+    world.gop.sum(empty_nodes);
+    world.gop.sum(empty_with_snorm);
+
+    if (world.rank() == 0)
+        printf("  T11 %ld nodes without coefficients, %ld of them with a positive snorm\n",
+               empty_nodes, empty_with_snorm);
+    // without this the test would pass on an empty premise
+    t.checkpoint(empty_nodes > 0, "T11 compress leaves nodes without coefficients");
+    t.checkpoint(empty_with_snorm == 0,
+                 "T11 no coefficient-less node carries a positive snorm");
+
+    // ... and the leaf norm still reached the root
+    t.checkpoint(f.norm2(), exact, 1.e-12 * exact, "T11 the compressed norm is still ||f||");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -481,6 +519,7 @@ int main(int argc, char** argv) {
         success += test_norm_tree_states(world, pairs);
         success += test_broaden_resets_norms(world, pairs);
         success += test_empty_vector_norms(world);
+        success += test_compress_clears_snorm(world, pairs);
     }
 
     world.gop.fence();

@@ -3483,9 +3483,17 @@ template <typename T, std::size_t NDIM>
 
                 if (not keepleaves) node.clear_coeff();
 
+                // norm_tree is the norm of this subtree and the value the parent
+                // filters with, so it is the leaf norm either way -- reading it
+                // after clear_coeff() would propagate a zero up to the root.
                 node.set_norm_tree(snorm);
                 node.set_dnorm_tree(0.0);
-                node.set_snorm(snorm);
+                // snorm, in contrast, describes the coefficients this node still
+                // holds: zero when they were just cleared, matching
+                // FunctionNode::recompute_snorm_and_dnorm().  The invariant
+                // "snorm > 0 implies the node has coefficients" is what
+                // recur_down_for_contraction_map() screens on.
+                node.set_snorm(keepleaves ? snorm : 0.0);
                 node.set_dnorm(0.0);
 
                 return Future<compressT>(std::make_pair(result,std::make_pair(snorm,0.0)));

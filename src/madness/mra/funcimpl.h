@@ -6577,12 +6577,10 @@ template<size_t NDIM>
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
-                    // snorm > 0 stands in for "this node holds coefficients", which
-                    // holds only because innerXX() runs compute_snorm_and_dnorm()
-                    // over both trees first (mra.h, the prepare step) and that zeroes
-                    // snorm on an empty node.  A compressed leaf left by
-                    // compress_spawn(keepleaves=false) carries a non-zero snorm and
-                    // no coefficients, so without that step this test reads false.
+                    // snorm > 0 stands in for "this node holds s coefficients":
+                    // every writer zeroes snorm when it clears them, cf.
+                    // FunctionNode::recompute_snorm_and_dnorm() and the
+                    // keepleaves=false path of compress_spawn().
                     bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;
