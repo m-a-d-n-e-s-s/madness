@@ -278,6 +278,16 @@ int main(int argc, char **argv) {
         pm.get<CalculationParameters>().set_derived_value("save", true);
         auto reference =
             std::make_shared<SCFApplication<moldft_lib>>(world, pm);
+        // Seeding showcase (2026-09-09): with `dalton.dir` in the deck, the
+        // ground state is seeded from the DALTON molden before the SCF plans
+        // its restart (see molresponse_v3::seed_gs_from_dalton_dir).
+        if (const std::string ddir = pm.get<ResponseParameters>().dalton_dir();
+            !ddir.empty()) {
+          reference->set_pre_run_hook(
+              [ddir](World &w, const Params &p, const std::filesystem::path &d) {
+                molresponse_v3::seed_gs_from_dalton_dir(w, p, d, ddir);
+              });
+        }
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
             std::make_unique<ResponseApplication<molresponse_v3_lib>>(

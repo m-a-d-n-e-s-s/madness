@@ -118,6 +118,12 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "and launders away the seed's head start — the seed is already "
                                 "at the physics). Ignored without dalton.dir.",
                                 {"coarse", "fine"});
+        initialize<double>("seed.freq_tol", 0.0,
+                           "nearest-frequency DALTON seed for FD legs whose frequency is NOT "
+                           "in the RSPVEC (the derived two-photon legs at omega_f/2: MADNESS's "
+                           "omega_f differs from DALTON's by ~1e-3 au). 0 (default) = exact "
+                           "match only (dalton.dir behaviour); > 0 = use the closest DALTON N(omega) "
+                           "record within this tolerance (au) as the initial guess. Ignored without dalton.dir.");
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
@@ -179,6 +185,9 @@ public:
     }
     [[nodiscard]] std::string seed_start_rung() const {
         return get<std::string>("seed.start_rung");
+    }
+    [[nodiscard]] double seed_freq_tol() const {
+        return get<double>("seed.freq_tol");
     }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");

@@ -45,6 +45,7 @@
 #include "../solvers/convergence_policy.hpp"
 #include "../solvers/fd_problem.hpp"
 #include "../solvers/fd_save_load.hpp"
+#include "../solvers/dalton_import.hpp"   // dalton_fd_guess (seed.freq_tol)
 #include "../kernels/beta.hpp"
 #include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
@@ -93,6 +94,11 @@ struct ExecutorSettings {
   // make the seed selectable per node, and allow a MIXTURE of roots to target
   // in-between frequencies (not just a single root's vector).
   bool              seed_derived_from_es_root = false;
+  // DALTON nearest-frequency seed for FD legs absent from the RSPVEC (the
+  // derived two-photon legs at omega_f/2). Set from the deck (`dalton.dir`,
+  // `seed.freq_tol`) or --dalton-dir/--seed-freq-tol. 0 = off (2026-09-09).
+  std::string       dalton_dir;
+  double            seed_freq_tol         = 0.0;
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
   // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
@@ -440,6 +446,20 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
           seeded = true;
           seed_kind = "es_root";
         }
+      }
+    }
+    // DALTON nearest-frequency seed (seed.freq_tol > 0): the derived legs sit
+    // at MADNESS's omega_f/2, never exactly in the RSPVEC; use the closest
+    // DALTON N(omega) within the tolerance as the initial guess.
+    if (!seeded && ctx.seed_freq_tol > 0.0 && !ctx.dalton_dir.empty() &&
+        pert.kind == Perturbation::Kind::Dipole) {
+      auto guess = dalton_fd_guess(world, gs, ctx.dalton_dir, ctx.calc_dir,
+                                   pert.axis, freq, ctx.seed_freq_tol);
+      if (guess) {
+        s0.responses[0].x_alpha = std::move(guess->x_alpha);
+        s0.responses[0].y_alpha = std::move(guess->y_alpha);
+        seeded = true;
+        seed_kind = "dalton_nearest";
       }
     }
   }

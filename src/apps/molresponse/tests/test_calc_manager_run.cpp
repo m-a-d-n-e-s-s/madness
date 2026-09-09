@@ -472,6 +472,11 @@ int main(int argc, char **argv) {
         // EQUIVALENT builders of the one quadratic source assembles beta/Raman
         // (tpa::quadratic_source vs vbc::compute_vbc; see ExecutorSettings).
         // --beta-compare-sources: build both and print the difference.
+        // --seed-freq-tol=X (with --dalton-dir): nearest-frequency DALTON guess
+        // for FD legs absent from the RSPVEC (derived two-photon legs).
+        if (parser.key_exists("dalton-dir")) ctx.dalton_dir = parser.value_raw("dalton-dir");
+        if (parser.key_exists("seed-freq-tol"))
+          ctx.seed_freq_tol = std::stod(parser.value("seed-freq-tol"));
         if (parser.key_exists("beta-pq-source"))       ctx.beta_pq_source = true;
         if (parser.key_exists("beta-vbc-source")) {
           ctx.beta_pq_source = false;
