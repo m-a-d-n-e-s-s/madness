@@ -13,19 +13,25 @@
 // So "the sums of the individual terms" are visible, not just their total.
 //
 // Alignment (P-channel vs V^{BC} X-channel; Q vs Y is the conjugate):
-//     V.fphi  [+Σ_k x^C F^B_kp]    <-> P.B_mat [+Σ_k x^C F̄^B_kp]  (dagger)
-//     V.fb    [-Q̂ F^B x^C]         <-> P.B_app [-g'[γ^{B†}]x^C]   (dagger,
-//                                       and P omits Q̂ + carries no v — legal
-//                                       only under a Q̂-projected contraction)
-//     V.gzeta [-Q̂ g'[γ_ζ]φ]        <-> P.F_1..4 [-g'[D^{BC}]φ]     (reorient)
-//     (nothing)                    <-> P.D_app + P.D_mat            (R family)
-// The 1e family (v^B / v^C content) is evaluated separately so the question
-// "where did v^C go relative to Σ x^B G^C_kp" gets an explicit numeric row.
+//     V.[M]  [+Σ_k x^C F^B_kp]     <-> P.B_mat  (same matrix, built as the
+//                                                transposed daggered block)
+//     V.[A]  [-Q̂ F^B x^C]          <-> P.B_app  (P omits Q̂ — legal under a
+//                                                Q̂-projected contraction)
+//     V.[L]  [-Q̂ g'[γ_L]φ]         <-> P.F_1..4 (leg by leg)
+//     (the (C,B) half of V)        <-> P.D_app + P.D_mat
+// HISTORY: until 2026-09-09 kernels/vbc.hpp wrote its exchange legs in
+// reading order, which under madness::Exchange's convention builds every
+// response density transposed; the "dagger" this test was written to hunt
+// was in V, not in (P,Q) (reports/2026-09-09_orientation_derivation). With
+// vbc.hpp in the equation's orientation the aligned slots now agree, and the
+// VERDICT line below reads "REPRODUCES". The rows are kept as the term-level
+// audit trail; the equality gates live in test_vbc_spec_equivalence /
+// test_tpa_pq_vs_vbc.
+// The 1e family (v^B / v^C content) is evaluated separately.
 //
 // Also probes the beta contraction convention: b1 = -(<xA|Vx> + <yA|Vy>)
 // (production, kernels/beta.hpp) against the x<->y-swapped pairing
-// <yA|Vx> + <xA|Vy> that the negative-frequency exchange rule would suggest —
-// printing both makes the convention knot measurable instead of argued.
+// <yA|Vx> + <xA|Vy> — printing both keeps the convention measurable.
 //
 // Symmetry caveat: on a symmetric molecule (h2o fixture) selection rules zero
 // several rows even with the phi-admixed stand-ins. Run --archive against a
@@ -694,8 +700,8 @@ int main(int argc, char **argv) {
           printf("  VERDICT: %s\n",
                  (std::abs(s_v-ref) < 1e-6*std::max(1.0,std::abs(ref)) ||
                   std::abs(s_vn-ref) < 1e-6*std::max(1.0,std::abs(ref)))
-                   ? "V^BC REPRODUCES the residue answer -> daggers redundant"
-                   : "V^BC does NOT reproduce it -> (P,Q) is a distinct object");
+                   ? "V^BC REPRODUCES the residue answer (one source; expected since 2026-09-09)"
+                   : "V^BC does NOT reproduce it -> orientation regression in vbc.hpp");
         }
       }
 

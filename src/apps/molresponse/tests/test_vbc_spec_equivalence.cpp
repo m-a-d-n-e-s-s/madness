@@ -1,24 +1,33 @@
 // ===========================================================================
-// test_vbc_spec_equivalence.cpp — THE gate for source-unification step 2:
-// vbc::compute_vbc_spec (the declarative source-spec path over
-// kernels/source_spec.hpp) must reproduce vbc::compute_vbc (the v2-ported,
-// Dalton-validated bespoke builder) on real MRA functions to summation-order
-// precision (per-channel difference norms ~1e-12, i.e. bit-identical up to
-// floating-point regrouping — four+ orders below the MRA thresh, so any
-// algebraic/index/truncation-point mismatch fails loudly).
+// test_vbc_spec_equivalence.cpp — THE gate that the two builders of the one
+// second-order source agree: vbc::compute_vbc (kernels/vbc.hpp, the spec of
+// Hurtado eq 19) and tpa::quadratic_source (kernels/tpa_source_spec.hpp, the
+// (P,Q) builder validated against DALTON for 2PA and SHG). They differ only in
+// bookkeeping — (P,Q) leaves its apply moves un-Q-projected and builds the
+// pair-density family leg by leg — so the comparison is Q(P,Q) vs V^{BC}, at
+// MRA thresh scale (per-leg untruncated densities regroup at ~thresh, not at
+// roundoff; an orientation or index error shows at O(0.1-1) relative).
 //
-// Three stages:
-//   1. STAND-IN equality: B, C from non-Q-projected dipole+phi admixtures
-//      (the pq-test recipe — projected or symmetry-pure vectors silently
-//      zero terms and weaken the test). Assert per-channel diff norms.
-//   2. CONVERGED equality + beta: solve the static dipole FD states for
-//      axes x,z (protocol ramp), rebuild V^{xx} and V^{xz} via BOTH paths,
-//      assert the same per-channel equality on converged states, and assert
-//      beta_zxx / beta_xxz computed via both paths agree.
-//   3. KLEINMAN pair: for static responses beta_zxx == beta_xxz analytically;
-//      the residual asymmetry (solver-convergence sized) must MATCH between
-//      the two paths — this exercises exactly the (B,C) index plumbing the
-//      spec re-encodes.
+// Stages:
+//   1.  STAND-IN equality on NON-HERMITIAN legs (B.x != B.y): the
+//       orientation-sensitive check. Mixed-axis dipole stand-ins, Q-PROJECTED:
+//       response vectors live in the virtual space, and both builders assume
+//       it — V^{BC}'s occupied-matrix term [M] is Sum_k x^C_k F^B_kp, i.e. in
+//       the span of x^C, so a phi admixture in x^C survives in V but is
+//       removed by the Q applied to (P,Q) (job 2161695: rel 0.62 / 0.15 and
+//       0.77 in the Hermitian limit on un-projected stand-ins, while the
+//       production recontraction of converged Q-space legs agreed to 1e-6).
+//       Symmetry-mixing (x, y, z admixed) keeps every term alive; x != y
+//       keeps the orientation visible.
+//   1b. HERMITIAN LIMIT (y := x on both legs): must also agree — before
+//       2026-09-09 the two builders agreed ONLY here (HANDOFF §2c).
+//   2.  CONVERGED equality + beta: solve the static dipole FD states for
+//       axes x,z (protocol ramp), rebuild V^{xx} and V^{xz} via BOTH builders,
+//       assert equality on converged states and that beta_zxx / beta_xxz
+//       agree (static: orientation-blind, checks the rest of the plumbing).
+//   3.  KLEINMAN pair: for static responses beta_zxx == beta_xxz analytically;
+//       the residual asymmetry (solver-convergence sized) must MATCH between
+//       the two builders.
 //
 //   test_vbc_spec_equivalence --archive=<moldft restartdata>
 //       [--thresh=X] [--k=N] [--protocol=1e-4,1e-6] [--maxiter=N]
@@ -31,6 +40,7 @@
 #include "../calc/calc_executor.hpp"
 #include "../kernels/beta.hpp"
 #include "../kernels/tags.hpp"
+#include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/build_response_ground_state.hpp"
 #include "../solvers/fd_save_load.hpp"
@@ -54,16 +64,19 @@ using vecfuncT = std::vector<real_function_3d>;
 
 namespace {
 
-// Summation-order tolerance for ||V_spec - V_vbc|| per channel: rounding-level
-// accumulation over ~10 orbitals x O(10) MRA ops sits at 1e-13..1e-12 for
-// O(1)-normed sources; an algebraic or truncation-point mismatch shows at
-// >= thresh scale (1e-6 here) — four orders of separation.
-constexpr double kSpecTol = 1.0e-10;
+// Per-channel RELATIVE tolerance for ||Q(P) - Vx|| / ||Vx||. The two builders
+// share the engine but not the truncation points of the pair-density family
+// (vbc: one truncated density; (P,Q): four untruncated ones), so they regroup
+// at ~thresh, not at roundoff. An orientation or index error shows at
+// O(0.1-1) relative (HANDOFF §2a: 0.41 / 0.23 before the fix) — the gate
+// sits at 10 x thresh, four+ orders below that.
+constexpr double kSpecRelTolFactor = 10.0;
 
 struct DiffReport {
   double dx, dy, nx, ny;
 };
 
+/// ||A - B|| per channel and ||A|| per channel.
 DiffReport channel_diff(World &world, const ResponseStateXY<ClosedShell> &A,
                         const ResponseStateXY<ClosedShell> &B) {
   vecfuncT dx = madness::copy(world, A.x_alpha);
@@ -72,6 +85,58 @@ DiffReport channel_diff(World &world, const ResponseStateXY<ClosedShell> &A,
   gaxpy(world, 1.0, dy, -1.0, B.y_alpha);
   return {norm2(world, dx), norm2(world, dy),
           norm2(world, A.x_alpha), norm2(world, A.y_alpha)};
+}
+
+/// Q-project both channels of a source (the part every contraction sees).
+ResponseStateXY<ClosedShell> project_source(World &world, const ResponseGroundState &g0,
+                                            ResponseStateXY<ClosedShell> s) {
+  s.x_alpha = g0.Qa(s.x_alpha);
+  s.y_alpha = g0.Qa(s.y_alpha);
+  truncate(world, s.x_alpha);
+  truncate(world, s.y_alpha);
+  return s;
+}
+
+/// Q-projected (P,Q) source ((P,Q) leaves its apply moves un-Q-projected).
+ResponseStateXY<ClosedShell>
+projected_pq(World &world, const ResponseGroundState &g0,
+             const ResponseStateXY<ClosedShell> &B,
+             const ResponseStateXY<ClosedShell> &C,
+             const real_function_3d &VB_op, const real_function_3d &VC_op) {
+  return project_source(world, g0,
+                        tpa::quadratic_source(world, g0, B, C, VB_op, VC_op));
+}
+
+/// Q-projected V^{BC} (a no-op on Q-space inputs; keeps the gate symmetric).
+ResponseStateXY<ClosedShell>
+projected_vbc(World &world, const ResponseGroundState &g0,
+              const ResponseStateXY<ClosedShell> &B,
+              const ResponseStateXY<ClosedShell> &C,
+              const real_function_3d &VB_op, const real_function_3d &VC_op) {
+  return project_source(world, g0,
+                        vbc::compute_vbc<ClosedShell>(world, g0, B, C, VB_op, VC_op));
+}
+
+/// Q-project a response-shaped pair in place (stand-ins into the virtual space).
+void project_state(const ResponseGroundState &g0, ResponseStateXY<ClosedShell> &s) {
+  s.x_alpha = g0.Qa(s.x_alpha);
+  s.y_alpha = g0.Qa(s.y_alpha);
+}
+
+/// Gate: V (vbc builder) vs Q(P,Q), both channels, relative to ||V||.
+bool builders_agree(World &world, const char *label,
+                    const ResponseStateXY<ClosedShell> &V,
+                    const ResponseStateXY<ClosedShell> &PQ, double tol) {
+  auto d = channel_diff(world, V, PQ);
+  const double rx = d.nx > 1e-14 ? d.dx / d.nx : d.dx;
+  const double ry = d.ny > 1e-14 ? d.dy / d.ny : d.dy;
+  const bool pass = rx < tol && ry < tol;
+  if (world.rank() == 0) {
+    printf("  %-22s ||Vx||=%12.8f  ||Vy||=%12.8f\n", label, d.nx, d.ny);
+    printf("  %-22s rel ||Q(P)-Vx||=%.3e  rel ||Q(Q)-Vy||=%.3e   tol=%.1e   %s\n",
+           "", rx, ry, tol, pass ? "PASS" : "FAIL");
+  }
+  return pass;
 }
 
 } // namespace
@@ -134,9 +199,8 @@ int main(int argc, char **argv) {
       bool ok = true;
 
       // ================= stage 1: stand-in equality ======================
-      // Non-Q-projected, phi-admixed stand-ins (see test_tpa_pq_vs_vbc header
-      // note): Q-projected or symmetry-pure vectors zero <phi|..> factors and
-      // let a wrong spec pass.
+      // Symmetry-mixed dipole stand-ins, Q-projected (see header: the
+      // builders are equal on the response-vector domain, i.e. Q-space).
       {
         auto d0 = dipole_perturbation(world, gs, 0);
         auto d1 = dipole_perturbation(world, gs, 1);
@@ -149,23 +213,33 @@ int main(int argc, char **argv) {
           truncate(world, r);
           return r;
         };
+        const double tol = kSpecRelTolFactor * t;
         ResponseStateXY<ClosedShell> B, C;
         B.x_alpha = comb(1.0, d0,  0.23, d1,  0.31);
         B.y_alpha = comb(1.0, d1, -0.41, d2,  0.17);
         C.x_alpha = comb(1.0, d2,  0.13, d0, -0.29);
         C.y_alpha = comb(1.0, d0,  0.53, d1,  0.11);
+        project_state(g0, B);
+        project_state(g0, C);
 
-        auto V_ref  = vbc::compute_vbc<ClosedShell>(world, g0, B, C, mu_x, mu_z);
-        auto V_spec = vbc::compute_vbc_spec<ClosedShell>(world, g0, B, C, mu_x, mu_z);
-        auto d = channel_diff(world, V_ref, V_spec);
-        const bool pass = d.dx < kSpecTol && d.dy < kSpecTol;
-        ok = ok && pass;
-        if (world.rank() == 0) {
-          print("\n=== stage 1: compute_vbc_spec == compute_vbc (stand-ins) ===");
-          printf("  ||Vx||=%12.8f  ||Vy||=%12.8f\n", d.nx, d.ny);
-          printf("  ||dVx||=%.3e  ||dVy||=%.3e   tol=%.1e   %s\n",
-                 d.dx, d.dy, kSpecTol, pass ? "PASS" : "FAIL");
-        }
+        if (world.rank() == 0)
+          print("\n=== stage 1: Q(compute_vbc) == Q(tpa::quadratic_source), "
+                "NON-Hermitian Q-space stand-ins (x != y) ===");
+        auto V  = projected_vbc(world, g0, B, C, mu_x, mu_z);
+        auto PQ = projected_pq(world, g0, B, C, mu_x, mu_z);
+        const bool pass1 = builders_agree(world, "x!=y", V, PQ, tol);
+
+        // 1b: the Hermitian limit — the only regime where the two agreed
+        // before the orientation fix; must still agree.
+        ResponseStateXY<ClosedShell> Bh, Ch;
+        Bh.x_alpha = madness::copy(world, B.x_alpha); Bh.y_alpha = madness::copy(world, B.x_alpha);
+        Ch.x_alpha = madness::copy(world, C.x_alpha); Ch.y_alpha = madness::copy(world, C.x_alpha);
+        if (world.rank() == 0)
+          print("\n=== stage 1b: Hermitian limit (y := x) ===");
+        auto Vh  = projected_vbc(world, g0, Bh, Ch, mu_x, mu_z);
+        auto PQh = projected_pq(world, g0, Bh, Ch, mu_x, mu_z);
+        const bool pass1b = builders_agree(world, "y:=x", Vh, PQh, tol);
+        ok = ok && pass1 && pass1b;
       }
 
       // ================= stage 2+3: converged states, beta, Kleinman =====
@@ -226,23 +300,29 @@ int main(int argc, char **argv) {
             print("  FAIL: could not load solved static FD states from", calc_dir);
           ok = false;
         } else {
-          // V^{xx} (for beta_zxx) and V^{xz} (for beta_xxz), both paths
-          auto Vxx_ref  = vbc::compute_vbc<ClosedShell>(world, g0f, *X, *X, mu_x, mu_x);
-          auto Vxx_spec = vbc::compute_vbc_spec<ClosedShell>(world, g0f, *X, *X, mu_x, mu_x);
-          auto Vxz_ref  = vbc::compute_vbc<ClosedShell>(world, g0f, *X, *Z, mu_x, mu_z);
-          auto Vxz_spec = vbc::compute_vbc_spec<ClosedShell>(world, g0f, *X, *Z, mu_x, mu_z);
+          // V^{xx} (for beta_zxx) and V^{xz} (for beta_xxz), both builders
+          const double tolf = kSpecRelTolFactor * tf;
+          auto Vxx_ref  = projected_vbc(world, g0f, *X, *X, mu_x, mu_x);
+          auto Vxx_spec = projected_pq(world, g0f, *X, *X, mu_x, mu_x);
+          auto Vxz_ref  = projected_vbc(world, g0f, *X, *Z, mu_x, mu_z);
+          auto Vxz_spec = projected_pq(world, g0f, *X, *Z, mu_x, mu_z);
+          if (world.rank() == 0)
+            print("\n=== stage 2: equality on CONVERGED static responses ===");
+          const bool pass_conv = builders_agree(world, "V^{xx}", Vxx_ref, Vxx_spec, tolf) &&
+                                 builders_agree(world, "V^{xz}", Vxz_ref, Vxz_spec, tolf);
           auto dxx = channel_diff(world, Vxx_ref, Vxx_spec);
           auto dxz = channel_diff(world, Vxz_ref, Vxz_spec);
-          const bool pass_conv = dxx.dx < kSpecTol && dxx.dy < kSpecTol &&
-                                 dxz.dx < kSpecTol && dxz.dy < kSpecTol;
 
           const double b_zxx_ref  = beta::beta_abc<ClosedShell>(world, g0f, *Z, Vxx_ref,  *X, *X, mu_z);
           const double b_zxx_spec = beta::beta_abc<ClosedShell>(world, g0f, *Z, Vxx_spec, *X, *X, mu_z);
           const double b_xxz_ref  = beta::beta_abc<ClosedShell>(world, g0f, *X, Vxz_ref,  *X, *Z, mu_x);
           const double b_xxz_spec = beta::beta_abc<ClosedShell>(world, g0f, *X, Vxz_spec, *X, *Z, mu_x);
+          // Contractions are Q-blind and see only the (thresh-sized) regrouping
+          // of the pair-density family: gate at thresh relative to |beta|.
           const double dbeta = std::max(std::abs(b_zxx_spec - b_zxx_ref),
                                         std::abs(b_xxz_spec - b_xxz_ref));
-          const bool pass_beta = dbeta < 1e-8;
+          const double beta_scale = std::max({std::abs(b_zxx_ref), std::abs(b_xxz_ref), 1.0});
+          const bool pass_beta = dbeta < tolf * beta_scale;
 
           // Kleinman: static beta_zxx == beta_xxz analytically; the residual
           // is solver-convergence sized and must be path-independent.
@@ -254,19 +334,18 @@ int main(int argc, char **argv) {
 
           ok = ok && pass_conv && pass_beta && pass_kle;
           if (world.rank() == 0) {
-            print("\n=== stage 2: equality on CONVERGED static responses ===");
             printf("  V^{xx}: ||dVx||=%.3e  ||dVy||=%.3e   (||Vx||=%.6f, ||Vy||=%.6f)\n",
                    dxx.dx, dxx.dy, dxx.nx, dxx.ny);
             printf("  V^{xz}: ||dVx||=%.3e  ||dVy||=%.3e   (||Vx||=%.6f, ||Vy||=%.6f)\n",
                    dxz.dx, dxz.dy, dxz.nx, dxz.ny);
-            printf("  per-channel tol=%.1e   %s\n", kSpecTol, pass_conv ? "PASS" : "FAIL");
-            print("\n=== stage 2b: beta via both paths ===");
-            printf("  beta_zxx: ref=%+.10f  spec=%+.10f  |d|=%.3e\n",
+            printf("  stage 2 %s\n", pass_conv ? "PASS" : "FAIL");
+            print("\n=== stage 2b: beta via both builders (vbc vs (P,Q)) ===");
+            printf("  beta_zxx: vbc=%+.10f  pq=%+.10f  |d|=%.3e\n",
                    b_zxx_ref, b_zxx_spec, std::abs(b_zxx_spec - b_zxx_ref));
-            printf("  beta_xxz: ref=%+.10f  spec=%+.10f  |d|=%.3e\n",
+            printf("  beta_xxz: vbc=%+.10f  pq=%+.10f  |d|=%.3e\n",
                    b_xxz_ref, b_xxz_spec, std::abs(b_xxz_spec - b_xxz_ref));
-            printf("  max path diff = %.3e  (tol 1e-8)   %s\n", dbeta,
-                   pass_beta ? "PASS" : "FAIL");
+            printf("  max builder diff = %.3e  (tol %.1e)   %s\n", dbeta,
+                   tolf * beta_scale, pass_beta ? "PASS" : "FAIL");
             print("\n=== stage 3: Kleinman pair (zxx vs xxz, static) ===");
             printf("  rel asym ref=%.3e  spec=%.3e  (tol 1e-2 each; paths must match)  %s\n",
                    kle_ref, kle_spec, pass_kle ? "PASS" : "FAIL");

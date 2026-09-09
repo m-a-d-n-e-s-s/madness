@@ -235,14 +235,50 @@ int main(int argc, char **argv) {
         if (!ok4) rc = 1;
       }
 
-      // ============ (3) V^{bc} two-electron part (informational) =========
-      // Zero one-electron operators isolate the two-electron content.
+      // ============ (3) gate 5: (P,Q) two-electron == V^{bc} two-electron ==
+      // Zero one-electron operators isolate the two-electron content. Since
+      // 2026-09-09 (kernels/vbc.hpp in the equation's leg orientation) the two
+      // builders encode the same source; they differ only by Q-projection
+      // (P,Q leave the apply moves unprojected) and by the truncation points
+      // of the pair-density family, so compare Q(P,Q) with V at thresh scale.
+      // Before the fix this block printed rel 0.41 / 0.23 (HANDOFF §2a).
+      // Both builders assume response vectors in the virtual space (V^{bc}'s
+      // occupied-matrix term is Sum_k x^c_k F^b_kp, in the span of x^c), so the
+      // comparison is made on Q-projected copies of b, c (stand-ins carry a
+      // phi admixture; stored FD responses are already Q-space) and both
+      // outputs are Q-projected. norm2 is collective: every norm is computed
+      // here, on all ranks, before the rank-0 print block (job 2161695 hung
+      // with the norms inside it).
+      ResponseStateXY<ClosedShell> Bq, Cq;
+      Bq.x_alpha = g0.Qa(B.x_alpha); Bq.y_alpha = g0.Qa(B.y_alpha);
+      Cq.x_alpha = g0.Qa(C.x_alpha); Cq.y_alpha = g0.Qa(C.y_alpha);
+      auto PQq = tpa::assemble_tpa_pq(world, g0, Bq, Cq);   // 2e only
       real_function_3d zop = madness::copy(phi[0]); zop.scale(0.0);
-      auto V = vbc::compute_vbc<ClosedShell>(world, g0, B, C, zop, madness::copy(zop));
+      auto V = vbc::compute_vbc<ClosedShell>(world, g0, Bq, Cq, zop, madness::copy(zop));
+      vecfuncT PQx = g0.Qa(PQq.x_alpha);
+      vecfuncT PQy = g0.Qa(PQq.y_alpha);
+      vecfuncT Vx  = g0.Qa(V.x_alpha);
+      vecfuncT Vy  = g0.Qa(V.y_alpha);
 
       auto nrm = [&](const vecfuncT &v) { return norm2(world, v); };
-      vecfuncT dpx = madness::copy(world, PQ.x_alpha); gaxpy(world, 1.0, dpx, -1.0, V.x_alpha);
-      vecfuncT dqy = madness::copy(world, PQ.y_alpha); gaxpy(world, 1.0, dqy, -1.0, V.y_alpha);
+      vecfuncT dpx = madness::copy(world, PQx); gaxpy(world, 1.0, dpx, -1.0, Vx);
+      vecfuncT dqy = madness::copy(world, PQy); gaxpy(world, 1.0, dqy, -1.0, Vy);
+      const double nPQx = nrm(PQx), nPQy = nrm(PQy);
+      const double nPQx_raw = nrm(PQq.x_alpha), nPQy_raw = nrm(PQq.y_alpha);
+      const double nVx = nrm(Vx), nVy = nrm(Vy);
+      const double ndpx = nrm(dpx), ndqy = nrm(dqy);
+      const double relx5 = nVx > 1e-12 ? ndpx / nVx : ndpx;
+      const double rely5 = nVy > 1e-12 ? ndqy / nVy : ndqy;
+      // Tolerance: the two builders regroup the pair-density family at
+      // different truncation points (four untruncated densities vs one
+      // bundled, truncated one); on the two-electron part alone this is
+      // 1.8e-5 / 1.6e-5 relative at thresh 1e-6 (h2o fixture, job 2161860),
+      // i.e. ~18 x thresh. An orientation error shows at 0.1-1 relative
+      // (0.41 / 0.23 before the fix). Gate at 50 x thresh, in line with
+      // gates 1-2 (200 x thresh) on the same regrouping.
+      const double tol5 = 50.0 * t;
+      const bool ok5 = relx5 < tol5 && rely5 < tol5;
+      if (!ok5) rc = 1;
 
       if (world.rank() == 0) {
         print("\n=== promoted (P,Q) source (tpa_source_spec)  vs  references ===");
@@ -264,14 +300,14 @@ int main(int argc, char **argv) {
                               : std::abs(got_full - ref_full);
         printf("  relative difference             = %.3e   %s\n", relf,
                relf < 200.0 * t ? "PASS" : "FAIL");
-        print("\n--- (P,Q) vs V^{bc} two-electron (informational) ---");
-        printf("  %-28s ||P||=%10.6f  ||Q||=%10.6f\n", "(P,Q) total", nrm(PQ.x_alpha), nrm(PQ.y_alpha));
-        printf("  %-28s ||x||=%10.6f  ||y||=%10.6f\n", "V^{bc} 2-electron", nrm(V.x_alpha), nrm(V.y_alpha));
-        printf("  %-28s ||  ||=%10.6f  ||  ||=%10.6f\n", "(P,Q) - V^{bc}", nrm(dpx), nrm(dqy));
-        const double relx = nrm(PQ.x_alpha) > 1e-12 ? nrm(dpx) / nrm(PQ.x_alpha) : 0.0;
-        const double rely = nrm(PQ.y_alpha) > 1e-12 ? nrm(dqy) / nrm(PQ.y_alpha) : 0.0;
-        printf("  relative:  ||P-Vx||/||P|| = %.4f     ||Q-Vy||/||Q|| = %.4f\n", relx, rely);
-        if (!(rel < 200.0 * t && relf < 200.0 * t)) rc = 1;   // sticky: keep gate-4 verdict
+        print("\n--- gate 5: Q(P,Q) two-electron == Q(V^{bc}) two-electron (Q-space b,c) ---");
+        printf("  %-28s ||P||=%10.6f  ||Q||=%10.6f   (unprojected: %10.6f %10.6f)\n",
+               "Q(P,Q) total", nPQx, nPQy, nPQx_raw, nPQy_raw);
+        printf("  %-28s ||x||=%10.6f  ||y||=%10.6f\n", "Q(V^{bc}) 2-electron", nVx, nVy);
+        printf("  %-28s ||  ||=%10.6f  ||  ||=%10.6f\n", "Q(P,Q) - Q(V^{bc})", ndpx, ndqy);
+        printf("  relative:  ||Q(P)-Vx||/||Vx|| = %.3e   ||Q(Q)-Vy||/||Vy|| = %.3e   tol=%.1e   %s\n",
+               relx5, rely5, tol5, ok5 ? "PASS" : "FAIL");
+        if (!(rel < 200.0 * t && relf < 200.0 * t)) rc = 1;   // sticky: keep gate-4/5 verdicts
         print("\n", rc == 0 ? "PQ_SOURCE_SPEC VALIDATED" : "PQ_SOURCE_SPEC FAILED");
       }
       world.gop.broadcast(rc, 0);
