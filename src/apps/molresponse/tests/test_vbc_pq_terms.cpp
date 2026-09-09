@@ -548,6 +548,62 @@ int main(int argc, char **argv) {
                  vnorm(world, dy), vnorm(world, Vsw[1]), vnorm(world, q2e));
       }
 
+      // ===== FLAG-TOGGLE: is (P,Q) the ADJOINT of V^BC? ====================
+      // 2e-only, ONE ordering (B,C). The test builds V with a ZERO one-electron
+      // operator, so v^B is already neutralized and the ONLY differences
+      // between V's {fb,fphi} and P's family B are three flags:
+      //   APPLY : exchange bra/ket order, and project_Q
+      //   MATRIX: transpose_matrix
+      // Toggle them one at a time and see which combination maps V onto P
+      // EXACTLY (norm of the difference, not just a contraction).
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== FLAG TOGGLE: does V^BC daggered == P? =====");
+      {
+        using source_spec::apply_entry;
+        using source_spec::occupied_matrix_entry;
+        // rho_B exactly as BOTH builders make it (they agree by construction)
+        real_function_3d rho_B = common_ops::dot(world, xb, phi);
+        rho_B += common_ops::dot(world, phi, yb);
+        rho_B.scale(2.0); rho_B.truncate();
+
+        auto one = [&](source_spec::SourceEntry e) {
+          source_spec::SourceSpec S; S.entries.push_back(std::move(e));
+          source_spec::SourceSpec E;
+          return source_spec::assemble_source(world, g0, {S, E})[0];
+        };
+        auto rpt = [&](const char *tag, const vecfuncT &a, const vecfuncT &ref_) {
+          vecfuncT d = sub(world, a, ref_);
+          if (world.rank() == 0)
+            printf("   %-34s |.|=%10.4e  <x|.>=%+12.5e  <y|.>=%+12.5e  ||.-P||=%9.3e\n",
+                   tag, vnorm(world, const_cast<vecfuncT&>(a)),
+                   vinner(world, xf, a), vinner(world, yf, a), vnorm(world, d));
+        };
+        // ---- APPLY: P's family-B reference
+        vecfuncT P_app = one(apply_entry(rho_B, {{phi, xb}, {yb, phi}},
+                                         xc, -1.0, /*Q=*/false));
+        if (world.rank() == 0) print("  -- APPLY family (P ref = fam-B apply) --");
+        rpt("P famB apply  [swap,Q=0] (REF)", P_app, P_app);
+        rpt("V fb as-built [orig,Q=1]",
+            one(apply_entry(rho_B, {{xb, phi}, {phi, yb}}, xc, -1.0, true)), P_app);
+        rpt("V fb  [orig,Q=0]",
+            one(apply_entry(rho_B, {{xb, phi}, {phi, yb}}, xc, -1.0, false)), P_app);
+        rpt("V fb  [SWAP,Q=1]",
+            one(apply_entry(rho_B, {{phi, xb}, {yb, phi}}, xc, -1.0, true)), P_app);
+        rpt("V fb  [SWAP,Q=0]",
+            one(apply_entry(rho_B, {{phi, xb}, {yb, phi}}, xc, -1.0, false)), P_app);
+        // ---- MATRIX: P's family-B reference
+        vecfuncT P_mat = one(occupied_matrix_entry(rho_B, {{xb, phi}, {phi, yb}},
+                                                   phi, xc, +1.0, /*T=*/true));
+        if (world.rank() == 0) print("  -- MATRIX family (P ref = fam-B matrix) --");
+        rpt("P famB matrix [T=1] (REF)", P_mat, P_mat);
+        rpt("V fphi as-built [T=0]",
+            one(occupied_matrix_entry(rho_B, {{xb, phi}, {phi, yb}},
+                                      phi, xc, +1.0, false)), P_mat);
+        rpt("V fphi [T=1]",
+            one(occupied_matrix_entry(rho_B, {{xb, phi}, {phi, yb}},
+                                      phi, xc, +1.0, true)), P_mat);
+      }
+
       // ============ THE CLEAN TEST (2026-09-08): does the DRIVEN source
       // V^BC, contracted with a TRUE eigenvector, equal the residue answer?
       // The first-principles 2n+1 elimination, read literally, says the
