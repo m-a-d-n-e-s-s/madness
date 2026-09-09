@@ -508,6 +508,15 @@ public:
                              vecfuncT& psi, vecfuncT& Vpsi, tensorT& evals,
                              const tensorT& occ, const double thresh) const;
 
+    /// canonicalize the virtual orbitals: diagonalize the virtual-virtual Fock
+    /// block and rotate psi and Vpsi in phase. Occupied orbitals are untouched;
+    /// the occupied-virtual coupling is left for the caller to decouple. No-op
+    /// when there are no virtuals or the rotation is near-identity.
+    /// @param[in]	nocc	number of occupied orbitals; the block [nocc, nmo) is canonicalized
+    /// @return		true if a rotation was applied
+    bool canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
+                               vecfuncT& Vpsi, const int nocc) const;
+
 
     void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old,
                  functionT& brho_old, subspaceT& subspace);

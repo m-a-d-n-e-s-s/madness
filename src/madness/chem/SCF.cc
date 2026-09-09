@@ -2118,6 +2118,73 @@ tensorT SCF::diag_fock_matrix(World& world, tensorT& fock, vecfuncT& psi,
     return U;
 }
 
+bool SCF::canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
+                                vecfuncT& Vpsi, const int nocc) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    const int nmo = psi.size();
+    const int nv = nmo - nocc;
+    if (nv <= 0) return false;
+
+    const Slice v(nocc, nmo - 1);
+    vecfuncT vmo(psi.begin() + nocc, psi.end());
+    tensorT F_vv = copy(fock(v, v));
+    tensorT S_vv = matrix_inner(world, vmo, vmo, true);
+
+    tensorT U, evals;
+    sygvp(world, F_vv, S_vv, 1, U, evals);
+    world.gop.broadcast(U.ptr(), U.size(), 0);
+    world.gop.broadcast(evals.ptr(), evals.size(), 0);
+
+    // Fix each column's sign (largest element positive): sygvp's signs are
+    // arbitrary, and a sign-flipped virtual is inconsistent with the KAIN history.
+    for (int k = 0; k < nv; ++k) {
+        int imax = 0;
+        for (int i = 1; i < nv; ++i)
+            if (std::abs(U(i, k)) > std::abs(U(imax, k))) imax = i;
+        if (U(imax, k) < 0.0)
+            for (int i = 0; i < nv; ++i) U(i, k) = -U(i, k);
+    }
+
+    // A near-identity rotation would only churn the KAIN history; the residual
+    // off-diagonal F_vv is carried as Lagrange coupling in the residual, as for
+    // the localized occupieds.
+    double offdiag = 0.0;
+    for (int i = 0; i < nv; ++i)
+        for (int j = 0; j < nv; ++j)
+            if (i != j) offdiag = std::max(offdiag, std::abs(U(i, j)));
+    if (offdiag <= 0.01) {
+        if (world.rank() == 0 && param.print_level() >= 3)
+            printf("  canonicalize virtuals: skipped (max offdiag %.1e)\n", offdiag);
+        return false;
+    }
+    if (world.rank() == 0 && param.print_level() >= 3)
+        printf("  canonicalize virtuals: rotated (max offdiag %.1e)\n", offdiag);
+
+    // Rotating Vpsi with the same U is exact only because the exchange operator
+    // sums over occupied orbitals: a rotation within the virtual space leaves it
+    // unchanged.
+    vecfuncT vVpsi(Vpsi.begin() + nocc, Vpsi.end());
+    const double scale = std::min(30.0, double(nmo));
+    vVpsi = transform(world, vVpsi, U, vtol / scale, false);
+    vmo = transform(world, vmo, U, FunctionDefaults<3>::get_thresh() / scale, true);
+    truncate(world, vVpsi, vtol, false);
+    truncate(world, vmo);
+    normalize(world, vmo);
+    for (int k = 0; k < nv; ++k) {
+        psi[nocc + k] = vmo[k];
+        Vpsi[nocc + k] = vVpsi[k];
+    }
+
+    // Only the block diagonal is written: the occupied-virtual coupling is
+    // zeroed by the caller's occupation-block decoupling, and the whole matrix
+    // is rebuilt next iteration.
+    for (int i = 0; i < nv; ++i)
+        for (int j = 0; j < nv; ++j)
+            fock(nocc + i, nocc + j) = (i == j) ? evals(i) : 0.0;
+
+    return true;
+}
+
 void SCF::loadbal(World& world, functionT& arho, functionT& brho,
                   functionT& arho_old, functionT& brho_old, subspaceT& subspace) {
     if (world.size() == 1)
@@ -2192,6 +2259,14 @@ void SCF::update_subspace(World& world, vecfuncT& Vpsia, vecfuncT& Vpsib,
                           double& bsh_residual, double& update_residual) {
     PROFILE_MEMBER_FUNC(SCF);
     double aerr = 0.0, berr = 0.0;
+
+    // Canonicalize the virtuals before the KAIN snapshot below, so the stored
+    // orbitals and their residual share one gauge.
+    if (param.do_localize()) {
+        canonicalize_virtuals(world, focka, amo, Vpsia, param.nalpha());
+        if (param.nbeta() != 0 && !param.spin_restricted())
+            canonicalize_virtuals(world, fockb, bmo, Vpsib, param.nbeta());
+    }
 
     vecfuncT vm = amo;
 
