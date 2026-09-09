@@ -112,7 +112,8 @@ option(ENABLE_LIBUNWIND
         OFF)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
-option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
+option(ENABLE_PCM "Enables use of the polarizable continuum model library" OFF)
+option(MADNESS_FETCH_PCMSOLVER "Build PCMSolver from source when ENABLE_PCM is on and no installed copy is found" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
 option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
@@ -685,6 +686,11 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
+  # N.B. not "PCM": that name is already taken by the FindPCM package that
+  # external/pcm.cmake searches for, and a FeatureSummary entry that is both a
+  # package and a feature is reported as neither.
+  add_feature_info("PCM solvation" MADNESS_HAS_PCM
+      "polarizable continuum model of solvation, via PCMSolver")
   include(external/integratorxx.cmake)
   include(external/dftd3.cmake)
   add_feature_info(DFTD3 MADNESS_HAS_DFTD3

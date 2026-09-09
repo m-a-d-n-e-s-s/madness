@@ -168,6 +168,17 @@ Exit code 0 on success. Reference inputs for regression checks are in
   `OMP_NUM_THREADS=1`, or build without it. Absent the library everything
   compiles and runs unchanged; only a deck that actually asks for a
   correction aborts.
+- **`-DENABLE_PCM=ON`** (off by default) provides the `pcm` solvation model via
+  PCMSolver. It is looked for as a CMake config package, then via `FindPCM`,
+  and finally *fetched and built from source* (`MADNESS_FETCH_PCMSOLVER`,
+  default ON) — so asking for PCM at all is opt-in, but once asked for it does
+  not need a preinstalled library. The source build pulls in a Fortran compiler,
+  Boost headers and zlib, plus `enable_language(Fortran)` — deliberately only on
+  that path, and only after `external/lapack.cmake` has run, since MADNESS
+  otherwise probes Fortran symbols from C and keeps the language disabled.
+  Upstream v1.3.0 is unmaintained and needs patching to build with current
+  toolchains; the patches live in `cmake/patches/pcmsolver-v1.3.0.cmake` and
+  fail loudly rather than silently no-op if the pinned tag moves.
 
 ## Runtime & deployment
 
