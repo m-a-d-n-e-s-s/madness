@@ -17,11 +17,12 @@
 //                                       VB_op = mu_b, VC_op = 0 ),
 //                    B, C = X_f, VA_op = mu_a )
 //
-// This is a CANDIDATE residue (the "VC_op=0 homogeneous C-channel" reduction);
-// the exact surviving-term set + the X_f normalization are pinned numerically
-// against the Dalton .QUADRA reference (refs/dalton_tpa.json). Because it reuses
-// beta_abc/compute_vbc unchanged, a mismatch is a PHYSICS/normalization signal,
-// not a contraction-code bug (alpha/beta/ES all already validate).
+// This is the LEGACY arm (--tpa-legacy): the eigenvector is fed in as the C
+// leg of the driven source. Production 2PA takes the residue in the A channel
+// instead (tpa_pq_spec_sym in calc_executor.hpp; tpa_moment_residue below is
+// the compute_vbc-based diagnostic of the same composition). Since 2026-09-09
+// compute_vbc is the spec build of the equation's source (kernels/vbc.hpp), so
+// numbers from this arm differ from those recorded before that date.
 //
 // The rotationally-invariant strength delta^|| (parallel linear polarization,
 // F=G=H=2) is the quantity Dalton reports (two_photon_strengths); S_ab is the
@@ -158,7 +159,7 @@ tpa_moment_residue(madness::World &world, const ResponseGroundState &g0,
 }
 
 /// ONE-ELECTRON part of the single-residue contraction: the mu-operator terms
-/// of V^{bc} only (compute_vbc_i's fb = -Q(v*c) and fphi = c*<phi|v|phi>,
+/// of V^{bc} only (vbc_half_spec's [A] = -Q(v*c) and [M] = c*<phi|v|phi>,
 /// both orderings) — no two-electron builds, so this costs inner products.
 /// Validated against DALTON's A2B/A2C/X2 families (<=1.3% on every d-aug-QZ
 /// ledger element). Production 2PA is S = C_N*(S_1e + S_E3corr), C_N=sqrt(2)
@@ -174,7 +175,7 @@ tpa_moment_residue_1e(madness::World &world, const ResponseGroundState &g0,
   std::array<Tensor<double>, 3> mv;   // <phi_i | mu_a | phi_j>
   for (int a = 0; a < 3; ++a)
     mv[a] = matrix_inner(world, phi, mul(world, mu_op[a], phi, true));
-  // one ordered half: v = mu_b acting on the C-state (mirrors compute_vbc_i)
+  // one ordered half: v = mu_b acting on the C-state (mirrors vbc_half_spec)
   auto half = [&](int b, int c) {
     const auto &cx = mu_resp[static_cast<size_t>(c)].x_alpha;
     const auto &cy = mu_resp[static_cast<size_t>(c)].y_alpha;
@@ -283,40 +284,6 @@ tpa_e3_residue(madness::World &world, const ResponseGroundState &g0,
   // overall sign. Verified k6 2026-07-22: without it all six ledger elements
   // give E3 ratio -1.00 (spread 0.966..1.003), with it +1.00; 1e unaffected.
   return -std::sqrt(2.0) * (T1 + T2 + T3);
-}
-
-/// Two-array variant for convention probes: V^{bc} built from respB[b] and
-/// respC[c] (e.g. respC = the (x<->y)-swapped responses, testing the -omega /
-/// adjoint form of one E3 channel that DALTON's T3DRV uses — TPA_SCOPING §5n:
-/// the one-electron terms match Dalton but E3(N+,N+) does not; the candidate
-/// correct object is E3(N+,N-)). Result symmetrized over (b,c).
-inline madness::Tensor<double>
-tpa_moment_residue_bc(madness::World &world, const ResponseGroundState &g0,
-                      const ResponseStateXY<ClosedShell> &Xf,
-                      const std::array<ResponseStateXY<ClosedShell>, 3> &respB,
-                      const std::array<ResponseStateXY<ClosedShell>, 3> &respC,
-                      const std::array<madness::real_function_3d, 3> &opB,
-                      const std::array<madness::real_function_3d, 3> &opC,
-                      double prefactor = 1.0) {
-  using namespace madness;
-  Tensor<double> S(3L, 3L);
-  for (int b = 0; b < 3; ++b) {
-    for (int c = 0; c < 3; ++c) {
-      auto V = vbc::compute_vbc<ClosedShell>(
-          world, g0, respB[static_cast<size_t>(b)],
-          respC[static_cast<size_t>(c)], opB[static_cast<size_t>(b)],
-          opC[static_cast<size_t>(c)]);
-      const double m =
-          inner(Xf.x_alpha, V.x_alpha) + inner(Xf.y_alpha, V.y_alpha);
-      S(b, c) = prefactor * m;
-    }
-  }
-  // symmetrize (degenerate photons)
-  Tensor<double> Ssym(3L, 3L);
-  for (int b = 0; b < 3; ++b)
-    for (int c = 0; c < 3; ++c)
-      Ssym(b, c) = 0.5 * (S(b, c) + S(c, b));
-  return Ssym;
 }
 
 /// Rotationally-invariant two-photon strength for parallel linear polarization:

@@ -468,6 +468,19 @@ int main(int argc, char **argv) {
         if (parser.key_exists("tpa-legacy"))  ctx.tpa_residue = false;  // beta-reuse arm
         if (parser.key_exists("tpa-cgrouped")) ctx.tpa_cgrouped = true; // c-grouped comparison arm
         if (parser.key_exists("tpa-swap-pq")) ctx.tpa_swap_pq = true;   // Parker index-convention probe
+        // --beta-pq-source (default) / --beta-vbc-source: which of the two
+        // EQUIVALENT builders of the one quadratic source assembles beta/Raman
+        // (tpa::quadratic_source vs vbc::compute_vbc; see ExecutorSettings).
+        // --beta-compare-sources: build both and print the difference.
+        if (parser.key_exists("beta-pq-source"))       ctx.beta_pq_source = true;
+        if (parser.key_exists("beta-vbc-source")) {
+          ctx.beta_pq_source = false;
+          if (world.rank() == 0)
+            print("[NOTE] --beta-vbc-source: vbc::compute_vbc is the spec build of the "
+                  "same source since 2026-09-09 (no longer the transposed-density "
+                  "object); use --beta-compare-sources for the equality check.");
+        }
+        if (parser.key_exists("beta-compare-sources")) ctx.beta_compare_sources = true;
         if (parser.key_exists("tpa-prefactor"))
           ctx.tpa_prefactor = std::stod(parser.value("tpa-prefactor"));
         if (parser.key_exists("tpa-decompose")) ctx.tpa_decompose = true;

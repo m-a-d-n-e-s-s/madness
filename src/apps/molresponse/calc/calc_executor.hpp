@@ -126,6 +126,24 @@ struct ExecutorSettings {
   // against DALTON. Never for production.
   bool              tpa_swap_pq           = false;
   double            tpa_prefactor         = 1.0;
+  // Quadratic-source builder for beta/Raman (2026-09-09,
+  // reports/2026-09-09_orientation_derivation). Both builders now encode the
+  // ONE second-order source of the theory (Hurtado eq 19): vbc::compute_vbc
+  // (kernels/vbc.hpp, legs written with the source_spec leg dictionary) and
+  // tpa::quadratic_source (the (P,Q) spec of tpa_source_spec.hpp, one call =
+  // both photon orderings, unprojected occupied components that the 2n+1
+  // contraction never sees). They are asserted equal up to Q-projection by
+  // tests/test_vbc_spec_equivalence. Before 2026-09-09 vbc.hpp built every
+  // response density transposed (H2O SHG omega=0.1 vs DALTON d-aug-cc-pVQZ:
+  // beta_zxx +12.9%, beta_xxz -4.0%); --beta-vbc-source therefore no longer
+  // selects a "legacy" object, only the other of two equivalent builders.
+  // DEFAULT: the (P,Q) builder (validated against DALTON for 2PA and SHG).
+  bool              beta_pq_source        = true;
+  // --beta-compare-sources: at beta/Raman contraction time, rebuild the OTHER
+  // builder's source from the same loaded (B,C) legs and print both beta
+  // values with their difference (an equality check on real states).
+  // Diagnostic only; costs one extra source build per pair.
+  bool              beta_compare_sources  = false;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the
   // phase- and normalization-invariant fraction f = E3/total (compare vs the
@@ -897,7 +915,15 @@ solve_vbc_closed_shell(ExecutorContext &ctx, const CalcNode &node, double thresh
   auto VB_op = perturbation_operator(world, gs, node.pert);
   auto VC_op = perturbation_operator(world, gs, node.pert_c);
 
-  auto vbc_src = vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op);
+  // Source selection (see ExecutorContext::beta_pq_source). Both builders sum
+  // the two photon orderings; the (P,Q) builder does so in one call.
+  auto vbc_src = ctx.beta_pq_source
+      ? tpa::quadratic_source(world, g0, *B, *C, VB_op, VC_op)
+      : vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op);
+  if (world.rank() == 0)
+    madness::print(ctx.log_prefix, "[CALC] solve_vbc: source =",
+                   ctx.beta_pq_source ? "tpa::quadratic_source (P,Q)"
+                                      : "vbc::compute_vbc (spec build, same source)");
   const double wall_s = madness::wall_time() - step_w0;   // R1b
   save_vbc_state<ClosedShell>(world, vbc_src, ctx.calc_dir, node.id,
                               /*converged=*/true, /*wall_s=*/wall_s,
@@ -1591,6 +1617,16 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
         madness::print("[BETA] skip", vbc_id, "— missing VBC or FD input");
       continue;
     }
+    // --beta-compare-sources: the OTHER source from the same legs (the saved
+    // one is whichever ctx.beta_pq_source selected at build time).
+    std::optional<ResponseStateXY<ClosedShell>> vbc_alt;
+    if (ctx.beta_compare_sources) {
+      auto VB_op = perturbation_operator(world, gs, vr.pert_b);
+      auto VC_op = perturbation_operator(world, gs, vr.pert_c);
+      vbc_alt = ctx.beta_pq_source
+          ? vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op)
+          : tpa::quadratic_source(world, g0, *B, *C, VB_op, VC_op);
+    }
 
     for (int a = 0; a < 3; ++a) {
       const Perturbation pA = Perturbation::dipole(a);
@@ -1603,6 +1639,18 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
       }
       auto VA_op = dipole_operator(world, a);
       const double b = beta::beta_abc<ClosedShell>(world, g0, *xA, *vbc, *B, *C, VA_op);
+      if (vbc_alt) {
+        const double b_alt =
+            beta::beta_abc<ClosedShell>(world, g0, *xA, *vbc_alt, *B, *C, VA_op);
+        if (world.rank() == 0)
+          printf("%s-COMPARE A=%c B=%s C=%s fB=%g fC=%g  saved[%s]=%+.8e  other[%s]=%+.8e  "
+                 "diff=%+.3e (%.2f%%)\n", ptag, beta_axis_name(a),
+                 vr.pert_b.description().c_str(), vr.pert_c.description().c_str(),
+                 vr.freq_b, vr.freq_c,
+                 ctx.beta_pq_source ? "pq" : "vbc", b,
+                 ctx.beta_pq_source ? "vbc" : "pq", b_alt,
+                 b_alt - b, (b != 0.0 ? 100.0 * (b_alt - b) / b : 0.0));
+      }
 
       if (world.rank() == 0) {
         madness::print(ptag, " A=", beta_axis_name(a),
