@@ -221,7 +221,7 @@ set(madness_PCM_CONFIG "@PCMSolver_CONFIG@")
 set(madness_PCM_FETCHED @MADNESS_PCM_FETCHED@)
 if (MADNESS_HAS_PCM AND NOT TARGET PCMSolver::pcm)
     include( CMakeFindDependencyMacro )
-    if (madness_PCM_VIA_CONFIG)
+    if (madness_PCM_VIA_CONFIG AND madness_PCM_CONFIG)
         get_filename_component(_pcm_config_dir "${madness_PCM_CONFIG}" DIRECTORY)
         find_dependency(PCMSolver CONFIG REQUIRED PATHS "${_pcm_config_dir}" NO_DEFAULT_PATH)
     elseif (madness_PCM_FETCHED)
@@ -234,6 +234,19 @@ if (MADNESS_HAS_PCM AND NOT TARGET PCMSolver::pcm)
         else()
             find_dependency(PCMSolver CONFIG REQUIRED
                             PATHS "${PACKAGE_PREFIX_DIR}/share/cmake/PCMSolver" NO_DEFAULT_PATH)
+        endif()
+    else()
+        # madness linked a PCMSolver::pcm it did not discover for itself: the
+        # project that embedded madness as a subproject defined the target.
+        # Only that project knows where it came from, so try the ordinary
+        # search and, failing that, say what is missing -- rather than let
+        # madness-targets.cmake fail later on an undefined target.
+        find_package(PCMSolver CONFIG QUIET)
+        if (NOT TARGET PCMSolver::pcm)
+            message(FATAL_ERROR
+                "madness was built against a PCMSolver::pcm target supplied by its "
+                "enclosing project, which this installation cannot re-find. Define "
+                "PCMSolver::pcm (or set PCMSolver_DIR) before find_package(madness).")
         endif()
     endif()
 endif()

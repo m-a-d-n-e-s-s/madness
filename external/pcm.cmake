@@ -29,7 +29,16 @@ if(ENABLE_PCM)
   # madness-config.cmake should act on, and false for both the FindPCM path
   # (baked into the exported target as an absolute library path) and the
   # fetched path (exported by PCMSolver's own install rules alongside us).
-  if(TARGET PCMSolver::pcm AND NOT MADNESS_PCM_FETCHED)
+  #
+  # The PCMSolver_CONFIG test is not redundant with the target test: the target
+  # can exist without our find_package having produced it. A parent project
+  # that consumes MADNESS via add_subdirectory()/FetchContent may define
+  # PCMSolver::pcm itself, in which case the target is here, PCMSolver_CONFIG
+  # is empty, and claiming VIA_CONFIG would have madness-config.cmake hand
+  # find_dependency() an empty PATHS with NO_DEFAULT_PATH -- a search of
+  # nowhere, failing the consumer's configure even when a perfectly good
+  # PCMSolver is installed on the default search path.
+  if(TARGET PCMSolver::pcm AND NOT MADNESS_PCM_FETCHED AND PCMSolver_CONFIG)
     set(MADNESS_PCM_VIA_CONFIG ON)
   endif()
 
