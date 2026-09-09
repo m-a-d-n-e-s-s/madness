@@ -28,7 +28,9 @@ those runs comparable.
 | Ground state (SCF orbitals) | `seed_moldft_from_dalton` | `molden.inp` | ✅ |
 | Excited states, TDA | `seed_from_dalton` | `RSPVEC` (excitation eigenvectors) | ✅ |
 | Excited states, Full/RPA | `seed_from_dalton --full` | `RSPVEC` (X and Y blocks) | ✅ |
-| Frequency-dependent response | — | `RSPVEC` (linear-response N(ω)) | 🔬 future |
+| Frequency-dependent response | in-solver, `dalton.dir` | `RSPVEC` (linear-response N(ω), exact frequency; `seed.freq_tol` for nearest) | ✅ |
+| Excited states, in-solver | `dalton.dir` | `RSPVEC` (EXCITLAB records) | ✅ |
+| Ground state, in-solver | `dalton.dir` (madqc pre-run hook) | `molden.inp` | ✅ |
 
 DALTON writes two files we consume, both from an ordinary run:
 
@@ -130,6 +132,46 @@ doing before trusting any new seeded workflow:
 3. **Compare the converged result to a cold run.** They must agree — the seed
    changes the path, not the destination. If they differ, the seed is wrong, not
    better.
+
+## In-solver seeding from the deck (`dalton.dir`)
+
+Since 2026-09-09 every stage can be seeded from ONE DALTON directory named in the
+deck, without running the projection tools by hand:
+
+```
+response
+  dalton.dir      /path/to/dalton/seed      # loose RSPVEC + molden.inp, or a unique *.tar.gz
+  seed.start_rung fine                      # optional: skip the coarse rung, the seed is at the physics
+  seed.freq_tol   0.01                      # optional: nearest DALTON N(ω) for legs not in the RSPVEC
+  hdf5            true                      # optional: blob archives (states and GS) as HDF5
+end
+```
+
+- **Ground state.** `madqc` installs a pre-run hook on the SCF application: when
+  `dalton.dir` is set and no `<prefix>.restartdata` exists, the molden orbitals are
+  projected (Löwdin-orthonormalized) and written as the SCF restart, so moldft
+  starts from the DALTON orbitals. A preserved copy `<prefix>.gs_seed.restartdata`
+  (plus `.h5` when `hdf5` is on) and a `<prefix>.gs_seed.json` record what was
+  seeded; the converged GS is mirrored to `<archive>.h5` when `hdf5` is on.
+- **Frequency-dependent response.** A dipole FD leg whose frequency matches an
+  `XDIPLEN` record to 1e-9 au starts from that vector. Derived legs (the two-photon
+  legs at ω_f/2) never match; `seed.freq_tol > 0` takes the closest record within
+  the tolerance as the initial guess (`seed_kind = dalton_nearest` in the metadata).
+- **Excited states.** `EXCITLAB` records (sorted by energy) become the initial
+  `es__<key>` bundle at the active protocol, gauge-rotated onto the MRA orbitals,
+  Q-projected, marked unconverged; an existing bundle wins.
+
+DALTON side, learned the hard way:
+
+- `*LINEAR` and `*QUADRA` cannot share one `**RESPONSE` block ("RSPSYM: BOTH LR AND
+  QR CALC SPECIFIED"). Use `**PROPERTIES .EXCITA` for the excitation vectors (it
+  writes `EXCITLAB` records) together with `**RESPONSE *LINEAR .FREQUENCIES` for the
+  N(ω) grid, or split into two runs and merge.
+- The scratch tarball is `<dal>_<mol>.tar.gz`, or `<dal>.tar.gz` when the two
+  stems coincide.
+
+The gecko `SeededCampaign` (madness-workspace/workflow) writes these decks and the
+SLURM chain (DALTON seed → madqc) for the closeout molecules.
 
 ## Scope
 
