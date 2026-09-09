@@ -4765,7 +4765,8 @@ template<size_t NDIM>
 
         void broaden_op(const keyT& key, const std::vector< Future <bool> >& v);
 
-        // For each local node sets value of norm tree, snorm and dnorm to 0.0
+        // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
+        // dnorm_tree as uncomputed.
         void zero_norm_tree();
 
         // Broaden tree
