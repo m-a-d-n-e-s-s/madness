@@ -5202,32 +5202,28 @@ template<size_t NDIM>
               }
             }
 
-            typename BoxSurfaceDisplacementRange<opdim>::Validator validator;
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
-            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
-            if (max_distsq_reached)
-              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
-
-            // real-space extent of what the validator filters out, so that the range can place its probing
-            // displacement just outside of it. If there is no validator, nothing is filtered and the surface
-            // reaches all the way in to the center; leave this empty so that the probe screens nothing.
+            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell.
+            // The filter also carries the real-space reach of the standard displacements it discards, outside of which
+            // the range places its probing displacements. If no standard displacements were processed there is nothing
+            // to filter and nothing is known about the reach; the probes then screen nothing.
             using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
-            std::optional<typename SurfaceRange::StandardDisplacementsReach> standard_reach;
+            std::optional<typename SurfaceRange::Validator> validator;
             if (max_distsq_reached) {
               // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
               const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
               std::array<double, opdim> widths;
               for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);
-              standard_reach = typename SurfaceRange::StandardDisplacementsReach{*max_distsq_reached, widths};
+              validator.emplace(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(),
+                                StandardDisplacementsReach<opdim>{*max_distsq_reached, widths});
             }
 
-            // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
+            // this range iterates over the entire surface layer(s), and provides a probing displacement per face that can be used to screen out the face
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
             SurfaceRange range_boundary_face_displacements(opkey, box_radius,
                                                            surface_thickness,
                                                            op->lattice_summed(),
-                                                           validator,
-                                                           standard_reach);
+                                                           validator);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included

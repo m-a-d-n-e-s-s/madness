@@ -329,29 +329,184 @@ namespace madness {
      * For dimensions with unlimited size the point coordinates are limited to [0,2^n], with n being the level of the box.
      * N.B. "points" are really boxes in the standard MADNESS sense, which we'll call "primitive boxes" to disambiguate from box as the product of intervals mentioned above,
      */
+    /// Real-space extent of the standard (short-range) displacements, i.e. of what FunctionImpl::do_apply processes
+    /// before turning to the surface of the kernel range boundary (see Displacements). BoxSurfaceDisplacementValidator
+    /// uses it to skip the surface displacements already processed, and BoxSurfaceDisplacementRange to place its
+    /// probing displacements just outside of them; both must therefore see the same reach.
+    template <std::size_t NDIM>
+    struct StandardDisplacementsReach {
+      double max_distsq;                    ///< max real distance squared reached by the standard displacements (see Key::real_distsq_bc)
+      std::array<double, NDIM> cell_width;  ///< real-space width of the simulation cell along each axis, as used to compute `max_distsq`
+    };
+
+    /// Filters the surface displacements produced by BoxSurfaceDisplacementRange: drops the destinations outside of
+    /// the domain, maps the destinations along lattice-summed axes into the simulation cell, and drops the displacements
+    /// already processed as standard (short-range) displacements, as described by StandardDisplacementsReach.
+    template <size_t NDIM>
+    class BoxSurfaceDisplacementValidator {
+    public:
+      using Point = Key<NDIM>;
+      using PointPattern = Vector<std::optional<Translation>, NDIM>;
+      using Displacement = Key<NDIM>;
+      using Periodicity = array_of_bools<NDIM>;
+      using Reach = StandardDisplacementsReach<NDIM>;
+
+      /// \param is_infinite_domain whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
+      /// \param is_lattice_summed if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `is_infinite_domain`.
+      /// \param reach the real-space extent of the standard displacements that have been processed; surface displacements
+      ///        within it are filtered out as duplicates. Omit if no standard displacements have been processed (nothing is filtered on that account).
+      BoxSurfaceDisplacementValidator(
+          const array_of_bools<NDIM>& is_infinite_domain,
+          const array_of_bools<NDIM>& is_lattice_summed,
+          std::optional<Reach> reach = {}
+          ) :
+              is_lattice_summed_(is_lattice_summed),
+              reach_(std::move(reach)),
+              cell_width_(NDIM) {
+        for (size_t i = 0; i < NDIM; i++) {
+          if (is_lattice_summed[i]) {
+            domain_policies_[i] = ExtraDomainPolicy::Translate;
+          } else if (is_infinite_domain[i]) {
+            domain_policies_[i] = ExtraDomainPolicy::Keep;
+          } else {
+            domain_policies_[i] = ExtraDomainPolicy::Discard;
+          }
+          if (reach_) {
+            MADNESS_CHECK_THROW(reach_->cell_width[i] > 0, "BoxSurfaceDisplacementValidator: cell widths in StandardDisplacementsReach must be positive");
+            cell_width_(i) = reach_->cell_width[i];
+          }
+        }
+      }
+
+      /// @return which axes are lattice summed
+      const array_of_bools<NDIM>& is_lattice_summed() const { return is_lattice_summed_; }
+
+      /// @return the real-space extent of the standard displacements this filters out as duplicates; null if none
+      const std::optional<Reach>& reach() const { return reach_; }
+
+      /// Apply filter to a displacement ending up at a point or a group of points (point pattern)
+
+      /// @param level the tree level
+      /// @param dest the target point (when all elements are nonnull) or point pattern (when only some are).
+      ///        The latter is useful to skip the entire surface layer. The
+      ///        point coordinates are only used to determine whether we end up
+      ///        in or out of the domain.
+      /// @param displacement the optional displacement; if given then will check if it's among
+      ///        the standard displacement and whether it was used as part of
+      ///        the standard displacement set; if it has not been used and the
+      ///        operator is lattice summed, the displacement will be adjusted
+      ///        to end up in the simulation cell. Primary use case for omitting `displacement`
+      ///        is if `dest` is not equivalent to a point.
+      /// @return true if the displacement is to be used
+      bool operator()(
+          const Level level,
+          const PointPattern& dest,
+          std::optional<Displacement>&  displacement
+      ) const {
+        // preliminaries
+        const auto twon = (static_cast<Translation>(1) << level);  // number of boxes along an axis
+        // map_to_range_twon(x) returns for x >= 0 ? x % 2^level : map_to_range_twon(x+2^level)
+        // idiv is generally slow, so instead use bit logic that relies on 2's complement representation of integers
+        const auto map_to_range_twon = [&, mask = ((~(static_cast<std::uint64_t>(0)) << (64-level)) >> (64-level))](std::int64_t x) -> std::int64_t {
+          const std::int64_t x_mapped = x & mask;
+          MADNESS_ASSERT(x_mapped >=0 && x_mapped < twon && (std::abs(x_mapped-x)%twon==0));
+          return x_mapped;
+        };
+
+        const auto out_of_domain = [&](const Translation& t) -> bool {
+          return t < 0 || t >= twon;
+        };
+
+        // check that dest is in the domain
+        const bool dest_is_in_domain = [&]() {
+          for(size_t d=0; d!=NDIM; ++d) {
+            if (domain_policies_[d] == ExtraDomainPolicy::Discard && dest[d].has_value() && out_of_domain(*dest[d])) return false;
+          }
+          return true;
+        }();
+
+        if (dest_is_in_domain) {
+          if (displacement.has_value()) {
+
+            // N.B. avoid duplicates of standard displacements previously included:
+            // A displacement has been possibly considered if along EVERY axis the "effective" displacement size
+            // fits within the box explored by the standard displacement.
+            // If so, skip if <= max magnitude of standard displacements encountered
+            // Otherwise this is a new non-standard displacement, consider it
+            bool among_standard_displacements = true;
+            for(size_t d=0; d!=NDIM; ++d) {
+              const auto disp_d = (*displacement)[d];
+              auto bmax_standard = Displacements<NDIM>::bmax_default();
+
+              // the effective displacement length depends on whether lattice summation is performed along it
+              // compare Displacements::make_disp vs Displacements::make_disp_periodic
+              auto disp_d_eff_abs = std::abs(disp_d);
+              if (domain_policies_[d] == ExtraDomainPolicy::Translate) {
+                // for "periodic" displacements the effective disp_d is the shortest of {..., disp_d-twon, disp_d, disp_d+twon, ...} ... see make_disp_periodic
+                const std::int64_t disp_d_eff = map_to_range_twon(disp_d);
+                disp_d_eff_abs = std::min(disp_d_eff,std::abs(disp_d_eff-twon));
+
+                // IMPORTANT for lattice-summed axes, if the destination is out of the simulation cell map the displacement back to the cell
+                // same logic as for disp_d: dest[d] -> dest[d] % twon
+                if (dest[d].has_value()) {
+                  const Translation dest_d = dest[d].value();
+                  const auto dest_d_in_cell = map_to_range_twon(dest_d);
+                  MADNESS_ASSERT(!out_of_domain(
+                      dest_d_in_cell));
+                  // adjust displacement[d] so that it produces dest_d_cell, not dest_d
+                  auto t = (*displacement).translation();
+                  t[d] += (dest_d_in_cell - dest_d);
+                  displacement.emplace(displacement->level(), t);
+                }
+
+                // N.B. bmax in make_disp_periodic is clipped in the same way
+                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
+              }
+
+              if (disp_d_eff_abs > bmax_standard) {
+                among_standard_displacements = false;
+                // Do not break - this loop needs not only to determine among_standard_displacements but to shift the displacement if domain_is_periodic_
+                // Therefore, looping over all dim is strictly necessary.
+              }
+            }
+            if (among_standard_displacements) {
+              if (!reach_) return true;  // no standard displacements were processed => nothing to duplicate
+              // among standard displacements => keep if longer than the longest standard displacement considered
+              // N.B. same distance as used to order the standard displacements (see FunctionImpl::do_apply)
+              const auto distsq = displacement->real_distsq_bc(is_lattice_summed_, cell_width_);
+              return distsq > reach_->max_distsq;
+            }
+            else  // not among standard displacements => keep it
+              return true;
+          }
+          else  // skip the displacement-based filter if not given
+            return true;
+        }
+        else
+          return false;
+      }
+
+    private:
+      std::array<ExtraDomainPolicy, NDIM> domain_policies_;
+      array_of_bools<NDIM> is_lattice_summed_;
+      std::optional<Reach> reach_;
+      Tensor<double> cell_width_;  ///< reach_->cell_width as a Tensor, for Key::real_distsq_bc
+    };
+
+
     template<std::size_t NDIM>
     class BoxSurfaceDisplacementRange {
     public:
       using Point = Key<NDIM>;
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
-      /// this callable returns whether a given primitive box (or hyperface if only one coordinate is provided) can be filtered out.
-      /// if screening a primitive box, the corresponding displacement should be provided both for further screening and for the displacement to be updated, if displacements are translated to connect two cells in the box.
-      /// the validator should normally be a BoxSurfaceDisplacementFilter object. anything else is probably a hack.
-      using Validator = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
-
-      /// Real-space extent of the standard (short-range) displacements that BoxSurfaceDisplacementValidator
-      /// filters out of the surface; used to place the probing displacement just outside of it.
-      struct StandardDisplacementsReach {
-        double max_distsq;                    ///< max real distance squared reached by the standard displacements (see Key::real_distsq_bc)
-        std::array<double, NDIM> cell_width;  ///< real-space width of the simulation cell along each axis, as used to compute `max_distsq`
-      };
+      using Validator = BoxSurfaceDisplacementValidator<NDIM>;
 
     private:
       using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
-      using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools ... hollow = gap between -radius+thickness and +radius-thickness.
+      using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools ... hollow = there are boxes between the faces, besides those of the faces themselves
       using Periodicity = array_of_bools<NDIM>;
 
       Point center_;                          ///< Center point of the box
@@ -359,11 +514,11 @@ namespace madness {
       SurfaceThickness
           surface_thickness_;    ///< surface thickness in each dimension, measured in boxes. Real-space surface size is thus n-dependent.
       Box box_;                  ///< box bounds in each dimension.
+      Box initial_bounds_;       ///< bounds of the boxes to be iterated over, before any face is processed: the box plus its surface thickness, or, along a lattice-summed dimension, one period ending at the top layer (so that each equivalence class of boxes appears exactly once)
       Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
       Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
-      Validator validator_;      ///< optional validator function
-      std::optional<StandardDisplacementsReach> standard_reach_;  ///< what the validator filters out; null if nothing is known to be filtered
-      std::array<std::optional<Displacement>, NDIM> probing_displacements_;  ///< for each finite-radius dimension, a displacement to a nearby point on the face normal to it; it may not be able to pass the filter, but is sufficiently representative of that face's displacements to allow screening with decaying kernels
+      std::optional<Validator> validator_;  ///< optional filter; also the source of the reach of the standard displacements, which the probing displacements are placed outside of
+      std::array<std::optional<Displacement>, NDIM> probing_displacements_;  ///< for each finite-radius dimension, a displacement to a nearby point on the faces normal to it (the pair of hyperplanes at -radius and +radius, which lattice summation folds onto each other); it may not be able to pass the filter, but among the displacements those faces contribute it errs toward the largest norm, so that a decaying kernel can be screened with it
       std::array<bool, NDIM> skip_face_{};  ///< faces excluded from iteration (see skip_face())
 
       /**
@@ -459,7 +614,7 @@ namespace madness {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
                 std::optional<Displacement> nulldisp;
-                result = !validator(point.level(), point_pattern, nulldisp);
+                result = !(*validator)(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -484,30 +639,22 @@ namespace madness {
           }
         }
 
-        /// Excludes the layers of the face normal to `dim` from the faces that remain to be processed,
-        /// so that the edge boxes shared with it are not visited twice.
-        /// @return false if nothing remains, i.e. the box along `dim` is not hollow and every remaining box lies on this face
+        /// Excludes the layers of the faces normal to `dim` from the faces that remain to be processed,
+        /// so that the edge boxes shared with them are not visited twice.
+        /// @return false if nothing remains, i.e. the box along `dim` is not hollow and every remaining box lies on these faces
         bool exclude_face(size_t dim) {
           if (!parent->hollowness_[dim]) return false;
-          const auto t = parent->surface_thickness_[dim].value_or(0);
-          if (parent->is_lattice_summed_[dim]) {
-            // the box is at least as wide as the simulation cell, so the Z interval between the two faces wraps
-            // around and covers the layers just processed; what remains is the complement of the layer classes
-            // [box.second-t, box.second+t] within one period, expressed as a contiguous interval
-            const auto period = Translation(1) << parent->center_.level();
-            unprocessed_bounds[dim] = {parent->box_[dim].second + t + 1,
-                                       parent->box_[dim].second + period - t - 1};
-          } else {
-            unprocessed_bounds[dim] = {parent->box_[dim].first + t + 1,
-                                       parent->box_[dim].second - t - 1};
-          }
+          // the layers are at both ends of the bounds, or only at the top end if lattice summed (see initial_bounds_)
+          const auto nlayers = 2 * parent->surface_thickness_[dim].value_or(0) + 1;
+          unprocessed_bounds[dim] = {unprocessed_bounds[dim].first + (parent->is_lattice_summed_[dim] ? 0 : nlayers),
+                                     unprocessed_bounds[dim].second - nlayers};
           return true;
         }
 
-        /// Sets `fixed_dim` to the first finite-radius dimension at or after `from` whose face is not skipped.
+        /// Sets `fixed_dim` to the first finite-radius dimension at or after `from` whose faces are not skipped.
         /// Sets `done` if no face remains.
-        /// N.B. a skipped face is not excluded from the remaining faces (unlike a processed one), so the
-        /// edge boxes it shares with them are still visited through them; hence a box is visited iff it
+        /// N.B. skipped faces are not excluded from the remaining faces (unlike processed ones), so the
+        /// edge boxes they share with them are still visited through them; hence a box is visited iff it
         /// lies on at least one face that is not skipped, regardless of the order in which faces are visited.
         void select_face(size_t from) {
           for (fixed_dim = from; fixed_dim < NDIM; ++fixed_dim) {
@@ -524,7 +671,7 @@ namespace madness {
           if (parent->validator_) {
             const auto filtered_out = [&]() -> bool {
               this->displacement(); // ensure disp is up to date
-              return !parent->validator_(point.level(), point.translation(), disp);
+              return !(*parent->validator_)(point.level(), point.translation(), disp);
             };
 
             while (!done && filtered_out()) {
@@ -553,18 +700,11 @@ namespace madness {
             // This dimension consists of two finite-thickness hyperfaces, lattice summed.
             // The two hyperfaces are the same interval shifted by parent->surface_radius_[dim]
             // periods. So by lattice summation, the - hyperface is included. Initialize
-            // to the start of the + hyperface.
-            l_dim_min = parent->box_[dim].second -
-                        parent->surface_thickness_[dim].value_or(0);
-          }
-          if (parent->is_lattice_summed_[dim]) {
-            // By lattice summation, boxes that differ by a SimulationCell are equivalent.
-            // Therefore, we need to sum over equivalence classes and not displacements.
-            const auto period = 1 << parent->center_.level();
-            const Translation last_equiv_class = is_fixed_dim ? parent->box_[dim].second +
-              parent->surface_thickness_[dim].value_or(0) : unprocessed_bounds[dim].second;
-            const Translation first_equiv_class = last_equiv_class - period + 1;
-            l_dim_min = std::max(first_equiv_class, l_dim_min);
+            // to the start of the + hyperface, clipped to one period (= the bounds) in case
+            // the layers are thicker than the simulation cell.
+            l_dim_min = std::max(parent->box_[dim].second -
+                                     parent->surface_thickness_[dim].value_or(0),
+                                 unprocessed_bounds[dim].first);
           }
           l[dim] = l_dim_min;
 
@@ -581,7 +721,7 @@ namespace madness {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
                 std::optional<Displacement> nulldisp;
-                result = !validator(point.level(), point_pattern, nulldisp);
+                result = !(*validator)(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -625,15 +765,9 @@ namespace madness {
         Iterator(const BoxSurfaceDisplacementRange* p, Type type)
             : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
           if (type != End) {
-            for (size_t d = 0; d != NDIM; ++d) {
-              // min/max displacements along this axis ... N.B. take into account surface thickness!
-              unprocessed_bounds[d] = parent->box_radius_[d] ? std::pair{parent->box_[d].first -
-                                parent->surface_thickness_[d].value_or(0),
-                         parent->box_[d].second +
-                             parent->surface_thickness_[d].value_or(0)} : parent->box_[d];
-            }
+            unprocessed_bounds = parent->initial_bounds_;
 
-            // skip to first dimension with limited range whose face is not skipped
+            // skip to first dimension with limited range whose faces are not skipped
             select_face(0);
             if (done) return;
 
@@ -709,25 +843,29 @@ namespace madness {
        * @param box_radius Box radius in each dimension, in half-SimulationCells. Omit for dim `i` to signal that the bound for dim `i` is simply the simulation cell.
        * @param surface_thickness Surface thickness in each dimension, measured in number of addl. boxes *on each half* of the surface box proper. Omit for dim `i` if and only if omitted in `box_radius`
        * @param is_lattice_summed whether each dimension is lattice summed; along lattice summed dimensions only one side of the box is iterated over.
-       * @param validator Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
-       * @param standard_reach the real-space extent of the standard/short-range displacements that `validator` discards
-       *        from the surface (see BoxSurfaceDisplacementValidator); it is used to place the probing displacement
-       *        just outside of that region. Omit if nothing is known to be filtered out: the surface then reaches all
-       *        the way in to `center`, and the probe falls back to the on-site displacement, which screens nothing.
+       * @param validator Optional filter (if returns false, displacement is dropped; default: no filter); it also maps displacements
+       *        along lattice-summed axes into the simulation cell, and carries the real-space reach of the standard displacements
+       *        it filters out as duplicates, outside of which the probing displacements are placed. Its lattice-summation flags
+       *        must match `is_lattice_summed`. If omitted (or if it carries no reach) nothing is known to be filtered out: the
+       *        surface then reaches all the way in to `center`, and the probes fall back to the on-site displacement, which screens nothing.
        * @pre `surface_radius[d]>0 && surface_thickness[d]<=surface_radius[d]`
        */
       explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
                                            const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
                                            const array_of_bools<NDIM>& is_lattice_summed,
-                                           Validator validator = {},
-                                           std::optional<StandardDisplacementsReach> standard_reach = {})
+                                           std::optional<Validator> validator = {})
           : center_(center), box_radius_(box_radius),
-            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)),
-            standard_reach_(std::move(standard_reach)) {
+            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)) {
+        if (validator_) {
+          for (size_t d=0; d!= NDIM; ++d)
+            MADNESS_CHECK_THROW(validator_->is_lattice_summed()[d] == is_lattice_summed_[d],
+                                "BoxSurfaceDisplacementRange: validator and range disagree on which axes are lattice summed");
+        }
         // initialize bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
+        const auto period = Translation(1) << n;
         for (size_t d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
@@ -748,13 +886,20 @@ namespace madness {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
           MADNESS_ASSERT(surface_thickness_[d].value_or(0) >= 0);
-          // hollow = there are boxes between the two faces (with their thickness) ... for lattice-summed dimensions
-          // the box is at least as wide as the simulation cell, so the question is whether the layers of the single
-          // face cover every equivalence class of the cell
-          hollowness_[d] = surface_thickness_[d]
-                               ? (is_lattice_summed_[d] ? (Translation(1) << n) > 2 * surface_thickness_[d].value() + 1
-                                                        : box_[d].first + surface_thickness_[d].value() < box_[d].second - surface_thickness_[d].value())
-                               : false;
+          const auto t = surface_thickness_[d].value_or(0);
+          if (box_radius_[d]) {
+            // the boxes to iterate over: the box plus its surface thickness. Along a lattice-summed dimension the
+            // box is at least one simulation cell wide, so instead take one period ending at the top layer: each
+            // equivalence class of boxes then appears exactly once, and only the top layers are on the surface.
+            initial_bounds_[d] = is_lattice_summed_[d] ? std::pair{box_[d].second + t - period + 1, box_[d].second + t}
+                                                       : std::pair{box_[d].first - t, box_[d].second + t};
+            // hollow = the bounds hold more boxes than the layers of the faces (both ends, or the top end if lattice summed)
+            const auto nlayers = (is_lattice_summed_[d] ? 1 : 2) * (2 * t + 1);
+            hollowness_[d] = (initial_bounds_[d].second - initial_bounds_[d].first + 1) > nlayers;
+          } else {
+            initial_bounds_[d] = box_[d];
+            hollowness_[d] = false;
+          }
         }
       }
 
@@ -801,8 +946,8 @@ namespace madness {
       const array_of_bools<NDIM>& is_lattice_summed() const { return is_lattice_summed_; }
 
       /**
-       * @param face_dimension a dimension with finite radius; the face is the pair of hyperplanes normal to it (one, if lattice summed)
-       * @return "probing" displacement to a nearby point *on* the face normal to `face_dimension`; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of that face's displacements for the purposes of screening
+       * @param face_dimension a dimension with finite radius; its faces are the pair of hyperplanes normal to it at -radius and +radius (which lattice summation folds onto each other)
+       * @return "probing" displacement to a nearby point *on* the faces normal to `face_dimension`; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but, among the displacements those faces contribute, it errs toward the largest norm, so that a decaying kernel can be screened with it. One probe serves both faces since the real-space distance of a displacement depends on its magnitude along each axis only.
        */
       const Displacement& probing_displacement(size_t face_dimension) const {
         MADNESS_ASSERT(face_dimension < NDIM && probing_displacements_[face_dimension].has_value());
@@ -810,7 +955,7 @@ namespace madness {
       }
 
       /**
-       * @return probing displacements for every face; null for dimensions of unlimited size, which have no face
+       * @return probing displacements for the faces normal to every dimension; null for dimensions of unlimited size, which have no faces
        * @sa probing_displacement()
        */
       const std::array<std::optional<Displacement>, NDIM>& probing_displacements() const {
@@ -818,9 +963,9 @@ namespace madness {
       }
 
       /**
-       * Excludes the face normal to `face_dimension` from iteration, e.g. because its probing displacement
-       * showed its contributions to be negligible. The edge boxes it shares with faces that are not skipped
-       * are still visited through those faces, i.e. a box is visited iff it lies on at least one face that is not skipped.
+       * Excludes the faces normal to `face_dimension` (both, if not lattice summed) from iteration, e.g. because their
+       * probing displacement showed their contributions to be negligible. The edge boxes they share with faces that are
+       * not skipped are still visited through those faces, i.e. a box is visited iff it lies on at least one face that is not skipped.
        * @param face_dimension a dimension with finite radius
        * @pre no iterator has been obtained from this object yet
        */
@@ -830,7 +975,7 @@ namespace madness {
       }
 
       /**
-       * @return whether the face normal to `face_dimension` is excluded from iteration
+       * @return whether the faces normal to `face_dimension` are excluded from iteration
        */
       bool face_skipped(size_t face_dimension) const {
         return skip_face_[face_dimension];
@@ -883,15 +1028,16 @@ namespace madness {
 
         // If nothing is known to be filtered out, none of the surface points have been processed,
         // so the surface reaches all the way in to center_ and the on-site probe is the only safe choice.
-        if (!standard_reach_)
+        if (!validator_ || !validator_->reach())
           return Displacement(n, probing_displacement_vec);
+        const auto& reach = *validator_->reach();
 
         // Else, we still need to satisfy requirement (2) while trying to obey (3). We need to displace along
         // a different dimension.
 
         // The offset along axis d is the least number of boxes that takes us out of the region covered by
-        // the standard displacements (see BoxSurfaceDisplacementValidator): either beyond bmax boxes
-        // (see Displacements::make_disp), or, within bmax, beyond sqrt(max_distsq) in real space.
+        // the standard displacements, which the validator filters out (see BoxSurfaceDisplacementValidator):
+        // either beyond bmax boxes (see Displacements::make_disp), or, within bmax, beyond sqrt(max_distsq) in real space.
         // Key::real_distsq_bc measures cell_width*(|l|-1) along an axis, so invert that.
         // Cap the offset at half a cell. If our dimension is lattice-summed, it's even, and half a cell
         // is where it's furthest from the origin. Else, half a cell is the furthest away we can
@@ -899,14 +1045,13 @@ namespace madness {
         const Translation half_cell = Translation(1) << (n-1);
         const Translation bmax = Displacements<NDIM>::bmax_default();
         const auto offset_along = [&](size_t d) -> Translation {
-          const double width = standard_reach_->cell_width[d];
-          MADNESS_CHECK_THROW(width > 0, "BoxSurfaceDisplacementRange: cell widths in StandardDisplacementsReach must be positive");
-          const Translation reach = 1 + static_cast<Translation>(std::sqrt(standard_reach_->max_distsq) / width);
-          return std::min(std::min(reach, bmax) + 1, half_cell);
+          const double width = reach.cell_width[d];  // positive, checked by the validator
+          const Translation nboxes = 1 + static_cast<Translation>(std::sqrt(reach.max_distsq) / width);
+          return std::min(std::min(nboxes, bmax) + 1, half_cell);
         };
         // real-space distance of the offset; since the face axis folds to zero this is the probe's real distance
         const auto offset_distance = [&](size_t d) -> double {
-          return standard_reach_->cell_width[d] * (offset_along(d) - 1);
+          return reach.cell_width[d] * (offset_along(d) - 1);
         };
 
         // choose the dimension to displace along: the one with the least real-space offset (requirement (3)),
@@ -947,150 +1092,5 @@ namespace madness {
     /// For dealing with the lattice-summed operators the filter
     /// can adjusts the displacement to make sure that we end up in
     /// the simulation cell.
-    template <size_t NDIM>
-    class BoxSurfaceDisplacementValidator {
-    public:
-      using Point = Key<NDIM>;
-      using PointPattern = Vector<std::optional<Translation>, NDIM>;
-      using Displacement = Key<NDIM>;
-      using Periodicity = array_of_bools<NDIM>;
-      using DistanceSquaredFunc = std::function<double(const Displacement&)>;
-
-      /// \param is_infinite_domain whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
-      /// \param is_lattice_summed if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `is_infinite_domain`.
-      /// \param range the kernel range for each axis
-      /// \param default_distance_squared function that converts a displacement to its effective distance squared (effective may be different from the real distance squared due to periodicity)
-      /// \param max_distsq_reached max effective distance squared reached by standard displacements
-      BoxSurfaceDisplacementValidator(
-          const array_of_bools<NDIM>& is_infinite_domain,
-          const array_of_bools<NDIM>& is_lattice_summed,
-          const std::array<KernelRange, NDIM>& range,
-          DistanceSquaredFunc default_distance_squared,
-          double max_distsq_reached
-          ) :
-              range_(range),
-              default_distance_squared_(default_distance_squared),
-              max_distsq_reached_(max_distsq_reached) {
-        for (size_t i = 0; i < NDIM; i++) {
-          if (is_lattice_summed[i]) {
-            domain_policies_[i] = ExtraDomainPolicy::Translate;
-          } else if (is_infinite_domain[i]) {
-            domain_policies_[i] = ExtraDomainPolicy::Keep;
-          } else {
-            domain_policies_[i] = ExtraDomainPolicy::Discard;
-          }
-        }
-      }
-
-      /// Apply filter to a displacement ending up at a point or a group of points (point pattern)
-
-      /// @param level the tree level
-      /// @param dest the target point (when all elements are nonnull) or point pattern (when only some are).
-      ///        The latter is useful to skip the entire surface layer. The
-      ///        point coordinates are only used to determine whether we end up
-      ///        in or out of the domain.
-      /// @param displacement the optional displacement; if given then will check if it's among
-      ///        the standard displacement and whether it was used as part of
-      ///        the standard displacement set; if it has not been used and the
-      ///        operator is lattice summed, the displacement will be adjusted
-      ///        to end up in the simulation cell. Primary use case for omitting `displacement`
-      ///        is if `dest` is not equivalent to a point.
-      /// @return true if the displacement is to be used
-      bool operator()(
-          const Level level,
-          const PointPattern& dest,
-          std::optional<Displacement>&  displacement
-      ) const {
-        // preliminaries
-        const auto twon = (static_cast<Translation>(1) << level);  // number of boxes along an axis
-        // map_to_range_twon(x) returns for x >= 0 ? x % 2^level : map_to_range_twon(x+2^level)
-        // idiv is generally slow, so instead use bit logic that relies on 2's complement representation of integers
-        const auto map_to_range_twon = [&, mask = ((~(static_cast<std::uint64_t>(0)) << (64-level)) >> (64-level))](std::int64_t x) -> std::int64_t {
-          const std::int64_t x_mapped = x & mask;
-          MADNESS_ASSERT(x_mapped >=0 && x_mapped < twon && (std::abs(x_mapped-x)%twon==0));
-          return x_mapped;
-        };
-
-        const auto out_of_domain = [&](const Translation& t) -> bool {
-          return t < 0 || t >= twon;
-        };
-
-        // check that dest is in the domain
-        const bool dest_is_in_domain = [&]() {
-          for(size_t d=0; d!=NDIM; ++d) {
-            if (domain_policies_[d] == ExtraDomainPolicy::Discard && dest[d].has_value() && out_of_domain(*dest[d])) return false;
-          }
-          return true;
-        }();
-
-        if (dest_is_in_domain) {
-          if (displacement.has_value()) {
-
-            // N.B. avoid duplicates of standard displacements previously included:
-            // A displacement has been possibly considered if along EVERY axis the "effective" displacement size
-            // fits within the box explored by the standard displacement.
-            // If so, skip if <= max magnitude of standard displacements encountered
-            // Otherwise this is a new non-standard displacement, consider it
-            bool among_standard_displacements = true;
-            for(size_t d=0; d!=NDIM; ++d) {
-              const auto disp_d = (*displacement)[d];
-              auto bmax_standard = Displacements<NDIM>::bmax_default();
-
-              // the effective displacement length depends on whether lattice summation is performed along it
-              // compare Displacements::make_disp vs Displacements::make_disp_periodic
-              auto disp_d_eff_abs = std::abs(disp_d);
-              if (domain_policies_[d] == ExtraDomainPolicy::Translate) {
-                // for "periodic" displacements the effective disp_d is the shortest of {..., disp_d-twon, disp_d, disp_d+twon, ...} ... see make_disp_periodic
-                const std::int64_t disp_d_eff = map_to_range_twon(disp_d);
-                disp_d_eff_abs = std::min(disp_d_eff,std::abs(disp_d_eff-twon));
-
-                // IMPORTANT for lattice-summed axes, if the destination is out of the simulation cell map the displacement back to the cell
-                // same logic as for disp_d: dest[d] -> dest[d] % twon
-                if (dest[d].has_value()) {
-                  const Translation dest_d = dest[d].value();
-                  const auto dest_d_in_cell = map_to_range_twon(dest_d);
-                  MADNESS_ASSERT(!out_of_domain(
-                      dest_d_in_cell));
-                  // adjust displacement[d] so that it produces dest_d_cell, not dest_d
-                  auto t = (*displacement).translation();
-                  t[d] += (dest_d_in_cell - dest_d);
-                  displacement.emplace(displacement->level(), t);
-                }
-
-                // N.B. bmax in make_disp_periodic is clipped in the same way
-                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
-              }
-
-              if (disp_d_eff_abs > bmax_standard) {
-                among_standard_displacements = false;
-                // Do not break - this loop needs not only to determine among_standard_displacements but to shift the displacement if domain_is_periodic_
-                // Therefore, looping over all dim is strictly necessary.
-              }
-            }
-            if (among_standard_displacements) {
-              const auto distsq = default_distance_squared_(*displacement);
-              if (distsq > max_distsq_reached_) { // among standard displacements => keep if longer than the longest standard displacement considered
-                return true;
-              } {
-                return false;
-              }
-            }
-            else  // not among standard displacements => keep it
-              return true;
-          }
-          else  // skip the displacement-based filter if not given
-            return true;
-        }
-        else
-          return false;
-      }
-
-    private:
-      std::array<ExtraDomainPolicy, NDIM> domain_policies_;
-      std::array<KernelRange, NDIM> range_;
-      DistanceSquaredFunc default_distance_squared_;
-      double max_distsq_reached_;
-    };
-
 }  // namespace madness
 #endif // MADNESS_MRA_DISPLACEMENTS_H__INCLUDED

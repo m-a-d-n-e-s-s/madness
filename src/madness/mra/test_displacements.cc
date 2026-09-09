@@ -22,7 +22,9 @@ Key<NDIM> centered_key(Level n) {
 }
 
 template <std::size_t NDIM>
-using Reach = typename BoxSurfaceDisplacementRange<NDIM>::StandardDisplacementsReach;
+using Reach = StandardDisplacementsReach<NDIM>;
+template <std::size_t NDIM>
+using Validator = BoxSurfaceDisplacementValidator<NDIM>;
 
 /// standard displacements of unit-width cells reached out to real distance squared \p max_distsq
 template <std::size_t NDIM>
@@ -43,29 +45,31 @@ Translation far_offset(Level n) {
   return std::min<Translation>(Displacements<NDIM>::bmax_default() + 1, Translation(1) << (n - 1));
 }
 
-/// keeps only destinations inside the simulation cell
+/// keeps only destinations inside the simulation cell (finite domain), nothing else is filtered
 template <std::size_t NDIM>
-typename BoxSurfaceDisplacementRange<NDIM>::Validator in_domain_only() {
-  return [](const Level level, const typename BoxSurfaceDisplacementRange<NDIM>::PointPattern& dest,
-            std::optional<Key<NDIM>>&) -> bool {
-    const auto twon = (Translation(1) << level);
-    for (std::size_t d = 0; d != NDIM; ++d)
-      if (dest[d].has_value() && (*dest[d] < 0 || *dest[d] >= twon)) return false;
-    return true;
-  };
+Validator<NDIM> in_domain_only(const array_of_bools<NDIM>& is_lattice_summed) {
+  return Validator<NDIM>(array_of_bools<NDIM>{false}, is_lattice_summed);
 }
 
+/// keeps everything (infinite domain, no standard displacements to deduplicate against)
+template <std::size_t NDIM>
+Validator<NDIM> keep_all(const array_of_bools<NDIM>& is_lattice_summed) {
+  return Validator<NDIM>(array_of_bools<NDIM>{true}, is_lattice_summed);
+}
+
+/// surface with unit thickness; if only `reach` is given the validator keeps everything but the standard displacements
 template <std::size_t NDIM>
 BoxSurfaceDisplacementRange<NDIM> make_range(Level n, const Radii<NDIM>& box_radius,
                                              const array_of_bools<NDIM>& is_lattice_summed,
                                              std::optional<Reach<NDIM>> reach = {},
-                                             typename BoxSurfaceDisplacementRange<NDIM>::Validator validator = {}) {
+                                             std::optional<Validator<NDIM>> validator = {}) {
   Radii<NDIM> surface_thickness;
   for (std::size_t d = 0; d != NDIM; ++d) {
     if (box_radius[d]) surface_thickness[d] = 1;
   }
+  if (reach && !validator) validator.emplace(array_of_bools<NDIM>{true}, is_lattice_summed, std::move(reach));
   return BoxSurfaceDisplacementRange<NDIM>(centered_key<NDIM>(n), box_radius, surface_thickness, is_lattice_summed,
-                                           std::move(validator), std::move(reach));
+                                           std::move(validator));
 }
 
 /// the probing displacement of every face, as a translation; null for dimensions of unlimited size (no face)
@@ -121,9 +125,9 @@ int test_no_duplicates(World& world) {
     constexpr std::size_t NDIM = decltype(ndim_tag)::value;
     // N.B. the domain filter is only meaningful when the range boundary can land
     // inside the cell at all.
-    const auto range = make_range<NDIM>(
-        n, finite<NDIM>(N), array_of_bools<NDIM>{lattice_summed}, {},
-        filter_to_domain ? in_domain_only<NDIM>() : typename BoxSurfaceDisplacementRange<NDIM>::Validator{});
+    const auto summed = array_of_bools<NDIM>{lattice_summed};
+    const auto range = make_range<NDIM>(n, finite<NDIM>(N), summed, {},
+                                        filter_to_domain ? std::optional{in_domain_only<NDIM>(summed)} : std::nullopt);
     std::vector<Key<NDIM>> disps;
     for (auto&& disp : range) disps.push_back(disp);
     std::sort(disps.begin(), disps.end());
@@ -169,7 +173,7 @@ int test_validator_agnostic(World& world) {
   test_output t("BoxSurfaceDisplacementRange: iteration does not depend on the presence of a validator", world.rank() == 0);
 
   constexpr std::size_t NDIM = 2;
-  const auto disps_of = [](typename BoxSurfaceDisplacementRange<NDIM>::Validator validator) {
+  const auto disps_of = [](std::optional<Validator<NDIM>> validator) {
     const auto range = make_range<NDIM>(4, finite<NDIM>({1, 1}), array_of_bools<NDIM>{false}, {}, std::move(validator));
     std::vector<Key<NDIM>> disps;
     for (auto&& disp : range) disps.push_back(disp);
@@ -177,9 +181,8 @@ int test_validator_agnostic(World& world) {
     return disps;
   };
 
-  const auto without = disps_of({});
-  const auto with = disps_of([](const Level, const typename BoxSurfaceDisplacementRange<NDIM>::PointPattern&,
-                                std::optional<Key<NDIM>>&) { return true; });
+  const auto without = disps_of(std::nullopt);
+  const auto with = disps_of(keep_all<NDIM>(array_of_bools<NDIM>{false}));
   t.checkpoint(!with.empty(), "2D n=4 N={1,1}: surface is non-empty");
   t.checkpoint(without.size() == with.size(), "2D n=4 N={1,1}: same number of displacements with and without a validator (" +
                                                   std::to_string(without.size()) + " vs " + std::to_string(with.size()) + ")");
