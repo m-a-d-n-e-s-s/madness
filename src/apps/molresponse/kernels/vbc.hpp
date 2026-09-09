@@ -2,30 +2,56 @@
 #define MOLRESPONSE_V3_KERNELS_VBC_HPP
 
 // ===========================================================================
-// VBC — the quadratic source for hyperpolarizability beta (2n+1 / VBC
-// contraction), closed-shell. Ported from molresponse_v2 SimpleVBCComputer, but
-// rebuilt on v3 primitives so the two-electron kernel `compute_g` shares the
-// SAME Coulomb / exchange path as the linear kernel
-// Kernels<Full, ClosedShell>::compute_gamma (doc 15, beta path). beta is pure
-// 2n+1 contraction — no explicit x(2) solve.
+// VBC — the second-order (quadratic) response source V^{BC} for the closed-
+// shell 2n+1 contractions: hyperpolarizability beta, Raman (dipole x nuclear
+// displacement) and, through the single residue, two-photon absorption. No
+// explicit x(2) solve anywhere; the source is only ever contracted.
 //
-// compute_g now routes through two_electron::apply_gamma_raw (shared with the
-// linear kernels). compute_vbc is templated over <Shell>: closed-shell is the
-// v2-ported build (compute_vbc_i, alpha-only); open-shell is guarded (throws)
-// until the per-spin make_zeta / compute_vbc_i kernels are derived (step 6b/7).
+// THE EQUATION (Hurtado/Sekino/Harrison 2026 eq. 19 = Parker/Rappoport/Furche
+// 2018 eq. 28 = Salek et al. 2002 eq. 68; derivation and code dictionary in
+// madness-workspace/reports/2026-09-09_orientation_derivation). For each
+// ordered half (B,C), with F^B = v^B + g'[gamma^B] and
+// gamma^B = sum_i |x_i^B><phi_i| + |phi_i><y_i^B|  (the response density at
+// +omega_B, the object that drives the x-equation),
 //
-// Convention note (the whole correctness risk): v3 carries the closed-shell
-// factor 2 IN the density (compute_density: rho1 = 2*sum phi0*(x+y)), so the
-// Coulomb term is J[rho]*phi with no extra factor and exchange is scaled by
-// c_xc (= 1 for HF). v2's compute_g instead used 2J - K on an unscaled density
-// — identical for HF. We follow the v3 convention so compute_g is consistent
-// with the already-Dalton-validated linear kernel.
+//   X channel:  V_p = sum_k x_k^C <phi_k|F^B|phi_p>        [M]  occupied matrix
+//                   - Q ( F^B x_p^C )                       [A]  apply
+//                   - Q ( g'[gamma_L^{BC}] phi_p )          [L]  pair density
+//   Y channel:  the same with F^B -> F^B-dagger (= v^B + g'[gamma^B-dagger]),
+//               x^C -> y^C, gamma_L -> gamma_L-dagger,
+//
+// gamma_L^{BC} = |x^B><y^C| (vv block) - |zeta_BC><phi| (oo block, fixed by
+// orthonormality / idempotency; make_zeta below). The (C,B) half is added.
+// The g'' (second xc kernel) slot [G] is zero for Hartree-Fock and is NOT
+// implemented (DFT quadratic response is a separate project).
+//
+// LEG DICTIONARY (source_spec.hpp): madness::Exchange contracts
+// K(bra,ket) f = sum_k ket_k Int bra_k f, so a leg {bra,ket} is the pair
+// density |ket><bra|. gamma^B is therefore gamma_legs(x,y,phi) = {phi,x},{y,phi}
+// -- the same order the DALTON-validated linear kernel uses
+// (kernels/full.hpp compute_gamma) -- and gamma^B-dagger is gamma_dagger_legs.
+// Until 2026-09-09 this file wrote the legs in reading order, (x,phi),(phi,y),
+// which built every response density transposed (inherited from
+// molresponse_v2/VBCMacrotask.hpp). That is invisible at omega=0 (x=y) but
+// wrong at finite frequency: H2O SHG omega=0.1 vs DALTON d-aug-cc-pVQZ gave
+// beta_zxx +12.9%, beta_xxz -4.0%, while the 2PA source tpa_source_spec.hpp
+// (which had the equation's orientation all along) matched DALTON to ~1%.
+// The oo (zeta) leg orientation is contraction-irrelevant for HF (the exchange
+// of an oo pair density applied to phi is occupied and Q-projected away;
+// Coulomb sees only the diagonal) but is written in the equation's orientation
+// anyway.
+//
+// Closed-shell factor 2 lives IN each Coulomb density (v3 convention, matching
+// compute_density: rho1 = 2*sum phi0*(x+y)); exchange is scaled by c_xc.
+//
+// Gates: tests/test_vbc_spec_equivalence (compute_vbc == Q(tpa::quadratic_source)
+// on non-Hermitian stand-ins and in the Hermitian limit; static beta + Kleinman),
+// tests/test_tpa_pq_vs_vbc ((P,Q) vs V^{BC} two-electron equality).
 // ===========================================================================
 
-#include "source_spec.hpp"   // declarative source engine (spec path, step 2)
+#include "source_spec.hpp"   // declarative source engine + leg dictionary
 #include "tags.hpp"
-#include "tda.hpp"   // ResponseGroundState, common_ops::{dot, apply_exchange}
-#include "two_electron.hpp"  // two_electron::{ExchangePair, apply_gamma_raw}
+#include "tda.hpp"   // ResponseGroundState, common_ops::dot
 #include "../solvers/response_state.hpp"   // ResponseStateXY<ClosedShell>
 
 #include <madness/mra/mra.h>
@@ -39,46 +65,10 @@ namespace molresponse_v3::vbc {
 
 using vecfuncT = std::vector<madness::real_function_3d>;
 
-/// (J[rho] - c_xc*K) applied to (phix, phiy), where the perturbed density
-///   rho = 2*( sum_p Aleft[p]*Aright[p] + sum_p Bleft[p]*Bright[p] )
-/// carries the closed-shell factor 2 (matching compute_density). J = coulop(rho)
-/// thus needs no further factor; exchange is scaled by c_xc. The Y / conjugate
-/// channel swaps the exchange bra/ket, exactly as v2 compute_g.
-///
-/// v2 mapping: result_x = 2*Jx - Kx, result_y = 2*Jy - Ky (HF). Here the 2 is
-/// folded into rho and the K coefficient is c_xc (= 1 for HF).
-inline std::pair<vecfuncT, vecfuncT>
-compute_g(madness::World &world, const ResponseGroundState &g0,
-          const vecfuncT &Aleft, const vecfuncT &Aright,
-          const vecfuncT &Bleft, const vecfuncT &Bright,
-          const vecfuncT &phix,  const vecfuncT &phiy) {
-  using namespace madness;
-
-  // rho = 2*(Aleft*Aright + Bleft*Bright)   [closed-shell factor 2 in density]
-  real_function_3d rho = common_ops::dot(world, Aleft, Aright);
-  rho += common_ops::dot(world, Bleft, Bright);
-  rho.scale(2.0);
-  rho.truncate();
-
-  // Coulomb + exchange via the shared projection-free core. J = coulop(rho)
-  // already carries the factor 2 (in rho); exchange is scaled by c_xc. Same
-  // term order as the linear Kernels<Full,ClosedShell> kernel:
-  //   X uses (Aleft,Aright) + (Bleft,Bright); Y swaps bra/ket (the conjugate),
-  // matching the original v2 compute_g. NOT projected -- the caller (compute_vbc_i)
-  // applies Qa where the response-density terms need it and leaves the Fock-matrix
-  // term unprojected.
-  auto J  = apply(*g0.coulop, rho);
-  auto gx = two_electron::apply_gamma_raw(world, J, phix,
-      {{Aleft, Aright}, {Bleft, Bright}}, g0.c_xc, g0.lo);
-  auto gy = two_electron::apply_gamma_raw(world, J, phiy,
-      {{Aright, Aleft}, {Bright, Bleft}}, g0.c_xc, g0.lo);
-  return {std::move(gx), std::move(gy)};
-}
-
-/// Occupied-space relaxation term:
-///   zeta_BC[p] = - sum_q phi0[q] <y_B[q] | x_C[p]>.
-/// v2 make_zeta_bc: -1 * transform(phi0, <y_B|x_C>). Cheap (one matrix_inner +
-/// transform); negligible vs. compute_g.
+/// Occupied-space relaxation term (idempotency-fixed oo block of gamma^{BC}):
+///   zeta_BC[p] = - sum_q phi0[q] <y_B[q] | x_C[p]>,
+/// so that -|zeta_BC><phi| has matrix elements K_pq = -<y_p^B|x_q^C>
+/// (Parker eq. 24a). Cheap (one matrix_inner + transform).
 inline vecfuncT
 make_zeta(madness::World &world, const vecfuncT &by, const vecfuncT &cx,
           const vecfuncT &phi0) {
@@ -88,119 +78,14 @@ make_zeta(madness::World &world, const vecfuncT &by, const vecfuncT &cx,
   return transform(world, phi0, mat, true);
 }
 
-/// One ordered half of the VBC source for the (B,C) pairing — a verbatim port
-/// of v2 SimpleVBCComputer::compute_vbc_i, on v3 compute_g + g0.Qa. `v` is the
-/// raw (one-electron) perturbation operator for B (e.g. the dipole operator for
-/// B's Cartesian direction). Returns (result_x, result_y) for this half; the
-/// caller sums the (B,C) and (C,B) halves.
-inline std::pair<vecfuncT, vecfuncT>
-compute_vbc_i(madness::World &world, const ResponseGroundState &g0,
-              const vecfuncT &bx, const vecfuncT &by,
-              const vecfuncT &cx, const vecfuncT &cy,
-              const vecfuncT &zeta_bc,
-              const madness::real_function_3d &v) {
-  using namespace madness;
-  const vecfuncT &phi0 = g0.amo;
-
-  // gzeta = -Q( g[ bx,cy ; phi0,zeta_bc ](phi0,phi0) )
-  auto gzeta = compute_g(world, g0, bx, cy, phi0, zeta_bc, phi0, phi0);
-  vecfuncT gzeta_x = g0.Qa(gzeta.first);  scale(world, gzeta_x, -1.0);
-  vecfuncT gzeta_y = g0.Qa(gzeta.second); scale(world, gzeta_y, -1.0);
-
-  // g[B,C] response-density two-electron terms, and the phi0-only version.
-  auto gbc     = compute_g(world, g0, bx, phi0, phi0, by, cx, cy);
-  auto gbc_phi = compute_g(world, g0, bx, phi0, phi0, by, phi0, phi0);
-
-  // fb = -Q( g[B,C] + v*c )
-  auto vcx = mul(world, v, cx, true);
-  auto vcy = mul(world, v, cy, true);
-  vecfuncT fbx = gbc.first;  gaxpy(world, 1.0, fbx, 1.0, vcx); fbx = g0.Qa(fbx); scale(world, fbx, -1.0);
-  vecfuncT fby = gbc.second; gaxpy(world, 1.0, fby, 1.0, vcy); fby = g0.Qa(fby); scale(world, fby, -1.0);
-
-  // fphi = transform( c, <phi0 | g[B,C]_phi + v*phi0> )  (Fock-matrix correction)
-  auto vb_phi = mul(world, v, phi0, true);
-  vecfuncT fb_phi_x = gbc_phi.first;  gaxpy(world, 1.0, fb_phi_x, 1.0, vb_phi);
-  vecfuncT fb_phi_y = gbc_phi.second; gaxpy(world, 1.0, fb_phi_y, 1.0, vb_phi);
-  auto m_fbx = matrix_inner(world, phi0, fb_phi_x);
-  auto m_fby = matrix_inner(world, phi0, fb_phi_y);
-  auto fphi_x = transform(world, cx, m_fbx, true);
-  auto fphi_y = transform(world, cy, m_fby, true);
-
-  // result = truncate( gzeta + fb + fphi )
-  vecfuncT result_x = gzeta_x;
-  gaxpy(world, 1.0, result_x, 1.0, fbx);
-  gaxpy(world, 1.0, result_x, 1.0, fphi_x);
-  vecfuncT result_y = gzeta_y;
-  gaxpy(world, 1.0, result_y, 1.0, fby);
-  gaxpy(world, 1.0, result_y, 1.0, fphi_y);
-  truncate(world, result_x);
-  truncate(world, result_y);
-  return {std::move(result_x), std::move(result_y)};
-}
-
-/// The full VBC quadratic source for the (B, C) perturbation pair from two
-/// CONVERGED first-order states B = x(ω_B), C = x(ω_C). Builds both zeta terms
-/// and sums the (B,C) and (C,B) halves (compute_vbc_i). VB_op / VC_op are the
-/// raw one-electron perturbation operators for B and C. Port of v2
-/// SimpleVBCComputer::compute_vbc_response (closed-shell, no x(2) solve).
-template <class Shell>
-inline ResponseStateXY<Shell>
-compute_vbc(madness::World &world, const ResponseGroundState &g0,
-            const ResponseStateXY<Shell> &B,
-            const ResponseStateXY<Shell> &C,
-            const madness::real_function_3d &VB_op,
-            const madness::real_function_3d &VC_op) {
-  using namespace madness;
-  if constexpr (std::is_same_v<Shell, ClosedShell>) {
-    const vecfuncT &phi0 = g0.amo;
-    const vecfuncT &bx = B.x_alpha;
-    const vecfuncT &by = B.y_alpha;
-    const vecfuncT &cx = C.x_alpha;
-    const vecfuncT &cy = C.y_alpha;
-
-    auto zeta_bc = make_zeta(world, by, cx, phi0);   // y_B with x_C
-    auto zeta_cb = make_zeta(world, cy, bx, phi0);   // y_C with x_B
-
-    auto bc = compute_vbc_i(world, g0, bx, by, cx, cy, zeta_bc, VB_op);
-    auto cb = compute_vbc_i(world, g0, cx, cy, bx, by, zeta_cb, VC_op);
-
-    ResponseStateXY<ClosedShell> result;
-    result.x_alpha = bc.first;  gaxpy(world, 1.0, result.x_alpha, 1.0, cb.first);
-    result.y_alpha = bc.second; gaxpy(world, 1.0, result.y_alpha, 1.0, cb.second);
-    truncate(world, result.x_alpha);
-    truncate(world, result.y_alpha);
-    return result;
-  } else {
-    (void)world; (void)g0; (void)B; (void)C; (void)VB_op; (void)VC_op;
-    throw std::runtime_error(
-        "compute_vbc: open-shell VBC quadratic source not yet derived. The "
-        "two-electron action is shell-generic (two_electron::apply_gamma_raw "
-        "+ Kernels<Full,OpenShell>::compute_density), so the open-shell build is "
-        "per-spin make_zeta + compute_vbc_i over alpha AND beta blocks -- future "
-        "work (step 6b/7).");
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Spec path (source-unification step 2): compute_vbc_i's three pieces
-// (gzeta, fb, fphi) re-expressed as DATA over the declarative engine of
-// kernels/source_spec.hpp. compute_vbc_spec lives BESIDE compute_vbc (not a
-// replacement): the two are asserted equal to summation-order precision by
-// tests/test_vbc_spec_equivalence.cpp before any caller may switch over.
-// ---------------------------------------------------------------------------
-
-/// One ordered (B,C) half of the VBC source as a two-channel (X,Y) spec.
-/// Term-for-term image of compute_vbc_i:
-///   gzeta: -Q̂ g'[γ_ζ] φ          γ_ζ legs {(x^B, y^C), (φ, ζ_BC)}, the
-///                                 relaxation-carrying pair density (ζ_BC
-///                                 already holds its -1, make_zeta)
-///   fb:    -Q̂ ( g'[γ^B] c + v c )        = -Q̂ F^B c   (property Fock,
-///                                 eq:tpa_fbar with the un-daggered kernel)
-///   fphi:  + Σ_k c_k <φ|F^B φ>_kp        (occupied-matrix move)
-/// The Y channel carries the conjugate leg order, exactly as compute_g.
-/// Densities are built exactly as compute_g builds them (factor 2 inside,
-/// truncated); rho_B is shared by fb/fphi and by both channels, so the
-/// engine's Coulomb cache convolves it once.
+/// One ordered (B,C) half of V^{BC} as a two-channel (X,Y) spec, term for
+/// term the equation in the header:
+///   [L]  -Q g'[gamma_L] phi      legs  |x^B><y^C|, -|zeta_BC><phi|   (X)
+///   [A]  -Q F^B x^C              legs  gamma_legs(x^B,y^B,phi), + v x^C
+///   [M]  +sum_k x^C_k F^B_kp     same legs, occupied matrix <phi_k|F^B|phi_p>
+/// The Y channel carries the daggered densities and the y^C target.
+/// rho_B is shared by [A]/[M] and by both channels, so the engine's Coulomb
+/// cache convolves it once. `v` is the raw one-electron operator of B.
 inline std::vector<source_spec::SourceSpec>
 vbc_half_spec(madness::World &world, const ResponseGroundState &g0,
               const vecfuncT &bx, const vecfuncT &by,
@@ -209,13 +94,17 @@ vbc_half_spec(madness::World &world, const ResponseGroundState &g0,
               const madness::real_function_3d &v) {
   using namespace madness;
   using source_spec::apply_entry;
+  using source_spec::gamma_dagger_legs;
+  using source_spec::gamma_legs;
+  using source_spec::ketbra;
   using source_spec::occupied_matrix_entry;
   const vecfuncT &phi0 = g0.amo;
 
-  real_function_3d rho_zeta = common_ops::dot(world, bx, cy);
-  rho_zeta += common_ops::dot(world, phi0, zeta_bc);
-  rho_zeta.scale(2.0);
-  rho_zeta.truncate();
+  // Coulomb densities (diagonals; orientation-blind). zeta_bc carries its -1.
+  real_function_3d rho_L = common_ops::dot(world, bx, cy);
+  rho_L += common_ops::dot(world, phi0, zeta_bc);
+  rho_L.scale(2.0);
+  rho_L.truncate();
 
   real_function_3d rho_B = common_ops::dot(world, bx, phi0);
   rho_B += common_ops::dot(world, phi0, by);
@@ -223,32 +112,32 @@ vbc_half_spec(madness::World &world, const ResponseGroundState &g0,
   rho_B.truncate();
 
   source_spec::SourceSpec X, Y;
-  // gzeta
-  X.entries.push_back(apply_entry(rho_zeta, {{bx, cy}, {phi0, zeta_bc}},
-                                  phi0, -1.0, /*Q=*/true));
-  // fb   (one_electron = v folds the v*c of F^B c into the same entry)
-  X.entries.push_back(apply_entry(rho_B, {{bx, phi0}, {phi0, by}},
-                                  cx, -1.0, /*Q=*/true, v));
-  // fphi
-  X.entries.push_back(occupied_matrix_entry(rho_B, {{bx, phi0}, {phi0, by}},
+  // [L]
+  X.entries.push_back(apply_entry(rho_L, {ketbra(bx, cy), ketbra(zeta_bc, phi0)},
+                                  phi0, -1.0, /*project_Q=*/true));
+  // [A]  (one_electron = v folds v x^C into the same entry)
+  X.entries.push_back(apply_entry(rho_B, gamma_legs(bx, by, phi0),
+                                  cx, -1.0, /*project_Q=*/true, v));
+  // [M]
+  X.entries.push_back(occupied_matrix_entry(rho_B, gamma_legs(bx, by, phi0),
                                             phi0, cx, +1.0,
-                                            /*transpose=*/false, v));
-  // conjugate channel: swapped exchange legs (compute_g's gy pair order)
-  Y.entries.push_back(apply_entry(rho_zeta, {{cy, bx}, {zeta_bc, phi0}},
-                                  phi0, -1.0, /*Q=*/true));
-  Y.entries.push_back(apply_entry(rho_B, {{phi0, bx}, {by, phi0}},
-                                  cy, -1.0, /*Q=*/true, v));
-  Y.entries.push_back(occupied_matrix_entry(rho_B, {{phi0, bx}, {by, phi0}},
+                                            /*transpose_matrix=*/false, v));
+  // Y channel: daggered densities, y^C target.
+  Y.entries.push_back(apply_entry(rho_L, {ketbra(cy, bx), ketbra(phi0, zeta_bc)},
+                                  phi0, -1.0, /*project_Q=*/true));
+  Y.entries.push_back(apply_entry(rho_B, gamma_dagger_legs(bx, by, phi0),
+                                  cy, -1.0, /*project_Q=*/true, v));
+  Y.entries.push_back(occupied_matrix_entry(rho_B, gamma_dagger_legs(bx, by, phi0),
                                             phi0, cy, +1.0,
-                                            /*transpose=*/false, v));
+                                            /*transpose_matrix=*/false, v));
   return {std::move(X), std::move(Y)};
 }
 
-/// Spec-path twin of compute_vbc<ClosedShell>: same zeta builds, same
-/// (B,C) + (C,B) halves, same truncation points — but each half is evaluated
-/// by source_spec::assemble_source over the data of vbc_half_spec instead of
-/// the bespoke compute_vbc_i. Gate: test_vbc_spec_equivalence asserts
-/// per-channel agreement with compute_vbc at summation-order precision.
+/// The full V^{BC} for the perturbation pair (B,C) from two CONVERGED
+/// first-order states B = (x,y)(omega_B), C = (x,y)(omega_C): both zeta
+/// blocks, both ordered halves, evaluated by source_spec::assemble_source.
+/// VB_op / VC_op are the raw one-electron perturbation operators of B and C
+/// (dipole components, or dV_nuc/dQ for Raman). Closed-shell only.
 template <class Shell>
 inline ResponseStateXY<Shell>
 compute_vbc_spec(madness::World &world, const ResponseGroundState &g0,
@@ -287,9 +176,23 @@ compute_vbc_spec(madness::World &world, const ResponseGroundState &g0,
   } else {
     (void)world; (void)g0; (void)B; (void)C; (void)VB_op; (void)VC_op;
     throw std::runtime_error(
-        "compute_vbc_spec: open-shell VBC is not derived (same status as "
-        "compute_vbc — per-spin specs are future work, step 6b/7).");
+        "compute_vbc_spec: open-shell V^{BC} is not derived (per-spin specs "
+        "are future work, step 6b/7).");
   }
+}
+
+/// The production entry point (beta, Raman, legacy 2PA arms). Since
+/// 2026-09-09 this IS the spec build; the former bespoke builder
+/// (compute_g / compute_vbc_i, ported from molresponse_v2) was removed
+/// because it wrote the exchange legs transposed — see the header.
+template <class Shell>
+inline ResponseStateXY<Shell>
+compute_vbc(madness::World &world, const ResponseGroundState &g0,
+            const ResponseStateXY<Shell> &B,
+            const ResponseStateXY<Shell> &C,
+            const madness::real_function_3d &VB_op,
+            const madness::real_function_3d &VC_op) {
+  return compute_vbc_spec<Shell>(world, g0, B, C, VB_op, VC_op);
 }
 
 } // namespace molresponse_v3::vbc

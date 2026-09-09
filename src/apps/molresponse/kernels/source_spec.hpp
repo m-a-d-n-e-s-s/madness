@@ -41,10 +41,11 @@
 // floating-point summation order, to the hand-written source it encodes).
 //
 // Field-to-equation dictionary (see SourceEntry):
-//   pairs + coulomb_density   the pair density inside g'[..]  — γ^B legs for
-//                             F^B, transposed legs for the daggered F̄^B
-//                             (eq:tpa_fbar), the ζ-carrying γ_L^{BC} of the
-//                             vbc gzeta term, or the D^{BC} legs (eq:tpa_dbc).
+//   pairs + coulomb_density   the pair density inside g'[..]. A leg {bra,ket}
+//                             is |ket><bra| (see THE LEG DICTIONARY below):
+//                             gamma_legs(x,y,phi) for F^B, gamma_dagger_legs
+//                             for F^B-dagger (the Q channel), ketbra(u,w) for
+//                             the vv legs of gamma_L^{BC}.
 //                             The closed-shell factor 2 lives IN the density
 //                             (v3 convention, kernels/vbc.hpp header note).
 //   one_electron              the raw perturbation operator v inside
@@ -81,6 +82,39 @@ struct LegPair {
   vecfuncT bra;
   vecfuncT ket;
 };
+
+// ---------------------------------------------------------------------------
+// THE LEG DICTIONARY (2026-09-09, reports/2026-09-09_orientation_derivation).
+// madness::Exchange with set_bra_and_ket(bra,ket) contracts as
+//     K(bra,ket) f = Sum_k ket_k(r) * Int bra_k(r') f(r') / |r-r'|      (exchangeoperator.cc:336)
+// so a leg {bra,ket} IS the pair density |ket><bra|, NOT |bra><ket|. Hence:
+//     gamma^B          = |x^B><phi| + |phi><y^B|   <->  legs {phi,x^B}, {y^B,phi}
+//     gamma^B-dagger   = |phi><x^B| + |y^B><phi|   <->  legs {x^B,phi}, {phi,y^B}
+// gamma^B is the response density at +omega (the object inside F^B = v^B +
+// g'[gamma^B] that drives the x-equation and that enters the ONE second-order
+// source, eq:PQ); its dagger is the same density at -omega (it drives the
+// y-equation). The DALTON-validated linear kernel (full.hpp compute_gamma,
+// X-channel legs {phi,x},{y,phi}) fixes this observably: the opposite reading
+// interchanges the (ij|ab) and (ib|ja) exchange integrals between the TDHF A
+// and B blocks and moves singlet excitation energies by tenths of an eV.
+// Use these helpers instead of writing leg lists by hand, so a source reads as
+// its equation.
+// ---------------------------------------------------------------------------
+
+/// Legs of gamma^B = |x><phi| + |phi><y|  (response density at +omega).
+inline std::vector<LegPair>
+gamma_legs(const vecfuncT &x, const vecfuncT &y, const vecfuncT &phi) {
+  return {{phi, x}, {y, phi}};
+}
+
+/// Legs of gamma^B-dagger = |phi><x| + |y><phi|  (= gamma^B at -omega).
+inline std::vector<LegPair>
+gamma_dagger_legs(const vecfuncT &x, const vecfuncT &y, const vecfuncT &phi) {
+  return {{x, phi}, {phi, y}};
+}
+
+/// The single leg representing the pair density |u><w|.
+inline LegPair ketbra(const vecfuncT &u, const vecfuncT &w) { return {w, u}; }
 
 /// One term of a quadratic source, in the vocabulary of the compact form
 /// (eq:tpa_compact_P/Q) — see the field dictionary in the header comment.

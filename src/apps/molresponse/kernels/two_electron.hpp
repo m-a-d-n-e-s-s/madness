@@ -45,7 +45,14 @@ using vecfuncT = std::vector<madness::real_function_3d>;
 /// One exchange operator K(bra, ket) entering the gamma contraction. `bra` and
 /// `ket` are the occupied/response orbital pair that builds the exchange kernel;
 /// apply_gamma then acts that operator on `apply_to` (the orbitals of the
-/// response component being assembled). The references must outlive the
+/// response component being assembled).
+///
+/// MEANING (exchangeoperator.cc:336): K(bra,ket) f = Sum_k ket_k Int bra_k f / r,
+/// i.e. the pair {bra,ket} is the pair density |ket><bra|. The response density
+/// gamma^B = |x><phi| + |phi><y| at +omega is therefore {phi,x},{y,phi} (as the
+/// linear kernels write it) and {x,phi},{phi,y} is its dagger, gamma^B(-omega).
+/// See source_spec.hpp "THE LEG DICTIONARY" and
+/// reports/2026-09-09_orientation_derivation for why this matters at second order. The references must outlive the
 /// apply_gamma call (they always do -- callers pass kernel-local lvalues inside
 /// a braced-init-list argument).
 struct ExchangePair {

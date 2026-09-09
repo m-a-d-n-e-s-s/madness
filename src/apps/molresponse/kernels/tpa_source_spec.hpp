@@ -19,36 +19,42 @@
 // gated by tests/test_tpa_pq_vs_vbc.cpp); the optional one-electron content
 // reproduces tpa::tpa_moment_residue_1e's per-ordering halves exactly.
 //
-// Term families, in the (validated) order they are summed, with their
-// compact-equation identities [P-channel shown; Q is the conjugate]:
+// WHAT IT IS (2026-09-09, reports/2026-09-09_orientation_derivation): under
+// the leg dictionary of source_spec.hpp ({bra,ket} = |ket><bra|) this builder
+// is the ONE second-order source of the theory (Hurtado eq 19 = Parker eq 28 =
+// Salek eq 68), the same object kernels/vbc.hpp builds, with one difference of
+// bookkeeping: one call carries BOTH photon orderings (the (C,B) half is
+// "family D" below), and the apply moves are not Q-projected (the occupied
+// components are invisible to every 2n+1 contraction, whose left vector is
+// virtual). Equality with vbc::compute_vbc up to Q-projection is gated by
+// tests/test_vbc_spec_equivalence. The same source is the b1 argument for
+// beta/Raman (quadratic_source below) and the residue source for 2PA.
 //
-//  family B — the property-Fock pair of eq:tpa_compact_P:
-//      + Σ_k x^C_k F̄^B_kp        occupied-matrix move, TRANSPOSED block
-//      - g'[γ^{B†}] x^C_p         apply move, daggered legs {(φ,x^B),(y^B,φ)}
-//    (P carries the kernel-daggered F̄^B of eq:tpa_fbar — "the frequency
-//     gate is a single dagger"; Q carries plain F^B.)
+// Term families, in the (validated) order they are summed, tagged with the
+// equation's moves [M] occupied matrix, [A] apply, [L] pair density
+// (P-channel shown, built from gamma^B = |x^B><phi| + |phi><y^B|, i.e. legs
+// gamma_legs(x^B,y^B,phi) = {phi,x^B},{y^B,phi}; Q is the x<->y conjugate,
+// i.e. gamma^B-dagger legs on y^C):
 //
-//  family F — -g'[D^{BC}] φ_p with the pair density D^{BC} of eq:tpa_dbc:
-//      response legs  (y^B,x^C) and (y^C,x^B)      [sign -, reoriented vs vbc]
-//      relaxation legs (φ, z^{y^B x^C}) and (z^{x^B y^C}, φ)   [sign +,
-//        z^{uv}_i = Σ_j φ_j <u_j|v_i> = the occupied-transposed ζ̄ / ζ blocks
-//        of eq:tpa_zetabar]
-//    Each leg is its own entry (own Coulomb density), matching the validated
-//    op-for-op assembly; the ± of eq:tpa_dbc is the entry sign.
+//  family B — the (B,C) half of [M] + [A]:
+//      [M]  + Σ_k x^C_k <phi_k|F^B|phi_p>   built as the matrix of the daggered
+//                                           operator, transposed (same numbers)
+//      [A]  -   F^B x^C_p                   legs gamma_legs(x^B,y^B,phi)
 //
-//  family D — the C-leg kernel of eq:tpa_compact_P. IDENTITY (2026-09-04,
-//    term-resolved measurement + adjoint identity g'[γ†]=(g'[γ])†, Ḡ=G^T):
-//    family D of ordering (B,C) EQUALS family B of ordering (C,B), entry for
-//    entry — it is NOT independent content. Kept here so the per-ordering
-//    P^{BC} matches eq:tpa_compact_P as published; the symmetrized builder
+//  family F — [L]  -g'[gamma_L^{BC} + gamma_L^{CB}] phi_p, leg by leg:
+//      vv legs  |x^C><y^B|  and  |x^B><y^C|     [entry sign -]
+//      oo legs -|z^{y^B x^C}><phi| and -|phi><z^{x^B y^C}|   [entry sign +]
+//        z^{uv}_i = Σ_j phi_j <u_j|v_i>  (= -zeta of vbc::make_zeta), giving
+//        K_ij = -<y_i^B|x_j^C> - (B<->C), Parker eq 24a.
+//    Each leg is its own entry (own Coulomb density); pq_family_F_bundled
+//    below is the one-entry equivalent.
+//
+//  family D — the (C,B) half of [M] + [A] (measured 2026-09-04: entry for
+//    entry the image of family B under B<->C, via g'[gamma†] = (g'[gamma])†).
 //    tpa_pq_spec_sym below exploits the identity (drops D, doubles B).
-//      - g'[γ^{C†}] x^B_p         apply move, legs {(φ,x^C),(y^C,φ)}
-//      + Σ_k x^B_k Ḡ^C_kp         occupied-matrix move, daggered legs,
-//                                 Ḡ^C = <φ|g'[γ^{C†}]|φ> = (G^C)^T
 //
-//  family 1e (optional, both orderings) — the v^B part of F^B/F̄^B (which
-//    the dagger leaves untouched):
-//      - Q̂ v^B x^C_p  + Σ_k x^C_k <φ|v^B|φ>_kp     (+ the (C,B) image)
+//  family 1e (optional, both orderings) — the v^B / v^C part of [A] and [M]:
+//      - Q̂ v^B x^C_p  + Σ_k x^C_k <phi|v^B|phi>_kp     (+ the (C,B) image)
 //    exactly tpa::tpa_moment_residue_1e's half(b,c) + half(c,b).
 //
 // Conventions: closed-shell factor 2 lives in each entry's Coulomb density;
@@ -280,6 +286,18 @@ tpa_pq_spec_sym(madness::World &world, const ResponseGroundState &g0,
   return sym;
 }
 
+/// The quadratic source (P,Q) of eq:PQ as a response-shaped pair, for ANY
+/// 2n+1 contraction: b1 = -(<x^A|P> + <y^A|Q>) in beta/Raman (A at omega_B+omega_C),
+/// S = sqrt2 (<x^f|P> + <y^f|Q>) in 2PA. One call = both photon orderings, so
+/// it replaces vbc::compute_vbc's (B,C)+(C,B) sum one-for-one, with identical
+/// sign structure; in the static (x=y) limit the two coincide.
+inline ResponseStateXY<ClosedShell>
+quadratic_source(madness::World &world, const ResponseGroundState &g0,
+                 const ResponseStateXY<ClosedShell> &B,
+                 const ResponseStateXY<ClosedShell> &C,
+                 const madness::real_function_3d &VB_op,
+                 const madness::real_function_3d &VC_op);
+
 /// Evaluate the (P,Q) spec into a response-shaped pair (x_alpha = P,
 /// y_alpha = Q), truncated. With VB_op/VC_op supplied this is the FULL
 /// state-free residue right-hand side of eq:tpa_compact_P/Q (1e + 2e); with
@@ -299,6 +317,15 @@ assemble_tpa_pq(madness::World &world, const ResponseGroundState &g0,
   truncate(world, out.x_alpha);
   truncate(world, out.y_alpha);
   return out;
+}
+
+inline ResponseStateXY<ClosedShell>
+quadratic_source(madness::World &world, const ResponseGroundState &g0,
+                 const ResponseStateXY<ClosedShell> &B,
+                 const ResponseStateXY<ClosedShell> &C,
+                 const madness::real_function_3d &VB_op,
+                 const madness::real_function_3d &VC_op) {
+  return assemble_tpa_pq(world, g0, B, C, VB_op, VC_op);
 }
 
 } // namespace molresponse_v3::tpa
