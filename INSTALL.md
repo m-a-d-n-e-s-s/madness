@@ -244,7 +244,7 @@ skipped with a message saying which, and MADNESS builds without PCM rather than
 failing to configure --- a deck that asks for `pcm` then aborts with an
 explanatory message. Note that PCMSolver v1.3.0 dates from 2020: MADNESS applies
 a handful of toolchain-compatibility patches to it while fetching, listed in
-`madness/cmake/patches/pcmsolver-v1.3.0.cmake`.
+`cmake/patches/pcmsolver-v1.3.0.cmake` under the source root.
 
 See also
 madness/CMakeLists.txt

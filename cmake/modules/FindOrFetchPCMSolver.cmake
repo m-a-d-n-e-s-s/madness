@@ -4,14 +4,15 @@
 # PCMSolverConfig package config, then the FindPCM module) have come up empty.
 #
 # On success:
-#   PCM_FOUND          - TRUE
-#   PCM_LIBRARIES      - PCMSolver::pcm, an ALIAS for the in-tree pcm-static target
-#   PCM_INCLUDE_DIRS   - empty: the include directories ride on that target
-#   MADNESS_PCM_FETCHED- TRUE, so the rest of the harness can tell this path apart
-#                        from a PCMSolver found on the system
+#   PCMSolver::pcm      - an ALIAS for the in-tree pcm-static target, carrying
+#                         the include directories for both build and install tree
+#   MADNESS_PCM_FETCHED - TRUE, so the rest of the harness can tell this path
+#                         apart from a PCMSolver found on the system
+# external/pcm.cmake turns that target into PCM_FOUND / PCM_LIBRARIES /
+# PCM_INCLUDE_DIRS for the rest of the build.
 #
-# On a missing prerequisite this prints why and returns without setting
-# PCM_FOUND: PCM is an optional feature, and a machine without a Fortran
+# On a missing prerequisite this prints why and returns without defining the
+# target: PCM is an optional feature, and a machine without a Fortran
 # compiler should still get a working MADNESS out of the default configure.
 
 if (TARGET PCMSolver::pcm)
@@ -170,14 +171,10 @@ export(EXPORT PCMSolverTargets-static
        NAMESPACE PCMSolver::
        FILE "${PROJECT_BINARY_DIR}/PCMSolver-targets.cmake")
 
-# find_path/find_library from a failed FindPCM run leave -NOTFOUND cache
-# entries behind; drop them rather than shadowing them with normal variables.
-unset(PCM_INCLUDE_DIRS CACHE)
-unset(PCM_LIBRARIES CACHE)
-
-set(PCM_FOUND TRUE)
-set(PCM_LIBRARIES PCMSolver::pcm)
-set(PCM_INCLUDE_DIRS "")  # carried by the target, in both build and install trees
+# PCM_FOUND / PCM_LIBRARIES / PCM_INCLUDE_DIRS are normalized by
+# external/pcm.cmake once this returns, off the PCMSolver::pcm target -- which
+# includes clearing the -NOTFOUND cache entries a failed FindPCM run leaves
+# behind. All this has to do is announce the target.
 set(MADNESS_PCM_FETCHED TRUE)
 unset(_pcm_staged_include)
 
