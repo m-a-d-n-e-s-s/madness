@@ -582,6 +582,19 @@ int main(int argc, char **argv) {
                  s_v, s_v - ref);
           printf("  V^BC neg  -(<x|Vx>+<y|Vy>)                 = %+.8e   dev = %+.3e\n",
                  s_vn, s_vn - ref);
+          // ADJOINT HYPOTHESIS: the 2n+1 step moves the resolvent left as its
+          // ADJOINT. The response pencil is non-self-adjoint (paired Delta
+          // metric), so its LEFT eigenvector is the x<->y swap of the right
+          // one. Prediction: contracting the SWAPPED eigenvector against the
+          // driven V^BC must reproduce the reference — equivalently, (P,Q) is
+          // the adjoint image of V^BC.
+          const double s_vsw = vinner(world, yf, vhalf[0]) + vinner(world, xf, vhalf[1]);
+          printf("  V^BC swap  <y|Vx>+<x|Vy>  (LEFT eigvec)     = %+.8e   dev = %+.3e\n",
+                 s_vsw, s_vsw - ref);
+          printf("  V^BC swap neg                              = %+.8e   dev = %+.3e\n",
+                 -s_vsw, -s_vsw - ref);
+          printf("  ratio ref/V^BC = %.6f   ratio ref/V^BCswap = %.6f\n",
+                 ref/s_v, ref/s_vsw);
           printf("  VERDICT: %s\n",
                  (std::abs(s_v-ref) < 1e-6*std::max(1.0,std::abs(ref)) ||
                   std::abs(s_vn-ref) < 1e-6*std::max(1.0,std::abs(ref)))
