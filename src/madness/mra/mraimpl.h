@@ -40,7 +40,8 @@
 #include <memory>
 #include <math.h>
 #include <cmath>
-#include <madness/misc/misc.h>
+#include <iomanip>
+#include <sstream>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/worldhashmap.h>
