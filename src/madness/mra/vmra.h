@@ -894,11 +894,13 @@ namespace madness {
     namespace detail {
         /// put a vector of functions into a state whose coefficients sum to ||f||^2
 
-        /// norm2sq_local() adds up the coefficients of every node, which is the
-        /// norm only in a state that carries them once -- a redundant tree holds
-        /// them on every level and overcounts.  Reconstructing is a mutation: it
-        /// discards the interior coefficients.  So fence first, or the removal
-        /// tasks race a task still reading those coefficients, e.g. a
+        /// norm2sq_local() adds up the nodes of a tree, which is the norm only in
+        /// a state that carries the coefficients once; where the duplicates are
+        /// the interior nodes it skips them, so the redundant and
+        /// nonstandard-with-leaves trees left behind by mul_sparse() and friends
+        /// need no conversion at all.  The rest are reconstructed, and that is a
+        /// mutation: it discards the interior coefficients.  So fence first, or
+        /// the removal tasks race a task still reading those coefficients, e.g. a
         /// mul_sparse(..., fence=false) that has not been fenced yet.
         /// Cf. Function::norm2(), which does the same for a single function.
         /// The branch is taken on the tree state, which is replicated, so all
@@ -906,8 +908,9 @@ namespace madness {
         template <typename T, std::size_t NDIM>
         void reconstruct_for_norm(World& world, const std::vector<Function<T,NDIM>>& v) {
             if (v.size()==0) return;    // nothing to sum, and nothing to fence for
-            const TreeState state=get_tree_state(v);
-            if (state==compressed or state==reconstructed) return;
+            if (std::all_of(v.begin(), v.end(), [](const Function<T,NDIM>& f) {
+                    return (not f.is_initialized()) or f.get_impl()->has_summable_coefficients();}))
+                return;
             MADNESS_CHECK_THROW(std::none_of(v.begin(), v.end(),
                 [](const Function<T,NDIM>& f) {return f.is_initialized() and f.is_on_demand();}),
                 "norm2/norm2s are not defined for an on-demand function; materialize it first");

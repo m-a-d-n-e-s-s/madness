@@ -809,31 +809,32 @@ namespace madness {
 
         /// Returns the square of the norm of the local function ... no communication
 
-        /// Works in either basis
+        /// Works in any state that holds its coefficients once, cf.
+        /// FunctionImpl::has_summable_coefficients()
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
-                "function must be compressed or reconstructed for norm2sq_local");
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "norm2sq_local needs a tree that holds its coefficients once");
             return impl->norm2sq_local();
         }
 
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
-        /// If the function is neither compressed nor reconstructed, it is
-        /// reconstructed first -- summing norm2sq_local over e.g. a redundant tree
-        /// counts every level and overcounts.  See comments for err() w.r.t.
-        /// applying to many functions.
+        /// Works in any state whose coefficients norm2sq_local() can sum, which
+        /// includes the redundant and nonstandard-with-leaves trees left behind
+        /// by mul_sparse() and friends; the remaining states are reconstructed
+        /// first.  See comments for err() w.r.t. applying to many functions.
         ///
         /// Throws if the function is on-demand: it carries no coefficients, so
         /// its norm is not defined until it is materialized.
         ///
         /// N.B. that reconstruction is a mutation -- it discards the interior
-        /// coefficients of a redundant tree -- so this (logically const) method
-        /// fences before it changes state: any task still reading those
-        /// coefficients, e.g. a mul_sparse() invoked with fence=false, must be
-        /// done with them before they are removed.
+        /// coefficients -- so this (logically const) method fences before it
+        /// changes state: any task still reading those coefficients, e.g. a
+        /// mul_sparse() invoked with fence=false, must be done with them before
+        /// they are removed.
         ///
         /// The branch is taken on the tree state, which is replicated, so all
         /// ranks take the same branch and the global ops stay collective.
@@ -841,7 +842,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
-            if (!(is_compressed() or is_reconstructed())) {
+            if (!impl->has_summable_coefficients()) {
                 MADNESS_CHECK_THROW(not is_on_demand(),
                     "norm2 is not defined for an on-demand function; materialize it first");
                 impl->world.gop.fence();
@@ -1269,8 +1270,8 @@ namespace madness {
         T trace_local() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
-            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
-                "function must be compressed or reconstructed for trace_local");
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "trace_local needs a tree that holds its coefficients once");
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
@@ -1278,17 +1279,18 @@ namespace madness {
 
         /// Returns global value of \c int(f(x),x) ... global comm required
 
-        /// If the function is neither compressed nor reconstructed, it is
-        /// reconstructed first.  For efficient use especially with many functions,
-        /// reconstruct them all first and use trace_local instead, so you can
-        /// perform a global sum on all at the same time.
+        /// Works in any state whose coefficients trace_local() can sum; the
+        /// remaining states are reconstructed first.  For efficient use
+        /// especially with many functions, reconstruct them all first and use
+        /// trace_local instead, so you can perform a global sum on all at the
+        /// same time.
         ///
         /// Throws if the function is on-demand, and fences before reconstructing;
         /// see norm2() for both, including why the branch stays collective.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
-            if (!(is_compressed() or is_reconstructed())) {
+            if (!impl->has_summable_coefficients()) {
                 MADNESS_CHECK_THROW(not is_on_demand(),
                     "trace is not defined for an on-demand function; materialize it first");
                 impl->world.gop.fence();

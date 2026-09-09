@@ -287,6 +287,16 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::has_coefficients_on_leaves_only() const {
+        return (tree_state==redundant) or (tree_state==nonstandard_with_leaves);
+    }
+
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::has_summable_coefficients() const {
+        return is_reconstructed() or is_compressed() or has_coefficients_on_leaves_only();
+    }
+
+    template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::has_leaves() const {
     	return (tree_state==nonstandard_with_leaves);
     }
@@ -1870,9 +1880,11 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::norm2sq_local() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        MADNESS_CHECK_THROW(has_summable_coefficients(),
+            "norm2sq_local() needs a tree that holds its coefficients once");
         typedef Range<typename dcT::const_iterator> rangeT;
         return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end()),
-                                                                  do_norm2sq_local());
+                                                                  do_norm2sq_local(has_coefficients_on_leaves_only()));
     }
 
 
@@ -1987,13 +1999,11 @@ namespace madness {
         const double d=sizeof(T);
         const double fac=1024*1024*1024;
 
-        // norm2sq_local sums the coefficients of every node, which is ||f||^2
-        // only when the tree carries them once -- on a redundant or nonstandard
-        // tree it counts every level and overcounts (cf. Function::norm2()).
         // This is a diagnostic and must not mutate the tree, so report the norm
-        // only where it means something.  The tree state is replicated, so all
+        // only in the states where norm2sq_local() is defined (cf.
+        // has_summable_coefficients()).  The tree state is replicated, so all
         // ranks take the same branch and the global ops stay collective.
-        const bool norm_is_meaningful = is_compressed() or is_reconstructed();
+        const bool norm_is_meaningful = has_summable_coefficients();
         double norm=0.0;
         if (norm_is_meaningful) {
             double local = norm2sq_local();
@@ -3330,6 +3340,8 @@ template <typename T, std::size_t NDIM>
     template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::trace_local() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        MADNESS_CHECK_THROW(has_summable_coefficients(),
+            "trace_local() needs a tree that holds its coefficients once");
         std::vector<long> v0(NDIM,0);
         T sum = 0.0;
         if (is_compressed()) {
@@ -3342,9 +3354,13 @@ template <typename T, std::size_t NDIM>
             }
         }
         else {
+            // on a redundant or nonstandard-with-leaves tree the internal nodes
+            // repeat what the leaves already carry, cf. norm2sq_local()
+            const bool leaves_only = has_coefficients_on_leaves_only();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
+                if (leaves_only and node.has_children()) continue;
                 if (node.has_coeff()) sum += node.coeff().full_tensor()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }

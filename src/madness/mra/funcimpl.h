@@ -1442,6 +1442,25 @@ template<size_t NDIM>
 
         bool is_on_demand() const;
 
+        /// Returns true if only the leaves of this tree carry its coefficients
+
+        /// redundant and nonstandard_with_leaves keep s coefficients on the
+        /// internal nodes as well, so a sum over all nodes counts the function
+        /// more than once; the leaves alone are exactly the reconstructed tree,
+        /// which is why change_tree_state(reconstructed) is nothing but
+        /// remove_internal_coefficients() for these two states.
+        bool has_coefficients_on_leaves_only() const;
+
+        /// Returns true if summing over the local nodes yields the function
+
+        /// The precondition of norm2sq_local() and trace_local(): the tree holds
+        /// its coefficients exactly once.  reconstructed and compressed do so
+        /// outright, the two states above once the internal nodes are skipped.
+        /// redundant_after_merge is a sum that has not been collapsed yet, and
+        /// nonstandard / nonstandard_after_apply have no leaf coefficients to
+        /// single out, so neither qualifies.
+        bool has_summable_coefficients() const;
+
         bool has_leaves() const;
 
         void set_tree_state(const TreeState& state) {
@@ -5752,8 +5771,15 @@ template<size_t NDIM>
         T trace_local() const;
 
         struct do_norm2sq_local {
+            /// skip the internal nodes, cf. has_coefficients_on_leaves_only()
+            bool leaves_only = false;
+
+            do_norm2sq_local() = default;
+            explicit do_norm2sq_local(bool leaves_only) : leaves_only(leaves_only) {}
+
             double operator()(typename dcT::const_iterator& it) const {
                 const nodeT& node = it->second;
+                if (leaves_only and node.has_children()) return 0.0;
                 if (node.has_coeff()) {
                     double norm = node.coeff().normf();
                     return norm*norm;
@@ -5774,6 +5800,11 @@ template<size_t NDIM>
 
 
         /// Returns the square of the local norm ... no comms
+
+        /// Requires has_summable_coefficients(); throws otherwise, because on a
+        /// tree that carries its coefficients on more than one level the sum is
+        /// not the norm.  Internal nodes are skipped where they are the
+        /// duplicates, so no state change is needed to ask for the norm.
         double norm2sq_local() const;
 
         /// compute the inner product of this range with other

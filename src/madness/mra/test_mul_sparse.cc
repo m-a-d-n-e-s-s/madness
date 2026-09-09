@@ -277,32 +277,35 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     t.checkpoint(get_tree_state(p.g) == redundant,
                  "T6 right operand is left redundant");
 
-    // each entry point has to be called on a tree that is still redundant at
-    // the point of the call, and norm2()/trace() reconstruct as a side effect
-    // -- so they cannot be measured one after the other on the same operand
-    const double norm_after  = p.f.norm2();     // p.f: redundant -> reconstructed
-    const double trace_after = p.g.trace();     // p.g: redundant -> reconstructed
+    // norm2()/trace() read the redundant tree instead of converting it, so both
+    // can be measured on the same operand, and the operand a caller hands to
+    // the next mul_sparse() is the one it had
+    const double norm_after    = p.f.norm2();
+    const double trace_after   = p.f.trace();
+    const double g_trace_after = p.g.trace();
     if (world.rank() == 0)
         printf("  T6 norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
-               norm_before, norm_after, g_trace_before, trace_after);
+               norm_before, norm_after, g_trace_before, g_trace_after);
 
-    t.checkpoint(norm_after,  norm_before,    1.e-10, "T6 norm2 on a redundant function");
-    t.checkpoint(trace_after, g_trace_before, 1.e-10, "T6 trace on a redundant function");
-    t.checkpoint(get_tree_state(p.f) == reconstructed and
-                 get_tree_state(p.g) == reconstructed,
-                 "T6 norm2/trace leave the operand reconstructed");
+    t.checkpoint(norm_after,    norm_before,    1.e-10, "T6 norm2 on a redundant function");
+    t.checkpoint(trace_after,   trace_before,   1.e-10, "T6 trace on a redundant function");
+    t.checkpoint(g_trace_after, g_trace_before, 1.e-10, "T6 trace on the other redundant operand");
+    t.checkpoint(get_tree_state(p.f) == redundant and
+                 get_tree_state(p.g) == redundant,
+                 "T6 norm2/trace leave the operand redundant");
 
-    // the vector overload already reconstructs; it must still agree.  p.f is
-    // reconstructed by now, so put it back into redundant form first
-    p.f.make_redundant(true);
+    // the vector overload takes the same path and must agree
     t.checkpoint(get_tree_state(p.f) == redundant,
                  "T6 norm2s operand is redundant on entry");
     std::vector<Function<double,D>> v = {p.f};
     t.checkpoint(norm2s(world, v)[0], norm_before, 1.e-10,
                  "T6 vector norm2s agrees");
+    t.checkpoint(get_tree_state(p.f) == redundant,
+                 "T6 norm2s leaves the operand redundant");
 
-    // p.f has now been through reconstructed -> redundant -> reconstructed;
-    // its trace must still be the value measured at the top
+    // p.f has been through reconstructed -> redundant and back; its trace must
+    // still be the value measured at the top
+    p.f.reconstruct();
     t.checkpoint(p.f.trace(), trace_before, 1.e-10,
                  "T6 trace round-trips through redundant form");
     return t.end();
@@ -458,6 +461,56 @@ int test_empty_vector_norms(World& world) {
     return t.end();
 }
 
+/// T10: norm2() and trace() answer from a redundant or nonstandard-with-leaves
+/// tree without converting it. Adding up every node overcounts there -- the
+/// scaling coefficients sit on every level -- but the leaves alone are exactly
+/// the reconstructed tree, so the answer costs no mutation and no extra fence.
+/// mul_sparse() leaves its operands redundant and callers take norms of them in
+/// a loop, so converting here would be paid back by the next multiplication.
+int test_norms_preserve_tree_state(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T10: norm2/trace do not convert the tree");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.reconstruct();
+    const double exact_norm = f.norm2();
+    const double exact_trace = f.trace();
+
+    for (const TreeState state : {redundant, nonstandard_with_leaves}) {
+        f.reconstruct();
+        f.change_tree_state(state, true);
+        t.checkpoint(f.get_impl()->get_tree_state() == state,
+                     "T10 operand is in the state under test");
+        // without this the internal nodes would not be there to overcount
+        t.checkpoint(f.get_impl()->has_coefficients_on_leaves_only(),
+                     "T10 the state keeps coefficients on the internal nodes too");
+
+        const double n = f.norm2();
+        const double tr = f.trace();
+        if (world.rank() == 0)
+            printf("  T10 %s: norm %.14e (exact %.14e)  trace %.14e (exact %.14e)\n",
+                   (state == redundant ? "redundant" : "nonstandard_with_leaves"),
+                   n, exact_norm, tr, exact_trace);
+        t.checkpoint(std::abs(n - exact_norm) < 1.e-12 * exact_norm,
+                     "T10 norm2 equals ||f||");
+        t.checkpoint(std::abs(tr - exact_trace) < 1.e-12 * std::abs(exact_trace),
+                     "T10 trace equals int(f)");
+        t.checkpoint(f.get_impl()->get_tree_state() == state,
+                     "T10 norm2/trace leave the tree state alone");
+
+        // the vector forms take the same path
+        const std::vector<Function<double,D>> v{f};
+        const std::vector<double> ns = norm2s(world, v);
+        t.checkpoint(std::abs(ns[0] - exact_norm) < 1.e-12 * exact_norm,
+                     "T10 norm2s equals ||f||");
+        t.checkpoint(std::abs(norm2(world, v) - exact_norm) < 1.e-12 * exact_norm,
+                     "T10 vector norm2 equals ||f||");
+        t.checkpoint(f.get_impl()->get_tree_state() == state,
+                     "T10 the vector norms leave the tree state alone");
+    }
+    return t.end();
+}
+
 /// T11: compress() clears the leaf coefficients, and snorm has to go with them.
 /// recur_down_for_contraction_map() reads snorm > 0 as "this node holds s
 /// coefficients" and then skips building them, so a stale snorm on an emptied
@@ -519,6 +572,7 @@ int main(int argc, char** argv) {
         success += test_norm_tree_states(world, pairs);
         success += test_broaden_resets_norms(world, pairs);
         success += test_empty_vector_norms(world);
+        success += test_norms_preserve_tree_state(world, pairs);
         success += test_compress_clears_snorm(world, pairs);
     }
 
