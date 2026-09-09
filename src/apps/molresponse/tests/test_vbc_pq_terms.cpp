@@ -604,6 +604,46 @@ int main(int argc, char **argv) {
                                       phi, xc, +1.0, true)), P_mat);
       }
 
+      // ===== HERMITIAN LIMIT: the falsifiable prediction ===================
+      // F^B = v^B + g'[gamma^B], gamma^B = x^B phi^T + phi y^B^T, is NOT a
+      // symmetric operator when x^B != y^B, so the exchange bra/ket
+      // orientation is physical, not conventional. V^BC uses F^B (correct for
+      // the SOLVE: F^(1) acting right on phi^(1)); (P,Q) uses g'[gamma^Bdag].
+      // Those differ ONLY through the non-Hermiticity.
+      // PREDICTION: set y := x on both legs (gamma Hermitian, F symmetric,
+      // adjoint = no-op) => the two sources must become IDENTICAL.
+      if (world.rank() == 0)
+        print("\n[TERMS] ===== HERMITIAN LIMIT (y:=x): must make V == P =====");
+      {
+        ResponseStateXY<ClosedShell> Bh, Ch;
+        Bh.x_alpha = madness::copy(world, xb); Bh.y_alpha = madness::copy(world, xb);
+        Ch.x_alpha = madness::copy(world, xc); Ch.y_alpha = madness::copy(world, xc);
+        auto zeta_h = vbc::make_zeta(world, Bh.y_alpha, Ch.x_alpha, phi);
+        auto Vh = source_spec::assemble_source(
+            world, g0, vbc::vbc_half_spec(world, g0, Bh.x_alpha, Bh.y_alpha,
+                                          Ch.x_alpha, Ch.y_alpha, zeta_h, zop));
+        auto zeta_h_cb = vbc::make_zeta(world, Ch.y_alpha, Bh.x_alpha, phi);
+        auto Vh2 = source_spec::assemble_source(
+            world, g0, vbc::vbc_half_spec(world, g0, Ch.x_alpha, Ch.y_alpha,
+                                          Bh.x_alpha, Bh.y_alpha, zeta_h_cb, zop));
+        auto Ph = tpa::assemble_tpa_pq(world, g0, Bh, Ch);
+        vecfuncT Vfull_x = add(world, Vh[0], Vh2[0]);
+        vecfuncT Vfull_y = add(world, Vh[1], Vh2[1]);
+        if (world.rank() == 0) {
+          printf("   ||V_half.x||       = %10.4e   <x|.>=%+12.5e\n",
+                 vnorm(world, Vh[0]), vinner(world, xf, Vh[0]));
+          printf("   ||V_full.x||       = %10.4e   <x|.>=%+12.5e\n",
+                 vnorm(world, Vfull_x), vinner(world, xf, Vfull_x));
+          printf("   ||P.x||            = %10.4e   <x|.>=%+12.5e\n",
+                 vnorm(world, Ph.x_alpha), vinner(world, xf, Ph.x_alpha));
+          printf("   ||V_full.x - P.x|| = %10.4e   ||V_full.y - Q.y|| = %10.4e\n",
+                 vnorm(world, sub(world, Vfull_x, Ph.x_alpha)),
+                 vnorm(world, sub(world, Vfull_y, Ph.y_alpha)));
+          printf("   ||V_half.x - P.x|| = %10.4e\n",
+                 vnorm(world, sub(world, Vh[0], Ph.x_alpha)));
+        }
+      }
+
       // ============ THE CLEAN TEST (2026-09-08): does the DRIVEN source
       // V^BC, contracted with a TRUE eigenvector, equal the residue answer?
       // The first-principles 2n+1 elimination, read literally, says the
