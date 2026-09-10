@@ -20,6 +20,15 @@ Translation probe_radius(std::int64_t N, Level n) {
   return radius_in_boxes(N, n) - 1;
 }
 
+/// ... and, if the face's dimension is lattice summed, folded into the cell to the representative nearest to the source:
+/// -1 for even N (the face folds onto the source), 2^{n-1}-1 for odd N (a half cell away)
+Translation probe_radius_summed(std::int64_t N, Level n) {
+  const auto period = Translation(1) << n;
+  auto l = ((probe_radius(N, n) % period) + period) % period;
+  if (l > period / 2) l -= period;
+  return l;
+}
+
 /// the center box of the level-\p n grid
 template <std::size_t NDIM>
 Key<NDIM> centered_key(Level n) {
@@ -211,7 +220,7 @@ int test_odds(World& world) {
   test_output t("BoxSurfaceDisplacementRange: mixed-parity radii", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius_summed(N, level); };
   const auto off = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N) {
     return probes_of<3>(level, finite<3>(N), array_of_bools<3>{true}, far_reach<3>());
@@ -231,11 +240,10 @@ int test_singular(World& world) {
 
   const Level level = 4;
   check_probes<1>(t, probes_of<1>(level, finite<1>({4}), array_of_bools<1>{true}, far_reach<1>()),
-                  {{{{probe_radius(4, level)}}}}, "1D n=4 N={4}");
-  // at level 0 a half cell is 1 box: N=3 -> 2 boxes, N=2 -> 1 box, N=1 -> 1 box; no offsets, and with unit
-  // thickness the innermost layer of the N=2 and N=1 faces is the source box itself
+                  {{{{probe_radius_summed(4, level)}}}}, "1D n=4 N={4}");
+  // at level 0 the cell is a single box, onto which every lattice-summed face folds; no offsets
   check_probes<3>(t, probes_of<3>(0, finite<3>({3, 2, 1}), array_of_bools<3>{true}, far_reach<3>()),
-                  {{{{1, 0, 0}}, {{0, 0, 0}}, {{0, 0, 0}}}}, "3D n=0 N={3,2,1}");
+                  {{{{0, 0, 0}}, {{0, 0, 0}}, {{0, 0, 0}}}}, "3D n=0 N={3,2,1}");
   return t.end();
 }
 
@@ -244,7 +252,7 @@ int test_mixed(World& world) {
   test_output t("BoxSurfaceDisplacementRange: mixed cases", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius_summed(N, level); };
 
   Radii<2> radii2d;
   radii2d[1] = 2;
@@ -269,7 +277,7 @@ int test_all_evens(World& world) {
   test_output t("BoxSurfaceDisplacementRange: pure evens", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius_summed(N, level); };
   const auto off = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N) {
     return probes_of<3>(level, finite<3>(N), array_of_bools<3>{true}, far_reach<3>());
@@ -289,6 +297,7 @@ int test_lattice_summation_awareness(World& world) {
 
   const Level level = 4;
   const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
+  const auto rs = [&](std::int64_t N) { return probe_radius_summed(N, level); };
   const auto off3 = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N, array_of_bools<3> summed) {
     return probes_of<3>(level, finite<3>(N), summed, far_reach<3>());
@@ -300,17 +309,17 @@ int test_lattice_summation_awareness(World& world) {
   check_probes<3>(t, probes({4, 2, 6}, array_of_bools<3>{false}), {{{{r(4), 0, 0}}, {{0, r(2), 0}}, {{0, 0, r(6)}}}},
                   "3D N={4,2,6} not summed");
   // ... the same radii with lattice summation on do need the offsets
-  check_probes<3>(t, probes({2, 2, 2}, array_of_bools<3>{true}), {{{{r(2), off3, 0}}, {{off3, r(2), 0}}, {{off3, 0, r(2)}}}},
+  check_probes<3>(t, probes({2, 2, 2}, array_of_bools<3>{true}), {{{{rs(2), off3, 0}}, {{off3, rs(2), 0}}, {{off3, 0, rs(2)}}}},
                   "3D N={2,2,2} summed");
   // ... with only the first dimension lattice summed, only its face needs the offset
   check_probes<3>(t, probes({2, 2, 2}, array_of_bools<3>{true, false, false}),
-                  {{{{r(2), off3, 0}}, {{0, r(2), 0}}, {{0, 0, r(2)}}}}, "3D N={2,2,2} summed along x only");
+                  {{{{rs(2), off3, 0}}, {{0, r(2), 0}}, {{0, 0, r(2)}}}}, "3D N={2,2,2} summed along x only");
 
   // an unrestricted dimension absorbs the offset, but again only when one is needed
   Radii<2> radii2d;
   radii2d[1] = 2;
   check_probes<2>(t, probes_of<2>(level, radii2d, array_of_bools<2>{false, true}, far_reach<2>()),
-                  {{std::nullopt, {{-far_offset<2>(level), r(2)}}}}, "2D N={*,2} summed along y");
+                  {{std::nullopt, {{-far_offset<2>(level), rs(2)}}}}, "2D N={*,2} summed along y");
   check_probes<2>(t, probes_of<2>(level, radii2d, array_of_bools<2>{false, false}, far_reach<2>()),
                   {{std::nullopt, {{0, r(2)}}}}, "2D N={*,2} not summed");
 
@@ -340,7 +349,7 @@ int test_standard_reach(World& world) {
 
   {
     const Level n = 6;                     // half-cell = 32 boxes, so the cap is far away
-    const auto face = probe_radius(2, n);  // 63: the innermost layer of the face at 64
+    const auto face = probe_radius_summed(2, n);  // -1: the innermost layer of the face at 64, folded onto the source
 
     // nothing is known to be filtered => the surface reaches the source and no offset helps;
     // fall back to the bare face probe, whose norm is the on-site norm and screens nothing
@@ -368,7 +377,7 @@ int test_standard_reach(World& world) {
   // the offset is capped at a half cell: a step of 2^{n-1}+k folds back down to 2^{n-1}-k
   {
     const Level n = 2;  // half cell = 2 boxes < bmax+1
-    check(n, unit_reach<NDIM>(1e6), 0, {probe_radius(2, n), 2, 0}, "n=2, reached beyond bmax");
+    check(n, unit_reach<NDIM>(1e6), 0, {probe_radius_summed(2, n), 2, 0}, "n=2, reached beyond bmax");
   }
 
   // the same cap applies when the offset lands on an unrestricted dimension
@@ -377,7 +386,7 @@ int test_standard_reach(World& world) {
     Radii<2> box_radius;
     box_radius[1] = 2;
     check_probes<2>(t, probes_of<2>(n, box_radius, array_of_bools<2>{true}, unit_reach<2>(4.)),
-                    {{std::nullopt, {{-4, probe_radius(2, n)}}}}, "2D N={*,2} sqrt(max_distsq)=2");
+                    {{std::nullopt, {{-4, probe_radius_summed(2, n)}}}}, "2D N={*,2} sqrt(max_distsq)=2");
   }
 
   return t.end();

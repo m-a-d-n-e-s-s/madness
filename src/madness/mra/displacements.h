@@ -1033,6 +1033,15 @@ namespace madness {
         r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
         MADNESS_ASSERT(r > 0);
         probing_displacement_vec[face_dimension] = r - surface_thickness_[face_dimension].value_or(0);
+        // Along a lattice-summed dimension fold the probe into the cell, to the representative nearest to the
+        // source, as the validator does for the displacements it yields (the operator's norm only sums over a
+        // few lattice images of a displacement, so a representative several cells away would be underestimated).
+        if (is_lattice_summed_[face_dimension]) {
+          const auto period = Translation(1) << n;
+          auto& l = probing_displacement_vec[face_dimension];
+          l = ((l % period) + period) % period;
+          if (l > period / 2) l -= period;
+        }
 
         // In these cases, requirement (2) is already satisfied or unsatisfiable.
         // Choosing 0 for all other dimensions satisfies requirement (3).
