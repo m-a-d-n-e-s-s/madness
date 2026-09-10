@@ -35,7 +35,9 @@
 #include <madness/tensor/tensor.h>
 
 #include <algorithm>
+#include <array>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -56,6 +58,13 @@ inline constexpr double kHartreeToEV = 27.211386245988;
 ///
 /// `n_roots` is a solver concern, not a ground-state property, so it
 /// lives on the problem alongside gs rather than inside the gs struct.
+/// Debug helper: the coordinate function r[d] (for orbital centroids).
+struct CoordinateFunctor : public madness::FunctionFunctorInterface<double, 3> {
+  int d;
+  explicit CoordinateFunctor(int dd) : d(dd) {}
+  double operator()(const madness::coord_3d &r) const override { return r[d]; }
+};
+
 template <typename Type, typename Shell>
 struct ESProblem {
   ResponseGroundState gs;
@@ -389,7 +398,39 @@ private:
         fchk_K[i] = madness::inner(gs_.amo[i], Kphi[i]);
       }
     }
+    // (c) Consistency of the ground-state object itself: orbital Gram matrix,
+    //     projector applied to its own orbitals, |V_local|, orbital centroids
+    //     (x,y,z) and <phi|V_local|phi> through a second code path (operator*).
+    madness::Tensor<double> gram = madness::matrix_inner(world_, gs_.amo, gs_.amo);
+    double qamo_max = 0.0;
+    {
+      auto qphi = gs_.Qa(gs_.amo);
+      auto ov = madness::matrix_inner(world_, gs_.amo, qphi);
+      qamo_max = ov.absmax();
+    }
+    const double vloc_norm = gs_.V_local_alpha.norm2();
+    std::vector<double> vphi2(gs_.amo.size(), 0.0);
+    std::vector<std::array<double,3>> cen(gs_.amo.size());
+    {
+      for (int d = 0; d < 3; ++d) {
+        std::shared_ptr<madness::FunctionFunctorInterface<double, 3>> cf(new CoordinateFunctor(d));
+        madness::real_function_3d rd = madness::real_factory_3d(world_).functor(cf);
+        for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+          auto sq = gs_.amo[i] * gs_.amo[i];
+          cen[i][d] = madness::inner(sq, rd);
+        }
+      }
+      for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+        auto vp = gs_.V_local_alpha * gs_.amo[i];
+        vphi2[i] = madness::inner(gs_.amo[i], vp);
+      }
+    }
     if (world_.rank() != 0) return;
+    printf("[DEBUG] GS object: |V_local|_2 = %.6e   max|<phi|Q phi>| = %.3e\n", vloc_norm, qamo_max);
+    printf("[DEBUG] GS orbital Gram <phi_i|phi_j>:\n"); print(gram);
+    printf("[DEBUG] GS orbital centroids (i: x y z) and <phi|V_local|phi> via operator*:\n");
+    for (std::size_t i = 0; i < gs_.amo.size(); ++i)
+      printf("   %2zu: %9.4f %9.4f %9.4f   Vphi*=%10.5f\n", i, cen[i][0], cen[i][1], cen[i][2], vphi2[i]);
     printf("[DEBUG] Fock self-check on occupied orbitals (i: T V -K | sum | focka_ii):\n");
     for (std::size_t i = 0; i < gs_.amo.size(); ++i)
       printf("   %2zu: %10.5f %10.5f %10.5f | %10.5f | %10.5f\n", i, fchk_T[i], fchk_V[i], -fchk_K[i],
