@@ -1,24 +1,47 @@
-repo = rjharrison
-latest ?= 22.04
-ALL = ${repo}/ubuntu\:22.04
+# Build and publish the MADNESS container images.
+#
+# The Dockerfile builds MADNESS from the surrounding source tree, so the build
+# context is the repository root (the directory holding the top-level
+# CMakeLists.txt), not admin/docker/ubuntu.
+#
+#   make all         # build an image per $(versions), tag the latest one
+#   make build/24.04 # build one image
+#   make all/tar     # export each image's filesystem as a tarball
+#   make push/all    # build, tag and push everything
+#
+# N.B. targets are spelled `build/<version>` rather than `<repo>/ubuntu:<version>`
+# because escaping the `:` in a make target name is not portable across make
+# versions -- the previous `${repo}/ubuntu\:%` spelling never matched.
 
-${repo}/ubuntu\:%: build = docker build --build-arg ubuntuImage=ubuntu:$* -f ../ubuntu/Dockerfile ../ubuntu/
+repo ?= rjharrison
+latest ?= 24.04
+versions ?= 24.04
 
-${repo}/ubuntu: ${repo}/ubuntu\:${latest}
-	docker tag ${repo}/ubuntu:${latest} $@
+dockerfile = ../ubuntu/Dockerfile
+context = ../../..
 
-${repo}/ubuntu\:%:
-	${build} -t $@
+# N.B. build/%, tar/% and push/% are deliberately *not* .PHONY: GNU make skips
+# implicit- and pattern-rule search for phony targets, so listing them there
+# would make `make all` silently do nothing. They never create a file of their
+# own name, so they re-run every time anyway.
+.PHONY: all all/tar push/all tag/latest
 
-${repo}/ubuntu\:%.tar:
-	mkdir -p ${repo}
-	DOCKER_BUILDKIT=1 ${build} -o - > $@
+all: $(versions:%=build/%) tag/latest
 
-all: ${ALL} ${repo}/ubuntu
+build/%:
+	docker build --build-arg UBUNTU_VERSION=$* -f $(dockerfile) $(context) -t $(repo)/ubuntu:$*
 
-all/tar: $(ALL:%=%.tar)
+tar/%:
+	mkdir -p $(repo)
+	DOCKER_BUILDKIT=1 docker build --build-arg UBUNTU_VERSION=$* -f $(dockerfile) $(context) -o - > $(repo)/ubuntu-$*.tar
 
-push/%: ${repo}/ubuntu\:%
-	docker push $?
+all/tar: $(versions:%=tar/%)
 
-push/all: push/22.04
+tag/latest: build/$(latest)
+	docker tag $(repo)/ubuntu:$(latest) $(repo)/ubuntu
+
+push/%: build/%
+	docker push $(repo)/ubuntu:$*
+
+push/all: $(versions:%=push/%) tag/latest
+	docker push $(repo)/ubuntu
