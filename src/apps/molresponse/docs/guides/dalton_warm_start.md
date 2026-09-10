@@ -136,16 +136,29 @@ doing before trusting any new seeded workflow:
 ## In-solver seeding from the deck (`dalton.dir`)
 
 Since 2026-09-09 every stage can be seeded from ONE DALTON directory named in the
-deck, without running the projection tools by hand:
+deck (`io.dalton.dir`), without running the projection tools by hand:
 
 ```
+dft
+  protocol [1e-6]        # one fine rung: the seed is basis-set quality; no econv/dconv (the
+end                      # protocol is the knob — SCF::solve floors dconv at the threshold)
+io
+  backend    hdf5                          # run-wide archive backend (GS and response)
+  dalton.dir /path/to/dalton/seed          # run-wide seed: loose RSPVEC + molden.inp, or a unique *.tar.gz
+end
 response
-  dalton.dir      /path/to/dalton/seed      # loose RSPVEC + molden.inp, or a unique *.tar.gz
-  seed.start_rung fine                      # optional: skip the coarse rung, the seed is at the physics
-  seed.freq_tol   0.01                      # optional: nearest DALTON N(ω) for legs not in the RSPVEC
-  hdf5            true                      # optional: blob archives (states and GS) as HDF5
+  protocol        [1e-6]
+  seed.start_rung fine                      # moot with a single rung; kept for ladders
+  seed.freq_tol   0.01                      # nearest DALTON N(ω) for legs not in the RSPVEC
+  seed.es_y       zero                      # zero | dalton: write the DALTON Y block into the ES seed?
+  seed.es_warmup  false                     # false: the Full solve starts from the seed directly
 end
 ```
+
+`dalton.dir` and the backend are deck-level (`io`) because they serve every
+stage — the SCF, the frequency-dependent legs and the excited states; the
+response-block `dalton.dir` / `hdf5` remain as aliases and lose when both are
+given.
 
 - **Ground state.** `madqc` installs a pre-run hook on the SCF application: when
   `dalton.dir` is set and no `<prefix>.restartdata` exists, the molden orbitals are
