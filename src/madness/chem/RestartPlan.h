@@ -35,6 +35,7 @@
 #ifndef MADNESS_CHEM_RESTARTPLAN_H__INCLUDED
 #define MADNESS_CHEM_RESTARTPLAN_H__INCLUDED
 
+#include <cstdio>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/Restart.h>
 
@@ -486,7 +487,19 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             plan.why = "restart auto: geometry moved, using the AO projections";
             return plan;
         }
-        return give_up("restart auto: geometry moved and no AO projections available");
+        {
+            // say by how much: a sub-1e-8 mismatch (10-digit coordinates from
+            // another program) reads very differently from a real optimization step
+            double dmax = 0.0; std::size_t imax = 0;
+            for (std::size_t i = 0; i < requested.natom(); ++i) {
+                const Atom a = meta.molecule.get_atom(i), b = requested.get_atom(i);
+                const double d = std::max({std::abs(a.x - b.x), std::abs(a.y - b.y), std::abs(a.z - b.z)});
+                if (d > dmax) { dmax = d; imax = i; }
+            }
+            char buf[160];
+            std::snprintf(buf, sizeof buf, " (max |dR| = %.3e bohr at atom %zu; tolerance 1e-8)", dmax, imax);
+            return give_up(std::string("restart auto: geometry moved and no AO projections available") + buf);
+        }
     }
 
     // A different eprec, functional or nuclear correlation factor is a different

@@ -118,6 +118,13 @@ inline void seed_gs_from_dalton_dir(World &world, const Params &params,
   opt.extra_prefixes = {prefix + ".gs_seed"};   // preserved copy (save_mos overwrites <prefix>.restartdata)
   opt.active_molecule = &mol;   // RestartPlan matches geometry at 1e-8 and eprec exactly
   if (world.rank() == 0) {
+    print("[DALTON-SEED] GS: metadata molecule (stamped) eprec =", mol.parameters.eprec());
+    for (std::size_t i = 0; i < mol.natom(); ++i) {
+      const auto at = mol.get_atom(i);
+      printf("[DALTON-SEED] GS:   atom %zu  Z=%d  %.10f %.10f %.10f\n", i, at.atomic_number, at.x, at.y, at.z);
+    }
+  }
+  if (world.rank() == 0) {
     print("[DALTON-SEED] GS: seeding", prefix + ".restartdata", "from", molden,
           " n_occ =", ne / 2, " L =", opt.L, " thresh =", opt.thresh);
     print(report);
