@@ -116,6 +116,7 @@ inline void seed_gs_from_dalton_dir(World &world, const Params &params,
   opt.xc       = cp.get<std::string>("xc");
   opt.localize = cp.get<std::string>("localize");
   opt.extra_prefixes = {prefix + ".gs_seed"};   // preserved copy (save_mos overwrites <prefix>.restartdata)
+  opt.active_molecule = &mol;   // RestartPlan matches geometry at 1e-8 and eprec exactly
   if (world.rank() == 0) {
     print("[DALTON-SEED] GS: seeding", prefix + ".restartdata", "from", molden,
           " n_occ =", ne / 2, " L =", opt.L, " thresh =", opt.thresh);

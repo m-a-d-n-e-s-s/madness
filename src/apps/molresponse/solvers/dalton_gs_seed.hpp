@@ -93,6 +93,14 @@ struct GsSeedOptions {
   /// moldft's save_mos overwrites <prefix>.restartdata on its first save, so a
   /// preserved copy is the only record of what the SCF started from.
   std::vector<std::string> extra_prefixes;
+  /// Molecule to stamp into the RestartMetadata. RestartPlan matches the
+  /// archive geometry against the deck at 1e-8 bohr and its eprec exactly;
+  /// the molden coordinates differ from the deck at ~1e-8 (DALTON prints
+  /// 10 digits) and carry no eprec, so a seed stamped with them was rejected
+  /// as "geometry moved" and moldft fell back to the initial guess (closeout
+  /// job 2162152, h2o). The caller has already fingerprinted molden vs the
+  /// active molecule at 1e-4; stamp the active molecule.
+  const madness::Molecule *active_molecule = nullptr;
 };
 
 struct GsSeedReport {
@@ -165,12 +173,13 @@ write_gs_seed_from_molden(madness::World &world, const std::string &molden_path,
   meta.spin_restricted      = true;
   meta.L                    = opt.L;
   meta.k                    = k;
-  meta.molecule             = molecule;
+  const Molecule &stamp     = opt.active_molecule ? *opt.active_molecule : molecule;
+  meta.molecule             = stamp;
   meta.xc                   = opt.xc;
   meta.localize             = opt.localize;
   meta.converged_for_thresh = opt.thresh;
   meta.representation       = Representation::mo;
-  meta.eprec                = molecule.parameters.eprec();
+  meta.eprec                = stamp.parameters.eprec();
   meta.madness_version      = MADNESS_PACKAGE_VERSION;
   auto emit = [&](auto &ar) {
     meta.write(ar);
