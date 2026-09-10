@@ -140,7 +140,12 @@ inline madness::Exchange<double, 3> &
 configure_exchange(madness::Exchange<double, 3> &K, bool symmetric = false) {
   using namespace hfex_detail;
   using Ex = madness::Exchange<double, 3>;
-  K.set_algorithm(Ex::string2algorithm(env_or("MADRESPONSE_HFEXALG", "multiworld")));
+  // moldft's default is "multiworld_row" (= multiworld_efficient_row, the
+  // algorithm molresponse always used). "multiworld" is the TILED
+  // multiworld_efficient, a different algorithm; a 2026-09-09 build with it as
+  // the default reproduced the old fixture's Raman at 3.808 instead of the
+  // validated 4.675 (A/B in reports/2026-09-09_beta_raman_revalidation).
+  K.set_algorithm(Ex::string2algorithm(env_or("MADRESPONSE_HFEXALG", "multiworld_row")));
   K.set_symmetric(symmetric);
   K.set_macro_task_info(madness::MacroTaskInfo::preset("default"));
   K.set_batch_granularity(std::atol(env_or("MADRESPONSE_HFEX_GRANULARITY", "1")));
