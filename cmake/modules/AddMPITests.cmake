@@ -36,9 +36,23 @@
 #   (cores / nprocs - 2), the two spare cores per rank being the MADNESS
 #   communication thread and the MPI implementation's own progress thread.
 #
+#   That budget is only applied to the default, single-host launch.  The wrapper
+#   runs on the host ctest runs on, so the core count it probes is that host's --
+#   fine when the ranks stay there, wrong the moment they do not.  Setting
+#   MADNESS_MPI_NODE_OPTIONS is how this module spells "I am choosing the layout"
+#   (a hostfile, --map-by node, a batch allocation), so when it is set the budget
+#   is skipped and MADNESS' own per-rank default applies instead.  That default is
+#   (cores - 1) measured on the host the rank actually lands on, which for one
+#   rank per node is already right; a global number derived here would not be.
+#   Set MAD_NUM_THREADS explicitly to budget such a run.
+#
 #   The matching CTest PROCESSORS property tells 'ctest -j' what one run of the
 #   test actually costs, so it does not schedule several of them side by side and
-#   put the oversubscription straight back.
+#   put the oversubscription straight back.  CTest fixes that reservation at
+#   configure time, so it describes the default budget and nothing else: override
+#   MAD_NUM_THREADS at run time and the reservation no longer matches what the
+#   test asks for -- larger overrides under-reserve, smaller ones over-reserve.
+#   Run overridden tests without 'ctest -j', or reserve by hand.
 #
 #   MAD_CHECK_BINDING is defaulted to OFF on top of all that.  The budget above is
 #   what its aggregate-demand test asks for, so it would now mostly pass -- but
@@ -151,7 +165,12 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "# (cores - 1), and the ranks then time-share the host several times over.  Leave\n")
     file(APPEND ${_wrapper_script_template} "# two cores per rank for the MADNESS communication thread and the MPI progress\n")
     file(APPEND ${_wrapper_script_template} "# thread.  An explicit MAD_NUM_THREADS in the environment wins.\n")
-    file(APPEND ${_wrapper_script_template} "if(NOT DEFINED ENV{MAD_NUM_THREADS})\n")
+    file(APPEND ${_wrapper_script_template} "# Only for the default layout: this script runs on the host ctest runs on, so\n")
+    file(APPEND ${_wrapper_script_template} "# the core count below is that host's.  Once MADNESS_MPI_NODE_OPTIONS puts the\n")
+    file(APPEND ${_wrapper_script_template} "# ranks somewhere else -- a hostfile, --map-by node, a batch allocation -- a\n")
+    file(APPEND ${_wrapper_script_template} "# number derived here describes the wrong machine.  MADNESS' own default,\n")
+    file(APPEND ${_wrapper_script_template} "# (cores - 1) measured wherever the rank lands, is the better answer there.\n")
+    file(APPEND ${_wrapper_script_template} "if(NOT DEFINED ENV{MAD_NUM_THREADS} AND NOT DEFINED ENV{MADNESS_MPI_NODE_OPTIONS})\n")
     file(APPEND ${_wrapper_script_template} "  cmake_host_system_information(RESULT _ncores QUERY NUMBER_OF_LOGICAL_CORES)\n")
     file(APPEND ${_wrapper_script_template} "  math(EXPR _nthreads \"\${_ncores} / ${NPROC} - 2\")\n")
     file(APPEND ${_wrapper_script_template} "  if(_nthreads LESS 1)\n")
@@ -159,6 +178,9 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "  endif()\n")
     file(APPEND ${_wrapper_script_template} "  set(ENV{MAD_NUM_THREADS} \"\${_nthreads}\")\n")
     file(APPEND ${_wrapper_script_template} "  message(STATUS \"MAD_NUM_THREADS=\${_nthreads} (${NPROC} rank(s) on \${_ncores} logical cores)\")\n")
+    file(APPEND ${_wrapper_script_template} "elseif(NOT DEFINED ENV{MAD_NUM_THREADS})\n")
+    file(APPEND ${_wrapper_script_template} "  message(STATUS \"MADNESS_MPI_NODE_OPTIONS is set: leaving the thread count to MADNESS' \"\n")
+    file(APPEND ${_wrapper_script_template} "                 \"per-host default.  Set MAD_NUM_THREADS to budget this run.\")\n")
     file(APPEND ${_wrapper_script_template} "endif()\n")
     file(APPEND ${_wrapper_script_template} "# Execute MPI command\n")
     file(APPEND ${_wrapper_script_template} "message(STATUS \"Running: ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} \${MPI_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \\\"\$<TARGET_FILE:${_test_name}>\\\" ${MPIEXEC_POSTFLAGS_STR}\")\n")
@@ -179,7 +201,9 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     
     # What one run costs the host, so 'ctest -j' does not start several of these
     # side by side and undo the budget.  Mirrors the wrapper's arithmetic, with the
-    # two spare cores per rank added back in.
+    # two spare cores per rank added back in.  CTest fixes this at configure time,
+    # so it describes the default budget only: a run-time MAD_NUM_THREADS override
+    # or a MADNESS_MPI_NODE_OPTIONS layout will not match it (see the header).
     math(EXPR _mad_rank_threads "${MADNESS_TEST_HOST_CORES} / ${NPROC} - 2")
     if(_mad_rank_threads LESS 1)
       set(_mad_rank_threads 1)
