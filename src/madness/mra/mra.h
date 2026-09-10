@@ -809,23 +809,45 @@ namespace madness {
 
         /// Returns the square of the norm of the local function ... no communication
 
-        /// Works in either basis
+        /// Works in any state that holds its coefficients once, cf.
+        /// FunctionImpl::has_summable_coefficients()
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
-                "function must be compressed or reconstructed for norm2sq_local");
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "norm2sq_local needs a tree that holds its coefficients once");
             return impl->norm2sq_local();
         }
 
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
-        /// See comments for err() w.r.t. applying to many functions.
+        /// Works in any state whose coefficients norm2sq_local() can sum, which
+        /// includes the redundant and nonstandard-with-leaves trees left behind
+        /// by mul_sparse() and friends; the remaining states are reconstructed
+        /// first.  See comments for err() w.r.t. applying to many functions.
+        ///
+        /// Throws if the function is on-demand: it carries no coefficients, so
+        /// its norm is not defined until it is materialized.
+        ///
+        /// N.B. that reconstruction is a mutation -- it discards the interior
+        /// coefficients -- so this (logically const) method fences before it
+        /// changes state: any task still reading those coefficients, e.g. a
+        /// mul_sparse() invoked with fence=false, must be done with them before
+        /// they are removed.
+        ///
+        /// The branch is taken on the tree state, which is replicated, so all
+        /// ranks take the same branch and the global ops stay collective.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
+            if (!impl->has_summable_coefficients()) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "norm2 is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -974,6 +996,10 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
+
+        /// N.B. with fence=false the per-node norm reset is skipped: norm_tree
+        /// keeps the -1.0 broadened marker and dnorm_tree its previous value,
+        /// so broadening cannot be repeated until the norms are recomputed.
         void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                      bool fence = true) const {
             verify();
@@ -1244,15 +1270,33 @@ namespace madness {
         T trace_local() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "trace_local needs a tree that holds its coefficients once");
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
 
 
         /// Returns global value of \c int(f(x),x) ... global comm required
+
+        /// Works in any state whose coefficients trace_local() can sum; the
+        /// remaining states are reconstructed first.  For efficient use
+        /// especially with many functions, reconstruct them all first and use
+        /// trace_local instead, so you can perform a global sum on all at the
+        /// same time.
+        ///
+        /// Throws if the function is on-demand, and fences before reconstructing;
+        /// see norm2() for both, including why the branch stays collective.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            if (!impl->has_summable_coefficients()) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "trace is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
+            if (VERIFY_TREE) verify_tree();
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
             impl->world.gop.fence();
@@ -1424,9 +1468,7 @@ namespace madness {
             // if this and g are the same, use norm2()
             if constexpr (std::is_same_v<T,R>) {
               if (this->get_impl() == g.get_impl()) {
-                TreeState state = this->get_impl()->get_tree_state();
-                if (not(state == reconstructed or state == compressed))
-                  change_tree_state(reconstructed);
+                // let norm2() handle tree state
                 double norm = this->norm2();
                 return norm * norm;
               }
