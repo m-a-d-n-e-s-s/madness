@@ -414,6 +414,16 @@ public:
 
     void initial_guess(World& world);
 
+    /// diagonalize the atomic-guess Fock matrix in the AO basis
+    /// @param[out]	c	eigenvectors, one column per orbital
+    /// @param[out]	e	eigenvalues
+    void initial_guess_ao_eigenvectors(World& world, tensorT& c, tensorT& e);
+
+    /// fill in the virtuals a restart archive lacks, up to nmo_alpha/nmo_beta, with
+    /// atomic-guess orbitals orthogonalized against the loaded ones
+    /// @return		true if anything was added
+    bool pad_virtuals_from_guess(World& world);
+
     void initial_guess_from_nwchem(World& world);
 
     void initial_load_bal(World& world);
@@ -612,13 +622,17 @@ public:
             calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
         }
 
-        // The virtual step-down converges nv_extra extra virtuals first. Only the
-        // atomic guess can be sized for them, so a restart skips the schedule.
+        // The virtual step-down converges nv_extra extra virtuals first. Only
+        // virtuals that start from the atomic guess can be sized for them: a fresh
+        // guess, or a restart whose archive lacks them. A complete restart skips it.
         const int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
         const int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
-        const int nv_extra = (plan.source == RestartSource::initial_guess) ? calc.param.nv_extra() : 0;
+        const bool pads_virtuals = plan.source == RestartSource::restartdata &&
+                                   plan.archive_nmo_alpha > 0 &&
+                                   plan.archive_nmo_alpha < std::size_t(calc.param.nmo_alpha());
+        const int nv_extra = (plan.source == RestartSource::initial_guess || pads_virtuals) ? calc.param.nv_extra() : 0;
         if (calc.param.nv_extra() > 0 && nv_extra == 0 && world.rank() == 0)
-            print("virtual step-down skipped: not starting from the atomic guess");
+            print("virtual step-down skipped: the virtuals do not start from the atomic guess");
         if (nv_extra > 0) {
             calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nvalpha + nv_extra);
             if (calc.param.have_beta())

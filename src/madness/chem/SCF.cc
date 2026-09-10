@@ -422,7 +422,7 @@ void SCF::load_mos(World& world) {
 
     // load orbitals
     MolecularOrbitals<double,3> amos, bmos;
-    amos.load_mos(ar, molecule, param.nmo_alpha());
+    amos.load_mos(ar, molecule, param.nmo_alpha(), true);
     amo= amos.get_mos();
     aocc=amos.get_occ();
     aeps=amos.get_eps();
@@ -435,7 +435,7 @@ void SCF::load_mos(World& world) {
     check_and_set_thresh(amo);
 
     if (param.have_beta()) {
-        bmos.load_mos(ar, molecule, param.nmo_beta());
+        bmos.load_mos(ar, molecule, param.nmo_beta(), true);
         bmo= bmos.get_mos();
         bocc=bmos.get_occ();
         beps=bmos.get_eps();
@@ -443,6 +443,10 @@ void SCF::load_mos(World& world) {
         check_and_project_k(bmo);
         check_and_set_thresh(bmo);
     }
+
+    // virtuals the archive lacks start from the atomic guess, so the stored
+    // convergence claim no longer describes what we hold
+    if (pad_virtuals_from_guess(world)) needs_redo = true;
 
     // if everything worked out, set convergence parameters
     if (needs_redo) {
@@ -1075,7 +1079,7 @@ void SCF::initial_guess_from_nwchem(World& world) {
 }
 
 
-void SCF::initial_guess(World& world) {
+void SCF::initial_guess_ao_eigenvectors(World& world, tensorT& c, tensorT& e) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
     // No guard on `restart` any more: reaching the atomic guess is a legitimate
@@ -1248,7 +1252,6 @@ void SCF::initial_guess(World& world) {
     vpsi.clear();
     tensorT fock = kinetic + potential;
     fock = 0.5 * (fock + transpose(fock));
-    tensorT c, e;
 
     //debug printing
     /*double ep = 0.0;
@@ -1278,6 +1281,14 @@ void SCF::initial_guess(World& world) {
     //   print("\n\nWSTHORNTON: initial eigenvectors");
     //   print(c);
     // }
+
+}
+
+
+void SCF::initial_guess(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    tensorT c, e;
+    initial_guess_ao_eigenvectors(world, c, e);
 
     START_TIMER(world);
     compress(world, ao);
@@ -1318,6 +1329,49 @@ void SCF::initial_guess(World& world) {
     }
     END_TIMER(world, "guess orbital grouping");
 }
+
+bool SCF::pad_virtuals_from_guess(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    const size_t na = amo.size(), nb = bmo.size();
+    const bool pad_a = na < size_t(param.nmo_alpha());
+    const bool pad_b = param.have_beta() && nb < size_t(param.nmo_beta());
+    if (!pad_a && !pad_b) return false;
+    MADNESS_CHECK_THROW(na >= size_t(param.nalpha()) && (!param.have_beta() || nb >= size_t(param.nbeta())),
+                        "restart archive holds fewer orbitals than are occupied");
+    if (world.rank() == 0 && param.print_level() > 1)
+        printf("padding %ld alpha and %ld beta virtuals from the atomic guess\n",
+               pad_a ? long(param.nmo_alpha() - na) : 0L, pad_b ? long(param.nmo_beta() - nb) : 0L);
+
+    reset_aobasis(param.aobasis());
+    ao = project_ao_basis(world, aobasis);
+    make_nuclear_potential(world);
+    tensorT c, e;
+    initial_guess_ao_eigenvectors(world, c, e);
+    const size_t ncore = (molecule.parameters.core_type() != "none") ? molecule.n_core_orb_all() : 0;
+
+    // Append the guess eigenvectors above the loaded block and orthogonalize them
+    // against the loaded orbitals, which orthonormalize(nocc) leaves untouched.
+    auto pad = [&](vecfuncT& mo, tensorT& eps, tensorT& occ, std::vector<int>& set, const size_t nmo) {
+        const size_t nload = mo.size();
+        if (nload >= nmo) return;
+        MADNESS_CHECK_THROW(ncore + nmo <= ao.size(), "too few AO basis functions for the requested number of orbitals");
+        MADNESS_CHECK_THROW(size_t(eps.size()) >= nload && size_t(occ.size()) >= nload, "restart archive eps/occ shorter than its orbitals");
+        vecfuncT guess = transform(world, ao, c(_, Slice(ncore + nload, ncore + nmo - 1)), vtol, true);
+        mo.insert(mo.end(), guess.begin(), guess.end());
+        orthonormalize(world, mo, int(nload));
+        const long n = long(nmo);
+        tensorT eps_new(n), occ_new(n);
+        for (size_t j = 0; j < nload; ++j) { eps_new[j] = eps[j]; occ_new[j] = occ[j]; }
+        for (size_t j = nload; j < nmo; ++j) eps_new[j] = e[ncore + j];
+        eps = eps_new;
+        occ = occ_new;
+        set = group_orbital_sets(world, eps, occ, int(nmo));
+    };
+    pad(amo, aeps, aocc, aset, param.nmo_alpha());
+    if (pad_b) pad(bmo, beps, bocc, bset, param.nmo_beta());
+    return true;
+}
+
 
 /// group orbitals into sets of similar orbital energies for localization
 
