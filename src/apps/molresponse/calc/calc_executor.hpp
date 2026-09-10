@@ -99,6 +99,11 @@ struct ExecutorSettings {
   // `seed.freq_tol`) or --dalton-dir/--seed-freq-tol. 0 = off (2026-09-09).
   std::string       dalton_dir;
   double            seed_freq_tol         = 0.0;
+  // ES seed handling (2026-09-10): false = the Full solve starts directly from
+  // the seeded (x, y) at the active rung — the seeded workflow's intent (no TDA
+  // warmup at all); true = KAIN-free TDA warmup from the seed's X block, then
+  // promote to Full. Diagnostic only; deck `seed.es_warmup`, --seed-es-warmup.
+  bool              es_seed_warmup        = false;
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
   // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
@@ -786,7 +791,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
       // guess: TDA warmup (KAIN off, es_tda_warmup_iters) from the seed's X
       // block, then promote to Full with y = 0. A bundle saved mid-solve
       // (iter > 0) is a genuine restart and is used as is.
-      if (s0.iter == 0 && ctx.es_tda_warmup_iters > 0) {
+      if (ctx.es_seed_warmup && s0.iter == 0 && ctx.es_tda_warmup_iters > 0) {
         if (world.rank() == 0)
           madness::print("[CALC] solve_es_full: iteration-0 seed bundle -> TDA warmup"
                          " from the seed (", ctx.es_tda_warmup_iters,

@@ -310,6 +310,7 @@ struct molresponse_v3_lib {
     // the derived (two-photon) FD legs (calc_executor solve_fd seam).
     in.settings.dalton_dir    = rp.dalton_dir();
     in.settings.seed_freq_tol = rp.seed_freq_tol();
+    in.settings.es_seed_warmup = rp.seed_es_warmup();
     if (world.rank() == 0 && in.settings.fd_subworlds > 0) {
       print("response: deck subworlds =", in.settings.fd_subworlds,
             "(F2 state-parallel fan-out requested)");

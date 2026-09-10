@@ -478,6 +478,7 @@ int main(int argc, char **argv) {
         if (parser.key_exists("dalton-dir")) ctx.dalton_dir = parser.value_raw("dalton-dir");
         if (parser.key_exists("seed-freq-tol"))
           ctx.seed_freq_tol = std::stod(parser.value("seed-freq-tol"));
+        if (parser.key_exists("seed-es-warmup")) ctx.es_seed_warmup = true;
         if (parser.key_exists("beta-pq-source"))       ctx.beta_pq_source = true;
         if (parser.key_exists("beta-vbc-source")) {
           ctx.beta_pq_source = false;

@@ -124,6 +124,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "warmup). 2026-09-10: the DALTON y block made the seeded RPA solve diverge "
                                 "(h2o, lih) while X-only seeds behave like a converged TDA warmup; default zero "
                                 "until the y convention is validated.", {"dalton", "zero"});
+        initialize<bool>("seed.es_warmup", false,
+                         "excited-state seed from dalton.dir: false = start the Full (RPA) solve "
+                         "directly from the seed at the active rung (no TDA warmup); true = run the "
+                         "KAIN-free TDA warmup from the seed's X block first, then promote to Full. "
+                         "Diagnostic knob (2026-09-10); the seeded workflow wants false.");
         initialize<double>("seed.freq_tol", 0.0,
                            "nearest-frequency DALTON seed for FD legs whose frequency is NOT "
                            "in the RSPVEC (the derived two-photon legs at omega_f/2: MADNESS's "
@@ -191,6 +196,9 @@ public:
     }
     [[nodiscard]] std::string seed_start_rung() const {
         return get<std::string>("seed.start_rung");
+    }
+    [[nodiscard]] bool seed_es_warmup() const {
+        return get<bool>("seed.es_warmup");
     }
     [[nodiscard]] std::string seed_es_y() const {
         return get<std::string>("seed.es_y");
