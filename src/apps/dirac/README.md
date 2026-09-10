@@ -96,8 +96,9 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | :--- | :--- | :--- | :--- |
 | `archive <file>` | `string` | *(required)* | Path or name of the input restart archive. Accepts `mad.restartdata`, `mad.restartdata.00000`, or `mad`. |
 | `job <n>` | `int` | `0` | Calculation type. `0`: DF on occupied orbitals only. |
-| `thresh <val>` | `double` | `1e-6` | Wavelet truncation/refinement threshold. Automatically updates default `dconv`. |
+| `thresh <val>` | `double` | `1e-6` | Wavelet truncation/refinement threshold. Automatically updates default `dconv` and `thresh_mul`. |
 | `dconv <val>` | `double` | `1e-6` | Density convergence threshold ($\lVert \Delta \rho \rVert$). |
+| `thresh_mul <val>` | `double` | `1e-6` | Screening threshold for sparse multiplication (`mul_sparse`). Give after `thresh` to override it. |
 | `k <order>` | `int` | `8` | Multiwavelet polynomial order. If different from archive, orbitals are automatically projected. |
 | `small <val>` | `double` | `1e-5` | Smallest length scale to be resolved. |
 | `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. |

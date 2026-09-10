@@ -510,10 +510,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           truncate(world,temp);
 
           //Now multiply by phi_j's and accumulate to K(phi_i)
-          Kpsis[i][0] += sum(world, mul_sparse(world, temp, temp0, DFparams.thresh));
-          Kpsis[i][1] += sum(world, mul_sparse(world, temp, temp1, DFparams.thresh));
-          Kpsis[i][2] += sum(world, mul_sparse(world, temp, temp2, DFparams.thresh));
-          Kpsis[i][3] += sum(world, mul_sparse(world, temp, temp3, DFparams.thresh));
+          Kpsis[i][0] += sum(world, mul_sparse(world, temp, temp0, DFparams.thresh_mul));
+          Kpsis[i][1] += sum(world, mul_sparse(world, temp, temp1, DFparams.thresh_mul));
+          Kpsis[i][2] += sum(world, mul_sparse(world, temp, temp2, DFparams.thresh_mul));
+          Kpsis[i][3] += sum(world, mul_sparse(world, temp, temp3, DFparams.thresh_mul));
           
 
           //Everything in temp can be used to accumulate a small part of K(phi_k) for k in [i+1,n] so we avoid calculating the same quantity on future iterations
@@ -522,10 +522,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           temp = conj(world, temp);
 
           //multiply by phi_i
-          temp0 = mul_sparse(world, occupieds[i][0], temp, DFparams.thresh);
-          temp1 = mul_sparse(world, occupieds[i][1], temp, DFparams.thresh);
-          temp2 = mul_sparse(world, occupieds[i][2], temp, DFparams.thresh);
-          temp3 = mul_sparse(world, occupieds[i][3], temp, DFparams.thresh);
+          temp0 = mul_sparse(world, occupieds[i][0], temp, DFparams.thresh_mul);
+          temp1 = mul_sparse(world, occupieds[i][1], temp, DFparams.thresh_mul);
+          temp2 = mul_sparse(world, occupieds[i][2], temp, DFparams.thresh_mul);
+          temp3 = mul_sparse(world, occupieds[i][3], temp, DFparams.thresh_mul);
 
           //acummulate
           for(unsigned int j = i+1; j < n; j++){
@@ -588,19 +588,19 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
                //Now multiply by phi_j's and accumulate to K(phi_i)
                //Here is where we put the complex conjugation we've left out. This allows for one conjugation here instead of two conjugations earlier.
-               Kpsis[i][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh));
-               Kpsis[i][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh));
-               Kpsis[i][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh));
-               Kpsis[i][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh));
+               Kpsis[i][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh_mul));
+               Kpsis[i][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh_mul));
+               Kpsis[i][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh_mul));
+               Kpsis[i][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh_mul));
                
                 // Now accumulate the (num_contrib - i - 1) symmetric contributions from \bar{\phi}_i to K(\phi_j) (j > i).
                 // Since \bar{\phi}_i^\dagger \phi_j = -\bar{\phi}_j^\dagger \phi_i, the potential is V_{\bar{i}j} = -V_{\bar{j}i} = -temp.
                 // Thus the exchange term is V_{\bar{i}j} \bar{\phi}_i = -temp * \bar{\phi}_i = temp * (-\bar{\phi}_i).
                 // With \bar{\phi}_i = (-\phi_{i,1}^*, \phi_{i,0}^*, -\phi_{i,3}^*, \phi_{i,2}^*)^T, -\bar{\phi}_i = (\phi_{i,1}^*, -\phi_{i,0}^*, \phi_{i,3}^*, -\phi_{i,2}^*)^T.
-                temp0 = mul_sparse(world, conj(occupieds[i][1]), temp, DFparams.thresh);
-                temp1 = mul_sparse(world, -1.0*conj(occupieds[i][0]), temp, DFparams.thresh);
-                temp2 = mul_sparse(world, conj(occupieds[i][3]), temp, DFparams.thresh);
-                temp3 = mul_sparse(world, -1.0*conj(occupieds[i][2]), temp, DFparams.thresh);
+                temp0 = mul_sparse(world, conj(occupieds[i][1]), temp, DFparams.thresh_mul);
+                temp1 = mul_sparse(world, -1.0*conj(occupieds[i][0]), temp, DFparams.thresh_mul);
+                temp2 = mul_sparse(world, conj(occupieds[i][3]), temp, DFparams.thresh_mul);
+                temp3 = mul_sparse(world, -1.0*conj(occupieds[i][2]), temp, DFparams.thresh_mul);
 
                //accumulate
                for(int j = i+1; j < num_contrib; j++){
@@ -644,10 +644,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                
                truncate(world,temp);
 
-               Kpsis[n-1][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh));
-               Kpsis[n-1][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh));
-               Kpsis[n-1][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh));
-               Kpsis[n-1][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh));
+               Kpsis[n-1][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh_mul));
+               Kpsis[n-1][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh_mul));
+               Kpsis[n-1][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh_mul));
+               Kpsis[n-1][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh_mul));
                
           }
      }
@@ -743,7 +743,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
-          temp_orbitals.push_back(occupieds[j].mul_sparse(potential, DFparams.thresh)); //add in coulomb term
+          temp_orbitals.push_back(occupieds[j].mul_sparse(potential, DFparams.thresh_mul)); //add in coulomb term
      }
 
      if(world.rank() == 0) print("          Subtracting K*psi");
@@ -1429,7 +1429,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //construct the function to which we will apply the BSH
-          temp_function = occupieds[j].mul_sparse(JandV, DFparams.thresh);
+          temp_function = occupieds[j].mul_sparse(JandV, DFparams.thresh_mul);
           temp_function.scale(-1.0);
           temp_function += Kpsis[j];
           temp_function.truncate();
@@ -1485,11 +1485,12 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      if(maxresidual <= tolerance) {
           iterate_again = false;
           if (world.rank() == 0)  printf("\nConverged due to residuals");
-     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= DFparams.dconv * nelec
-                && maxresidual <= 1e2 * tolerance) {
-          iterate_again = false;
-          if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
      }
+     // else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= DFparams.dconv * nelec
+     //            && maxresidual <= 1e2 * tolerance) {
+     //      iterate_again = false;
+     //      if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
+     // }
 
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){

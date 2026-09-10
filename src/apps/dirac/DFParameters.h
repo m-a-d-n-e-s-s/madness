@@ -61,6 +61,7 @@ namespace madness {
           double small;                ///< Minimum length scale to be resolved
           double thresh;               ///< Accuracy criterion when truncating
           double dconv;                ///< Accuracy criterion for charge density. Defaults to thresh.
+          double thresh_mul;           ///< Accuracy criterion for sparse multiplication. Defaults to thresh.
           int k;                       ///< Number of legendre polynomials in scaling basis
           bool kain;                   ///< Turns on KAIN nonlinear solver 
           int maxsub;                  ///< Sets maximum subspace size for KAIN
@@ -85,7 +86,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & dconv & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted;
+               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted;
           }
 
           // Default constructor
@@ -95,6 +96,7 @@ namespace madness {
           , small(1e-5)
           , thresh(1e-6)
           , dconv(1e-6)
+          , thresh_mul(1e-6)
           , k(8)
           , kain(false)
           , maxsub(10)
@@ -149,9 +151,13 @@ namespace madness {
                     else if (s == "thresh"){
                          f >> thresh;
                          dconv = thresh;
+                         thresh_mul = thresh;
                     }
                     else if (s == "dconv"){
                          f >> dconv;
+                    }
+                    else if (s == "thresh_mul"){
+                         f >> thresh_mul;
                     }
                     else if (s == "k"){
                          f >> k;
@@ -216,6 +222,7 @@ namespace madness {
                madness::print("            Initial Guess File:", archive);
                madness::print("                           Job:", job);
                madness::print("          Refinement Threshold:", thresh);
+               madness::print("     Multiplication Threshold:", thresh_mul);
                madness::print("                             k:", k);
                madness::print("Smallest Resolved Length Scale:", small);
                madness::print("             Bohr radius in fm:", bohr_rad);
