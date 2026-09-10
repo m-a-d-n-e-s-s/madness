@@ -350,7 +350,19 @@ private:
     auto V = rs::inner(roots, V0x);
     auto E = rs::inner(roots, E0x_full);
     auto G = rs::inner(roots, gamma);
+    // Block norms per root (collective): |x|^2 and, for paired states, |y|^2 —
+    // the RPA metric normalizes |x|^2 - |y|^2 = 1, so these show how far the
+    // vectors have moved from the TDA limit.
+    std::vector<double> nx(roots.size(), 0.0), ny(roots.size(), 0.0);
+    for (std::size_t i = 0; i < roots.size(); ++i) {
+      nx[i] = madness::inner(world_, roots[i].x_alpha, roots[i].x_alpha).sum();
+      if constexpr (rs::detail::has_y_alpha<Storage>::value)
+        ny[i] = madness::inner(world_, roots[i].y_alpha, roots[i].y_alpha).sum();
+    }
     if (world_.rank() != 0) return;
+    printf("[DEBUG] block norms (root: |x|^2 |y|^2):\n");
+    for (std::size_t i = 0; i < roots.size(); ++i)
+      printf("   %2zu: %10.5f %10.5f\n", i, nx[i], ny[i]);
     print("[DEBUG] T = 1/2<grad x|grad x>:"); print(T);
     print("[DEBUG] V = <x|V0 x>:");           print(V);
     print("[DEBUG] E = <x|E0_full x>:");      print(E);
