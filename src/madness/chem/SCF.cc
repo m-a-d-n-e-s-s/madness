@@ -445,8 +445,9 @@ void SCF::load_mos(World& world) {
     }
 
     // virtuals the archive lacks start from the atomic guess, so the stored
-    // convergence claim no longer describes what we hold
-    if (pad_virtuals_from_guess(world)) needs_redo = true;
+    // convergence claim no longer describes what we hold; the energy still does,
+    // it belongs to the occupied orbitals alone
+    const bool padded = pad_virtuals_from_guess(world);
 
     // if everything worked out, set convergence parameters
     if (needs_redo) {
@@ -456,8 +457,8 @@ void SCF::load_mos(World& world) {
         converged_for_dconv=1.e10;
         current_energy=1.e10;
     } else {
-        converged_for_thresh= meta.converged_for_thresh;
-        converged_for_dconv= meta.converged_for_dconv;
+        converged_for_thresh= padded ? 1.e10 : meta.converged_for_thresh;
+        converged_for_dconv= padded ? 1.e10 : meta.converged_for_dconv;
         current_energy=meta.current_energy;
     }
     // NB: the requested geometry wins. Restarting must never silently move the
@@ -2343,6 +2344,192 @@ void SCF::rotate_subspace(World& world, const distmatT& dUT, subspaceT& subspace
     world.gop.fence();
 }
 
+void SCF::solve_virtuals(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv());
+    const int nocca = param.nalpha(), noccb = param.nbeta();
+    const int nva = int(amo.size()) - nocca;
+    const int nvb = param.have_beta() ? int(bmo.size()) - noccb : 0;
+    MADNESS_CHECK_THROW(nva >= 0 and nvb >= 0, "freeze_occupied: fewer orbitals than occupied");
+    MADNESS_CHECK_THROW(nva > 0 or nvb > 0, "freeze_occupied: no virtuals to iterate");
+    if (world.rank() == 0 and param.print_level() > 1)
+        printf("\nfreeze_occupied: iterating %d alpha and %d beta virtuals in the fixed mean field\n", nva, nvb);
+
+    // Nuclear and Coulomb potentials of the occupied density, once. XC and
+    // exchange are added per call by apply_potential, which takes the occupied
+    // orbitals from this object rather than from its argument.
+    START_TIMER(world);
+    functionT arho = make_density(world, aocc, amo), brho;
+    if (param.nbeta()) brho = param.spin_restricted() ? arho : make_density(world, bocc, bmo);
+    else brho = functionT(world);
+    functionT rho = arho + brho;
+    rho.truncate();
+    real_function_3d vnuc;
+    if (molecule.parameters.psp_calc()) {
+        vnuc = gthpseudopotential->vlocalpot();
+    } else if (molecule.parameters.pure_ae()) {
+        vnuc = potentialmanager->vnuclear();
+    } else {
+        vnuc = potentialmanager->vnuclear() + gthpseudopotential->vlocalpot();
+    }
+    functionT vcoul = apply(*coulop, rho);
+    functionT vlocal = vcoul + vnuc;
+    if (param.pcm_data() != "none") vlocal += pcm.compute_pcm_potential(vcoul);
+    vcoul.clear(false);
+    rho.clear(false);
+    vlocal.truncate();
+    END_TIMER(world, "frozen potential");
+
+    bool converged_all = true;
+    auto iterate_block = [&](vecfuncT& mo, tensorT& eps, const int nocc, const int nv,
+                             const int ispin, const char* spin) {
+        if (nv <= 0) return;
+        subspaceT subspace;
+        tensorT Q;
+        tensorT occ_v(nv);   // spectators: zero occupation
+        bool converged = false;
+        for (int iter = 0; iter < param.maxiter(); ++iter) {
+            vecfuncT vmo(mo.begin() + nocc, mo.end());
+            double exc = 0.0, enl = 0.0, ekin = 0.0, err = 0.0;
+            vecfuncT Vv = apply_potential(world, occ_v, vmo, vlocal, exc, enl, ispin);
+            tensorT fock = make_fock_matrix(world, vmo, Vv, occ_v, ekin);
+            canonicalize_virtuals(world, fock, vmo, Vv, 0);
+            for (int i = 0; i < nv; ++i) {
+                mo[nocc + i] = vmo[i];
+                eps[nocc + i] = fock(i, i);
+            }
+            vecfuncT rv = compute_residual(world, occ_v, fock, vmo, Vv, err);
+            world.gop.broadcast(err, 0);
+            if (world.rank() == 0 and param.print_level() > 1)
+                printf("  %s virtuals iteration %d: max residual %.2e\n", spin, iter, err);
+            if (err < 5.0 * dconv) {
+                converged = true;
+                break;
+            }
+            compress(world, vmo, false);
+            compress(world, rv, false);
+            world.gop.fence();
+            const tensorT c = kain_solve(world, vmo, rv, subspace, Q);
+            vecfuncT vnew = kain_combine(world, subspace, c, 0, nv);
+            kain_trim(subspace, Q);
+            do_step_restriction(world, vmo, vnew, spin);
+            // orthogonal to the fixed occupieds, which orthonormalize(nocc) leaves untouched
+            vecfuncT all(mo.begin(), mo.begin() + nocc);
+            all.insert(all.end(), vnew.begin(), vnew.end());
+            orthonormalize(world, all, nocc);
+            for (int i = 0; i < nv; ++i) mo[nocc + i] = all[nocc + i];
+        }
+        converged_all = converged_all and converged;
+    };
+    iterate_block(amo, aeps, nocca, nva, 0, "alpha");
+    if (param.have_beta()) iterate_block(bmo, beps, noccb, nvb, 1, "beta");
+    else if (param.nbeta() > 0) bmo = amo;
+
+    if (converged_all) {
+        converged_for_thresh = FunctionDefaults<3>::get_thresh();
+        converged_for_dconv = dconv;
+    }
+    if (world.rank() == 0 and param.print_level() > 1) {
+        if (converged_all) print("\nConverged!\n");
+        // the occupied entries of aeps/beps are the archive's, in its gauge
+        if (nva > 0) {
+            print("alpha virtual eigenvalues");
+            print(aeps(Slice(nocca, -1)));
+        }
+        if (nvb > 0) {
+            print("beta virtual eigenvalues");
+            print(beps(Slice(noccb, -1)));
+        }
+        if (current_energy < 1.e9) printf("\ntotal energy of the occupied orbitals (from the archive) %20.12f\n", current_energy);
+    }
+}
+
+
+tensorT SCF::kain_solve(World& world, const vecfuncT& vm, const vecfuncT& rm,
+                        subspaceT& subspace, tensorT& Q) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
+    tensorT c;
+    while (true) {
+        subspace.push_back(pairvecfuncT(vm, rm));
+        const int m = subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for (int s = 0; s < m; ++s) {
+            const vecfuncT& vs = subspace[s].first;
+            const vecfuncT& rs = subspace[s].second;
+            for (unsigned int i = 0; i < vm.size(); ++i) {
+                ms[s] += vm[i].inner_local(rs[i]);
+                sm[s] += vs[i].inner_local(rm[i]);
+            }
+        }
+        world.gop.sum(ms.ptr(), m);
+        world.gop.sum(sm.ptr(), m);
+        tensorT newQ(m, m);
+        if (m > 1)
+            newQ(Slice(0, -2), Slice(0, -2)) = Q;
+        newQ(m - 1, _) = ms;
+        newQ(_, m - 1) = sm;
+        Q = newQ;
+
+        double rcond = 1e-12;
+        bool restart = false;
+        while (true) {
+            c = KAIN(Q, rcond);
+            if (world.rank() == 0 and (param.print_level() > 3)) print("kain c:", c);
+            if (c.absmax() < 3.0) {
+                break;
+            } else if (rcond < 0.01) {
+                if (world.rank() == 0 and (param.print_level() > 3))
+                    print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+                rcond *= 100;
+            } else {
+                if (world.rank() == 0 and (param.print_level() > 3)) print("Restarting KAIN due to subspace malfunction");
+                Q = tensorT();
+                subspace.clear();
+                restart = true;
+                break;
+            }
+        }
+        if (not restart) break;
+    }
+    END_TIMER(world, "Update subspace stuff");
+    world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
+    if (world.rank() == 0 and (param.print_level() > 3)) {
+        print("Subspace solution", c);
+    }
+    return c;
+}
+
+
+vecfuncT SCF::kain_combine(World& world, const subspaceT& subspace, const tensorT& c,
+                           const size_t lo, const size_t n) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    vecfuncT mo_new = zero_functions_compressed<double, 3>(world, n, false);
+    world.gop.fence();
+    for (size_t m = 0; m < subspace.size(); ++m) {
+        const vecfuncT& vm = subspace[m].first;
+        const vecfuncT& rm = subspace[m].second;
+        const vecfuncT vms(vm.begin() + lo, vm.begin() + lo + n);
+        const vecfuncT rms(rm.begin() + lo, rm.begin() + lo + n);
+        gaxpy(world, 1.0, mo_new, c(m), vms, false);
+        gaxpy(world, 1.0, mo_new, -c(m), rms, false);
+    }
+    world.gop.fence();
+    return mo_new;
+}
+
+
+void SCF::kain_trim(subspaceT& subspace, tensorT& Q) const {
+    if (param.maxsub() <= 1) {
+        subspace.clear();
+    } else if (subspace.size() == size_t(param.maxsub())) {
+        subspace.erase(subspace.begin());
+        Q = Q(Slice(1, -1), Slice(1, -1));
+    }
+}
+
+
 void SCF::update_subspace(World& world, vecfuncT& Vpsia, vecfuncT& Vpsib,
                           tensorT& focka, tensorT& fockb, subspaceT& subspace, tensorT& Q,
                           double& bsh_residual, double& update_residual) {
@@ -2397,86 +2584,16 @@ void SCF::update_subspace(World& world, vecfuncT& Vpsia, vecfuncT& Vpsib,
     compress(world, vm, false);
     compress(world, rm, false);
     world.gop.fence();
+    END_TIMER(world, "Update subspace compress");
 
-    restart:
-    subspace.push_back(pairvecfuncT(vm, rm));
-    int m = subspace.size();
-    tensorT ms(m);
-    tensorT sm(m);
-    for (int s = 0; s < m; ++s) {
-        const vecfuncT& vs = subspace[s].first;
-        const vecfuncT& rs = subspace[s].second;
-        for (unsigned int i = 0; i < vm.size(); ++i) {
-            ms[s] += vm[i].inner_local(rs[i]);
-            sm[s] += vs[i].inner_local(rm[i]);
-        }
-    }
+    const tensorT c = kain_solve(world, vm, rm, subspace, Q);
 
-    world.gop.sum(ms.ptr(), m);
-    world.gop.sum(sm.ptr(), m);
-    tensorT newQ(m, m);
-    if (m > 1)
-        newQ(Slice(0, -2), Slice(0, -2)) = Q;
-
-    newQ(m - 1, _) = ms;
-    newQ(_, m - 1) = sm;
-    Q = newQ;
-    //if (world.rank() == 0) { print("kain Q"); print(Q); }
-    tensorT c;
-    //if (world.rank() == 0) {
-    double rcond = 1e-12;
-    while (1) {
-        c = KAIN(Q, rcond);
-        if (world.rank() == 0 and (param.print_level() > 3)) print("kain c:", c);
-        //if (std::abs(c[m - 1]) < 5.0) { // was 3
-        if (c.absmax() < 3.0) { // was 3
-            break;
-        } else if (rcond < 0.01) {
-            if (world.rank() == 0 and (param.print_level() > 3))
-                print("Increasing subspace singular value threshold ", c[m - 1], rcond);
-            rcond *= 100;
-        } else {
-            //print("Forcing full step due to subspace malfunction");
-            // c = 0.0;
-            // c[m - 1] = 1.0;
-            // break;
-            if (world.rank() == 0 and (param.print_level() > 3)) print("Restarting KAIN due to subspace malfunction");
-            Q = tensorT();
-            subspace.clear();
-            goto restart; // fortran hat on ...
-        }
-    }
-    //}
-    END_TIMER(world, "Update subspace stuff");
-
-    world.gop.broadcast_serializable(c, 0); // make sure everyone has same data
-    if (world.rank() == 0 and (param.print_level() > 3)) {
-        print("Subspace solution", c);
-    }
     START_TIMER(world);
-    vecfuncT amo_new = zero_functions_compressed<double, 3>(world, amo.size(), false);
-    vecfuncT bmo_new = zero_functions_compressed<double, 3>(world, bmo.size(), false);
-    world.gop.fence();
-    for (unsigned int m = 0; m < subspace.size(); ++m) {
-        const vecfuncT& vm = subspace[m].first;
-        const vecfuncT& rm = subspace[m].second;
-        const vecfuncT vma(vm.begin(), vm.begin() + amo.size());
-        const vecfuncT rma(rm.begin(), rm.begin() + amo.size());
-        const vecfuncT vmb(vm.end() - bmo.size(), vm.end());
-        const vecfuncT rmb(rm.end() - bmo.size(), rm.end());
-        gaxpy(world, 1.0, amo_new, c(m), vma, false);
-        gaxpy(world, 1.0, amo_new, -c(m), rma, false);
-        gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
-        gaxpy(world, 1.0, bmo_new, -c(m), rmb, false);
-    }
-    world.gop.fence();
+    vecfuncT amo_new = kain_combine(world, subspace, c, 0, amo.size());
+    vecfuncT bmo_new;   // in a spin-restricted run bmo mirrors amo and is not in the subspace
+    if (param.have_beta()) bmo_new = kain_combine(world, subspace, c, amo.size(), bmo.size());
     END_TIMER(world, "Subspace transform");
-    if (param.maxsub() <= 1) {
-        subspace.clear();
-    } else if (subspace.size() == size_t(param.maxsub())) {
-        subspace.erase(subspace.begin());
-        Q = Q(Slice(1, -1), Slice(1, -1));
-    }
+    kain_trim(subspace, Q);
 
     do_step_restriction(world, amo, amo_new, "alpha");
     orthonormalize(world, amo_new, param.nalpha());

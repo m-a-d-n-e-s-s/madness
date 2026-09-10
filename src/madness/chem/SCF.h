@@ -419,6 +419,28 @@ public:
     /// @param[out]	e	eigenvalues
     void initial_guess_ao_eigenvectors(World& world, tensorT& c, tensorT& e);
 
+    /// iterate the virtuals in the fixed mean field of the occupied orbitals
+    ///
+    /// The occupied orbitals are not updated: nuclear and Coulomb potentials are
+    /// built once, the exchange and XC operators take the occupied orbitals from
+    /// this object at every call. Each spin's virtual block is canonicalized,
+    /// BSH-updated with KAIN, and re-orthogonalized against its occupieds.
+    void solve_virtuals(World& world);
+
+    /// KAIN: append (vm, rm) to the subspace and return the mixing coefficients
+    ///
+    /// Rebuilds the subspace matrix Q incrementally; on a singular subspace the
+    /// history is dropped and the step is a plain update.
+    tensorT kain_solve(World& world, const vecfuncT& vm, const vecfuncT& rm,
+                       subspaceT& subspace, tensorT& Q) const;
+
+    /// KAIN: the updated orbitals lo..lo+n of the subspace's vectors for coefficients c
+    vecfuncT kain_combine(World& world, const subspaceT& subspace, const tensorT& c,
+                          const size_t lo, const size_t n) const;
+
+    /// KAIN: drop the oldest history entry once the subspace holds maxsub of them
+    void kain_trim(subspaceT& subspace, tensorT& Q) const;
+
     /// fill in the virtuals a restart archive lacks, up to nmo_alpha/nmo_beta, with
     /// atomic-guess orbitals orthogonalized against the loaded ones
     /// @return		true if anything was added
@@ -640,6 +662,8 @@ public:
         }
 
         calc.get_initial_orbitals(world, plan);
+        MADNESS_CHECK_THROW(not calc.param.freeze_occupied() or plan.source == RestartSource::restartdata,
+                            "freeze_occupied needs converged occupied orbitals from a restartdata archive");
 
         // Reading can invalidate the plan's premise. load_mos resets
         // converged_for_thresh when it has to reproject, and it may have fallen
@@ -708,12 +732,14 @@ public:
                     // the vector drops the highest ones.
                     calc.amo.resize(calc.param.nmo_alpha());
                     calc.aset.resize(calc.param.nmo_alpha());
+                    calc.aeps = copy(calc.aeps(Slice(0, calc.param.nmo_alpha() - 1)));
                     calc.aocc = tensorT(calc.param.nmo_alpha());
                     for (int i = 0; i < calc.param.nalpha(); ++i)
                         calc.aocc[i] = 1.0;
                     if (calc.param.have_beta()) {
                         calc.bmo.resize(calc.param.nmo_beta());
                         calc.bset.resize(calc.param.nmo_beta());
+                        calc.beps = copy(calc.beps(Slice(0, calc.param.nmo_beta() - 1)));
                         calc.bocc = tensorT(calc.param.nmo_beta());
                         for (int i = 0; i < calc.param.nbeta(); ++i)
                             calc.bocc[i] = 1.0;
@@ -738,7 +764,8 @@ public:
                 }
                 calc.ao.clear(); world.gop.fence();
                 calc.ao = calc.project_ao_basis(world, calc.aobasis);
-                calc.solve(world);
+                if (calc.param.freeze_occupied()) calc.solve_virtuals(world);
+                else calc.solve(world);
 
                 if (calc.param.save())
                     calc.save_mos(world);
