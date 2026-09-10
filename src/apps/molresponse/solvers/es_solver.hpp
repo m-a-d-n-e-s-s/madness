@@ -42,6 +42,11 @@
 
 namespace molresponse_v3 {
 
+/// CODATA 2018 hartree -> eV; excitation energies are quoted in eV in the
+/// literature (e.g. Salek et al.), so every omega print carries both.
+inline constexpr double kHartreeToEV = 27.211386245988;
+
+
 /// Read-only problem definition for ESSolver<Type, Shell>. Symmetric
 /// with FDProblem<Type, Shell> in fd_problem.hpp:
 ///
@@ -209,6 +214,7 @@ private:
     for (double r : out.last_density_residual) max_drho = std::max(max_drho, r);
     print("iter", out.iter, "  omega =", out.omega,
           "  max_res =", max_res, "  max_dρ =", max_drho);
+    print("             omega(eV) =", out.omega * kHartreeToEV);
 
     if (print_level_ >= PrintLevel::Verbose) {
       for (size_t s = 0; s < out.last_bsh_residual.size(); ++s) {
@@ -295,6 +301,7 @@ public:
     else                  print("Stopped at iter", s.iter,
                                 "(max iters reached, not converged).");
     print("  omega_final =", s.omega);
+    print("  omega_final(eV) =", s.omega * kHartreeToEV);
     if (!s.last_bsh_residual.empty()) {
       print("  residuals   =");
       for (size_t i = 0; i < s.last_bsh_residual.size(); ++i) {
