@@ -159,7 +159,21 @@ end
   the tolerance as the initial guess (`seed_kind = dalton_nearest` in the metadata).
 - **Excited states.** `EXCITLAB` records (sorted by energy) become the initial
   `es__<key>` bundle at the active protocol, gauge-rotated onto the MRA orbitals,
-  Q-projected, marked unconverged; an existing bundle wins.
+  Q-projected, marked unconverged (iteration 0); an existing bundle wins. The Full
+  solver does not start from that bundle directly: an iteration-0 bundle is routed
+  seed → KAIN-free TDA warm-up (`excited.tda_warmup_iters` steps from the seed's X
+  block) → promotion to Full with y = 0, the same path the cold guess takes. A
+  seed handed straight to the Full solver has a residual of order 0.1 against the
+  MRA operator and ran to the −ε_core ghost within three iterations on H₂O, LiH
+  and C₂H₄ (2026-09-10), with or without the DALTON de-excitation block; the
+  TDA-converged start the cold path provides is what the Full solver needs.
+  `seed.es_y` (`zero` default, `dalton`) selects whether the DALTON Y block is
+  written into the bundle at all; it is discarded by the warm-up either way.
+
+  The standalone tool `seed_from_dalton --roots=... --omegas=...` indexes
+  `EXCITLAB` records in **file** order, which is not energy order for
+  `**PROPERTIES .EXCITA` outputs; pass the omegas in that order or prefer the
+  in-solver `dalton.dir` path, which sorts by energy.
 
 DALTON side, learned the hard way:
 
