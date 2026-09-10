@@ -828,6 +828,7 @@ public:
                                  &world_);  // subworld-safe sygvp
     auto &omega_act = dr.omega;
     auto &U         = dr.U;
+    print_debug_iter(A, S_mat, omega_act, U);   // Debug: subspace A, S, omega, U (active block)
     print_rot_slots(out.iter, dr);
 
     // ---- rotate active roots + Theta pieces by U --------------------------

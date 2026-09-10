@@ -180,8 +180,18 @@ public:
   /// here comes some logic for the calculation, e.g. the number of electrons
   /// derived from the molecule
   void set_derived_values() {
-    this->get<CalculationParameters>().set_derived_values(
-        this->get<Molecule>());
+    auto &cparam = this->get<CalculationParameters>();
+    cparam.set_derived_values(this->get<Molecule>());
+    // Derived blocks inherit the numerical knobs of the dft block unless the
+    // deck sets them in the derived block itself (set_derived_value never
+    // overrides a user-defined value). The response `protocol` ladder already
+    // comes from the dft block (there is no response-level protocol key; one in
+    // the response block is reported as an unknown parameter and ignored);
+    // dconv and maxiter used to be independent defaults (1e-6 / 25) that
+    // silently disagreed with the dft block.
+    auto &rp = this->get<ResponseParameters>();
+    rp.set_derived_value("dconv", cparam.dconv());
+    rp.set_derived_value("maxiter", static_cast<size_t>(cparam.maxiter()));
   }
 
   /// dump out the merged JSON
