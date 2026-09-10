@@ -49,8 +49,17 @@ equal to it by `test_vbc_spec_equivalence`. Until 2026-09-09 the Raman and β
 paths used a builder whose response densities were transposed, which is invisible
 in the static limit (x = y) but wrong at finite frequency; see
 [hyperpolarizability](hyperpolarizability.md#validation-at-finite-frequency).
-A finite-frequency Raman reference (DALTON α(ω) by finite differences at the
-HF/aug-cc-pVQZ optimized geometry) is the pending validation for this path.
+Validated at finite frequency on 2026-09-10 against a DALTON HF/d-aug-cc-pVQZ
+finite-difference reference (α_zz(ω) at O displaced ±0.005/±0.010 bohr,
+Richardson-extrapolated) at the HF/aug-cc-pVQZ optimized H₂O geometry:
+∂α_zz/∂z_O = 4.28802 vs 4.28783 (ω = 0, +0.004 %) and 4.45217 vs 4.45349
+(ω = 0.1, −0.03 %), protocol 1e-6/k8. The Raman correctness tolerance in
+`madness-workspace/refs/madness_results.json` is 2 %.
+
+The response exchange operator must use moldft's `multiworld_row` algorithm
+(`kernels/common_ops.hpp`, override `MADRESPONSE_HFEXALG`): the tiled
+`multiworld` algorithm gives α 0.9 % low and this derivative 18.5 % low on the
+asymmetric bra/ket of response densities.
 
 ## References
 
