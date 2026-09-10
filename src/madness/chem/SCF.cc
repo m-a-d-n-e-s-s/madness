@@ -968,31 +968,37 @@ void SCF::initial_guess_from_nwchem(World& world) {
     make_nuclear_potential(world);
     real_function_3d vnuc = potentialmanager->vnuclear();
 
-    // Pull out occupation numbers
-    // NWChem orders occupied orbitals to be first
-    aocc = tensorT(param.nalpha());
-    for (int i = 0; i < param.nalpha(); i++) {
-        // NWChem stores closed shell calculations
-        // as the alpha orbital set with occupation 2.
-        // Verifying no fractional occupations.
-        MADNESS_ASSERT(nwchem.occupancies[i] == 2.0 or nwchem.occupancies[i] == 1.0);
-
-        // Madness instead stores 2 identical sets
-        // (alpha and beta) with occupation 1
-        aocc[i] = 1.0;
+    // Pull out occupation numbers. NWChem orders occupied orbitals first, so
+    // the first nmo_alpha MOs are the occupieds followed by the lowest virtuals.
+    MADNESS_CHECK_THROW(nwchem.occupancies.size() >= size_t(param.nmo_alpha()) and
+                        nwchem.energies.size() >= size_t(param.nmo_alpha()),
+                        "NWChem file holds fewer alpha MOs than requested (nalpha + nvalpha)");
+    aocc = tensorT(param.nmo_alpha());
+    for (int i = 0; i < param.nmo_alpha(); i++) {
+        // NWChem stores closed shell calculations as the alpha orbital set with
+        // occupation 2; MADNESS stores two identical sets with occupation 1.
+        // No fractional occupations, and nothing occupied beyond nalpha.
+        if (i < param.nalpha()) {
+            MADNESS_CHECK_THROW(nwchem.occupancies[i] == 2.0 or nwchem.occupancies[i] == 1.0,
+                                "NWChem alpha occupation is neither 1 nor 2 within nalpha");
+            aocc[i] = 1.0;
+        } else {
+            MADNESS_CHECK_THROW(nwchem.occupancies[i] == 0.0,
+                                "NWChem alpha orbital beyond nalpha is occupied");
+        }
     }
 
     // Pull out energies
-    aeps = tensorT(param.nalpha());
-    for (int i = 0; i < param.nalpha(); i++) {
+    aeps = tensorT(param.nmo_alpha());
+    for (int i = 0; i < param.nmo_alpha(); i++) {
         aeps[i] = nwchem.energies[i];
     }
 
     // Create the orbitals as madness functions
     // Just create the vector of atomic orbitals
     // and use the vector of MO coefficients and
-    // the transform function, then take only
-    // the occupied orbitals.
+    // the transform function, then take the first
+    // nmo_alpha orbitals.
     if (world.rank() == 0 && param.print_level() > 3)
         print("\nCreating MADNESS functions from the NWChem orbitals.");
 
@@ -1020,13 +1026,14 @@ void SCF::initial_guess_from_nwchem(World& world) {
     // Transform ao's now
     vector_real_function_3d temp = transform(world, temp1, nwchem.MOs, vtol, true);
 
-    // Now save all aos and only the occupied amo
+    // Now save all aos and the first nmo_alpha amo
+    MADNESS_CHECK_THROW(temp.size() >= size_t(param.nmo_alpha()),
+                        "NWChem file holds fewer alpha MOs than requested (nalpha + nvalpha)");
     for (unsigned int i = 0; i < temp1.size(); i++) {
         // Save all AOs
         ao.push_back(copy(temp1[i]));
 
-        // Only save occupied AMOs
-        if (nwchem.occupancies[i] > 0) {
+        if (i < unsigned(param.nmo_alpha())) {
             amo.push_back(copy(temp[i]));
         }
     }
@@ -1041,28 +1048,36 @@ void SCF::initial_guess_from_nwchem(World& world) {
     // Now for betas
     if (param.nbeta() && !param.spin_restricted()) {
 
-        // Pull out occupation numbers
-        // NWChem orders occupied orbitals to be first
-        bocc = tensorT(param.nbeta());
-        for (int i = 0; i < param.nbeta(); i++) {
-            MADNESS_ASSERT(nwchem.beta_occupancies[i] == 1.0);
-            bocc[i] = 1.0;
+        // Pull out occupation numbers, as for alpha
+        MADNESS_CHECK_THROW(nwchem.beta_occupancies.size() >= size_t(param.nmo_beta()) and
+                            nwchem.beta_energies.size() >= size_t(param.nmo_beta()),
+                            "NWChem file holds fewer beta MOs than requested (nbeta + nvbeta)");
+        bocc = tensorT(param.nmo_beta());
+        for (int i = 0; i < param.nmo_beta(); i++) {
+            if (i < param.nbeta()) {
+                MADNESS_CHECK_THROW(nwchem.beta_occupancies[i] == 1.0,
+                                    "NWChem beta occupation is not 1 within nbeta");
+                bocc[i] = 1.0;
+            } else {
+                MADNESS_CHECK_THROW(nwchem.beta_occupancies[i] == 0.0,
+                                    "NWChem beta orbital beyond nbeta is occupied");
+            }
         }
 
         // Pull out energies
-        beps = tensorT(param.nbeta());
-        for (int i = 0; i < param.nbeta(); i++) {
+        beps = tensorT(param.nmo_beta());
+        for (int i = 0; i < param.nmo_beta(); i++) {
             beps[i] = nwchem.beta_energies[i];
         }
 
         // Transform ao's now
         temp = transform(world, temp1, nwchem.beta_MOs, vtol, true);
 
-        // Now only take the occupied bmo
-        for (unsigned int i = 0; i < temp1.size(); i++) {
-            if (nwchem.beta_occupancies[i] > 0) {
-                bmo.push_back(copy(temp[i]));
-            }
+        // Now take the first nmo_beta bmo
+        MADNESS_CHECK_THROW(temp.size() >= size_t(param.nmo_beta()),
+                            "NWChem file holds fewer beta MOs than requested (nbeta + nvbeta)");
+        for (unsigned int i = 0; i < std::min(temp1.size(), size_t(param.nmo_beta())); i++) {
+            bmo.push_back(copy(temp[i]));
         }
 
         // Clean up
