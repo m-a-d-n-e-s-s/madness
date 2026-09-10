@@ -1363,11 +1363,33 @@ public:
           // collectives — ranks_per_host gather/broadcast, Split, gop.fence — is
           // inherently unrecoverable in MPI: the non-throwing ranks are already
           // blocked inside those collectives and never reach the max() below.)
+          // Right-size the pool to THIS wave (2026-09-10). With a fixed
+          // groups_per_node = deck `subworlds` (8 = one rank per NUMA domain), a
+          // wave of 3 static legs left 5 of 8 subworlds without an item; they
+          // waited in the universe collective below for the whole wave (~16 min
+          // per leg at thresh 1e-6) and ThreadPool::await killed them after 900 s
+          // (closeout job 2162152). The number of items is known here, so use
+          //   groups_per_node = clamp(ceil(n_items / n_nodes), 1, min(subworlds, ranks_per_node)):
+          // 3 items on one 8-rank node -> 3 subworlds of 3/3/2 ranks (no idle
+          // rank, each leg gets 2-3 ranks); 24 items on 3 nodes -> 24 x 1 rank;
+          // 12 items on 3 nodes -> 12 x 2 ranks. Subworlds stay node-aligned, so
+          // with fewer items than nodes some nodes still idle for the wave (a
+          // cross-node partition would need a universe-level Split).
+          int gpn_wave = policy_.fd_subworlds;
+          {
+            const auto rph = madness::ranks_per_host(world);   // collective
+            const int n_nodes = std::max<int>(1, static_cast<int>(rph.size()));
+            int rpn = world.size();
+            for (const auto &kv : rph) rpn = std::min<int>(rpn, static_cast<int>(kv.second.size()));
+            const int n_items = static_cast<int>(fan_items.size());
+            const int want = (n_items + n_nodes - 1) / n_nodes;   // ceil
+            gpn_wave = std::max(1, std::min({policy_.fd_subworlds, rpn, want}));
+          }
           NodeSubworldInfo info;
           std::shared_ptr<madness::World> sub;
           std::string pool_err;
           try {
-            sub = make_subworld_pool(world, policy_.fd_subworlds, &info);
+            sub = make_subworld_pool(world, gpn_wave, &info);
           } catch (const std::exception &e) { pool_err = e.what(); }
             catch (...) { pool_err = "unknown exception in make_subworld_pool"; }
           int pool_bad = pool_err.empty() ? 0 : 1;
@@ -1400,7 +1422,9 @@ public:
             if (world.rank() == 0)
               madness::print("SUBWORLD_FANOUT  pass=", pass, "  n_subworlds=", G,
                              "  groups_per_node=", info.groups_per_node,
-                             "  fan_items=", (int)fan_items.size());
+                             "  ranks_per_subworld=", info.subworld_size,
+                             "  fan_items=", (int)fan_items.size(),
+                             "  (right-sized from deck subworlds=", policy_.fd_subworlds, ")");
             // S1 pmap discipline: point the default pmap at the subworld so
             // everything built inside is subworld-local; restore BEFORE reset.
             // Exception safety: a subworld-local throw must NOT skip the pmap
