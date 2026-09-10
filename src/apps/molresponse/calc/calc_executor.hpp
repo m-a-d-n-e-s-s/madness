@@ -1482,6 +1482,17 @@ public:
             // is inherently unrecoverable in MPI — this handles the
             // synchronized-failure cases: archive open, shard save, guards.)
             std::string fan_err;
+            // Save the universe's CURRENT pmap object and restore THAT object
+            // afterwards. set_default_pmap(world) builds a NEW map, so every
+            // function created after the fan-out (seed bundles reloaded from
+            // disk, ES intermediates, V0x/gamma products) was distributed
+            // differently from the ground-state functions built before it
+            // (orbitals, V_local, K0, Q); operations mixing the two silently
+            // lost contributions: LiH sigma orbital <phi|V_local|phi> came out
+            // -0.008 instead of -0.194 and Q left 1e-2 occupied overlaps, and
+            // every seeded ES solve after a fan-out diverged (attempts 3-11,
+            // 2026-09-10). With subworlds 0 the same solve converges.
+            const auto universe_pmap = madness::FunctionDefaults<3>::get_pmap();
             madness::FunctionDefaults<3>::set_default_pmap(*sub);
             try {
               fan_out(*sub, mine, wthresh, info.gid, lp);
@@ -1491,7 +1502,7 @@ public:
             } catch (...) {
               fan_err = "unknown exception in subworld fan-out";
             }
-            madness::FunctionDefaults<3>::set_default_pmap(world);
+            madness::FunctionDefaults<3>::set_pmap(universe_pmap);   // the ORIGINAL object, not a new map
             sub.reset();
             if (!fan_err.empty())
               madness::print("[FANOUT-ERROR] universe rank", world.rank(),
