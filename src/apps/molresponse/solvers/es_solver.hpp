@@ -196,7 +196,11 @@ private:
   void print_header() const {
     if (print_level_ < PrintLevel::Normal || world_.rank() != 0) return;
     print("");
-    print("ESSolver<TDA, ClosedShell>  num_roots =", n_roots_,
+    // Type/Shell are compile-time tags; name them (the banner used to say
+    // "TDA, ClosedShell" for every instantiation, which misread Full solves).
+    const char *type_name  = std::is_same_v<Type, TDA> ? "TDA" : "Full";
+    const char *shell_name = std::is_same_v<Shell, ClosedShell> ? "ClosedShell" : "OpenShell";
+    print(std::string("ESSolver<") + type_name + ", " + shell_name + ">  num_roots =", n_roots_,
           " thresh =", madness::FunctionDefaults<3>::get_thresh(),
           " c_xc =", gs_.c_xc);
     print("  policy: dconv_user =", policy_.dconv_user,
