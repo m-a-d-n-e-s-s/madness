@@ -151,7 +151,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
 		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
 		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
-		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
+		initialize<int> ("nv_extra",0,"extra virtuals converged first and dropped stepwise down to nvalpha");
+		initialize<int> ("nv_step",0,"virtuals dropped per step-down stage (0: all extras at once)");
+		initialize<int> ("nv_its",5,"maximum iterations per intermediate step-down stage");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
 
@@ -195,7 +197,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	int nvalpha() const {return get<int>("nvalpha");}
 	int nvbeta() const {return get<int>("nvbeta");}
-	int nv_factor() const {return get<int>("nv_factor");}
+	int nv_extra() const {return get<int>("nv_extra");}
+	int nv_step() const {return get<int>("nv_step");}
+	int nv_its() const {return get<int>("nv_its");}
 
 	int nmo_alpha() const {return get<int>("nmo_alpha");}
 	int nmo_beta() const {return get<int>("nmo_beta");}
@@ -316,6 +320,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
         set_derived_value("nmo_alpha",nalpha() + nvalpha());
         set_derived_value("nmo_beta",nbeta() + nvbeta());
+
+        if (nv_extra() < 0 or nv_step() < 0 or nv_its() < 1) error("nv_extra, nv_step >= 0 and nv_its >= 1 required");
+        if (nv_extra() > 0 and nvalpha() == 0) error("nv_extra requires nvalpha > 0");
 
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh

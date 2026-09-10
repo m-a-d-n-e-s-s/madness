@@ -1287,6 +1287,10 @@ void SCF::initial_guess(World& world) {
         ncore = molecule.n_core_orb_all();
     }
 
+    // The constructor checked the basis size against the input nmo; the virtual
+    // step-down may have raised nmo since.
+    MADNESS_CHECK_THROW(size_t(ncore + std::max(param.nmo_alpha(), param.nmo_beta())) <= ao.size(),
+                        "too few AO basis functions for the requested number of orbitals");
     amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha() - 1)), vtol, true);
     truncate(world, amo);
     normalize(world, amo);

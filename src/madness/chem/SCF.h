@@ -609,6 +609,19 @@ public:
             calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
         }
 
+        // The virtual step-down converges nv_extra extra virtuals first. Only the
+        // atomic guess can be sized for them, so a restart skips the schedule.
+        const int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
+        const int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
+        const int nv_extra = (plan.source == RestartSource::initial_guess) ? calc.param.nv_extra() : 0;
+        if (calc.param.nv_extra() > 0 && nv_extra == 0 && world.rank() == 0)
+            print("virtual step-down skipped: not starting from the atomic guess");
+        if (nv_extra > 0) {
+            calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nvalpha + nv_extra);
+            if (calc.param.have_beta())
+                calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nvbeta + nv_extra);
+        }
+
         calc.get_initial_orbitals(world, plan);
 
         // Reading can invalidate the plan's premise. load_mos resets
@@ -651,51 +664,45 @@ public:
         // Make the nuclear potential, initial orbitals, etc.
         for (unsigned int proto = plan.protocol_start; proto < calc.param.protocol().size(); proto++) {
 
-            int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
-            int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
-            int nvalpha_start, nv_old;
+            // Drop the extra virtuals stepwise down to nvalpha on the first rung we
+            // run. Intermediate stages are capped at nv_its iterations; the last
+            // stage runs with the input maxiter.
+            const int extra = (proto == plan.protocol_start) ? nv_extra : 0;
+            const int nv_step = calc.param.nv_step() > 0 ? calc.param.nv_step() : std::max(extra, 1);
+            const int maxiter_input = calc.param.maxiter();
+            int nv_old = nvalpha + extra;
 
-            //repeat with gradually decreasing nvirt, only for the first protocol
-            // rung we actually run -- which is not rung 0 after a restart
-            if (proto == plan.protocol_start && nvalpha > 0) {
-                nvalpha_start = nvalpha * calc.param.nv_factor();
-            } else {
-                nvalpha_start = nvalpha;
-            }
+            for (int nv = nvalpha + extra; ; nv = std::max(nv - nv_step, nvalpha)) {
 
-            nv_old = nvalpha_start;
-
-            for (int nv = nvalpha_start; nv >= nvalpha; nv -= nvalpha) {
-
-                if (nv > 0 && world.rank() == 0) std::cout << "Running with " << nv << " virtual states" << std::endl;
+                if (extra > 0)
+                    calc.param.set_user_defined_value("maxiter", nv > nvalpha ? calc.param.nv_its() : maxiter_input);
+                if (nv > 0 && world.rank() == 0)
+                    std::cout << "Running with " << nv << " virtual states, maxiter " << calc.param.maxiter() << std::endl;
 
                 calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nv);
-                // check whether this is sensible for spin restricted case
-                if (calc.param.nbeta() && !calc.param.spin_restricted()) {
-                    if (nvbeta == nvalpha) {
-                        calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv);
-                    } else {
-                        calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
-                    }
-                }
+                if (calc.param.have_beta())
+                    calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
 
                 calc.set_protocol<3>(world, calc.param.protocol()[proto]);
                 calc.make_nuclear_potential(world);
 
                 if (nv != nv_old) {
+                    // The virtuals are canonical (ascending eigenvalue), so shrinking
+                    // the vector drops the highest ones.
                     calc.amo.resize(calc.param.nmo_alpha());
-                    calc.bmo.resize(calc.param.nmo_beta());
-
+                    calc.aset.resize(calc.param.nmo_alpha());
                     calc.aocc = tensorT(calc.param.nmo_alpha());
                     for (int i = 0; i < calc.param.nalpha(); ++i)
                         calc.aocc[i] = 1.0;
-
-                    calc.bocc = tensorT(calc.param.nmo_beta());
-                    for (int i = 0; i < calc.param.nbeta(); ++i)
-                        calc.bocc[i] = 1.0;
-
-                    // might need to resize aset, bset, but for the moment this doesn't seem to be necessary
-
+                    if (calc.param.have_beta()) {
+                        calc.bmo.resize(calc.param.nmo_beta());
+                        calc.bset.resize(calc.param.nmo_beta());
+                        calc.bocc = tensorT(calc.param.nmo_beta());
+                        for (int i = 0; i < calc.param.nbeta(); ++i)
+                            calc.bocc[i] = 1.0;
+                    } else if (calc.param.nbeta() > 0) {
+                        calc.bmo = calc.amo;    // spin-restricted: bmo mirrors amo (see update_subspace)
+                    }
                 }
 
                 // project orbitals into higher k. Not needed on the first rung we
@@ -720,9 +727,7 @@ public:
                     calc.save_mos(world);
 
                 nv_old = nv;
-                // exit loop over decreasing nvirt if nvirt=0
-                if (nv == 0) break;
-
+                if (nv == nvalpha) break;
             }
 
         }
