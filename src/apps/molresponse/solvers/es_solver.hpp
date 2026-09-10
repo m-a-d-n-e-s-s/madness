@@ -359,7 +359,43 @@ private:
       if constexpr (rs::detail::has_y_alpha<Storage>::value)
         ny[i] = madness::inner(world_, roots[i].y_alpha, roots[i].y_alpha).sum();
     }
+    // (a) Occupied overlaps of the (projected) roots: Q x should leave
+    //     max_i |<phi_i|x_j>| ~ thresh. Collective.
+    std::vector<double> ovx(roots.size(), 0.0), ovy(roots.size(), 0.0);
+    for (std::size_t j = 0; j < roots.size(); ++j) {
+      auto mx = madness::matrix_inner(world_, gs_.amo, roots[j].x_alpha);
+      ovx[j] = mx.absmax();
+      if constexpr (rs::detail::has_y_alpha<Storage>::value) {
+        auto my = madness::matrix_inner(world_, gs_.amo, roots[j].y_alpha);
+        ovy[j] = my.absmax();
+      }
+    }
+    // (b) Self-check of the Fock pieces on the occupied orbitals themselves:
+    //     1/2<grad phi|grad phi> + <phi|V_local phi> - <phi|K0 phi> must equal the
+    //     Fock diagonal F_ii (g0.focka). A mismatch means the pieces, not the
+    //     vectors, are wrong. Collective.
+    std::vector<double> fchk_T(gs_.amo.size()), fchk_V(gs_.amo.size()), fchk_K(gs_.amo.size());
+    {
+      const double vtol = madness::FunctionDefaults<3>::get_thresh() * 0.1;
+      auto Vphi = mul_sparse(world_, gs_.V_local_alpha, gs_.amo, vtol);
+      auto Kphi = common_ops::apply_ground_exchange(world_, gs_.K0_alpha, gs_.amo, gs_.amo, gs_.lo);
+      for (int d = 0; d < 3; ++d) {
+        madness::real_derivative_3d D(world_, d);
+        auto g = apply(world_, D, gs_.amo);
+        for (std::size_t i = 0; i < gs_.amo.size(); ++i) fchk_T[i] += 0.5 * madness::inner(g[i], g[i]);
+      }
+      for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+        fchk_V[i] = madness::inner(gs_.amo[i], Vphi[i]);
+        fchk_K[i] = madness::inner(gs_.amo[i], Kphi[i]);
+      }
+    }
     if (world_.rank() != 0) return;
+    printf("[DEBUG] Fock self-check on occupied orbitals (i: T V -K | sum | focka_ii):\n");
+    for (std::size_t i = 0; i < gs_.amo.size(); ++i)
+      printf("   %2zu: %10.5f %10.5f %10.5f | %10.5f | %10.5f\n", i, fchk_T[i], fchk_V[i], -fchk_K[i],
+             fchk_T[i] + fchk_V[i] - fchk_K[i], gs_.focka(long(i), long(i)));
+    printf("[DEBUG] occupied overlaps after projection (root: max|<phi|x>| max|<phi|y>|):\n");
+    for (std::size_t j = 0; j < roots.size(); ++j) printf("   %2zu: %10.3e %10.3e\n", j, ovx[j], ovy[j]);
     printf("[DEBUG] block norms (root: |x|^2 |y|^2):\n");
     for (std::size_t i = 0; i < roots.size(); ++i)
       printf("   %2zu: %10.5f %10.5f\n", i, nx[i], ny[i]);
