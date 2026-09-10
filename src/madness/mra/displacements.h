@@ -407,7 +407,7 @@ namespace madness {
         const auto twon = (static_cast<Translation>(1) << level);  // number of boxes along an axis
         // map_to_range_twon(x) returns for x >= 0 ? x % 2^level : map_to_range_twon(x+2^level)
         // idiv is generally slow, so instead use bit logic that relies on 2's complement representation of integers
-        const auto map_to_range_twon = [&, mask = ((~(static_cast<std::uint64_t>(0)) << (64-level)) >> (64-level))](std::int64_t x) -> std::int64_t {
+        const auto map_to_range_twon = [&, mask = level == 0 ? std::uint64_t(0) : ((~(static_cast<std::uint64_t>(0)) << (64-level)) >> (64-level))](std::int64_t x) -> std::int64_t {
           const std::int64_t x_mapped = x & mask;
           MADNESS_ASSERT(x_mapped >=0 && x_mapped < twon && (std::abs(x_mapped-x)%twon==0));
           return x_mapped;
@@ -436,7 +436,10 @@ namespace madness {
             bool among_standard_displacements = true;
             for(size_t d=0; d!=NDIM; ++d) {
               const auto disp_d = (*displacement)[d];
+              // N.B. if lattice summation is performed along any axis the standard displacements come from
+              // Displacements::make_disp_periodic, which clips bmax to 2^n-1 along *every* axis
               auto bmax_standard = Displacements<NDIM>::bmax_default();
+              if (is_lattice_summed_.any() && bmax_standard >= twon) bmax_standard = twon - 1;
 
               // the effective displacement length depends on whether lattice summation is performed along it
               // compare Displacements::make_disp vs Displacements::make_disp_periodic
@@ -458,9 +461,6 @@ namespace madness {
                   t[d] += (dest_d_in_cell - dest_d);
                   displacement.emplace(displacement->level(), t);
                 }
-
-                // N.B. bmax in make_disp_periodic is clipped in the same way
-                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
               }
 
               if (disp_d_eff_abs > bmax_standard) {
@@ -623,20 +623,31 @@ namespace madness {
               return;
           }
 
-          // we finished this fixed dimension, so update unprocessed bounds to exclude the layers of the current fixed dimension
-          if (!exclude_face(fixed_dim)) {
-            done = true;
-            return;
-          }
-          // (3) switch to next fixed dimension with finite radius
-          select_face(fixed_dim + 1);
-          if (done) return;
+          // (3) we finished this fixed dimension: move on to the next face
+          next_face();
+        }
 
-          // reset our search along all non-fixed dimensions
-          // the reset along the fixed_dim returns silently
+        /// Positions the iterator on the first point of the current face (`fixed_dim`)
+        /// @return false if every layer of the face is filtered out, i.e. the face has no point to offer
+        bool start_face() {
+          bool has_layer = true;
           for (size_t i = 0; i < NDIM; ++i) {
-            reset_along_dim(i);
+            if (!reset_along_dim(i)) has_layer = false;
           }
+          return has_layer;
+        }
+
+        /// Leaves the current face (finished, or without any layer to offer) for the next one that has a point
+        /// to offer, excluding the layers of the faces left behind from the remaining ones. Sets `done` if none remains.
+        void next_face() {
+          do {
+            if (!exclude_face(fixed_dim)) {
+              done = true;
+              return;
+            }
+            select_face(fixed_dim + 1);
+            if (done) return;
+          } while (!start_face());
         }
 
         /// Excludes the layers of the faces normal to `dim` from the faces that remain to be processed,
@@ -682,7 +693,8 @@ namespace madness {
 
         // Recall that the surface is a union of hyperfaces, i.e., direct products of intervals.
         // Reset state on dimension `dim` to initialize for the start of interval `dim` in the the current direct product
-        void reset_along_dim(size_t dim) {
+        // @return false if `dim` is the fixed dimension and every layer of its faces is filtered out
+        bool reset_along_dim(size_t dim) {
           const auto is_fixed_dim = dim == fixed_dim;
           Vector<Translation, NDIM> l = point.translation();
           Translation l_dim_min;
@@ -732,10 +744,11 @@ namespace madness {
                 if (!filtered_out())
                   break;
               }
-              MADNESS_ASSERT(have_another_surface_layer);
+              return have_another_surface_layer;  // false: every layer of this face is filtered out (e.g. lies outside the domain)
             }
 
           }
+          return true;
         };
 
         /**
@@ -767,13 +780,12 @@ namespace madness {
           if (type != End) {
             unprocessed_bounds = parent->initial_bounds_;
 
-            // skip to first dimension with limited range whose faces are not skipped
+            // skip to first dimension with limited range whose faces are not skipped and have a point to offer
             select_face(0);
             if (done) return;
+            if (!start_face()) next_face();
+            if (done) return;
 
-            for (size_t d = 0; d != NDIM; ++d) {
-              reset_along_dim(d);
-            }
             advance_till_valid();
           }
         }
@@ -1012,14 +1024,15 @@ namespace madness {
           return is_lattice_summed_[d] && (*box_radius_[d] % 2 == 0);
         };
 
-        // Enforce requirement (1)
+        // Enforce requirement (1). The faces have finite thickness: their layers span [r-t, r+t], and
+        // by (3) the probe goes on the innermost one, which is the nearest to the source.
         Vector<Translation, NDIM> probing_displacement_vec(0);
         const auto n = center_.level();
         auto r = *box_radius_[face_dimension];  // in units of 2^{n-1}
         // n = 0 is special b/c << -1 is undefined
         r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
         MADNESS_ASSERT(r > 0);
-        probing_displacement_vec[face_dimension] = r;
+        probing_displacement_vec[face_dimension] = r - surface_thickness_[face_dimension].value_or(0);
 
         // In these cases, requirement (2) is already satisfied or unsatisfiable.
         // Choosing 0 for all other dimensions satisfies requirement (3).

@@ -15,6 +15,11 @@ Translation radius_in_boxes(std::int64_t N, Level n) {
   return (n == 0) ? (N + 1) / 2 : (N * Translation(1) << (n - 1));
 }
 
+/// where the probe of a face sits: on its innermost layer, i.e. one box (the surface thickness used throughout) inside the boundary
+Translation probe_radius(std::int64_t N, Level n) {
+  return radius_in_boxes(N, n) - 1;
+}
+
 /// the center box of the level-\p n grid
 template <std::size_t NDIM>
 Key<NDIM> centered_key(Level n) {
@@ -62,14 +67,15 @@ template <std::size_t NDIM>
 BoxSurfaceDisplacementRange<NDIM> make_range(Level n, const Radii<NDIM>& box_radius,
                                              const array_of_bools<NDIM>& is_lattice_summed,
                                              std::optional<Reach<NDIM>> reach = {},
-                                             std::optional<Validator<NDIM>> validator = {}) {
+                                             std::optional<Validator<NDIM>> validator = {},
+                                             std::optional<Key<NDIM>> center = {}) {
   Radii<NDIM> surface_thickness;
   for (std::size_t d = 0; d != NDIM; ++d) {
     if (box_radius[d]) surface_thickness[d] = 1;
   }
   if (reach && !validator) validator.emplace(array_of_bools<NDIM>{true}, is_lattice_summed, std::move(reach));
-  return BoxSurfaceDisplacementRange<NDIM>(centered_key<NDIM>(n), box_radius, surface_thickness, is_lattice_summed,
-                                           std::move(validator));
+  return BoxSurfaceDisplacementRange<NDIM>(center.value_or(centered_key<NDIM>(n)), box_radius, surface_thickness,
+                                           is_lattice_summed, std::move(validator));
 }
 
 /// the probing displacement of every face, as a translation; null for dimensions of unlimited size (no face)
@@ -121,11 +127,13 @@ int test_no_duplicates(World& world) {
   test_output t("BoxSurfaceDisplacementRange: no duplicate displacements", world.rank() == 0);
 
   const auto check_unique = [&](auto ndim_tag, Level n, std::array<std::int64_t, decltype(ndim_tag)::value> N,
-                                bool lattice_summed, bool filter_to_domain, const std::string& what) {
+                                std::array<bool, decltype(ndim_tag)::value> lattice_summed, bool filter_to_domain,
+                                const std::string& what) {
     constexpr std::size_t NDIM = decltype(ndim_tag)::value;
+    array_of_bools<NDIM> summed{false};
+    for (std::size_t d = 0; d != NDIM; ++d) summed[d] = lattice_summed[d];
     // N.B. the domain filter is only meaningful when the range boundary can land
     // inside the cell at all.
-    const auto summed = array_of_bools<NDIM>{lattice_summed};
     const auto range = make_range<NDIM>(n, finite<NDIM>(N), summed, {},
                                         filter_to_domain ? std::optional{in_domain_only<NDIM>(summed)} : std::nullopt);
     std::vector<Key<NDIM>> disps;
@@ -134,12 +142,13 @@ int test_no_duplicates(World& world) {
     const auto last = std::unique(disps.begin(), disps.end());
     t.checkpoint(!disps.empty(), what + ": surface is non-empty");
     t.checkpoint(last == disps.end(), what + ": all displacements distinct");
-    if (lattice_summed) {  // displacements that differ by a period along a lattice-summed axis are the same displacement
+    if (summed.any()) {  // displacements that differ by a period along a lattice-summed axis are the same displacement
       const auto period = Translation(1) << n;
       std::vector<Key<NDIM>> canonical;
       for (const auto& disp : disps) {
         auto l = disp.translation();
-        for (std::size_t d = 0; d != NDIM; ++d) l[d] = ((l[d] % period) + period) % period;
+        for (std::size_t d = 0; d != NDIM; ++d)
+          if (summed[d]) l[d] = ((l[d] % period) + period) % period;
         canonical.emplace_back(n, l);
       }
       std::sort(canonical.begin(), canonical.end());
@@ -152,17 +161,23 @@ int test_no_duplicates(World& world) {
   constexpr auto d3 = std::integral_constant<std::size_t, 3>{};
 
   // odd N and its even counterpart
-  check_unique(d2, 4, {1, 1}, false, true, "2D n=4 N={1,1} plain, in-domain");
-  check_unique(d2, 4, {1, 1}, false, false, "2D n=4 N={1,1} plain");
-  check_unique(d2, 4, {2, 2}, false, false, "2D n=4 N={2,2} plain");
+  check_unique(d2, 4, {1, 1}, {false, false}, true, "2D n=4 N={1,1} plain, in-domain");
+  check_unique(d2, 4, {1, 1}, {false, false}, false, "2D n=4 N={1,1} plain");
+  check_unique(d2, 4, {2, 2}, {false, false}, false, "2D n=4 N={2,2} plain");
   // ... and both parities again with lattice summation on
-  check_unique(d2, 4, {1, 1}, true, false, "2D n=4 N={1,1} lattice-summed");
-  check_unique(d2, 4, {2, 2}, true, false, "2D n=4 N={2,2} lattice-summed");
-  check_unique(d2, 4, {2, 3}, true, false, "2D n=4 N={2,3} lattice-summed (mixed parity)");
+  check_unique(d2, 4, {1, 1}, {true, true}, false, "2D n=4 N={1,1} lattice-summed");
+  check_unique(d2, 4, {2, 2}, {true, true}, false, "2D n=4 N={2,2} lattice-summed");
+  check_unique(d2, 4, {2, 3}, {true, true}, false, "2D n=4 N={2,3} lattice-summed (mixed parity)");
   // ... and in 3D, where each face has two free axes rather than one
-  check_unique(d3, 3, {1, 1, 1}, true, false, "3D n=3 N={1,1,1} lattice-summed");
-  check_unique(d3, 3, {2, 2, 2}, true, false, "3D n=3 N={2,2,2} lattice-summed");
-  check_unique(d3, 3, {1, 2, 3}, true, false, "3D n=3 N={1,2,3} lattice-summed (mixed parity)");
+  check_unique(d3, 3, {1, 1, 1}, {true, true, true}, false, "3D n=3 N={1,1,1} lattice-summed");
+  check_unique(d3, 3, {2, 2, 2}, {true, true, true}, false, "3D n=3 N={2,2,2} lattice-summed");
+  check_unique(d3, 3, {1, 2, 3}, {true, true, true}, false, "3D n=3 N={1,2,3} lattice-summed (mixed parity)");
+  // ... and with lattice summation along some axes only, so that a summed axis (one period, one face)
+  // is processed next to an unsummed one (box plus thickness, two faces) in either order
+  check_unique(d2, 4, {2, 2}, {true, false}, false, "2D n=4 N={2,2} summed along x only");
+  check_unique(d2, 4, {2, 2}, {false, true}, false, "2D n=4 N={2,2} summed along y only");
+  check_unique(d3, 3, {2, 2, 2}, {true, false, true}, false, "3D n=3 N={2,2,2} summed along x and z");
+  check_unique(d3, 3, {1, 2, 3}, {false, true, true}, false, "3D n=3 N={1,2,3} summed along y and z (mixed parity)");
 
   return t.end();
 }
@@ -196,7 +211,7 @@ int test_odds(World& world) {
   test_output t("BoxSurfaceDisplacementRange: mixed-parity radii", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return radius_in_boxes(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
   const auto off = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N) {
     return probes_of<3>(level, finite<3>(N), array_of_bools<3>{true}, far_reach<3>());
@@ -216,10 +231,11 @@ int test_singular(World& world) {
 
   const Level level = 4;
   check_probes<1>(t, probes_of<1>(level, finite<1>({4}), array_of_bools<1>{true}, far_reach<1>()),
-                  {{{{radius_in_boxes(4, level)}}}}, "1D n=4 N={4}");
-  // at level 0 a half cell is 1 box: N=3 -> 2 boxes, N=2 -> 1 box, N=1 -> 1 box; no offsets
+                  {{{{probe_radius(4, level)}}}}, "1D n=4 N={4}");
+  // at level 0 a half cell is 1 box: N=3 -> 2 boxes, N=2 -> 1 box, N=1 -> 1 box; no offsets, and with unit
+  // thickness the innermost layer of the N=2 and N=1 faces is the source box itself
   check_probes<3>(t, probes_of<3>(0, finite<3>({3, 2, 1}), array_of_bools<3>{true}, far_reach<3>()),
-                  {{{{2, 0, 0}}, {{0, 1, 0}}, {{0, 0, 1}}}}, "3D n=0 N={3,2,1}");
+                  {{{{1, 0, 0}}, {{0, 0, 0}}, {{0, 0, 0}}}}, "3D n=0 N={3,2,1}");
   return t.end();
 }
 
@@ -228,7 +244,7 @@ int test_mixed(World& world) {
   test_output t("BoxSurfaceDisplacementRange: mixed cases", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return radius_in_boxes(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
 
   Radii<2> radii2d;
   radii2d[1] = 2;
@@ -253,7 +269,7 @@ int test_all_evens(World& world) {
   test_output t("BoxSurfaceDisplacementRange: pure evens", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return radius_in_boxes(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
   const auto off = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N) {
     return probes_of<3>(level, finite<3>(N), array_of_bools<3>{true}, far_reach<3>());
@@ -272,7 +288,7 @@ int test_lattice_summation_awareness(World& world) {
   test_output t("BoxSurfaceDisplacementRange: offset only where lattice summed", world.rank() == 0);
 
   const Level level = 4;
-  const auto r = [&](std::int64_t N) { return radius_in_boxes(N, level); };
+  const auto r = [&](std::int64_t N) { return probe_radius(N, level); };
   const auto off3 = far_offset<3>(level);
   const auto probes = [&](std::array<std::int64_t, 3> N, array_of_bools<3> summed) {
     return probes_of<3>(level, finite<3>(N), summed, far_reach<3>());
@@ -324,7 +340,7 @@ int test_standard_reach(World& world) {
 
   {
     const Level n = 6;                     // half-cell = 32 boxes, so the cap is far away
-    const auto face = radius_in_boxes(2, n);  // 64
+    const auto face = probe_radius(2, n);  // 63: the innermost layer of the face at 64
 
     // nothing is known to be filtered => the surface reaches the source and no offset helps;
     // fall back to the bare face probe, whose norm is the on-site norm and screens nothing
@@ -352,7 +368,7 @@ int test_standard_reach(World& world) {
   // the offset is capped at a half cell: a step of 2^{n-1}+k folds back down to 2^{n-1}-k
   {
     const Level n = 2;  // half cell = 2 boxes < bmax+1
-    check(n, unit_reach<NDIM>(1e6), 0, {radius_in_boxes(2, n), 2, 0}, "n=2, reached beyond bmax");
+    check(n, unit_reach<NDIM>(1e6), 0, {probe_radius(2, n), 2, 0}, "n=2, reached beyond bmax");
   }
 
   // the same cap applies when the offset lands on an unrestricted dimension
@@ -361,7 +377,7 @@ int test_standard_reach(World& world) {
     Radii<2> box_radius;
     box_radius[1] = 2;
     check_probes<2>(t, probes_of<2>(n, box_radius, array_of_bools<2>{true}, unit_reach<2>(4.)),
-                    {{std::nullopt, {{-4, radius_in_boxes(2, n)}}}}, "2D N={*,2} sqrt(max_distsq)=2");
+                    {{std::nullopt, {{-4, probe_radius(2, n)}}}}, "2D N={*,2} sqrt(max_distsq)=2");
   }
 
   return t.end();
@@ -374,16 +390,15 @@ int test_skip_face(World& world) {
 
   // displacements that differ by a period along a lattice-summed axis are equivalent, and which representative
   // is produced depends on the order in which faces are visited; so compare them mapped to [0, 2^n)
-  const auto sorted = [](const auto& range, bool lattice_summed) {
+  const auto sorted = [](const auto& range, const auto& lattice_summed) {
     using key_type = std::decay_t<decltype(*range.begin())>;
     constexpr std::size_t NDIM = key_type::static_size;
     std::vector<key_type> disps;
     for (auto&& disp : range) {
       auto l = disp.translation();
-      if (lattice_summed) {
-        const auto period = Translation(1) << disp.level();
-        for (std::size_t d = 0; d != NDIM; ++d) l[d] = ((l[d] % period) + period) % period;
-      }
+      const auto period = Translation(1) << disp.level();
+      for (std::size_t d = 0; d != NDIM; ++d)
+        if (lattice_summed[d]) l[d] = ((l[d] % period) + period) % period;
       disps.emplace_back(disp.level(), l);
     }
     std::sort(disps.begin(), disps.end());
@@ -391,24 +406,26 @@ int test_skip_face(World& world) {
   };
 
   const auto check = [&](auto ndim_tag, Level n, std::array<std::int64_t, decltype(ndim_tag)::value> N,
-                         bool lattice_summed, std::size_t skipped, const std::string& what) {
+                         std::array<bool, decltype(ndim_tag)::value> lattice_summed, std::size_t skipped,
+                         const std::string& what) {
     constexpr std::size_t NDIM = decltype(ndim_tag)::value;
     const auto radii = finite<NDIM>(N);
-    const auto summed = array_of_bools<NDIM>{lattice_summed};
+    array_of_bools<NDIM> summed{false};
+    for (std::size_t d = 0; d != NDIM; ++d) summed[d] = lattice_summed[d];
 
-    const auto all = sorted(make_range<NDIM>(n, radii, summed), lattice_summed);
+    const auto all = sorted(make_range<NDIM>(n, radii, summed), summed);
 
     auto range = make_range<NDIM>(n, radii, summed);
     range.skip_face(skipped);
     t.checkpoint(range.face_skipped(skipped), what + ": face " + std::to_string(skipped) + " marked skipped");
-    const auto rest = sorted(range, lattice_summed);
+    const auto rest = sorted(range, summed);
 
-    // is `disp` on the layers of the face normal to `d`? surface thickness is 1 box on each side of the boundary;
+    // is `disp` on the layers of the faces normal to `d`? surface thickness is 1 box on each side of the boundary;
     // along a lattice-summed dimension only the + side is iterated over
     const auto on_face = [&](const Key<NDIM>& disp, std::size_t d) {
       const auto r = radius_in_boxes(N[d], n);
       auto l = disp.translation()[d];
-      if (lattice_summed) {  // `disp` is canonical, so map the face position into [0, 2^n) as well
+      if (summed[d]) {  // `disp` is canonical, so map the face position into [0, 2^n) as well
         const auto period = Translation(1) << n;
         for (Translation layer = r - 1; layer <= r + 1; ++layer)
           if (((layer % period) + period) % period == l) return true;
@@ -432,12 +449,17 @@ int test_skip_face(World& world) {
   constexpr auto d2 = std::integral_constant<std::size_t, 2>{};
   constexpr auto d3 = std::integral_constant<std::size_t, 3>{};
   // skipping the first face (whose edges would otherwise be excluded from the later faces) and a later one
-  check(d2, 4, {2, 2}, false, 0, "2D n=4 N={2,2} plain, skip x");
-  check(d2, 4, {2, 2}, false, 1, "2D n=4 N={2,2} plain, skip y");
-  check(d2, 4, {1, 2}, true, 0, "2D n=4 N={1,2} lattice-summed, skip x");
-  check(d3, 3, {1, 2, 1}, true, 0, "3D n=3 N={1,2,1} lattice-summed, skip x");
-  check(d3, 3, {1, 2, 1}, true, 1, "3D n=3 N={1,2,1} lattice-summed, skip y");
-  check(d3, 3, {1, 2, 1}, true, 2, "3D n=3 N={1,2,1} lattice-summed, skip z");
+  check(d2, 4, {2, 2}, {false, false}, 0, "2D n=4 N={2,2} plain, skip x");
+  check(d2, 4, {2, 2}, {false, false}, 1, "2D n=4 N={2,2} plain, skip y");
+  check(d2, 4, {1, 2}, {true, true}, 0, "2D n=4 N={1,2} lattice-summed, skip x");
+  check(d3, 3, {1, 2, 1}, {true, true, true}, 0, "3D n=3 N={1,2,1} lattice-summed, skip x");
+  check(d3, 3, {1, 2, 1}, {true, true, true}, 1, "3D n=3 N={1,2,1} lattice-summed, skip y");
+  check(d3, 3, {1, 2, 1}, {true, true, true}, 2, "3D n=3 N={1,2,1} lattice-summed, skip z");
+  // ... and with lattice summation along some axes only
+  check(d2, 4, {2, 2}, {true, false}, 0, "2D n=4 N={2,2} summed along x only, skip x");
+  check(d2, 4, {2, 2}, {true, false}, 1, "2D n=4 N={2,2} summed along x only, skip y");
+  check(d3, 3, {2, 1, 2}, {true, false, true}, 1, "3D n=3 N={2,1,2} summed along x and z, skip y");
+  check(d3, 3, {2, 1, 2}, {true, false, true}, 2, "3D n=3 N={2,1,2} summed along x and z, skip z");
 
   // skipping every face leaves nothing
   {
@@ -449,22 +471,98 @@ int test_skip_face(World& world) {
   // since every box is on the other face as well
   {
     const auto radii = finite<2>({1, 1});  // at n=1 the radius is 1 box = the thickness
-    const auto all = sorted(make_range<2>(1, radii, array_of_bools<2>{false}), false);
+    const auto all = sorted(make_range<2>(1, radii, array_of_bools<2>{false}), array_of_bools<2>{false});
     auto range = make_range<2>(1, radii, array_of_bools<2>{false});
     range.skip_face(0);
-    t.checkpoint(!all.empty() && sorted(range, false) == all, "2D n=1 N={1,1}: skipping the face of a non-hollow dimension changes nothing");
+    t.checkpoint(!all.empty() && sorted(range, array_of_bools<2>{false}) == all, "2D n=1 N={1,1}: skipping the face of a non-hollow dimension changes nothing");
   }
   // an unrestricted dimension has no face and the others are unaffected
   {
     Radii<2> radii;
     radii[1] = 2;
-    const auto all = sorted(make_range<2>(4, radii, array_of_bools<2>{false}), false);
+    const auto all = sorted(make_range<2>(4, radii, array_of_bools<2>{false}), array_of_bools<2>{false});
     auto range = make_range<2>(4, radii, array_of_bools<2>{false});
     range.skip_face(1);
     t.checkpoint(range.begin() == range.end(), "2D n=4 N={*,2}: skipping the only face leaves nothing");
     t.checkpoint(!all.empty(), "2D n=4 N={*,2}: the only face is non-empty");
   }
 
+  return t.end();
+}
+
+/// Faces (or whole surfaces) lying entirely outside of a finite domain: the iterator must skip them
+/// and produce exactly the in-domain part of the surface.
+int test_faces_outside_domain(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: faces outside of the domain", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 2;
+  const Level n = 4;
+  const auto twon = Translation(1) << n;
+  const array_of_bools<NDIM> not_summed{false};
+  const auto in_domain = [&](const Key<NDIM>& disp, const Key<NDIM>& center) {
+    for (std::size_t d = 0; d != NDIM; ++d) {
+      const auto x = center.translation()[d] + disp.translation()[d];
+      if (x < 0 || x >= twon) return false;
+    }
+    return true;
+  };
+  const auto check = [&](std::array<std::int64_t, NDIM> N, Key<NDIM> center, const std::string& what) {
+    // without a validator: the whole surface, in and out of the domain
+    std::vector<Key<NDIM>> expected;
+    for (auto&& disp : make_range<NDIM>(n, finite<NDIM>(N), not_summed, {}, {}, center))
+      if (in_domain(disp, center)) expected.push_back(disp);
+    std::sort(expected.begin(), expected.end());
+    // with the domain filter
+    std::vector<Key<NDIM>> actual;
+    for (auto&& disp : make_range<NDIM>(n, finite<NDIM>(N), not_summed, {}, in_domain_only<NDIM>(not_summed), center))
+      actual.push_back(disp);
+    std::sort(actual.begin(), actual.end());
+    t.checkpoint(actual == expected, what + ": exactly the in-domain part of the surface (" + std::to_string(actual.size()) +
+                                         " vs " + std::to_string(expected.size()) + ")");
+    return expected.size();
+  };
+
+  // both faces normal to x are out (at -8 and 24), those normal to y are partly in
+  t.checkpoint(check({2, 1}, Key<NDIM>(n, {8, 8}), "N={2,1} centered") > 0, "N={2,1} centered: something is in the domain");
+  // the + face normal to x is out (at 20), the - face is in
+  t.checkpoint(check({1, 1}, Key<NDIM>(n, {12, 8}), "N={1,1} off-center") > 0, "N={1,1} off-center: something is in the domain");
+  // everything is out
+  t.checkpoint(check({2, 2}, Key<NDIM>(n, {8, 8}), "N={2,2} centered") == 0, "N={2,2} centered: nothing is in the domain");
+
+  return t.end();
+}
+
+/// The validator's notion of "standard displacement" must match Displacements: with lattice summation along
+/// any axis the standard displacements are clipped to 2^n-1 boxes along *every* axis, summed or not.
+int test_validator_bmax(World& world) {
+  test_output t("BoxSurfaceDisplacementValidator: bmax of the standard displacements", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 2;
+  const Level n = 2;  // 4 boxes per axis, fewer than bmax+1 in 2D
+  const Translation bmax = Displacements<NDIM>::bmax_default();
+  t.checkpoint(bmax > 3, "2D bmax exceeds 2^n-1 at n=2");
+  // lattice summed along x only, infinite domain, and every standard displacement was reached
+  const Validator<NDIM> v(array_of_bools<NDIM>{true}, array_of_bools<NDIM>{true, false}, unit_reach<NDIM>(1e6));
+  const auto keeps = [&](std::int64_t lx, std::int64_t ly) {
+    typename BoxSurfaceDisplacementRange<NDIM>::PointPattern dest;
+    dest[0] = 2 + lx;
+    dest[1] = 2 + ly;
+    std::optional<Key<NDIM>> disp(Key<NDIM>(n, {lx, ly}));
+    return v(n, dest, disp);
+  };
+  t.checkpoint(!keeps(0, 3), "(0,3): within 2^n-1 along the unsummed axis => standard => filtered");
+  t.checkpoint(keeps(0, 4), "(0,4): beyond 2^n-1 along the unsummed axis => not standard => kept");
+  t.checkpoint(!keeps(4, 0), "(4,0): folds onto 0 along the summed axis => standard => filtered");
+  t.checkpoint(!keeps(3, 0), "(3,0): folds onto -1 along the summed axis => standard => filtered");
+
+  // level 0 must not trip the bit tricks: everything folds onto the single box
+  {
+    typename BoxSurfaceDisplacementRange<NDIM>::PointPattern dest;
+    dest[0] = 0;
+    dest[1] = 0;
+    std::optional<Key<NDIM>> disp(Key<NDIM>(0, {0, 0}));
+    t.checkpoint(!v(0, dest, disp), "level 0: the on-site displacement is standard => filtered");
+  }
   return t.end();
 }
 
@@ -484,6 +582,8 @@ int main(int argc, char** argv) {
   errors += test_lattice_summation_awareness(world);
   errors += test_standard_reach(world);
   errors += test_skip_face(world);
+  errors += test_faces_outside_domain(world);
+  errors += test_validator_bmax(world);
 
   world.gop.fence();
   madness::finalize();
