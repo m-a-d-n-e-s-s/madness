@@ -33,7 +33,65 @@
 
 #include <vector>
 
+#include <cstdlib>
+#include <cstdio>
+
 namespace molresponse_v3 {
+
+/// Debug (env MADRESPONSE_GS_CHECK set): evaluate the response kernels' own
+/// Fock pieces on the ground-state orbitals they were built from —
+///   1/2<grad phi_i|grad phi_i> + <phi_i|V_local phi_i> - <phi_i|K0 phi_i>
+/// must reproduce focka(i,i) — and sample V_local along the z axis. Printed on
+/// rank 0 with a tag saying which World (size) built the object, so the
+/// universe-level ES object and the subworld FD objects can be compared.
+/// Collective on `world`. Added 2026-09-10 while chasing the seeded-ES
+/// divergence: the ES solver's object failed this check (LiH sigma:
+/// T 0.381, V -0.008, -K -0.007 vs focka -0.301).
+inline void debug_gs_fock_check(madness::World &world, const ResponseGroundState &t,
+                                const char *tag) {
+  if (!std::getenv("MADRESPONSE_GS_CHECK")) return;
+  const std::size_t n = t.amo.size();
+  if (n == 0) return;
+  const double vtol = madness::FunctionDefaults<3>::get_thresh() * 0.1;
+  auto phi = madness::copy(world, t.amo);
+  std::vector<double> T(n, 0.0), V(n, 0.0), K(n, 0.0);
+  for (int d = 0; d < 3; ++d) {
+    madness::real_derivative_3d D(world, d);
+    auto g = apply(world, D, phi);
+    for (std::size_t i = 0; i < n; ++i) T[i] += 0.5 * madness::inner(g[i], g[i]);
+  }
+  auto Vphi = mul_sparse(world, t.V_local_alpha, phi, vtol);
+  auto Kphi = common_ops::apply_ground_exchange(world, t.K0_alpha, t.amo, phi, t.lo);
+  for (std::size_t i = 0; i < n; ++i) {
+    V[i] = madness::inner(phi[i], Vphi[i]);
+    K[i] = madness::inner(phi[i], Kphi[i]);
+  }
+  auto gram = madness::matrix_inner(world, phi, phi);
+  std::vector<double> zs = {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0};
+  std::vector<double> vz(zs.size(), 0.0);
+  {
+    auto vl = madness::copy(t.V_local_alpha);
+    vl.reconstruct();
+    for (std::size_t i = 0; i < zs.size(); ++i) vz[i] = vl(madness::coord_3d{0.0, 0.0, zs[i]});
+  }
+  const double vnorm = t.V_local_alpha.norm2();
+  if (world.rank() != 0) return;
+  printf("[GS-CHECK %s] world_size=%d  n_occ=%zu  |V_local|_2=%.6e  thresh=%.1e  k=%d  L=%.1f\n", tag,
+         world.size(), n, vnorm, madness::FunctionDefaults<3>::get_thresh(),
+         madness::FunctionDefaults<3>::get_k(), madness::FunctionDefaults<3>::get_cell_width()(0L));
+  printf("[GS-CHECK %s] Gram diag/offmax: ", tag);
+  double offmax = 0.0;
+  for (std::size_t i = 0; i < n; ++i) { printf("%.6f ", gram(long(i), long(i)));
+    for (std::size_t j = 0; j < n; ++j) if (i != j) offmax = std::max(offmax, std::abs(gram(long(i), long(j)))); }
+  printf(" | %.2e\n", offmax);
+  for (std::size_t i = 0; i < n; ++i)
+    printf("[GS-CHECK %s]  i=%zu  T=%10.5f  V=%10.5f  -K=%10.5f  | sum=%10.5f | focka_ii=%10.5f\n", tag, i,
+           T[i], V[i], -K[i], T[i] + V[i] - K[i], t.focka(long(i), long(i)));
+  printf("[GS-CHECK %s] V_local(0,0,z):", tag);
+  for (std::size_t i = 0; i < zs.size(); ++i) printf("  %.1f:%.4f", zs[i], vz[i]);
+  printf("\n");
+  fflush(stdout);
+}
 
 /// Build ResponseGroundState for an OpenShell run. Populates both
 /// alpha and beta fields. V_local is shared (HF / pure-XC where Vxc
@@ -66,6 +124,7 @@ build_response_ground_state_open_shell(madness::World &world, GroundState &gs,
   // compute_V0x exchange apply — see ResponseGroundState::K0_alpha).
   t.K0_alpha = common_ops::make_ground_exchange(world, t.amo, lo);
   t.K0_beta  = common_ops::make_ground_exchange(world, t.bmo, lo);
+  debug_gs_fock_check(world, t, "open");
   return t;
 }
 
@@ -91,6 +150,7 @@ build_response_ground_state_closed_shell(madness::World &world, GroundState &gs,
   // Cache K0 once (avoids re-copying the occupied orbitals on every compute_V0x
   // exchange apply — see ResponseGroundState::K0_alpha). K0_beta stays null (CS).
   t.K0_alpha = common_ops::make_ground_exchange(world, t.amo, lo);
+  debug_gs_fock_check(world, t, "closed");
   return t;
 }
 

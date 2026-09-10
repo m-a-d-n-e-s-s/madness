@@ -425,8 +425,20 @@ private:
         vphi2[i] = madness::inner(gs_.amo[i], vp);
       }
     }
+    // (d) V_local sampled along the z axis (x=y=0): a neutral molecule's
+    //     V_nuc + J must be strongly negative near the nuclei and vanish far out.
+    std::vector<double> zs = {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0};
+    std::vector<double> vz(zs.size(), 0.0);
+    {
+      auto vl = madness::copy(gs_.V_local_alpha);
+      vl.reconstruct();
+      for (std::size_t i = 0; i < zs.size(); ++i) vz[i] = vl(madness::coord_3d{0.0, 0.0, zs[i]});
+    }
     if (world_.rank() != 0) return;
     printf("[DEBUG] GS object: |V_local|_2 = %.6e   max|<phi|Q phi>| = %.3e\n", vloc_norm, qamo_max);
+    printf("[DEBUG] V_local(0,0,z):");
+    for (std::size_t i = 0; i < zs.size(); ++i) printf("  z=%.1f:%.4f", zs[i], vz[i]);
+    printf("\n");
     printf("[DEBUG] GS orbital Gram <phi_i|phi_j>:\n"); print(gram);
     printf("[DEBUG] GS orbital centroids (i: x y z) and <phi|V_local|phi> via operator*:\n");
     for (std::size_t i = 0; i < gs_.amo.size(); ++i)
