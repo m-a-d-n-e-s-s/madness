@@ -404,8 +404,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      energies = Init_params.energies;
      occupieds = Init_params.orbitals;
      total_energy = Init_params.Init_total_energy;
-     //If nonrelativistic calculation was spinrestricted then we're doing a closed shell calculation 
-     //This is a little incorrect, as we're equating two separate concepts, but it works for now.
+     //True when the stored orbitals contain no unpartnered singly-occupied orbital.
+     //Under Krestricted the time-reversed partners are implicit, and an open shell means
+     //the last stored orbital is the unpaired one. Otherwise every partner is stored
+     //explicitly, and an open shell simply means one orbital has no partner in the set.
      closed_shell = Init_params.closed_shell;
 
      Tensor<double> times = end_timer(world);
@@ -733,7 +735,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //calculate potential due to nuclei and mean field
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2.0 : 1.0;
+     double fac = DFparams.Krestricted ? 2.0 : 1.0;
      for(unsigned int j = 0; j < np; j++){
           rho += fac*squaremod(occupieds[j]);
      }
@@ -1404,7 +1406,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
 
      //Diagonalization forces us to recompute density
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
+     double fac = DFparams.Krestricted ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1739,12 +1741,12 @@ void DF::solve_occupied(World & world)
 
      //State what we're doing here
      if(world.rank()==0){
-          if(DFparams.Krestricted || closed_shell){
-               if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n------------------------------\n");
-               else print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n------------------------------\n");
+          if(DFparams.Krestricted){
+               if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " Kramers-restricted orbitals\n------------------------------\n");
+               else print("\nSolving for ", Init_params.num_occupied-1, " Kramers-restricted open-shell orbitals\n------------------------------\n");
           }
           else{
-               print("\nSolving for ", Init_params.num_occupied, " single-occupied orbitals\n------------------------------\n");
+               print("\nSolving for ", Init_params.num_occupied, " Kramers unrestricted orbitals\n------------------------------\n");
           }
      }
 
@@ -1790,7 +1792,7 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("\n***Calculating Initial Coulomb***");
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
+     double fac = DFparams.Krestricted ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);

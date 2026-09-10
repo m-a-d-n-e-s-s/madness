@@ -135,8 +135,9 @@ namespace madness{
                          real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          
-                         //Handle Kramers-restricted and unrestricted cases differently
-                         if(Krestricted || closed_shell){
+                         //Handle Kramers-restricted and unrestricted cases differently.
+                         //A closed shell is only collapsed onto Kramers pairs when Krestricted is requested.
+                         if(Krestricted){
                               //Loop over the occupied orbitals and convert
                               for(unsigned int i = 0; i < num_occupied; i++){
                                    //read in orbital
@@ -456,7 +457,7 @@ namespace madness{
                spinup[3].scale(0.5);
                spinup.normalize();
                orbitals.push_back(spinup);
-               if(closed_shell and not Krestricted){
+               if(!have_beta and not Krestricted){
                     spindown[0] = complex_factory_3d(world);
                     spindown[1] = complexreader;
                     spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));

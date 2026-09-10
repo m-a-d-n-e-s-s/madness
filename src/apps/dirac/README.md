@@ -130,6 +130,11 @@ By specifying `Krestricted` in the input deck, `DFdriver`:
 - **Preserves Kramers degeneracies**: Exact partner degeneracy ($\varepsilon_i = \varepsilon_{\bar{i}}$) is maintained to $< 10^{-6}$ Ha.
 - **Preserves spherical symmetry**: For atoms with closed subshells (e.g. $p^6$ in neon and magnesium), it preserves spherical isotropy and correctly resolves the physical spin-orbit splitting ($p_{1/2}$ doublet vs $p_{3/2}$ quartet) without unphysical $z$-polarization.
 
+Without `Krestricted`, a closed-shell system is treated as Kramers-unrestricted: both members of each
+Kramers doublet are stored and iterated explicitly, so a guess from a spin-restricted `moldft` run gives
+$2N$ singly-occupied 4-spinors rather than $N$ doubly-occupied ones. This costs about twice as much as
+`Krestricted` but does not impose time-reversal symmetry on the solution.
+
 ---
 
 ## Restarting Calculations
