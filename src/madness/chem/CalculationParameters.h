@@ -396,14 +396,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
     	}
 
 
-        // The nwchem guess replaces the internal minimal aobasis with the NWChem basis,
-        // so localizers that need the atomic-eigenfunction machinery (pm, new, new_sys)
-        // cannot run; boys, cholesky and canon work from the MOs alone.
-        if (nwfile() != "none") {
-             set_derived_value("localize",std::string("boys"));
-             if (localize_method() != "boys" and localize_method() != "cholesky" and localize_method() != "canon")
-                 error("NWchem initialization supports only localize boys, cholesky or canon");
-        }
 	}
 };
 
