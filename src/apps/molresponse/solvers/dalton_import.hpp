@@ -275,9 +275,30 @@ inline DaltonManifest locate_dalton_dir(const std::string &dir,
     } else if (outs.size() == 1) {
       m.out_path = outs[0];
     } else if (outs.size() > 1) {
-      throw std::runtime_error(
-          "dalton import: multiple *.out candidates in " + dir + " (" +
-          list_join(outs) + ") — pass --dalton-out=PATH");
+      // Several *.out: keep the ones that are DALTON outputs (banner in the
+      // first lines). A SLURM stdout named <job>.out next to <dal>_<mol>.out is
+      // the common case (closeout jobs 2162014/15/25 aborted here).
+      std::vector<std::string> dalton_outs;
+      for (const auto &o : outs) {
+        std::ifstream in(o);
+        std::string line;
+        for (int i = 0; i < 80 && std::getline(in, line); ++i) {
+          // banner lines of a real DALTON output (a SLURM log that merely
+          // says "Running DALTON" must not match)
+          if (line.find("This is output from DALTON") != std::string::npos ||
+              line.find("Dalton - An Electronic Structure Program") != std::string::npos) {
+            dalton_outs.push_back(o);
+            break;
+          }
+        }
+      }
+      if (dalton_outs.size() == 1)
+        m.out_path = dalton_outs[0];
+      else
+        throw std::runtime_error(
+            "dalton import: multiple *.out candidates in " + dir + " (" +
+            list_join(outs) + "), " + std::to_string(dalton_outs.size()) +
+            " of them DALTON outputs — pass --dalton-out=PATH");
     }
     // zero .out files: allowed (provenance-degraded; caller warns).
   }
