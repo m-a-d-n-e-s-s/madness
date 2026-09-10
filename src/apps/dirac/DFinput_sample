@@ -19,6 +19,9 @@ DiracFock
   maxrotn 0.25         # Maximum step allowed by KAIN
   max_iter 20          # Maximum number of iterations
 
+  # Convergence criterion: bsh_residual (default) or energy_density_residual
+  convergence_criteria bsh_residual
+
   # Nuclear model: 0 = Gaussian (default), 1 = Fermi, 2 = Point
   nucleus 0
 

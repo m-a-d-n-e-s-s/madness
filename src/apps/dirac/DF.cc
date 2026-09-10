@@ -1478,22 +1478,6 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
 
-     //If any residual is still larger than the tolerance then we need to iterate again.
-     //Can just enforce this on the max residual
-     const auto nelec = rho.trace();
-     auto drho = (prev_rho - rho).norm2();
-     if(world.rank()==0) printf("\ndensity norm: %.10e\n",drho);
-     if(world.rank()==0) printf("tolerance: %.10e\n",DFparams.dconv * nelec);
-     if(maxresidual <= tolerance) {
-          iterate_again = false;
-          if (world.rank() == 0)  printf("\nConverged due to residuals");
-     }
-     // else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= DFparams.dconv * nelec
-     //            && maxresidual <= 1e2 * tolerance) {
-     //      iterate_again = false;
-     //      if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
-     // }
-
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){
           if(world.rank()==0) print("\n***Applying KAIN Solver***");
@@ -1722,6 +1706,30 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
           print("    Nuclear Repulsion Energy: ",nuclear_repulsion_energy);
           print("                Total Energy: ",total_energy);
           print("       Total Energy Residual: ", std::fabs(total_energy - old_total_energy));
+     }
+
+     //Decide whether to iterate again. Both criteria are tested here, after the orbitals
+     //have been updated, because the energy and the density of this iteration are only
+     //available at this point.
+     if(DFparams.convergence_criteria == "energy_density_residual"){
+          const auto nelec = rho.trace();
+          const auto drho = (prev_rho - rho).norm2();
+          if(world.rank()==0){
+               printf("\n              Density Residual: %.10e\n",drho);
+               printf("             Density Tolerance: %.10e\n",DFparams.dconv * nelec);
+          }
+          if(std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh
+                    and drho <= DFparams.dconv * nelec
+                    and maxresidual <= 1e2 * tolerance) {
+               iterate_again = false;
+               if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
+          }
+     }
+     else {
+          if(maxresidual <= tolerance) {
+               iterate_again = false;
+               if (world.rank() == 0) printf("\nConverged due to residuals");
+          }
      }
 
      //final truncatation of orbitals now that we've computed properties

@@ -78,6 +78,14 @@ namespace madness {
           double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
+          std::string convergence_criteria; ///< Which quantities must be converged to stop iterating
+                                       ///<   Value                    |   Criterion
+                                       ///<   --------------------------------------------------------------
+                                       ///<   bsh_residual             |   max BSH residual <= thresh (Default)
+                                       ///<   --------------------------------------------------------------
+                                       ///<   energy_density_residual  |   relative total energy change <= thresh,
+                                       ///<                            |   density change <= dconv * nelec, and
+                                       ///<                            |   max BSH residual <= 100 * thresh
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -86,7 +94,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted;
+               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted & convergence_criteria;
           }
 
           // Default constructor
@@ -113,6 +121,7 @@ namespace madness {
           , speed_of_light(137.03599917697017) // speed of light in atomic units from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
+          , convergence_criteria("bsh_residual")
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -208,6 +217,14 @@ namespace madness {
                     else if (s == "Krestricted"){
                          Krestricted = true;
                     }
+                    else if (s == "convergence_criteria"){
+                         f >> convergence_criteria;
+                         if(convergence_criteria != "bsh_residual" and convergence_criteria != "energy_density_residual"){
+                              std::cout << "Dirac Fock: unrecognized convergence_criteria " << convergence_criteria
+                                        << " (allowed: bsh_residual, energy_density_residual)" << std::endl;
+                              MADNESS_EXCEPTION("input error", 0);
+                         }
+                    }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;
                        MADNESS_EXCEPTION("input error", 0); 
@@ -242,6 +259,7 @@ namespace madness {
                     madness::print("                       Nucleus: gaussian");
                }
                madness::print("           Kramers restriction:", Krestricted);
+               madness::print("          Convergence criteria:", convergence_criteria);
                madness::print("                  Do Lineplots:", lineplot);
           }
      };

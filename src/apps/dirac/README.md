@@ -103,6 +103,7 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `small <val>` | `double` | `1e-5` | Smallest length scale to be resolved. |
 | `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. |
 | `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. |
+| `convergence_criteria <val>` | `string` | `bsh_residual` | Which quantities must converge to stop iterating. `bsh_residual`: max BSH residual &le; `thresh`. `energy_density_residual`: relative total-energy change &le; `thresh`, *and* $\lVert \Delta \rho \rVert$ &le; `dconv` &times; N<sub>elec</sub>, *and* max BSH residual &le; 100 &times; `thresh`. |
 | `kain` | flag | `false` | Enable KAIN nonlinear accelerator. |
 | `maxsub <n>` | `int` | `10` | Maximum subspace size for KAIN. |
 | `maxrotn <val>` | `double` | `0.25` | Maximum orbital rotation step allowed by KAIN. |
