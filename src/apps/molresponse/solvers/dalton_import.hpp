@@ -832,7 +832,7 @@ inline DaltonSeedReport
 seed_es_from_dalton(madness::World &world, GroundState &gs,
                     const std::vector<ESRequest> &es_reqs,
                     const std::string &calc_dir, const DaltonManifest &m,
-                    double scale = std::sqrt(2.0)) {
+                    double scale = std::sqrt(2.0), bool y_from_dalton = false) {
   using namespace madness;
   DaltonSeedReport rep;
   if (es_reqs.empty()) return rep;
@@ -932,7 +932,7 @@ seed_es_from_dalton(madness::World &world, GroundState &gs,
     all_x[static_cast<size_t>(r)] = x;
     if (full) {
       vector_real_function_3d y;
-      if (!Y.empty()) {
+      if (!Y.empty() && y_from_dalton) {
         y = project_dalton_ov_block(world, molden.basis, molden.mo_coeffs,
                                     n_ao, n_mo, n_occ, n_vir, Y,
                                     active_thresh, -scale);
@@ -1100,7 +1100,8 @@ run_dalton_import(madness::World &world, GroundState &gs,
                   const std::string &molden_override = {},
                   const std::string &rspvec_override = {},
                   const std::string &out_override = {},
-                  double geometry_tol_bohr = 1e-4) {
+                  double geometry_tol_bohr = 1e-4,
+                  bool es_y_from_dalton = false) {
   DaltonManifest m;
   std::string err;
 
@@ -1162,7 +1163,8 @@ run_dalton_import(madness::World &world, GroundState &gs,
 
   auto rep = seed_fd_from_dalton(world, gs, plan.fd, calc_dir, m);
   // ES seed (EXCITLAB eigenvectors), when the plan has an ES request.
-  const auto es_rep = seed_es_from_dalton(world, gs, plan.es, calc_dir, m);
+  const auto es_rep = seed_es_from_dalton(world, gs, plan.es, calc_dir, m,
+                                          std::sqrt(2.0), es_y_from_dalton);
   rep.n_seeded  += es_rep.n_seeded;
   rep.n_skipped += es_rep.n_skipped;
   return rep;

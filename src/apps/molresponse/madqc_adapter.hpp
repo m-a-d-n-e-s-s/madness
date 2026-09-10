@@ -381,7 +381,8 @@ struct molresponse_v3_lib {
     // failing the response task loudly instead of silently solving cold.
     if (!rp.dalton_dir().empty()) {
       run_dalton_import(world, gs, scf_calc->molecule, in.plan,
-                        in.settings.calc_dir, rp.dalton_dir());
+                        in.settings.calc_dir, rp.dalton_dir(), {}, {}, {}, 1e-4,
+                        /*es_y_from_dalton=*/rp.seed_es_y() == "dalton");
     }
 
     // Pass the RESOLVED fock path through (review finding: "" here made every

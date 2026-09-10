@@ -408,7 +408,8 @@ int main(int argc, char **argv) {
           run_dalton_import(world, gs, molecule, plan, calc_dir,
                             parser.value_raw("dalton-dir"),
                             get_opt("dalton-molden"), get_opt("dalton-rspvec"),
-                            get_opt("dalton-out"));
+                            get_opt("dalton-out"), 1e-4,
+                            /*es_y_from_dalton=*/get_opt("seed-es-y") == "dalton");
         }
 
         // ---- Drive the calc manager ----------------------------------------

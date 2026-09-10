@@ -118,6 +118,12 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "and launders away the seed's head start — the seed is already "
                                 "at the physics). Ignored without dalton.dir.",
                                 {"coarse", "fine"});
+        initialize<std::string>("seed.es_y", "zero",
+                                "excited-state seed from dalton.dir: y block = 'dalton' (DALTON de-excitation "
+                                "vector, -sqrt2 Y) or 'zero' (X only; the Full solver builds y as after a TDA "
+                                "warmup). 2026-09-10: the DALTON y block made the seeded RPA solve diverge "
+                                "(h2o, lih) while X-only seeds behave like a converged TDA warmup; default zero "
+                                "until the y convention is validated.", {"dalton", "zero"});
         initialize<double>("seed.freq_tol", 0.0,
                            "nearest-frequency DALTON seed for FD legs whose frequency is NOT "
                            "in the RSPVEC (the derived two-photon legs at omega_f/2: MADNESS's "
@@ -185,6 +191,9 @@ public:
     }
     [[nodiscard]] std::string seed_start_rung() const {
         return get<std::string>("seed.start_rung");
+    }
+    [[nodiscard]] std::string seed_es_y() const {
+        return get<std::string>("seed.es_y");
     }
     [[nodiscard]] double seed_freq_tol() const {
         return get<double>("seed.freq_tol");
