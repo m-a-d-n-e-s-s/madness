@@ -222,6 +222,17 @@ int test_node_replicated_function(World& world) {
         t1.checkpoint(sz_replicated==sz_distributed*primary_ranks.size(),"tree size replicated on nodes = size distributed * n_nodes = "
             +std::to_string(sz_replicated));
 
+        // This point must be inside the cell [-L, L]^2, with L = 24 in main.
+        coord_2d point;
+        point[0] = 0.25;
+        point[1] = -0.25;
+        // max_local_depth() returns std::size_t, and eval_local_only takes Level.
+        // The cast prevents a -Werror failure, as in test_eval.cc.
+        const auto local_value =
+            f1.eval_local_only(point, static_cast<Level>(f1.max_local_depth()));
+        const bool is_primary = world.rank() == myowner;
+        t1.checkpoint(local_value.first == is_primary,
+                      "eval_local_only succeeds exactly on the host-primary rank");
     }
 
     world.gop.fence();
