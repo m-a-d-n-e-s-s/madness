@@ -48,6 +48,13 @@ struct ResponseParameters : public QCCalculationParametersBase {
                         "node-aligned subworlds (F2 state-parallel path); 0 = "
                         "single-World reference path. Use <= nodes, and note "
                         "PMIx on some clusters caps tasks/node at 2.");
+        initialize<int>("subworld_ranks", 0,
+                        "ranks per state-parallel subworld (large-system regime). "
+                        "> 0 switches the fan-out to a universe-level contiguous "
+                        "split: G = min(items, universe_ranks / subworld_ranks) "
+                        "subworlds that may span nodes (e.g. 64 = 8 nodes x 8 ranks "
+                        "per state, the SCF sizing for ~300 MOs). 0 = per-node "
+                        "packing controlled by `subworlds`.");
         initialize<bool>("beta.shg", true,
                          "compute only SHG beta triplets (omegaB=omegaC, "
                          "omegaA=-(omegaB+omegaC))");
@@ -178,6 +185,9 @@ public:
 
     [[nodiscard]] int subworlds() const {
         return get<int>("subworlds");
+    }
+    [[nodiscard]] int subworld_ranks() const {
+        return get<int>("subworld_ranks");
     }
     [[nodiscard]] bool step_restrict() const {
         return get<bool>("step_restrict");

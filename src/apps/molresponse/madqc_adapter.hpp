@@ -323,6 +323,9 @@ struct molresponse_v3_lib {
     // Deck `subworlds N` -> the F2 state-parallel fan-out (same path as the
     // standalone --fd-subworlds flag; archive_file above makes it live).
     in.settings.fd_subworlds = std::max(0, rp.subworlds());
+    // Deck `subworld_ranks R` -> universe-level split into subworlds of R ranks
+    // that may span nodes (large-system regime); 0 keeps per-node packing.
+    in.settings.fd_subworld_ranks = std::max(0, rp.subworld_ranks());
     // Deck `dalton.dir` + `seed.freq_tol` -> nearest-frequency DALTON guess for
     // the derived (two-photon) FD legs (calc_executor solve_fd seam).
     in.settings.dalton_dir    = dalton_dir;

@@ -141,6 +141,7 @@ run_response_with_ground(madness::World &world, GroundState &gs, double L,
   CalcManager::Policy mgr_policy;
   mgr_policy.max_iters_per_step = in.settings.max_iters;
   mgr_policy.fd_subworlds       = in.settings.fd_subworlds;   // F2
+  mgr_policy.fd_subworld_ranks  = in.settings.fd_subworld_ranks;
   CalcManager mgr(in.plan, in.settings.calc_dir, mgr_policy);
   mgr.build(gs.molecule().natom());
   timing["plan_build"] = t_build.lap();
@@ -270,12 +271,14 @@ run_response_with_ground(madness::World &world, GroundState &gs, double L,
   // FD items, writing to its node_index metadata shard (merged by rank 0). This
   // is exactly the F1-proven block, lifted into the live run().
   CalcManager::SubworldSolve fan_out;
-  if (in.settings.fd_subworlds > 0 && in.archive_file.empty() &&
-      world.rank() == 0)
+  const bool fan_requested =
+      in.settings.fd_subworlds > 0 || in.settings.fd_subworld_ranks > 0;
+  if (fan_requested && in.archive_file.empty() && world.rank() == 0)
     madness::print("F2: fd_subworlds =", in.settings.fd_subworlds,
+                   " fd_subworld_ranks =", in.settings.fd_subworld_ranks,
                    "requested but no archive_file — staying single-World "
                    "(subworlds reload the ground state from the archive)");
-  if (in.settings.fd_subworlds > 0 && !in.archive_file.empty()) {
+  if (fan_requested && !in.archive_file.empty()) {
     const std::string  archive = in.archive_file;
     const madness::Molecule mol = gs.molecule();
     const std::string  fock = fock_json;

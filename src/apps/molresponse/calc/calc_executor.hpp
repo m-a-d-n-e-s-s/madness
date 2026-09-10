@@ -228,6 +228,12 @@ struct ExecutorSettings {
   // regime). Total subworlds G = n_nodes × this. G≤1 short-circuits to the G=0
   // path. Fans FD / NuclearFD / VBC (F2g); ES stays single-World.
   int               fd_subworlds = 0;
+  // Large-system regime (2026-09-10): ranks PER SUBWORLD. > 0 replaces the
+  // per-node packing above with a universe-level contiguous split into
+  // G = min(items, universe/fd_subworld_ranks) subworlds that may span nodes
+  // (valinomycin, 300 MOs: one SCF wants 6-8 nodes x 8 ranks, so each state
+  // needs a 48-64-rank subworld). 0 = per-node packing (fd_subworlds).
+  int               fd_subworld_ranks = 0;
   // F2 (doc 32 §5.3): when non-empty, FD metadata writes go to a per-group shard
   // response_metadata.group<tag>.json instead of the canonical file, so concurrent
   // subworlds never race it; universe rank 0 merges the shards after the fence.
@@ -1086,6 +1092,7 @@ struct CalcManagerPolicy {
   SeedStrategy seed = SeedStrategy::NearestConverged;
   int          max_iters_per_step = 25;
   int          fd_subworlds = 0;   // F2f: subworlds PER NODE (0=off, 1=node-aligned)
+  int          fd_subworld_ranks = 0;   // ranks per subworld; >0 = universe split (may span nodes)
 };
 
 // ===========================================================================
@@ -1329,7 +1336,7 @@ public:
                        "  thresh=", wthresh, "  k=", wk,
                        "  items=", (int)wave.size());
       }
-      const bool fan_enabled = fan_out && policy_.fd_subworlds > 0;
+      const bool fan_enabled = fan_out && (policy_.fd_subworlds > 0 || policy_.fd_subworld_ranks > 0);
       if (!fan_enabled) {
         // Single-World reference path — byte-for-byte the pre-F2 behaviour
         // (every rank solves each wave item together, in wave order).
@@ -1373,23 +1380,39 @@ public:
           // 3 items on one 8-rank node -> 3 subworlds of 3/3/2 ranks (no idle
           // rank, each leg gets 2-3 ranks); 24 items on 3 nodes -> 24 x 1 rank;
           // 12 items on 3 nodes -> 12 x 2 ranks. Subworlds stay node-aligned, so
-          // with fewer items than nodes some nodes still idle for the wave (a
-          // cross-node partition would need a universe-level Split).
-          int gpn_wave = policy_.fd_subworlds;
+          // with fewer items than nodes some nodes still idle for the wave.
+          //
+          // Large-system regime (deck `subworld_ranks` R > 0): the per-node
+          // packing is replaced by a UNIVERSE-level contiguous split into
+          //   G = clamp(min(n_items, universe_size / R), 1, universe_size)
+          // subworlds of ~universe_size/G ranks each, which may span nodes. R is
+          // the SCF sizing (10-20 MOs per rank): valinomycin (300 MOs) runs one
+          // SCF on 6-8 nodes x 8 ranks, so R = 48-64 gives each independent
+          // state the same footprint as the ground-state solve. With fewer
+          // items than universe/R, the blocks grow (all ranks stay busy).
+          int gpn_wave = std::max(1, policy_.fd_subworlds);
+          int G_universe = 0;   // > 0 selects the universe-level split
           {
             const auto rph = madness::ranks_per_host(world);   // collective
             const int n_nodes = std::max<int>(1, static_cast<int>(rph.size()));
             int rpn = world.size();
             for (const auto &kv : rph) rpn = std::min<int>(rpn, static_cast<int>(kv.second.size()));
             const int n_items = static_cast<int>(fan_items.size());
-            const int want = (n_items + n_nodes - 1) / n_nodes;   // ceil
-            gpn_wave = std::max(1, std::min({policy_.fd_subworlds, rpn, want}));
+            if (policy_.fd_subworld_ranks > 0) {
+              const int R = std::min(policy_.fd_subworld_ranks, world.size());
+              G_universe = std::max(1, std::min(n_items, world.size() / R));
+            } else {
+              const int want = (n_items + n_nodes - 1) / n_nodes;   // ceil
+              gpn_wave = std::max(1, std::min({policy_.fd_subworlds, rpn, want}));
+            }
           }
           NodeSubworldInfo info;
           std::shared_ptr<madness::World> sub;
           std::string pool_err;
           try {
-            sub = make_subworld_pool(world, gpn_wave, &info);
+            sub = (G_universe > 0)
+                      ? make_subworld_pool_universe(world, G_universe, &info)
+                      : make_subworld_pool(world, gpn_wave, &info);
           } catch (const std::exception &e) { pool_err = e.what(); }
             catch (...) { pool_err = "unknown exception in make_subworld_pool"; }
           int pool_bad = pool_err.empty() ? 0 : 1;
@@ -1423,8 +1446,12 @@ public:
               madness::print("SUBWORLD_FANOUT  pass=", pass, "  n_subworlds=", G,
                              "  groups_per_node=", info.groups_per_node,
                              "  ranks_per_subworld=", info.subworld_size,
+                             "  nodes_per_subworld=", info.nodes_spanned,
                              "  fan_items=", (int)fan_items.size(),
-                             "  (right-sized from deck subworlds=", policy_.fd_subworlds, ")");
+                             (G_universe > 0 ? "  (universe split, deck subworld_ranks="
+                                             : "  (right-sized from deck subworlds="),
+                             (G_universe > 0 ? policy_.fd_subworld_ranks : policy_.fd_subworlds),
+                             ")");
             // S1 pmap discipline: point the default pmap at the subworld so
             // everything built inside is subworld-local; restore BEFORE reset.
             // Exception safety: a subworld-local throw must NOT skip the pmap
@@ -1479,7 +1506,7 @@ public:
             MADNESS_EXCEPTION("per-wave shard merge failed on rank 0 "
                               "(see [SHARD-MERGE-ERROR])", 0);
           world.gop.fence();
-        } else if (policy_.fd_subworlds > 0 && !rest.empty() &&
+        } else if ((policy_.fd_subworlds > 0 || policy_.fd_subworld_ranks > 0) && !rest.empty() &&
                    world.rank() == 0) {
           // Review MED: this wave is ES-only (ES is deliberately excluded from
           // fan-out — it stays single-World), so the requested `subworlds` had
