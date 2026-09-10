@@ -402,6 +402,37 @@ inner(const std::vector<State> &a, const std::vector<State> &b) {
   return inner(ra, rb);
 }
 
+/// Kinetic block of the subspace matrix in GRADIENT form,
+///   T_ij = ½ Σ_d ⟨∂_d a_i | ∂_d a_j⟩   (Euclidean over every block the State
+///   carries: x, y, β — the same flattening as rs::inner),
+/// symmetric positive semidefinite by construction. The Laplacian form the
+/// solver used until 2026-09-10 — ⟨a_i| −½ D(D a_j)⟩ with the derivative applied
+/// twice and truncated (common_ops::apply_kinetic) — is neither: on rough
+/// vectors it underestimates the kinetic energy badly enough to give NEGATIVE
+/// Rayleigh–Ritz values for a positive operator (cold TDA warm-up, h2o
+/// solid-harmonics guess: diag(A) = −4.1 at iter 1; seeded solves: −0.08 one
+/// BSH step after a start with 25 % residual, then the ghost runs to
+/// ω ≈ ε_core). moldft's kinetic_energy_matrix uses the gradient form for the
+/// same reason. Collective.
+template <typename State>
+inline madness::Tensor<double>
+kinetic_gram(madness::World &world, const std::vector<State> &a) {
+  const long m = static_cast<long>(a.size());
+  madness::Tensor<double> T(m, m);
+  if (m == 0) return T;
+  response_space ra(a.size());
+  for (std::size_t i = 0; i < a.size(); ++i) ra[i] = a[i].flatten();
+  for (int d = 0; d < 3; ++d) {
+    madness::real_derivative_3d D(world, d);
+    response_space ga(a.size());
+    for (std::size_t i = 0; i < a.size(); ++i) ga[i] = apply(world, D, ra[i]);
+    T += inner(ga, ga);
+  }
+  T *= 0.5;
+  T = 0.5 * (T + madness::transpose(T));   // exact symmetry against roundoff
+  return T;
+}
+
 // Member-presence detection for the State storage blocks. Used by
 // rs::metric to assemble the RPA overlap from whichever blocks a given
 // (Type, Shell) State actually carries. void_t idiom — same pattern as

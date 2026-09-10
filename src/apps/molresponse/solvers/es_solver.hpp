@@ -272,18 +272,18 @@ private:
 
   void print_debug_norms(int s, const State &in,
                          const std::vector<madness::real_function_3d> &V0x_s,
-                         const std::vector<madness::real_function_3d> &T0x_s,
+                         double t_diag,   // ½Σ|∇x|² (gradient-form kinetic diagonal)
                          const std::vector<madness::real_function_3d> &gamma_s,
                          const std::vector<madness::real_function_3d> &theta_s) const {
     if (print_level_ < PrintLevel::Debug) return;
     // Collective: every rank must call norm2.
     double nx = madness::norm2(world_, in.roots[s].x_alpha);
     double nv = madness::norm2(world_, V0x_s);
-    double nt = madness::norm2(world_, T0x_s);
+    double nt = t_diag;
     double ng = madness::norm2(world_, gamma_s);
     double nh = madness::norm2(world_, theta_s);
     if (world_.rank() != 0) return;
-    printf("[NORMS] iter=%d root=%d  |x|=%.3e  |V0x|=%.3e  |T0x|=%.3e  "
+    printf("[NORMS] iter=%d root=%d  |x|=%.3e  |V0x|=%.3e  <x|T|x>=%.3e  "
            "|gamma|=%.3e  |theta|=%.3e\n",
            in.iter, s, nx, nv, nt, ng, nh);
     fflush(stdout);
@@ -356,9 +356,10 @@ public:
   /// "Keep pieces, rotate them, assemble Theta from rotated pieces."
   /// Default variant — fastest, highest memory.
   /// Algorithm:
-  ///   1. Per root, build V0x, T0x, E0x_full, E0x (no-diag), gamma.
-  ///   2. Assemble Lambda = T0x + V0x - E0x_full + gamma.
-  ///   3. Build A = <X | Lambda>, S = <X | X>, diagonalize → omega, U.
+  ///   1. Per root, build V0x, E0x_full, E0x (no-diag), gamma.
+  ///   2. Assemble Lambda = V0x - E0x_full + gamma (no kinetic term).
+  ///   3. Build A = <X | Lambda> + ½<∇X|∇X> (rs::kinetic_gram), S = <X | X>,
+  ///      diagonalize → omega, U.
   ///   4. Rotate {X, V0x, E0x, gamma} by U  (T0x and E0x_full are
   ///      Lambda-only and can be discarded).
   ///   5. Assemble Theta = V0x - E0x + gamma  (from rotated pieces).
@@ -402,11 +403,11 @@ public:
     // x_alpha; Full-ClosedShell will carry x_alpha + y_alpha; OpenShell
     // adds the *_beta members. Kernel signatures don't change between
     // (Type, Shell); the wrapping is invisible to step().
-    std::vector<Storage> V0x(M), T0x(M), E0x_full(M), E0x(M), gamma(M);
+    std::vector<Storage> V0x(M), E0x_full(M), E0x(M), gamma(M);
     std::vector<madness::real_function_3d> rho_alpha(M);
     out.last_density_residual.assign(M, 0.0);
 
-    // Stage-1 batching: build V0x and T0x for ALL roots in one bundle pass
+    // Stage-1 batching: build V0x for ALL roots in one bundle pass
     // (pure per-function maps — identical to the per-root calls). gamma /
     // E0x / density stay per-root (see kernels/tda_batch.hpp for why).
     bool did_batch_v0t0 = false;
@@ -416,9 +417,7 @@ public:
         const std::size_t n = out.roots[0].x_alpha.size();
         auto Xf  = tda_batch::flatten(out.roots);
         auto V0f = tda_batch::compute_V0x_flat(world_, gs_, Xf);
-        auto T0f = tda_batch::compute_T0x_flat(world_, Xf);
         tda_batch::unflatten_into(V0f, n, V0x);
-        tda_batch::unflatten_into(T0f, n, T0x);
         did_batch_v0t0 = true;
       }
     }
@@ -469,21 +468,20 @@ public:
     out.rho_alpha_prev = std::move(rho_alpha);
     lap(t_gamma);
 
-    // ops pass (per-root V0x/T0x if not batched, + E0x_full, E0x).
+    // ops pass (per-root V0x if not batched, + E0x_full, E0x).
     for (int s = 0; s < M; ++s) {
       if (!did_batch_v0t0) {
         V0x[s]    = K::compute_V0x(world_, gs_, out.roots[s]);
-        T0x[s]    = K::compute_T0x(world_, gs_, out.roots[s]);
       }
       E0x_full[s] = K::compute_E0x_full(world_, gs_, out.roots[s]);
       E0x[s]      = K::compute_E0x(world_, gs_, out.roots[s]);
     }
 
     // ---- 2. assemble Lambda per root --------------------------------------
+    // Λ here EXCLUDES the kinetic term; it enters A in gradient form below.
     std::vector<Storage> lambda(M);
     for (int s = 0; s < M; ++s) {
-      lambda[s] = assemble_lambda(world_, T0x[s], V0x[s],
-                                  E0x_full[s], gamma[s]);
+      lambda[s] = assemble_lambda(world_, V0x[s], E0x_full[s], gamma[s]);
     }
     lap(t_build);  // ops pass + Lambda assembly
 
@@ -502,7 +500,10 @@ public:
     // correct symplectic metric (legacy ExcitedResponse.cpp:871). The
     // rotation U mixes ROOTS not spins, so applying it to the flat
     // concat equals applying per spin block.
+    // Kinetic block in gradient form (symmetric PSD); see rs::kinetic_gram.
+    const auto Tg = rs::kinetic_gram(world_, out.roots);
     auto A     = rs::inner(out.roots, lambda);
+    A += Tg;
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
@@ -564,7 +565,7 @@ public:
         }
         tda_batch::unflatten_into(NXf, n, out.roots);
         for (int s = 0; s < M; ++s)
-          print_debug_norms(s, in, V0x[s].x_alpha, T0x[s].x_alpha,
+          print_debug_norms(s, in, V0x[s].x_alpha, Tg(s, s),
                             gamma[s].x_alpha, theta[s].x_alpha);
         did_batch_bsh = true;
       }
@@ -576,7 +577,7 @@ public:
                                   theta[s], omega_new(s));
         out.last_bsh_residual[s] =
             K::compute_residual_norm(world_, out.roots[s], x_new);
-        print_debug_norms(s, in, V0x[s].x_alpha, T0x[s].x_alpha,
+        print_debug_norms(s, in, V0x[s].x_alpha, Tg(s, s),
                           gamma[s].x_alpha, theta[s].x_alpha);
         out.roots[s] = std::move(x_new);
       }
@@ -616,7 +617,8 @@ public:
   /// rotation to assemble Theta in place." Memory-conscious variant.
   /// Algorithm:
   ///   0. Top-of-iter Q + GS (shared).
-  ///   1+2. Per root, stream Lambda = T0x + V0x − E0x_full + gamma,
+  ///   1+2. Per root, stream Lambda = V0x − E0x_full + gamma (kinetic block
+  ///        added to A in gradient form),
   ///        freeing each kernel temporary after it's folded in.
   ///   3. Subspace A = <X|Λ>, S = <X|X>, diagonalize → omega, U.
   ///   4. Rotate X only (drop Lambda).
@@ -651,13 +653,10 @@ public:
         out.last_density_residual[s] = drho.norm2();
       }
 
-      // Stream Lambda = T0x + V0x − E0x_full + gamma. Each temporary
-      // is scoped: built, axpy'd into lambda[s], then freed.
-      lambda[s] = K::compute_T0x(world_, gs_, out.roots[s]);
-      {
-        auto V = K::compute_V0x(world_, gs_, out.roots[s]);
-        lambda[s].axpy(world_, +1.0, V);
-      }
+      // Stream Lambda = V0x − E0x_full + gamma (kinetic block added to A in
+      // gradient form below — rs::kinetic_gram). Each temporary is scoped:
+      // built, axpy'd into lambda[s], then freed.
+      lambda[s] = K::compute_V0x(world_, gs_, out.roots[s]);
       {
         auto Efull = K::compute_E0x_full(world_, gs_, out.roots[s]);
         lambda[s].axpy(world_, -1.0, Efull);
@@ -675,6 +674,7 @@ public:
     // flatten/from_flat happen under the hood, so OpenShell α+β bundle
     // metric and slot-preserving rotation come for free.
     auto A     = rs::inner(out.roots, lambda);
+    A += rs::kinetic_gram(world_, out.roots);   // gradient-form kinetic block
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
@@ -796,14 +796,13 @@ public:
     for (int k = 0; k < nA; ++k) out.roots[act[k]] = A_roots[k];
 
     // ---- per-active-root building blocks ----------------------------------
-    std::vector<Storage> V0x(nA), T0x(nA), E0x_full(nA), E0x(nA), gamma(nA);
+    std::vector<Storage> V0x(nA), E0x_full(nA), E0x(nA), gamma(nA);
     std::vector<madness::real_function_3d> rho_alpha(nA);
     for (int k = 0; k < nA; ++k) {
       const int s = act[k];
       rho_alpha[k] = K::compute_density(world_, gs_, out.roots[s]);
       gamma[k]     = K::compute_gamma(world_, gs_, out.roots[s], rho_alpha[k]);
       V0x[k]       = K::compute_V0x(world_, gs_, out.roots[s]);
-      T0x[k]       = K::compute_T0x(world_, gs_, out.roots[s]);
       E0x_full[k]  = K::compute_E0x_full(world_, gs_, out.roots[s]);
       E0x[k]       = K::compute_E0x(world_, gs_, out.roots[s]);
       if (s < static_cast<int>(in.rho_alpha_prev.size()) &&
@@ -814,14 +813,15 @@ public:
     }
 
     // ---- subspace over the ACTIVE block only ------------------------------
-    std::vector<Storage> lambda(nA);
+    std::vector<Storage> lambda(nA);   // V0x − E0x_full + γ; kinetic added to A below
     for (int k = 0; k < nA; ++k)
-      lambda[k] = assemble_lambda(world_, T0x[k], V0x[k], E0x_full[k], gamma[k]);
+      lambda[k] = assemble_lambda(world_, V0x[k], E0x_full[k], gamma[k]);
 
     std::vector<Storage> act_roots;
     act_roots.reserve(nA);
     for (int i : act) act_roots.push_back(out.roots[i]);
     auto A     = rs::inner(act_roots, lambda);
+    A += rs::kinetic_gram(world_, act_roots);   // gradient-form kinetic block
     auto S_mat = rs::metric(act_roots, act_roots);
     auto dr    = rs::diagonalize(A, S_mat, /*thresh_degenerate=*/-1.0,
                                  policy_.cluster_unmix_factor,
