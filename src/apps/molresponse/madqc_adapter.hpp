@@ -386,12 +386,14 @@ struct molresponse_v3_lib {
     // moldft's native archive as <prefix>.restartdata.h5 (same stream, one
     // blob) so a calc dir can carry GS + response + ES in HDF5. Native stays
     // authoritative for moldft; GroundState::from_archive reads either.
-    if (hdf5_io_enabled()) {
-      int have = 0;
-      if (world.rank() == 0) have = fs::exists(archive + ".h5") ? 1 : 0;
-      world.gop.broadcast(have, 0);
-      if (!have) gs.save_archive_hdf5(world, archive + ".h5");
-    }
+    // Always (re)write: the DALTON GS seed hook writes <prefix>.restartdata.h5
+    // BEFORE moldft runs (its HDF5 twin of the seed), so an existence check
+    // here kept the unconverged seed as the .h5 GS (closeout attempt 9, 2026-09-10:
+    // seed_h2o.restartdata.h5 == the 12:01:12 seed twin, native at 12:01:41).
+    // Native was still preferred by from_archive, so nothing was mis-loaded,
+    // but a native-less consumer would have read the seed. The preserved twin
+    // lives under <prefix>.gs_seed.restartdata.h5.
+    if (hdf5_io_enabled()) gs.save_archive_hdf5(world, archive + ".h5");
 #endif
 
     // Deck `dalton.dir <path>` — the seed-from-directory import contract

@@ -211,6 +211,15 @@ endif()
 # path in and breaks the xeonmax toolchain — see es_bench MPI notes).
 add_mad_executable(seed_from_dalton "tools/seed_from_dalton.cpp;GroundState.cpp" "MADchem")
 
+# Standalone writer of the production ES seed bundle (seed_es_from_dalton), for
+# es_overlap diagnostics against a converged cold bundle.
+add_mad_executable(dalton_es_seed_bundle "tools/dalton_es_seed_bundle.cpp;GroundState.cpp" "MADchem")
+if(MADNESS_ENABLE_HDF5)
+  target_include_directories(dalton_es_seed_bundle PRIVATE ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(dalton_es_seed_bundle PRIVATE ${HDF5_LIBRARIES})
+  target_compile_definitions(dalton_es_seed_bundle PRIVATE MADNESS_HAS_HDF5)
+endif()
+
 # dalton-cis-seed (GS): project the occupied DALTON/molden MOs and write a
 # moldft version-4 .restartdata (native path only, no HDF5). Ground-state analogue
 # of seed_from_dalton; moldft --restart resumes from it (SCF::load_mos).
