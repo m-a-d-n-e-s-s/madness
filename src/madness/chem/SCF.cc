@@ -1350,6 +1350,22 @@ std::vector<int> SCF::group_orbital_sets(World& world, const tensorT& eps,
 }
 
 
+void SCF::apply_explicit_occupations(World& world) {
+    auto apply = [&](tensorT& occ, const std::vector<double>& input, const char* label) {
+        if (input.empty()) return;
+        MADNESS_CHECK_THROW(long(input.size()) <= occ.size(), "explicit occupations exceed the number of orbitals");
+        for (size_t i = 0; i < input.size(); ++i) occ[i] = input[i];
+        if (world.rank() == 0 && param.print_level() > 1) {
+            printf("  explicit %s occupations:", label);
+            for (long i = 0; i < occ.size(); ++i) printf(" %.0f", occ[i]);
+            printf("\n");
+        }
+    };
+    apply(aocc, param.aocc(), "alpha");
+    if (param.have_beta()) apply(bocc, param.bocc(), "beta");
+}
+
+
 void SCF::initial_load_bal(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     LoadBalanceDeux<3> lb(world);
@@ -2525,6 +2541,10 @@ void SCF::solve(World& world) {
     tensorT Q;
     bool do_this_iter = true;
     bool converged = false;
+
+    // Every orbital source (guess, restart, NWChem, the virtual step-down) rebuilds
+    // aocc/bocc as 1 below nalpha/nbeta and 0 above; the input list overrides that here.
+    apply_explicit_occupations(world);
 
     // Shrink subspace until stop localizing/canonicalizing--- probably not a good idea
     // int maxsub_save = param.maxsub;

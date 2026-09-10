@@ -395,6 +395,9 @@ public:
     std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
                                         const tensorT& occ, const int nmo) const;
 
+    /// overwrite the leading occupation numbers with the explicit aocc/bocc input, if given
+    void apply_explicit_occupations(World& world);
+
     static void analyze_vectors(World& world, const vecfuncT& mo,
             const vecfuncT& ao, double vtol,
             const Molecule& molecule, const int print_level,
