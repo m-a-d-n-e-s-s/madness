@@ -544,13 +544,36 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
         std::to_string(gs.orbitals_alpha().size()) +
         " occupied orbitals — different molecule/charge?");
 
-  // ---- exact 1-to-1 frequency match (no nearest fallback) -----------------
+  // ---- exact frequency match; legs absent from the RSPVEC are NOT seeded --
+  // The planner derives frequencies the DALTON grid need not carry (2w for
+  // the SHG A leg at the top grid frequency, w_f/2 for the two-photon legs);
+  // those legs start unseeded (or from the nearest record when seed.freq_tol
+  // is set, see dalton_fd_guess). Warn, drop them, seed the rest. Closeout
+  // job 2162058 aborted here on {X,Y,Z}DIPLEN @ 0.4.
   {
     std::vector<std::pair<int, double>> wanted;
     for (const auto &it : items) wanted.emplace_back(it.axis, it.freq);
     const std::string err =
         match_dalton_frequencies(entries, wanted, m.rspvec_path);
-    if (!err.empty()) throw std::runtime_error(err);
+    if (!err.empty()) {
+      if (world.rank() == 0)
+        print("[DALTON-SEED] WARNING — some requested FD legs are absent from "
+              "the RSPVEC and will not be seeded:\n", err);
+      std::vector<Item> present;
+      for (const auto &it : items) {
+        bool found = false;
+        for (const auto &e : entries)
+          if (std::string(e.lab1) == dalton_dipole_label(it.axis) &&
+              std::abs(e.freq1 - it.freq) < 1e-9) { found = true; break; }
+        if (found) present.push_back(it);
+      }
+      items = std::move(present);
+      if (items.empty()) {
+        if (world.rank() == 0)
+          print("[DALTON-SEED] no FD leg matches the RSPVEC — FD seeding skipped");
+        return rep;
+      }
+    }
   }
 
   // ---- skip decisions (rank 0 reads metadata; broadcast) ------------------
