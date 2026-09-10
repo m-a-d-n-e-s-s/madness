@@ -42,6 +42,22 @@
 #include <vector>
 
 namespace molresponse_v3 {
+
+/// Run-wide seed directory: `io.dalton.dir` (ParameterManager IOParameters)
+/// wins; the response-block `dalton.dir` is the alias. Same rule for HDF5:
+/// `io.backend hdf5` or the alias `response.hdf5`.
+template <typename Params>
+inline std::string effective_dalton_dir(const Params &params) {
+  const std::string io_dir = params.template get<IOParameters>().dalton_dir();
+  if (!io_dir.empty()) return io_dir;
+  return params.template get<ResponseParameters>().dalton_dir();
+}
+template <typename Params>
+inline bool effective_hdf5(const Params &params) {
+  return params.template get<IOParameters>().hdf5() ||
+         params.template get<ResponseParameters>().hdf5();
+}
+
 // ---------------------------------------------------------------------------
 // GROUND-STATE SEED HOOK (2026-09-09, seeding showcase). Installed by madqc on
 // the SCF application (SCFApplication::set_pre_run_hook) when the deck carries
@@ -179,13 +195,14 @@ struct molresponse_v3_lib {
     // the seed projection lands at the fine rung's (k, thresh). Default
     // 'coarse' = full ladder, unchanged. Shared helper with the standalone
     // driver (apply_seed_start_rung), so the two surfaces agree.
+    const std::string dalton_dir = effective_dalton_dir(params);
     if (apply_seed_start_rung(protocol, rp.seed_start_rung(),
-                              !rp.dalton_dir().empty())) {
+                              !dalton_dir.empty())) {
 
       if (world.rank() == 0)
         print("response: seed.start_rung=fine — dalton.dir seed starts the "
               "ladder at thresh", protocol.front());
-    } else if (rp.seed_start_rung() == "fine" && rp.dalton_dir().empty() &&
+    } else if (rp.seed_start_rung() == "fine" && dalton_dir.empty() &&
                world.rank() == 0) {
       print("response: seed.start_rung=fine ignored — no dalton.dir seed "
             "configured (full ladder runs)");
@@ -308,7 +325,7 @@ struct molresponse_v3_lib {
     in.settings.fd_subworlds = std::max(0, rp.subworlds());
     // Deck `dalton.dir` + `seed.freq_tol` -> nearest-frequency DALTON guess for
     // the derived (two-photon) FD legs (calc_executor solve_fd seam).
-    in.settings.dalton_dir    = rp.dalton_dir();
+    in.settings.dalton_dir    = dalton_dir;
     in.settings.seed_freq_tol = rp.seed_freq_tol();
     in.settings.es_seed_warmup = rp.seed_es_warmup();
     if (world.rank() == 0 && in.settings.fd_subworlds > 0) {
@@ -351,7 +368,7 @@ struct molresponse_v3_lib {
                  : std::string()));
     // Deck-level HDF5 opt-in (response.hdf5 true) — the env var
     // MADRESPONSE_IO_HDF5 still works; the deck parameter wins when set.
-    if (rp.hdf5()) {
+    if (effective_hdf5(params)) {
 #ifdef MADNESS_HAS_HDF5
       set_hdf5_io_enabled(true);
 #else
@@ -380,9 +397,9 @@ struct molresponse_v3_lib {
     // The GS is prepared at protocol.front() above (the documented
     // precondition); geometry-fingerprint / frequency mismatches throw here,
     // failing the response task loudly instead of silently solving cold.
-    if (!rp.dalton_dir().empty()) {
+    if (!dalton_dir.empty()) {
       run_dalton_import(world, gs, scf_calc->molecule, in.plan,
-                        in.settings.calc_dir, rp.dalton_dir(), {}, {}, {}, 1e-4,
+                        in.settings.calc_dir, dalton_dir, {}, {}, {}, 1e-4,
                         /*es_y_from_dalton=*/rp.seed_es_y() == "dalton");
     }
 

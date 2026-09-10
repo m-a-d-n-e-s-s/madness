@@ -281,7 +281,11 @@ int main(int argc, char **argv) {
         // Seeding showcase (2026-09-09): with `dalton.dir` in the deck, the
         // ground state is seeded from the DALTON molden before the SCF plans
         // its restart (see molresponse_v3::seed_gs_from_dalton_dir).
-        if (const std::string ddir = pm.get<ResponseParameters>().dalton_dir();
+        // io.dalton.dir (run-wide) wins; response.dalton.dir is the alias.
+        if (const std::string ddir =
+                !pm.get<IOParameters>().dalton_dir().empty()
+                    ? pm.get<IOParameters>().dalton_dir()
+                    : pm.get<ResponseParameters>().dalton_dir();
             !ddir.empty()) {
           reference->set_pre_run_hook(
               [ddir](World &w, const Params &p, const std::filesystem::path &d) {

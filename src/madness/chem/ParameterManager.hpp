@@ -88,6 +88,13 @@ struct IOParameters : public QCCalculationParametersBase {
         "(MADNESS parallel archives) or hdf5 (single .h5 blobs; requires a "
         "-DMADNESS_ENABLE_HDF5=ON build)",
         {"native", "hdf5"});
+    initialize<std::string>(
+        "dalton.dir", "",
+        "run-wide seed directory: a DALTON run (loose RSPVEC + molden.inp, or a "
+        "unique *.tar.gz) that seeds every stage of this calculation — the SCF "
+        "(molden orbitals), the frequency-dependent response legs (XDIPLEN/... "
+        "records) and the excited states (EXCITLAB records). The response-block "
+        "`dalton.dir` is kept as a working alias; this one wins when both are set.");
   }
 
   std::string get_tag() const override { return std::string(tag); }
@@ -104,6 +111,9 @@ struct IOParameters : public QCCalculationParametersBase {
     return get<std::string>("backend");
   }
   [[nodiscard]] bool hdf5() const { return backend() == "hdf5"; }
+  [[nodiscard]] std::string dalton_dir() const {
+    return get<std::string>("dalton.dir");
+  }
 };
 
 template <typename... Groups> class ParameterManager {
