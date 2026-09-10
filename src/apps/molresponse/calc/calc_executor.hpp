@@ -52,6 +52,26 @@
 #include "../solvers/es_analysis.hpp"
 #include "../solvers/es_save_load.hpp"
 #include "../solvers/es_seed_guard.hpp"
+
+namespace molresponse_v3 {
+/// Where the seed guard should reload the seed from. A DALTON seed written at
+/// the ACTIVE key (es__<key>) is overwritten by the solve itself every
+/// iteration, so seed_es_from_dalton also writes a preserved twin es__<key>.dseed;
+/// prefer it when present (rank-0 existence check, broadcast — every rank must
+/// build the same reference). Collective.
+inline EsSeedReference make_es_seed_reference(madness::World &world,
+                                              const std::string &calc_dir,
+                                              const std::string &bundle_dir,
+                                              const std::string &source_key) {
+  const std::string live = calc_dir + "/" + bundle_dir;
+  int have_twin = 0;
+  if (world.rank() == 0)
+    have_twin = std::filesystem::exists(live + ".dseed/roots.json") ? 1 : 0;
+  world.gop.broadcast(have_twin, 0);
+  if (have_twin) return EsSeedReference{live + ".dseed", bundle_dir + ".dseed", source_key};
+  return EsSeedReference{live, bundle_dir, source_key};
+}
+}  // namespace molresponse_v3
 #include "../solvers/es_solver.hpp"
 #include "../solvers/fd_solver.hpp"
 #include "../solvers/iterate_protocol.hpp"
@@ -72,6 +92,7 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -626,9 +647,8 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
     if (loaded) {
-      seed_ref = EsSeedReference{ctx.calc_dir + "/" + loaded->bundle_dir,
-                                 loaded->bundle_dir,
-                                 loaded->source_protocol_key};
+      seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
+                                        loaded->source_protocol_key);
       s0 = std::move(loaded->state);
       seeded = true;
     }
@@ -785,9 +805,8 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
     if (loaded) {
-      seed_ref = EsSeedReference{ctx.calc_dir + "/" + loaded->bundle_dir,
-                                 loaded->bundle_dir,
-                                 loaded->source_protocol_key};
+      seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
+                                        loaded->source_protocol_key);
       s0 = std::move(loaded->state);
       seeded = true;
       // An EXTERNAL seed (iteration-0 bundle: DALTON EXCITLAB vectors written by

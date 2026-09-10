@@ -976,6 +976,10 @@ seed_es_from_dalton(madness::World &world, GroundState &gs,
     }
     set_common(s);
     save_es_roots<Full, ClosedShell>(world, s, bundle, /*converged=*/false);
+    // Preserved twin: the solve REWRITES es__<key> every iteration, so the
+    // seed guard (es_seed_guard.hpp) compared the solve with itself (attempt 9:
+    // overlap 1.000000 on every root). The executor points the guard here.
+    save_es_roots<Full, ClosedShell>(world, s, bundle + ".dseed", /*converged=*/false);
   } else {
     ESSolver<TDA, ClosedShell>::State s;
     for (int r = 0; r < n_roots; ++r) {
@@ -985,12 +989,13 @@ seed_es_from_dalton(madness::World &world, GroundState &gs,
     }
     set_common(s);
     save_es_roots<TDA, ClosedShell>(world, s, bundle, /*converged=*/false);
+    save_es_roots<TDA, ClosedShell>(world, s, bundle + ".dseed", /*converged=*/false);
   }
   if (world.rank() == 0) {
     auto meta = ResponseMetadata::load_or_create(calc_dir + "/response_metadata.json");
     meta.set_seeded_from(m.provenance());
     meta.save();
-    print("[DALTON-SEED] wrote ES seed bundle", bundle, " roots =", n_roots,
+    print("[DALTON-SEED] wrote ES seed bundle", bundle, " (+ preserved twin .dseed)  roots =", n_roots,
           " type =", full ? "full" : "tda", " y-block =", any_y ? "DALTON" : "zero",
           " (converged=false -> the ES node Resumes from it)");
   }
