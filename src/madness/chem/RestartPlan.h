@@ -156,8 +156,14 @@ enum class GeometryMatch {
 /// Order matters: the orbitals in an archive are expanded about the atoms in
 /// the order the archive's molecule lists them, so a permuted molecule is not
 /// the same molecule as far as restart is concerned.
+// Tolerance: 1e-6 bohr. MRA orbitals at thresh 1e-6 do not resolve smaller
+// displacements, and the same geometry reaches an archive through different
+// parsers at slightly different precision (madqc Params vs moldft's own read
+// differed by 4e-8 bohr on 2026-09-10 and a DALTON-seeded restartdata was
+// rejected as "geometry moved"). A real optimization step moves atoms by
+// >= 1e-4 bohr.
 inline GeometryMatch compare_geometry(const Molecule& archive, const Molecule& requested,
-                                      const double tol = 1.e-8) {
+                                      const double tol = 1.e-6) {
     if (archive.natom() != requested.natom()) return GeometryMatch::different_composition;
     for (std::size_t i = 0; i < requested.natom(); ++i) {
         if (archive.get_atomic_number(i) != requested.get_atomic_number(i))
@@ -497,7 +503,7 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                 if (d > dmax) { dmax = d; imax = i; }
             }
             char buf[160];
-            std::snprintf(buf, sizeof buf, " (max |dR| = %.3e bohr at atom %zu; tolerance 1e-8)", dmax, imax);
+            std::snprintf(buf, sizeof buf, " (max |dR| = %.3e bohr at atom %zu; tolerance 1e-6)", dmax, imax);
             return give_up(std::string("restart auto: geometry moved and no AO projections available") + buf);
         }
     }
