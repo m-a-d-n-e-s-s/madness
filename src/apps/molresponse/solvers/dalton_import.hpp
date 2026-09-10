@@ -946,9 +946,13 @@ seed_es_from_dalton(madness::World &world, GroundState &gs,
       }
       all_y[static_cast<size_t>(r)] = y;
     }
+    // inner() is collective: evaluate on every rank, print on rank 0 (the
+    // rank-0-only call deadlocked the seeded closeout runs 2162075/77/79
+    // until ThreadPool::await timed out).
+    const double x_norm2 = inner(world, x, x).sum();
     if (world.rank() == 0)
       print("[DALTON-SEED] ES root", r, " omega(DALTON) =", e.freq1,
-            " ||x||^2 =", inner(world, x, x).sum(),
+            " ||x||^2 =", x_norm2,
             full ? "  (full X,Y)" : "  (TDA X)");
   }
 
