@@ -426,6 +426,51 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   return slice_state_lowest<Shell>(state, n_roots_final);
 }
 
+/// TDA warmup FROM a given state (no guess build): `warmup_iters` KAIN-free
+/// BSH power iterations of the TDA problem, then sort by omega. Used to bring
+/// an external seed (DALTON EXCITLAB X block, projected + gauge-rotated) to the
+/// quality the Full solver expects at its first iteration. A seed entering the
+/// Full solver directly (residual ~0.1) drove every root to the -eps_core
+/// ghost within 3 iterations on h2o, lih and c2h4 (2026-09-10), with or
+/// without the DALTON y block; the cold path never does that because it hands
+/// the Full solver TDA-converged roots. Same solver settings as
+/// run_oversampled_tda_warmup (kain off, tda_warmup_iters zeroed).
+template <typename Shell>
+typename ESSolver<TDA, Shell>::State
+run_tda_warmup_from_state(madness::World &world, GroundState &gs,
+                          typename ESSolver<TDA, Shell>::State state,
+                          int warmup_iters, ConvergencePolicy base_policy,
+                          double c_xc = 1.0, double lo = 1.0e-10,
+                          PrintLevel print_level = PrintLevel::Normal) {
+  MADNESS_CHECK(warmup_iters >= 0);
+  const long n_roots = static_cast<long>(state.roots.size());
+  ConvergencePolicy warmup_policy = base_policy;
+  warmup_policy.kain             = false;
+  warmup_policy.tda_warmup_iters = 0;
+  if (world.rank() == 0 && print_level >= PrintLevel::Normal)
+    print("\n=== TDA warmup from seed ===  n_roots =", n_roots,
+          "  warmup_iters =", warmup_iters);
+  auto problem = build_es_problem_tda<Shell>(world, gs, n_roots, c_xc, lo);
+  ESSolver<TDA, Shell> warmup_solver(world, std::move(problem), warmup_policy,
+                                     print_level);
+  state.iter = 0;
+  for (int i = 0; i < warmup_iters; ++i) {
+    state = warmup_solver.step(std::move(state));
+    if (state.diverged) {
+      if (world.rank() == 0)
+        print("[WARMUP] aborted at iter", state.iter,
+              "— seed warmup diverged; falling back to last-good state");
+      break;
+    }
+  }
+  warmup_solver.sort_state_by_omega(state);
+  if (world.rank() == 0 && print_level >= PrintLevel::Normal) {
+    print("[WARMUP] final omegas after seed warmup (sorted ascending):");
+    print(state.omega);
+  }
+  return state;
+}
+
 } // namespace molresponse_v3
 
 #endif // MOLRESPONSE_V3_SOLVERS_BUILD_RESPONSE_GROUND_STATE_HPP

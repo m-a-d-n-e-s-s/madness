@@ -779,6 +779,29 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
                                  loaded->source_protocol_key};
       s0 = std::move(loaded->state);
       seeded = true;
+      // An EXTERNAL seed (iteration-0 bundle: DALTON EXCITLAB vectors written by
+      // seed_es_from_dalton / seed_from_dalton) is not Full-ready — its residual
+      // against the MRA operator is ~0.1 and the Full solver diverges from it
+      // (h2o, lih, c2h4, 2026-09-10). Route it the way the cold path routes its
+      // guess: TDA warmup (KAIN off, es_tda_warmup_iters) from the seed's X
+      // block, then promote to Full with y = 0. A bundle saved mid-solve
+      // (iter > 0) is a genuine restart and is used as is.
+      if (s0.iter == 0 && ctx.es_tda_warmup_iters > 0) {
+        if (world.rank() == 0)
+          madness::print("[CALC] solve_es_full: iteration-0 seed bundle -> TDA warmup"
+                         " from the seed (", ctx.es_tda_warmup_iters,
+                         "iters, KAIN off) -> promote to Full (y = 0)");
+        ESSolver<TDA, ClosedShell>::State tda;
+        tda.roots.resize(s0.roots.size());
+        for (std::size_t r = 0; r < s0.roots.size(); ++r)
+          tda.roots[r].x_alpha = madness::copy(world, s0.roots[r].x_alpha);
+        tda.omega = madness::copy(s0.omega);
+        tda.iter  = 0;
+        tda = run_tda_warmup_from_state<ClosedShell>(
+            world, gs, std::move(tda), ctx.es_tda_warmup_iters, warm_policy,
+            c_xc, lo, ctx.print_level);
+        s0 = promote_tda_to_full_closed_shell(world, tda);
+      }
     }
   }
   if (!seeded) {
