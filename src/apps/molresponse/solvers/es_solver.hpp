@@ -337,6 +337,32 @@ public:
   }
 
 private:
+  /// Debug: the four blocks that sum to the Ritz matrix, so an indefinite A can
+  /// be attributed to a piece. T = ½<∇x|∇x> (gradient form), V = <x|V0x>,
+  /// E = <x|E0x_full>, G = <x|γ>; A = T + V − E + G. Collective (inner
+  /// products); prints on rank 0 at Debug.
+  void print_debug_pieces(const std::vector<Storage> &roots,
+                          const madness::Tensor<double> &T,
+                          const std::vector<Storage> &V0x,
+                          const std::vector<Storage> &E0x_full,
+                          const std::vector<Storage> &gamma) const {
+    if (print_level_ < PrintLevel::Debug) return;
+    auto V = rs::inner(roots, V0x);
+    auto E = rs::inner(roots, E0x_full);
+    auto G = rs::inner(roots, gamma);
+    if (world_.rank() != 0) return;
+    print("[DEBUG] T = 1/2<grad x|grad x>:"); print(T);
+    print("[DEBUG] V = <x|V0 x>:");           print(V);
+    print("[DEBUG] E = <x|E0_full x>:");      print(E);
+    print("[DEBUG] G = <x|gamma>:");          print(G);
+    const long n = T.dim(0);
+    printf("[DEBUG] diag pieces (root: T V E G  | T+V-E+G):\n");
+    for (long i = 0; i < n; ++i)
+      printf("   %2ld: %10.5f %10.5f %10.5f %10.5f  | %10.5f\n", i, T(i,i), V(i,i), E(i,i), G(i,i),
+             T(i,i)+V(i,i)-E(i,i)+G(i,i));
+    fflush(stdout);
+  }
+
   /// KAIN hold-off (policy.kain_min_residual): true when THIS iteration's raw
   /// BSH residual is still too large for a subspace extrapolation to be
   /// trustworthy. Rank-uniform (residuals are replicated). Prints at Verbose.
@@ -518,6 +544,7 @@ public:
     const auto Tg = rs::kinetic_gram(world_, out.roots);
     auto A     = rs::inner(out.roots, lambda);
     A += Tg;
+    print_debug_pieces(out.roots, Tg, V0x, E0x_full, gamma);
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
@@ -835,7 +862,11 @@ public:
     act_roots.reserve(nA);
     for (int i : act) act_roots.push_back(out.roots[i]);
     auto A     = rs::inner(act_roots, lambda);
-    A += rs::kinetic_gram(world_, act_roots);   // gradient-form kinetic block
+    {
+      const auto Tg = rs::kinetic_gram(world_, act_roots);   // gradient-form kinetic block
+      A += Tg;
+      print_debug_pieces(act_roots, Tg, V0x, E0x_full, gamma);
+    }
     auto S_mat = rs::metric(act_roots, act_roots);
     auto dr    = rs::diagonalize(A, S_mat, /*thresh_degenerate=*/-1.0,
                                  policy_.cluster_unmix_factor,
