@@ -353,6 +353,14 @@ struct molresponse_v3_lib {
               "sidesteps the question entirely on multi-node runs.");
     }
     in.settings.policy.dconv_user = rp.dconv();
+    // Deck overrides for the iteration policy (2026-09-10): the response block's
+    // `kain` / `maxrotn` reach the FD/ES solvers only when the deck SETS them.
+    // The deck default kain=false predates the solvers' KAIN-on default;
+    // honouring it unconditionally would switch KAIN off for every run.
+    if (rp.is_user_defined("kain"))    in.settings.policy.kain    = rp.kain();
+    if (rp.is_user_defined("maxrotn")) in.settings.policy.maxrotn = rp.maxrotn();
+    if (rp.is_user_defined("kain.min_residual"))
+      in.settings.policy.kain_min_residual = rp.kain_min_residual();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
     // ES initial-guess knobs (deck: response { excited.guess virtual_ao,

@@ -23,6 +23,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
         initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
         initialize<bool>("kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
+        initialize<double>("kain.min_residual", 0.1,
+                           "KAIN hold-off: apply KAIN in an iteration only when its raw BSH "
+                           "residual is below this (plain BSH steps above it; a DALTON-seeded "
+                           "ES start at 20-25% residual otherwise derails on KAIN's first "
+                           "extrapolation). 0 disables.");
         initialize<double>("maxrotn", .50, "Max orbital rotation per iteration");
         initialize<size_t>("maxsub", 8, "size of iterative subspace ... set to 0 or 1 to disable");
         initialize<std::string>("xc", "hf", "XC input line");
@@ -218,6 +223,9 @@ public:
     }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");
+    }
+    [[nodiscard]] double kain_min_residual() const {
+        return get<double>("kain.min_residual");
     }
     [[nodiscard]] size_t maxsub() const {
         return get<size_t>("maxsub");

@@ -337,6 +337,20 @@ public:
   }
 
 private:
+  /// KAIN hold-off (policy.kain_min_residual): true when THIS iteration's raw
+  /// BSH residual is still too large for a subspace extrapolation to be
+  /// trustworthy. Rank-uniform (residuals are replicated). Prints at Verbose.
+  bool kain_held_off(const State &out) const {
+    if (policy_.kain_min_residual <= 0.0 || out.last_bsh_residual.empty()) return false;
+    double mx = 0.0;
+    for (double r : out.last_bsh_residual) mx = std::max(mx, r);
+    const bool hold = mx > policy_.kain_min_residual;
+    if (hold && print_level_ >= PrintLevel::Verbose && world_.rank() == 0)
+      printf("[KAIN] iter=%d HOLD (raw BSH max_res=%.3e > kain_min_residual=%.3e): plain BSH step, no history\n",
+             out.iter, mx, policy_.kain_min_residual);
+    return hold;
+  }
+
   /// Final stage shared by both variants — KAIN apply, explosion
   /// guard, banner, log. Mutates out in place.
   void finalize_iter(const State &in, State &out,
@@ -344,7 +358,7 @@ private:
     (void)in;
     const int kain_diag =
         (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-    kain_.apply(x_pre_bsh, out.roots, kain_diag);
+    if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag);
     for (double r : out.last_bsh_residual) {
       if (r > policy_.explosion_guard) { out.diverged = true; break; }
     }
@@ -589,7 +603,7 @@ public:
     {
       const int kain_diag =
           (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-      kain_.apply(x_pre_bsh, out.roots, kain_diag);
+      if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag);
     }
     lap(t_bsh);  // BSH apply + residual + KAIN
 
@@ -856,7 +870,7 @@ public:
     // ---- KAIN + step restriction on ACTIVE slots only (masked) ------------
     {
       const int kain_diag = (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-      kain_.apply(x_pre_bsh, out.roots, kain_diag, &out.locked);
+      if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag, &out.locked);
     }
 
     // ---- explosion guard (active) -----------------------------------------

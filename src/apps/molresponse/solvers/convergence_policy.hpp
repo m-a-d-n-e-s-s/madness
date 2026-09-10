@@ -138,6 +138,17 @@ struct ConvergencePolicy {
   // actually accelerate strongly-polarizable response iterations;
   // back-set to 3.0 if you want strict SCF semantics.
   double kain_cmax_cap = 100.0;
+  // KAIN hold-off for rough starts (2026-09-10). KAIN is applied in an
+  // iteration only when that iteration's raw BSH residual (max over roots)
+  // is already below this value; above it the step is the plain BSH update
+  // and no history is recorded. Why: a DALTON-seeded ES solve enters with a
+  // 20-25 % residual; at its second iteration KAIN extrapolated from a
+  // two-vector history with coefficients of 5-8, the step-restriction cap
+  // then scaled that garbage direction into the state, and the next Ritz
+  // matrix had a negative eigenvalue (the "eps_core ghost", closeout
+  // attempts 3-10, lih/h2o/c2h4). The cold path never exposes KAIN to such a
+  // start because its TDA warm-up is KAIN-free. 0 disables the hold-off.
+  double kain_min_residual = 0.1;
   // Warmup oversampling factor — used by the run_oversampled_tda_warmup
   // helper. The warm-up phase runs with ceil(warmup_oversample_factor *
   // n_roots) trial states; after warmup completes the lowest n_roots
