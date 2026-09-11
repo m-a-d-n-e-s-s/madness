@@ -355,12 +355,20 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 
             for (long i=0; i<np; i++) {
                 dens[i]=munge(2.0*rhoa[i]);     // full dens is twice alpha dens
-                ddensx[i]=dens[i]*zetaa_x[i];
-                ddensy[i]=dens[i]*zetaa_y[i];
-                ddensz[i]=dens[i]*zetaa_z[i];
+                // one mask per point, applied to BOTH the gradient and the sigma
+                // floor so the two cannot disagree about whether there is any
+                // density here
+                const double m = (2.0*rhoa[i] <= rhotol) ? 0.0 : 1.0;
+                ddensx[i]=m*dens[i]*zetaa_x[i];
+                ddensy[i]=m*dens[i]*zetaa_y[i];
+                ddensz[i]=m*dens[i]*zetaa_z[i];
                 // sigma = |grad rho|^2 contracted from the very gradient handed to
-                // libxc, not read from a separately represented chi -- see chi_of()
-                sig[i] = std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
+                // libxc, not read from a separately represented chi -- see chi_of().
+                // The positivity floor must not fire where munge() has already taken
+                // the density away: grad(rho) is zero there, so (rho=0, sigma=1e-14)
+                // is a state no density can be in, and the exact bound
+                // tau >= sigma/(8 rho) becomes unsatisfiable rather than merely tight.
+                sig[i] = m*std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
             }
 
             if (needs_tau()) {
@@ -497,12 +505,17 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
 
-                ddensx[2*i  ]=ra * zetaa_x[i];
-                ddensx[2*i+1]=rb * zetab_x[i];
-                ddensy[2*i  ]=ra * zetaa_y[i];
-                ddensy[2*i+1]=rb * zetab_y[i];
-                ddensz[2*i  ]=ra * zetaa_z[i];
-                ddensz[2*i+1]=rb * zetab_z[i];
+                // one mask per spin channel, shared by that channel's gradient and
+                // its sigma floor -- see the spin-restricted branch above
+                const double ma = (rhoa[i] <= rhotol) ? 0.0 : 1.0;
+                const double mb = (rhob[i] <= rhotol) ? 0.0 : 1.0;
+
+                ddensx[2*i  ]=ma * ra * zetaa_x[i];
+                ddensx[2*i+1]=mb * rb * zetab_x[i];
+                ddensy[2*i  ]=ma * ra * zetaa_y[i];
+                ddensy[2*i+1]=mb * rb * zetab_y[i];
+                ddensz[2*i  ]=ma * ra * zetaa_z[i];
+                ddensz[2*i+1]=mb * rb * zetab_z[i];
 
                 // Contract the sigma matrix from the same zeta vectors, so that it is
                 // the exact Gram matrix of grad(rho_a), grad(rho_b) at this point:
@@ -518,8 +531,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                                               zetab_x,zetab_y,zetab_z,i);
                 // the positivity floor is for libxc's benefit; raising a diagonal
                 // could break Cauchy-Schwarz on its own, so re-impose the bound after
-                saa = std::max(1.e-14,saa);
-                sbb = std::max(1.e-14,sbb);
+                saa = ma*std::max(1.e-14,saa);
+                sbb = mb*std::max(1.e-14,sbb);
                 const double cs = std::sqrt(saa*sbb);
                 sab = std::min(cs,std::max(-cs,sab));
 
