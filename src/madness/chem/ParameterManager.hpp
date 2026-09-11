@@ -1,6 +1,7 @@
 #pragma once
 #include <madness/chem/CCParameters.h>
 #include <madness/chem/CalculationParameters.h>
+#include <algorithm>
 #include <madness/chem/ResponseParameters.hpp>
 #include <madness/chem/TDHF.h>
 #include <madness/chem/oep.h>
@@ -190,7 +191,15 @@ public:
     // dconv and maxiter used to be independent defaults (1e-6 / 25) that
     // silently disagreed with the dft block.
     auto &rp = this->get<ResponseParameters>();
-    rp.set_derived_value("dconv", cparam.dconv());
+    // Response dconv: when the deck does not set it, the protocol IS the
+    // criterion — derive dconv from the finest protocol threshold. The solvers
+    // gate at 5 x max(thresh, dconv) (convergence_policy.hpp), so this makes
+    // every rung converge as far as its own basis allows instead of stopping
+    // at a fixed 1e-4 (2026-09-11: the 1e-8 closeout series must not be
+    // limited by the criterion; moldft itself keeps max(thresh, dft.dconv)).
+    const auto proto = cparam.protocol();
+    const double finest = proto.empty() ? 1.0e-6 : *std::min_element(proto.begin(), proto.end());
+    rp.set_derived_value("dconv", finest);
     rp.set_derived_value("maxiter", static_cast<size_t>(cparam.maxiter()));
   }
 
