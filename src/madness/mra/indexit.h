@@ -38,6 +38,7 @@
 
 #include <vector>
 #include <madness/world/print.h>
+#include <madness/world/vector.h>
 
 namespace madness {
 

@@ -287,8 +287,16 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// Sets the cell widths used to order the displacements by real-space distance, and reorders them
+        /// if the widths changed. Called by FunctionDefaults::recompute_cell_info whenever the cell is set.
+        /// @warning reorders the lists in place: must not be called while operators are being applied
+        ///          (see FunctionDefaults::set_cell)
         static void set_width(const Tensor<double>& width) {
-          widths = width;
+          MADNESS_ASSERT(width.ndim() == 1 && width.size() == NDIM);
+          bool changed = widths.ndim() != 1 || widths.size() != NDIM;
+          for (std::size_t i = 0; !changed && i != NDIM; ++i) changed = widths(i) != width(i);
+          if (!changed) return;
+          widths = copy(width);
           if (!disp.empty()) {
             std::sort(disp.begin(), disp.end(), cmp_keys);
           }
