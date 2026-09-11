@@ -49,6 +49,7 @@ class NemoBase;
 class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
+struct nemo_u1_functors;
 class MacroTaskQ;
 class Molecule;
 
@@ -798,9 +799,22 @@ public:
     /// @param[in]  aocc occupation numbers of amo
     /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
     /// @param[in]  bocc occupation numbers of bmo
+    /// how the two U1 terms of tau's product rule are evaluated
+
+    /// U1 = -grad(R)/R is analytic but componentwise non-smooth at each nucleus
+    /// (U1_x ~ x/r), so carrying it as an MRA Function costs depth ~18 and every
+    /// product with it inherits that depth -- which refine_to_common_level then
+    /// imposes on every xc intermediate.
+    enum class TauU1 {
+        mra,         ///< U1 and |U1|^2 projected into Functions and multiplied
+        pointwise    ///< U1 evaluated from its functor at the orbital tree's
+                     ///< quadrature points; nothing involving it is projected
+    };
+
     void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
                  const vecfuncT& bmo=vecfuncT(),
-                 const Tensor<double>& bocc=Tensor<double>()) const;
+                 const Tensor<double>& bocc=Tensor<double>(),
+                 const TauU1 u1mode=TauU1::pointwise) const;
 
     /// the kinetic energy density of one spin channel, as set by set_tau()
 
@@ -885,6 +899,16 @@ private:
 
     /// divergence of a vector field, honouring dft_deriv
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
+    /// true once set_tau() has supplied tau, by either route
+    bool has_tau_args() const;
+
+    /// the four analytic U1 quantities the xc ops evaluate pointwise
+
+    /// Empty unless the pointwise route is in use. They are handed to the op rather
+    /// than projected into xc_args precisely because a projected product with U1 is
+    /// what rings; see nemo_u1_functors.
+    nemo_u1_functors make_u1_functors() const;
 
     /// compute the intermediates for the XC functionals
 

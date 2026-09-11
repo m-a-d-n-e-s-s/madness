@@ -543,13 +543,18 @@ struct nemo_u1_functors {
 /// Class to compute the energy functional
 struct xc_functional {
     const XCfunctional* xc;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_functional(const XCfunctional& xc) : xc(&xc) {}
+    xc_functional(const XCfunctional& xc, const nemo_u1_functors& u1) : xc(&xc), u1(u1) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        return xc->exc(t);
+        if (not u1.active()) return xc->exc(t);
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->exc(tt);
     }
 };
 
@@ -558,8 +563,12 @@ struct xc_functional {
 struct xc_potential {
     const XCfunctional* xc;
     const int ispin;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
+    {}
+    xc_potential(const XCfunctional& xc, int ispin, const nemo_u1_functors& u1)
+            : xc(&xc), ispin(ispin), u1(u1)
     {}
 
     std::size_t get_result_size() const {
@@ -577,8 +586,12 @@ struct xc_potential {
     std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
-        return r;
+        if (not u1.active()) return xc->vxc(t, ispin);
+        // U1 is cuspy, so it arrives here as values rather than as a Function --
+        // see nemo_u1_functors. Nothing involving it is ever projected.
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->vxc(tt, ispin);
     }
 };
 

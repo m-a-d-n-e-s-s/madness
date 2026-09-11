@@ -299,6 +299,56 @@ static inline double chi_of(const double* sx, const double* sy, const double* sz
     return sx[i]*sx[i] + sy[i]*sy[i] + sz[i]*sz[i];
 }
 
+/// assemble the regularized alpha/beta tau pointwise, or return NULL
+
+/// With psi = R F the product rule gives
+/// \f[ \tau_\sigma = \tfrac12 R^2\left(\sum_i w_i|\nabla F_i|^2
+///        - 2\,\mathbf U_1\!\cdot\!\mathbf G_\sigma + |\mathbf U_1|^2 n_\sigma\right) \f]
+/// with \f$ \mathbf G_\sigma=\sum_i w_iF_i\nabla F_i \f$. Everything but U1 is smooth and
+/// arrives as an MRA function; U1 arrives as values from its functor (nemo_u1_functors),
+/// so no product involving it is ever projected onto a tree. That is the whole point:
+/// the projected form rings across a box wherever the tree is coarser than U1's
+/// eprec-scale structure, and the ringing does not converge away.
+///
+/// Returns an empty Tensor when the nemo pieces are absent, which is the moldft path --
+/// there tau is computed directly from the physical orbitals and lives in enum_taua/b.
+static madness::Tensor<double> assemble_nemo_tau(
+        const std::vector<madness::Tensor<double> >& t, const long np, const bool beta) {
+
+    const int e_grad = beta ? XCfunctional::enum_gradfb : XCfunctional::enum_gradfa;
+    const int e_n    = beta ? XCfunctional::enum_nb     : XCfunctional::enum_na;
+    const int e_gx   = beta ? XCfunctional::enum_Gb_x   : XCfunctional::enum_Ga_x;
+    const int e_gy   = beta ? XCfunctional::enum_Gb_y   : XCfunctional::enum_Ga_y;
+    const int e_gz   = beta ? XCfunctional::enum_Gb_z   : XCfunctional::enum_Ga_z;
+
+    if (long(t.size()) <= XCfunctional::enum_u1sq) return madness::Tensor<double>();
+    if (not t[e_grad].size() or not t[XCfunctional::enum_nemo_R2].size())
+        return madness::Tensor<double>();
+    if (not t[XCfunctional::enum_u1sq].size())
+        MADNESS_EXCEPTION("regularized tau pieces present but U1 was not supplied: "
+                          "the xc op must be built with nemo_u1_functors",1);
+
+    const double * MADNESS_RESTRICT gf = t[e_grad].ptr();
+    const double * MADNESS_RESTRICT n  = t[e_n].ptr();
+    const double * MADNESS_RESTRICT gx = t[e_gx].ptr();
+    const double * MADNESS_RESTRICT gy = t[e_gy].ptr();
+    const double * MADNESS_RESTRICT gz = t[e_gz].ptr();
+    const double * MADNESS_RESTRICT r2 = t[XCfunctional::enum_nemo_R2].ptr();
+    const double * MADNESS_RESTRICT ux = t[XCfunctional::enum_u1_x].ptr();
+    const double * MADNESS_RESTRICT uy = t[XCfunctional::enum_u1_y].ptr();
+    const double * MADNESS_RESTRICT uz = t[XCfunctional::enum_u1_z].ptr();
+    const double * MADNESS_RESTRICT u2 = t[XCfunctional::enum_u1sq].ptr();
+
+    madness::Tensor<double> tau_s(np);
+    double * MADNESS_RESTRICT out = tau_s.ptr();
+    for (long i=0; i<np; ++i) {
+        out[i] = 0.5*r2[i]*( gf[i] - 2.0*(ux[i]*gx[i] + uy[i]*gy[i] + uz[i]*gz[i])
+                             + u2[i]*n[i] );
+    }
+    return tau_s;
+}
+
+
 /// \f[ \nabla\rho_s = R^2(\nabla n_s - 2\mathbf U_1 n_s) = 2R^2(\mathbf G_s - \mathbf U_1 n_s) \f]
 /// Smooth pieces from MRA, U1 from its functor -- neither differentiated numerically
 /// nor projected, whereas the alternative takes zeta = grad(log rho), a numerical
@@ -436,7 +486,11 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
 
             if (needs_tau()) {
-                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
+                // the regularized route assembles tau here, from smooth MRA pieces
+                // and U1 values; the moldft route hands it over ready-made
+                const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
+                const double * MADNESS_RESTRICT taua =
+                        nemo_taua.size() ? nemo_taua.ptr() : xc_args[enum_taua].ptr();
                 // Substituting zeros here would evaluate the functional at the tau
                 // floor and return a plausible-looking but wrong energy, so the
                 // missing precondition has to be an error, not a default.
@@ -632,8 +686,14 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
 
             if (needs_tau()) {
-                const double * MADNESS_RESTRICT taua = xc_args[enum_taua].ptr();
-                const double * MADNESS_RESTRICT taub = xc_args[enum_taub].ptr();
+                // as in the unpolarized branch: assembled here on the regularized
+                // route, handed over ready-made on the moldft one
+                const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
+                const madness::Tensor<double> nemo_taub = assemble_nemo_tau(xc_args, np, true);
+                const double * MADNESS_RESTRICT taua =
+                        nemo_taua.size() ? nemo_taua.ptr() : xc_args[enum_taua].ptr();
+                const double * MADNESS_RESTRICT taub =
+                        nemo_taub.size() ? nemo_taub.ptr() : xc_args[enum_taub].ptr();
                 if (taua==NULL) MADNESS_EXCEPTION("meta-gga without a kinetic energy "
                         "density: XCOperator::set_tau() must be called before the "
                         "functional is evaluated",1);
