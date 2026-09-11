@@ -768,23 +768,35 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
             }
 
             // de/dtau of the spin this operator acts on; the caller turns it into
-            // the non-multiplicative operator -1/2 nabla.(de/dtau nabla psi)
+            // the non-multiplicative operator -1/2 nabla.(de/dtau nabla psi).
+            // Accumulated RAW -- the screen is applied once to the finished mixture
+            // after this loop, not per functional.
             if (meta) {
                 double * MADNESS_RESTRICT rt = result[spin_polarized ? 7 : 4].ptr();
-                // Unlike the semilocal flux terms, which carry a factor rho*zeta and
-                // are damped in the tail on their own, de/dtau multiplies grad(psi).
-                // That does not vanish nearly as fast, and de/dtau itself diverges
-                // where the density is negligible -- it reaches O(100) on the atomic
-                // initial guess. Screen it on the density, as the response kernel does.
                 for (long j=0; j<np; j++)
-                    rt[j] += binary_munge(vt[nvrho*j+ispin]*funcs[i].second,
-                                          dens[nvrho*j+ispin],ggatol);
+                    rt[j] += vt[nvrho*j+ispin]*funcs[i].second;
             }
         }
         break;
         default:
             MADNESS_EXCEPTION("unknown XC_FAMILY xcfunctional::vxc",1);
         }
+    }
+
+    // Screen de/dtau on the density, once, now that the mixture is complete.
+    // Unlike the semilocal flux terms, which carry a factor rho*zeta and are damped
+    // in the tail on their own, de/dtau multiplies grad(psi). That does not vanish
+    // nearly as fast, and de/dtau itself diverges where the density is negligible --
+    // it reaches O(100) on the atomic initial guess.
+    //
+    // Screening inside the loop above treated each functional separately, and
+    // binary_munge REPLACES its argument by rhomin rather than zeroing it, so n
+    // functionals left n*rhomin in the screened region instead of rhomin. A
+    // single-functional line cannot show it; pbe and tpss, which are two, can.
+    if (is_meta()) {
+        double * MADNESS_RESTRICT rt = result[spin_polarized ? 7 : 4].ptr();
+        for (long j=0; j<np; j++)
+            rt[j] = binary_munge(rt[j], dens[nvrho*j+ispin], ggatol);
     }
 
     // check for NaNs
