@@ -19,6 +19,7 @@ MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
 #include <madness/mra/key.h>
 #include <madness/world/MADworld.h>
 #include <madness/mra/function_common_data.h>
+#include <madness/mra/function_interface.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -91,9 +92,43 @@ public:
         // hole rather than reused, so the surviving indices keep their meaning.
         enum_ddens_ptx=25,      ///< \f$ \nabla\rho_{pt}\f$
         enum_ddens_pty=26,      ///< \f$ \nabla\rho_{pt}\f$
-        enum_ddens_ptz=27       ///< \f$ \nabla\rho_{pt}\f$
+        enum_ddens_ptz=27,      ///< \f$ \nabla\rho_{pt}\f$
+
+        // ---- the nemo meta-gga decomposition, kept apart on purpose ----------
+        //
+        // With psi = R F the product rule gives
+        //   |grad psi|^2 = R^2 ( |grad F|^2 - 2 F U1.grad F + |U1|^2 F^2 ).
+        // The first group below is everything in that expression which is SMOOTH:
+        // F is cusp-free by construction, so |grad F|^2, n and G are shallow (depth
+        // 8-9 on LiH) and belong in MRA. R^2 is smooth too.
+        //
+        // U1 = -grad(R)/R is not. U1_x ~ x/r is non-smooth at every nucleus
+        // componentwise, its direction smoothed only over eprec, and as a Function
+        // it costs depth ~20. Carrying it in MRA is bad twice over: the depth taxes
+        // every intermediate through refine_to_common_level, and any *product* with
+        // it has to be projected onto a fixed tree, which is where the oscillations
+        // come from. So it is never a Function. The second group is filled by the
+        // op from the analytic functor at the quadrature points of the box it is
+        // already working on -- exactly as make_libxc_args contracts zeta pointwise
+        // rather than carrying chi. See nemo_u1_functors.
+        enum_nemo_R2=28,        ///< \f$ R^2 \f$, the ncf squared          [MRA, smooth]
+        enum_gradfa=29,         ///< \f$ \sum_i w_i|\nabla F_{i\alpha}|^2 \f$  [MRA, smooth]
+        enum_gradfb=30,         ///< beta counterpart                        [MRA, smooth]
+        enum_na=31,             ///< \f$ n_\alpha=\sum_i w_iF_{i\alpha}^2 \f$   [MRA, smooth]
+        enum_nb=32,             ///< beta counterpart                        [MRA, smooth]
+        enum_Ga_x=33,           ///< \f$ G_{\alpha,x}=\sum_i w_iF_i\partial_xF_i \f$ [MRA, smooth]
+        enum_Ga_y=34,           ///< \f$ G_{\alpha,y} \f$                    [MRA, smooth]
+        enum_Ga_z=35,           ///< \f$ G_{\alpha,z} \f$                    [MRA, smooth]
+        enum_Gb_x=36,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_y=37,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_z=38,           ///< beta counterpart                        [MRA, smooth]
+
+        enum_u1_x=39,           ///< \f$ U_{1,x} \f$        [functor, never MRA]
+        enum_u1_y=40,           ///< \f$ U_{1,y} \f$        [functor, never MRA]
+        enum_u1_z=41,           ///< \f$ U_{1,z} \f$        [functor, never MRA]
+        enum_u1sq=42            ///< \f$ |\mathbf U_1|^2 \f$ [functor, never MRA]
     };
-    const static int number_xc_args=28;     ///< max number of intermediates
+    const static int number_xc_args=43;     ///< max number of intermediates
 
     /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
@@ -415,6 +450,94 @@ public:
             printf("%.3e %.3e %.3e\n", rho[i], f[i], va[0][i]);
         }
     }
+};
+
+/// the cuspy half of the nemo tau decomposition, supplied pointwise
+
+/// Holds the four analytic ncf quantities that must never become MRA functions --
+/// \f$ U_{1,x}, U_{1,y}, U_{1,z}, |\mathbf U_1|^2 \f$ -- and writes their values
+/// into the argument vector at the quadrature points of whatever box the caller is
+/// operating on. Empty unless a nuclear correlation factor is in play, in which case
+/// active() is true and the four enum_u1* slots are filled.
+///
+/// The point is that nothing is projected. A product of U1 with anything, formed as
+/// a Function, has to be represented on some tree; on a tree too coarse for U1's
+/// eprec-scale structure the polynomial fit rings across the whole box. Evaluating
+/// U1 here instead means its values go straight into the functional's pointwise
+/// arithmetic and only the *potential* is ever projected -- which the existing
+/// machinery already does, and already has to.
+///
+/// \f$ |\mathbf U_1|^2 \f$ comes from its own functor rather than from summing the
+/// squares of the three components: that functor treats its diagonal specially,
+/// because smoothed_unitvec has norm < 1 inside eprec while the exact diagonal is
+/// \f$ (S'/S)^2 \f$.
+struct nemo_u1_functors {
+    typedef madness::FunctionFunctorInterface<double,3> functorT;
+
+    nemo_u1_functors() : cdata(madness::FunctionCommonData<double,3>::get(
+                                       madness::FunctionDefaults<3>::get_k())) {}
+
+    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors
+    explicit nemo_u1_functors(const std::vector<std::shared_ptr<functorT> >& u1)
+            : f(u1), cdata(madness::FunctionCommonData<double,3>::get(
+                                   madness::FunctionDefaults<3>::get_k())) {
+        MADNESS_CHECK_THROW(f.empty() or f.size()==4,
+                            "nemo_u1_functors wants U1_{x,y,z} and |U1|^2, in that order");
+    }
+
+    bool active() const {return f.size()==4;}
+
+    /// write U1 and |U1|^2 at this box's quadrature points into t[enum_u1*]
+    void append(const madness::Key<3>& key,
+                std::vector<madness::Tensor<double> >& t) const {
+        if (not active()) return;
+        if (long(t.size()) < XCfunctional::number_xc_args)
+            t.resize(XCfunctional::number_xc_args);
+
+        const madness::Tensor<double>& qx = cdata.quad_x;
+        const long npt = qx.dim(0);
+        // cdata was captured at construction from FunctionDefaults; if the functions
+        // actually carry a different k the quadrature points below are the wrong
+        // ones and every U1 value lands at the wrong place. Silent, and it would
+        // look like a physics error, so check rather than trust.
+        if (t[XCfunctional::enum_rhoa].size())
+            MADNESS_CHECK_THROW(t[XCfunctional::enum_rhoa].dim(0) == npt,
+                                "nemo_u1_functors: quadrature order does not match "
+                                "the xc arguments -- k changed after construction");
+        const double h = std::pow(0.5, double(key.level()));
+        const madness::Tensor<double>& cell = madness::FunctionDefaults<3>::get_cell();
+        const madness::Tensor<double>& cw = madness::FunctionDefaults<3>::get_cell_width();
+
+        const long dims[3] = {npt, npt, npt};
+        madness::Tensor<double> v[4];
+        double* p[4];
+        for (int q = 0; q < 4; ++q) {
+            v[q] = madness::Tensor<double>(3L, dims);
+            p[q] = v[q].ptr();
+        }
+
+        // the same box-to-user-coordinate construction fcube() uses, written out so
+        // this header needs no mraimpl.h
+        long idx = 0;
+        madness::Vector<double,3> c;
+        for (long i = 0; i < npt; ++i) {
+            c[0] = cell(0,0) + h*cw[0]*(key.translation()[0] + qx(i));
+            for (long j = 0; j < npt; ++j) {
+                c[1] = cell(1,0) + h*cw[1]*(key.translation()[1] + qx(j));
+                for (long k = 0; k < npt; ++k, ++idx) {
+                    c[2] = cell(2,0) + h*cw[2]*(key.translation()[2] + qx(k));
+                    for (int q = 0; q < 4; ++q) p[q][idx] = (*f[q])(c);
+                }
+            }
+        }
+        t[XCfunctional::enum_u1_x]  = v[0];
+        t[XCfunctional::enum_u1_y]  = v[1];
+        t[XCfunctional::enum_u1_z]  = v[2];
+        t[XCfunctional::enum_u1sq]  = v[3];
+    }
+
+    std::vector<std::shared_ptr<functorT> > f;
+    madness::FunctionCommonData<double,3> cdata;
 };
 
 /// Class to compute the energy functional
