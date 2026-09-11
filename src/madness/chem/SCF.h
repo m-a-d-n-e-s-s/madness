@@ -764,7 +764,13 @@ public:
                 }
                 calc.ao.clear(); world.gop.fence();
                 calc.ao = calc.project_ao_basis(world, calc.aobasis);
-                if (calc.param.freeze_occupied()) calc.solve_virtuals(world);
+                if (calc.param.freeze_occupied()) {
+                    // The frozen solver reports the archive's energy. load_mos clears
+                    // current_energy when it reprojects (a plan starting below the
+                    // archive's rung), so take the header value the plan kept.
+                    calc.current_energy = plan.stale_energy;
+                    calc.solve_virtuals(world);
+                }
                 else calc.solve(world);
 
                 if (calc.param.save())
