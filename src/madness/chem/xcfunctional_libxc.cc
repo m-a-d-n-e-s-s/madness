@@ -132,7 +132,11 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             if (! (line >> factor)) factor = 1.0;
             hf_coeff = factor;
         } else {
-            if (! (line >> factor)) factor = 1.0;
+            // clear() matters: on a non-numeric next token operator>> sets failbit
+            // WITHOUT consuming it, so the enclosing while(line >> name) would exit
+            // and silently drop the rest of the line -- "GGA_X_PBE GGA_C_PBE" loaded
+            // exchange only.
+            if (! (line >> factor)) { factor = 1.0; line.clear(); }
             funcs.push_back(std::make_pair(lookup_func(name,polarized), factor));
         }
     }
