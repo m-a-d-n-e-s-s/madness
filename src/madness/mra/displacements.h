@@ -34,7 +34,8 @@
 #define MADNESS_MRA_DISPLACEMENTS_H__INCLUDED
 
 #include <madness/mra/indexit.h>
-#include <madness/mra/funcdefaults.h>
+#include <madness/mra/key.h>
+#include <madness/misc/array_of_bools.h>
 #include <madness/tensor/tensor.h>
 
 #include <algorithm>
@@ -48,6 +49,8 @@
 #include <vector>
 
 namespace madness {
+
+    template <std::size_t NDIM> class FunctionDefaults;  // funcdefaults.h includes this header at its end
 
     // How should we treat destinations "extra" to the [0, 2^n) standard domain?
     enum class ExtraDomainPolicy {
@@ -287,8 +290,11 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// Sets the cell widths used to order the displacements by real-space distance, and reorders them.
+        /// Called by FunctionDefaults::recompute_cell_info whenever the cell changes.
+        /// @warning not thread safe: must not be called while operators are being applied
         static void set_width(const Tensor<double>& width) {
-          widths = width;
+          widths = copy(width);
           if (!disp.empty()) {
             std::sort(disp.begin(), disp.end(), cmp_keys);
           }

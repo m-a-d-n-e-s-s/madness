@@ -48,6 +48,7 @@
 #include <optional>
 
 namespace madness {
+    template <std::size_t NDIM> class Displacements;  // defined in displacements.h, included at the end of this file
     template <typename T, std::size_t NDIM> class FunctionImpl;
 
     /// The maximum wavelet order presently supported
@@ -149,6 +150,9 @@ namespace madness {
             cell_min_width = cell_width.min();
             rcell_width = copy(cell_width);
             for (std::size_t i=0; i<NDIM; ++i) rcell_width(i) = 1.0/rcell_width(i);
+            // the standard displacements used to apply operators are ordered by real-space distance,
+            // which depends on the cell; keep them in sync (see Displacements::set_width)
+            Displacements<NDIM>::set_width(cell_width);
         }
 
     public:
@@ -477,4 +481,10 @@ namespace madness {
 
 
 }
+
+// Displacements depends on FunctionDefaults (boundary conditions) and FunctionDefaults on Displacements
+// (recompute_cell_info); both are templates, so each header forward-declares the other's class and this
+// one includes the other at the end, after FunctionDefaults is complete
+#include <madness/mra/displacements.h>
+
 #endif // MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
