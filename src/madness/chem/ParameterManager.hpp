@@ -191,15 +191,18 @@ public:
     // dconv and maxiter used to be independent defaults (1e-6 / 25) that
     // silently disagreed with the dft block.
     auto &rp = this->get<ResponseParameters>();
-    // Response dconv: when the deck does not set it, the protocol IS the
-    // criterion — derive dconv from the finest protocol threshold. The solvers
-    // gate at 5 x max(thresh, dconv) (convergence_policy.hpp), so this makes
-    // every rung converge as far as its own basis allows instead of stopping
-    // at a fixed 1e-4 (2026-09-11: the 1e-8 closeout series must not be
-    // limited by the criterion; moldft itself keeps max(thresh, dft.dconv)).
+    // Response dconv: when the deck does not set it, derive it from the finest
+    // protocol threshold as 100 x thresh. The solvers gate at 5 x max(thresh,
+    // dconv) (convergence_policy.hpp). The factor is empirical: the BSH
+    // amplitude residual of a converged FD leg plateaus at ~2-6e-5 for
+    // thresh 1e-6/k8 and at ~4-8e-6 for thresh 1e-8/k10 (closeout series,
+    // 2026-09-11; the density residual keeps falling to ~1e-7), so dconv =
+    // thresh (gate 5e-8) is unattainable and burned 60 iterations per leg,
+    // while 100 x thresh gives the validated 1e-4 at 1e-6 and a gate of 5e-6
+    // at 1e-8, just above the floor. A tighter series sets dconv explicitly.
     const auto proto = cparam.protocol();
     const double finest = proto.empty() ? 1.0e-6 : *std::min_element(proto.begin(), proto.end());
-    rp.set_derived_value("dconv", finest);
+    rp.set_derived_value("dconv", 100.0 * finest);
     rp.set_derived_value("maxiter", static_cast<size_t>(cparam.maxiter()));
   }
 
