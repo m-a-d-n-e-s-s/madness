@@ -5102,7 +5102,7 @@ template<size_t NDIM>
               -> bool {
             return false;
           };
-          const auto for_each = [&](const auto &displacements,
+          const auto for_each = [&](auto &displacements,
                                     const auto &real_distance_squared,
                                     const auto &lattice_distance_squared,
                                     const auto &skip_predicate) -> std::optional<double> {
@@ -5124,14 +5124,23 @@ template<size_t NDIM>
             std::optional<double> real_last_distsq;
             std::optional<std::uint64_t> lattice_last_distsq;
 
-            // displacements to the kernel range boundary are typically same magnitude (modulo variation)
-            // estimate the norm of the resulting contributions and skip all if one is too small
+            // displacements to a face of the kernel range boundary are typically same magnitude (modulo variation),
+            // but faces can be at quite different distances (anisotropic cells, lattice summation along some axes only,
+            // mixed-parity ranges). Estimate the norm of the contributions from each face using its probing
+            // displacement, skip the faces whose contributions are negligible, and skip everything if all are.
             if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
-              const auto &probing_displacement =
-                  displacements.probing_displacement();
-              const double opnorm =
-                  op->norm(key.level(), probing_displacement, source);
-              if (cnorm * opnorm <= tol / fac) {
+              bool any_face_survives = false;
+              const auto &probing_displacements = displacements.probing_displacements();
+              for (std::size_t d = 0; d != opdim; ++d) {
+                if (!probing_displacements[d]) continue;  // no face normal to an unlimited dimension
+                const double opnorm =
+                    op->norm(key.level(), *probing_displacements[d], source);
+                if (cnorm * opnorm <= tol / fac)
+                  displacements.skip_face(d);
+                else
+                  any_face_survives = true;
+              }
+              if (!any_face_survives) {
                 return {};
               }
             }
@@ -5215,35 +5224,28 @@ template<size_t NDIM>
               }
             }
 
-            typename BoxSurfaceDisplacementRange<opdim>::Validator validator;
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
-            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
-            if (max_distsq_reached)
-              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
-
-            // Least N such that being N boxes away from origin_ guarantees you're outside of the short-range region.
-            std::optional<Translation> probe_offset_radius;
+            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell.
+            // The filter also carries the real-space reach of the standard displacements it discards, outside of which
+            // the range places its probing displacements. If no standard displacements were processed there is nothing
+            // to filter and nothing is known about the reach; the probes then screen nothing.
+            using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
+            std::optional<typename SurfaceRange::Validator> validator;
             if (max_distsq_reached) {
-              // default_real_distance_squared measures cell_width*(|l|-1) per axis (see Key::real_distsq_bc);
-              // invert it. The offset axis is not known here, so use the widest one, which yields the
-              // smallest radius and hence the most conservative probe.
+              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
               const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
-              const std::size_t d0 = (op->particle() == 1) ? 0 : NDIM - opdim;
-              double widest = 0.;
-              for (std::size_t d = d0; d != d0 + opdim; ++d) widest = std::max(widest, cell_width(d));
-              const Translation reach = 1 + static_cast<Translation>(std::sqrt(*max_distsq_reached) / widest);
-              probe_offset_radius = std::min<Translation>(reach, Displacements<opdim>::bmax_default()) + 1;
-            } else  // no validator => no treatment of short-range point. let surface handle everything
-              probe_offset_radius = 0;
+              std::array<double, opdim> widths;
+              for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);
+              validator.emplace(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(),
+                                StandardDisplacementsReach<opdim>{*max_distsq_reached, widths});
+            }
 
-            // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
+            // this range iterates over the entire surface layer(s), and provides a probing displacement per face that can be used to screen out the face
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
-            BoxSurfaceDisplacementRange<opdim>
-                range_boundary_face_displacements(opkey, box_radius,
-                                                  surface_thickness,
-                                                  op->lattice_summed(),
-                                                  validator,
-                                                  probe_offset_radius);
+            SurfaceRange range_boundary_face_displacements(opkey, box_radius,
+                                                           surface_thickness,
+                                                           op->lattice_summed(),
+                                                           validator);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
