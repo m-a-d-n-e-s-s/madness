@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
     	// plot cube file
     	std::string outfile=filename+".cube";
     	if(world.rank()==0) std::cout << "creating cubefile " << outfile << "\n";
-    	plot_cubefile<3>(world,f,outfile,molecule.cubefile_header(pparam.origin<3>()),
+    	plot_cubefile<3>(world,f,outfile,molecule.cubefile_header(),
     		pparam.npoints(),pparam.zoom(),pparam.origin<3>());
     	if(world.rank()==0) std::cout << "... success\n";
 	}

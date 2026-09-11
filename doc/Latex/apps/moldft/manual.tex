@@ -529,15 +529,19 @@ Plots are generated to OpenDX files.  In the {\tt moldft} source directory are t
   
 \end{itemize}
 
-{\tt plotmos lo hi} --- E.g., {\tt plotmos 10 12} --- Plots the molecular orbitals in the given inclusive range (default is none).  Orbitals are numbered from zero.  Seems like this needs extending to accomodate unrestricted calculations.
+{\tt plotlo lo} / {\tt plothi hi} --- E.g., {\tt plotlo 10} and {\tt plothi 12} --- Plots the molecular orbitals in the given inclusive range (default is none). Orbitals are numbered from zero and the range may extend into the virtuals when {\tt nvalpha} is set; for unrestricted calculations both spins are written ({\tt amo-} and {\tt bmo-} files).
 
 {\tt plotdens} --- Plots the total electronic charge density and, if spin unrestricted, the spin density (default is off).
 
-{\tt plotcoul} --- Plots the total (electronic + nuclear) electrostatic potential (default is off).
+{\tt plotcoul} --- Plots the total (electronic + nuclear) potential in the electron convention, $v_{\rm nuc} + v_{\rm coul}$ (default is off).
 
-{\tt plotnpt value } --- E.g., {\tt plotnpt 501} --- Sets the number of plots used per dimension in the cube of points (default 101).
+{\tt plotesp} --- Plots the electrostatic potential felt by a positive test charge, $-(v_{\rm nuc} + v_{\rm coul})$ (default is off). $v_{\rm nuc}$ is the smoothed nuclear potential, so values within the smoothing length of a nucleus are not the bare Coulomb potential.
 
-{\tt plotcell xlo xhi ylo yhi zlo zhi} --- E.g., {\tt plotcell -10 10 -15 15 -10 5} --- Sets the cell (in atomic units) used for plotting (default is the entire simulation cell).
+{\tt plotcube} --- Also writes Gaussian {\tt .cube} files (Avogadro, VMD, ParaView) next to the {\tt .dx} files, over the same box and grid (default is off).
+
+{\tt npt\_plot value} --- E.g., {\tt npt\_plot 501} --- Sets the number of points used per dimension in the plotting grid (default 101).
+
+{\tt plot\_cell [xlo,xhi,ylo,yhi,zlo,zhi]} --- E.g., {\tt plot\_cell [-10,10,-15,15,-10,5]} --- Sets the box (in atomic units) used for plotting (default is the entire simulation cell). All plot files use the calculation frame: {\tt moldft} translates (and by default rotates) the molecule before the calculation, so take atom positions from the cube-file header or the printed geometry, not from the input.
 
 \section{Parallel execution}
 

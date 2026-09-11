@@ -571,9 +571,11 @@ void SCF::do_plots(World& world) {
     START_TIMER(world);
 
     std::vector<long> npt(3, static_cast<long>(param.get<int>("npt_plot")));
-    const bool cube      = param.get<bool>("plotcube");
-    const int  npt_cube  = param.get<int>("npt_plot");
-    const auto cube_hdr  = molecule.cubefile_header();
+    const bool cube     = param.get<bool>("plotcube");
+    const bool plotdens = param.get<bool>("plotdens");
+    const bool plotcoul = param.get<bool>("plotcoul");
+    const bool plotesp  = param.get<bool>("plotesp");
+    const auto cube_hdr = molecule.cubefile_header();
 
     // plot_cell() returns a COPY (empty when the knob is unset). Assigning to
     // it would modify a discarded temporary, leaving plotdx with an empty cell
@@ -583,7 +585,13 @@ void SCF::do_plots(World& world) {
     if (cell.size() == 0)
         cell = copy(FunctionDefaults<3>::get_cell());
 
-    if (param.get<bool>("plotdens") || param.get<bool>("plotcoul")) {
+    // one grid for both formats; the cube file covers the same box as the dx file
+    auto write = [&](const functionT& f, const std::string& name) {
+        plotdx(f, (name + ".dx").c_str(), cell, npt, true);
+        if (cube) plot_cubefile<3>(world, f, name + ".cube", cell, npt, cube_hdr);
+    };
+
+    if (plotdens || plotcoul || plotesp) {
         functionT rho;
         rho = make_density(world, aocc, amo);
 
@@ -593,40 +601,36 @@ void SCF::do_plots(World& world) {
             functionT rhob = make_density(world, bocc, bmo);
             functionT rho_spin = rho - rhob;
             rho += rhob;
-            plotdx(rho_spin, "spin_density.dx", cell, npt, true);
-            if (cube) plot_cubefile<3>(world, rho_spin, "spin_density.cube", cube_hdr, npt_cube);
-
+            write(rho_spin, "spin_density");
         }
-        plotdx(rho, "total_density.dx", cell, npt, true);
-        if (cube) plot_cubefile<3>(world, rho, "total_density.cube", cube_hdr, npt_cube);
-        if (param.get<bool>("plotcoul")) {
+        write(rho, "total_density");
+        if (plotcoul || plotesp) {
             real_function_3d vnuc = potentialmanager->vnuclear();
             functionT vlocl = vnuc + apply(*coulop, rho);
             vlocl.truncate();
             vlocl.reconstruct();
-            plotdx(vlocl, "coulomb.dx", cell, npt, true);
-            if (cube) plot_cubefile<3>(world, vlocl, "coulomb.cube", cube_hdr, npt_cube);
+            if (plotcoul) write(vlocl, "coulomb");
+            if (plotesp) {
+                // the potential felt by a positive test charge: the electron
+                // convention above with the sign flipped
+                functionT esp = copy(vlocl);
+                esp.scale(-1.0);
+                write(esp, "esp");
+            }
         }
     }
 
+    // plotlo..plothi indexes the orbital vectors, so virtuals (nvalpha > 0) plot as well
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
         const std::size_t bufsize=256;
         char fname[bufsize];
-        if (i < param.nalpha()) {
-            snprintf(fname,bufsize, "amo-%5.5d.dx", i);
-            plotdx(amo[i], fname, cell, npt, true);
-            if (cube) {
-                snprintf(fname,bufsize, "amo-%5.5d.cube", i);
-                plot_cubefile<3>(world, amo[i], fname, cube_hdr, npt_cube);
-            }
+        if (i < int(amo.size())) {
+            snprintf(fname,bufsize, "amo-%5.5d", i);
+            write(amo[i], fname);
         }
-        if (!param.spin_restricted() && i < param.nbeta()) {
-            snprintf(fname,bufsize, "bmo-%5.5d.dx", i);
-            plotdx(bmo[i], fname, cell, npt, true);
-            if (cube) {
-                snprintf(fname,bufsize, "bmo-%5.5d.cube", i);
-                plot_cubefile<3>(world, bmo[i], fname, cube_hdr, npt_cube);
-            }
+        if (!param.spin_restricted() && i < int(bmo.size())) {
+            snprintf(fname,bufsize, "bmo-%5.5d", i);
+            write(bmo[i], fname);
         }
     }
     END_TIMER(world, "plotting");

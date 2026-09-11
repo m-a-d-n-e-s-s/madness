@@ -922,79 +922,71 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
 
 
 
+    /// Writes f on a regular grid over a box as a Gaussian cube file
+
+    /// @param[in] cell     the box, user coordinates, cell(d,0) <= x_d <= cell(d,1); must lie inside the simulation cell
+    /// @param[in] npt      points per dimension, both edges included
+    /// @param[in] molecular_info  atom lines for the header (Molecule::cubefile_header()), in the same frame as f
+    /// The grid is evaluated collectively (Function::eval_cube, one task per tree node); rank 0 writes.
+    /// Every rank holds the full grid while writing, so keep npt to what the plot needs.
+    template<size_t NDIM>
+    typename std::enable_if<NDIM==3,void>::type
+    plot_cubefile(World& world, const Function<double,NDIM>& f, const std::string& filename,
+            const Tensor<double>& cell, const std::vector<long>& npt,
+            std::vector<std::string> molecular_info=std::vector<std::string>()) {
+
+        MADNESS_CHECK_THROW(cell.dim(0)==3 && cell.dim(1)==2 && npt.size()==3,
+                            "plot_cubefile: cell must be 3x2 and npt must have 3 entries");
+        const Tensor<double>& simcell=FunctionDefaults<3>::get_cell();
+        for (int d=0; d<3; ++d)
+            MADNESS_CHECK_THROW(npt[d]>1 && cell(d,0)<cell(d,1) && cell(d,0)>=simcell(d,0) && cell(d,1)<=simcell(d,1),
+                                "plot_cubefile: the box must lie inside the simulation cell, with at least 2 points per dimension");
+
+        // dummy atom in the center
+        if (molecular_info.empty()) molecular_info.emplace_back("0 0 0.0 0.0 0.0\n");
+
+        const Tensor<double> values=f.eval_cube(cell, npt);
+        if (world.rank()!=0) return;
+
+        FILE* file=fopen(filename.c_str(), "w");
+        if (!file) MADNESS_EXCEPTION("plot_cubefile: failed to open the plot file", 0);
+
+        double delta[3];
+        for (int d=0; d<3; ++d) delta[d]=(cell(d,1)-cell(d,0))/double(npt[d]-1);
+
+        fprintf(file,"cube file from MADNESS\n");
+        fprintf(file,"box lo %.6f %.6f %.6f hi %.6f %.6f %.6f bohr; atoms and grid in the calculation frame\n",
+                cell(0,0),cell(1,0),cell(2,0),cell(0,1),cell(1,1),cell(2,1));
+        fprintf(file,"%d %12.8f %12.8f %12.8f \n",int(molecular_info.size()),cell(0,0),cell(1,0),cell(2,0));
+        fprintf(file,"%ld %12.6f %12.6f %12.6f\n",npt[0],delta[0],0.0,0.0);
+        fprintf(file,"%ld %12.6f %12.6f %12.6f\n",npt[1],0.0,delta[1],0.0);
+        fprintf(file,"%ld %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,delta[2]);
+        for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
+
+        // z runs fastest; six values per line as in the original format (https://paulbourke.net/dataformats/cube/)
+        long count=0;
+        for (long i=0; i<npt[0]; ++i)
+            for (long j=0; j<npt[1]; ++j)
+                for (long k=0; k<npt[2]; ++k)
+                    fprintf(file, "%12.5e%s", values(i,j,k), (++count%6==0) ? "\n" : " ");
+        fprintf(file, "\n");
+        fclose(file);
+    }
+
+    /// Cube file over the simulation cell scaled by 1/zoom and shifted to origin (npoints per dimension)
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
     plot_cubefile(World& world, const Function<double,NDIM>& f, std::string filename,
             std::vector<std::string> molecular_info=std::vector<std::string>(), int npoints=100, double zoom=1.0,
             const Vector<double,NDIM> origin=Vector<double,NDIM>(0.0)) {
-
-        // dummy atom in the center
-        if (molecular_info.size()==0)
-        	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
-
-        // the coordinates to be plotted
-        // Vector<double,NDIM> origin(0.0);
-
-        // number of points in each direction
-        std::vector<int> npt(3,npoints);
-
         Tensor<double> cell=copy(FunctionDefaults<3>::get_cell());
         cell.scale(1.0/zoom);
-        double xlen=cell(0,1)-cell(0,0);
-        double ylen=cell(1,1)-cell(1,0);
-        double zlen=cell(2,1)-cell(2,0);
-
-        // plot file
-        FILE *file =  0;
-        file=fopen(filename.c_str(), "w");
-        if(!file) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
-
-
-        // print header
-        fprintf(file,"cube file from MADNESS\n");
-        fprintf(file,"comment line\n");
-
-        // print the number of atoms if a calculation was provided
-        fprintf(file,"%d %12.8f %12.8f %12.8f \n",int(molecular_info.size()),
-                cell(0,0),cell(1,0),cell(2,0));
-
-        // grid spacing for each dimension such that the cell edges are plotted
-        const auto xdelta = xlen/(npt[0]-1);
-        const auto ydelta = ylen/(npt[1]-1);
-        const auto zdelta = zlen/(npt[2]-1);
-
-        // print the cell constants
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xdelta,0.0,0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ydelta,0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zdelta);
-
-        // print the molecule
-        for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
-
-
-         Tensor<double> grid(npt[0], npt[1], npt[2]);
-         long count_per_line = 0;
-         for (int i = 0; i < npt[0]; ++i) {
-             for (int j = 0; j < npt[1]; ++j) {
-                 for (int k = 0; k < npt[2]; ++k) {
-                     double x = cell(0, 0) + origin[0] + xdelta * i;
-                     double y = cell(1, 0) + origin[1] + ydelta * j;
-                     double z = cell(2, 0) + origin[2] + zdelta * k;
-                     // the original format has up to 6 entries per line: https://paulbourke.net/dataformats/cube/
-                     // stick with this, even though many codes can read an arbitrary number of entries per line
-                     if (count_per_line < 6) {
-                        fprintf(file, "%12.5e ", f(x, y, z));
-                        count_per_line++;
-                     } else {
-                        fprintf(file, "%12.5e\n", f(x, y, z));
-                        count_per_line = 0;
-                     }
-                 }
-             }
-         }
-         fprintf(file, "\n");
-         fclose(file);
-     }
+        for (int d=0; d<3; ++d) {
+            cell(d,0)+=origin[d];
+            cell(d,1)+=origin[d];
+        }
+        plot_cubefile<NDIM>(world, f, filename, cell, std::vector<long>(3,long(npoints)), molecular_info);
+    }
 
      template<typename T, size_t NDIM>
      void
