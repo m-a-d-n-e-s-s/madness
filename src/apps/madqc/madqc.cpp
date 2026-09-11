@@ -333,7 +333,11 @@ int main(int argc, char **argv) {
       // machine-readable <prefix>.calc_info.json remains the source of truth.
       if (world.rank() == 0) {
         qcapp::write_results_summary(std::cout, wf.results());
-        std::ofstream report(prefix + ".out");
+        // APPEND, never truncate: with the usual `#SBATCH --output=<prefix>.out`
+        // this file IS the job's stdout, and opening it for writing wiped the
+        // whole run log at the end of every successful run (closeout attempt
+        // 12, 2026-09-10: a 97-minute LiH log reduced to the summary).
+        std::ofstream report(prefix + ".out", std::ios::app);
         qcapp::write_results_summary(report, wf.results());
         print("Wrote results summary :", prefix + ".out");
 

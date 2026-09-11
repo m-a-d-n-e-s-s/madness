@@ -270,7 +270,10 @@ struct molresponse_v3_lib {
       ResponsePropertyRequest r;
       r.kind = ResponsePropertyKind::Hyperpolarizability;
       r.beta_process = rp.beta_or() ? BetaProcess::OR : BetaProcess::SHG;
-      r.frequencies = freqs;
+      // Deck `beta.frequencies` restricts the driver frequencies (and thus the
+      // 2w legs) to the ones actually wanted; empty = the whole dipole grid.
+      const auto bf = rp.beta_frequencies();
+      r.frequencies = bf.empty() ? freqs : bf;
       add(r);
     }
     if (wants("raman")) {

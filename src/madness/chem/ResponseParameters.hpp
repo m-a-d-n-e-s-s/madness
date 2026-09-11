@@ -67,6 +67,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
                          "compute only optical-rectification beta triplets "
                          "(omegaB=0, omegaA=-omegaC)");
         initialize<bool>("beta.all_triplets", false, "compute full beta triplet grid over all (omegaB, omegaC) pairs");
+        initialize<std::vector<double>>("beta.frequencies", {},
+                                        "driver frequencies for the hyperpolarizability (SHG: legs at w and 2w). "
+                                        "Empty (default) = every dipole.frequencies entry, which for a grid "
+                                        "reaching 0.2 au also solves 2w = 0.4 au legs above the first pole "
+                                        "(closeout attempt 12: near-resonant legs that never converge).");
         initialize<std::string>("state_parallel", "off", "state-level subgroup scheduling mode (off, auto, on)", {"off", "auto", "on"});
         initialize<size_t>("state_parallel_groups", 1, "number of processor groups for state-level subgroup scheduling");
         initialize<size_t>("state_parallel_min_states", 4,
@@ -256,6 +261,9 @@ public:
     }
     [[nodiscard]] bool beta_or() const {
         return get<bool>("beta.or");
+    }
+    [[nodiscard]] std::vector<double> beta_frequencies() const {
+        return get<std::vector<double>>("beta.frequencies");
     }
     [[nodiscard]] bool beta_all_triplets() const {
         return get<bool>("beta.all_triplets");
