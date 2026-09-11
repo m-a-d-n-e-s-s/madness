@@ -721,6 +721,19 @@ public:
     /// ctor with a Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* nemo, int ispin=0);
 
+    /// ctor for the regularized (nemo) path, without a Nemo object
+
+    /// @param[in] arho,brho          the physical densities rho_s
+    /// @param[in] ncf_               the nuclear correlation factor
+    /// @param[in] arho_reg,brho_reg  the regularized densities rho_s/R^2, which let
+    ///                               prep_xc_args build zeta without putting the
+    ///                               nuclear cusp under a numerical derivative
+    XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+               const real_function_3d& arho, const real_function_3d& brho,
+               std::shared_ptr<NuclearCorrelationFactor> ncf_,
+               const real_function_3d& arho_reg_, const real_function_3d& brho_reg_,
+               std::string deriv="abgv");
+
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
@@ -878,7 +891,14 @@ private:
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+    /// compute the intermediates for the XC functionals
+
+    /// If the regularized densities are supplied, zeta = grad log(rho) is built as
+    /// grad log(rho_reg) - 2 U1 -- exact, and it keeps the nuclear cusp of
+    /// rho = R^2 rho_reg out from under the numerical derivative.
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
+                          const real_function_3d& arho_reg = real_function_3d(),
+                          const real_function_3d& brho_reg = real_function_3d()) const;
 
     /// compute the intermediates for the XC functionals
 

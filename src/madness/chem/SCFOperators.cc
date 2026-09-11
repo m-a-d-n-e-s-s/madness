@@ -366,6 +366,25 @@ XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool sp
     xc_args = prep_xc_args(arho, brho);
 }
 
+/// custom ctor for the regularized (nemo) path, without a Nemo object
+template<typename T, std::size_t NDIM>
+XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool spin_polarized,
+                                const real_function_3d &arho, const real_function_3d &brho,
+                                std::shared_ptr<NuclearCorrelationFactor> ncf_,
+                                const real_function_3d &arho_reg_, const real_function_3d &brho_reg_,
+                                std::string deriv)
+        : world(world), dft_deriv(deriv), nbeta(0), ispin(0),
+          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+
+    nbeta = (brho.norm2() > 0.0);
+
+    xc = std::shared_ptr<XCfunctional>(new XCfunctional());
+    xc->initialize(xc_data, spin_polarized, world);
+
+    ncf = ncf_;
+    xc_args = prep_xc_args(arho, brho, arho_reg_, brho_reg_);
+}
+
 /// custom ctor with the XC functional
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World& world, std::shared_ptr<XCfunctional> xc,
@@ -405,6 +424,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
+
+    ncf = nemo->ncf;
 
     ncf = nemo->ncf;
 
@@ -769,7 +790,9 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d &de
 /// prepare xc args
 template<typename T, std::size_t NDIM>
 vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
-                                           const real_function_3d &brho) const {
+                                           const real_function_3d &brho,
+                                           const real_function_3d &arho_reg_in,
+                                           const real_function_3d &brho_reg_in) const {
 
     World &world = arho.world();
     vecfuncT xcargs(XCfunctional::number_xc_args);
@@ -791,22 +814,42 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
     // to libxc to follow it.
     if (xc->needs_sigma()) {
 
-        real_function_3d logdensa = unary_op(arho, logme());
-        vecfuncT grada;
-        if (dft_deriv == "bspline") grada = grad_bspline_one(logdensa); // b-spline
-        else if (dft_deriv == "ble") grada = grad_ble_one(logdensa);    // BLE
-        else grada = grad(logdensa);                                   // Default is abgv
+        auto grad_variant = [&](const real_function_3d& f) {
+            if (dft_deriv == "bspline") return grad_bspline_one(f);  // b-spline
+            if (dft_deriv == "ble")     return grad_ble_one(f);      // BLE
+            return grad(f);                                          // default is abgv
+        };
+
+        // zeta = grad log(rho). With a nuclear correlation factor rho = R^2 rho_reg,
+        // so zeta = grad log(R^2) + grad log(rho_reg) = -2 U1 + grad log(rho_reg)
+        // (U1 = -grad(R)/R). Differentiating log(rho) directly puts the nuclear cusp
+        // under the derivative operator, which is what the regularization exists to
+        // avoid: the kink forces refinement to the finest level and the O(thresh)
+        // noise it leaves there is amplified by 2^n by the derivative. Only the
+        // cusp-free rho_reg is differentiated here.
+        const bool regularized_zeta = bool(ncf);
+        vecfuncT U1;
+        if (regularized_zeta) U1 = ncf->U1vec();
+
+        auto make_zeta = [&](const real_function_3d& rho,
+                             const real_function_3d& rho_reg) {
+            if (regularized_zeta and rho_reg.is_initialized()) {
+                real_function_3d logdens = unary_op(rho_reg, logme());
+                vecfuncT zeta = grad_variant(logdens);
+                for (int axis = 0; axis < 3; ++axis) zeta[axis] -= 2.0 * U1[axis];
+                return zeta;
+            }
+            real_function_3d logdens = unary_op(rho, logme());
+            return grad_variant(logdens);
+        };
+
+        vecfuncT grada = make_zeta(arho, arho_reg_in);
         xcargs[XCfunctional::enum_zetaa_x] = grada[0];
         xcargs[XCfunctional::enum_zetaa_y] = grada[1];
         xcargs[XCfunctional::enum_zetaa_z] = grada[2];
 
         if (have_beta) {
-            real_function_3d logdensb = unary_op(brho, logme());
-            // Bryan's edits for derivatives
-            vecfuncT gradb;
-            if (dft_deriv == "bspline") gradb = grad_bspline_one(logdensb);  // b-spline
-            else if (dft_deriv == "ble") gradb = grad_ble_one(logdensb);     // BLE
-            else gradb = grad(logdensb);                                    // Default is abgv
+            vecfuncT gradb = make_zeta(brho, brho_reg_in);
             xcargs[XCfunctional::enum_zetab_x] = gradb[0];
             xcargs[XCfunctional::enum_zetab_y] = gradb[1];
             xcargs[XCfunctional::enum_zetab_z] = gradb[2];
