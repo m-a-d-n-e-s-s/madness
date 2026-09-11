@@ -607,6 +607,19 @@ std::shared_ptr<Derivative<T, NDIM> > XCOperator<T, NDIM>::make_derivative(const
 }
 
 
+/// divergence of a real vector field, honouring dft_deriv
+
+/// vmra.h's div() is div_abgv(), so a caller that has selected
+/// `dft_deriv bspline`/`ble` has to name the matching derivative explicitly.
+template<typename T, std::size_t NDIM>
+real_function_3d XCOperator<T, NDIM>::div_dft_deriv(const vecfuncT& v) const {
+    const DerivMethod method = (dft_deriv == "bspline") ? DerivMethod::bspline
+                             : (dft_deriv == "ble")     ? DerivMethod::ble
+                                                        : DerivMethod::abgv;
+    return madness::div_deriv(v, method, true);
+}
+
+
 template<typename T, std::size_t NDIM>
 double XCOperator<T, NDIM>::compute_xc_energy() const {
 
@@ -663,7 +676,7 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
         semilocal[2] = intermediates[3];
 
         // second term in Yanai2005, Eq. (12)
-        real_function_3d gga_pot_same_spin = div(semilocal, true);
+        real_function_3d gga_pot_same_spin = div_dft_deriv(semilocal);
         dft_pot -= gga_pot_same_spin;
 
         bool have_beta = xc->is_spin_polarized() && nbeta != 0;
@@ -674,7 +687,7 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
             semilocal[2] = intermediates[6];
 
             // third term in Yanai2005, Eq. (12)
-            real_function_3d gga_pot_other_spin = div(semilocal, true);
+            real_function_3d gga_pot_other_spin = div_dft_deriv(semilocal);
             dft_pot -= gga_pot_other_spin;
         }
     }
@@ -745,7 +758,7 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d &de
         semilocal[1] = intermediates[2];
         semilocal[2] = intermediates[3];
 
-        real_function_3d gga_pot = -1.0 * div(semilocal, true);
+        real_function_3d gga_pot = -1.0 * div_dft_deriv(semilocal);
 
         result += gga_pot;
     }

@@ -870,6 +870,9 @@ private:
     /// gradient operator honouring dft_deriv, for the meta-gga term
     std::shared_ptr<Derivative<T,NDIM> > make_derivative(const int axis) const;
 
+    /// divergence of a vector field, honouring dft_deriv
+    real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
     /// compute the intermediates for the XC functionals
 
     /// @param[in]  arho    density of the alpha orbitals
