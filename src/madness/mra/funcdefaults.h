@@ -364,7 +364,10 @@ namespace madness {
 
         /// Sets the user cell for the simulation
 
-        /// Existing functions are probably rendered useless
+        /// Existing functions are probably rendered useless.
+        /// @warning Must be called in a quiescent window: no operator application (FunctionImpl::apply, including
+        ///          unfenced ones) may be in flight, since the standard displacements used by operators are
+        ///          reordered in place when the cell changes (see Displacements::set_width).
         static void set_cell(const Tensor<double>& value) {
         	cell=copy(value);
         	recompute_cell_info();
@@ -372,7 +375,8 @@ namespace madness {
 
         /// Sets the user cell to be cubic with each dimension having range \c [lo,hi]
 
-        /// Existing functions are probably rendered useless
+        /// Existing functions are probably rendered useless.
+        /// @warning Same quiescence requirement as set_cell().
         static void set_cubic_cell(double lo, double hi) {
         	cell(_,0)=lo;
         	cell(_,1)=hi;
@@ -483,8 +487,9 @@ namespace madness {
 }
 
 // Displacements depends on FunctionDefaults (boundary conditions) and FunctionDefaults on Displacements
-// (recompute_cell_info); both are templates, so each header forward-declares the other's class and this
-// one includes the other at the end, after FunctionDefaults is complete
+// (recompute_cell_info). Displacements is forward-declared above so that FunctionDefaults can be defined first,
+// and its header is included here, after FunctionDefaults is complete; displacements.h in turn includes this
+// header at its top, so either header can be included first (the include guards break the cycle).
 #include <madness/mra/displacements.h>
 
 #endif // MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
