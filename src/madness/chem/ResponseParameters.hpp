@@ -28,6 +28,15 @@ struct ResponseParameters : public QCCalculationParametersBase {
                            "residual is below this (plain BSH steps above it; a DALTON-seeded "
                            "ES start at 20-25% residual otherwise derails on KAIN's first "
                            "extrapolation). 0 disables.");
+        initialize<int>("stall.window", 6,
+                        "Plateau detector: stop a response/ES solve when its gated residuals "
+                        "(FD: bsh, density; ES: density, |dw|) have not improved by "
+                        "stall.ratio over this many iterations while still above the "
+                        "targets (the truncation-noise floor). Same acceptance as maxiter, "
+                        "fewer wasted iterations. 0 disables.");
+        initialize<double>("stall.ratio", 0.1,
+                           "Plateau detector: minimum relative improvement of the gate "
+                           "distance over stall.window iterations to count as progress.");
         initialize<double>("maxrotn", .50, "Max orbital rotation per iteration");
         initialize<size_t>("maxsub", 8, "size of iterative subspace ... set to 0 or 1 to disable");
         initialize<std::string>("xc", "hf", "XC input line");
@@ -231,6 +240,12 @@ public:
     }
     [[nodiscard]] double kain_min_residual() const {
         return get<double>("kain.min_residual");
+    }
+    [[nodiscard]] int stall_window() const {
+        return get<int>("stall.window");
+    }
+    [[nodiscard]] double stall_ratio() const {
+        return get<double>("stall.ratio");
     }
     [[nodiscard]] size_t maxsub() const {
         return get<size_t>("maxsub");

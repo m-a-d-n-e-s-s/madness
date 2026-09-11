@@ -364,6 +364,9 @@ struct molresponse_v3_lib {
     if (rp.is_user_defined("maxrotn")) in.settings.policy.maxrotn = rp.maxrotn();
     if (rp.is_user_defined("kain.min_residual"))
       in.settings.policy.kain_min_residual = rp.kain_min_residual();
+    // Plateau detector (deck defaults equal the policy defaults: window 6, ratio 0.1).
+    if (rp.is_user_defined("stall.window")) in.settings.policy.stall_window = rp.stall_window();
+    if (rp.is_user_defined("stall.ratio"))  in.settings.policy.stall_ratio  = rp.stall_ratio();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
     // ES initial-guess knobs (deck: response { excited.guess virtual_ao,

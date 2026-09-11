@@ -546,9 +546,11 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
   // exhausts max_iters without meeting the strict target is accepted so the
   // node climbs the ladder / unblocks VBC instead of stalling. The `accepted`
   // flag + recorded residual keep the verdict honest.
+  // A plateau (State::stalled, ConvergencePolicy::stall_*) is treated exactly
+  // like exhausting max_iters: same acceptance rule, fewer wasted iterations.
   auto accepted_now = [&](const typename Solver::State &st, const Solver &sv) {
     return ctx.accept_at_maxiter && !st.diverged &&
-           st.iter >= ctx.max_iters && !converged_now(st, sv);
+           (st.iter >= ctx.max_iters || st.stalled) && !converged_now(st, sv);
   };
 
   auto post_step = [&](double, Solver &solv, typename Solver::State &st) {
@@ -576,18 +578,22 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
   r.converged = strict || accepted;
   r.reached_protocol_key = protocol_key();  // active defaults reflect this protocol step
   if (world.rank() == 0) {
-    const char *acc = accepted ? " (ACCEPTED best-effort @ maxiter — strict target "
-                                 "NOT met; see bsh_residual)" : "";
+    const char *acc = !accepted ? ""
+                      : sf.stalled ? " (ACCEPTED best-effort @ stall — residual plateau; "
+                                     "strict target NOT met; see bsh_residual)"
+                                   : " (ACCEPTED best-effort @ maxiter — strict target "
+                                     "NOT met; see bsh_residual)";
+    const char *stl = (sf.stalled && !accepted) ? " stalled=1" : "";
     // F2d: prepend the subworld tag (empty ⇒ unchanged, G=0 byte-identical).
     if (ctx.log_prefix.empty())
       madness::print("[CALC] fd solve: pert=", pert.description(), " freq=", freq,
                      " thresh=", thresh, " seed=", seed_kind, " iters=", sf.iter,
-                     " converged=", r.converged, acc);
+                     " converged=", r.converged, acc, stl);
     else
       madness::print(ctx.log_prefix,
                      "[CALC] fd solve: pert=", pert.description(), " freq=", freq,
                      " thresh=", thresh, " seed=", seed_kind, " iters=", sf.iter,
-                     " converged=", r.converged, acc);
+                     " converged=", r.converged, acc, stl);
   }
   return r;
 }
@@ -706,7 +712,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   // Report/save convergence with the SAME criterion the iteration stops on
   // (ESSolver::converged = energy+density, not the jittering BSH amplitude).
   auto converged_now = [](const Solver::State &st, const Solver &sv) {
-    return !st.diverged && sv.converged(st);
+    return !st.diverged && !st.stalled && sv.converged(st);
   };
 
   auto post_step = [&](double, Solver &solv, Solver::State &st) {
@@ -906,7 +912,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   // Report/save convergence with the SAME criterion the iteration stops on
   // (ESSolver::converged = energy+density, not the jittering BSH amplitude).
   auto converged_now = [](const Solver::State &st, const Solver &sv) {
-    return !st.diverged && sv.converged(st);
+    return !st.diverged && !st.stalled && sv.converged(st);
   };
 
   auto post_step = [&](double, Solver &solv, Solver::State &st) {

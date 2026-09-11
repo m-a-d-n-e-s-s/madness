@@ -35,6 +35,7 @@
 #include <madness/tensor/tensor.h>
 
 #include <algorithm>
+#include <limits>
 #include <array>
 #include <fstream>
 #include <memory>
@@ -102,10 +103,19 @@ public:
     /// skipped by KAIN/step restriction. Empty = none (the default path never
     /// touches it). Cleared at each protocol (wavelet-thresh) change.
     std::vector<char>                       locked;
+    /// Normalised gate distance per iteration (newest last) for the plateau
+    /// detector (ConvergencePolicy::plateau); reset when the thresh changes.
+    std::vector<double>                     gate_history;
+    double                                  gate_thresh = -1.0;
     int                                     iter = 0;
     /// Set by step() when the explosion guard trips; iterate<>
     /// terminates on this so we don't burn iters on a runaway state.
     bool                                    diverged = false;
+    /// Set by step() when the gated residuals (density, |dw|) of the active
+    /// roots have plateaued above the targets (ConvergencePolicy::stall_*).
+    /// converged() returns true on it so the loop exits; the executor reports
+    /// the bundle as NOT converged and records `stalled`.
+    bool                                    stalled = false;
   };
 
   /// Preferred ctor — caller supplies a problem and a policy.
@@ -226,7 +236,8 @@ private:
     double max_drho = 0.0;
     for (double r : out.last_density_residual) max_drho = std::max(max_drho, r);
     print("iter", out.iter, "  omega =", out.omega,
-          "  max_res =", max_res, "  max_dρ =", max_drho);
+          "  max_res =", max_res, "  max_dρ =", max_drho,
+          "  gate =", out.gate_history.empty() ? 0.0 : out.gate_history.back());
     print("             omega(eV) =", out.omega * kHartreeToEV);
 
     if (print_level_ >= PrintLevel::Verbose) {
@@ -310,6 +321,10 @@ public:
     if (s.diverged)       print("Stopped at iter", s.iter,
                                 "(diverged — residual exceeded "
                                 "explosion guard).");
+    else if (s.stalled)   print("Stopped at iter", s.iter,
+                                "(stalled — density/omega plateau above the "
+                                "targets for", policy_.stall_window,
+                                "iters; not converged).");
     else if (converged)   print("Converged in", s.iter, "iters.");
     else                  print("Stopped at iter", s.iter,
                                 "(max iters reached, not converged).");
@@ -489,6 +504,7 @@ private:
     for (double r : out.last_bsh_residual) {
       if (r > policy_.explosion_guard) { out.diverged = true; break; }
     }
+    update_stall(out, in);
     print_iter_banner(out);
     append_convergence_log(out);
   }
@@ -750,6 +766,8 @@ public:
                      " bsh=", t_bsh, " total=", tot, " (s, rank0)");
     }
 
+    update_stall(out, in);
+
     print_iter_banner(out);
     append_convergence_log(out);
     return out;
@@ -917,6 +935,7 @@ public:
     }
 
     if (nA == 0) {  // every root converged + locked
+      update_stall(out, in);
       print_iter_banner(out);
       append_convergence_log(out);
       return out;
@@ -1027,6 +1046,8 @@ public:
       print("  [lock] active =", nA, " newly+previously locked =", nl, "/", M);
     }
 
+    update_stall(out, in);
+
     print_iter_banner(out);
     append_convergence_log(out);
     return out;
@@ -1041,6 +1062,42 @@ public:
     if (in.omega.dim(0) != M) return;
     for (long s = 0; s < M; ++s)
       out.last_omega_residual[s] = std::abs(out.omega(s) - in.omega(s));
+  }
+
+  /// Plateau bookkeeping (2026-09-11): append the normalised gate distance of
+  /// the ACTIVE (unlocked) roots — max over roots of drho/density_target and
+  /// |dw|/omega_target, the same two quantities es_root_converged gates on —
+  /// to the history (reset on a thresh change) and set out.stalled per policy.
+  /// An iteration without a measurable |dw| (sentinel) records +inf, which the
+  /// plateau test treats as "no measurement" (never a stall).
+  void update_stall(State &out, const State &in) const {
+    const double thr = madness::FunctionDefaults<3>::get_thresh();
+    out.gate_history = (in.gate_thresh == thr) ? in.gate_history
+                                               : std::vector<double>{};
+    out.gate_thresh  = thr;
+    double g = 0.0;
+    bool any = false;
+    const std::size_t M = out.last_density_residual.size();
+    for (std::size_t s = 0; s < M; ++s) {
+      if (s < out.locked.size() && out.locked[s]) continue;
+      if (s >= out.last_omega_residual.size() ||
+          out.last_omega_residual[s] >= 1.0e8) {           // sentinel: no dw yet
+        g = std::numeric_limits<double>::infinity(); any = true; break;
+      }
+      g = std::max(g, out.last_density_residual[s] / targets_.density_residual);
+      g = std::max(g, out.last_omega_residual[s]   / targets_.omega_residual);
+      any = true;
+    }
+    if (!any || out.iter <= 1) g = std::numeric_limits<double>::infinity();
+    out.gate_history.push_back(g);
+    out.stalled = !out.diverged && policy_.plateau(out.gate_history);
+    if (out.stalled && print_level_ >= PrintLevel::Normal && world_.rank() == 0) {
+      const std::size_t n = out.gate_history.size();
+      print("[STALL] iter", out.iter, ": gate distance", g, "vs",
+            out.gate_history[n - 1 - static_cast<std::size_t>(policy_.stall_window)],
+            policy_.stall_window, "iters ago (<", 100.0 * policy_.stall_ratio,
+            "% improvement) — density/omega plateau above the targets; stopping.");
+    }
   }
 
   /// Per-root ES convergence: energy + density (NOT the BSH amplitude, which
@@ -1059,6 +1116,7 @@ public:
   /// density). With locking on this is equivalent to "all roots locked".
   bool converged(const State &s) const {
     if (s.diverged) return true;  // exit; print_final reports diverged
+    if (s.stalled)  return true;  // exit; executor reads State::stalled
     if (s.iter < policy_.min_iters_before_conv) return false;
     const long M = s.omega.dim(0);
     if (M == 0) return false;

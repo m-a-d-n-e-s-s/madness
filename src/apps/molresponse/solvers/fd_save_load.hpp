@@ -204,6 +204,10 @@ void save_fd_state(madness::World &world,
         // honest verdict — inspect bsh_residual to judge the deliverable quality.
         {"accepted",     accepted},
         {"diverged",     state.diverged},
+        // Plateau detector verdict (ConvergencePolicy::stall_*): the loop was
+        // stopped early because the gated residuals stopped improving above
+        // the targets. Pairs with `accepted` the same way maxiter does.
+        {"stalled",      state.stalled},
         {"iter",         state.iter},
         {"bsh_residual", bsh_res},
         {"seed",         seed},   // initial-guess origin: source/fd_restart/es_root
