@@ -111,6 +111,34 @@ public:
     /// default for a real-space code, where tau is a numerical derivative
     double get_tautol() const {return tautol;}
 
+    /// return the margin by which the von Weizsaecker clamp overshoots
+    double get_tauwmargin() const {return tauwmargin;}
+
+    /// the von Weizsaecker lower bound on tau, as the clamp actually applies it
+
+    /// tau >= tau_W = |grad rho_s|^2/(8 rho_s) is exact for any wavefunction, and
+    /// meta-ggas need it: they are built on z = tau_W/tau, whose domain is [0,1],
+    /// and outside it the Fermi hole curvature turns negative and libxc's
+    /// correlation kernels return NaN.
+    ///
+    /// Build it from SIGMA, not from chi. libxc forms z from the sigma it is handed,
+    /// so the bound has to be built from that same sigma. The form rho*chi/8 equals
+    /// sigma/(8 rho) only when sigma is literally rho^2 chi, which is false: sigma
+    /// carries a positivity floor that chi does not.
+    ///
+    /// And overshoot it. Clamping to exactly tau_W puts z at 1 to within one ulp --
+    /// the endpoint of the domain, and the worst-conditioned point in it, where a
+    /// one-ulp change in tau moves de/dtau by a factor of 30. Landing strictly
+    /// inside costs nothing: the clamp only ever fires where tau was below a bound
+    /// it should have satisfied anyway. Same device as r2SCAN's eta*tau_W.
+    ///
+    /// Returns 0 where the density has been munged away, so the clamp is inert
+    /// there: sigma's floor divided by a vanishing rho would grow like 1/rho.
+    double tau_w_bound(const double sigma, const double rho) const {
+        if (rho <= 0.0) return 0.0;
+        return sigma/(8.0*rho*(1.0-tauwmargin));
+    }
+
 protected:
 
     bool spin_polarized;        ///< True if the functional is spin polarized
@@ -118,6 +146,7 @@ protected:
     double rhomin, rhotol;      ///< See initialize and munge*
     double ggatol;              ///< See initialize and munge*
     double tautol;              ///< floor for the kinetic energy density, see initialize
+    double tauwmargin;          ///< von Weizsaecker clamp overshoot, see tau_w_bound
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;

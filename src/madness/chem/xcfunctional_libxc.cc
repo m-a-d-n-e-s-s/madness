@@ -65,6 +65,7 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 XCfunctional::XCfunctional() : hf_coeff(0.0) {
     rhotol=1e-7; rhomin=0.0;
     ggatol=1.e-4;
+    tauwmargin=1.e-6;
     nderiv=0;
     spin_polarized=false;
 }
@@ -74,6 +75,11 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
     rhotol=1e-7; rhomin=0.0; // default values
     ggatol=1.e-4;
     tautol=1.e-12;
+    // how far past tau_W the clamp lands. Large enough that a double-precision tau
+    // cannot cross back over the endpoint, small enough to be far below any physical
+    // effect: it perturbs a clamped tau by one part in a million, and only where tau
+    // had already failed a bound it must satisfy exactly.
+    tauwmargin=1.e-6;
 
     bool printit=verbose and (world.rank()==0);
     double factor;      // weight factor for the various functionals
@@ -374,14 +380,9 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                     // below rather than clamping sigma down (which is what libxc's
                     // XC_FLAGS_ENFORCE_FHC does) leaves the density gradient untouched.
                     //
-                    // tau_W = |grad rho|^2/(8 rho) = sigma/(8 rho), but sigma is rho^2
-                    // chi, so tau_W = rho chi/8 -- a product. Forming it as sigma/(8 rho)
-                    // reintroduces the division by the density that the chi
-                    // representation exists to avoid, and picks up sigma's positivity
-                    // floor, which then grows like 1/rho instead of vanishing. The
-                    // product needs no guard against rho -> 0 either, so the bound
-                    // applies everywhere rather than being skipped where rho is munged.
-                    ti = std::max(ti,dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i)/8.0);
+                    // Built from the sigma libxc is actually handed, and overshot by
+                    // tauwmargin so z lands strictly inside [0,1] -- see tau_w_bound().
+                    ti = std::max(ti,tau_w_bound(sig[i],dens[i]));
                     t[i] = ti;
                 }
             }
@@ -550,10 +551,10 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 for (long i=0; i<np; i++) {
                     double ta = std::max(tautol,taua[i]);
                     double tb = std::max(tautol,taub[i]);
-                    // tau_W,s = rho_s chi_ss/8 in each spin channel, as a product rather
-                    // than sigma_ss/(8 rho_s) -- see the spin-restricted branch above
-                    ta = std::max(ta,dens[2*i  ]*chi_of(zetaa_x,zetaa_y,zetaa_z,i)/8.0);
-                    tb = std::max(tb,dens[2*i+1]*chi_of(zetab_x,zetab_y,zetab_z,i)/8.0);
+                    // tau_W,s from the sigma diagonal of that spin channel, the one
+                    // libxc reads -- see the spin-restricted branch above
+                    ta = std::max(ta,tau_w_bound(sig[3*i  ],dens[2*i  ]));
+                    tb = std::max(tb,tau_w_bound(sig[3*i+2],dens[2*i+1]));
                     t[2*i  ] = ta;
                     t[2*i+1] = tb;
                 }
