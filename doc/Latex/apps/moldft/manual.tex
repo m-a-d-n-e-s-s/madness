@@ -379,9 +379,15 @@ experience with this yet.
 
 {\tt charge value} --- E.g., {\tt charge -1.0} --- Total charge (default {\tt 0}) on the molecule. Atomic units.
 
-{\tt nvalpha value} --- E.g., {\tt nvalpha 2} --- The number of alpha spin virtual orbitals to solve for (default {\tt 0}) --- is this working now?
+{\tt nvalpha value} --- E.g., {\tt nvalpha 2} --- The number of alpha spin virtual orbitals to solve for (default {\tt 0}). Virtuals are canonical (eigenfunctions of the converged Fock operator, ordered by energy) whatever localization the occupied orbitals use; the tier-end eigenvalue list shows them after the occupied orbitals. A restart from an archive holding fewer orbitals than requested fills the missing virtuals from the atomic guess.
 
-{\tt nvbeta value} --- E.g., {\tt nvbeta 2} --- The number of beta spin virtual orbitals to solve for (default {\tt 0}) --- is this working now?
+{\tt nvbeta value} --- E.g., {\tt nvbeta 2} --- The number of beta spin virtual orbitals to solve for (default {\tt 0}).
+
+{\tt nv\_extra value}, {\tt nv\_step value}, {\tt nv\_its value} --- E.g., {\tt nv\_extra 2}, {\tt nv\_step 1} --- Converge {\tt nvalpha + nv\_extra} virtuals first, then drop {\tt nv\_step} of the highest per stage down to {\tt nvalpha}; intermediate stages run at most {\tt nv\_its} iterations (defaults {\tt 0}, {\tt 0} = all extras at once, {\tt 5}). Applies when the virtuals start from the atomic guess.
+
+{\tt freeze\_occupied} --- E.g., {\tt freeze\_occupied true} --- On a restart from converged orbitals, iterate only the virtuals in their fixed mean field (default {\tt false}). Exact for the virtuals and much cheaper per iteration than the coupled SCF.
+
+{\tt aocc [list]}, {\tt bocc [list]} --- E.g., {\tt aocc [0,1,1,1,1]} --- Explicit 0/1 occupations by orbital index within the occupied span (comma separated); a 0 is a hole, for $\Delta$SCF core-hole calculations. Requires canonical orbitals ({\tt localize canon}, derived automatically). {\tt bocc} needs {\tt spin\_restricted false}.
 
 {\tt no\_orient} --- Do not reorient/translate the molecule to orientation/center.
 

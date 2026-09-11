@@ -121,6 +121,9 @@ struct RestartSources {
     /// out loud rather than quietly recomputing.
     std::optional<RestartMetadata> meta;
 
+    /// alpha orbitals in the archive, 0 when unknown
+    std::size_t nmo_alpha = 0;
+
     /// <prefix>.restartaodata exists
     bool restartao_present = false;
 
@@ -197,6 +200,10 @@ struct RestartPlan {
     /// one line, for the log and for the results json
     std::string why;
 
+    /// alpha orbitals the archive holds when source is restartdata, 0 when unknown.
+    /// Fewer than requested means the missing virtuals start from the atomic guess.
+    std::size_t archive_nmo_alpha = 0;
+
     /// true if orbitals have to be read from disk before anything else happens
     bool needs_load() const { return source != RestartSource::initial_guess; }
 
@@ -213,7 +220,7 @@ struct RestartPlan {
     void serialize(Archive& ar) {
         int m = static_cast<int>(mode);
         int s = static_cast<int>(source);
-        ar & m & s & iterate & protocol_start & stale_energy & warn & why;
+        ar & m & s & iterate & protocol_start & stale_energy & warn & why & archive_nmo_alpha;
         mode = static_cast<RestartMode>(m);
         source = static_cast<RestartSource>(s);
     }
@@ -264,7 +271,8 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                                  const Representation wanted,
                                  const double eprec = 0.0,
                                  const std::string& xc = "",
-                                 const std::string& ncf = "") {
+                                 const std::string& ncf = "",
+                                 const std::size_t nmo_alpha = 0) {
 
     MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in plan_restart");
     const std::size_t last = protocol.size() - 1;
@@ -279,6 +287,11 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
 
     RestartPlan plan;
     plan.mode = mode;
+    plan.archive_nmo_alpha = disk.nmo_alpha;
+
+    // an archive with fewer orbitals than requested (virtuals added on restart)
+    // is a guess for the missing ones, whatever its convergence claim says
+    const bool pads_virtuals = nmo_alpha > 0 and disk.nmo_alpha > 0 and disk.nmo_alpha < nmo_alpha;
 
     // does the archive solve the same Hamiltonian this run is asking about?
     //
@@ -385,6 +398,8 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             MADNESS_CHECK_THROW(
                     compare_geometry(meta.molecule, requested) == GeometryMatch::same,
                     "restart read_only: archive geometry does not match the requested geometry");
+            MADNESS_CHECK_THROW(not pads_virtuals,
+                    "restart read_only: the archive holds fewer orbitals than requested");
             // The user asserted these orbitals are the answer. Respect that even
             // when they are not converged to the requested precision -- warn and
             // hand back the stale energy rather than second-guessing.
@@ -499,6 +514,11 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         return continue_from_archive(meta, "restart auto: " + other +
                                            " -- a different Hamiltonian, so re-converging");
 
+    if (pads_virtuals)
+        return continue_from_archive(meta, "restart auto: archive holds " + std::to_string(disk.nmo_alpha) +
+                                           " alpha orbitals, " + std::to_string(nmo_alpha) +
+                                           " requested; the missing virtuals start from the atomic guess");
+
     if (meta.is_converged_to(target_thresh, target_dconv)) {
         plan.source = RestartSource::restartdata;
         plan.iterate = false;
@@ -536,7 +556,11 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
     disk.restartdata_present = (flags[0] == 1);
     disk.restartao_present = (flags[1] == 1);
 
-    if (disk.restartdata_present) disk.meta = peek_restartdata(world, prefix + ".restartdata");
+    if (disk.restartdata_present) {
+        disk.meta = peek_restartdata(world, prefix + ".restartdata");
+        if (const auto summary = peek_restartdata_summary(world, prefix + ".restartdata"))
+            disk.nmo_alpha = summary->nmo_alpha;
+    }
     return disk;
 }
 
@@ -570,7 +594,7 @@ inline RestartPlan make_restart_plan(World& world, const RestartMode mode,
 
     RestartPlan plan = plan_restart(mode, disk, can, param.protocol(), param.dconv(),
                                     requested, wanted, requested.parameters.eprec(),
-                                    param.xc(), ncf);
+                                    param.xc(), ncf, std::size_t(param.nmo_alpha()));
     world.gop.broadcast_serializable(plan, 0);
 
     if (world.rank() == 0 and param.print_level() > 1) {

@@ -395,6 +395,9 @@ public:
     std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
                                         const tensorT& occ, const int nmo) const;
 
+    /// overwrite the leading occupation numbers with the explicit aocc/bocc input, if given
+    void apply_explicit_occupations(World& world);
+
     static void analyze_vectors(World& world, const vecfuncT& mo,
             const vecfuncT& ao, double vtol,
             const Molecule& molecule, const int print_level,
@@ -410,6 +413,38 @@ public:
     void get_initial_orbitals(World& world, RestartPlan& plan);
 
     void initial_guess(World& world);
+
+    /// diagonalize the atomic-guess Fock matrix in the AO basis
+    /// @param[out]	c	eigenvectors, one column per orbital
+    /// @param[out]	e	eigenvalues
+    void initial_guess_ao_eigenvectors(World& world, tensorT& c, tensorT& e);
+
+    /// iterate the virtuals in the fixed mean field of the occupied orbitals
+    ///
+    /// The occupied orbitals are not updated: nuclear and Coulomb potentials are
+    /// built once, the exchange and XC operators take the occupied orbitals from
+    /// this object at every call. Each spin's virtual block is canonicalized,
+    /// BSH-updated with KAIN, and re-orthogonalized against its occupieds.
+    void solve_virtuals(World& world);
+
+    /// KAIN: append (vm, rm) to the subspace and return the mixing coefficients
+    ///
+    /// Rebuilds the subspace matrix Q incrementally; on a singular subspace the
+    /// history is dropped and the step is a plain update.
+    tensorT kain_solve(World& world, const vecfuncT& vm, const vecfuncT& rm,
+                       subspaceT& subspace, tensorT& Q) const;
+
+    /// KAIN: the updated orbitals lo..lo+n of the subspace's vectors for coefficients c
+    vecfuncT kain_combine(World& world, const subspaceT& subspace, const tensorT& c,
+                          const size_t lo, const size_t n) const;
+
+    /// KAIN: drop the oldest history entry once the subspace holds maxsub of them
+    void kain_trim(subspaceT& subspace, tensorT& Q) const;
+
+    /// fill in the virtuals a restart archive lacks, up to nmo_alpha/nmo_beta, with
+    /// atomic-guess orbitals orthogonalized against the loaded ones
+    /// @return		true if anything was added
+    bool pad_virtuals_from_guess(World& world);
 
     void initial_guess_from_nwchem(World& world);
 
@@ -508,6 +543,15 @@ public:
                              vecfuncT& psi, vecfuncT& Vpsi, tensorT& evals,
                              const tensorT& occ, const double thresh) const;
 
+    /// canonicalize the virtual orbitals: diagonalize the virtual-virtual Fock
+    /// block and rotate psi and Vpsi in phase. Occupied orbitals are untouched;
+    /// the occupied-virtual coupling is left for the caller to decouple. No-op
+    /// when there are no virtuals or the rotation is near-identity.
+    /// @param[in]	nocc	number of occupied orbitals; the block [nocc, nmo) is canonicalized
+    /// @return		true if a rotation was applied
+    bool canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
+                               vecfuncT& Vpsi, const int nocc) const;
+
 
     void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old,
                  functionT& brho_old, subspaceT& subspace);
@@ -600,7 +644,26 @@ public:
             calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
         }
 
+        // The virtual step-down converges nv_extra extra virtuals first. Only
+        // virtuals that start from the atomic guess can be sized for them: a fresh
+        // guess, or a restart whose archive lacks them. A complete restart skips it.
+        const int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
+        const int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
+        const bool pads_virtuals = plan.source == RestartSource::restartdata &&
+                                   plan.archive_nmo_alpha > 0 &&
+                                   plan.archive_nmo_alpha < std::size_t(calc.param.nmo_alpha());
+        const int nv_extra = (plan.source == RestartSource::initial_guess || pads_virtuals) ? calc.param.nv_extra() : 0;
+        if (calc.param.nv_extra() > 0 && nv_extra == 0 && world.rank() == 0)
+            print("virtual step-down skipped: the virtuals do not start from the atomic guess");
+        if (nv_extra > 0) {
+            calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nvalpha + nv_extra);
+            if (calc.param.have_beta())
+                calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nvbeta + nv_extra);
+        }
+
         calc.get_initial_orbitals(world, plan);
+        MADNESS_CHECK_THROW(not calc.param.freeze_occupied() or plan.source == RestartSource::restartdata,
+                            "freeze_occupied needs converged occupied orbitals from a restartdata archive");
 
         // Reading can invalidate the plan's premise. load_mos resets
         // converged_for_thresh when it has to reproject, and it may have fallen
@@ -642,51 +705,47 @@ public:
         // Make the nuclear potential, initial orbitals, etc.
         for (unsigned int proto = plan.protocol_start; proto < calc.param.protocol().size(); proto++) {
 
-            int nvalpha = calc.param.nmo_alpha() - calc.param.nalpha();
-            int nvbeta = calc.param.nmo_beta() - calc.param.nbeta();
-            int nvalpha_start, nv_old;
+            // Drop the extra virtuals stepwise down to nvalpha on the first rung we
+            // run. Intermediate stages are capped at nv_its iterations; the last
+            // stage runs with the input maxiter.
+            const int extra = (proto == plan.protocol_start) ? nv_extra : 0;
+            const int nv_step = calc.param.nv_step() > 0 ? calc.param.nv_step() : std::max(extra, 1);
+            const int maxiter_input = calc.param.maxiter();
+            int nv_old = nvalpha + extra;
 
-            //repeat with gradually decreasing nvirt, only for the first protocol
-            // rung we actually run -- which is not rung 0 after a restart
-            if (proto == plan.protocol_start && nvalpha > 0) {
-                nvalpha_start = nvalpha * calc.param.nv_factor();
-            } else {
-                nvalpha_start = nvalpha;
-            }
+            for (int nv = nvalpha + extra; ; nv = std::max(nv - nv_step, nvalpha)) {
 
-            nv_old = nvalpha_start;
-
-            for (int nv = nvalpha_start; nv >= nvalpha; nv -= nvalpha) {
-
-                if (nv > 0 && world.rank() == 0) std::cout << "Running with " << nv << " virtual states" << std::endl;
+                if (extra > 0)
+                    calc.param.set_user_defined_value("maxiter", nv > nvalpha ? calc.param.nv_its() : maxiter_input);
+                if (nv > 0 && world.rank() == 0)
+                    std::cout << "Running with " << nv << " virtual states, maxiter " << calc.param.maxiter() << std::endl;
 
                 calc.param.set_user_defined_value("nmo_alpha", calc.param.nalpha() + nv);
-                // check whether this is sensible for spin restricted case
-                if (calc.param.nbeta() && !calc.param.spin_restricted()) {
-                    if (nvbeta == nvalpha) {
-                        calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv);
-                    } else {
-                        calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
-                    }
-                }
+                if (calc.param.have_beta())
+                    calc.param.set_user_defined_value("nmo_beta", calc.param.nbeta() + nv + nvbeta - nvalpha);
 
                 calc.set_protocol<3>(world, calc.param.protocol()[proto]);
                 calc.make_nuclear_potential(world);
 
                 if (nv != nv_old) {
+                    // The virtuals are canonical (ascending eigenvalue), so shrinking
+                    // the vector drops the highest ones.
                     calc.amo.resize(calc.param.nmo_alpha());
-                    calc.bmo.resize(calc.param.nmo_beta());
-
+                    calc.aset.resize(calc.param.nmo_alpha());
+                    calc.aeps = copy(calc.aeps(Slice(0, calc.param.nmo_alpha() - 1)));
                     calc.aocc = tensorT(calc.param.nmo_alpha());
                     for (int i = 0; i < calc.param.nalpha(); ++i)
                         calc.aocc[i] = 1.0;
-
-                    calc.bocc = tensorT(calc.param.nmo_beta());
-                    for (int i = 0; i < calc.param.nbeta(); ++i)
-                        calc.bocc[i] = 1.0;
-
-                    // might need to resize aset, bset, but for the moment this doesn't seem to be necessary
-
+                    if (calc.param.have_beta()) {
+                        calc.bmo.resize(calc.param.nmo_beta());
+                        calc.bset.resize(calc.param.nmo_beta());
+                        calc.beps = copy(calc.beps(Slice(0, calc.param.nmo_beta() - 1)));
+                        calc.bocc = tensorT(calc.param.nmo_beta());
+                        for (int i = 0; i < calc.param.nbeta(); ++i)
+                            calc.bocc[i] = 1.0;
+                    } else if (calc.param.nbeta() > 0) {
+                        calc.bmo = calc.amo;    // spin-restricted: bmo mirrors amo (see update_subspace)
+                    }
                 }
 
                 // project orbitals into higher k. Not needed on the first rung we
@@ -705,15 +764,20 @@ public:
                 }
                 calc.ao.clear(); world.gop.fence();
                 calc.ao = calc.project_ao_basis(world, calc.aobasis);
-                calc.solve(world);
+                if (calc.param.freeze_occupied()) {
+                    // The frozen solver reports the archive's energy. load_mos clears
+                    // current_energy when it reprojects (a plan starting below the
+                    // archive's rung), so take the header value the plan kept.
+                    calc.current_energy = plan.stale_energy;
+                    calc.solve_virtuals(world);
+                }
+                else calc.solve(world);
 
                 if (calc.param.save())
                     calc.save_mos(world);
 
                 nv_old = nv;
-                // exit loop over decreasing nvirt if nvirt=0
-                if (nv == 0) break;
-
+                if (nv == nvalpha) break;
             }
 
         }
@@ -770,7 +834,10 @@ public:
 
 
         to_json(j, int_vals);
-        double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+        // current_energy, not value(): a re-solve here would run on rank 0 only
+        // (non-collective), and the nwfile guess translates the molecule, which
+        // stales value()'s coords cache.
+        double_vals.push_back({"return_energy", calc.current_energy});
         to_json(j, double_vals);
         double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
         if (param.nbeta() != 0 && !param.spin_restricted()) {
