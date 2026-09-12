@@ -11,6 +11,16 @@ TEST(DFConvergence, BshResidualUsesOnlyStrictResidual) {
     const DFConvergenceMetrics m{-75.0, -74.0, 1.e-6,
                                  1.e-2, 1.e-6, 9.e-7, 1.e-6};
     EXPECT_TRUE(df_iteration_converged(DFConvergenceCriterion::bsh_residual, m));
+
+    auto at_threshold = m;
+    at_threshold.max_bsh_residual = 1.e-6;
+    EXPECT_TRUE(df_iteration_converged(
+        DFConvergenceCriterion::bsh_residual, at_threshold));
+
+    auto relaxed_only = m;
+    relaxed_only.max_bsh_residual = 5.e-5;
+    EXPECT_FALSE(df_iteration_converged(
+        DFConvergenceCriterion::bsh_residual, relaxed_only));
 }
 
 TEST(DFConvergence, CombinedCriterionRejectsUnconvergedEnergy) {
@@ -33,6 +43,17 @@ TEST(DFConvergence, CombinedCriterionRequiresAllThreeMeasurements) {
     auto bad_bsh = converged;
     bad_bsh.max_bsh_residual = 2.e-4;
     EXPECT_FALSE(df_iteration_converged(combined, bad_bsh));
+}
+
+TEST(DFConvergence, CombinedCriterionUsesAbsoluteEnergyChangeAtZeroEnergy) {
+    const auto combined = DFConvergenceCriterion::energy_density_residual;
+    const DFConvergenceMetrics converged{0.0, 5.e-7, 1.e-6,
+                                         1.e-8, 1.e-6, 5.e-5, 1.e-6};
+    EXPECT_TRUE(df_iteration_converged(combined, converged));
+
+    auto bad_energy = converged;
+    bad_energy.previous_total_energy = 2.e-6;
+    EXPECT_FALSE(df_iteration_converged(combined, bad_energy));
 }
 
 int main(int argc, char** argv) {
