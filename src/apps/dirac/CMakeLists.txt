@@ -3,7 +3,7 @@
 add_mad_executable(DFdriver "DFdriver.cc;DF.cc;fcwf.cc" MADchem)
 
 if(BUILD_TESTING)
-  add_unittests(dirac "test_dirac.cc" "MADchem;MADgtest" "unittests;short")
+  add_unittests(dirac "test_dirac.cc DF.cc fcwf.cc" "MADchem;MADgtest" "unittests;short")
 endif()
 
 #target_link_libraries(DFdriver MADchem MADmra)

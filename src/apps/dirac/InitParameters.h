@@ -10,6 +10,7 @@
 #include <madness/chem/NWChem.h>
 #include <madness/chem/Restart.h>
 #include "DFParameters.h"
+#include "DFRestart.h"
 
 Function<std::complex<double>,3> function_real2complex(const Function<double,3>& r);
 double myxfunc(const madness::coord_3d& r);
@@ -46,6 +47,18 @@ namespace madness{
                if(restart){
                     if(world.rank()==0) print("\n Reading initial data from restarted DF calculation");
                     archive::ParallelInputArchive input(world, filename.c_str());
+
+                    //Validate the restart format before reading anything else.
+                    //Rank 0 owns the local stream, so it alone can hit the type
+                    //cookie mismatch a legacy (unversioned) archive produces.
+                    //Read it there, broadcast the answer, and let every rank
+                    //throw together -- wrap_load's unconditional broadcast would
+                    //otherwise strand the other ranks if rank 0 threw out of it.
+                    unsigned int version = 0;
+                    if(world.rank() == 0) version = read_df_restart_version(input.local_archive());
+                    input.broadcast(version, 0);
+                    require_supported_df_restart(version);
+
                     input & Init_total_energy;
                     input & spinrestricted;
                     input & closed_shell;

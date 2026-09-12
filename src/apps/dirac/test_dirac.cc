@@ -1,9 +1,15 @@
 #include "DFConvergence.h"
 #include "DFParameters.h"
+#include "DFRestart.h"
+#include "InitParameters.h"
 #include <madness/world/MADworld.h>
+#include <madness/world/binary_fstream_archive.h>
+#include <madness/world/parallel_archive.h>
 #include <gtest/gtest.h>
+#include <filesystem>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 
 using madness::DFConvergenceCriterion;
 using madness::DFConvergenceMetrics;
@@ -85,10 +91,115 @@ TEST(DFParameters, UnspecifiedThresholdsFollowFinalThresh) {
     EXPECT_DOUBLE_EQ(parameters.thresh_mul, 3.e-7);
 }
 
+namespace {
+madness::World* test_world = nullptr;
+
+// The pid goes in front of the stem, not behind it: clean_archive_filename()
+// strips a trailing 5-digit ".NNNNN" chunk suffix, which a pid-shaped tail
+// would look exactly like.
+std::string temp_archive_path(const char* stem) {
+    const std::string unique = std::to_string(::getpid()) + "_" + stem;
+    return (std::filesystem::temp_directory_path() / unique).string();
+}
+
+std::string collective_temp_archive_path(madness::World& world, const char* stem) {
+    std::string path;
+    if (world.rank() == 0) path = temp_archive_path(stem);
+    world.gop.broadcast_serializable(path, 0);
+    return path;
+}
+
+void write_legacy_df_header(const std::string& path, const double energy,
+                            const bool krestricted, const bool closed_shell,
+                            const unsigned int norbitals) {
+    madness::archive::BinaryFstreamOutputArchive ar(path.c_str());
+    madness::Tensor<double> energies(norbitals);
+    ar & energy & krestricted & closed_shell & norbitals & energies;
+}
+
+void write_legacy_parallel_df_archive(madness::World& world,
+                                      const std::string& path) {
+    madness::archive::ParallelOutputArchive<> ar(world, path, 1);
+    const double energy = -14.5;
+    const bool krestricted = false;
+    const bool closed_shell = true;
+    const unsigned int norbitals = 0;
+    const madness::Tensor<double> energies(norbitals);
+    const double box_size = 20.0;
+    const int wavelet_order = 8;
+    const madness::Molecule molecule;
+    ar & energy & krestricted & closed_shell & norbitals & energies
+       & box_size & wavelet_order & molecule;
+    ar.flush();
+}
+}  // namespace
+
+TEST(DFRestart, VersionRoundTrips) {
+    const std::string path = temp_archive_path("df_restart_version.bin");
+    {
+        madness::archive::BinaryFstreamOutputArchive ar(path.c_str());
+        madness::write_df_restart_version(ar);
+    }
+    unsigned int version = 0;
+    {
+        madness::archive::BinaryFstreamInputArchive ar(path.c_str());
+        version = madness::read_df_restart_version(ar);
+    }
+    EXPECT_EQ(version, madness::DF_RESTART_VERSION);
+    EXPECT_NO_THROW(madness::require_supported_df_restart(version));
+    std::filesystem::remove(path);
+}
+
+TEST(DFRestart, LegacyArchiveReadsAsUnversioned) {
+    const std::string path = temp_archive_path("df_restart_legacy.bin");
+    write_legacy_df_header(path, -14.5, false, true, 2);
+    unsigned int version = madness::DF_RESTART_VERSION;
+    {
+        madness::archive::BinaryFstreamInputArchive ar(path.c_str());
+        version = madness::read_df_restart_version(ar);
+    }
+    EXPECT_EQ(version, 0u);
+    std::filesystem::remove(path);
+}
+
+TEST(DFRestart, UnsupportedVersionsExplainRecovery) {
+    for (const unsigned int bad : {0u, madness::DF_RESTART_VERSION + 1u}) {
+        try {
+            madness::require_supported_df_restart(bad);
+            FAIL() << "accepted DF restart version " << bad;
+        } catch (const madness::MadnessException& error) {
+            const std::string message = error.what();
+            EXPECT_NE(message.find("DF restart archive"), std::string::npos);
+            EXPECT_NE(message.find("start from a moldft archive"),
+                      std::string::npos);
+        }
+    }
+}
+
+TEST(DFRestart, LegacyArchiveIsRejectedCollectively) {
+    ASSERT_NE(test_world, nullptr);
+    madness::World& world = *test_world;
+    const std::string path =
+        collective_temp_archive_path(world, "df_restart_collective_legacy");
+    write_legacy_parallel_df_archive(world, path);
+    world.gop.fence();
+
+    madness::InitParameters parameters;
+    EXPECT_THROW(parameters.read(world, path, 137.03599917697017,
+                                 true, false),
+                 madness::MadnessException);
+
+    world.gop.fence();
+    madness::archive::ParallelInputArchive<>::remove(world, path.c_str());
+    world.gop.fence();
+}
+
 int main(int argc, char** argv) {
-    madness::initialize(argc, argv);
+    madness::World& world = madness::initialize(argc, argv);
+    test_world = &world;
     ::testing::InitGoogleTest(&argc, argv);
     const int status = RUN_ALL_TESTS();
+    test_world = nullptr;
     madness::finalize();
     return status;
 }

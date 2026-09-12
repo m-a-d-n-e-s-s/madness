@@ -164,6 +164,13 @@ end
 ```
 Ensure the previous run did not specify `no_save`.
 
+DF restart archives begin with an explicit format version field. Archives written before this
+field was introduced carry no version and are rejected with an actionable error; they are not
+migrated. Regenerate them by restarting from a `moldft` archive. The incompatibility is detected
+in both directions: an older `DFdriver` pointed at a new archive reads the version field where it
+expects the total energy, so it aborts with an archive type-mismatch message instead of
+misparsing the file.
+
 ---
 
 ## Example Inputs

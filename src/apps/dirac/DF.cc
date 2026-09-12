@@ -11,6 +11,7 @@
  */ 
 
 #include "DF.h"
+#include "DFRestart.h"
 //#include "Plot_VTK.h"
 #include "fcwf.h"
 #include <madness/chem/potentialmanager.h>
@@ -1118,6 +1119,7 @@ void DF::saveDF(World& world){
      if(world.rank()==0) print("\n***Saving at time: ",times[0]," ***");
 
      //Create archive and save the following:
+     // 0) DF restart format version (unsigned int)
      // 1) Total energy (double)
      // 2) Krestricted (boolean)
      // 3) closed_shell (boolean)
@@ -1130,6 +1132,9 @@ void DF::saveDF(World& world){
      try{
           //create archive
           archive::ParallelOutputArchive output(world, DFparams.savefile.c_str(), 1);
+
+          //stamp the format version first, so a reader can reject legacy archives
+          write_df_restart_version(output);
 
           //save simulation parameters and calculated properties
           output & total_energy & DFparams.Krestricted & closed_shell & Init_params.num_occupied & energies & Init_params.L & Init_params.order & Init_params.molecule;
