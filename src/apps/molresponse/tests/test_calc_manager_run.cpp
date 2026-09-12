@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
                 "[--maxiter=N] [--dconv=X] [--calc-dir=DIR] "
                 "[--print-level=0..3] "
                 "[--dalton-dir=DIR [--dalton-molden=F] [--dalton-rspvec=F] "
-                "[--dalton-out=F]]");
+                "[--dalton-out=F] [--seed-start-rung=coarse|fine]]");
         finalize();
         return 1;
       }
@@ -113,6 +113,32 @@ int main(int argc, char **argv) {
         protocol = parse_protocol_csv(parser.value("protocol"));
       else
         protocol.push_back(default_thresh_for_k(header.k));
+      // --seed-start-rung=fine: a DALTON-seeded run skips straight to the
+      // FINEST rung (W6 between-pole finding: the coarse rung hits maxiter
+      // unconverged in every arm and launders away the seed's head start —
+      // the seed is already at the physics; refining it at k6 first is a
+      // detour). Collapsing the ladder HERE, before set_response_protocol /
+      // gs.prepare / run_dalton_import, makes the seed projection land at
+      // the fine rung's (k, thresh). Default coarse = full ladder,
+      // unchanged. Gated on --dalton-dir: a COLD fine start needs no flag
+      // (just pass a single-rung --protocol).
+      const std::string seed_start_rung =
+          parser.key_exists("seed-start-rung")
+              ? parser.value("seed-start-rung")
+              : std::string("coarse");
+      {
+        const bool have_seed = parser.key_exists("dalton-dir");
+        if (apply_seed_start_rung(protocol, seed_start_rung, have_seed)) {
+          if (world.rank() == 0)
+            print("[SEED-START-RUNG] fine: ladder collapsed to thresh=",
+                  protocol.front(),
+                  " — the DALTON seed projects at the fine rung");
+        } else if (seed_start_rung == "fine" && !have_seed &&
+                   world.rank() == 0) {
+          print("[SEED-START-RUNG] fine requested but no --dalton-dir seed "
+                "— ignored (full ladder runs)");
+        }
+      }
       // Analyze-only reports at the TOP protocol and never solves, so set that
       // protocol up front: the single gs.prepare() below loads + projects the
       // orbitals at the target (k,thresh) directly. This avoids a second
@@ -298,6 +324,9 @@ int main(int argc, char **argv) {
         req.kind = ResponsePropertyKind::PolarizabilityGradient;
         req.gradient_mode = GradientMode::Resonant;
         req.n_roots = es_roots;
+        // Roots only unless --tpa: the derived dipole FD legs at ωₙ/2 exist
+        // solely for the 2PA residue this driver assembles below.
+        req.tpa = parser.key_exists("tpa");
       } else {
         req.kind = ResponsePropertyKind::Polarizability;
         req.frequencies = freqs;
@@ -319,7 +348,7 @@ int main(int argc, char **argv) {
         print("  calc_dir   =", calc_dir);
         if (parser.key_exists("dalton-dir"))
           print("  dalton_dir =", parser.value_raw("dalton-dir"),
-                " (FD seed import)");
+                " (FD seed import)  seed_start_rung =", seed_start_rung);
         print("  mode       =", (do_beta ? "hyperpolarizability (beta/VBC)"
                                  : es_roots > 0 ? "resonant-gradient (ES)"
                                                 : "polarizability"));
@@ -402,6 +431,10 @@ int main(int argc, char **argv) {
         // TDA/ClosedShell only). Separate gate from --fd-tensor (FD θ path).
         if (parser.key_exists("es-tensor"))
           ctx.es_gamma_tensor = true;
+        // the ES solve, hard-warn (never error) for any converged root farther
+        // a trusted (e.g. d-aug DALTON) ladder here when the solve is seeded
+        // from a poorer basis: a seeded solve TRACKS the seeded states and
+        // does NOT guarantee the N lowest (see solvers/es_seed_guard.hpp).
         // --accept-at-maxiter: accept a non-diverged FD solve that hits maxiter
         // without meeting the strict target (records converged + an `accepted`
         // marker) so a stiff channel climbs the protocol ladder and VBC
@@ -424,10 +457,16 @@ int main(int argc, char **argv) {
           ctx.es_maxrotn = std::stod(parser.value("maxrotn"));
         if (parser.key_exists("es-guess"))
           ctx.es_guess = parse_es_guess_mode(parser.value("es-guess"));
+        // --es-guess-basis=NAME : AO basis for --es-guess=virtual_ao
+        // (default aug-cc-pvdz).
+        if (parser.key_exists("es-guess-basis"))
+          ctx.es_guess_basis = parser.value("es-guess-basis");
         // --tpa-residue [--tpa-prefactor=X]: corrected single-residue 2PA
         // contraction (kernels/tpa.hpp tpa_moment_residue) instead of the
         // legacy beta-reuse candidate.
-        if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;
+        if (parser.key_exists("tpa-residue")) ctx.tpa_residue = true;   // no-op (default)
+        if (parser.key_exists("tpa-legacy"))  ctx.tpa_residue = false;  // beta-reuse arm
+        if (parser.key_exists("tpa-cgrouped")) ctx.tpa_cgrouped = true; // c-grouped comparison arm
         if (parser.key_exists("tpa-prefactor"))
           ctx.tpa_prefactor = std::stod(parser.value("tpa-prefactor"));
         if (parser.key_exists("tpa-decompose")) ctx.tpa_decompose = true;
@@ -524,8 +563,8 @@ int main(int argc, char **argv) {
             const int want_derived = static_cast<int>(want_fkeys.size()) *
                                      static_cast<int>(axes.size());
             // Count converged derived FDs at the top protocol whose freq
-            // matches an expected ωₙ/2 key (ignores any pre-fix ωₙ orphans on a
-            // reused dir).
+            // matches an expected omega_n/2 key (ignores any pre-fix omega_n
+            // orphans on a reused dir).
             int derived = 0;
             if (j.contains("fd_states"))
               for (auto &kv : j["fd_states"].items())

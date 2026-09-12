@@ -70,10 +70,29 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<bool>("excited.enable", false, "enable excited-state bundle planning metadata scaffolding");
         initialize<size_t>("excited.num_states", 1, "number of excited states to target when enabled");
         initialize<bool>("excited.tda", false, "use Tamm-Dancoff approximation in excited-state stage");
+        initialize<bool>("excited.tpa", false,
+                         "two-photon absorption: with excited.enable, also "
+                         "solve the derived dipole FD legs at half of each "
+                         "converged root energy (3 per root) and run the 2PA "
+                         "residue contraction. Off = roots only.");
         initialize<size_t>("excited.guess_max_iter", 5, "maximum iterations for excited-state guess stage");
         initialize<size_t>("excited.maxiter", 20, "maximum iterations for excited-state solve stage");
         initialize<size_t>("excited.maxsub", 8, "subspace size for excited-state iterative solves");
         initialize<size_t>("excited.owner_group", 0, "subgroup lane reserved for excited-state bundle execution");
+        initialize<std::string>("excited.guess", "solid_harmonics",
+                                "excited-state initial-guess generator. solid_harmonics "
+                                "(default): angular trials (solid harmonic x occupied "
+                                "orbital) — structurally blind to totally-symmetric / "
+                                "radially-excited states on atoms. virtual_ao: "
+                                "energy-ordered single excitations into AO-basis virtual "
+                                "orbitals (NWChem CIS-diagonal guess; closed-shell only). "
+                                "random: envelope-localized noise (cold but unbiased).",
+                                {"solid_harmonics", "virtual_ao", "random"});
+        initialize<std::string>("excited.guess_basis", "aug-cc-pvdz",
+                                "Gaussian AO basis projected to build the virtual_ao "
+                                "excited-state guess (ignored by other guess modes). "
+                                "Radial rank per l-sector = #shells(l) - #occupied(l), "
+                                "so a larger basis reaches further up the radial ladder.");
         //** if properites are requested, then one should specify directions,
         // frequencies, and atom_indices(for nuclear response) */
         initialize<bool>("property", false, "Compute properties");
@@ -91,6 +110,14 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "the projected RSPVEC vectors. Import-only — madness never "
                                 "invokes DALTON. Geometry fingerprint mismatch is a hard error; "
                                 "frequencies must match exactly 1-to-1.");
+        initialize<std::string>("seed.start_rung", "coarse",
+                                "protocol rung where a SEEDED response run starts. 'coarse' "
+                                "(default) climbs the full coarse->fine ladder; 'fine' skips "
+                                "straight to the finest rung when a dalton.dir seed is present "
+                                "(between-pole runs: the coarse rung burns maxiter unconverged "
+                                "and launders away the seed's head start — the seed is already "
+                                "at the physics). Ignored without dalton.dir.",
+                                {"coarse", "fine"});
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
@@ -149,6 +176,9 @@ public:
     }
     [[nodiscard]] std::string dalton_dir() const {
         return get<std::string>("dalton.dir");
+    }
+    [[nodiscard]] std::string seed_start_rung() const {
+        return get<std::string>("seed.start_rung");
     }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");
@@ -210,6 +240,9 @@ public:
     [[nodiscard]] bool excited_enable() const {
         return get<bool>("excited.enable");
     }
+    [[nodiscard]] bool excited_tpa() const {
+        return get<bool>("excited.tpa");
+    }
     [[nodiscard]] size_t excited_num_states() const {
         return get<size_t>("excited.num_states");
     }
@@ -227,6 +260,12 @@ public:
     }
     [[nodiscard]] size_t excited_owner_group() const {
         return get<size_t>("excited.owner_group");
+    }
+    [[nodiscard]] std::string excited_guess() const {
+        return get<std::string>("excited.guess");
+    }
+    [[nodiscard]] std::string excited_guess_basis() const {
+        return get<std::string>("excited.guess_basis");
     }
     [[nodiscard]] std::vector<double> dipole_frequencies() const {
         return get<std::vector<double>>("dipole.frequencies");

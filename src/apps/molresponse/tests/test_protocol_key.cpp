@@ -13,7 +13,9 @@
 #include "../ResponseProtocol.hpp"
 
 #include <cstdio>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -28,6 +30,11 @@ void expect_eq(const std::string &got, const std::string &want,
                 label, got.c_str(), want.c_str());
     ++failed;
   }
+}
+
+void expect_true(bool ok, const char *label) {
+  std::printf("  [%s]  %s\n", ok ? "PASS" : "FAIL", label);
+  if (!ok) ++failed;
 }
 
 } // namespace
@@ -45,6 +52,44 @@ int main() {
   std::printf("=== protocol_key(thresh, k) — off-table ===\n");
   expect_eq(protocol_key(1e-5, 6),  "1e-05_k6",  "1e-5 / k=6 (user-specified thresh)");
   expect_eq(protocol_key(5e-7, 8),  "5e-07_k8",  "5e-7 / k=8 (non-power-of-10)");
+
+  std::printf("=== apply_seed_start_rung (seed.start_rung contract) ===\n");
+  {
+    using molresponse_v3::apply_seed_start_rung;
+    // fine + seed: ladder collapses to the finest rung.
+    std::vector<double> p{1e-4, 1e-6};
+    expect_true(apply_seed_start_rung(p, "fine", true) &&
+                    p.size() == 1 && p[0] == 1e-6,
+                "fine+seed [1e-4,1e-6] -> [1e-6]");
+    // 3-rung ladder: finest wins even if unsorted input.
+    p = {1e-6, 1e-4, 1e-8};
+    expect_true(apply_seed_start_rung(p, "fine", true) &&
+                    p.size() == 1 && p[0] == 1e-8,
+                "fine+seed unsorted [1e-6,1e-4,1e-8] -> [1e-8]");
+    // coarse (default): no-op, ladder untouched.
+    p = {1e-4, 1e-6};
+    expect_true(!apply_seed_start_rung(p, "coarse", true) && p.size() == 2,
+                "coarse+seed -> full ladder unchanged");
+    // fine WITHOUT a seed: no-op (caller warns; cold fine start is just a
+    // single-rung protocol request).
+    p = {1e-4, 1e-6};
+    expect_true(!apply_seed_start_rung(p, "fine", false) && p.size() == 2,
+                "fine without seed -> ignored, full ladder");
+    // single-rung ladder: nothing to skip.
+    p = {1e-6};
+    expect_true(!apply_seed_start_rung(p, "fine", true) &&
+                    p.size() == 1 && p[0] == 1e-6,
+                "fine+seed single rung -> no-op");
+    // typo'd mode: loud error, not a silent default.
+    p = {1e-4, 1e-6};
+    bool threw = false;
+    try {
+      apply_seed_start_rung(p, "finest", true);
+    } catch (const std::invalid_argument &) {
+      threw = true;
+    }
+    expect_true(threw, "unknown mode 'finest' throws invalid_argument");
+  }
 
   std::printf("\n%s: %d failure(s)\n",
               failed == 0 ? "ALL PASS" : "FAILED", failed);

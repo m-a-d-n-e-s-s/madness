@@ -55,8 +55,8 @@ replicating it per task.
 |---|---|
 | MacroTask exchange (within-solve two-electron fan-out) | ✅ in use |
 | node-aligned subworld creation (`Split_type` SHARED) | ✅ |
-| Cloud-shared ground state into subworlds | ✅ |
-| FD state-parallel (perturbation × frequency across subworlds) | 🚧 landing incrementally |
+| Ground state into subworlds (archive reload per subworld; Cloud copy-in is future work) | ✅ |
+| FD state-parallel (perturbation × frequency across subworlds) | ✅ Stable (`--fd-subworlds=P`) |
 | ES root-parallel across subworlds | 🚧 design complete, incremental |
 
 Single-World runs (one rank set, threaded) are always available and are the

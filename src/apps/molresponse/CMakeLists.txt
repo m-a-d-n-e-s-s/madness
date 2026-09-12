@@ -56,6 +56,30 @@ add_mad_executable(test_run_response
 add_mad_executable(test_kernel_equivalence
                    "tests/test_kernel_equivalence.cpp;GroundState.cpp"
                    "MADchem")
+# Pins the three algebraic identities (M1/M2/M3) behind the state-grouped
+# reformulation of the 2PA two-electron residue.
+add_mad_executable(test_tpa_regroup_identities
+                   "tests/test_tpa_regroup_identities.cpp;GroundState.cpp"
+                   "MADchem")
+# Gate for the promoted state-free (P,Q) residue source (source-unification
+# step 3, kernels/tpa_source_spec.hpp): equality vs tpa_e3_residue (2e) and
+# tpa_moment_residue_1e (1e), plus the (P,Q)-vs-V^{bc} comparison report.
+add_mad_executable(test_tpa_pq_vs_vbc
+                   "tests/test_tpa_pq_vs_vbc.cpp;GroundState.cpp"
+                   "MADchem")
+# Term-RESOLVED comparison of the two quadratic sources (V^BC vs (P,Q)):
+# every SourceEntry evaluated separately, aligned slots, per-term norms and
+# contractions (2026-09-04 review: catch compensation the contracted scalar
+# gates cannot see). Informational — the equality gates stay separate.
+add_mad_executable(test_vbc_pq_terms
+                   "tests/test_vbc_pq_terms.cpp;GroundState.cpp"
+                   "MADchem")
+# Gate for the spec-path VBC source (source-unification step 2,
+# kernels/source_spec.hpp + vbc::compute_vbc_spec): per-channel equality with
+# compute_vbc at summation-order precision, beta via both paths, Kleinman pair.
+add_mad_executable(test_vbc_spec_equivalence
+                   "tests/test_vbc_spec_equivalence.cpp;GroundState.cpp"
+                   "MADchem")
 add_mad_executable(test_step_restriction
                    "tests/test_step_restriction.cpp"
                    "MADchem")
@@ -240,7 +264,24 @@ if (BUILD_TESTING)
     add_test(NAME madness/test/molresponse/test_run_response/run
              COMMAND test_run_response
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
-    foreach(_t test_kernel_equivalence test_calc_manager_run test_run_response)
+    # Source-unification gates (steps 2+3): spec path == bespoke builders,
+    # plus the M1/M3 regrouping identities the (P,Q) promotion rests on.
+    add_test(NAME madness/test/molresponse/test_vbc_spec_equivalence/run
+             COMMAND test_vbc_spec_equivalence
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata
+                     --calc-dir=ctest_vbc_spec_equiv)
+    add_test(NAME madness/test/molresponse/test_tpa_pq_vs_vbc/run
+             COMMAND test_tpa_pq_vs_vbc
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_vbc_pq_terms/run
+             COMMAND test_vbc_pq_terms
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_tpa_regroup_identities/run
+             COMMAND test_tpa_regroup_identities
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    foreach(_t test_kernel_equivalence test_calc_manager_run test_run_response
+               test_vbc_spec_equivalence test_tpa_pq_vs_vbc
+               test_tpa_regroup_identities)
       set_property(TEST madness/test/molresponse/${_t}/run
                    PROPERTY LABELS "response-fixture;response;long" APPEND)
     endforeach()

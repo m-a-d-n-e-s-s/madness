@@ -542,8 +542,10 @@ create_virtual_ao_guess(World &world, GroundState &gs, long num_roots,
   return X;
 }
 
-/// Initial-guess generation mode for ESSolver<TDA, *>. Selected via the
-/// test/binary's `--guess=` CLI knob.
+/// Initial-guess generation mode for ESSolver<TDA, *>. User-selectable:
+/// standalone binary `--es-guess=` (+ `--es-guess-basis=`), madqc deck
+/// `response { excited.guess ..., excited.guess_basis ... }`, test drivers
+/// `--es-guess=` / `--guess=`.
 ///
 ///   Random         — per-leaf random noise inside an atom-centered
 ///                    Gaussian envelope, Q-projected and GS-orthonormalized.
@@ -556,12 +558,24 @@ create_virtual_ao_guess(World &world, GroundState &gs, long num_roots,
 ///                    sized so #harmonics × n_occ ≥ num_roots. For L=1
 ///                    this is just {x, y, z}·φ_occ — pure dipole, which
 ///                    is essentially the answer for dipole-allowed
-///                    transitions.
+///                    transitions. CAVEAT: the trial set is purely angular
+///                    (l>=1; the l=0 member is deleted and Q would
+///                    annihilate it anyway), supplying at most ONE radial
+///                    function per (l,m) sector and NONE in the totally-
+///                    symmetric sector. Because the ES iteration is
+///                    symmetry-equivariant, a sector absent from the guess
+///                    stays absent: on atoms (He/Be/...) the s->s states
+///                    (e.g. He 2^1S) and the higher radial members of each
+///                    sector are structurally unreachable at any num_roots
+///                    or iteration count. Use VirtualAO for those.
 ///
 ///   VirtualAO      — virtual orbitals built off a Gaussian AO basis,
 ///                    Fock-diagonalized, seeded as the lowest (ε_a−ε_i) single
 ///                    excitations (NWChem CIS-diagonal guess; closed-shell only).
-///                    See create_virtual_ao_guess (doc 17, Path A).
+///                    Supplies #shells(l) − #occ(l) radial functions per
+///                    sector — the basis choice controls how far up the
+///                    radial ladder the guess reaches. See
+///                    create_virtual_ao_guess (doc 17, Path A).
 enum class ESGuessMode { Random, SolidHarmonics, VirtualAO };
 
 inline const char *to_string(ESGuessMode m) {
