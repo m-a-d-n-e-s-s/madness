@@ -5,6 +5,7 @@
 #ifndef MADNESS_APPS_DFPARAMS_H_INCLUDED
 #define MADNESS_APPS_DFPARAMS_H_INCLUDED
 
+#include "DFConvergence.h"
 #include <madness/chem/molecule.h>
 #include <filesystem>
 #include <cctype>
@@ -78,7 +79,7 @@ namespace madness {
           double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
-          std::string convergence_criteria; ///< Which quantities must be converged to stop iterating
+          DFConvergenceCriterion convergence_criteria; ///< Which quantities must be converged to stop iterating
                                        ///<   Value                    |   Criterion
                                        ///<   --------------------------------------------------------------
                                        ///<   bsh_residual             |   max BSH residual <= thresh (Default)
@@ -94,7 +95,11 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted & convergence_criteria;
+               int convergence_criteria_value = static_cast<int>(convergence_criteria);
+               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted & convergence_criteria_value;
+               if constexpr (Archive::is_input_archive) {
+                    convergence_criteria = static_cast<DFConvergenceCriterion>(convergence_criteria_value);
+               }
           }
 
           // Default constructor
@@ -121,7 +126,7 @@ namespace madness {
           , speed_of_light(137.03599917697017) // speed of light in atomic units from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
-          , convergence_criteria("bsh_residual")
+          , convergence_criteria(DFConvergenceCriterion::bsh_residual)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -218,9 +223,10 @@ namespace madness {
                          Krestricted = true;
                     }
                     else if (s == "convergence_criteria"){
-                         f >> convergence_criteria;
-                         if(convergence_criteria != "bsh_residual" and convergence_criteria != "energy_density_residual"){
-                              std::cout << "Dirac Fock: unrecognized convergence_criteria " << convergence_criteria
+                         std::string keyword;
+                         f >> keyword;
+                         if (not df_convergence_criterion_from_string(keyword, convergence_criteria)) {
+                              std::cout << "Dirac Fock: unrecognized convergence_criteria " << keyword
                                         << " (allowed: bsh_residual, energy_density_residual)" << std::endl;
                               MADNESS_EXCEPTION("input error", 0);
                          }
@@ -259,7 +265,7 @@ namespace madness {
                     madness::print("                       Nucleus: gaussian");
                }
                madness::print("           Kramers restriction:", Krestricted);
-               madness::print("          Convergence criteria:", convergence_criteria);
+               madness::print("          Convergence criteria:", df_convergence_criterion_name(convergence_criteria));
                madness::print("                  Do Lineplots:", lineplot);
           }
      };

@@ -1380,8 +1380,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
             XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
                              Fcwf_vector_allocator> &kainsolver,
             double &tolerance, int &iteration_number,
-            double &nuclear_repulsion_energy, double &prev_energy,
-            real_function_3d &prev_rho) {
+            double &nuclear_repulsion_energy, real_function_3d &prev_rho) {
 
      //Get and print the time of this iteration's start, and start a timer
      Tensor<double> times = get_times(world);
@@ -1711,24 +1710,34 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      //Decide whether to iterate again. Both criteria are tested here, after the orbitals
      //have been updated, because the energy and the density of this iteration are only
      //available at this point.
-     if(DFparams.convergence_criteria == "energy_density_residual"){
-          const auto nelec = rho.trace();
-          const auto drho = (prev_rho - rho).norm2();
-          if(world.rank()==0){
-               printf("\n              Density Residual: %.10e\n",drho);
-               printf("             Density Tolerance: %.10e\n",DFparams.dconv * nelec);
-          }
-          if(std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh
-                    and drho <= DFparams.dconv * nelec
-                    and maxresidual <= 1e2 * tolerance) {
-               iterate_again = false;
-               if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
+     madness::DFConvergenceMetrics metrics{
+          total_energy,
+          old_total_energy,
+          DFparams.thresh,
+          /* density_residual  = */ 0.0,
+          /* density_tolerance = */ 0.0,
+          maxresidual,
+          tolerance,
+     };
+     if (DFparams.convergence_criteria ==
+             madness::DFConvergenceCriterion::energy_density_residual) {
+          const double nelec = rho.trace();
+          metrics.density_residual = (prev_rho - rho).norm2();
+          metrics.density_tolerance = DFparams.dconv * nelec;
+          if (world.rank() == 0) {
+               printf("\n              Density Residual: %.10e\n", metrics.density_residual);
+               printf("             Density Tolerance: %.10e\n", metrics.density_tolerance);
           }
      }
-     else {
-          if(maxresidual <= tolerance) {
-               iterate_again = false;
-               if (world.rank() == 0) printf("\nConverged due to residuals");
+     iterate_again = !madness::df_iteration_converged(DFparams.convergence_criteria, metrics);
+
+     if (not iterate_again and world.rank() == 0) {
+          if (DFparams.convergence_criteria ==
+                  madness::DFConvergenceCriterion::energy_density_residual) {
+               printf("\nConverged due to energy, density, and residuals");
+          }
+          else {
+               printf("\nConverged due to residuals");
           }
      }
 
@@ -1824,7 +1833,7 @@ void DF::solve_occupied(World & world)
      bool keep_going = true;
      int iteration_number = 1;
      while((keep_going and iteration_number <= DFparams.max_iter) or iteration_number <= DFparams.min_iter){
-          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, total_energy, rho);
+          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, rho);
           
           //Load balance and save between iterations
           if(keep_going and iteration_number <= DFparams.lb_iter) DF_load_balance(world, Vnuc);
@@ -1936,6 +1945,5 @@ void DF::print_sizes(World& world, bool individual=false){
 }
 
 //kthxbye
-
 
 
