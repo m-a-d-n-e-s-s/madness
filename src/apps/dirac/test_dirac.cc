@@ -2,6 +2,8 @@
 #include "DFParameters.h"
 #include <madness/world/MADworld.h>
 #include <gtest/gtest.h>
+#include <sstream>
+#include <string>
 
 using madness::DFConvergenceCriterion;
 using madness::DFConvergenceMetrics;
@@ -54,6 +56,33 @@ TEST(DFConvergence, CombinedCriterionUsesAbsoluteEnergyChangeAtZeroEnergy) {
     auto bad_energy = converged;
     bad_energy.previous_total_energy = 2.e-6;
     EXPECT_FALSE(df_iteration_converged(combined, bad_energy));
+}
+
+namespace {
+madness::DFParameters read_parameters(const std::string& body) {
+    std::istringstream input("DiracFock\n" + body + "\nend\n");
+    madness::DFParameters parameters;
+    parameters.read(input);
+    return parameters;
+}
+}  // namespace
+
+TEST(DFParameters, ExplicitThresholdsAreOrderIndependent) {
+    const auto before = read_parameters(
+        "dconv 2e-5\nthresh_mul 0.0\nthresh 1e-6");
+    const auto after = read_parameters(
+        "thresh 1e-6\ndconv 2e-5\nthresh_mul 0.0");
+    EXPECT_DOUBLE_EQ(before.thresh, after.thresh);
+    EXPECT_DOUBLE_EQ(before.dconv, 2.e-5);
+    EXPECT_DOUBLE_EQ(after.dconv, 2.e-5);
+    EXPECT_DOUBLE_EQ(before.thresh_mul, 0.0);
+    EXPECT_DOUBLE_EQ(after.thresh_mul, 0.0);
+}
+
+TEST(DFParameters, UnspecifiedThresholdsFollowFinalThresh) {
+    const auto parameters = read_parameters("thresh 3e-7");
+    EXPECT_DOUBLE_EQ(parameters.dconv, 3.e-7);
+    EXPECT_DOUBLE_EQ(parameters.thresh_mul, 3.e-7);
 }
 
 int main(int argc, char** argv) {

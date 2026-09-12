@@ -8,8 +8,8 @@ DiracFock
 
   # Refinement parameters
   thresh 1e-6          # Accuracy criterion for truncation
-  thresh_mul 1e-6      # Screening threshold for sparse multiplication (defaults to thresh)
-  dconv 1e-6           # Charge density convergence criterion
+  thresh_mul 1e-6      # Screening threshold for sparse multiplication (omit to inherit thresh)
+  dconv 1e-6           # Charge density convergence criterion (omit to inherit thresh)
   k 8                  # Wavelet polynomial order
   small 1e-5           # Minimum length scale resolved
 

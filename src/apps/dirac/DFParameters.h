@@ -140,6 +140,11 @@ namespace madness {
                position_stream(f, "DiracFock");
                std::string s;
 
+               // dconv and thresh_mul default to the final value of thresh, but an
+               // explicit value must survive regardless of keyword order.
+               bool dconv_was_set = false;
+               bool thresh_mul_was_set = false;
+
                while(f >> s){
                     if(s == "end"){
                          break;
@@ -164,14 +169,14 @@ namespace madness {
                     }
                     else if (s == "thresh"){
                          f >> thresh;
-                         dconv = thresh;
-                         thresh_mul = thresh;
                     }
                     else if (s == "dconv"){
                          f >> dconv;
+                         dconv_was_set = true;
                     }
                     else if (s == "thresh_mul"){
                          f >> thresh_mul;
+                         thresh_mul_was_set = true;
                     }
                     else if (s == "k"){
                          f >> k;
@@ -236,6 +241,9 @@ namespace madness {
                        MADNESS_EXCEPTION("input error", 0); 
                     }
                }
+
+               if (not dconv_was_set) dconv = thresh;
+               if (not thresh_mul_was_set) thresh_mul = thresh;
           } // end read()
 
           // Prints all information
