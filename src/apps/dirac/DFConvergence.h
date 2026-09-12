@@ -11,8 +11,9 @@ namespace madness {
 enum class DFConvergenceCriterion { bsh_residual, energy_density_residual };
 
 /// Map an input keyword onto the criterion. Returns false for an unknown keyword
-/// so the caller can name the offending text; see the note on message lifetimes
-/// in Task 3 Step 3 for why this helper does not build the error itself.
+/// instead of throwing. MADNESS_EXCEPTION stores the \c const \c char* it is given
+/// and does not copy it. A message built here from the keyword dangles after the
+/// throw. The caller prints the keyword, then throws.
 inline bool df_convergence_criterion_from_string(const std::string& keyword,
                                                  DFConvergenceCriterion& criterion) {
     if (keyword == "bsh_residual") {
@@ -65,8 +66,8 @@ inline bool df_iteration_converged(const DFConvergenceCriterion criterion,
     MADNESS_EXCEPTION("invalid Dirac-Fock convergence criterion", 0);
 }
 
-/// Why the SCF loop stopped. Formatting is separated from printing so the
-/// exact wording can be asserted in a unit test.
+/// Why the SCF loop stopped. The message text is separate from the print, so a
+/// unit test can assert the exact wording.
 enum class DFStopReason { converged_bsh, converged_combined, max_iterations };
 
 inline std::string_view df_stop_message(const DFStopReason reason) {

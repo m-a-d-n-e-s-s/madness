@@ -48,12 +48,11 @@ namespace madness{
                     if(world.rank()==0) print("\n Reading initial data from restarted DF calculation");
                     archive::ParallelInputArchive input(world, filename.c_str());
 
-                    //Validate the restart format before reading anything else.
-                    //Rank 0 owns the local stream, so it alone can hit the type
-                    //cookie mismatch a legacy (unversioned) archive produces.
-                    //Read it there, broadcast the answer, and let every rank
-                    //throw together -- wrap_load's unconditional broadcast would
-                    //otherwise strand the other ranks if rank 0 threw out of it.
+                    //Validate the restart format before any other read. Rank 0 owns
+                    //the local stream, so only rank 0 sees the type cookie mismatch
+                    //of a legacy archive. Rank 0 reads the version and broadcasts it.
+                    //Every rank then throws together. If rank 0 threw inside
+                    //wrap_load, its unconditional broadcast strands the other ranks.
                     unsigned int version = 0;
                     if(world.rank() == 0) version = read_df_restart_version(input.local_archive());
                     input.broadcast(version, 0);
@@ -148,8 +147,8 @@ namespace madness{
                          real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          
-                         //Handle Kramers-restricted and unrestricted cases differently.
-                         //A closed shell is only collapsed onto Kramers pairs when Krestricted is requested.
+                         //Handle the Kramers-restricted and unrestricted cases differently.
+                         //This code collapses a closed shell onto Kramers pairs only under Krestricted.
                          if(Krestricted){
                               //Loop over the occupied orbitals and convert
                               for(unsigned int i = 0; i < num_occupied; i++){

@@ -405,10 +405,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      energies = Init_params.energies;
      occupieds = Init_params.orbitals;
      total_energy = Init_params.Init_total_energy;
-     //True when the stored orbitals contain no unpartnered singly-occupied orbital.
-     //Under Krestricted the time-reversed partners are implicit, and an open shell means
-     //the last stored orbital is the unpaired one. Otherwise every partner is stored
-     //explicitly, and an open shell simply means one orbital has no partner in the set.
+     //True when no stored orbital is unpaired.
+     //Under Krestricted the time-reversed partners are implicit. An open shell then
+     //means that the last stored orbital is unpaired. Otherwise both members of each
+     //pair are stored, and an open shell means that one orbital has no partner.
      closed_shell = Init_params.closed_shell;
 
      Tensor<double> times = end_timer(world);
@@ -1133,7 +1133,7 @@ void DF::saveDF(World& world){
           //create archive
           archive::ParallelOutputArchive output(world, DFparams.savefile.c_str(), 1);
 
-          //stamp the format version first, so a reader can reject legacy archives
+          //write the format version first, so a reader can reject legacy archives
           write_df_restart_version(output);
 
           //save simulation parameters and calculated properties
@@ -1712,9 +1712,8 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
           print("       Total Energy Residual: ", std::fabs(total_energy - old_total_energy));
      }
 
-     //Decide whether to iterate again. Both criteria are tested here, after the orbitals
-     //have been updated, because the energy and the density of this iteration are only
-     //available at this point.
+     //Decide whether to iterate again. Both tests run after the orbital update,
+     //because the energy and the density of this iteration exist only at that point.
      madness::DFConvergenceMetrics metrics{
           total_energy,
           old_total_energy,
@@ -1847,8 +1846,8 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
-     //The loop can also end because the iteration cap was hit. Say so plainly:
-     //the orbitals and restart data are still written, but they are not converged.
+     //The loop can also end at the iteration cap. DFdriver still writes the orbitals
+     //and the restart data, but they are not converged.
      if (keep_going and world.rank() == 0) {
           print("\n", madness::df_stop_message(madness::DFStopReason::max_iterations),
                 "after", iteration_number - 1, "iterations");

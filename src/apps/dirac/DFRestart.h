@@ -10,20 +10,20 @@ namespace madness {
 
 /// Format version for DFdriver restart archives.
 ///
-/// Earlier archives carry no version field at all and are rejected. The field
-/// is read back through the type cookie the BinaryFstream archives write, so a
-/// legacy archive — whose first datum is a double total energy — fails the read
-/// by construction.
+/// Earlier archives carry no version field, and this code rejects them. The read
+/// goes through the type cookie that the BinaryFstream archives write. The first
+/// datum of a legacy archive is a double total energy, so the read of an unsigned
+/// int fails.
 inline constexpr unsigned int DF_RESTART_VERSION = 1;
 
-/// Writes the current DF restart format version as the archive's first datum.
+/// Writes the current DF restart format version as the first datum in the archive.
 template <typename Archive>
 void write_df_restart_version(const Archive& ar) {
     const unsigned int version = DF_RESTART_VERSION;
     ar & version;
 }
 
-/// Returns the archive's format version, or 0 for an unversioned archive.
+/// Returns the format version, or 0 for an unversioned archive.
 ///
 /// Reads from a *local* archive, so the caller decides which rank reads.
 template <typename Archive>
@@ -32,10 +32,10 @@ unsigned int read_df_restart_version(const Archive& ar) {
     try {
         ar & version;
     } catch (const MadnessException&) {
-        // Type cookie mismatch: the first datum is a double, so this is a
-        // pre-versioning archive. The archive prints its own message to
-        // stderr before throwing; its what() points at a stack buffer and
-        // must not be read here.
+        // Type cookie mismatch: the first datum is a double, so the archive
+        // has no version. The archive prints its own message to stderr
+        // before it throws. The what() of that exception points at a stack
+        // buffer, and this code must not read it.
         return 0;
     }
     return version;

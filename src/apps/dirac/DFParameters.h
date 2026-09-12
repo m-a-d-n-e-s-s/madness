@@ -79,7 +79,7 @@ namespace madness {
           double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
-          DFConvergenceCriterion convergence_criteria; ///< Which quantities must be converged to stop iterating
+          DFConvergenceCriterion convergence_criteria; ///< Which quantities must converge before the loop stops
                                        ///<   Value                    |   Criterion
                                        ///<   --------------------------------------------------------------
                                        ///<   bsh_residual             |   max BSH residual <= thresh (Default)
@@ -140,8 +140,8 @@ namespace madness {
                position_stream(f, "DiracFock");
                std::string s;
 
-               // dconv and thresh_mul default to the final value of thresh, but an
-               // explicit value must survive regardless of keyword order.
+               // dconv and thresh_mul default to the final value of thresh. An
+               // explicit value must survive in any keyword order.
                bool dconv_was_set = false;
                bool thresh_mul_was_set = false;
 

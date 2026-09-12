@@ -104,9 +104,9 @@ TEST(DFParameters, UnspecifiedThresholdsFollowFinalThresh) {
 namespace {
 madness::World* test_world = nullptr;
 
-// The pid goes in front of the stem, not behind it: clean_archive_filename()
-// strips a trailing 5-digit ".NNNNN" chunk suffix, which a pid-shaped tail
-// would look exactly like.
+// The pid goes in front of the stem, not after it. clean_archive_filename()
+// strips a trailing 5-digit ".NNNNN" chunk suffix. A pid at the end looks
+// the same as that suffix.
 std::string temp_archive_path(const char* stem) {
     const std::string unique = std::to_string(::getpid()) + "_" + stem;
     return (std::filesystem::temp_directory_path() / unique).string();
