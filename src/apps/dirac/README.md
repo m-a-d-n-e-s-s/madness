@@ -101,7 +101,7 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `thresh_mul <val>` | `double` | `thresh` | Screening threshold for sparse multiplication (`mul_sparse`). Omitted, it inherits the final value of `thresh`; an explicit value wins regardless of keyword order. |
 | `k <order>` | `int` | `8` | Multiwavelet polynomial order. If different from archive, orbitals are automatically projected. |
 | `small <val>` | `double` | `1e-5` | Smallest length scale to be resolved. |
-| `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. |
+| `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. Reaching it stops the run *without* convergence; see [Termination](#termination). |
 | `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. |
 | `convergence_criteria <val>` | `string` | `bsh_residual` | Which quantities must converge to stop iterating. `bsh_residual`: max BSH residual &le; `thresh`. `energy_density_residual`: relative total-energy change &le; `thresh`, *and* $\lVert \Delta \rho \rVert$ &le; `dconv` &times; N<sub>elec</sub>, *and* max BSH residual &le; 100 &times; `thresh`. |
 | `kain` | flag | `false` | Enable KAIN nonlinear accelerator. |
@@ -117,6 +117,24 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `Krestricted` | flag | `false` | Enforce time-reversal symmetry (Kramers pairs) for closed-shell systems. Recommended for closed shells. |
 | `lineplot` | flag | `false` | Generate 1D lineplots of large and small spinor components along the x-axis. |
 | `no_compute` | flag | `false` | Skip SCF iterations and exit after setup. |
+
+### Termination
+
+The SCF loop ends in one of two ways, and the final line of the iteration log says
+which:
+
+- **Converged.** The quantities selected by `convergence_criteria` all met their
+  tolerances. The run prints `Converged due to residuals` or
+  `Converged due to energy, density, and residuals`.
+- **Iteration cap reached.** `max_iter` iterations ran without meeting the
+  criteria. The run prints
+  `WARNING: maximum iterations reached without convergence`, followed by the
+  number of iterations performed.
+
+An iteration-limited calculation is **not** converged, and its energies and
+properties should not be reported as such. The latest orbitals and the restart
+archive are still written (unless `no_save` is set), so the calculation can be
+continued with `restart` and a larger `max_iter` rather than started over.
 
 ---
 

@@ -1737,13 +1737,12 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      iterate_again = !madness::df_iteration_converged(DFparams.convergence_criteria, metrics);
 
      if (not iterate_again and world.rank() == 0) {
-          if (DFparams.convergence_criteria ==
-                  madness::DFConvergenceCriterion::energy_density_residual) {
-               printf("\nConverged due to energy, density, and residuals");
-          }
-          else {
-               printf("\nConverged due to residuals");
-          }
+          const madness::DFStopReason reason =
+               DFparams.convergence_criteria ==
+                       madness::DFConvergenceCriterion::energy_density_residual
+                   ? madness::DFStopReason::converged_combined
+                   : madness::DFStopReason::converged_bsh;
+          print("\n", madness::df_stop_message(reason));
      }
 
      //final truncatation of orbitals now that we've computed properties
@@ -1846,6 +1845,13 @@ void DF::solve_occupied(World & world)
 
           //Increment iteration counter
           iteration_number++;
+     }
+
+     //The loop can also end because the iteration cap was hit. Say so plainly:
+     //the orbitals and restart data are still written, but they are not converged.
+     if (keep_going and world.rank() == 0) {
+          print("\n", madness::df_stop_message(madness::DFStopReason::max_iterations),
+                "after", iteration_number - 1, "iterations");
      }
 
      ////Calculation of Effective Electric Field:

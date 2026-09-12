@@ -64,6 +64,16 @@ TEST(DFConvergence, CombinedCriterionUsesAbsoluteEnergyChangeAtZeroEnergy) {
     EXPECT_FALSE(df_iteration_converged(combined, bad_energy));
 }
 
+TEST(DFConvergence, StopMessagesAreUnambiguous) {
+    using madness::DFStopReason;
+    EXPECT_EQ(madness::df_stop_message(DFStopReason::converged_bsh),
+              "Converged due to residuals");
+    EXPECT_EQ(madness::df_stop_message(DFStopReason::converged_combined),
+              "Converged due to energy, density, and residuals");
+    EXPECT_EQ(madness::df_stop_message(DFStopReason::max_iterations),
+              "WARNING: maximum iterations reached without convergence");
+}
+
 namespace {
 madness::DFParameters read_parameters(const std::string& body) {
     std::istringstream input("DiracFock\n" + body + "\nend\n");

@@ -4,6 +4,7 @@
 #include <madness/world/madness_exception.h>
 #include <cmath>
 #include <string>
+#include <string_view>
 
 namespace madness {
 
@@ -62,6 +63,22 @@ inline bool df_iteration_converged(const DFConvergenceCriterion criterion,
         }
     }
     MADNESS_EXCEPTION("invalid Dirac-Fock convergence criterion", 0);
+}
+
+/// Why the SCF loop stopped. Formatting is separated from printing so the
+/// exact wording can be asserted in a unit test.
+enum class DFStopReason { converged_bsh, converged_combined, max_iterations };
+
+inline std::string_view df_stop_message(const DFStopReason reason) {
+    switch (reason) {
+        case DFStopReason::converged_bsh:
+            return "Converged due to residuals";
+        case DFStopReason::converged_combined:
+            return "Converged due to energy, density, and residuals";
+        case DFStopReason::max_iterations:
+            return "WARNING: maximum iterations reached without convergence";
+    }
+    MADNESS_EXCEPTION("invalid Dirac-Fock stop reason", 0);
 }
 
 } // namespace madness
