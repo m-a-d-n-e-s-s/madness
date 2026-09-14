@@ -674,17 +674,35 @@ XCOperator<T, NDIM>::apply_tau_term(const std::vector<Function<T, NDIM> > &vket)
         }
     }
 
+    // In nemo mode the kets are the nemos F and what the caller needs back is the
+    // term divided by R, since its equations are for F rather than psi = R F:
+    //
+    //   R^{-1} [ -1/2 div( v_tau grad(R F) ) ]
+    //
+    // With grad(R F) = R (grad F - U1 F) and W = v_tau (grad F - U1 F),
+    //
+    //   div(R W) = R div W + grad(R).W = R (div W - U1.W)
+    //
+    // so the R factors cancel exactly and the result is -1/2 (div W - U1.W). No
+    // division by R anywhere, and the cusp stays in the analytic U1 rather than
+    // under a derivative operator. Without an ncf, U1 drops out and W = v_tau
+    // grad(psi), which is the plain nested form.
+    vecfuncT U1;
+    if (ncf) U1 = ncf->U1vec();
+
     std::vector<Function<T, NDIM> > result =
             zero_functions_compressed<T, NDIM>(world, vket.size());
     for (int axis = 0; axis < 3; ++axis) {
         auto D = make_derivative(axis);
         std::vector<Function<T, NDIM> > vket_copy = copy(world, vket);
         refine(world, vket_copy);
-        std::vector<Function<T, NDIM> > dket = apply(world, *D, vket_copy);
+        std::vector<Function<T, NDIM> > W = apply(world, *D, vket_copy);
+        if (ncf) W = sub(world, W, mul(world, U1[axis], vket_copy));
         // vtau is only ever multiplied, never differentiated
-        dket = mul_sparse(world, vtau, dket, vtol);
-        refine(world, dket);
-        result = add(world, result, apply(world, *D, dket));
+        W = mul_sparse(world, vtau, W, vtol);
+        refine(world, W);
+        result = add(world, result, apply(world, *D, W));
+        if (ncf) result = sub(world, result, mul(world, U1[axis], W));
     }
     scale(world, result, -0.5);
     truncate(world, result);
