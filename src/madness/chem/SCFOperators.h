@@ -772,12 +772,19 @@ public:
          MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator",1);
     };
 
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket) const {
-        MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator", 1);
-    }
+    /// the xc contribution to the Fock matrix
+
+    /// With a nuclear correlation factor the bra must carry R^2 -- call it as
+    /// xcoperator(R2nemo, nemo), the way Kinetic is called in
+    /// Nemo::compute_fock_matrix. Without one, bra and ket are the same orbitals.
+    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra,
+                         const std::vector<Function<T,NDIM>>& vket) const;
 
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
+
+    /// the multiplicative part of the potential, as make_xc_potential() returned it
+    real_function_3d get_vlocal() const {return vlocal;}
 
     /// return the local xc potential
     real_function_3d make_xc_potential() const;
@@ -899,6 +906,12 @@ private:
 
     /// divergence of a vector field, honouring dft_deriv
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
+    /// the multiplicative potential, stashed by make_xc_potential()
+    mutable real_function_3d vlocal;
+
+    /// the body of make_xc_potential(); the wrapper only stashes vlocal
+    real_function_3d make_xc_potential_impl() const;
 
     /// true once set_tau() has supplied tau, by either route
     bool has_tau_args() const;

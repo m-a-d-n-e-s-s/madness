@@ -733,6 +733,53 @@ real_function_3d XCOperator<T, NDIM>::div_dft_deriv(const vecfuncT& v) const {
 }
 
 
+/// the xc contribution to the Fock matrix
+
+/// See the declaration for the bra convention -- vbra carries R^2, vket does not.
+template<typename T, std::size_t NDIM>
+Tensor<T> XCOperator<T, NDIM>::operator()(const std::vector<Function<T,NDIM> >& vbra,
+                                          const std::vector<Function<T,NDIM> >& vket) const {
+
+    MADNESS_CHECK_THROW(vbra.size() == vket.size(),
+                        "XCOperator matrix elements: vbra and vket differ in size");
+    MADNESS_CHECK_THROW(vlocal.is_initialized(),
+                        "XCOperator matrix elements before make_xc_potential");
+
+    const long nn = long(vket.size());
+    Tensor<T> result(nn, nn);
+    if (nn == 0) return result;
+
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double vtol = thresh * 0.1;
+
+    // Verify the bra weighting instead of trusting it. The tau term below
+    // distinguishes bra from ket, so a swapped or unweighted bra does not fail --
+    // it returns a plausible wrong matrix, which is the worst outcome available.
+    // One orbital settles it, so the check is O(1) in the orbital count, and R^2
+    // appears here only as an assertion and nowhere in the arithmetic.
+    {
+        std::vector<Function<T,NDIM> > one(1, vket[0]), ref;
+        if (ncf) ref = mul_sparse(world, ncf->square(), one, vtol);
+        else     ref = one;
+        const double err = (vbra[0] - ref[0]).norm2();
+        MADNESS_CHECK_THROW(err < 10.0 * thresh * (1.0 + vbra[0].norm2()),
+            ncf ? "XCOperator matrix elements: vbra must be the R^2-weighted "
+                  "counterpart of vket -- call it as xcoperator(R2nemo, nemo), the "
+                  "way Kinetic is called in Nemo::compute_fock_matrix"
+                : "XCOperator matrix elements: without a nuclear correlation factor "
+                  "vbra and vket must be the same orbitals");
+    }
+
+    // the multiplicative potential is complete here, so all that is missing is the
+    // non-multiplicative meta-gga term. apply_tau_term returns it already divided
+    // by R, which is exactly what makes an R^2-weighted bra produce the physical
+    // <psi_i|.|psi_j>.
+    result += matrix_inner(world, mul_sparse(world, vlocal, vbra, vtol), vket);
+    if (has_tau_term()) result += matrix_inner(world, vbra, apply_tau_term(vket));
+    return result;
+}
+
+
 template<typename T, std::size_t NDIM>
 double XCOperator<T, NDIM>::compute_xc_energy() const {
 
@@ -782,8 +829,17 @@ nemo_u1_functors XCOperator<T, NDIM>::make_u1_functors() const {
 }
 
 
+/// A thin wrapper whose only job is to stash the result: operator()(vbra,vket)
+/// needs whatever the caller got, with no argument to receive it through.
 template<typename T, std::size_t NDIM>
 real_function_3d XCOperator<T, NDIM>::make_xc_potential() const {
+    vlocal = make_xc_potential_impl();
+    return vlocal;
+}
+
+
+template<typename T, std::size_t NDIM>
+real_function_3d XCOperator<T, NDIM>::make_xc_potential_impl() const {
 
     if (not is_initialized()) {
         MADNESS_EXCEPTION("calling xc potential without intermediates ", 1);
