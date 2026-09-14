@@ -358,6 +358,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Broadcast to all other nodes
      world.gop.broadcast_serializable(DFparams, 0);
+     MADNESS_CHECK_THROW(DFparams.min_iter <= DFparams.max_iter,
+          "Dirac Fock: min_iter must be less than or equal to max_iter");
 
      // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
@@ -1735,15 +1737,6 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      }
      iterate_again = !madness::df_iteration_converged(DFparams.convergence_criteria, metrics);
 
-     if (not iterate_again and world.rank() == 0) {
-          const madness::DFStopReason reason =
-               DFparams.convergence_criteria ==
-                       madness::DFConvergenceCriterion::energy_density_residual
-                   ? madness::DFStopReason::converged_combined
-                   : madness::DFStopReason::converged_bsh;
-          print("\n", madness::df_stop_message(reason));
-     }
-
      //final truncatation of orbitals now that we've computed properties
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
           occupieds[j].truncate();
@@ -1846,11 +1839,20 @@ void DF::solve_occupied(World & world)
           iteration_number++;
      }
 
-     //The loop can also end at the iteration cap. DFdriver still writes the orbitals
-     //and the restart data, but they are not converged.
-     if (keep_going and world.rank() == 0) {
-          print("\n", madness::df_stop_message(madness::DFStopReason::max_iterations),
-                "after", iteration_number - 1, "iterations");
+     //Report why the loop stopped only after it has satisfied min_iter.
+     if (world.rank() == 0) {
+          if (keep_going) {
+               print("\n", madness::df_stop_message(madness::DFStopReason::max_iterations),
+                     "after", iteration_number - 1, "iterations");
+          }
+          else {
+               const madness::DFStopReason reason =
+                    DFparams.convergence_criteria ==
+                            madness::DFConvergenceCriterion::energy_density_residual
+                        ? madness::DFStopReason::converged_combined
+                        : madness::DFStopReason::converged_bsh;
+               print("\n", madness::df_stop_message(reason));
+          }
      }
 
      ////Calculation of Effective Electric Field:
@@ -1955,5 +1957,3 @@ void DF::print_sizes(World& world, bool individual=false){
 }
 
 //kthxbye
-
-

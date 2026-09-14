@@ -102,7 +102,7 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `k <order>` | `int` | `8` | Multiwavelet polynomial order. If different from archive, orbitals are automatically projected. |
 | `small <val>` | `double` | `1e-5` | Smallest length scale to be resolved. |
 | `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. Reaching it stops the run *without* convergence; see [Termination](#termination). |
-| `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. |
+| `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. Must be less than or equal to `max_iter`. |
 | `convergence_criteria <val>` | `string` | `bsh_residual` | Which quantities must converge to stop iterating. `bsh_residual`: max BSH residual &le; `thresh`. `energy_density_residual`: relative total-energy change &le; `thresh`, *and* $\lVert \Delta \rho \rVert$ &le; `dconv` &times; N<sub>elec</sub>, *and* max BSH residual &le; 100 &times; `thresh`. |
 | `kain` | flag | `false` | Enable KAIN nonlinear accelerator. |
 | `maxsub <n>` | `int` | `10` | Maximum subspace size for KAIN. |
@@ -220,4 +220,3 @@ DiracFock
   savefile my_df_checkpoint
 end
 ```
-
