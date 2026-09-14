@@ -235,7 +235,9 @@ void save_fd_state(madness::World &world,
               "  archive=", archive_basename,
               "  bsh_res=", bsh_res,
               "  converged=", converged,
-              (accepted ? "  (ACCEPTED best-effort @ maxiter)" : ""));
+              (!accepted ? ""
+               : state.stalled ? "  (ACCEPTED best-effort @ stall)"
+                               : "  (ACCEPTED best-effort @ maxiter)"));
     // R1b: machine-readable per-state memory high-water mark (worst task, via
     // gop.max in measure_state) at this protocol boundary — feeds the R4
     // memory-scaling model / pre-flight abort (L2). Greppable: ^MEMORY_HWM.

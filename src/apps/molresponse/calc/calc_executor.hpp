@@ -2345,7 +2345,7 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
         madness::print("[ALPHA]  row dir=", beta_axis_name(ax[i]),
                        " source_protocol=", src_key[i],
                        " converged=", (row_conv[i] != 0),
-                       (row_acc[i] ? " (ACCEPTED@maxiter)" : ""),
+                       (row_acc[i] ? " (ACCEPTED best-effort: maxiter or stall; see the fd_states entry)" : ""),
                        " bsh_res=", row_res[i]);
         for (size_t j = 0; j < ax.size(); ++j)
           madness::print("[ALPHA]  alpha_", beta_axis_name(ax[i]),
