@@ -424,6 +424,7 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
+    weak_gga = nemo->get_calc()->param.xc_weak_gga();
 
     ncf = nemo->ncf;
 
@@ -733,6 +734,83 @@ real_function_3d XCOperator<T, NDIM>::div_dft_deriv(const vecfuncT& v) const {
 }
 
 
+template<typename T, std::size_t NDIM>
+bool XCOperator<T, NDIM>::is_weak_form() const {
+    return weak_form_ok and weak_gga and xc->needs_sigma();
+}
+
+
+/// weak-form split of the non-multiplicative xc terms
+template<typename T, std::size_t NDIM>
+void XCOperator<T, NDIM>::weak_xc_terms(const std::vector<Function<T,NDIM> >& vket,
+                                        std::vector<Function<T,NDIM> >& mult,
+                                        std::vector<std::vector<Function<T,NDIM> > >& flux) const {
+
+    MADNESS_CHECK_THROW(is_weak_form(), "weak_xc_terms outside weak form");
+    MADNESS_CHECK_THROW(semilocal_flux.size() == 3,
+                        "weak_xc_terms before make_xc_potential");
+
+    const double vtol = FunctionDefaults<3>::get_thresh() * 0.1;
+    const std::size_t n = vket.size();
+
+    vecfuncT U1;
+    if (ncf) U1 = ncf->U1vec();
+
+    mult = zero_functions_compressed<T,NDIM>(world, n);
+
+    // accumulate the flux one Cartesian component at a time, as vectors over the
+    // orbitals: the vector gaxpy coerces tree states, the scalar Function::gaxpy
+    // throws on a mismatch instead
+    std::vector<std::vector<Function<T,NDIM> > > Y(3);
+    for (int axis = 0; axis < 3; ++axis)
+        Y[axis] = zero_functions_compressed<T,NDIM>(world, n);
+
+    // ---- semilocal part: Y_i += X F_i,  mult_i += X.grad(F_i)
+    //
+    // grad(F_i) is the gradient of the *nemo*, which is cusp-free, and X is only
+    // ever multiplied. Both products inherit X's jump at the nucleus, which is
+    // harmless: the first is convolved with G, the second enters V psi and is
+    // convolved with G as well. Nothing differentiates X.
+    for (int axis = 0; axis < 3; ++axis) {
+        auto D = make_derivative(axis);
+        std::vector<Function<T,NDIM> > dket = apply(world, *D, vket, false);
+        world.gop.fence();
+        mult += mul_sparse(world, semilocal_flux[axis], dket, vtol);
+        Y[axis] += mul_sparse(world, semilocal_flux[axis], vket, vtol);
+    }
+
+    // ---- meta-gga part: W_i = v_tau (grad F_i - U1 F_i),
+    //      Y_i += 1/2 W_i,   mult_i += 1/2 U1.W_i
+    //
+    // Same R cancellation as apply_tau_term: with psi = R F,
+    //   R^{-1}[-1/2 div(v_tau grad(R F))] = -1/2 (div W - U1.W),
+    // so the divergence piece is -1/2 div W (through G) and the rest is
+    // +1/2 U1.W (multiplicative). v_tau is never differentiated either way --
+    // and unlike apply_tau_term, neither is the product v_tau grad(psi).
+    if (has_tau_term()) {
+        MADNESS_CHECK_THROW(vtau.is_initialized(),
+                            "weak_xc_terms before make_xc_potential");
+        for (int axis = 0; axis < 3; ++axis) {
+            auto D = make_derivative(axis);
+            std::vector<Function<T,NDIM> > W = apply(world, *D, vket, false);
+            world.gop.fence();
+            if (ncf) W = sub(world, W, mul(world, U1[axis], vket));
+            W = mul_sparse(world, vtau, W, vtol);
+            Y[axis] += 0.5 * W;
+            if (ncf) mult += 0.5 * mul(world, U1[axis], W);
+        }
+    }
+
+    truncate(world, mult);
+    for (int axis = 0; axis < 3; ++axis) truncate(world, Y[axis]);
+
+    // transpose into the per-orbital vector fields the caller wants
+    flux.assign(n, std::vector<Function<T,NDIM> >(3));
+    for (std::size_t i = 0; i < n; ++i)
+        for (int axis = 0; axis < 3; ++axis) flux[i][axis] = Y[axis][i];
+}
+
+
 /// the xc contribution to the Fock matrix
 
 /// See the declaration for the bra convention -- vbra carries R^2, vket does not.
@@ -770,12 +848,38 @@ Tensor<T> XCOperator<T, NDIM>::operator()(const std::vector<Function<T,NDIM> >& 
                   "vbra and vket must be the same orbitals");
     }
 
-    // the multiplicative potential is complete here, so all that is missing is the
-    // non-multiplicative meta-gga term. apply_tau_term returns it already divided
-    // by R, which is exactly what makes an R^2-weighted bra produce the physical
-    // <psi_i|.|psi_j>.
+    // ---- the local term, common to both forms: <psi_i| v |psi_j>
+    // v is de/drho in weak form and the complete multiplicative potential otherwise.
     result += matrix_inner(world, mul_sparse(world, vlocal, vbra, vtol), vket);
-    if (has_tau_term()) result += matrix_inner(world, vbra, apply_tau_term(vket));
+
+    if (not is_weak_form()) {
+        // ---- divergence form: the potential above was complete, so all that is
+        // missing is the non-multiplicative meta-gga term. apply_tau_term returns
+        // it already divided by R, which is exactly what makes an R^2-weighted bra
+        // produce the physical <psi_i|.|psi_j>.
+        if (has_tau_term()) result += matrix_inner(world, vbra, apply_tau_term(vket));
+        return result;
+    }
+
+    // ---- weak form: the semilocal and meta-gga terms were never assembled into a
+    // multiplicative potential, so they enter as
+    //   <phi|v|psi> = int (df/drho) phi psi + int Y . grad(phi psi)
+    // which never differentiates the flux. weak_xc_terms returns the same
+    // decomposition the orbital update uses.
+    MADNESS_CHECK_THROW(semilocal_flux.size() == 3,
+                        "XCOperator matrix elements before make_xc_potential");
+    std::vector<Function<T,NDIM> > mult;
+    std::vector<std::vector<Function<T,NDIM> > > flux;
+    weak_xc_terms(vket, mult, flux);
+    result += matrix_inner(world, vbra, mult);
+    for (int axis = 0; axis < 3; ++axis) {
+        auto D = make_derivative(axis);
+        std::vector<Function<T,NDIM> > dbra = apply(world, *D, vbra, false);
+        world.gop.fence();
+        std::vector<Function<T,NDIM> > Yax(nn);
+        for (long i = 0; i < nn; ++i) Yax[i] = flux[i][axis];
+        result += transpose(matrix_inner(world, Yax, dbra));
+    }
     return result;
 }
 
@@ -869,11 +973,26 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential_impl() const {
         semilocal[1] = intermediates[2];
         semilocal[2] = intermediates[3];
 
+        const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
+
+        if (is_weak_form()) {
+            // keep the flux, take no divergence at all. The same-spin and
+            // cross-spin contributions enter the potential as one divergence, so
+            // they are summed here and the caller never needs them apart.
+            semilocal_flux = copy(world, semilocal);
+            if (have_beta) {
+                semilocal_flux[0] += intermediates[4];
+                semilocal_flux[1] += intermediates[5];
+                semilocal_flux[2] += intermediates[6];
+            }
+            truncate(world, semilocal_flux);
+            truncate(world, xc_args);
+            return dft_pot.truncate();
+        }
+
         // second term in Yanai2005, Eq. (12)
         real_function_3d gga_pot_same_spin = div_dft_deriv(semilocal);
         dft_pot -= gga_pot_same_spin;
-
-        bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
         if (have_beta) {
             semilocal[0] = intermediates[4];

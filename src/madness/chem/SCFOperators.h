@@ -780,6 +780,61 @@ public:
     Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra,
                          const std::vector<Function<T,NDIM>>& vket) const;
 
+    /// opt in to the weak form, if the `xc_weak_gga` parameter asks for it
+
+    /// Load-bearing: in weak form make_xc_potential() returns only de/drho, so a
+    /// caller that does not also apply weak_xc_terms() and add the matrix form's
+    /// contribution (operator()(vbra,vket)) would silently drop the whole semilocal
+    /// contribution and return a plausible but wrong energy. Only
+    /// Nemo::compute_nemo_potentials implements the split, so only it opts in; SCF,
+    /// OEP, TDHF and the response kernels keep the multiplicative potential.
+    XCOperator& allow_weak_form() {weak_form_ok=true; return *this;}
+
+    /// override CalculationParameters::xc_weak_gga(), for callers without one
+    XCOperator& set_weak_gga(const bool flag) {weak_gga=flag; return *this;}
+
+    /// true if this operator is running in weak form, i.e. make_xc_potential()
+    /// returns only de/drho and the flux is carried separately
+
+    /// Requires both the caller's allow_weak_form() opt-in and the user's
+    /// `xc_weak_gga` parameter. A functional with no sigma dependence has no flux,
+    /// so it is never in weak form either.
+    ///
+    /// Why it exists: the semilocal potential is -div(X) with
+    /// X = 2 de/dsigma grad(rho), and X has a jump at every nucleus
+    /// (zeta = grad log rho -> -2Z r_hat, whose Cartesian components flip sign
+    /// across the origin). Differentiating that jump is what produces the +-8e4
+    /// excursions, and no rearrangement of the multiplicative form avoids it,
+    /// because div(X) *is* a derivative of X.
+    ///
+    /// The weak form never differentiates X:
+    ///     <phi|v|psi> = int (df/drho) phi psi + int X . grad(phi psi)
+    /// and in a Green's-function code the same holds for the orbital update,
+    /// because a radial convolution commutes with the gradient:
+    ///     G * (psi div X) = div(G * (X psi)) - G * (X . grad psi)
+    /// so the divergence acts on G*(X psi), which is C^1, and the jump is only
+    /// ever convolved. Same for the meta-gga term -1/2 div(v_tau grad psi).
+    bool is_weak_form() const;
+
+    /// the semilocal flux X = 2 (de/dsigma_ss) grad(rho_s) + (de/dsigma_ab) grad(rho_s')
+
+    /// Only assigned in weak form, by make_xc_potential(). Same-spin and cross-spin
+    /// contributions are summed: they enter as a single divergence.
+    const vecfuncT& get_semilocal_flux() const {return semilocal_flux;}
+
+    /// weak-form split of the non-multiplicative xc terms
+
+    /// Writes the decomposition
+    ///   v_xc^{semilocal+tau} psi_i = mult_i - div(Y_i)
+    /// with (nemo kets F_i, W_i = v_tau (grad F_i - U1 F_i))
+    ///   mult_i = X.grad(F_i) + 1/2 U1.W_i,   Y_i = X F_i + 1/2 W_i.
+    /// `mult` goes into V psi; `flux` is what the caller pushes through the
+    /// Green's function, as 2 div(G*Y_i), so that neither X nor v_tau is ever
+    /// differentiated. Requires make_xc_potential() first.
+    void weak_xc_terms(const std::vector<Function<T,NDIM> >& vket,
+                       std::vector<Function<T,NDIM> >& mult,
+                       std::vector<std::vector<Function<T,NDIM> > >& flux) const;
+
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
 
@@ -906,6 +961,18 @@ private:
 
     /// divergence of a vector field, honouring dft_deriv
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
+    /// caller has opted in to the weak form, see allow_weak_form()
+    bool weak_form_ok=false;
+
+    /// the user asked for the weak form: CalculationParameters::xc_weak_gga()
+
+    /// Two independent conditions, and both are needed. weak_form_ok says the
+    /// *caller* implements the split; this says the *user* wants it.
+    bool weak_gga=false;
+
+    /// the semilocal flux, assigned by make_xc_potential() in weak form only
+    mutable vecfuncT semilocal_flux;
 
     /// the multiplicative potential, stashed by make_xc_potential()
     mutable real_function_3d vlocal;
