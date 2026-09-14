@@ -133,7 +133,7 @@ def orbital_extent(d, R=8.0):
         v = read_cube(f)['values']; w = v*v; W = w.sum()
         print(f"  {os.path.basename(f)[4:9]}   {w[r<R].sum()/W:10.4f}   {np.sqrt((w*r*r).sum()/W):14.2f}   {w[edge].sum()/W:16.4f}   {np.abs(v).max():.3e}")
 
-def slice_png(g, axis, value, out, log=False):
+def slice_png(g, axis, value, out, log=False, vmax=None):
     """Colour map of the function on the plane axis = value (nearest grid plane), atoms projected."""
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     ax_ = axes(g); i = int(round((value - g['origin'][axis])/g['delta'][axis])); i = min(max(i, 0), g['n'][axis]-1)
@@ -143,7 +143,7 @@ def slice_png(g, axis, value, out, log=False):
     if log:
         im = axp.pcolormesh(A, B, np.log10(np.abs(v.T) + 1e-12), shading='auto', cmap='viridis'); label = 'log10 |f|'
     else:
-        m = np.abs(v).max(); im = axp.pcolormesh(A, B, v.T, shading='auto', cmap='RdBu_r', vmin=-m, vmax=m); label = 'f'
+        m = vmax if vmax else np.abs(v).max(); im = axp.pcolormesh(A, B, np.clip(v.T, -m, m), shading='auto', cmap='RdBu_r', vmin=-m, vmax=m); label = 'f' + (f' (clipped at +-{m:g})' if vmax else '')
     for z, p in g['atoms']: axp.plot(p[others[0]], p[others[1]], 'ko', ms=3)
     axp.set_xlabel(f"{'xyz'[others[0]]} / bohr"); axp.set_ylabel(f"{'xyz'[others[1]]} / bohr"); axp.set_aspect('equal')
     axp.set_title(f"{out}: plane {'xyz'[axis]} = {ax_[axis][i]:.2f} bohr"); fig.colorbar(im, ax=axp, label=label)
@@ -159,6 +159,7 @@ if __name__ == '__main__':
     ap.add_argument('--slice', action='store_true', help='files = one cube/dx: plane cut, see --axis/--value/--png/--log')
     ap.add_argument('--axis', type=int, default=0); ap.add_argument('--value', type=float, default=0.0)
     ap.add_argument('--png', default='slice.png'); ap.add_argument('--log', action='store_true')
+    ap.add_argument('--vmax', type=float, default=None, help='--slice: clip the colour scale at +-vmax')
     ap.add_argument('--extent', action='store_true', help='files = dir: delocalisation measures of the amo-*.cube orbitals')
     ap.add_argument('--radius', type=float, default=8.0)
     ap.add_argument('--surface', metavar='PNG', help='with --band: write the rho=hi isosurface coloured by ESP')
@@ -169,7 +170,7 @@ if __name__ == '__main__':
     if a.extent:
         orbital_extent(a.files[0], a.radius); sys.exit(0)
     if a.slice:
-        slice_png(read(a.files[0]), a.axis, a.value, a.png, a.log); sys.exit(0)
+        slice_png(read(a.files[0]), a.axis, a.value, a.png, a.log, a.vmax); sys.exit(0)
     grids = {f: read(f) for f in a.files}
     for f, g in grids.items(): summary(f, g)
     if a.band:
