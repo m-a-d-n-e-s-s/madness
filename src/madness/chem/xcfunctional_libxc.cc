@@ -394,6 +394,65 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
 }
 
 
+/// assemble the arguments libxc is evaluated on, munged and floored
+
+/// MUNGING, IN ONE PLACE
+///
+/// Every point handed to libxc must describe a state some wavefunction could be
+/// in. libxc relies on that: sigma's diagonals are non-negative, |sigma_ab| obeys
+/// Cauchy-Schwarz, the total sigma_aa + 2 sigma_ab + sigma_bb = |grad rho|^2 is
+/// non-negative (the correlation kernels return NaN for vsigma as soon as it is
+/// not), and tau >= tau_W = sigma/(8 rho) keeps the Fermi hole curvature positive
+/// and the iso-orbital indicators inside their domain (the clamp overshoots that
+/// bound by tauwmargin -- see tau_w_bound). Screening one argument
+/// without its partners manufactures points no density can produce, and the
+/// functional's derivatives there answer no question.
+///
+/// Two thresholds, two jobs. rhotol (1e-7) decides whether there is any density
+/// at a point at all, and governs the arguments assembled here: everything in a
+/// channel goes away together. ggatol (1e-4) decides whether a derivative is
+/// trustworthy, and governs the outputs, in vxc() and fxc_apply(). They are not
+/// interchangeable.
+///
+/// One mask per spin channel, decided once from the raw density and then applied
+/// to every argument of that channel:
+///
+///   m_s   = (rho_s^raw > rhotol)
+///   rho_s = m_s ? rho_s^raw : rhomin
+///   grad  = m_s * grad(rho_s)^raw
+///   sig_ss= m_s * max(1e-14, |grad(rho_s)|^2)
+///   sig_ab= clamped to +-sqrt(sig_aa sig_bb)  -- zero if either mask is zero
+///   tau_s = m_s ? max(tautol, tau_s^raw) : 0
+///   tau_s = max(tau_s, tau_w_bound(sig_ss, rho_s))  -- inert when m_s is zero
+///
+/// The floors (1e-14 on sigma, tautol on tau) are conditioning devices for where
+/// density exists, so the mask goes outside them: applied unconditionally they
+/// would resurrect exactly what the mask removed. sigma is contracted from the
+/// very gradients written into drho, by either the zeta or the split route, so it
+/// is the Gram matrix of those gradients and the three sigma bounds above hold for
+/// free.
+///
+/// Response densities are munged on the ground-state density instead, via
+/// binary_munge: they may be negative and much more diffuse, and DFT is only
+/// well defined where the reference density is there.
+///
+/// In the spin-restricted branch there is one channel and it is the total density,
+/// twice the alpha one; the rules above read the same with s dropped.
+///
+/// Outputs are screened elsewhere, and only where no factor already does the job.
+/// vxc() cuts de/dtau at ggatol on its own spin's density, because it multiplies
+/// grad(psi) and so does not vanish with the density. Its other outputs need no
+/// cut: the semilocal terms carry a factor of grad(rho_s), masked above, and
+/// de/drho is bare but stays finite once the arguments assembled here are
+/// consistent -- which is what the tau rule is for. A channel left on the tautol
+/// floor at rho = 0 sends de/drho_s off like rho_s^(-8/3) through
+/// tau_unif ~ rho_s^(5/3). fxc_apply() cuts its own semilocal response terms at
+/// ggatol.
+///
+/// exc() multiplies by the density, but by the TOTAL density in the spin-polarized
+/// branch rather than the channel's own, so it is damped only where every channel
+/// is empty. Where one spin is munged away and the other is not, it is again the
+/// consistency of the arguments, not a factor, that keeps it finite.
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& xc_args,
            madness::Tensor<double>& rho, madness::Tensor<double>& sigma,
            madness::Tensor<double>& tau,
