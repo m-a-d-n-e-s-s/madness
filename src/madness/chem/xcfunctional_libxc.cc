@@ -60,26 +60,8 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
     return make_func(id, polarized);
 }
 
-//XCfunctional::XCfunctional() {}
-//XCfunctional::XCfunctional() : hf_coeff(0.0) {std::printf("Construct XC Functional from LIBXC Library");}
-XCfunctional::XCfunctional() : hf_coeff(0.0) {
-    rhotol=1e-7; rhomin=0.0;
-    ggatol=1.e-4;
-    tauwmargin=1.e-6;
-    nderiv=0;
-    spin_polarized=false;
-}
-
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, const bool verbose) {
-    rhotol=1e-7; rhomin=0.0; // default values
-    ggatol=1.e-4;
-    tautol=1.e-12;
-    // how far past tau_W the clamp lands. Large enough that a double-precision tau
-    // cannot cross back over the endpoint, small enough to be far below any physical
-    // effect: it perturbs a clamped tau by one part in a million, and only where tau
-    // had already failed a bound it must satisfy exactly.
-    tauwmargin=1.e-6;
 
     bool printit=verbose and (world.rank()==0);
     double factor;      // weight factor for the various functionals
@@ -1028,10 +1010,9 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
     // nearly as fast, and de/dtau itself diverges where the density is negligible --
     // it reaches O(100) on the atomic initial guess.
     //
-    // Screening inside the loop above treated each functional separately, and
-    // binary_munge REPLACES its argument by rhomin rather than zeroing it, so n
-    // functionals left n*rhomin in the screened region instead of rhomin. A
-    // single-functional line cannot show it; pbe and tpss, which are two, can.
+    // The screen belongs on the finished mixture rather than inside the loop above:
+    // what is being cut is the functional's de/dtau, and a partial sum over the
+    // first i functionals is not that.
     if (is_meta()) {
         double * MADNESS_RESTRICT rt = result[spin_polarized ? 7 : 4].ptr();
         for (long j=0; j<np; j++)

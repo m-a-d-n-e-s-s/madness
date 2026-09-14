@@ -176,12 +176,19 @@ public:
 
 protected:
 
-    bool spin_polarized;        ///< True if the functional is spin polarized
-    double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-    double rhomin, rhotol;      ///< See initialize and munge*
-    double ggatol;              ///< See initialize and munge*
-    double tautol;              ///< floor for the kinetic energy density, see initialize
-    double tauwmargin;          ///< von Weizsaecker clamp overshoot, see tau_w_bound
+    bool spin_polarized=false;        ///< True if the functional is spin polarized
+    double hf_coeff=0.0;              ///< Factor multiplying HF exchange (+1.0 gives HF)
+    int nderiv=0;                     ///< Jacob's ladder rung; 0: lda, 1: gga, 2: mgga
+
+#ifdef MADNESS_HAS_LIBXC
+    double rhomin=0.0;                ///< libxc can handle rho=0.0
+#else
+    double rhomin=1.e-12;             ///< our lda will divide by rho
+#endif
+    double rhotol=1.e-7;              ///< See initialize and munge*
+    double ggatol=1.e-4;              ///< See initialize and munge*
+    double tautol=1.e-12;             ///< floor for the kinetic energy density, see initialize
+    double tauwmargin=1.e-6;          ///< von Weizsaecker clamp overshoot, see tau_w_bound
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -219,8 +226,6 @@ protected:
                          std::vector<madness::Tensor<double> >& drho_pt,
                          const bool need_response) const;
 
-    /// the number of xc kernel derivatives (lda: 0, gga: 1, etc)
-    int nderiv;
 
 
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
@@ -284,23 +289,27 @@ private:
         return rho;
     }
 
-    /// munge rho if refrho is small
+    /// zero a quantity where the reference density is small
 
-    /// special case for perturbed densities, which might be negative and diffuse.
-    /// Munge rho (e.g. the perturbed density) if the reference density refrho
-    /// e.g. the ground state density is small. Only where the reference density
-    /// is large enough DFT is numerically well-defined.
+    /// Used for perturbed densities, which may be negative and much more diffuse
+    /// than the ground state, and for screening outputs. Only where the reference
+    /// density is large enough is DFT numerically well defined.
+    ///
+    /// Substitutes zero, not rhomin. The argument is not necessarily a density --
+    /// de/dtau and the semilocal response terms go through here too -- so a density
+    /// floor is the wrong thing to leave behind, and "screened" means "contributes
+    /// nothing". rhomin stays what munge() puts in place of a density.
     /// @param[in]  rho     number to be munged
     /// @param[in]  refrho  reference value for munging
     /// @param[in]  thresh  threshold for munging
     double binary_munge(double rho, double refrho, const double thresh) const {
-        if (refrho<thresh) rho=rhomin;
+        if (refrho<thresh) rho=0.0;
         return rho;
     }
 
 public:
     /// Default constructor is required
-    XCfunctional();
+    XCfunctional() {};
 
     /// Initialize the object from the user input data
 
