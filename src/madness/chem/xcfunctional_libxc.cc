@@ -500,7 +500,14 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 tau = madness::Tensor<double>(np);
                 double * MADNESS_RESTRICT t = tau.ptr();
                 for (long i=0; i<np; i++) {
-                    double ti = std::max(tautol,2.0*taua[i]);   // full tau is twice alpha tau
+                    // Same mask as the gradient and the sigma floor above: where the
+                    // density has been munged away, tau goes with it. Leaving tau on
+                    // the tautol floor there would hand libxc (rho=0, sigma=0,
+                    // tau=1e-12) -- a state no wavefunction can be in, and one whose
+                    // iso-orbital indicator alpha = (tau-tau_W)/tau_unif has a
+                    // non-vanishing numerator over a tau_unif ~ rho^(5/3) of zero.
+                    const bool have_rho = (2.0*rhoa[i] > rhotol);
+                    double ti = have_rho ? std::max(tautol,2.0*taua[i]) : 0.0;   // full tau is twice alpha tau
                     // tau >= tau_W is exact, so the Fermi hole curvature stays positive
                     // and the iso-orbital indicators stay in range. Bounding tau from
                     // below rather than clamping sigma down (which is what libxc's
@@ -712,8 +719,17 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 tau = madness::Tensor<double>(np*2L);
                 double * MADNESS_RESTRICT t = tau.ptr();
                 for (long i=0; i<np; i++) {
-                    double ta = std::max(tautol,taua[i]);
-                    double tb = std::max(tautol,taub[i]);
+                    // One mask per spin channel, the same one the gradient and the
+                    // sigma floor use: where a channel's density has been munged
+                    // away, its tau goes too. A channel left on the tautol floor at
+                    // rho=0 is unreachable by any wavefunction, and de/drho_sigma
+                    // there diverges like rho_sigma^(-8/3) through tau_unif. The
+                    // total density can be large at such a point -- the other spin
+                    // is still there -- so libxc's own density cutoff does not fire.
+                    const bool have_a = (rhoa[i] > rhotol);
+                    const bool have_b = (rhob[i] > rhotol);
+                    double ta = have_a ? std::max(tautol,taua[i]) : 0.0;
+                    double tb = have_b ? std::max(tautol,taub[i]) : 0.0;
                     // tau_W,s from the sigma diagonal of that spin channel, the one
                     // libxc reads -- see the spin-restricted branch above
                     ta = std::max(ta,tau_w_bound(sig[3*i  ],dens[2*i  ]));
