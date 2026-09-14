@@ -868,48 +868,6 @@ real_function_3d Nemo::make_ddensity(const real_function_3d &rhonemo,
   return R_square * (term1 + Drhonemo);
 }
 
-real_function_3d
-Nemo::make_laplacian_density(const real_function_3d &rhonemo) const {
-
-  // U1^2 operator
-  NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
-  const real_function_3d U1dot =
-      real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
-
-  real_function_3d result = (2.0 * U1dot * rhonemo).truncate();
-
-  // U2 operator
-  const Nuclear<double, 3> U_op(world, this->ncf);
-  const Nuclear<double, 3> V_op(world, this->get_calc().get());
-
-  const real_function_3d Vrho = V_op(rhonemo); // eprec is important here!
-  const real_function_3d Urho = U_op(rhonemo);
-
-  real_function_3d term2 = 4.0 * (Urho - Vrho).truncate();
-  result -= term2;
-
-  // derivative contribution: R2 \Delta rhonemo
-  real_function_3d laplace_rhonemo = real_factory_3d(world).compressed();
-  real_function_3d rhonemo_refined = copy(rhonemo).refine();
-  for (int axis = 0; axis < 3; ++axis) {
-    real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    real_function_3d drhonemo = D(rhonemo_refined).refine();
-    smoothen(drhonemo);
-    real_function_3d d2rhonemo = D(drhonemo);
-    laplace_rhonemo += d2rhonemo;
-  }
-  save(laplace_rhonemo, "laplace_rhonemo");
-
-  result += (laplace_rhonemo).truncate();
-  result = (R_square * result).truncate();
-  save(result, "d2rho");
-
-  // double check result: recompute the density from its laplacian
-  real_function_3d rho_rec = -1. / (4. * constants::pi) * (*poisson)(result);
-  save(rho_rec, "rho_reconstructed");
-
-  return result;
-}
 
 real_function_3d Nemo::kinetic_energy_potential(const vecfuncT &nemo) const {
 
