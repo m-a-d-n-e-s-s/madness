@@ -768,9 +768,13 @@ public:
         return vKket[0];
     }
 
+    /// the xc contribution to the Fock matrix, as a matrix element
+
+    /// The 1x1 case of the vector form below; the same bra convention applies.
     T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-         MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator",1);
-    };
+        std::vector<Function<T,NDIM> > vbra(1,bra), vket(1,ket);
+        return this->operator()(vbra,vket)(0l,0l);
+    }
 
     /// the xc contribution to the Fock matrix
 
