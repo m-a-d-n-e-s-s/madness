@@ -496,6 +496,19 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
     }
   }
 
+  // Say which guess this leg starts from BEFORE it iterates. Printing it only
+  // in the final line meant a leg that had silently lost its DALTON seed (B24)
+  // looked like a slow solve for as long as it ran.
+  if (world.rank() == 0) {
+    if (ctx.log_prefix.empty())
+      madness::print("[CALC] fd start: pert=", pert.description(), " freq=", freq,
+                     " thresh=", thresh, " seed=", seed_kind);
+    else
+      madness::print(ctx.log_prefix,
+                     "[CALC] fd start: pert=", pert.description(), " freq=", freq,
+                     " thresh=", thresh, " seed=", seed_kind);
+  }
+
   Solver solver(world, tgt, ctx.policy, ctx.print_level, ctx.log_prefix);  // F2d tag
 
   // The protocol + ground state + target are already set up above for `thresh`.

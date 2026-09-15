@@ -132,6 +132,56 @@ struct DaltonManifest {
   }
 };
 
+// ---------------------------------------------------------------------------
+// PREPARED SEED SOURCES (B24). locate_dalton_dir() may EXTRACT the DALTON
+// tarball, i.e. it writes to the filesystem. Its rank-0 guard is rank 0 OF THE
+// CALLING WORLD, so after the state-parallel fan-out every subworld has its own
+// rank 0 and they all extract into the same <calc_dir>/dalton_import: a sibling
+// then reads a molden.inp that is absent or half-written (fatal: the ground
+// state rebuild throws) or misses the RSPVEC and falls back to a zero guess
+// (silent: the leg just takes twice the iterations).
+//
+// So the universe-level import registers what it resolved, and every later
+// lookup inside a subworld reads this registry instead of the filesystem. The
+// registry is written once, on all ranks, before any fan-out, and only read
+// afterwards.
+// ---------------------------------------------------------------------------
+struct PreparedDaltonSeed {
+  std::string molden_path;
+  std::string rspvec_path;
+};
+
+/// Registry key: the dalton.dir, canonicalized when the filesystem allows it
+/// (the per-leg lookups reach this header with a different working directory
+/// than the import did, so the raw strings need not match).
+inline std::string dalton_seed_key(const std::string &dir) {
+  std::error_code ec;
+  auto p = std::filesystem::weakly_canonical(std::filesystem::path(dir), ec);
+  return ec ? dir : p.string();
+}
+
+inline std::map<std::string, PreparedDaltonSeed> &prepared_dalton_seeds() {
+  static std::map<std::string, PreparedDaltonSeed> registry;
+  return registry;
+}
+
+/// Called on EVERY rank by the universe-level import, after the manifest has
+/// been broadcast. Idempotent.
+inline void register_prepared_dalton_seed(const DaltonManifest &m) {
+  if (m.dir.empty()) return;
+  prepared_dalton_seeds()[dalton_seed_key(m.dir)] =
+      PreparedDaltonSeed{m.molden_path, m.rspvec_path};
+}
+
+/// The resolved paths for `dir`, or nullptr when the universe-level import has
+/// not run. Never touches the filesystem.
+inline const PreparedDaltonSeed *
+prepared_dalton_seed(const std::string &dir) {
+  const auto &reg = prepared_dalton_seeds();
+  auto it = reg.find(dalton_seed_key(dir));
+  return it == reg.end() ? nullptr : &it->second;
+}
+
 namespace detail_dalton_import {
 
 namespace fs = std::filesystem;
@@ -193,12 +243,19 @@ inline std::string resolve_slot(const std::string &dir,
 // Pure rank-0 function: performs filesystem reads and (only when molden/
 // RSPVEC are not loose and a unique *.tar.gz exists) an extraction into
 // `extract_dir` via a shell-out to `tar`. Throws on any ambiguity.
+//
+// `allow_extract = false` makes it read-only: the tarball branch is skipped,
+// so it is safe to call from inside a subworld, where several rank-0s would
+// otherwise extract into the same directory at once (B24). Prefer the
+// prepared-seed registry above; this is the fallback for a directory whose
+// artifacts are already loose.
 // -------------------------------------------------------------------------
 inline DaltonManifest locate_dalton_dir(const std::string &dir,
                                         const std::string &extract_dir,
                                         const std::string &molden_override = {},
                                         const std::string &rspvec_override = {},
-                                        const std::string &out_override = {}) {
+                                        const std::string &out_override = {},
+                                        bool allow_extract = true) {
   namespace fs = std::filesystem;
   using namespace detail_dalton_import;
 
@@ -225,7 +282,7 @@ inline DaltonManifest locate_dalton_dir(const std::string &dir,
   // (only the two members), so pre-extraction is never required but always
   // honored. tar's exit code is ignored on purpose (one member may be absent);
   // what matters is which files exist afterwards.
-  if (m.molden_path.empty() || m.rspvec_path.empty()) {
+  if ((m.molden_path.empty() || m.rspvec_path.empty()) && allow_extract) {
     auto tars = find_candidates(dir, "", ".tar.gz");
     if (tars.size() > 1)
       throw std::runtime_error(
@@ -1018,23 +1075,34 @@ dalton_fd_guess(madness::World &world, GroundState &gs,
                 const std::string &dalton_dir, const std::string &calc_dir,
                 int axis, double freq, double tol) {
   using namespace madness;
-  // locate on rank 0 (the extraction dir is the one run_dalton_import used)
+  // This runs PER LEG, inside a subworld, with as many subworlds concurrent as
+  // the wave is wide. It must therefore not write: the universe-level import
+  // already resolved (and if needed extracted) the source, so take its paths
+  // from the registry. Only when nothing was prepared do we look at the
+  // directory ourselves, and then read-only (B24).
   DaltonManifest m;
   std::string err;
-  if (world.rank() == 0) {
-    try {
-      m = locate_dalton_dir(dalton_dir, calc_dir + "/dalton_import", "", "", "");
-    } catch (const std::exception &ex) { err = ex.what(); }
+  if (const auto *prepared = prepared_dalton_seed(dalton_dir)) {
+    m.molden_path = prepared->molden_path;
+    m.rspvec_path = prepared->rspvec_path;
+  } else {
+    if (world.rank() == 0) {
+      try {
+        m = locate_dalton_dir(dalton_dir, calc_dir + "/dalton_import", "", "",
+                              "", /*allow_extract=*/false);
+      } catch (const std::exception &ex) { err = ex.what(); }
+    }
+    world.gop.broadcast_serializable(err, 0);
+    if (!err.empty()) {
+      if (world.rank() == 0)
+        print("[DALTON-SEED] nearest-frequency guess unavailable (seed source "
+              "was not prepared on the universe):", err);
+      return std::nullopt;
+    }
+    world.gop.broadcast_serializable(m.molden_path, 0);
+    world.gop.broadcast_serializable(m.rspvec_path, 0);
+    world.gop.fence();
   }
-  world.gop.broadcast_serializable(err, 0);
-  if (!err.empty()) {
-    if (world.rank() == 0)
-      print("[DALTON-SEED] nearest-frequency guess unavailable:", err);
-    return std::nullopt;
-  }
-  world.gop.broadcast_serializable(m.molden_path, 0);
-  world.gop.broadcast_serializable(m.rspvec_path, 0);
-  world.gop.fence();
 
   auto rsp = read_rspvec(m.rspvec_path);
   const auto &info    = rsp.first;
@@ -1160,6 +1228,10 @@ run_dalton_import(madness::World &world, GroundState &gs,
   world.gop.broadcast_serializable(m.method, 0);
   world.gop.broadcast_serializable(m.geometry_hash, 0);
   world.gop.fence();   // extraction visible before the replicated parses
+
+  // Every rank now holds the resolved paths; record them so the per-leg
+  // lookups after the fan-out never locate (and never extract) again (B24).
+  register_prepared_dalton_seed(m);
 
   if (world.rank() == 0) {
     print("[DALTON-SEED] fingerprint OK:");
