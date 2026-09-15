@@ -18,14 +18,14 @@ namespace madness {
 /// 1) Total energy (double)
 /// 2) Krestricted (boolean)
 /// 3) closed_shell (boolean)
-/// 3) number of occupied orbitals (int)
-/// 4) orbital energies (vector of doubles)
-/// 5) box size (double)
-/// 6) wavelet order (int)
-/// 7) molecule (molecule)
-/// 8) occupied orbitals as complex functions
+/// 4) number of occupied orbitals (unsigned int)
+/// 5) orbital energies (vector of doubles)
+/// 6) box size (double)
+/// 7) wavelet order (int)
+/// 8) molecule (molecule)
+/// 9) occupied orbitals as complex functions
 ///
-/// /note v1 introduced format version
+/// \note v1 introduced format version
 inline constexpr unsigned int DF_RESTART_VERSION = 1;
 
 /// Writes the current DF restart format version as the first datum in the archive.

@@ -1125,12 +1125,12 @@ void DF::saveDF(World& world){
      // 1) Total energy (double)
      // 2) Krestricted (boolean)
      // 3) closed_shell (boolean)
-     // 3) number of occupied orbitals (int)
-     // 4) orbital energies (vector of doubles)
-     // 5) box size (double)
-     // 6) wavelet order (int)
-     // 7) molecule (molecule)
-     // 8) occupied orbitals as complex functions
+     // 4) number of occupied orbitals (unsigned int)
+     // 5) orbital energies (vector of doubles)
+     // 6) box size (double)
+     // 7) wavelet order (int)
+     // 8) molecule (molecule)
+     // 9) occupied orbitals as complex functions
      try{
           //create archive
           archive::ParallelOutputArchive output(world, DFparams.savefile.c_str(), 1);
