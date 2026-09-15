@@ -186,8 +186,9 @@ DF restart archives begin with an explicit format version field. Archives writte
 field was introduced carry no version and are rejected with an actionable error; they are not
 migrated. Regenerate them by restarting from a `moldft` archive. The incompatibility is detected
 in both directions: an older `DFdriver` pointed at a new archive reads the version field where it
-expects the total energy, so it aborts with an archive type-mismatch message instead of
-misparsing the file.
+expects the total energy, so rank 0 reports an archive type mismatch instead of misparsing the
+file. Multi-rank runs may hang at that point, because the other ranks wait for a broadcast from
+rank 0 that never comes.
 
 ---
 
