@@ -2,6 +2,8 @@
 #include <madness/mra/displacements.h>
 #include <madness/world/test_utilities.h>
 
+#include <set>
+
 using namespace madness;
 
 namespace {
@@ -541,6 +543,49 @@ int test_faces_outside_domain(World& world) {
   return t.end();
 }
 
+/// Along an unrestricted axis the surface spans one period of destinations. Under Discard that is the cell
+/// (destinations outside it are invalid anyway). Under Keep (the function is periodic along the axis but the
+/// operator is not lattice summed along it) destinations outside the cell are legitimate and wrapped by the
+/// caller, but the kernel is not periodic, so l and l ± 2^n are different contributions to the same wrapped box:
+/// the period must be centered on the source, or the near contribution across the wrap is lost to its far alias.
+int test_keep_window_centered(World& world) {
+  test_output t("BoxSurfaceDisplacementRange: window along an unrestricted axis under the Keep policy", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 2;
+  const Level n = 4;
+  const Translation period = Translation(1) << n;
+  const array_of_bools<NDIM> not_summed{false};
+  Radii<NDIM> radii;
+  radii[0] = 1;  // restricted along x only; N=1 keeps the faces (at 0 and 16) inside the cell for the Discard case
+  const Key<NDIM> source(n, {period / 2, 0});  // at the bottom of the cell along y
+  const auto y_displacements = [&](Validator<NDIM> validator) {
+    std::set<Translation> ys;
+    for (auto&& disp : make_range<NDIM>(n, radii, not_summed, {}, std::move(validator), source))
+      ys.insert(disp.translation()[1]);
+    return ys;
+  };
+  const auto interval = [](Translation lo, Translation hi) {
+    std::set<Translation> result;
+    for (Translation y = lo; y <= hi; ++y) result.insert(y);
+    return result;
+  };
+
+  // Keep along y (infinite domain, no lattice sum)
+  {
+    const auto ys = y_displacements(Validator<NDIM>(array_of_bools<NDIM>{true}, not_summed));
+    t.checkpoint(ys.count(-1) == 1, "Keep: the box one step across the wrap (y=-1) is enumerated");
+    t.checkpoint(ys.count(period - 1) == 0, "Keep: its alias a period away (y=2^n-1) is not");
+    t.checkpoint(ys == interval(-period / 2, period / 2 - 1), "Keep: exactly one period of displacements centered on the source");
+  }
+  // Discard along y (finite domain): the cell, nothing outside it is valid
+  {
+    const auto ys = y_displacements(Validator<NDIM>(array_of_bools<NDIM>{true, false}, not_summed));
+    t.checkpoint(ys == interval(0, period - 1), "Discard: exactly the cell");
+  }
+
+  return t.end();
+}
+
 /// The validator's notion of "standard displacement" must match Displacements: with lattice summation along
 /// any axis the standard displacements are clipped to 2^n-1 boxes along *every* axis, summed or not.
 int test_validator_bmax(World& world) {
@@ -634,6 +679,7 @@ int main(int argc, char** argv) {
   errors += test_standard_reach(world);
   errors += test_skip_face(world);
   errors += test_faces_outside_domain(world);
+  errors += test_keep_window_centered(world);
   errors += test_validator_bmax(world);
   errors += test_standard_displacements_order(world);
 

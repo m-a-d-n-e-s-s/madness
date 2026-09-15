@@ -392,6 +392,9 @@ namespace madness {
       /// @return which axes are lattice summed
       const array_of_bools<NDIM>& is_lattice_summed() const { return is_lattice_summed_; }
 
+      /// @return how destinations outside the simulation cell are treated along axis \p d
+      ExtraDomainPolicy domain_policy(size_t d) const { return domain_policies_[d]; }
+
       /// @return the real-space extent of the standard displacements this filters out as duplicates; null if none
       const std::optional<Reach>& reach() const { return reach_; }
 
@@ -524,7 +527,7 @@ namespace madness {
       BoxRadius box_radius_;          ///< halved size of the box in each dimension, in half-SimulationCells.
       SurfaceThickness
           surface_thickness_;    ///< surface thickness in each dimension, measured in boxes. Real-space surface size is thus n-dependent.
-      Box box_;                  ///< box bounds in each dimension.
+      Box box_;                  ///< box bounds in each dimension; along an unrestricted dimension, the one period of destinations to iterate over (the cell, or under the Keep policy the period centered on the source; see the constructor)
       Box initial_bounds_;       ///< bounds of the boxes to be iterated over, before any face is processed: the box plus its surface thickness, or, along a lattice-summed dimension, one period ending at the top layer (so that each equivalence class of boxes appears exactly once)
       Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
       Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
@@ -898,7 +901,17 @@ namespace madness {
             box_[d] = {center_[d] - r, center_[d] + r};
             has_finite_dimensions = true;
           } else {
-            box_[d] = {0, (1 << center_.level()) - 1};
+            // an unrestricted axis spans one period of destinations. Under Discard the destinations outside the cell
+            // are invalid, and under Translate any period holds the same equivalence classes, so the cell will do.
+            // Under Keep (the function is periodic along the axis, the operator is not lattice summed along it)
+            // the destinations outside the cell are legitimate (the caller wraps them) and the kernel is not
+            // periodic, so l and l ± 2^n are different contributions to the same wrapped box: the period must be
+            // the one centered on the source, [-2^{n-1}, 2^{n-1}-1] like the standard displacements, or the
+            // near contribution across the wrap is lost to its far alias.
+            // N.B. the policy is the validator's; without one nothing is known and the cell is used
+            const bool keep = validator_ && validator_->domain_policy(d) == ExtraDomainPolicy::Keep;
+            const auto lo = keep ? center_[d] - period / 2 : Translation(0);
+            box_[d] = {lo, lo + period - 1};
           }
         }
         MADNESS_ASSERT(has_finite_dimensions);
@@ -1108,7 +1121,8 @@ namespace madness {
           // simulation cell along this dimension, and offset <= half_cell
           probing_displacement_vec[d] = offset;
         } else {
-          // we're bounded by the simulation cell; displace toward whichever side of center_ has more room
+          // we're bounded by the window along this dimension (one period, see box_); displace toward whichever
+          // side of center_ has more room
           const auto left_distance = center_[d] - box_[d].first;
           const auto right_distance = box_[d].second - center_[d];
           const auto sign = right_distance >= left_distance ? +1 : -1;
