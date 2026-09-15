@@ -11,9 +11,21 @@ namespace madness {
 /// Format version for DFdriver restart archives.
 ///
 /// Earlier archives carry no version field, and this code rejects them. The read
-/// goes through the type cookie that the BinaryFstream archives write. The first
-/// datum of a legacy archive is a double total energy, so the read of an unsigned
-/// int fails.
+/// goes through the type cookie that the BinaryFstream archives write.
+///
+/// Current Version:
+/// 0) DF restart format version (unsigned int)
+/// 1) Total energy (double)
+/// 2) Krestricted (boolean)
+/// 3) closed_shell (boolean)
+/// 3) number of occupied orbitals (int)
+/// 4) orbital energies (vector of doubles)
+/// 5) box size (double)
+/// 6) wavelet order (int)
+/// 7) molecule (molecule)
+/// 8) occupied orbitals as complex functions
+///
+/// /note v1 introduced format version
 inline constexpr unsigned int DF_RESTART_VERSION = 1;
 
 /// Writes the current DF restart format version as the first datum in the archive.
@@ -44,11 +56,12 @@ unsigned int read_df_restart_version(const Archive& ar) {
 /// Throws unless \c version is a DF restart format this build can read.
 inline void require_supported_df_restart(const unsigned int version) {
     MADNESS_CHECK_THROW(version != 0,
-        "unversioned DF restart archive; start from a moldft archive or "
+        "unversioned DF restart archive! start from a moldft archive or "
         "rerun with the older DFdriver");
     MADNESS_CHECK_THROW(version == DF_RESTART_VERSION,
-        "unsupported DF restart archive version; start from a moldft archive "
-        "or regenerate it with this DFdriver");
+        "unsupported DF restart archive version! DF restart archive was written"
+        " by a newer DFdriver; use that DFdriver or start from a moldft "
+        "archive");
 }
 
 }  // namespace madness
