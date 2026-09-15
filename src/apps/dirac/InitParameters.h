@@ -118,6 +118,7 @@ namespace madness{
 
                     //For now assume spin-restricted means closed shell in moldft
                     closed_shell = spinrestricted;
+                    if(world.rank()==0 && !Krestricted) print("closed shell: add Krestricted to the input to halve the cost");
 
                     // Check that order is positive and less than 30
                     if (order < 1 or order > 30){
@@ -366,6 +367,7 @@ namespace madness{
                     numbeta = numalpha;
                }
                closed_shell = !have_beta;
+               if(world.rank()==0 && !Krestricted) print("closed shell: add Krestricted to the input to halve the cost");
                
                //correctly set the number of occupied orbitals for the DF calculation
                if(Krestricted){
