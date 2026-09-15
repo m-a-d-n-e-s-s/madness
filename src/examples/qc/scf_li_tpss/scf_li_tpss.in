@@ -26,8 +26,8 @@
 # that happens, so this deck aborted in iteration 0.
 #
 # Reference: TURBOMOLE UKS/aug-cc-pV5Z gives -7.48878242939 for the same
-# functional. This deck's single 1e-4 rung lands 193 uHa below that, and tightening
-# to a [1e-4, 1e-6] ladder takes it to -7.489111, 329 uHa below -- the expected
+# functional. This deck's single 1e-4 rung lands 76 uHa below that, and tightening
+# to a [1e-4, 1e-6] ladder takes it to -7.489109, 326 uHa below -- the expected
 # sign and magnitude of a meta-GGA basis-set increment (the closed-shell
 # counterpart scf_he_tpss shows the same behaviour). Only one Gaussian basis was
 # available for Li, so there is no increment to extrapolate against; the deck is
