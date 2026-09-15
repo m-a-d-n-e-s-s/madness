@@ -39,7 +39,7 @@ if(BUILD_TESTING)
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc
       testgaxpyext.cc testvmra.cc test_vectormacrotask.cc test_cloud.cc test_tree_state.cc testsolver.cc
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
-      test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc)
+      test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc test_displacements.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
@@ -54,6 +54,9 @@ if(BUILD_TESTING)
   add_mpi_tests(mra test_cloud "2" "MADmra;MADgtest" "unittests;short")
   add_mpi_tests(mra test_vectormacrotask "2" "MADmra;MADgtest" "unittests;short")
   add_mpi_tests(mra test_eval "2" "MADmra;MADgtest" "unittests;short")
+  # the tree-state and norm checkpoints use gop.max/gop.sum and branch on a
+  # replicated state, so only a multi-rank run exercises them
+  add_mpi_tests(mra test_mul_sparse "2" "MADmra;MADgtest" "unittests;short")
   # the halo only carries data between ranks, so the single-rank run above cannot exercise it
   add_mpi_tests(mra test_halo "2" "MADmra;MADgtest" "unittests;short")
 

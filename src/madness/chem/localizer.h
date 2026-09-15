@@ -45,14 +45,15 @@ public:
         return *this;
     }
 
-    /// Multiply the "new" method's convergence threshold by this factor (default 1.0).
-    Localizer& set_tolloc_scale(const double scale) {
-        tolloc_scale=scale;
-        return *this;
-    }
-
     AtomicBasisSet get_aobasis() const {
         return aobasis;
+    }
+
+    /// hand the cholesky method last iteration's pivot order; it reads the order and
+    /// overwrites it with the one it used (see localize_cholesky)
+    Localizer& set_pivot_state(std::vector<long>* state) {
+        pivot_state = state;
+        return *this;
     }
 
     void print_info() const {
@@ -142,12 +143,32 @@ private:
                                        const bool doprint = false) const;
 
     template<typename T, std::size_t NDIM>
+    DistributedMatrix<T> localize_cholesky(World& world,
+                                           const std::vector<Function<T, NDIM>>& mo,
+                                           const std::vector<int>& set) const;
+
+    template<typename T, std::size_t NDIM>
     DistributedMatrix<T> localize_new(World& world,
                                       const std::vector<Function<T, NDIM>>& mo,
                                       const std::vector<int>& set,
                                       const double thresh = 1e-9,
                                       const bool randomize = true,
                                       const bool doprint = false) const;
+
+    /// the "new" objective optimized with distributed systolic Jacobi sweeps (localize=new_sys)
+    template<typename T, std::size_t NDIM>
+    DistributedMatrix<T> localize_new_systolic(World& world,
+                                               const std::vector<Function<T, NDIM>>& mo,
+                                               const std::vector<int>& set,
+                                               const double thresh = 1e-9,
+                                               const bool randomize = true,
+                                               const bool doprint = false) const;
+
+    /// build the "new" method's orthonormal atomic-eigenfunction basis and localization blocks
+    template<typename T, std::size_t NDIM>
+    void prepare_new_basis(World& world, const std::vector<Function<T, NDIM>>& mo,
+                           Tensor<T>& C, std::vector<int>& at_to_bf,
+                           std::vector<int>& at_nbf) const;
 
     template<typename T>
     inline double DIP(const Tensor<T>& dip, int i, int j, int k, int l) const {
@@ -165,10 +186,10 @@ private:
     Function<double,3> metric;       /// =R for computing matrix elements of operators
     double thetamax=0.1;                /// maximum rotation(?)
     const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change
-    double tolloc_scale = 1.0;  // multiplies tolloc, "new" method only
     double thresh_degenerate;           /// when are orbitals degenerate
     bool enforce_core_valence_separation=false;  /// no rotations between core and valence orbitals (distinguished by 'set')
     std::string method="new";           /// localization method
+    std::vector<long>* pivot_state = nullptr;  /// cholesky pivot memory across SCF iterations
 
 };
 

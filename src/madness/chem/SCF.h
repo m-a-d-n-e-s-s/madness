@@ -221,6 +221,8 @@ public:
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
+    /// cholesky localization's pivot order from the previous iteration (per spin)
+    std::vector<long> localize_pivot_state_a, localize_pivot_state_b;
 
     /// MRA projection of the minimal basis set
     vecfuncT ao;
@@ -239,7 +241,6 @@ public:
     double converged_for_thresh=1.e10;   ///< mos are converged for this threshold
     double converged_for_dconv=1.e10;    ///< mos are converged for this density
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
-    bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
     /// what amo/bmo actually hold, recorded in the restartdata header
     ///

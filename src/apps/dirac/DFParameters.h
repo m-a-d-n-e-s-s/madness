@@ -6,8 +6,41 @@
 #define MADNESS_APPS_DFPARAMS_H_INCLUDED
 
 #include <madness/chem/molecule.h>
+#include <filesystem>
+#include <cctype>
+#include <string>
 
 namespace madness {
+
+     /// Clean archive name by stripping 5-digit rank suffix (.00000) if present,
+     /// and appending .restartdata if only the base prefix was specified.
+     inline std::string clean_archive_filename(std::string name) {
+          if (name.empty()) return name;
+          // Trim whitespace
+          const auto first = name.find_first_not_of(" \t\n\r");
+          if (first == std::string::npos) return "";
+          const auto last = name.find_last_not_of(" \t\n\r");
+          name = name.substr(first, (last - first + 1));
+
+          // Strip 5-digit chunk suffix (.00000, etc.) if provided
+          if (name.size() > 6 && name[name.size() - 6] == '.') {
+               bool all_digits = true;
+               for (size_t i = name.size() - 5; i < name.size(); ++i) {
+                    if (!std::isdigit(static_cast<unsigned char>(name[i]))) {
+                         all_digits = false;
+                         break;
+                    }
+               }
+               if (all_digits) {
+                    name.erase(name.size() - 6);
+               }
+          }
+          // If name.00000 doesn't exist, but name.restartdata.00000 exists, append .restartdata
+          if (!std::filesystem::exists(name + ".00000") && std::filesystem::exists(name + ".restartdata.00000")) {
+               name += ".restartdata";
+          }
+          return name;
+     }
 
      struct DFParameters{
           // List of input parameters
@@ -27,6 +60,7 @@ namespace madness {
           int max_iter;                ///< Maximum number of iterations
           double small;                ///< Minimum length scale to be resolved
           double thresh;               ///< Accuracy criterion when truncating
+          double dconv;                ///< Accuracy criterion for charge density. Defaults to thresh.
           int k;                       ///< Number of legendre polynomials in scaling basis
           bool kain;                   ///< Turns on KAIN nonlinear solver 
           int maxsub;                  ///< Sets maximum subspace size for KAIN
@@ -39,7 +73,8 @@ namespace madness {
           bool nwchem;                 ///< Indicates archive given is actually an nwchem file for starting the job
           bool lineplot;               ///< Whether or not to make lineplots at the end of the job
           bool no_compute;             ///< If true, will skip all computation
-          double bohr_rad;             ///< bohr radius in fm (default: 52917.7211)
+          double bohr_rad;             ///< bohr radius in fm (default: 52917.7210544 CODATA2022) 
+          double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,7 +85,7 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & min_iter & Krestricted;
+               ar & archive & job & max_iter & small & thresh & dconv & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted;
           }
 
           // Default constructor
@@ -59,6 +94,7 @@ namespace madness {
           , max_iter(20)
           , small(1e-5)
           , thresh(1e-6)
+          , dconv(1e-6)
           , k(8)
           , kain(false)
           , maxsub(10)
@@ -71,7 +107,8 @@ namespace madness {
           , nwchem(false)
           , lineplot(false)
           , no_compute(false)
-          , bohr_rad(52917.7211)
+          , bohr_rad(52917.7210544)  // bohr radius in fm from CODATA 2022
+          , speed_of_light(137.03599917697017) // speed of light in atomic units from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
           {}
@@ -91,8 +128,14 @@ namespace madness {
                     if(s == "end"){
                          break;
                     }
+                    else if (s[0] == '#'){
+                         std::string dummy;
+                         std::getline(f, dummy);
+                         continue;
+                    }
                     else if (s == "archive"){
                          f >> archive;
+                         archive = clean_archive_filename(archive);
                     }
                     else if (s == "job"){
                          f >> job;
@@ -105,6 +148,10 @@ namespace madness {
                     }
                     else if (s == "thresh"){
                          f >> thresh;
+                         dconv = thresh;
+                    }
+                    else if (s == "dconv"){
+                         f >> dconv;
                     }
                     else if (s == "k"){
                          f >> k;
@@ -129,6 +176,7 @@ namespace madness {
                     }
                     else if (s == "savefile"){
                          f >> savefile;
+                         savefile = clean_archive_filename(savefile);
                     }
                     else if (s == "lb_iter"){
                          f >> lb_iter;
@@ -144,6 +192,9 @@ namespace madness {
                     }
                     else if (s == "bohr_rad"){
                          f >> bohr_rad;
+                    }
+                    else if (s == "speed_of_light"){
+                         f >> speed_of_light;
                     }
                     else if (s == "min_iter"){
                          f >> min_iter;
@@ -167,6 +218,8 @@ namespace madness {
                madness::print("          Refinement Threshold:", thresh);
                madness::print("                             k:", k);
                madness::print("Smallest Resolved Length Scale:", small);
+               madness::print("             Bohr radius in fm:", bohr_rad);
+               madness::print("          Speed of light in au:", speed_of_light);
                madness::print("                Max Iterations:", max_iter);
                madness::print("               Use KAIN Solver:", kain);
                if(kain) madness::print("     KAIN Solver Subspace Size:", maxsub);
@@ -174,6 +227,9 @@ namespace madness {
                madness::print("                     save file:", savefile);
                if(nucleus == 1){
                     madness::print("                       Nucleus: fermi");
+               }
+               else if (nucleus == 2) {
+                    madness::print("                       Nucleus: point");
                }
                else{
                     madness::print("                       Nucleus: gaussian");

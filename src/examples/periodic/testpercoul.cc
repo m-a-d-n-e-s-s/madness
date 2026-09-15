@@ -314,8 +314,8 @@ int main(int argc, char**argv) {
         {
           BoxSurfaceDisplacementRange<ND> range_boundary_face_displacements(
               key, box_radius, surface_thickness, madness::no_lattice_sum<3>(),
-              [](const auto level, const auto &dest,
-                 const auto &displacement) -> bool { return true; });
+              // keep everything: infinite domain, no lattice sum, no standard displacements to deduplicate against
+              BoxSurfaceDisplacementValidator<ND>(array_of_bools<ND>{true}, madness::no_lattice_sum<3>()));
           // check that all displacements are unique:
           {
             std::vector disps(range_boundary_face_displacements.begin(),
