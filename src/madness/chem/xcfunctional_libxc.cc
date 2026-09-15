@@ -115,7 +115,9 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         } else if (name == "TAUTOL") {
             line >> tautol;
         } else if (name == "HF" || name == "HF_X") {
-            if (! (line >> factor)) factor = 1.0;
+            // same clear() as the generic branch below: without it "xc HF pbe"
+            // would set failbit on the next token and silently drop the rest
+            if (! (line >> factor)) { factor = 1.0; line.clear(); }
             hf_coeff = factor;
         } else {
             // clear() matters: on a non-numeric next token operator>> sets failbit
