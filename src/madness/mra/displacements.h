@@ -293,7 +293,10 @@ namespace madness {
         ///          (see FunctionDefaults::set_cell)
         static void set_width(const Tensor<double>& width) {
           MADNESS_ASSERT(width.ndim() == 1 && width.size() == NDIM);
-          bool changed = widths.ndim() != 1 || widths.size() != NDIM;
+          MADNESS_ASSERT(widths.ndim() == 1 && widths.size() == NDIM);  // invariant: only ever assigned such tensors
+          // exact comparison on purpose: any change, however small, reorders (a needless reorder is harmless,
+          // a missed one is not)
+          bool changed = false;
           for (std::size_t i = 0; !changed && i != NDIM; ++i) changed = widths(i) != width(i);
           if (!changed) return;
           widths = copy(width);
