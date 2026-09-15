@@ -81,8 +81,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
-		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
-		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential: never differentiate the flux X");
+		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
