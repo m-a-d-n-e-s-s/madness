@@ -175,13 +175,31 @@ protected:
     int nderiv=0;                     ///< Jacob's ladder rung; 0: lda, 1: gga, 2: mgga
 
 #ifdef MADNESS_HAS_LIBXC
-    double rhomin=0.0;                ///< libxc can handle rho=0.0
+    static constexpr double default_rhomin=0.0;      ///< libxc can handle rho=0.0
 #else
-    double rhomin=1.e-12;             ///< our lda will divide by rho
+    static constexpr double default_rhomin=1.e-12;   ///< our lda will divide by rho
 #endif
-    double rhotol=1.e-7;              ///< See initialize and munge*
-    double tautol=1.e-12;             ///< floor for the kinetic energy density, see initialize
-    double tauwmargin=1.e-6;          ///< von Weizsaecker clamp overshoot, see tau_w_bound
+    static constexpr double default_rhotol=1.e-7;
+    static constexpr double default_tautol=1.e-12;
+    static constexpr double default_tauwmargin=1.e-6;
+
+    double rhomin=default_rhomin;     ///< what munge() puts in place of a density
+    double rhotol=default_rhotol;     ///< See initialize and munge*
+    double tautol=default_tautol;     ///< floor for the kinetic energy density, see initialize
+    double tauwmargin=default_tauwmargin; ///< von Weizsaecker clamp overshoot, see tau_w_bound
+
+    /// put the configurable screening thresholds back to their defaults
+
+    /// initialize() may be called more than once on the same object, and the xc
+    /// input line can override any of these (RHOMIN/RHOTOL/TAUTOL), so they have
+    /// to be restored before the next line is parsed -- otherwise one
+    /// functional's thresholds leak into the next one.
+    void reset_screening_defaults() {
+        rhomin=default_rhomin;
+        rhotol=default_rhotol;
+        tautol=default_tautol;
+        tauwmargin=default_tauwmargin;
+    }
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;

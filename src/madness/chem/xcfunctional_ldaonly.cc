@@ -19,6 +19,8 @@ int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, bool verbose) {
 
+    reset_screening_defaults();
+
     spin_polarized = polarized;
 
     std::stringstream s(input_line);

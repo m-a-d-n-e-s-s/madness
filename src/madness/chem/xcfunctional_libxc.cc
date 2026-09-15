@@ -63,6 +63,8 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, const bool verbose) {
 
+    reset_screening_defaults();
+
     bool printit=verbose and (world.rank()==0);
     double factor;      // weight factor for the various functionals
     spin_polarized = polarized;
