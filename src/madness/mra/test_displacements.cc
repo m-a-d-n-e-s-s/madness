@@ -575,6 +575,48 @@ int test_validator_bmax(World& world) {
   return t.end();
 }
 
+/// The standard displacements must be ordered by the real-space distance measured with the FunctionDefaults cell,
+/// since FunctionImpl::do_apply screens them shell by shell in that metric; the order must follow the cell when it changes.
+int test_standard_displacements_order(World& world) {
+  test_output t("Displacements: ordered by real-space distance in the FunctionDefaults cell", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 3;
+  const Level n = 4;
+  const auto is_sorted_by = [&](const std::vector<Key<NDIM>>& disps, auto distsq) {
+    for (std::size_t i = 1; i < disps.size(); ++i)
+      if (distsq(disps[i]) < distsq(disps[i - 1])) return false;
+    return true;
+  };
+  const auto check_order = [&](const std::string& what) {
+    const auto& width = FunctionDefaults<NDIM>::get_cell_width();
+    Displacements<NDIM> displacements;  // builds the lists if this is the first use
+    const auto& plain = displacements.get_disp(n, array_of_bools<NDIM>{false});
+    const auto& summed = displacements.get_disp(n, array_of_bools<NDIM>{true});
+    t.checkpoint(!plain.empty() && !summed.empty(), what + ": lists are populated");
+    t.checkpoint(is_sorted_by(plain, [&](const Key<NDIM>& k) { return k.real_distsq(width); }),
+                 what + ": plain displacements ordered by real distance");
+    t.checkpoint(is_sorted_by(summed, [&](const Key<NDIM>& k) { return k.real_distsq_bc(array_of_bools<NDIM>{true}, width); }),
+                 what + ": lattice-summed displacements ordered by real distance");
+  };
+
+  const Tensor<double> cell0 = copy(FunctionDefaults<NDIM>::get_cell());
+  check_order("default (cubic) cell");
+
+  // an anisotropic cell: the order in boxes and in real space differ, e.g. (0,2,0) is 1 box but 10 units out
+  // while (3,0,0) is 2 boxes but 2 units out
+  Tensor<double> cell(NDIM, 2);
+  cell(0, 0) = 0.; cell(0, 1) = 1.;
+  cell(1, 0) = 0.; cell(1, 1) = 10.;
+  cell(2, 0) = 0.; cell(2, 1) = 10.;
+  FunctionDefaults<NDIM>::set_cell(cell);
+  check_order("anisotropic cell (1,10,10) set after the lists were built");
+
+  FunctionDefaults<NDIM>::set_cell(cell0);
+  check_order("cubic cell restored");
+
+  return t.end();
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -593,6 +635,7 @@ int main(int argc, char** argv) {
   errors += test_skip_face(world);
   errors += test_faces_outside_domain(world);
   errors += test_validator_bmax(world);
+  errors += test_standard_displacements_order(world);
 
   world.gop.fence();
   madness::finalize();
