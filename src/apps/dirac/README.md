@@ -96,12 +96,14 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | :--- | :--- | :--- | :--- |
 | `archive <file>` | `string` | *(required)* | Path or name of the input restart archive. Accepts `mad.restartdata`, `mad.restartdata.00000`, or `mad`. |
 | `job <n>` | `int` | `0` | Calculation type. `0`: DF on occupied orbitals only. |
-| `thresh <val>` | `double` | `1e-6` | Wavelet truncation/refinement threshold. Automatically updates default `dconv`. |
-| `dconv <val>` | `double` | `1e-6` | Density convergence threshold ($\lVert \Delta \rho \rVert$). |
+| `thresh <val>` | `double` | `1e-6` | Wavelet truncation/refinement threshold. Supplies the default for `dconv` and `thresh_mul`. |
+| `dconv <val>` | `double` | `thresh` | Density convergence threshold ($\lVert \Delta \rho \rVert$). Omitted, it inherits the final value of `thresh`; an explicit value wins regardless of keyword order. |
+| `thresh_mul <val>` | `double` | `thresh` | Screening threshold for sparse multiplication (`mul_sparse`). Omitted, it inherits the final value of `thresh`; an explicit value wins regardless of keyword order. |
 | `k <order>` | `int` | `8` | Multiwavelet polynomial order. If different from archive, orbitals are automatically projected. |
 | `small <val>` | `double` | `1e-5` | Smallest length scale to be resolved. |
-| `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. |
-| `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. |
+| `max_iter <n>` | `int` | `20` | Maximum number of SCF iterations. Reaching it stops the run *without* convergence; see [Termination](#termination). |
+| `min_iter <n>` | `int` | `2` | Minimum number of SCF iterations. Must be less than or equal to `max_iter`. |
+| `convergence_criteria <val>` | `string` | `bsh_residual` | Which quantities must converge to stop iterating. `bsh_residual`: max BSH residual &le; `thresh`. `energy_density_residual`: relative total-energy change &le; `thresh`, *and* $\lVert \Delta \rho \rVert$ &le; `dconv` &times; N<sub>elec</sub>, *and* max BSH residual &le; 100 &times; `thresh`. |
 | `kain` | flag | `false` | Enable KAIN nonlinear accelerator. |
 | `maxsub <n>` | `int` | `10` | Maximum subspace size for KAIN. |
 | `maxrotn <val>` | `double` | `0.25` | Maximum orbital rotation step allowed by KAIN. |
@@ -116,6 +118,24 @@ All parameters are specified within the `DiracFock ... end` block. Lines startin
 | `lineplot` | flag | `false` | Generate 1D lineplots of large and small spinor components along the x-axis. |
 | `no_compute` | flag | `false` | Skip SCF iterations and exit after setup. |
 
+### Termination
+
+The SCF loop ends in one of two ways, and the final line of the iteration log says
+which:
+
+- **Converged.** The quantities selected by `convergence_criteria` all met their
+  tolerances. The run prints `Converged due to residuals` or
+  `Converged due to energy, density, and residuals`.
+- **Iteration cap reached.** `max_iter` iterations ran without meeting the
+  criteria. The run prints
+  `WARNING: maximum iterations reached without convergence`, followed by the
+  number of iterations performed.
+
+An iteration-limited calculation is **not** converged, and its energies and
+properties should not be reported as such. The latest orbitals and the restart
+archive are still written (unless `no_save` is set), so the calculation can be
+continued with `restart` and a larger `max_iter` rather than started over.
+
 ---
 
 ## Closed-Shell Calculations & Kramers Pairs
@@ -128,6 +148,11 @@ By specifying `Krestricted` in the input deck, `DFdriver`:
 - **Generates time-reversed partners algebraically**: $\bar{\psi}$ is constructed on the fly without numerical integration, and the quaternionic Fock matrix is formed and diagonalized directly.
 - **Preserves Kramers degeneracies**: Exact partner degeneracy ($\varepsilon_i = \varepsilon_{\bar{i}}$) is maintained to $< 10^{-6}$ Ha.
 - **Preserves spherical symmetry**: For atoms with closed subshells (e.g. $p^6$ in neon and magnesium), it preserves spherical isotropy and correctly resolves the physical spin-orbit splitting ($p_{1/2}$ doublet vs $p_{3/2}$ quartet) without unphysical $z$-polarization.
+
+Without `Krestricted`, a closed-shell system is treated as Kramers-unrestricted: both members of each
+Kramers doublet are stored and iterated explicitly, so a guess from a spin-restricted `moldft` run gives
+$2N$ singly-occupied 4-spinors rather than $N$ doubly-occupied ones. This costs about twice as much as
+`Krestricted` but does not impose time-reversal symmetry on the solution.
 
 ---
 
@@ -156,6 +181,14 @@ DiracFock
 end
 ```
 Ensure the previous run did not specify `no_save`.
+
+DF restart archives begin with an explicit format version field. Archives written before this
+field was introduced carry no version and are rejected with an actionable error; they are not
+migrated. Regenerate them by restarting from a `moldft` archive. The incompatibility is detected
+in both directions: an older `DFdriver` pointed at a new archive reads the version field where it
+expects the total energy, so rank 0 reports an archive type mismatch instead of misparsing the
+file. Multi-rank runs may hang at that point, because the other ranks wait for a broadcast from
+rank 0 that never comes.
 
 ---
 
@@ -188,4 +221,3 @@ DiracFock
   savefile my_df_checkpoint
 end
 ```
-

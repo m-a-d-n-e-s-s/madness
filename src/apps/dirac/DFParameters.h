@@ -5,6 +5,7 @@
 #ifndef MADNESS_APPS_DFPARAMS_H_INCLUDED
 #define MADNESS_APPS_DFPARAMS_H_INCLUDED
 
+#include "DFConvergence.h"
 #include <madness/chem/molecule.h>
 #include <filesystem>
 #include <cctype>
@@ -61,6 +62,7 @@ namespace madness {
           double small;                ///< Minimum length scale to be resolved
           double thresh;               ///< Accuracy criterion when truncating
           double dconv;                ///< Accuracy criterion for charge density. Defaults to thresh.
+          double thresh_mul;           ///< Accuracy criterion for sparse multiplication. Defaults to thresh.
           int k;                       ///< Number of legendre polynomials in scaling basis
           bool kain;                   ///< Turns on KAIN nonlinear solver 
           int maxsub;                  ///< Sets maximum subspace size for KAIN
@@ -77,6 +79,14 @@ namespace madness {
           double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
+          DFConvergenceCriterion convergence_criteria; ///< Which quantities must converge before the loop stops
+                                       ///<   Value                    |   Criterion
+                                       ///<   --------------------------------------------------------------
+                                       ///<   bsh_residual             |   max BSH residual <= thresh (Default)
+                                       ///<   --------------------------------------------------------------
+                                       ///<   energy_density_residual  |   relative total energy change <= thresh,
+                                       ///<                            |   density change <= dconv * nelec, and
+                                       ///<                            |   max BSH residual <= 100 * thresh
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           //               If you add something here, don't forget to add it to serializable!
@@ -85,7 +95,11 @@ namespace madness {
 
           template<typename Archive>
           void serialize(Archive& ar){
-               ar & archive & job & max_iter & small & thresh & dconv & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted;
+               int convergence_criteria_value = static_cast<int>(convergence_criteria);
+               ar & archive & job & max_iter & small & thresh & dconv & thresh_mul & k & kain & maxsub & maxrotn & restart & nucleus & do_save & savefile & lb_iter & nwchem & lineplot & no_compute & bohr_rad & speed_of_light & min_iter & Krestricted & convergence_criteria_value;
+               if constexpr (Archive::is_input_archive) {
+                    convergence_criteria = static_cast<DFConvergenceCriterion>(convergence_criteria_value);
+               }
           }
 
           // Default constructor
@@ -95,6 +109,7 @@ namespace madness {
           , small(1e-5)
           , thresh(1e-6)
           , dconv(1e-6)
+          , thresh_mul(1e-6)
           , k(8)
           , kain(false)
           , maxsub(10)
@@ -111,6 +126,7 @@ namespace madness {
           , speed_of_light(137.03599917697017) // speed of light in atomic units from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
+          , convergence_criteria(DFConvergenceCriterion::bsh_residual)
           {}
 
           // Initializes DFParameters using the contents of file \c filename
@@ -123,6 +139,11 @@ namespace madness {
           void read(std::istream& f){
                position_stream(f, "DiracFock");
                std::string s;
+
+               // dconv and thresh_mul default to the final value of thresh. An
+               // explicit value must survive in any keyword order.
+               bool dconv_was_set = false;
+               bool thresh_mul_was_set = false;
 
                while(f >> s){
                     if(s == "end"){
@@ -148,10 +169,14 @@ namespace madness {
                     }
                     else if (s == "thresh"){
                          f >> thresh;
-                         dconv = thresh;
                     }
                     else if (s == "dconv"){
                          f >> dconv;
+                         dconv_was_set = true;
+                    }
+                    else if (s == "thresh_mul"){
+                         f >> thresh_mul;
+                         thresh_mul_was_set = true;
                     }
                     else if (s == "k"){
                          f >> k;
@@ -202,11 +227,23 @@ namespace madness {
                     else if (s == "Krestricted"){
                          Krestricted = true;
                     }
+                    else if (s == "convergence_criteria"){
+                         std::string keyword;
+                         f >> keyword;
+                         if (not df_convergence_criterion_from_string(keyword, convergence_criteria)) {
+                              std::cout << "Dirac Fock: unrecognized convergence_criteria " << keyword
+                                        << " (allowed: bsh_residual, energy_density_residual)" << std::endl;
+                              MADNESS_EXCEPTION("input error", 0);
+                         }
+                    }
                     else{
                        std::cout << "Dirac Fock: unrecognized input keyword " << s << std::endl;
                        MADNESS_EXCEPTION("input error", 0); 
                     }
                }
+
+               if (not dconv_was_set) dconv = thresh;
+               if (not thresh_mul_was_set) thresh_mul = thresh;
           } // end read()
 
           // Prints all information
@@ -216,6 +253,7 @@ namespace madness {
                madness::print("            Initial Guess File:", archive);
                madness::print("                           Job:", job);
                madness::print("          Refinement Threshold:", thresh);
+               madness::print("     Multiplication Threshold:", thresh_mul);
                madness::print("                             k:", k);
                madness::print("Smallest Resolved Length Scale:", small);
                madness::print("             Bohr radius in fm:", bohr_rad);
@@ -235,6 +273,7 @@ namespace madness {
                     madness::print("                       Nucleus: gaussian");
                }
                madness::print("           Kramers restriction:", Krestricted);
+               madness::print("          Convergence criteria:", df_convergence_criterion_name(convergence_criteria));
                madness::print("                  Do Lineplots:", lineplot);
           }
      };

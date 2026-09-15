@@ -10,6 +10,7 @@
 #include <madness/chem/NWChem.h>
 #include <madness/chem/Restart.h>
 #include "DFParameters.h"
+#include "DFRestart.h"
 
 Function<std::complex<double>,3> function_real2complex(const Function<double,3>& r);
 double myxfunc(const madness::coord_3d& r);
@@ -46,6 +47,17 @@ namespace madness{
                if(restart){
                     if(world.rank()==0) print("\n Reading initial data from restarted DF calculation");
                     archive::ParallelInputArchive input(world, filename.c_str());
+
+                    //Validate the restart format before any other read. Rank 0 owns
+                    //the local stream, so only rank 0 sees the type cookie mismatch
+                    //of a legacy archive. Rank 0 reads the version and broadcasts it.
+                    //Every rank then throws together. If rank 0 threw inside
+                    //wrap_load, its unconditional broadcast strands the other ranks.
+                    unsigned int version = 0;
+                    if(world.rank() == 0) version = read_df_restart_version(input.local_archive());
+                    input.broadcast(version, 0);
+                    require_supported_df_restart(version);
+
                     input & Init_total_energy;
                     input & spinrestricted;
                     input & closed_shell;
@@ -106,6 +118,7 @@ namespace madness{
 
                     //For now assume spin-restricted means closed shell in moldft
                     closed_shell = spinrestricted;
+                    if(world.rank()==0 && closed_shell && !Krestricted) print("\n   ***PLEASE NOTE***\n   closed shell: add Krestricted to the input to halve the cost");
 
                     // Check that order is positive and less than 30
                     if (order < 1 or order > 30){
@@ -135,8 +148,9 @@ namespace madness{
                          real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          
-                         //Handle Kramers-restricted and unrestricted cases differently
-                         if(Krestricted || closed_shell){
+                         //Handle the Kramers-restricted and unrestricted cases differently.
+                         //This code collapses a closed shell onto Kramers pairs only under Krestricted.
+                         if(Krestricted){
                               //Loop over the occupied orbitals and convert
                               for(unsigned int i = 0; i < num_occupied; i++){
                                    //read in orbital
@@ -353,6 +367,7 @@ namespace madness{
                     numbeta = numalpha;
                }
                closed_shell = !have_beta;
+               if(world.rank()==0 && closed_shell && !Krestricted) print("\n   ***PLEASE NOTE***\n   closed shell: add Krestricted to the input to halve the cost");
                
                //correctly set the number of occupied orbitals for the DF calculation
                if(Krestricted){
@@ -456,7 +471,7 @@ namespace madness{
                spinup[3].scale(0.5);
                spinup.normalize();
                orbitals.push_back(spinup);
-               if(closed_shell and not Krestricted){
+               if(!have_beta and not Krestricted){
                     spindown[0] = complex_factory_3d(world);
                     spindown[1] = complexreader;
                     spindown[2] = (-myi) * (Dx(complexreader) - myi * Dy(complexreader));

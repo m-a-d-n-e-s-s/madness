@@ -15,6 +15,7 @@
 #include <string>
 #include <algorithm> 
 #include <madness/chem/molecule.h>
+#include "DFConvergence.h"
 #include "DFParameters.h"
 #include "InitParameters.h"
 
@@ -127,8 +128,7 @@ class DF {
                   XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
                                    Fcwf_vector_allocator> &kainsolver,
                   double &tolerance, int &iteration_number,
-                  double &nuclear_repulsion_energy, double &prev_energy,
-                  real_function_3d &prev_rho);
+                  double &nuclear_repulsion_energy, real_function_3d &prev_rho);
 
           //Runs the job specified in the input parameters
           void solve(World& world);
@@ -157,4 +157,3 @@ class DF {
 #endif
 
 //kthxbye
-

@@ -11,6 +11,7 @@
  */ 
 
 #include "DF.h"
+#include "DFRestart.h"
 //#include "Plot_VTK.h"
 #include "fcwf.h"
 #include <madness/chem/potentialmanager.h>
@@ -357,6 +358,8 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Broadcast to all other nodes
      world.gop.broadcast_serializable(DFparams, 0);
+     MADNESS_CHECK_THROW(DFparams.min_iter <= DFparams.max_iter,
+          "Dirac Fock: min_iter must be less than or equal to max_iter");
 
      // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
@@ -404,8 +407,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
      energies = Init_params.energies;
      occupieds = Init_params.orbitals;
      total_energy = Init_params.Init_total_energy;
-     //If nonrelativistic calculation was spinrestricted then we're doing a closed shell calculation 
-     //This is a little incorrect, as we're equating two separate concepts, but it works for now.
+     //True when no stored orbital is unpaired.
+     //Under Krestricted the time-reversed partners are implicit. An open shell then
+     //means that the last stored orbital is unpaired. Otherwise both members of each
+     //pair are stored, and an open shell means that one orbital has no partner.
      closed_shell = Init_params.closed_shell;
 
      Tensor<double> times = end_timer(world);
@@ -510,10 +515,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           truncate(world,temp);
 
           //Now multiply by phi_j's and accumulate to K(phi_i)
-          Kpsis[i][0] += sum(world, mul_sparse(world, temp, temp0, DFparams.thresh));
-          Kpsis[i][1] += sum(world, mul_sparse(world, temp, temp1, DFparams.thresh));
-          Kpsis[i][2] += sum(world, mul_sparse(world, temp, temp2, DFparams.thresh));
-          Kpsis[i][3] += sum(world, mul_sparse(world, temp, temp3, DFparams.thresh));
+          Kpsis[i][0] += sum(world, mul_sparse(world, temp, temp0, DFparams.thresh_mul));
+          Kpsis[i][1] += sum(world, mul_sparse(world, temp, temp1, DFparams.thresh_mul));
+          Kpsis[i][2] += sum(world, mul_sparse(world, temp, temp2, DFparams.thresh_mul));
+          Kpsis[i][3] += sum(world, mul_sparse(world, temp, temp3, DFparams.thresh_mul));
           
 
           //Everything in temp can be used to accumulate a small part of K(phi_k) for k in [i+1,n] so we avoid calculating the same quantity on future iterations
@@ -522,10 +527,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           temp = conj(world, temp);
 
           //multiply by phi_i
-          temp0 = mul_sparse(world, occupieds[i][0], temp, DFparams.thresh);
-          temp1 = mul_sparse(world, occupieds[i][1], temp, DFparams.thresh);
-          temp2 = mul_sparse(world, occupieds[i][2], temp, DFparams.thresh);
-          temp3 = mul_sparse(world, occupieds[i][3], temp, DFparams.thresh);
+          temp0 = mul_sparse(world, occupieds[i][0], temp, DFparams.thresh_mul);
+          temp1 = mul_sparse(world, occupieds[i][1], temp, DFparams.thresh_mul);
+          temp2 = mul_sparse(world, occupieds[i][2], temp, DFparams.thresh_mul);
+          temp3 = mul_sparse(world, occupieds[i][3], temp, DFparams.thresh_mul);
 
           //acummulate
           for(unsigned int j = i+1; j < n; j++){
@@ -588,19 +593,19 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
                //Now multiply by phi_j's and accumulate to K(phi_i)
                //Here is where we put the complex conjugation we've left out. This allows for one conjugation here instead of two conjugations earlier.
-               Kpsis[i][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh));
-               Kpsis[i][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh));
-               Kpsis[i][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh));
-               Kpsis[i][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh));
+               Kpsis[i][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh_mul));
+               Kpsis[i][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh_mul));
+               Kpsis[i][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh_mul));
+               Kpsis[i][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh_mul));
                
                 // Now accumulate the (num_contrib - i - 1) symmetric contributions from \bar{\phi}_i to K(\phi_j) (j > i).
                 // Since \bar{\phi}_i^\dagger \phi_j = -\bar{\phi}_j^\dagger \phi_i, the potential is V_{\bar{i}j} = -V_{\bar{j}i} = -temp.
                 // Thus the exchange term is V_{\bar{i}j} \bar{\phi}_i = -temp * \bar{\phi}_i = temp * (-\bar{\phi}_i).
                 // With \bar{\phi}_i = (-\phi_{i,1}^*, \phi_{i,0}^*, -\phi_{i,3}^*, \phi_{i,2}^*)^T, -\bar{\phi}_i = (\phi_{i,1}^*, -\phi_{i,0}^*, \phi_{i,3}^*, -\phi_{i,2}^*)^T.
-                temp0 = mul_sparse(world, conj(occupieds[i][1]), temp, DFparams.thresh);
-                temp1 = mul_sparse(world, -1.0*conj(occupieds[i][0]), temp, DFparams.thresh);
-                temp2 = mul_sparse(world, conj(occupieds[i][3]), temp, DFparams.thresh);
-                temp3 = mul_sparse(world, -1.0*conj(occupieds[i][2]), temp, DFparams.thresh);
+                temp0 = mul_sparse(world, conj(occupieds[i][1]), temp, DFparams.thresh_mul);
+                temp1 = mul_sparse(world, -1.0*conj(occupieds[i][0]), temp, DFparams.thresh_mul);
+                temp2 = mul_sparse(world, conj(occupieds[i][3]), temp, DFparams.thresh_mul);
+                temp3 = mul_sparse(world, -1.0*conj(occupieds[i][2]), temp, DFparams.thresh_mul);
 
                //accumulate
                for(int j = i+1; j < num_contrib; j++){
@@ -644,10 +649,10 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                
                truncate(world,temp);
 
-               Kpsis[n-1][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh));
-               Kpsis[n-1][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh));
-               Kpsis[n-1][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh));
-               Kpsis[n-1][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh));
+               Kpsis[n-1][0] += sum(world, mul_sparse(world, temp, conj(world,temp0), DFparams.thresh_mul));
+               Kpsis[n-1][1] += sum(world, mul_sparse(world, temp, conj(world,temp1), DFparams.thresh_mul));
+               Kpsis[n-1][2] += sum(world, mul_sparse(world, temp, conj(world,temp2), DFparams.thresh_mul));
+               Kpsis[n-1][3] += sum(world, mul_sparse(world, temp, conj(world,temp3), DFparams.thresh_mul));
                
           }
      }
@@ -733,7 +738,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //calculate potential due to nuclei and mean field
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2.0 : 1.0;
+     double fac = DFparams.Krestricted ? 2.0 : 1.0;
      for(unsigned int j = 0; j < np; j++){
           rho += fac*squaremod(occupieds[j]);
      }
@@ -743,7 +748,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
      //add in coulomb parts to neworbitals
      for(unsigned int j = 0; j < n; j++){
-          temp_orbitals.push_back(occupieds[j].mul_sparse(potential, DFparams.thresh)); //add in coulomb term
+          temp_orbitals.push_back(occupieds[j].mul_sparse(potential, DFparams.thresh_mul)); //add in coulomb term
      }
 
      if(world.rank() == 0) print("          Subtracting K*psi");
@@ -1116,18 +1121,22 @@ void DF::saveDF(World& world){
      if(world.rank()==0) print("\n***Saving at time: ",times[0]," ***");
 
      //Create archive and save the following:
+     // 0) DF restart format version (unsigned int)
      // 1) Total energy (double)
      // 2) Krestricted (boolean)
      // 3) closed_shell (boolean)
-     // 3) number of occupied orbitals (int)
-     // 4) orbital energies (vector of doubles)
-     // 5) box size (double)
-     // 6) wavelet order (int)
-     // 7) molecule (molecule)
-     // 8) occupied orbitals as complex functions
+     // 4) number of occupied orbitals (unsigned int)
+     // 5) orbital energies (vector of doubles)
+     // 6) box size (double)
+     // 7) wavelet order (int)
+     // 8) molecule (molecule)
+     // 9) occupied orbitals as complex functions
      try{
           //create archive
           archive::ParallelOutputArchive output(world, DFparams.savefile.c_str(), 1);
+
+          //write the format version first, so a reader can reject legacy archives
+          write_df_restart_version(output);
 
           //save simulation parameters and calculated properties
           output & total_energy & DFparams.Krestricted & closed_shell & Init_params.num_occupied & energies & Init_params.L & Init_params.order & Init_params.molecule;
@@ -1378,8 +1387,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
             XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
                              Fcwf_vector_allocator> &kainsolver,
             double &tolerance, int &iteration_number,
-            double &nuclear_repulsion_energy, double &prev_energy,
-            real_function_3d &prev_rho) {
+            double &nuclear_repulsion_energy, real_function_3d &prev_rho) {
 
      //Get and print the time of this iteration's start, and start a timer
      Tensor<double> times = get_times(world);
@@ -1404,7 +1412,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
 
      //Diagonalization forces us to recompute density
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
+     double fac = DFparams.Krestricted ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1429,7 +1437,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
 
           //construct the function to which we will apply the BSH
-          temp_function = occupieds[j].mul_sparse(JandV, DFparams.thresh);
+          temp_function = occupieds[j].mul_sparse(JandV, DFparams.thresh_mul);
           temp_function.scale(-1.0);
           temp_function += Kpsis[j];
           temp_function.truncate();
@@ -1475,21 +1483,6 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      //End timers
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
-
-     //If any residual is still larger than the tolerance then we need to iterate again.
-     //Can just enforce this on the max residual
-     const auto nelec = rho.trace();
-     auto drho = (prev_rho - rho).norm2();
-     if(world.rank()==0) printf("\ndensity norm: %.10e\n",drho);
-     if(world.rank()==0) printf("tolerance: %.10e\n",DFparams.dconv * nelec);
-     if(maxresidual <= tolerance) {
-          iterate_again = false;
-          if (world.rank() == 0)  printf("\nConverged due to residuals");
-     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= DFparams.dconv * nelec
-                && maxresidual <= 1e2 * tolerance) {
-          iterate_again = false;
-          if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
-     }
 
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){
@@ -1721,6 +1714,29 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
           print("       Total Energy Residual: ", std::fabs(total_energy - old_total_energy));
      }
 
+     //Decide whether to iterate again. Both tests run after the orbital update,
+     //because the energy and the density of this iteration exist only at that point.
+     madness::DFConvergenceMetrics metrics{
+          total_energy,
+          old_total_energy,
+          DFparams.thresh,
+          /* density_residual  = */ 0.0,
+          /* density_tolerance = */ 0.0,
+          maxresidual,
+          tolerance,
+     };
+     if (DFparams.convergence_criteria ==
+             madness::DFConvergenceCriterion::energy_density_residual) {
+          const double nelec = rho.trace();
+          metrics.density_residual = (prev_rho - rho).norm2();
+          metrics.density_tolerance = DFparams.dconv * nelec;
+          if (world.rank() == 0) {
+               printf("\n              Density Residual: %.10e\n", metrics.density_residual);
+               printf("             Density Tolerance: %.10e\n", metrics.density_tolerance);
+          }
+     }
+     iterate_again = !madness::df_iteration_converged(DFparams.convergence_criteria, metrics);
+
      //final truncatation of orbitals now that we've computed properties
      for(unsigned int j = 0; j < Init_params.num_occupied; j++){
           occupieds[j].truncate();
@@ -1738,12 +1754,12 @@ void DF::solve_occupied(World & world)
 
      //State what we're doing here
      if(world.rank()==0){
-          if(DFparams.Krestricted || closed_shell){
-               if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n------------------------------\n");
-               else print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n------------------------------\n");
+          if(DFparams.Krestricted){
+               if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " Kramers-restricted orbitals\n------------------------------\n");
+               else print("\nSolving for ", Init_params.num_occupied-1, " Kramers-restricted open-shell orbitals\n------------------------------\n");
           }
           else{
-               print("\nSolving for ", Init_params.num_occupied, " single-occupied orbitals\n------------------------------\n");
+               print("\nSolving for ", Init_params.num_occupied, " Kramers unrestricted orbitals\n------------------------------\n");
           }
      }
 
@@ -1789,7 +1805,7 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("\n***Calculating Initial Coulomb***");
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
+     double fac = DFparams.Krestricted ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1813,7 +1829,7 @@ void DF::solve_occupied(World & world)
      bool keep_going = true;
      int iteration_number = 1;
      while((keep_going and iteration_number <= DFparams.max_iter) or iteration_number <= DFparams.min_iter){
-          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, total_energy, rho);
+          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, rho);
           
           //Load balance and save between iterations
           if(keep_going and iteration_number <= DFparams.lb_iter) DF_load_balance(world, Vnuc);
@@ -1821,6 +1837,22 @@ void DF::solve_occupied(World & world)
 
           //Increment iteration counter
           iteration_number++;
+     }
+
+     //Report why the loop stopped only after it has satisfied min_iter.
+     if (world.rank() == 0) {
+          if (keep_going) {
+               print("\n", madness::df_stop_message(madness::DFStopReason::max_iterations),
+                     "after", iteration_number - 1, "iterations");
+          }
+          else {
+               const madness::DFStopReason reason =
+                    DFparams.convergence_criteria ==
+                            madness::DFConvergenceCriterion::energy_density_residual
+                        ? madness::DFStopReason::converged_combined
+                        : madness::DFStopReason::converged_bsh;
+               print("\n", madness::df_stop_message(reason));
+          }
      }
 
      ////Calculation of Effective Electric Field:
@@ -1925,6 +1957,3 @@ void DF::print_sizes(World& world, bool individual=false){
 }
 
 //kthxbye
-
-
-
