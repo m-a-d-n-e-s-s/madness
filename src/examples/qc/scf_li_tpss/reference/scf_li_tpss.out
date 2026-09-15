@@ -6,9 +6,9 @@
   Task 0 : SCF  (model = scf)
   ----------------------------------------------------------------------
     Molecule         : Li
-    Total energy     :       -7.488917619 Ha        -203.7838 eV
-    Orbital eps (a)  : -1.9384 -0.1191  (Ha)
-    Orbital eps (b)  : -1.9318  (Ha)
+    Total energy     :       -7.488975728 Ha        -203.7854 eV
+    Orbital eps (a)  : -1.9386 -0.1197  (Ha)
+    Orbital eps (b)  : -1.9326  (Ha)
     Converged        :  thresh = 0.0001  dconv = 0.001
     Wall time        :  0.0 s   (1 MPI x 1 threads)
 

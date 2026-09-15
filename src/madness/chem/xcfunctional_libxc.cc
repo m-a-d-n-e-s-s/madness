@@ -112,8 +112,6 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
             line >> rhomin;
         } else if (name == "RHOTOL") {
             line >> rhotol;
-        } else if (name == "GGATOL") {
-            line >> ggatol;
         } else if (name == "TAUTOL") {
             line >> tautol;
         } else if (name == "HF" || name == "HF_X") {
@@ -192,7 +190,6 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized,
         if (hf_coeff>0.0) printf(" %4.3f %s \n",hf_coeff,"HF exchange");
         print("\nscreening parameters");
         print(" rhotol, rhomin",rhotol,rhomin);
-        print("         ggatol",ggatol);
         if (needs_tau()) print("         tautol",tautol);
         if (printit) print("polarized ",polarized,"\n");
 
@@ -390,11 +387,10 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
 /// without its partners manufactures points no density can produce, and the
 /// functional's derivatives there answer no question.
 ///
-/// Two thresholds, two jobs. rhotol (1e-7) decides whether there is any density
-/// at a point at all, and governs the arguments assembled here: everything in a
-/// channel goes away together. ggatol (1e-4) decides whether a derivative is
-/// trustworthy, and governs the outputs, in vxc() and fxc_apply(). They are not
-/// interchangeable.
+/// One threshold decides all of it: rhotol (1e-7). It says whether there is any
+/// density at a point, and everything in that channel goes away together -- and the
+/// outputs that need screening are screened on the same floor, so that a quantity is
+/// cut exactly where the density it came from was cut.
 ///
 /// One mask per spin channel, decided once from the raw density and then applied
 /// to every argument of that channel:
@@ -422,14 +418,13 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
 /// twice the alpha one; the rules above read the same with s dropped.
 ///
 /// Outputs are screened elsewhere, and only where no factor already does the job.
-/// vxc() cuts de/dtau at ggatol on its own spin's density, because it multiplies
-/// grad(psi) and so does not vanish with the density. Its other outputs need no
-/// cut: the semilocal terms carry a factor of grad(rho_s), masked above, and
-/// de/drho is bare but stays finite once the arguments assembled here are
-/// consistent -- which is what the tau rule is for. A channel left on the tautol
-/// floor at rho = 0 sends de/drho_s off like rho_s^(-8/3) through
-/// tau_unif ~ rho_s^(5/3). fxc_apply() cuts its own semilocal response terms at
-/// ggatol.
+/// vxc() cuts de/dtau on its own spin's density, because it multiplies grad(psi) and
+/// so does not vanish with the density; fxc_apply() cuts its semilocal response
+/// terms the same way. Both use rhotol. Everything else needs no cut: the semilocal
+/// terms carry a factor of grad(rho_s), masked above, and de/drho is bare but stays
+/// finite once the arguments assembled here are consistent -- which is what the tau
+/// rule is for. A channel left on the tautol floor at rho = 0 sends de/drho_s off
+/// like rho_s^(-8/3) through tau_unif ~ rho_s^(5/3).
 ///
 /// exc() multiplies by the density, but by the TOTAL density in the spin-polarized
 /// branch rather than the channel's own, so it is damped only where every channel
@@ -1004,11 +999,15 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
         }
     }
 
-    // Screen de/dtau on the density, once, now that the mixture is complete.
-    // Unlike the semilocal flux terms, which carry a factor rho*zeta and are damped
-    // in the tail on their own, de/dtau multiplies grad(psi). That does not vanish
-    // nearly as fast, and de/dtau itself diverges where the density is negligible --
-    // it reaches O(100) on the atomic initial guess.
+    // Screen de/dtau where the density was munged away, once, now that the mixture
+    // is complete. Unlike the semilocal flux terms, which carry a factor rho*zeta
+    // and are damped in the tail on their own, de/dtau multiplies grad(psi), which
+    // does not vanish with the density.
+    //
+    // rhotol, because that is where munge() took the density away: the output is
+    // screened exactly where the input was. A larger floor would cut de/dtau where
+    // there is still density, and cost real energy for it; a smaller one cannot fire
+    // at all, since every surviving density is rhotol or above by construction.
     //
     // The screen belongs on the finished mixture rather than inside the loop above:
     // what is being cut is the functional's de/dtau, and a partial sum over the
@@ -1016,7 +1015,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
     if (is_meta()) {
         double * MADNESS_RESTRICT rt = result[spin_polarized ? 7 : 4].ptr();
         for (long j=0; j<np; j++)
-            rt[j] = binary_munge(rt[j], dens[nvrho*j+ispin], ggatol);
+            rt[j] = binary_munge(rt[j], dens[nvrho*j+ispin], rhotol);
     }
 
     // check for NaNs
@@ -1141,19 +1140,19 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
                           2.0*vrs[j] * dens_pt[j] * ddensx[j]
                           + 4.0 * vss[j] * sig_pt[j] * ddensx[j]
                           + 2.0 * vs[j]*ddens_ptx[j],
-                        dens[j],ggatol);
+                        dens[j],rhotol);
 
                 r2[j]+=w*binary_munge(
                         2.0*vrs[j] * dens_pt[j] * ddensy[j]
                         + 4.0 * vss[j] * sig_pt[j] * ddensy[j]
                         + 2.0 * vs[j]*ddens_pty[j],
-                        dens[j],ggatol);
+                        dens[j],rhotol);
 
                 r3[j]+=w*binary_munge(
                         2.0*vrs[j] * dens_pt[j] * ddensz[j]
                         + 4.0 * vss[j] * sig_pt[j] * ddensz[j]
                         + 2.0 * vs[j]*ddens_ptz[j],
-                        dens[j],ggatol);
+                        dens[j],rhotol);
 
             }
         }

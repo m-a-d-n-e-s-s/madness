@@ -290,10 +290,10 @@ int test_meta_gga_dedtau_polarized(World& world) {
             const Tensor<double> em=xcfunc.exc(spin==0 ? build(-h,0.0) : build(0.0,-h));
             const double fd=(ep.ptr()[j]-em.ptr()[j])/(2.0*h);
             const double an=(spin==0 ? va.ptr()[j] : vb.ptr()[j]);
-            // de/dtau is screened on the same-spin density (ggatol), so a point
+            // de/dtau is screened on the same-spin density at rhotol, so a point
             // below that floor is legitimately zero and carries no information
             const double dens=(spin==0 ? rhoa[j] : rhob[j]);
-            const bool screened=(dens<xcfunc.get_ggatol());
+            const bool screened=(dens<xcfunc.get_rhotol());
             if (world.rank()==0)
                 printf("  spin %d  rho %8.1e  de/dtau %13.6e  finite diff %13.6e%s\n",
                        spin,dens,an,fd,screened ? "   (screened)" : "");

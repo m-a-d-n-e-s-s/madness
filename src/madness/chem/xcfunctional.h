@@ -137,7 +137,6 @@ public:
 
     /// the GGA potential will be munged based on the smallness of the original
     /// density, which we call binary munging
-    double get_ggatol() const {return ggatol;}
 
     /// return the floor for the kinetic energy density
 
@@ -186,7 +185,6 @@ protected:
     double rhomin=1.e-12;             ///< our lda will divide by rho
 #endif
     double rhotol=1.e-7;              ///< See initialize and munge*
-    double ggatol=1.e-4;              ///< See initialize and munge*
     double tautol=1.e-12;             ///< floor for the kinetic energy density, see initialize
     double tauwmargin=1.e-6;          ///< von Weizsaecker clamp overshoot, see tau_w_bound
 
