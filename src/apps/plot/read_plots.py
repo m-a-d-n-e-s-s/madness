@@ -6,7 +6,8 @@ Needs numpy; scipy, scikit-image and matplotlib only for --diff/--surface/--slic
   read_plots.py total_density.cube                      # header, grid, min/max, grid integral
   read_plots.py --band total_density.cube esp.cube      # ESP statistics on the 8e-5 <= rho <= 1e-4 isodensity band
   read_plots.py --band --surface esp.png total_density.cube esp.cube   # rho = 1e-4 isosurface coloured by the ESP
-  read_plots.py --diff ref_rho.cube ref_esp.cube other_rho.cube other_esp.cube [--surface diff.png]
+  read_plots.py --diff ref_rho.cube ref_esp.cube other_rho.cube other_esp.cube [--surface diff.png] [--out-cube desp.cube] [--out-vtk diff.vtk]
+  read_plots.py --band --surface s.png --out-vtk s.vtk total_density.cube esp.cube   # + the surface as VTK polydata for ParaView
         # ESP(other) - ESP(ref) and rho(other) - rho(ref) on the reference band
   read_plots.py --orbitals dirA dirB [--nocc 22]        # grid overlaps |<a_i|b_j>| between the amo-*.cube of two runs
   read_plots.py --extent dir [--radius 8]               # per orbital: |phi|^2 within R of the nuclear centroid, rms radius, edge fraction
@@ -55,6 +56,32 @@ def summary(fn, g):
     for z, p in g['atoms']: print(f"  atom Z={z} at {p}")
     print(f"  min {v.min():.6e} max {v.max():.6e}  grid integral {v.sum()*dV:.6f}  (a density integral is only as good as the grid resolves the cores)")
 
+def write_cube(fn, g, values, comment='written by read_plots.py'):
+    """Gaussian cube on the grid of `g` (header, atoms and spacing copied), z fastest, 6 values per line."""
+    atoms = g['atoms'] or [(0, np.zeros(3))]
+    with open(fn, 'w') as f:
+        f.write(f"{comment}\n{fn}: values on the grid of the reference cube (atomic units)\n")
+        f.write("%5d %12.6f %12.6f %12.6f\n" % (len(atoms), *g['origin']))
+        for d in range(3):
+            step = [0.0, 0.0, 0.0]; step[d] = g['delta'][d]
+            f.write("%5d %12.6f %12.6f %12.6f\n" % (g['n'][d], *step))
+        for z, pos in atoms: f.write("%5d %12.6f %12.6f %12.6f %12.6f\n" % (z, float(z), *pos))
+        v = np.asarray(values, float)
+        for ix in range(g['n'][0]):
+            for iy in range(g['n'][1]):
+                row = v[ix, iy, :]
+                for k in range(0, len(row), 6): f.write(' '.join('%13.5e' % x for x in row[k:k+6]) + '\n')
+    print(f"wrote {fn} (cube, grid {g['n']})")
+
+def write_vtk_polydata(fn, xyz, faces, scalars, name='ESP'):
+    """Legacy ASCII VTK POLYDATA of a triangulated surface with one point scalar (ParaView: colour by `name`)."""
+    with open(fn, 'w') as f:
+        f.write(f"# vtk DataFile Version 3.0\n{name} on an isodensity surface (read_plots.py); coordinates in bohr\nASCII\nDATASET POLYDATA\n")
+        f.write(f"POINTS {len(xyz)} float\n"); f.write('\n'.join('%.5f %.5f %.5f' % tuple(p) for p in xyz) + '\n')
+        f.write(f"POLYGONS {len(faces)} {4*len(faces)}\n"); f.write('\n'.join('3 %d %d %d' % tuple(t) for t in faces) + '\n')
+        f.write(f"POINT_DATA {len(xyz)}\nSCALARS {name} float 1\nLOOKUP_TABLE default\n"); f.write('\n'.join('%.6e' % v for v in scalars) + '\n')
+    print(f"wrote {fn} (vtk polydata, {len(xyz)} points, {len(faces)} triangles, scalar {name})")
+
 def band_stats(rho, esp, lo, hi):
     assert rho['values'].shape == esp['values'].shape and np.allclose(rho['origin'], esp['origin'])
     m = (rho['values'] >= lo) & (rho['values'] <= hi)
@@ -66,7 +93,7 @@ def band_stats(rho, esp, lo, hi):
         print("  ESP (kcal/mol/e): min %.2f  q25 %.2f  median %.2f  q75 %.2f  max %.2f" % tuple(q*627.5095))
     return m, e
 
-def surface_png(rho, esp, iso, out, vrange=None, title=None):
+def surface_png(rho, esp, iso, out, vrange=None, title=None, out_vtk=None, scalar_name='ESP'):
     """Marching-cubes isosurface of rho at `iso`, coloured by esp interpolated at the vertices; matplotlib PNG."""
     from skimage import measure
     from scipy.ndimage import map_coordinates
@@ -89,8 +116,10 @@ def surface_png(rho, esp, iso, out, vrange=None, title=None):
     fig.colorbar(sm, ax=ax, shrink=0.6, label='ESP / Hartree per e')
     ax.set_title(title or f'rho = {iso:g} isosurface, {len(faces)} faces')
     fig.savefig(out, dpi=150, bbox_inches='tight'); print(f"wrote {out}: {len(verts)} vertices, ESP on surface min {e.min():.4f} max {e.max():.4f} Hartree/e")
+    if out_vtk: write_vtk_polydata(out_vtk, xyz, faces, e, scalar_name)
+    return xyz, faces, e
 
-def diff_stats(rref, eref, roth, eoth, lo, hi, surface=None, vrange=None):
+def diff_stats(rref, eref, roth, eoth, lo, hi, surface=None, vrange=None, out_cube=None, out_vtk=None):
     assert rref['values'].shape == roth['values'].shape and np.allclose(rref['origin'], roth['origin'])
     m = (rref['values'] >= lo) & (rref['values'] <= hi)
     de = (eoth['values'] - eref['values'])[m]; dr = (roth['values'] - rref['values'])[m]
@@ -100,9 +129,10 @@ def diff_stats(rref, eref, roth, eoth, lo, hi, surface=None, vrange=None):
     print("  drho = other - ref on the band: mean %.2e, max|drho| %.2e (band density 1e-4)" % (dr.mean(), np.abs(dr).max()))
     r = np.corrcoef(eref['values'][m], de)[0, 1]
     print(f"  correlation of dESP with ESP_ref on the band: {r:+.3f} (Jensen: negative slope = charge-transfer signature)")
+    d = dict(eoth); d['values'] = eoth['values'] - eref['values']
+    if out_cube: write_cube(out_cube, rref, d['values'], comment='ESP(other) - ESP(ref), Hartree per e; grid of the reference density')
     if surface:
-        d = dict(eoth); d['values'] = eoth['values'] - eref['values']
-        surface_png(rref, d, hi, surface, vrange, title=f'ESP(other) - ESP(ref) on the rho_ref = {hi:g} surface')
+        surface_png(rref, d, hi, surface, vrange, title=f'ESP(other) - ESP(ref) on the rho_ref = {hi:g} surface', out_vtk=out_vtk, scalar_name='dESP')
 
 def orbital_overlaps(dirA, dirB, nocc=None):
     """Pair the orbitals of two runs by grid overlap |<a_i|b_j>| (orbitals grid-normalised); report the diagonal and the swaps."""
@@ -164,6 +194,8 @@ if __name__ == '__main__':
     ap.add_argument('--radius', type=float, default=8.0)
     ap.add_argument('--surface', metavar='PNG', help='with --band: write the rho=hi isosurface coloured by ESP')
     ap.add_argument('--vrange', type=float, default=None, help='colour scale limit in Hartree/e (default: 98th percentile)')
+    ap.add_argument('--out-cube', metavar='CUBE', help='--diff: write ESP(other)-ESP(ref) as a cube; --band: write the ESP restricted to the band (0 outside)')
+    ap.add_argument('--out-vtk', metavar='VTK', help='with --surface: also write the coloured isosurface as VTK polydata (ParaView)')
     a = ap.parse_args()
     if a.orbitals:
         orbital_overlaps(a.files[0], a.files[1], a.nocc); sys.exit(0)
@@ -175,6 +207,10 @@ if __name__ == '__main__':
     for f, g in grids.items(): summary(f, g)
     if a.band:
         band_stats(grids[a.files[0]], grids[a.files[1]], a.lo, a.hi)
-        if a.surface: surface_png(grids[a.files[0]], grids[a.files[1]], a.hi, a.surface, a.vrange)
+        if a.surface: surface_png(grids[a.files[0]], grids[a.files[1]], a.hi, a.surface, a.vrange, out_vtk=a.out_vtk)
+        if a.out_cube:
+            rho, esp = grids[a.files[0]], grids[a.files[1]]
+            m = (rho['values'] >= a.lo) & (rho['values'] <= a.hi)
+            write_cube(a.out_cube, rho, np.where(m, esp['values'], 0.0), comment=f'ESP on the isodensity band {a.lo:g} <= rho <= {a.hi:g} (0 outside), Hartree per e')
     if a.diff:
-        diff_stats(*[grids[f] for f in a.files[:4]], a.lo, a.hi, a.surface, a.vrange)
+        diff_stats(*[grids[f] for f in a.files[:4]], a.lo, a.hi, a.surface, a.vrange, a.out_cube, a.out_vtk)
