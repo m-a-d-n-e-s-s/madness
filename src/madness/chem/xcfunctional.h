@@ -133,11 +133,6 @@ public:
     /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
 
-    /// return the binary munging threshold for the final result in the GGA potential/kernel
-
-    /// the GGA potential will be munged based on the smallness of the original
-    /// density, which we call binary munging
-
     /// return the floor for the kinetic energy density
 
     /// meta-gga functionals build the iso-orbital indicators alpha and z with tau
