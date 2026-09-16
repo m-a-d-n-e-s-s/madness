@@ -16,12 +16,12 @@ if(ENABLE_PCM)
   # pattern the other optional dependencies use.
   if(NOT TARGET PCMSolver::pcm AND NOT PCM_FOUND)
     if(MADNESS_FETCH_PCMSOLVER)
+      # Sets MADNESS_PCM_UNAVAILABLE_REASON instead of defining the target if a
+      # prerequisite of the source build is missing.
       include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchPCMSolver.cmake)
     else()
-      message(STATUS "PCMSolver not found and -DMADNESS_FETCH_PCMSOLVER=OFF; the `pcm` "
-                     "keyword will be unavailable. Install PCMSolver and point "
-                     "-DPCM_ROOT_DIR at the prefix, or configure -DENABLE_PCM=OFF "
-                     "to stop looking.")
+      set(MADNESS_PCM_UNAVAILABLE_REASON
+          "no installed PCMSolver was found, and -DMADNESS_FETCH_PCMSOLVER=OFF forbids building one")
     endif()
   endif()
 
@@ -66,6 +66,64 @@ if(ENABLE_PCM)
   # Set the output variables
   if(PCM_FOUND)
     set(MADNESS_HAS_PCM 1)
+  else()
+    # ENABLE_PCM defaults to OFF, so reaching here means PCM was asked for by
+    # name and is not being delivered -- a warning, not a STATUS line, because
+    # the build otherwise succeeds and the loss only surfaces much later, when a
+    # deck asking for `pcm` hits the MADNESS_EXCEPTION in the stub half of
+    # chem/pcm.cc.
+    if(NOT MADNESS_PCM_UNAVAILABLE_REASON)
+      set(MADNESS_PCM_UNAVAILABLE_REASON "no installed PCMSolver was found")
+    endif()
+    message(WARNING
+        "ENABLE_PCM is ON but PCM support could not be configured: "
+        "${MADNESS_PCM_UNAVAILABLE_REASON}. MADNESS will build without it, and any "
+        "calculation requesting the `pcm` solvation model will abort at runtime. "
+        "Either point -DPCM_ROOT_DIR at an installed PCMSolver prefix, or supply "
+        "what the source build is missing (-DPCM_BOOST_INCLUDE_DIR=<dir containing "
+        "boost/> pins the Boost headers on a host where CMake cannot find them), "
+        "or configure -DENABLE_PCM=OFF to stop looking.")
+  endif()
+
+  # Report PCMSolver to FeatureSummary once, as a package, by the outcome that
+  # actually matters -- rather than as a MADNESS feature, which would file an
+  # unavailable *dependency* under "the following features have been disabled"
+  # next to switches like GENTENSOR that are nobody's package.
+  #
+  # Two mechanics force the hand here. FeatureSummary skips any package whose
+  # _CMAKE_<pkg>_QUIET global property is set, which find_package() sets for
+  # every QUIET call -- so both probes above are invisible in the package lists
+  # as they stand. And that property is keyed on the *name*, so it suppresses a
+  # same-named add_feature_info() entry along with the package (measured: a
+  # QUIET find_package(Foo) plus add_feature_info(Foo ...) is reported in
+  # neither list). set_package_properties() does not clear it.
+  #
+  # So: drop both probe names -- which of the three paths delivered PCM is an
+  # implementation detail of the search, not something to report -- and register
+  # one un-QUIETed PCMSolver entry on the side the verdict belongs on.
+  foreach(_pcm_probe PCMSolver PCM)
+    foreach(_pcm_list PACKAGES_FOUND PACKAGES_NOT_FOUND)
+      get_property(_pcm_pkgs GLOBAL PROPERTY ${_pcm_list})
+      if(_pcm_pkgs)
+        list(REMOVE_ITEM _pcm_pkgs ${_pcm_probe})
+        set_property(GLOBAL PROPERTY ${_pcm_list} "${_pcm_pkgs}")
+      endif()
+    endforeach()
+  endforeach()
+  unset(_pcm_probe)
+  unset(_pcm_list)
+  unset(_pcm_pkgs)
+
+  set_property(GLOBAL PROPERTY _CMAKE_PCMSolver_QUIET FALSE)
+  set_package_properties(PCMSolver PROPERTIES
+      TYPE OPTIONAL
+      DESCRIPTION "polarizable continuum model of solvation"
+      PURPOSE "provides the `pcm` solvation model"
+      URL "https://pcmsolver.readthedocs.io/")
+  if(PCM_FOUND)
+    set_property(GLOBAL APPEND PROPERTY PACKAGES_FOUND PCMSolver)
+  else()
+    set_property(GLOBAL APPEND PROPERTY PACKAGES_NOT_FOUND PCMSolver)
   endif()
 
 endif()

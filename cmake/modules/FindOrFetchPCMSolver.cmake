@@ -11,9 +11,11 @@
 # external/pcm.cmake turns that target into PCM_FOUND / PCM_LIBRARIES /
 # PCM_INCLUDE_DIRS for the rest of the build.
 #
-# On a missing prerequisite this prints why and returns without defining the
-# target: PCM is an optional feature, and a machine without a Fortran
-# compiler should still get a working MADNESS out of the default configure.
+# On a missing prerequisite this sets MADNESS_PCM_UNAVAILABLE_REASON and returns
+# without defining the target: PCM is an optional feature, and a machine without
+# a Fortran compiler should still get a working MADNESS out of the default
+# configure. external/pcm.cmake turns that reason into the one warning the user
+# sees.
 
 if (TARGET PCMSolver::pcm)
   return()
@@ -54,11 +56,14 @@ if (NOT ZLIB_FOUND)
 endif ()
 
 if (_pcm_missing)
+  # Hand the reason back rather than reporting it here: external/pcm.cmake
+  # issues one warning for the whole search, so a machine that simply cannot
+  # build PCMSolver says why in the same breath as "you asked for PCM and are
+  # not getting it", instead of dribbling a STATUS line into the configure log
+  # a few hundred lines above the summary.
   list(JOIN _pcm_missing ", " _pcm_missing)
-  message(STATUS "PCMSolver not found and cannot be built here (missing: ${_pcm_missing}); "
-                 "the `pcm` keyword will be unavailable. Install PCMSolver and point "
-                 "-DPCM_ROOT_DIR at the prefix, supply the missing prerequisite, or "
-                 "configure -DENABLE_PCM=OFF to stop looking.")
+  set(MADNESS_PCM_UNAVAILABLE_REASON
+      "no installed PCMSolver was found, and building one here would need: ${_pcm_missing}")
   return()
 endif ()
 unset(_pcm_missing)

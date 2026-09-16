@@ -685,12 +685,10 @@ include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchNlohmannJson.cmake)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
+  # N.B. no add_feature_info() for PCM: external/pcm.cmake registers PCMSolver
+  # with FeatureSummary as a *package*, so it is reported alongside the other
+  # optional dependencies rather than among MADNESS's own on/off switches.
   include(external/pcm.cmake)
-  # N.B. not "PCM": that name is already taken by the FindPCM package that
-  # external/pcm.cmake searches for, and a FeatureSummary entry that is both a
-  # package and a feature is reported as neither.
-  add_feature_info("PCM solvation" MADNESS_HAS_PCM
-      "polarizable continuum model of solvation, via PCMSolver")
   include(external/integratorxx.cmake)
   include(external/dftd3.cmake)
   add_feature_info(DFTD3 MADNESS_HAS_DFTD3
