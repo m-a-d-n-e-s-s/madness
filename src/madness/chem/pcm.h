@@ -32,18 +32,98 @@
 #ifndef SRC_APPS_CHEM_PCM_H_
 #define SRC_APPS_CHEM_PCM_H_
 
+#include <map>
 #include <memory>
+#include <utility>
 
 #include <madness/tensor/tensor.h>
 #include <madness/world/vector.h>
 #include <madness/mra/functypedefs.h>
+#include <madness/mra/QCCalculationParametersBase.h>
+#include <madness/mra/commandlineparser.h>
 #include<madness/chem/molecule.h>
+#include<madness/chem/CalculationParameters.h>
 
 #ifdef MADNESS_HAS_PCM
 #include <PCMSolver/pcmsolver.h>
+#include <PCMSolver/PCMInput.h>
 #endif
 
 namespace madness {
+
+/// input parameters for the polarizable continuum model -- the `pcm` data group
+
+/// Declared outside MADNESS_HAS_PCM on purpose: ParameterManager and madqc hold and
+/// print this group whether or not PCMSolver was compiled in, and only the conversion
+/// to PCMSolver's PCMInput needs the library.
+///
+/// The group refines `pcm_data` of the `dft` group, which stays the on/off switch:
+/// `pcm_data <solvent>` on its own is a complete specification, and the solvent it
+/// names arrives here as a *derived* value that an explicit `solvent` in this group
+/// overrides.
+///
+/// Only the thirteen PCMInput fields that PCMSolver's host-struct reader actually
+/// consults are exposed. `patch_level`, `coarsity`, `min_distance`, `der_order` and
+/// `equation_type` are accepted by the struct but never read by
+/// Input::reader(const PCMInput&), and upstream documents no keyword for them.
+class PCMParameters : public QCCalculationParametersBase {
+public:
+    static constexpr char const* tag = "pcm";
+
+    PCMParameters();
+
+    PCMParameters(World& world, const commandlineparser& parser) : PCMParameters() {
+        read_input_and_commandline_options(world, parser, tag);
+    }
+
+    std::string get_tag() const override { return std::string(tag); }
+
+    /// adopt the solvent named by the dft group's `pcm_data`, derive from it, validate
+
+    /// The solvent is set as a *derived* value, so an explicit `solvent` in the `pcm`
+    /// group wins; `epsilon` and `probe_radius` are then derived from the solvent in
+    /// turn, and only stand as given for `solvent explicit`. Validation that
+    /// allowed_values cannot express -- buffer capacities and cross-key consistency --
+    /// happens here, as OEP_Parameters does for its density thresholds.
+    void set_derived_values(const CalculationParameters& cparam);
+
+    std::string solvent() const { return get<std::string>("solvent"); }
+    std::string solver_type() const { return get<std::string>("solver_type"); }
+    double correction() const { return get<double>("correction"); }
+    std::string cavity_type() const { return get<std::string>("cavity_type"); }
+    double area() const { return get<double>("area"); }
+    std::string radii_set() const { return get<std::string>("radii_set"); }
+    bool scaling() const { return get<bool>("scaling"); }
+    double min_radius() const { return get<double>("min_radius"); }
+    std::string restart_name() const { return get<std::string>("restart_name"); }
+    double probe_radius() const { return get<double>("probe_radius"); }
+    double epsilon() const { return get<double>("epsilon"); }
+
+    /// whether PCMSolver should read its own input file instead of our parameters
+
+    /// Set from `pcm_data pcmsolver_reader_own` in the dft group; not a key of this
+    /// group, because in that mode none of the keys below are consulted.
+    bool reader_own() const { return reader_own_; }
+
+    /// the solvents PCMSolver tabulates
+
+    /// Maps the canonical name to {static permittivity, probe radius / Angstrom};
+    /// values from PCMSolver's src/utils/Solvent.cpp. Two uses: deriving `epsilon`
+    /// and `probe_radius` from `solvent`, and spelling out the `solvent explicit`
+    /// equivalent for the names that do not fit PCMInput::solvent.
+    static const std::map<std::string, std::pair<double, double> >& solvent_data();
+
+    /// longest solvent name PCMInput::solvent (char[16]) can hold with its NUL
+    static constexpr std::size_t max_solvent_name_length = 15;
+
+#ifdef MADNESS_HAS_PCM
+    /// fill PCMSolver's host input struct from these parameters
+    PCMInput to_pcmsolver_input() const;
+#endif
+
+private:
+    bool reader_own_ = false;
+};
 
 /// interface class to the PCMSolver library
 
@@ -60,9 +140,9 @@ public:
 
     /// @param[in]  world   the world
     /// @param[in]  mol     the molecule (coordinates and charges of the nuclei)
-    /// @param[in]  pcm_data    pcm input data as read from the input file
-    /// @param[in]  verbose print the PCM header
-    PCM(World& world, const Molecule& mol, const std::string pcm_data,
+    /// @param[in]  param   the `pcm` data group, already reconciled with `pcm_data`
+    /// @param[in]  verbose print the PCM header and echo the pcm parameter group
+    PCM(World& world, const Molecule& mol, const PCMParameters& param,
             const bool verbose);
 
     /// compute the potential induced by the surrounding solvent
@@ -80,9 +160,6 @@ private:
 #ifdef MADNESS_HAS_PCM
     /// the main pcmsolver object
     std::shared_ptr<pcmsolver_context_t> pcm_context;
-
-    /// default input generator
-    PCMInput pcmsolver_input() const;
 #endif
 
     /// compute the molecular electrostatic potential from the nuclei

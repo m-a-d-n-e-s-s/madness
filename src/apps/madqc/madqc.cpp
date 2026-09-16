@@ -77,7 +77,7 @@ void help(const std::string &wf) {
         "workflow's reference (scf|nemo)");
   print("\nAvailable workflows: " + workflow_builders::runnable_workflow_list());
   print("Parameter groups (for --print_parameters): dft, nemo, response, cc2, "
-        "cis, oep, optimization, geometry");
+        "cis, oep, pcm, optimization, geometry");
   print("");
   if (wf == "scf") {
     print("madqc --wf=scf");
@@ -134,8 +134,8 @@ void print_parameters(World &world, const commandlineparser &parser,
   if (group.empty()) {
     print("please specify a data group to print parameters for");
     print("\n  --print_parameters=<group>  : print all parameters and exit");
-    print("\nAvailable data groups: dft, nemo, response, cc2, cis, oep, "
-          "geometry");
+    print("\nAvailable data groups: dft, nemo, response, cc2, cis, oep, pcm, "
+          "optimization, geometry");
   } else if (group == "dft" || group == "scf") {
     print("Available parameters for data group: dft");
     pm.get<CalculationParameters>().print();
@@ -157,13 +157,16 @@ void print_parameters(World &world, const commandlineparser &parser,
   } else if (group == "optimization") {
     print("Available parameters for data group: optimization");
     pm.get<OptimizationParameters>().print(OptimizationParameters::tag, "end");
+  } else if (group == "pcm") {
+    print("Available parameters for data group: pcm");
+    pm.get<PCMParameters>().print();
   } else if (group == "geometry") {
     Molecule::GeometryParameters geometryparam;
     geometryparam.print("geometry", "end");
   } else {
     std::string msg = "Unknown data group: " + group +
                       "\nAvailable data group are: dft, nemo, response, cc2, "
-                      "cis, oep, optimization, geometry\n";
+                      "cis, oep, pcm, optimization, geometry\n";
     print(msg);
   }
 }

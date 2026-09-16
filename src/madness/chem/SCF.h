@@ -200,6 +200,8 @@ public:
     std::shared_ptr<GTHPseudopotential<double> > gthpseudopotential;
     Molecule molecule;
     CalculationParameters param;
+    /// the `pcm` data group; inert unless param.pcm_data() is set
+    PCMParameters pcm_param;
     XCfunctional xc;
     PCM pcm;
 
@@ -260,12 +262,18 @@ public:
 
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
-        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {
+        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser),
+              PCMParameters(world, parser)) {
             work_dir = std::filesystem::current_path();
         }
 
     /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
-    SCF(World& world, const CalculationParameters& param, const Molecule& molecule);
+
+    /// \p pcm_param defaults to the bare `pcm` group; the solvent is still picked up
+    /// from \p param.pcm_data() by PCMParameters::set_derived_values, so a caller that
+    /// does not parse a deck keeps working.
+    SCF(World& world, const CalculationParameters& param, const Molecule& molecule,
+        const PCMParameters& pcm_param = PCMParameters());
 
     void copy_data(World& world, const SCF& other);
 
@@ -596,7 +604,7 @@ public:
 
         // initialize the PCM solver for this geometry
         if (calc.param.pcm_data() != "none") {
-            calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
+            calc.pcm = PCM(world, calc.molecule, calc.pcm_param, true);
         }
 
         calc.get_initial_orbitals(world, plan);
