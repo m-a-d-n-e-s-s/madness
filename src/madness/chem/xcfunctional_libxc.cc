@@ -305,13 +305,22 @@ static madness::Tensor<double> assemble_nemo_tau(
     const int e_gz   = beta ? XCfunctional::enum_Gb_z   : XCfunctional::enum_Ga_z;
 
     if (long(t.size()) <= XCfunctional::enum_u1sq) return madness::Tensor<double>();
-    if (not t[e_grad].size() or not t[XCfunctional::enum_nemo_R2].size())
-        return madness::Tensor<double>();
+    if (not t[e_grad].size()) return madness::Tensor<double>();
+
+    const double * MADNESS_RESTRICT gf = t[e_grad].ptr();
+    madness::Tensor<double> tau_s(np);
+    double * MADNESS_RESTRICT out = tau_s.ptr();
+
+    // no ncf (the moldft route): the pieces are built from the physical orbitals,
+    // R^2 = 1 and U1 = 0, so tau is 1/2 sum_i w_i |grad psi_i|^2 and nothing else
+    if (not t[XCfunctional::enum_nemo_R2].size()) {
+        for (long i=0; i<np; ++i) out[i] = 0.5*gf[i];
+        return tau_s;
+    }
     if (not t[XCfunctional::enum_u1sq].size())
         MADNESS_EXCEPTION("regularized tau pieces present but U1 was not supplied: "
                           "the xc op must be built with nemo_u1_functors",1);
 
-    const double * MADNESS_RESTRICT gf = t[e_grad].ptr();
     const double * MADNESS_RESTRICT n  = t[e_n].ptr();
     const double * MADNESS_RESTRICT gx = t[e_gx].ptr();
     const double * MADNESS_RESTRICT gy = t[e_gy].ptr();
@@ -322,8 +331,6 @@ static madness::Tensor<double> assemble_nemo_tau(
     const double * MADNESS_RESTRICT uz = t[XCfunctional::enum_u1_z].ptr();
     const double * MADNESS_RESTRICT u2 = t[XCfunctional::enum_u1sq].ptr();
 
-    madness::Tensor<double> tau_s(np);
-    double * MADNESS_RESTRICT out = tau_s.ptr();
     for (long i=0; i<np; ++i) {
         out[i] = 0.5*r2[i]*( gf[i] - 2.0*(ux[i]*gx[i] + uy[i]*gy[i] + uz[i]*gz[i])
                              + u2[i]*n[i] );
@@ -356,7 +363,19 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
     const int e_gx = beta ? XCfunctional::enum_Gb_x : XCfunctional::enum_Ga_x;
 
     if (long(t.size()) <= XCfunctional::enum_u1sq) return {};
-    if (not t[e_n].size() or not t[XCfunctional::enum_nemo_R2].size()) return {};
+    if (not t[e_n].size()) return {};
+
+    // no ncf (the moldft route): grad(rho_s) = 2 G_s, from the same grad(psi) as tau
+    if (not t[XCfunctional::enum_nemo_R2].size()) {
+        std::vector<madness::Tensor<double> > d(3);
+        for (int ax=0; ax<3; ++ax) {
+            d[ax] = madness::Tensor<double>(np);
+            const double * MADNESS_RESTRICT g = t[e_gx+ax].ptr();
+            double * MADNESS_RESTRICT o = d[ax].ptr();
+            for (long i=0; i<np; ++i) o[i] = 2.0*g[i];
+        }
+        return d;
+    }
     if (not t[XCfunctional::enum_u1sq].size())
         MADNESS_EXCEPTION("regularized density pieces present but U1 was not supplied: "
                           "the xc op must be built with nemo_u1_functors",1);
