@@ -11,11 +11,15 @@
 # external/pcm.cmake turns that target into PCM_FOUND / PCM_LIBRARIES /
 # PCM_INCLUDE_DIRS for the rest of the build.
 #
-# On a missing prerequisite this sets MADNESS_PCM_UNAVAILABLE_REASON and returns
-# without defining the target: PCM is an optional feature, and a machine without
-# a Fortran compiler should still get a working MADNESS out of the default
-# configure. external/pcm.cmake turns that reason into the one warning the user
-# sees.
+# Boost headers, PCMSolver's only non-toolchain dependency, are fetched too when
+# the host has none -- so on a machine with a Fortran compiler and zlib this
+# needs nothing preinstalled.
+#
+# On a missing prerequisite that cannot be fetched (a Fortran compiler, zlib)
+# this sets MADNESS_PCM_UNAVAILABLE_REASON and returns without defining the
+# target: PCM is an optional feature, and a machine without gfortran should
+# still get a working MADNESS out of the default configure. external/pcm.cmake
+# turns that reason into the one warning the user sees.
 
 if (TARGET PCMSolver::pcm)
   return()
@@ -40,15 +44,18 @@ if (NOT DEFINED CMAKE_Fortran_COMPILER)
   endif ()
 endif ()
 
-# Boost headers (odeint, math) are a hard requirement of PCMSolver's Green's
-# functions. Probed by header rather than find_package(Boost) to stay clear of
-# CMP0167 -- MADNESS's own Boost hook is off by default (ENABLE_BOOST), so
-# there is usually no Boost target to reuse here.
+# Boost headers are a hard requirement of PCMSolver's Green's functions
+# (SphericalDiffuse.cpp pulls in boost/numeric/odeint.hpp; Getkw wants
+# boost/any.hpp). No compiled Boost library is needed -- PCMSolver sets
+# BOOST_COMPONENTS_REQUIRED to the empty string.
+#
+# Probed by header rather than find_package(Boost) to stay clear of CMP0167 --
+# MADNESS's own Boost hook is off by default (ENABLE_BOOST), so there is
+# usually no Boost target to reuse here. Coming up empty is not fatal: the
+# headers are fetched below, once the prerequisites that cannot be fetched have
+# been cleared.
 find_path(PCM_BOOST_INCLUDE_DIR NAMES boost/version.hpp)
 mark_as_advanced(PCM_BOOST_INCLUDE_DIR)
-if (NOT PCM_BOOST_INCLUDE_DIR)
-  list(APPEND _pcm_missing "Boost headers (>= 1.54)")
-endif ()
 
 find_package(ZLIB QUIET)
 if (NOT ZLIB_FOUND)
@@ -77,6 +84,80 @@ unset(_pcm_missing)
 # external/lapack.cmake's detection, which runs earlier and deliberately probes
 # Fortran symbols from C.
 enable_language(Fortran)
+
+# Nothing installed: fetch the headers. Deliberately after the checks above, so
+# a host that was going to fail on a missing Fortran compiler fails before
+# spending 50 MB of download on it, and after enable_language(Fortran), which
+# is the last thing that can still go wrong cheaply.
+if (NOT PCM_BOOST_INCLUDE_DIR)
+  set(MADNESS_TRACKED_BOOST_VERSION "${MADNESS_TRACKED_BOOST_VERSION}" CACHE STRING
+      "The Boost release whose headers are fetched for the PCMSolver source build")
+  if (NOT MADNESS_TRACKED_BOOST_VERSION OR NOT MADNESS_TRACKED_BOOST_URL_HASH)
+    message(FATAL_ERROR "MADNESS_TRACKED_BOOST_{VERSION,URL_HASH} are empty; "
+                        "external/versions.cmake must set them")
+  endif ()
+
+  # SOURCE_SUBDIR names a directory that does not exist: the documented way to
+  # make FetchContent_MakeAvailable download and extract without calling
+  # add_subdirectory(). Boost is wanted here as a header tree, not as a
+  # subproject -- configuring its build system would cost minutes and produce
+  # nothing this uses.
+  FetchContent_Declare(
+      pcm_boost_headers
+      URL      https://github.com/boostorg/boost/releases/download/boost-${MADNESS_TRACKED_BOOST_VERSION}/boost-${MADNESS_TRACKED_BOOST_VERSION}-b2-nodocs.tar.xz
+      URL_HASH ${MADNESS_TRACKED_BOOST_URL_HASH}
+      DOWNLOAD_EXTRACT_TIMESTAMP FALSE
+      SOURCE_SUBDIR not-a-subproject
+  )
+  message(STATUS "Boost headers not found; fetching ${MADNESS_TRACKED_BOOST_VERSION} for the PCMSolver build")
+  FetchContent_MakeAvailable(pcm_boost_headers)
+
+  # The tarball root *is* the include directory -- it holds the merged boost/
+  # tree alongside the b2 bootstrap files. Assert that before trimming, so a
+  # tarball whose layout has moved fails here rather than deleting the wrong
+  # thing and handing PCMSolver an empty include dir.
+  if (NOT EXISTS "${pcm_boost_headers_SOURCE_DIR}/boost/version.hpp")
+    message(FATAL_ERROR
+        "FindOrFetchPCMSolver: the fetched Boost ${MADNESS_TRACKED_BOOST_VERSION} "
+        "has no boost/version.hpp at its root -- the release artifact's layout "
+        "has changed; revisit the URL in this file.")
+  endif ()
+
+  # Discard everything except the headers. The b2 tarball also carries libs/,
+  # tools/ and the test suites: 498 MB extracted, of which 186 MB is boost/ and
+  # the rest is never read. FetchContent stamps the populate step as complete,
+  # so a reconfigure will not re-extract and find the tree trimmed -- and a
+  # version or URL_HASH change, which does repopulate, extracts from scratch.
+  # file(GLOB) with a `*` pattern does match dotfiles, and never yields `.` or
+  # `..` (measured), so the CI config at the tarball root goes with the rest.
+  file(GLOB _pcm_boost_extracted LIST_DIRECTORIES TRUE "${pcm_boost_headers_SOURCE_DIR}/*")
+  foreach (_pcm_boost_entry IN LISTS _pcm_boost_extracted)
+    if (NOT _pcm_boost_entry STREQUAL "${pcm_boost_headers_SOURCE_DIR}/boost")
+      file(REMOVE_RECURSE "${_pcm_boost_entry}")
+    endif ()
+  endforeach ()
+  unset(_pcm_boost_extracted)
+  unset(_pcm_boost_entry)
+
+  set(PCM_BOOST_INCLUDE_DIR "${pcm_boost_headers_SOURCE_DIR}" CACHE PATH
+      "Boost include directory used by the PCMSolver source build" FORCE)
+endif ()
+
+# Hand PCMSolver the headers through Boost_INCLUDE_DIR rather than
+# BOOST_INCLUDEDIR: its cmake/downloaded/autocmake_boost.cmake overwrites the
+# latter with `set(BOOST_INCLUDEDIR ${Boost_INCLUDE_DIR})` before calling
+# find_package(Boost) -- so the cache entry is the only hint that survives.
+#
+# This is load-bearing well beyond the no-Boost case. Left to itself, that same
+# module treats a failed find_package(Boost) as a cue to build its own: it
+# downloads boost_1_54_0.zip from a 2013 SourceForge URL and unpacks 116 MB of
+# 2013-era headers into the build tree, silently, on every host where CMake
+# does not find Boost on the default search path. Pinning Boost_INCLUDE_DIR
+# keeps that path unreachable, which is also what makes hunk 2 of
+# cmake/patches/pcmsolver-v1.3.0.cmake matter -- PCMSolver now compiles against
+# a modern Boost, whose odeint needs C++14.
+set(Boost_INCLUDE_DIR "${PCM_BOOST_INCLUDE_DIR}" CACHE PATH
+    "Boost include directory")
 
 # PCMSolver v1.3.0 (2020) predates the toolchains it now has to build with; see
 # cmake/patches/pcmsolver-v1.3.0.cmake for what each hunk fixes and why.

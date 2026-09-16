@@ -79,10 +79,9 @@ if(ENABLE_PCM)
         "ENABLE_PCM is ON but PCM support could not be configured: "
         "${MADNESS_PCM_UNAVAILABLE_REASON}. MADNESS will build without it, and any "
         "calculation requesting the `pcm` solvation model will abort at runtime. "
-        "Either point -DPCM_ROOT_DIR at an installed PCMSolver prefix, or supply "
-        "what the source build is missing (-DPCM_BOOST_INCLUDE_DIR=<dir containing "
-        "boost/> pins the Boost headers on a host where CMake cannot find them), "
-        "or configure -DENABLE_PCM=OFF to stop looking.")
+        "Either point -DPCM_ROOT_DIR at an installed PCMSolver prefix, or install "
+        "what the source build is missing, or configure -DENABLE_PCM=OFF to stop "
+        "looking.")
   endif()
 
   # Report PCMSolver to FeatureSummary once, as a package, by the outcome that
@@ -101,7 +100,17 @@ if(ENABLE_PCM)
   # So: drop both probe names -- which of the three paths delivered PCM is an
   # implementation detail of the search, not something to report -- and register
   # one un-QUIETed PCMSolver entry on the side the verdict belongs on.
-  foreach(_pcm_probe PCMSolver PCM)
+  set(_pcm_probes PCMSolver PCM)
+  if(NOT ENABLE_BOOST)
+    # The vendored PCMSolver build resolves Boost too -- its own
+    # find_package(Boost), fed the headers FindOrFetchPCMSolver settled on --
+    # and that lands in the same global lists. MADNESS itself does not depend
+    # on Boost (ENABLE_BOOST is off), so reporting it would advertise a
+    # dependency the project does not have. When ENABLE_BOOST *is* on,
+    # external/boost.cmake ran earlier and that entry is the user's: leave it.
+    list(APPEND _pcm_probes Boost)
+  endif()
+  foreach(_pcm_probe IN LISTS _pcm_probes)
     foreach(_pcm_list PACKAGES_FOUND PACKAGES_NOT_FOUND)
       get_property(_pcm_pkgs GLOBAL PROPERTY ${_pcm_list})
       if(_pcm_pkgs)
@@ -110,6 +119,7 @@ if(ENABLE_PCM)
       endif()
     endforeach()
   endforeach()
+  unset(_pcm_probes)
   unset(_pcm_probe)
   unset(_pcm_list)
   unset(_pcm_pkgs)
