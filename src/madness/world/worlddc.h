@@ -823,41 +823,43 @@ namespace madness
         }
 
         void do_replicate(World& world) {
-            if (world.size() == 1) return;   // broadcast_serializable does nothing here
+            // Received entries go to a side buffer, not into local, so each
+            // rank broadcasts only the entries it held on entry and every entry
+            // is sent exactly once. Inserting as we go would make later roots
+            // re-broadcast what they received from earlier ones.
+            std::vector<pairT> received;
+            for (ProcessID rank = 0; rank < world.size(); rank++)
+            {
+                if (rank == world.rank())
+                {
+                    std::size_t sz = size();
+                    world.gop.broadcast_serializable(sz, rank);
 
-            // Record the local keys before any communication. Received entries
-            // are not in this list, so no rank sends them again.
-            std::vector<keyT> local_keys;
-            local_keys.reserve(size());
-            for (auto it = begin(); it != end(); ++it)
-                local_keys.push_back(it->first);
-
-            for (ProcessID rank = 0; rank < world.size(); ++rank) {
-                // entries and the broadcast archive buffer each hold a transient
-                // copy of the root shard. This scope releases entries before the
-                // next root.
-                std::vector<std::pair<keyT, valueT>> entries;
-
-                if (rank == world.rank()) {
-                    entries.reserve(local_keys.size());
-                    for (const keyT& key : local_keys) {
-                        const_accessor acc;  // released each iteration
-                        const bool found = find(acc, key);
-                        MADNESS_CHECK(found);
-                        entries.emplace_back(key, acc->second);
+                    for (auto it = begin(); it != end(); ++it)
+                    {
+                        keyT key = it->first;
+                        valueT value = it->second;
+                        world.gop.broadcast_serializable(key, rank);
+                        world.gop.broadcast_serializable(value, rank);
                     }
                 }
-
-                world.gop.broadcast_serializable(entries, rank);
-
-                if (rank != world.rank()) {
-                    for (auto& [key, value] : entries) {
-                        accessor acc;
-                        [[maybe_unused]] const bool inserted = insert_acc(acc, key);
-                        acc->second = value;
+                else
+                {
+                    size_t sz = 0;
+                    world.gop.broadcast_serializable(sz, rank);
+                    received.reserve(received.size() + sz);
+                    for (size_t i = 0; i < sz; i++)
+                    {
+                        keyT key{};
+                        valueT value{};
+                        world.gop.broadcast_serializable(key, rank);
+                        world.gop.broadcast_serializable(value, rank);
+                        received.emplace_back(std::move(key), std::move(value));
                     }
                 }
             }
+            for (auto& datum : received)
+                insert(datum);
         }
 
         const hashfunT &get_hash() const { return local.get_hash(); }

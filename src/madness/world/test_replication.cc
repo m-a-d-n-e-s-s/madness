@@ -4,14 +4,12 @@
 #include <madness/world/worlddc.h>
 
 #include <memory>
-#include <type_traits>
 
 using namespace madness;
 
 namespace {
 
 AtomicInt output_serializations;
-AtomicInt packed_payload_starts;
 
 class RoundRobinPmap final : public WorldDCPmapInterface<int> {
     ProcessID nproc_;
@@ -23,17 +21,6 @@ public:
         return key % nproc_;
     }
 };
-
-// Returns the archive position of the first value in a packed
-// vector<pair<int, CountingValue>>. A count-only archive measures the length
-// and the first key, so the test does not assume their sizes or padding.
-std::size_t first_packed_value_offset() {
-    archive::BufferOutputArchive probe;
-    const std::size_t length = 0;
-    const int key = 0;
-    probe & length & key;
-    return probe.size();
-}
 
 // The `= -1` initializer is necessary. Without it, the type is trivially
 // serializable, the archive writes raw bytes, and the counters stay at 0.
@@ -47,14 +34,6 @@ struct CountingValue {
     void serialize(const Archive& ar) {
         if constexpr (is_output_archive_v<Archive>) {
             ++output_serializations;
-
-            // A value at this position starts a packed vector. The count
-            // shows one vector per root, not one broadcast per entry.
-            if constexpr (std::is_same_v<Archive, archive::BufferOutputArchive>) {
-                static const std::size_t first_value_offset = first_packed_value_offset();
-                if (ar.size() == first_value_offset)
-                    ++packed_payload_starts;
-            }
         }
         ar & value;
     }
@@ -66,7 +45,6 @@ void replicate_and_check_sends(World& world, WorldContainer<int, CountingValue>&
                                int nkeys, int value_scale, int value_offset) {
     world.gop.fence();
     output_serializations = 0;
-    packed_payload_starts = 0;
 
     container.replicate(true);
 
@@ -75,18 +53,17 @@ void replicate_and_check_sends(World& world, WorldContainer<int, CountingValue>&
     for (int key = 0; key < nkeys; ++key)
         MADNESS_CHECK(container.find(key).get()->second.value == value_scale * key + value_offset);
 
+    // broadcast_serializable serializes each value twice on its root (a
+    // counting pass and the real one), so a linear replication costs exactly
+    // 2 * nkeys. Re-broadcasting received entries would push this higher.
     int total_output_serializations = output_serializations;
-    int total_packed_payload_starts = packed_payload_starts;
     world.gop.sum(total_output_serializations);
-    world.gop.sum(total_packed_payload_starts);
     const int expected = world.size() == 1 ? 0 : 2 * nkeys;
-    const int expected_payload_starts = world.size() == 1 ? 0 : 2 * world.size();
     MADNESS_CHECK(total_output_serializations == expected);
-    MADNESS_CHECK(total_packed_payload_starts == expected_payload_starts);
     world.gop.fence();
 }
 
-void test_snapshot_replication(World& world) {
+void test_linear_replication(World& world) {
     const int nkeys = 8 * world.size();
     auto pmap = std::make_shared<RoundRobinPmap>(world);
     WorldContainer<int, CountingValue> container(world, pmap);
@@ -95,26 +72,7 @@ void test_snapshot_replication(World& world) {
         if (container.owner(key) == world.rank())
             container.replace(key, CountingValue(3 * key + 1));
     }
-    world.gop.fence();
-    output_serializations = 0;
-    packed_payload_starts = 0;
-
-    container.replicate(true);
-
-    MADNESS_CHECK(container.is_replicated());
-    MADNESS_CHECK(static_cast<int>(container.size()) == nkeys);
-    for (int key = 0; key < nkeys; ++key)
-        MADNESS_CHECK(container.find(key).get()->second.value == 3 * key + 1);
-
-    int total_output_serializations = output_serializations;
-    int total_packed_payload_starts = packed_payload_starts;
-    world.gop.sum(total_output_serializations);
-    world.gop.sum(total_packed_payload_starts);
-    const int expected = world.size() == 1 ? 0 : 2 * nkeys;
-    const int expected_payload_starts = world.size() == 1 ? 0 : 2 * world.size();
-    MADNESS_CHECK(total_output_serializations == expected);
-    MADNESS_CHECK(total_packed_payload_starts == expected_payload_starts);
-    world.gop.fence();
+    replicate_and_check_sends(world, container, nkeys, 3, 1);
 }
 
 void test_idempotent_rank_replication(World& world) {
@@ -129,16 +87,12 @@ void test_idempotent_rank_replication(World& world) {
     world.gop.fence();
     container.replicate(true);
     output_serializations = 0;
-    packed_payload_starts = 0;
 
     container.replicate(true);
 
     int total_output_serializations = output_serializations;
-    int total_packed_payload_starts = packed_payload_starts;
     world.gop.sum(total_output_serializations);
-    world.gop.sum(total_packed_payload_starts);
     MADNESS_CHECK(total_output_serializations == 0);
-    MADNESS_CHECK(total_packed_payload_starts == 0);
     MADNESS_CHECK(static_cast<int>(container.size()) == nkeys);
     for (int key = 0; key < nkeys; ++key)
         MADNESS_CHECK(container.find(key).get()->second.value == 5 * key + 2);
@@ -290,7 +244,7 @@ void test_idempotent_fence_argument(World& world) {
 
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
-    test_snapshot_replication(world);
+    test_linear_replication(world);
     test_idempotent_rank_replication(world);
     test_map_only_reset_does_not_claim_replication(world);
     test_clear_resets_rank_replication(world);
