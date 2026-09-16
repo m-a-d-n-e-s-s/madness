@@ -277,15 +277,23 @@ struct molresponse_v3_lib {
       add(r);
     }
     if (wants("raman")) {
-      // SINGLE-COMPONENT vibrational Raman (atom 0, z) — v3's full per-atom
-      // tensor is deferred (post-state-parallel), so this won't match v2's full
-      // Raman; it exercises the β(dipole;dipole,nuclear) path.
+      // ONE nuclear coordinate per run (deck: raman.nuc_atom / raman.nuc_axis;
+      // default atom 0, z as before). The run emits the whole dipole x dipole
+      // block for that coordinate at every requested frequency, so a full 3N
+      // Cartesian polarizability gradient is 3N runs over one calculation
+      // directory: the dipole responses are computed once and reloaded. The
+      // planner's full per-atom sentinel is still deferred (post-state-parallel).
       ResponsePropertyRequest r;
       r.kind = ResponsePropertyKind::PolarizabilityGradient;
       r.gradient_mode = GradientMode::Nuclear;
       r.frequencies = freqs;
-      r.raman_nuc_atom = 0;
-      r.raman_nuc_axis = 2;
+      r.raman_nuc_atom = rp.raman_nuc_atom();
+      r.raman_nuc_axis = rp.raman_nuc_axis();
+      if (r.raman_nuc_atom < 0 || r.raman_nuc_axis < 0 || r.raman_nuc_axis > 2)
+        throw std::runtime_error(
+            "response: raman.nuc_atom must be >= 0 and raman.nuc_axis in 0..2 — "
+            "the full per-atom Raman tensor is not implemented; drive the 3N "
+            "coordinates as 3N runs over one calc dir");
       add(r);
     }
     if (rp.excited_enable()) {

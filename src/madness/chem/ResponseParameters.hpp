@@ -128,6 +128,14 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<bool>("nuclear", false, "Compute nuclear response");
         initialize<std::string>("nuclear.directions", "xyz", "directions for nuclear response");
         initialize<std::vector<double>>("nuclear.frequencies", {0.0}, "frequencies for nuclear response");
+        initialize<int>("raman.nuc_atom", 0,
+                        "vibrational Raman: index of the displaced atom (0-based). One "
+                        "nuclear coordinate per run; a full polarizability gradient needs "
+                        "3N runs sharing one calculation directory, which reuse the dipole "
+                        "responses. -1 selects the full per-atom set, which is not "
+                        "implemented yet and will throw.");
+        initialize<int>("raman.nuc_axis", 2,
+                        "vibrational Raman: Cartesian axis of the displacement, 0=x 1=y 2=z.");
         initialize<bool>("quadratic", false, "Compute quadratic response properties from defined perturbations");
         initialize<std::string>("dalton.dir", "",
                                 "seed-from-directory import (showcase W3): path to a DALTON "
@@ -349,6 +357,8 @@ public:
     [[nodiscard]] std::string nuclear_directions() const {
         return get<std::string>("nuclear.directions");
     }
+    [[nodiscard]] int raman_nuc_atom() const { return get<int>("raman.nuc_atom"); }
+    [[nodiscard]] int raman_nuc_axis() const { return get<int>("raman.nuc_axis"); }
 
 private:
     void validate_user_specified_properties() {
