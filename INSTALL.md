@@ -248,11 +248,12 @@ warning, not a silent downgrade.
 
 PCMSolver's only other dependency is **Boost headers** >= 1.54 (no compiled Boost
 library is used). MADNESS takes whatever Boost is on the search path; failing
-that it fetches a pinned headers-only release --- a ~50 MB download pinned by
-version and SHA256 in `external/versions.cmake`. Everything but the `boost/`
-header tree is discarded after extraction, leaving ~190 MB of headers plus the
-retained tarball under `_deps/`. Point `-DPCM_BOOST_INCLUDE_DIR` at a directory
-containing `boost/` to use a copy of your own instead, and skip the download.
+that it fetches a pinned headers-only release --- a ~50 MB download, pinned by
+version and SHA256 in `external/versions.cmake`, of which only the `boost/`
+header tree is extracted (~190 MB under `<build>/external/boost`; the tarball is
+discarded afterwards). Budget roughly 35 s for it. Point
+`-DPCM_BOOST_INCLUDE_DIR` at a directory containing `boost/` to use a copy of
+your own and skip the download entirely.
 
 Either way MADNESS pins `Boost_INCLUDE_DIR` for the vendored build, which is
 load-bearing: left to itself, PCMSolver reacts to a failed `find_package(Boost)`

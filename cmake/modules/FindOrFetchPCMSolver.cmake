@@ -25,7 +25,7 @@ if (TARGET PCMSolver::pcm)
   return()
 endif ()
 
-cmake_minimum_required(VERSION 3.14.0)  # for FetchContent_MakeAvailable
+cmake_minimum_required(VERSION 3.18.0)  # for file(ARCHIVE_EXTRACT)
 include(FetchContent)
 include(CheckLanguage)
 
@@ -87,60 +87,73 @@ enable_language(Fortran)
 
 # Nothing installed: fetch the headers. Deliberately after the checks above, so
 # a host that was going to fail on a missing Fortran compiler fails before
-# spending 50 MB of download on it, and after enable_language(Fortran), which
-# is the last thing that can still go wrong cheaply.
+# spending a download on it, and after enable_language(Fortran), which is the
+# last thing that can still go wrong cheaply.
+#
+# Done with file(DOWNLOAD) + file(ARCHIVE_EXTRACT) rather than FetchContent,
+# which the other FindOrFetch* modules use, because Boost is wanted here as a
+# header tree and not as a project: there is nothing to add_subdirectory(), and
+# the primitives allow extracting *only* the header tree. Measured on the b2
+# tarball: extracting everything takes 71 s and deleting the 310 MB that are
+# never read takes another 15 s, against 34 s to extract boost/ alone.
 if (NOT PCM_BOOST_INCLUDE_DIR)
-  set(MADNESS_TRACKED_BOOST_VERSION "${MADNESS_TRACKED_BOOST_VERSION}" CACHE STRING
-      "The Boost release whose headers are fetched for the PCMSolver source build")
   if (NOT MADNESS_TRACKED_BOOST_VERSION OR NOT MADNESS_TRACKED_BOOST_URL_HASH)
     message(FATAL_ERROR "MADNESS_TRACKED_BOOST_{VERSION,URL_HASH} are empty; "
                         "external/versions.cmake must set them")
   endif ()
 
-  # SOURCE_SUBDIR names a directory that does not exist: the documented way to
-  # make FetchContent_MakeAvailable download and extract without calling
-  # add_subdirectory(). Boost is wanted here as a header tree, not as a
-  # subproject -- configuring its build system would cost minutes and produce
-  # nothing this uses.
-  FetchContent_Declare(
-      pcm_boost_headers
-      URL      https://github.com/boostorg/boost/releases/download/boost-${MADNESS_TRACKED_BOOST_VERSION}/boost-${MADNESS_TRACKED_BOOST_VERSION}-b2-nodocs.tar.xz
-      URL_HASH ${MADNESS_TRACKED_BOOST_URL_HASH}
-      DOWNLOAD_EXTRACT_TIMESTAMP FALSE
-      SOURCE_SUBDIR not-a-subproject
-  )
-  message(STATUS "Boost headers not found; fetching ${MADNESS_TRACKED_BOOST_VERSION} for the PCMSolver build")
-  FetchContent_MakeAvailable(pcm_boost_headers)
+  set(_pcm_boost_stage "${PROJECT_BINARY_DIR}/external/boost")
+  set(_pcm_boost_root "${_pcm_boost_stage}/boost-${MADNESS_TRACKED_BOOST_VERSION}")
 
-  # The tarball root *is* the include directory -- it holds the merged boost/
-  # tree alongside the b2 bootstrap files. Assert that before trimming, so a
-  # tarball whose layout has moved fails here rather than deleting the wrong
-  # thing and handing PCMSolver an empty include dir.
-  if (NOT EXISTS "${pcm_boost_headers_SOURCE_DIR}/boost/version.hpp")
-    message(FATAL_ERROR
-        "FindOrFetchPCMSolver: the fetched Boost ${MADNESS_TRACKED_BOOST_VERSION} "
-        "has no boost/version.hpp at its root -- the release artifact's layout "
-        "has changed; revisit the URL in this file.")
+  # The extracted headers are their own stamp: no marker file to fall out of
+  # step with the tree it describes, and a reconfigure costs one EXISTS check.
+  if (NOT EXISTS "${_pcm_boost_root}/boost/version.hpp")
+    set(_pcm_boost_tarball "${_pcm_boost_stage}/boost-${MADNESS_TRACKED_BOOST_VERSION}.tar.xz")
+    message(STATUS "Boost headers not found; fetching ${MADNESS_TRACKED_BOOST_VERSION} for the PCMSolver build")
+    file(DOWNLOAD
+         "https://github.com/boostorg/boost/releases/download/boost-${MADNESS_TRACKED_BOOST_VERSION}/boost-${MADNESS_TRACKED_BOOST_VERSION}-b2-nodocs.tar.xz"
+         "${_pcm_boost_tarball}"
+         EXPECTED_HASH ${MADNESS_TRACKED_BOOST_URL_HASH}
+         STATUS _pcm_boost_dl)
+    list(GET _pcm_boost_dl 1 _pcm_boost_dl_msg)
+    list(GET _pcm_boost_dl 0 _pcm_boost_dl_code)
+    if (NOT _pcm_boost_dl_code EQUAL 0)
+      # Same policy as a missing Fortran compiler: an optional feature that
+      # cannot be assembled here is a warning and no PCM, not a failed
+      # configure. Drop the partial file so a later run re-downloads.
+      file(REMOVE "${_pcm_boost_tarball}")
+      set(MADNESS_PCM_UNAVAILABLE_REASON
+          "no installed PCMSolver or Boost headers were found, and the Boost "
+          "${MADNESS_TRACKED_BOOST_VERSION} headers could not be downloaded (${_pcm_boost_dl_msg})")
+      return()
+    endif ()
+
+    # PATTERNS keeps the 276 MB of libs/ and 31 MB of tools/ in the archive.
+    # The member paths carry the boost-<version>/ prefix, which is why
+    # _pcm_boost_root sits one level below the staging directory.
+    file(ARCHIVE_EXTRACT
+         INPUT "${_pcm_boost_tarball}"
+         DESTINATION "${_pcm_boost_stage}"
+         PATTERNS "boost-${MADNESS_TRACKED_BOOST_VERSION}/boost/*")
+    if (NOT EXISTS "${_pcm_boost_root}/boost/version.hpp")
+      message(FATAL_ERROR
+          "FindOrFetchPCMSolver: the fetched Boost ${MADNESS_TRACKED_BOOST_VERSION} "
+          "yielded no boost/version.hpp -- the release artifact's layout has "
+          "changed; revisit the URL and PATTERNS in this file.")
+    endif ()
+    # 51 MB that is only needed again if the headers go away, in which case the
+    # download is a second and a half.
+    file(REMOVE "${_pcm_boost_tarball}")
   endif ()
 
-  # Discard everything except the headers. The b2 tarball also carries libs/,
-  # tools/ and the test suites: 498 MB extracted, of which 186 MB is boost/ and
-  # the rest is never read. FetchContent stamps the populate step as complete,
-  # so a reconfigure will not re-extract and find the tree trimmed -- and a
-  # version or URL_HASH change, which does repopulate, extracts from scratch.
-  # file(GLOB) with a `*` pattern does match dotfiles, and never yields `.` or
-  # `..` (measured), so the CI config at the tarball root goes with the rest.
-  file(GLOB _pcm_boost_extracted LIST_DIRECTORIES TRUE "${pcm_boost_headers_SOURCE_DIR}/*")
-  foreach (_pcm_boost_entry IN LISTS _pcm_boost_extracted)
-    if (NOT _pcm_boost_entry STREQUAL "${pcm_boost_headers_SOURCE_DIR}/boost")
-      file(REMOVE_RECURSE "${_pcm_boost_entry}")
-    endif ()
-  endforeach ()
-  unset(_pcm_boost_extracted)
-  unset(_pcm_boost_entry)
-
-  set(PCM_BOOST_INCLUDE_DIR "${pcm_boost_headers_SOURCE_DIR}" CACHE PATH
+  set(PCM_BOOST_INCLUDE_DIR "${_pcm_boost_root}" CACHE PATH
       "Boost include directory used by the PCMSolver source build" FORCE)
+  unset(_pcm_boost_stage)
+  unset(_pcm_boost_root)
+  unset(_pcm_boost_tarball)
+  unset(_pcm_boost_dl)
+  unset(_pcm_boost_dl_msg)
+  unset(_pcm_boost_dl_code)
 endif ()
 
 # Hand PCMSolver the headers through Boost_INCLUDE_DIR rather than
