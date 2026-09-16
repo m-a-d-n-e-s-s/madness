@@ -58,7 +58,20 @@ int main(int argc, char **argv) {
   const bool        y_dalton     = parser.key_exists("ydalton");
   const double      thresh       = parser.key_exists("thresh")
                                        ? std::stod(parser.value("thresh")) : 1e-6;
-  if (parser.key_exists("hdf5")) set_hdf5_io_enabled(true);
+  // set_hdf5_io_enabled lives inside function_hdf5_io.hpp's MADNESS_HAS_HDF5
+  // block, so the call has to be guarded the same way every other caller
+  // guards it (main.cpp, madqc_adapter.hpp, madqc.cpp) or a build configured
+  // without HDF5 -- which is what CI builds -- fails to compile.
+  if (parser.key_exists("hdf5")) {
+#ifdef MADNESS_HAS_HDF5
+    set_hdf5_io_enabled(true);
+#else
+    if (world.rank() == 0)
+      print("[dalton_es_seed_bundle] --hdf5 ignored: this binary was built "
+            "without HDF5 (configure with -DMADNESS_ENABLE_HDF5=ON); writing "
+            "native archives instead");
+#endif
+  }
 
   {
     auto header = GroundState::read_archive_header(world, archive_path);
