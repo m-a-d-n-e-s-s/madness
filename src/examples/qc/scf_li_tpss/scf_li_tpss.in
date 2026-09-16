@@ -41,7 +41,7 @@ dft
     protocol [1e-4]
     maxiter  20
     econv    1e-4
-    dconv    1e-3
+    dconv    1e-4
 end
 
 molecule
