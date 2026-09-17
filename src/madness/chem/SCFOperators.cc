@@ -577,12 +577,19 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
             real_derivative_3d D(world, axis);
             if (dft_deriv == "bspline") D.set_bspline1();
             else if (dft_deriv == "ble") D.set_ble1();
-            vecfuncT mo_copy = copy(world, wmo);
-            refine(world, mo_copy);
-            vecfuncT dmo = apply(world, D, mo_copy);
+            // Differentiate on the orbitals' own trees, as weak_xc_terms and
+            // apply_tau_term do. Refining first halves the box width under the
+            // derivative's flux term and doubles its error at the cusp: on the
+            // one-orbital TPSS test it costs a factor 6 in the energy (1.2e-6
+            // against 2e-7 at thresh 1e-4), and it is what makes tau the most
+            // expensive intermediate.
+            vecfuncT dmo = apply(world, D, wmo);
             p.gradf += dot(world, dmo, dmo);
-            // G_a = sum_i w_i F_i dF_i/dx_a = 1/2 dn/dx_a. Smooth: F is cusp-free.
-            if (ncf) p.G[axis] = dot(world, mo_copy, dmo);
+            // G_a = sum_i w_i F_i dF_i/dx_a = 1/2 dn/dx_a. With an ncf, F is
+            // cusp-free and G is smooth; without one it is the physical
+            // sum_i psi_i grad psi_i, and it is stored for the same reason: grad(rho)
+            // must come from the very gradient tau is built from (see below).
+            p.G[axis] = dot(world, wmo, dmo);
         }
         p.gradf.truncate(extra_truncation);
         if (p.n.is_initialized()) p.n.truncate(extra_truncation);
@@ -616,23 +623,33 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
         return (0.5 * r).truncate(extra_truncation);
     };
 
+    auto store_pieces = [&](const tau_pieces& p, const bool beta) {
+        xc_args[beta ? XCfunctional::enum_gradfb : XCfunctional::enum_gradfa] = p.gradf;
+        xc_args[beta ? XCfunctional::enum_nb     : XCfunctional::enum_na]     = p.n;
+        xc_args[beta ? XCfunctional::enum_Gb_x   : XCfunctional::enum_Ga_x]   = p.G[0];
+        xc_args[beta ? XCfunctional::enum_Gb_y   : XCfunctional::enum_Ga_y]   = p.G[1];
+        xc_args[beta ? XCfunctional::enum_Gb_z   : XCfunctional::enum_Ga_z]   = p.G[2];
+    };
+
     if (ncf and u1mode == TauU1::pointwise) {
         xc_args[XCfunctional::enum_nemo_R2] = R_square;
-        xc_args[XCfunctional::enum_gradfa] = pa.gradf;
-        xc_args[XCfunctional::enum_na] = pa.n;
-        xc_args[XCfunctional::enum_Ga_x] = pa.G[0];
-        xc_args[XCfunctional::enum_Ga_y] = pa.G[1];
-        xc_args[XCfunctional::enum_Ga_z] = pa.G[2];
-        if (have_beta) {
-            xc_args[XCfunctional::enum_gradfb] = pb.gradf;
-            xc_args[XCfunctional::enum_nb] = pb.n;
-            xc_args[XCfunctional::enum_Gb_x] = pb.G[0];
-            xc_args[XCfunctional::enum_Gb_y] = pb.G[1];
-            xc_args[XCfunctional::enum_Gb_z] = pb.G[2];
-        }
+        store_pieces(pa, false);
+        if (have_beta) store_pieces(pb, true);
     } else {
         xc_args[XCfunctional::enum_taua] = assemble(pa);
         if (have_beta) xc_args[XCfunctional::enum_taub] = assemble(pb);
+        // Without an ncf, hand over the pieces as well, with no R^2: make_libxc_args
+        // then contracts grad(rho) = 2 G and tau = 1/2 gradf at the quadrature
+        // points from one and the same grad(psi). Taking zeta = grad(log rho) from a
+        // separate derivative instead leaves tau and tau_W = |grad rho|^2/(8 rho)
+        // inconsistent pointwise, and a meta-gga sees that as scatter in
+        // z = tau_W/tau around its exact value -- for a single orbital z == 1, and
+        // the TPSS energy error was 4e-5 at thresh 1e-4 against 2e-7 with a
+        // consistent pair (test_dft: test_meta_gga_one_orbital_energy).
+        if (not ncf) {
+            store_pieces(pa, false);
+            if (have_beta) store_pieces(pb, true);
+        }
     }
     world.gop.fence();
 }
@@ -695,10 +712,13 @@ XCOperator<T, NDIM>::apply_tau_term(const std::vector<Function<T, NDIM> > &vket)
             zero_functions_compressed<T, NDIM>(world, vket.size());
     for (int axis = 0; axis < 3; ++axis) {
         auto D = make_derivative(axis);
-        std::vector<Function<T, NDIM> > vket_copy = copy(world, vket);
-        refine(world, vket_copy);
-        std::vector<Function<T, NDIM> > W = apply(world, *D, vket_copy);
-        if (ncf) W = sub(world, W, mul(world, U1[axis], vket_copy));
+        // grad(psi) on the orbitals' own trees, exactly as set_tau forms tau from
+        // it: the operator is the functional derivative of E_xc[tau] only if both
+        // differentiate the same way. With tau unrefined and this refined, the
+        // energy stopped being stationary at the SCF fixed point (first-order
+        // error 2e-5 on He/TPSS at a 3e-5 residual, where it should be quadratic).
+        std::vector<Function<T, NDIM> > W = apply(world, *D, vket);
+        if (ncf) W = sub(world, W, mul(world, U1[axis], vket));
         // vtau is only ever multiplied, never differentiated
         W = mul_sparse(world, vtau, W, vtol);
         refine(world, W);

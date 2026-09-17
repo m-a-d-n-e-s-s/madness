@@ -6,11 +6,11 @@
     "tasks": [
         {
             "convergence": {
-                "converged_for_dconv": 0.001,
+                "converged_for_dconv": 0.0001,
                 "converged_for_thresh": 0.0001
             },
             "convergence_info": {
-                "converged_for_dconv": 0.001,
+                "converged_for_dconv": 0.0001,
                 "converged_for_thresh": 0.0001
             },
             "hamiltonian": {
@@ -83,7 +83,7 @@
                     "ndim": -1,
                     "size": 0
                 },
-                "energy": -7.4888580244665945,
+                "energy": -7.488963883016434,
                 "gradient": {
                     "ndim": -1,
                     "size": 0
@@ -125,7 +125,7 @@
                         "ndim": -1,
                         "size": 0
                     },
-                    "energy": -7.4888580244665945,
+                    "energy": -7.488963883016434,
                     "gradient": {
                         "ndim": -1,
                         "size": 0
@@ -139,8 +139,8 @@
                     "ndim": 1,
                     "size": 2,
                     "vals": [
-                        -1.9384562182366252,
-                        -0.11975284266128833
+                        -1.9383641615194191,
+                        -0.11972577996414935
                     ]
                 },
                 "scf_eigenvalues_b": {
@@ -150,7 +150,7 @@
                     "ndim": 1,
                     "size": 1,
                     "vals": [
-                        -1.9324915056173522
+                        -1.9323636981664762
                     ]
                 },
                 "scf_fock_a": {
@@ -166,8 +166,8 @@
                 "ndim": 1,
                 "size": 2,
                 "vals": [
-                    -1.9384562182366252,
-                    -0.11975284266128833
+                    -1.9383641615194191,
+                    -0.11972577996414935
                 ]
             },
             "scf_eigenvalues_b": {
@@ -177,7 +177,7 @@
                 "ndim": 1,
                 "size": 1,
                 "vals": [
-                    -1.9324915056173522
+                    -1.9323636981664762
                 ]
             },
             "scf_fock_a": {
