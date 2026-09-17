@@ -44,6 +44,8 @@ private:
     std::vector<coord_3d> specialpts;
 
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     VLocalFunctor(double Zeff, double zi, 
         double C1, double C2, double C3, double C4, const coord_3d& center)
           : Zeff(Zeff), zi(zi), C1(C1), C2(C2), 
@@ -82,6 +84,8 @@ private:
     double t1;
     
 public:
+
+    using FunctionFunctorInterface<double,3>::operator();
 
     virtual bool supports_vectorized() const final {return false;}
 
