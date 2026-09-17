@@ -8,29 +8,48 @@
 // schema to the HDF5-seeded one produced by seed_es_from_hdf5; the ES node
 // Resumes from it on the next run.
 //
-// Constraints: NP=1 only (same as seed_es_from_hdf5). Cell is set to
-// [-200,200]^3 here (not read from an archive); k and thresh must match
-// the solver protocol you want to warm-start.
+// Constraints: NP=1 only (same as seed_es_from_hdf5).
+//
+// --archive=<moldft restartdata>: load the MADNESS ground state and rotate
+// every root's x (and y with --full) into ITS occupied gauge with
+// U = M (M^T M)^{-1/2}, M_ji = <phi^DAL_j|phi^MAD_i> (shared helper
+// occupied_gauge_rotation, tools/dalton_mra.hpp). DALTON pairs response
+// vectors with its CANONICAL occupied MOs; a localized MADNESS ground state
+// (moldft `localize new`) makes an unrotated seed silently worthless
+// (measured on the h2o FD A/B: seed-implied alpha_zz 3.56 vs 8.39, zero
+// iteration savings). With --archive the box L and k come from the archive
+// header (--thresh still overrides; then k follows the thresh table).
+// WITHOUT --archive the legacy behavior is kept — cell hardcoded to
+// [-200,200]^3, NO rotation — and a loud warning is printed: that seed is
+// only valid against a canonically-localized ground state (localize canon).
 //
 // Usage:
 //   seed_from_dalton --rspvec=RSPVEC --molden=molden.inp --n-occ=N
 //                    --root=0 --omega=<au> --calc-dir=DIR
+//                    [--archive=<moldft restartdata>]
 //                    [--thresh=1e-4] [--scale=1.41421356]
 
 #include "dalton_rspvec.hpp"
 #include "dalton_gto.hpp"
+#include "dalton_mra.hpp"    // shared DaltonResponseFunctor + projection helpers
+                             // + occupied_gauge_rotation
 
+#include "../GroundState.hpp"
 #include "../ResponseProtocol.hpp"
 #include "../kernels/tags.hpp"
 #include "../solvers/response_state.hpp"
 #include "../solvers/es_solver.hpp"
 #include "../solvers/es_save_load.hpp"
 
+#include <nlohmann/json.hpp>
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -38,39 +57,9 @@
 using namespace madness;
 using namespace molresponse_v3;
 
-namespace {
-
-class DaltonResponseFunctor : public madness::FunctionFunctorInterface<double, 3> {
-    const DaltonMoldenBasis& basis;
-    std::vector<double> weights;    // D[:,i] for orbital i
-    std::vector<madness::coord_3d> centers;
-
-public:
-    DaltonResponseFunctor(const DaltonMoldenBasis& b, std::vector<double> w)
-        : basis(b), weights(std::move(w)) {
-        for (const auto& sh : basis.shells)
-            centers.push_back({sh.cx, sh.cy, sh.cz});
-    }
-
-    double operator()(const madness::coord_3d& r) const override {
-        double val = 0.0;
-        double bf[9];  // max 9 components for g shell
-        for (size_t s = 0; s < basis.shells.size(); s++) {
-            const auto& sh = basis.shells[s];
-            sh.evaluate(r[0], r[1], r[2], bf);
-            const int off = basis.ao_offsets[s];
-            for (int k = 0; k < sh.n_ao; k++)
-                val += weights[static_cast<size_t>(off + k)] * bf[k];
-        }
-        return val;
-    }
-
-    std::vector<madness::coord_3d> special_points() const override {
-        return centers;
-    }
-};
-
-} // namespace
+// DaltonResponseFunctor + the AO->MRA projection helpers now live in
+// dalton_mra.hpp (shared with tpa_from_dalton and the dalton.dir FD seed
+// path, solvers/dalton_import.hpp).
 
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
@@ -93,6 +82,9 @@ int main(int argc, char** argv) {
             print("Usage: seed_from_dalton --rspvec=RSPVEC --molden=molden.inp "
                   "--n-occ=N --root=IDX --omega=<au> --calc-dir=DIR");
             print("  multi-root: --roots=0,1,2 --omegas=w0,w1,w2 (one N-root bundle)");
+            print("  [--archive=<moldft restartdata>] (load the MADNESS ground "
+                  "state, take box/k from its header, and ROTATE the seed into "
+                  "its occupied gauge — required for a localized ground state)");
             print("  [--full] (write Full X,Y bundle for --es-full/RPA solve; "
                   "default TDA X-only) [--yflip] (flip Y sign) "
                   "[--thresh=1e-4] [--scale=<sqrt2>]");
@@ -128,15 +120,18 @@ int main(int argc, char** argv) {
         finalize();
         return 2;
     }
-    const double      thresh     =
-        parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1e-4;
+    const std::string archive_path =
+        parser.key_exists("archive") ? parser.value_raw("archive") : "";
     const double      scale      =
         parser.key_exists("scale") ? std::stod(parser.value("scale"))
                                    : std::sqrt(2.0);
 
-    const int k = default_k_for_thresh(thresh);
-    const std::string key    = protocol_key(thresh, k);
-    const std::string bundle = calc_dir + "/es__" + key;
+    // Discretization: --thresh wins (k from the standard table); otherwise,
+    // with --archive, k comes from the archive header (reliable) and thresh
+    // from the inverse table; without either, the legacy default 1e-4.
+    double thresh =
+        parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1e-4;
+    int    k      = default_k_for_thresh(thresh);
 
     {
         // Read RSPVEC
@@ -165,14 +160,111 @@ int main(int argc, char** argv) {
             return 2;
         }
 
-        // Set MADNESS cell and discretization parameters BEFORE projecting
-        Tensor<double> cell(3L, 2L);
-        for (int i = 0; i < 3; i++) { cell(i, 0) = -200.0; cell(i, 1) = 200.0; }
-        FunctionDefaults<3>::set_cell(cell);
-        FunctionDefaults<3>::set_k(k);
-        FunctionDefaults<3>::set_thresh(thresh);
-
         using vecfuncT = std::vector<madness::real_function_3d>;
+
+        // Set MADNESS cell and discretization parameters BEFORE projecting.
+        // With --archive: box L (and default k) from the archive header, the
+        // protocol funnel the solvers use; the ground state then loads at the
+        // active (k, thresh) and the occupied-gauge rotation U is built.
+        std::optional<GroundState> gs;
+        Tensor<double> U;   // occupied-gauge rotation (0-size = none)
+        if (!archive_path.empty()) {
+            auto header = GroundState::read_archive_header(world, archive_path);
+            if (static_cast<int>(header.nmo_alpha) != n_occ) {
+                // checked on the HEADER (before any Function is created, so
+                // the early finalize()+return stays teardown-safe)
+                if (world.rank() == 0)
+                    print("ERROR: --n-occ =", n_occ, "but the archive has",
+                          static_cast<int>(header.nmo_alpha),
+                          "occupied alpha orbitals.");
+                finalize();
+                return 2;
+            }
+            if (!parser.key_exists("thresh")) {
+                k      = header.k;                    // archive k is reliable
+                thresh = default_thresh_for_k(k);     // header thresh is not
+            }
+            set_response_protocol(world, header.L, thresh, k);
+
+            // Molecule from the calc_info json next to the archive (same
+            // pattern as tests/test_calc_manager_run.cpp).
+            Molecule molecule;
+            auto archive_dir =
+                std::filesystem::path(archive_path).parent_path();
+            for (const auto& name :
+                 {"moldft.calc_info.json", "mad.calc_info.json"}) {
+                auto candidate = archive_dir / name;
+                if (std::filesystem::exists(candidate)) {
+                    std::ifstream ifs(candidate);
+                    nlohmann::json j;
+                    ifs >> j;
+                    nlohmann::json mol_json;
+                    if (j.contains("tasks") && j["tasks"].is_array() &&
+                        !j["tasks"].empty())
+                        mol_json = j["tasks"][0]["molecule"];
+                    else if (j.contains("molecule"))
+                        mol_json = j["molecule"];
+                    if (!mol_json.is_null()) molecule.from_json(mol_json);
+                    break;
+                }
+            }
+            gs.emplace(GroundState::from_archive(world, archive_path, molecule));
+
+            std::string fock_json;
+            for (const auto& name : {"moldft.fock.json", "mad.fock.json"}) {
+                auto candidate = archive_dir / name;
+                if (std::filesystem::exists(candidate)) {
+                    fock_json = candidate.string();
+                    break;
+                }
+            }
+            auto coulop = poperatorT(
+                CoulombOperatorPtr(world, gs->params().lo(), 0.001 * thresh));
+            gs->prepare(world, 0.001 * thresh, coulop, fock_json);
+
+            // Project the DALTON occupied MOs to MRA and build
+            // U = M (M^T M)^{-1/2} (fidelity print + <0.5 hard error inside).
+            vecfuncT phi_dal;
+            for (int i = 0; i < n_occ; ++i) {
+                std::vector<double> w(
+                    molden.mo_coeffs.begin() + static_cast<ptrdiff_t>(i) * n_ao,
+                    molden.mo_coeffs.begin() +
+                        static_cast<ptrdiff_t>(i + 1) * n_ao);
+                phi_dal.push_back(project_dalton_weights(
+                    world, molden.basis, std::move(w), thresh));
+            }
+            truncate(world, phi_dal, thresh);
+            U = occupied_gauge_rotation(world, phi_dal, gs->orbitals_alpha(),
+                                        /*verbose=*/true);
+        } else {
+            // Legacy path: hardcoded box, NO gauge rotation. Only valid when
+            // the MADNESS ground state is CANONICAL (moldft `localize canon`).
+            Tensor<double> cell(3L, 2L);
+            for (int i = 0; i < 3; i++) { cell(i, 0) = -200.0; cell(i, 1) = 200.0; }
+            FunctionDefaults<3>::set_cell(cell);
+            FunctionDefaults<3>::set_k(k);
+            FunctionDefaults<3>::set_thresh(thresh);
+            if (world.rank() == 0) {
+                print("");
+                print("**********************************************************************");
+                print("*** WARNING: no --archive given — writing an UNROTATED seed.      ***");
+                print("*** DALTON pairs its response vectors with its CANONICAL occupied ***");
+                print("*** MOs; response vectors transform covariantly with the occupied ***");
+                print("*** orbitals. This seed is therefore only valid if the MADNESS    ***");
+                print("*** ground state is canonical too (moldft `localize canon`).      ***");
+                print("*** Against a LOCALIZED ground state (the usual `localize new`)   ***");
+                print("*** the per-orbital pairing is scrambled and the seed is SILENTLY ***");
+                print("*** WORTHLESS — measured on the h2o FD A/B: seed-implied alpha_zz ***");
+                print("*** 3.56 vs DALTON's 8.39, ZERO iteration savings.                ***");
+                print("*** Pass --archive=<moldft restartdata> to rotate the seed into   ***");
+                print("*** the MADNESS occupied gauge (U = M (M^T M)^{-1/2}).            ***");
+                print("**********************************************************************");
+                print("");
+            }
+        }
+
+        const std::string key    = protocol_key(thresh, k);
+        const std::string bundle = calc_dir + "/es__" + key;
 
         // --full: write a Full (X,Y) bundle the RPA/--es-full solve resumes
         // from (default: TDA, X-only). DALTON stores the RPA de-excitation
@@ -185,38 +277,12 @@ int main(int argc, char** argv) {
         const double ysign = parser.key_exists("yflip") ? +1.0 : -1.0;
 
         // Project one occ-vir block (flat, row-major occ-outer) into n_occ
-        // Functions: D = C_vir @ blk^T, one Function per occupied column,
-        // scaled by sgn*scale.
+        // Functions scaled by sgn*scale — shared machinery (dalton_mra.hpp).
         auto project_block = [&](const std::vector<double>& blk,
                                  double sgn) -> vecfuncT {
-            std::vector<double> D(static_cast<size_t>(n_ao * n_occ), 0.0);
-            for (int mu = 0; mu < n_ao; mu++)
-                for (int i = 0; i < n_occ; i++) {
-                    double val = 0.0;
-                    for (int a = 0; a < n_vir; a++)
-                        val += molden.mo_coeffs[
-                                   static_cast<size_t>(mu + n_ao * (n_occ + a))]
-                             * blk[static_cast<size_t>(i * n_vir + a)];
-                    D[static_cast<size_t>(mu + n_ao * i)] = val;
-                }
-            vecfuncT out;
-            for (int i = 0; i < n_occ; i++) {
-                std::vector<double> D_col_i(
-                    D.begin() + static_cast<ptrdiff_t>(i * n_ao),
-                    D.begin() + static_cast<ptrdiff_t>((i + 1) * n_ao));
-                // base-type ptr so functor() picks the interface overload
-                std::shared_ptr<madness::FunctionFunctorInterface<double, 3>> ff =
-                    std::make_shared<DaltonResponseFunctor>(molden.basis,
-                                                            std::move(D_col_i));
-                Function<double, 3> fn = FunctionFactory<double, 3>(world)
-                                             .functor(ff)
-                                             .thresh(thresh)
-                                             .truncate_on_project();
-                const double s2 = sgn * scale;
-                if (s2 != 1.0) fn.scale(s2);
-                out.push_back(fn);
-            }
-            return out;
+            return project_dalton_ov_block(world, molden.basis,
+                                           molden.mo_coeffs, n_ao, n_mo, n_occ,
+                                           n_vir, blk, thresh, sgn * scale);
         };
 
         const size_t NR = root_list.size();
@@ -234,6 +300,16 @@ int main(int argc, char** argv) {
                 } else {   // CIS/TDA file (no Y block): promote with Y = 0
                     all_y[rr] = madness::copy(world, all_x[rr]);
                     madness::scale(world, all_y[rr], 0.0);
+                }
+            }
+            // Rotate into the MADNESS occupied gauge (--archive): x and y
+            // rotate with the SAME U, before any downstream Q-projection.
+            if (U.size() > 0) {
+                all_x[rr] = transform(world, all_x[rr], U);
+                truncate(world, all_x[rr], thresh);
+                if (full) {
+                    all_y[rr] = transform(world, all_y[rr], U);
+                    truncate(world, all_y[rr], thresh);
                 }
             }
         }
@@ -291,6 +367,9 @@ int main(int argc, char** argv) {
             }
             print("  n_occ =", n_occ, "  n_vir =", n_vir,
                   "  n_ao =", n_ao, "  n_mo =", n_mo);
+            print("  gauge =", U.size() > 0
+                      ? "ROTATED into the MADNESS occupied gauge (--archive)"
+                      : "UNROTATED (no --archive; canonical ground state only)");
             print("  protocol_key =", key, "  k =", k, "  thresh =", thresh);
             print("  bundle    =", bundle);
             print("  Run (NP=1): test_calc_manager_run --archive=<gs> --calc-dir=",

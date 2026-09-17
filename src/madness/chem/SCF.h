@@ -59,6 +59,7 @@
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/distributed_matrix.h>
 #include<madness/chem/pcm.h>
+#include<madness/chem/dispersion.h>
 #include<madness/chem/QCPropertyInterface.h>
 
 #include <madness/tensor/tensor_json.hpp>
@@ -201,6 +202,14 @@ public:
     CalculationParameters param;
     XCfunctional xc;
     PCM pcm;
+
+    /// empirical DFT-D3 dispersion correction; inactive unless `dispersion` is set
+    ///
+    /// Owned by SCF so that nemo and oep, which hold a shared_ptr<SCF>, reach
+    /// the same object through `calc->dispersion`. (Znemo carries a bare
+    /// CalculationParameters instead and uses the static
+    /// DispersionCorrection::reject to refuse a correction it cannot apply.)
+    DispersionCorrection dispersion;
     AtomicBasisSet aobasis;
     functionT mask;
 
@@ -212,6 +221,8 @@ public:
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
+    /// cholesky localization's pivot order from the previous iteration (per spin)
+    std::vector<long> localize_pivot_state_a, localize_pivot_state_b;
 
     /// MRA projection of the minimal basis set
     vecfuncT ao;
@@ -230,7 +241,6 @@ public:
     double converged_for_thresh=1.e10;   ///< mos are converged for this threshold
     double converged_for_dconv=1.e10;    ///< mos are converged for this density
     double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
-    bool initial_localization_done=false; ///< the first localization of this calculation is loosened
 
     /// what amo/bmo actually hold, recorded in the restartdata header
     ///
@@ -443,6 +453,16 @@ public:
 
     vecfuncT compute_residual(World& world, tensorT& occ, tensorT& fock,
                               const vecfuncT& psi, vecfuncT& Vpsi, double& err);
+
+    /// BSH-apply executors for compute_residual, selected by the bsh_apply parameter.
+    /// All three consume Vpsi and return the new orbitals (not yet orthonormalized).
+    vecfuncT apply_bsh_macrotask(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                                 const CalculationParameters& param, long batch,
+                                 bool redistribute);
+    vecfuncT apply_bsh_tiled(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                             const CalculationParameters& param);
+    vecfuncT apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                             const CalculationParameters& param);
 
     tensorT make_fock_matrix(World& world, const vecfuncT& psi,
                              const vecfuncT& Vpsi, const tensorT& occ,

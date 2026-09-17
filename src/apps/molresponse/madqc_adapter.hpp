@@ -26,6 +26,7 @@
 // -----------------------------------------------------------------------------
 
 #include <apps/molresponse/orchestrator/response_workflow.hpp>
+#include <apps/molresponse/solvers/dalton_import.hpp>
 
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/ParameterManager.hpp>   // Params
@@ -212,6 +213,17 @@ struct molresponse_v3_lib {
           "response.hdf5 requested but this build has no HDF5 support — "
           "configure with -DMADNESS_ENABLE_HDF5=ON");
 #endif
+    }
+
+    // Deck `dalton.dir <path>` — the seed-from-directory import contract
+    // (showcase W3; import-only, madness never invokes DALTON). Runs BEFORE
+    // the workflow so reconcile sees the seed bundles as restart sources.
+    // The GS is prepared at protocol.front() above (the documented
+    // precondition); geometry-fingerprint / frequency mismatches throw here,
+    // failing the response task loudly instead of silently solving cold.
+    if (!rp.dalton_dir().empty()) {
+      run_dalton_import(world, gs, scf_calc->molecule, in.plan,
+                        in.settings.calc_dir, rp.dalton_dir());
     }
 
     // Pass the RESOLVED fock path through (review finding: "" here made every

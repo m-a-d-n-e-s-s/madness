@@ -917,6 +917,8 @@ template<size_t NDIM>
     	CoeffTracker(const CoeffTracker& other) : impl(other.impl), key_(other.key_),
     			is_leaf_(other.is_leaf_), coeff_(other.coeff_), dnorm_(other.dnorm_) {};
 
+    	CoeffTracker& operator=(const CoeffTracker& other) = default;
+
     	/// const reference to impl
     	const implT* get_impl() const {return impl;}
 
@@ -1302,8 +1304,14 @@ template<size_t NDIM>
 
             // copy coeffs from (a subset of) other's world
 
+            // single-owner pmap: fetch from that rank only -- the all-ranks poll costs
+            // N-1 empty round-trips queued behind the owner's compute
+            const ProcessID single_owner = other.get_pmap()->single_owner();
+            if (single_owner >= 0) {
+                copy_remote_coeffs_from_pid<Q>(single_owner, other);
+
             // if other's data is distributed, we need to fetch from all ranks
-            if (other.get_coeffs().is_distributed()) {
+            } else if (other.get_coeffs().is_distributed()) {
                 for (ProcessID pid=0; pid<other.world.size(); ++pid) {
                     copy_remote_coeffs_from_pid<Q>(pid, other);
                 }
@@ -1320,9 +1328,13 @@ template<size_t NDIM>
         template <typename Q>
         void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other) {
             typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
-            // std::vector<unsigned char> v=other.task(pid, &implQ::serialize_remote_coeffs).get();
-            auto v=other.task(pid, &implQ::serialize_remote_coeffs);
-            world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
+            if (pid == other.world.rank()) {
+                // the shard is local: copy nodes directly, no serialize round-trip
+                copy_coeffs_same_world(other, false);
+            } else {
+                auto v=other.task(pid, &implQ::serialize_remote_coeffs);
+                world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
+            }
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
@@ -1494,6 +1506,25 @@ template<size_t NDIM>
         bool is_nonstandard_with_leaves() const;
 
         bool is_on_demand() const;
+
+        /// Returns true if only the leaves of this tree carry its coefficients
+
+        /// redundant and nonstandard_with_leaves keep s coefficients on the
+        /// internal nodes as well, so a sum over all nodes counts the function
+        /// more than once; the leaves alone are exactly the reconstructed tree,
+        /// which is why change_tree_state(reconstructed) is nothing but
+        /// remove_internal_coefficients() for these two states.
+        bool has_coefficients_on_leaves_only() const;
+
+        /// Returns true if summing over the local nodes yields the function
+
+        /// The precondition of norm2sq_local() and trace_local(): the tree holds
+        /// its coefficients exactly once.  reconstructed and compressed do so
+        /// outright, the two states above once the internal nodes are skipped.
+        /// redundant_after_merge is a sum that has not been collapsed yet, and
+        /// nonstandard / nonstandard_after_apply have no leaf coefficients to
+        /// single out, so neither qualifies.
+        bool has_summable_coefficients() const;
 
         bool has_leaves() const;
 
@@ -3115,8 +3146,12 @@ template<size_t NDIM>
 
             if (lc.size() == 0) {
                 MADNESS_CHECK(lit != left->coeffs.end());
+                // redundant form puts coefficients and computed norms on every
+                // node; without them the screen below reads garbage
+                MADNESS_CHECK(lit->second.has_coeff());
                 lnorm = lit->second.get_norm_tree();
                 ldnorm = lit->second.get_dnorm_tree();
+                MADNESS_CHECK(ldnorm < NORM_TREE_UNCOMPUTED);
                 l_is_leaf = !lit->second.has_children();
             }
             else {
@@ -3152,20 +3187,14 @@ template<size_t NDIM>
                 riterT rit = right->coeffs.find(key).get();
                 if (rc.size() == 0) {
                     MADNESS_CHECK(rit != right->coeffs.end());
+                    MADNESS_CHECK(rit->second.has_coeff());
                     rnorm = rit->second.get_norm_tree();
                     rdnorm = rit->second.get_dnorm_tree();
+                    MADNESS_CHECK(rdnorm < NORM_TREE_UNCOMPUTED);
                 }
                 else {
                     rnorm = rc.normf();
                     rdnorm = 0.0;
-                }
-
-                if (ldnorm >= NORM_TREE_UNCOMPUTED || rdnorm >= NORM_TREE_UNCOMPUTED) {
-                    static std::atomic<bool> warned{false};
-                    bool expected = false;
-                    if (warned.compare_exchange_strong(expected, true))
-                        print("WARNING: mul_sparse operand has an uncomputed dnorm_tree; "
-                              "screening is disabled for those nodes (missing make_redundant?)");
                 }
 
                 // the neglected cross terms are below threshold: multiply here (requires redundant form)
@@ -3195,7 +3224,11 @@ template<size_t NDIM>
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
                     riterT rit = vright[i]->coeffs.find(key).get();
+                    // coefficients handed down from the parent stand in for a node
+                    // that need not exist here; without them the node must exist
+                    MADNESS_CHECK(vrc[i].size() || rit != vright[i]->coeffs.end());
                     if (vrc[i].size() || !rit->second.has_children()) {
+                        MADNESS_CHECK(vrc[i].size() || rit->second.has_coeff());
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = (vrc[i].size() ? vrc[i] : rit->second.coeff().full_tensor_copy())(___);
                         vrss[i] = vright[i]->unfilter(rd);
@@ -5140,7 +5173,8 @@ template<size_t NDIM>
 
         void broaden_op(const keyT& key, const std::vector< Future <bool> >& v);
 
-        // For each local node sets value of norm tree, snorm and dnorm to 0.0
+        // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
+        // dnorm_tree as uncomputed.
         void zero_norm_tree();
 
         // Broaden tree
@@ -5457,7 +5491,7 @@ template<size_t NDIM>
               -> bool {
             return false;
           };
-          const auto for_each = [&](const auto &displacements,
+          const auto for_each = [&](auto &displacements,
                                     const auto &real_distance_squared,
                                     const auto &lattice_distance_squared,
                                     const auto &skip_predicate) -> std::optional<double> {
@@ -5479,14 +5513,23 @@ template<size_t NDIM>
             std::optional<double> real_last_distsq;
             std::optional<std::uint64_t> lattice_last_distsq;
 
-            // displacements to the kernel range boundary are typically same magnitude (modulo variation)
-            // estimate the norm of the resulting contributions and skip all if one is too small
+            // displacements to a face of the kernel range boundary are typically same magnitude (modulo variation),
+            // but faces can be at quite different distances (anisotropic cells, lattice summation along some axes only,
+            // mixed-parity ranges). Estimate the norm of the contributions from each face using its probing
+            // displacement, skip the faces whose contributions are negligible, and skip everything if all are.
             if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
-              const auto &probing_displacement =
-                  displacements.probing_displacement();
-              const double opnorm =
-                  op->norm(key.level(), probing_displacement, source);
-              if (cnorm * opnorm <= tol / fac) {
+              bool any_face_survives = false;
+              const auto &probing_displacements = displacements.probing_displacements();
+              for (std::size_t d = 0; d != opdim; ++d) {
+                if (!probing_displacements[d]) continue;  // no face normal to an unlimited dimension
+                const double opnorm =
+                    op->norm(key.level(), *probing_displacements[d], source);
+                if (cnorm * opnorm <= tol / fac)
+                  displacements.skip_face(d);
+                else
+                  any_face_survives = true;
+              }
+              if (!any_face_survives) {
                 return {};
               }
             }
@@ -5570,19 +5613,28 @@ template<size_t NDIM>
               }
             }
 
-            typename BoxSurfaceDisplacementRange<opdim>::Validator validator;
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
-            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
-            if (max_distsq_reached)
-              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
+            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell.
+            // The filter also carries the real-space reach of the standard displacements it discards, outside of which
+            // the range places its probing displacements. If no standard displacements were processed there is nothing
+            // to filter and nothing is known about the reach; the probes then screen nothing.
+            using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
+            std::optional<typename SurfaceRange::Validator> validator;
+            if (max_distsq_reached) {
+              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
+              const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
+              std::array<double, opdim> widths;
+              for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);
+              validator.emplace(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(),
+                                StandardDisplacementsReach<opdim>{*max_distsq_reached, widths});
+            }
 
-            // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
-            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
-            BoxSurfaceDisplacementRange<opdim>
-                range_boundary_face_displacements(opkey, box_radius,
-                                                  surface_thickness,
-                                                  op->lattice_summed(),
-                                                  validator);
+            // this range iterates over the entire surface layer(s), and provides a probing displacement per face that can be used to screen out the face
+            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_back<opdim>();
+            SurfaceRange range_boundary_face_displacements(opkey, box_radius,
+                                                           surface_thickness,
+                                                           op->lattice_summed(),
+                                                           validator);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
@@ -6284,8 +6336,15 @@ template<size_t NDIM>
         T trace_local() const;
 
         struct do_norm2sq_local {
+            /// skip the internal nodes, cf. has_coefficients_on_leaves_only()
+            bool leaves_only = false;
+
+            do_norm2sq_local() = default;
+            explicit do_norm2sq_local(bool leaves_only) : leaves_only(leaves_only) {}
+
             double operator()(typename dcT::const_iterator& it) const {
                 const nodeT& node = it->second;
+                if (leaves_only and node.has_children()) return 0.0;
                 if (node.has_coeff()) {
                     double norm = node.coeff().normf();
                     return norm*norm;
@@ -6306,6 +6365,11 @@ template<size_t NDIM>
 
 
         /// Returns the square of the local norm ... no comms
+
+        /// Requires has_summable_coefficients(); throws otherwise, because on a
+        /// tree that carries its coefficients on more than one level the sum is
+        /// not the norm.  Internal nodes are skipped where they are the
+        /// duplicates, so no state change is needed to ask for the norm.
         double norm2sq_local() const;
 
         /// compute the inner product of this range with other
@@ -7111,8 +7175,11 @@ template<size_t NDIM>
 
                     // make child's s coeffs if it doesn't exist or if is has no s coeffs
                     bool childnode_exists=get_coeffs().find(acc,child);
-                    // bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
-                    bool need_s_coeffs= childnode_exists ? (acc->second.coeff().size()==0) : true;
+                    // snorm > 0 stands in for "this node holds s coefficients":
+                    // every writer zeroes snorm when it clears them, cf.
+                    // FunctionNode::recompute_snorm_and_dnorm() and the
+                    // keepleaves=false path of compress_spawn().
+                    bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;
                     if (need_s_coeffs) {

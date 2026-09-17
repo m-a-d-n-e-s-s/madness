@@ -84,6 +84,13 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<std::string>("nuclear.directions", "xyz", "directions for nuclear response");
         initialize<std::vector<double>>("nuclear.frequencies", {0.0}, "frequencies for nuclear response");
         initialize<bool>("quadratic", false, "Compute quadratic response properties from defined perturbations");
+        initialize<std::string>("dalton.dir", "",
+                                "seed-from-directory import (showcase W3): path to a DALTON "
+                                "linear-response output directory (molden.inp + RSPVEC, loose or "
+                                "in the *.tar.gz). The planned dipole FD states warm-start from "
+                                "the projected RSPVEC vectors. Import-only — madness never "
+                                "invokes DALTON. Geometry fingerprint mismatch is a hard error; "
+                                "frequencies must match exactly 1-to-1.");
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
@@ -139,6 +146,9 @@ public:
     }
     [[nodiscard]] bool quadratic() const {
         return get<bool>("quadratic");
+    }
+    [[nodiscard]] std::string dalton_dir() const {
+        return get<std::string>("dalton.dir");
     }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");

@@ -170,6 +170,9 @@ void print_parameters(World &world, const commandlineparser &parser,
 
 int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
+  // exit code: a run that died in the main loop must not report success --
+  // CI and driver scripts have no other way to tell the difference
+  int rc = 0;
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
@@ -325,12 +328,14 @@ int main(int argc, char **argv) {
         qcapp::write_viz_manifest(prefix, wf.results());
       }
     } catch (const MadnessException &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a MADNESS exception in the main loop");
         print(e.what(), e.filename, e.msg, e.line);
         print_header2("ending program run");
       }
     } catch (const json::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a JSON exception in the main loop");
         print(e.what());
@@ -339,6 +344,7 @@ int main(int argc, char **argv) {
     }
 
     catch (std::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught an exception in the main loop");
         print(e.what());
@@ -353,5 +359,5 @@ int main(int argc, char **argv) {
   } // world is dead -- ready to finalize
   finalize();
 
-  return 0;
+  return rc;
 }

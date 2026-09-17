@@ -7,10 +7,9 @@
 // converged.
 //
 // This is an ALLOCATION test (it runs real MRA solves). Usage:
-//   test_calc_manager_run --archive=<moldft restartdata> \
+//   test_calc_manager_run --archive=<moldft restartdata>
 //       [--omega=0.0,0.057] [--axes=xyz] [--protocol=1e-4,1e-6] [--es-roots=N]
-//       \
-//       [--maxiter=N] [--dconv=X] [--calc-dir=DIR] [--print-level=0..3] \
+//       [--maxiter=N] [--dconv=X] [--calc-dir=DIR] [--print-level=0..3]
 //       [--conv-factor=F | --bsh-factor=F --density-factor=F]
 //   --conv-factor loosens/tightens both convergence gates (target = F*dconv,
 //   default F=5); --bsh-factor / --density-factor set each gate independently.
@@ -24,6 +23,7 @@
 #include "../ResponseProtocol.hpp"
 #include "../calc/calc_executor.hpp"
 #include "../solvers/convergence_policy.hpp"
+#include "../solvers/dalton_import.hpp"
 #include "../solvers/response_metadata.hpp"
 
 #include <nlohmann/json.hpp>
@@ -82,7 +82,9 @@ int main(int argc, char **argv) {
           print("Usage: test_calc_manager_run --archive=<path> "
                 "[--omega=0.0,0.057] [--axes=xyz] [--protocol=1e-4,1e-6] "
                 "[--maxiter=N] [--dconv=X] [--calc-dir=DIR] "
-                "[--print-level=0..3]");
+                "[--print-level=0..3] "
+                "[--dalton-dir=DIR [--dalton-molden=F] [--dalton-rspvec=F] "
+                "[--dalton-out=F]]");
         finalize();
         return 1;
       }
@@ -315,6 +317,9 @@ int main(int argc, char **argv) {
         print("  omega      =", freqs);
         print("  protocol   =", protocol);
         print("  calc_dir   =", calc_dir);
+        if (parser.key_exists("dalton-dir"))
+          print("  dalton_dir =", parser.value_raw("dalton-dir"),
+                " (FD seed import)");
         print("  mode       =", (do_beta ? "hyperpolarizability (beta/VBC)"
                                  : es_roots > 0 ? "resonant-gradient (ES)"
                                                 : "polarizability"));
@@ -359,6 +364,23 @@ int main(int argc, char **argv) {
         // destructors would then hit a dead mutex. Fall through to the single
         // finalize() after the try block, so locals are destroyed first.
       } else {
+
+        // ---- dalton.dir import (showcase W3): seed the planned FD states
+        // from a DALTON linear-response directory BEFORE the manager runs, so
+        // reconcile sees the seed bundles as coarser-or-equal restart sources.
+        // Fingerprint (geometry vs the active Molecule) is a HARD error; so is
+        // any requested frequency absent from the RSPVEC (exact 1-to-1). The
+        // GS is already prepared at protocol.front() above — the precondition
+        // run_dalton_import documents.
+        if (parser.key_exists("dalton-dir")) {
+          auto get_opt = [&](const char *k) {
+            return parser.key_exists(k) ? parser.value_raw(k) : std::string{};
+          };
+          run_dalton_import(world, gs, molecule, plan, calc_dir,
+                            parser.value_raw("dalton-dir"),
+                            get_opt("dalton-molden"), get_opt("dalton-rspvec"),
+                            get_opt("dalton-out"));
+        }
 
         // ---- Drive the calc manager ----------------------------------------
         CalcManager::Policy mgr_policy;

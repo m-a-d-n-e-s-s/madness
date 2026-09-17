@@ -332,21 +332,21 @@ namespace madness {
         void read_input_and_commandline_options(World& world,
                                                         const commandlineparser& parser,
                                                         const std::string tag) {
-            try {
-                // check that user-defined input files actually exist
-                bool file_ok = true;
-                if (parser.key_exists("user_defined_input_file")) file_ok = file_exists(world, parser.value("input"));
-                if (file_ok) read_input(world, parser.value("input"), tag);
-                else {
-                    std::string msg = "could not find user-defined input file: " + parser.value("input") + "\n";
-                    throw std::invalid_argument(msg);
-                }
+            // check that user-defined input files actually exist
+            bool file_ok = true;
+            if (parser.key_exists("user_defined_input_file")) file_ok = file_exists(world, parser.value("input"));
+            if (not file_ok) {
+                std::string msg = "could not find user-defined input file: " + parser.value("input") + "\n";
+                throw std::invalid_argument(msg);
             }
-            catch (std::invalid_argument& e) {
-                throw;
-            } catch (std::exception& e) {
-                madness::print(e.what());
-            }
+            // Errors from read_input propagate. They used to be printed and then
+            // swallowed, which turned a rejected keyval into a silent fallback to
+            // the default -- a deck asking for a DFT functional the parser choked
+            // on computed Hartree-Fock instead, and said so only in one line of
+            // output above thousands. A missing data group is not an error and
+            // does not throw (see read_input), so decks that only set some of the
+            // groups are unaffected.
+            read_input(world, parser.value("input"), tag);
             read_commandline_options(world, parser, tag);
         }
 
@@ -667,13 +667,17 @@ namespace madness {
 
             bool type_conversion_failed = ssvalue.fail();
 
-            // check for infinity in floating point conversions
+            // check for infinity in floating point conversions -- and only clear
+            // the failure when the value really was an infinity. Clearing it
+            // unconditionally accepted any malformed float (`econv 1.e-4a`) and
+            // stored whatever the failed extraction had left behind.
             if (type_conversion_failed and (std::is_floating_point<T>::value)) {
                 const static T inf = std::numeric_limits<T>::infinity();
                 std::string sinf = tostring(inf); // repeat type conversion from above
-                if (sinf == arg)
+                if (sinf == arg) {
                     result = inf;
-                type_conversion_failed = false;
+                    type_conversion_failed = false;
+                }
             }
 
             if (type_conversion_failed) {
@@ -698,7 +702,19 @@ namespace madness {
             T result;
 
             if (arg.find("\"") == std::string::npos) { // no double quotes found
-                ssvalue >> result;
+                // take the whole (blank-trimmed) remainder, not just the first
+                // word: free-form string values legitimately contain blanks
+                // (`xc GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25`,
+                // `freeze_pairs 0 1 2 3`, ...). Reading one word only and then
+                // tripping the trailing-characters check in fromstring() made
+                // those values quote-mandatory. Consume the stream so
+                // fromstring() sees no leftovers.
+                result = trim_blanks(arg);
+                ssvalue.str("");
+                ssvalue.clear();
+                // a key with no value at all stays an error, as before -- an
+                // empty string can never be stored anyway (QCParameter::null)
+                if (result.empty()) ssvalue.setstate(std::ios::failbit);
             }
             else { // found double quotes
                 int counter = 0;
@@ -721,6 +737,7 @@ namespace madness {
 
         static std::string trim_blanks(const std::string arg) {
             std::size_t first = arg.find_first_not_of(' ');
+            if (first == std::string::npos) return ""; // empty or all blanks
             std::size_t last = arg.find_last_not_of(' ');
             return arg.substr(first, last - first + 1);
         }

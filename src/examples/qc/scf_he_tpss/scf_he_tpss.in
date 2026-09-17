@@ -1,0 +1,35 @@
+# TPSS on helium -- the smallest deck on a META-GGA functional.
+#
+# A meta-gga depends on the kinetic energy density
+#
+#     tau_sigma = 1/2 sum_i |grad psi_i|^2
+#
+# which is built from the orbitals, not from the density. Because tau is an
+# orbital functional there is no closed-form dE_xc/drho, so the tau dependence
+# enters the Kohn-Sham operator as a non-multiplicative term
+#
+#     v_tau psi_i = -1/2 grad.( (de_xc/dtau) grad psi_i )
+#
+# i.e. a position-dependent inverse effective mass, 1 + de_xc/dtau, inside the
+# kinetic operator. That term is applied to the orbitals alongside exact
+# exchange rather than folded into the local potential, so this deck is the one
+# that exercises it.
+#
+# TPSS first, deliberately: it is built on z = tau_W/tau, and so does not carry
+# the oscillation in grad(de/dtau) near alpha = 1 that makes the SCAN family
+# grid-hungry. `r2scan` and `scan` are also available as aliases.
+#
+# Run:   ./run.sh          (or: madqc scf_he_tpss.in)
+
+dft
+    xc       tpss
+    maxiter  20
+    econv    1e-4
+    dconv    1e-3
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

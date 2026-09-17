@@ -80,7 +80,7 @@ namespace madness {
     }
 
     void Random::setstate(unsigned int seed) {
-        ScopedMutex<Mutex> safe(this);
+        std::lock_guard<std::mutex> safe(mutex_);
         // Initialize startup generator
         if ((seed&1) == 0) seed += 1;
         simple_state = seed;
@@ -152,7 +152,7 @@ namespace madness {
     //     };
 
     void Random::getbytes(int n, unsigned char * MADNESS_RESTRICT v) {
-        ScopedMutex<Mutex> safe(this);
+        std::lock_guard<std::mutex> safe(mutex_);
         while (n) {
             if (cur >= r) generate();
             int ndo = std::min(n,r-cur);
@@ -165,7 +165,7 @@ namespace madness {
     }
 
     RandomState Random::getstate() const {
-        ScopedMutex<Mutex> safe(this);
+        std::lock_guard<std::mutex> safe(mutex_);
         RandomState s;
         s.cur = cur;
         for (int i=0; i<r; ++i) s.u[i] = u[i];
@@ -173,7 +173,7 @@ namespace madness {
     }
 
     void Random::setstate(const RandomState &s) {
-        ScopedMutex<Mutex> safe(this);
+        std::lock_guard<std::mutex> safe(mutex_);
         cur = s.cur;
         for (int i=0; i<r; ++i) u[i] = s.u[i];
     }

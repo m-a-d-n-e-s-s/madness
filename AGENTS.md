@@ -60,7 +60,7 @@ Tests live next to the sources they exercise and are registered through
 
 Both entries carry the `labels` passed to the macro. There is no filename
 convention — most test sources follow `test*.cc` / `test_*.cc` by habit,
-but the macro accepts any source name (e.g. `src/madness/misc/interp3.cc`,
+but the macro accepts any source name (e.g. `src/madness/mra/interp3.cc`,
 `src/examples/periodic/erfcr.cc`).
 
 The `check-short-madness` target runs everything labeled `short` or `medium`
@@ -70,6 +70,14 @@ via `ctest -L "short|medium"`. To run a subset without the full suite:
 ctest -L short -R "madness/test/mra"         # all mra tests in the short set
 ctest -R "madness/test/mra/test_cloud/run"   # a single test by name
 ```
+
+**Do not pass `-j` to ctest.** Each test sizes its own thread pool from
+`MAD_NUM_THREADS`, which defaults to every core, so ctest's `-j` multiplies
+that instead of dividing the machine between tests: `-j 2` on a 12-core host
+is ~24 workers on 12 cores, and `-j 4` is ~48. Nothing fails outright — the
+suite just crawls, and the slower tests then blow their timeouts and are
+reported as failures that vanish on a serial re-run. If you need parallelism,
+pin `MAD_NUM_THREADS` so that `-j` times that value still fits the machine.
 
 Each test is also a normal binary under
 `<build-dir>/<path-of-source-dir>/<name>` (mirroring the source tree, so
@@ -153,6 +161,13 @@ Exit code 0 on success. Reference inputs for regression checks are in
   for 6D work (MP2, CC2). Off by default and tested in only one CI cell,
   so changes in the tensor layer should be checked with it on when
   relevant.
+- **`-DENABLE_DFTD3=ON`** (default) links `simple-dftd3` for the `dispersion`
+  keyword. The usual source is conda-forge, whose build drags in conda's
+  threaded OpenBLAS and OpenMP runtimes — which collides with the
+  sequential-BLAS rule above. Export `OPENBLAS_NUM_THREADS=1` /
+  `OMP_NUM_THREADS=1`, or build without it. Absent the library everything
+  compiles and runs unchanged; only a deck that actually asks for a
+  correction aborts.
 
 ## Runtime & deployment
 

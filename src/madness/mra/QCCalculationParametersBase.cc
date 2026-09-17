@@ -85,6 +85,10 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
 
 	std::string filecontents, line;
     std::string errmsg;
+    // 0: no error, 1: throw invalid_argument, 2: throw runtime_error. Only rank
+    // 0 reads the file, so both the message and its type have to be broadcast --
+    // see the collective throw at the end of this function.
+    int errtype=0;
 	if (world.rank()==0) {
         try {
             std::ifstream f(filename.c_str());
@@ -92,7 +96,7 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
             read_internal(world, filecontents, tag);
         } catch (std::invalid_argument& e) {
             errmsg=e.what();
-            throw;
+            errtype=1;
         } catch (std::exception& e) {
             const bool is_missing_group = is_missing_datagroup_exception(e);
             if (is_missing_group && !throw_if_datagroup_not_found) {
@@ -102,16 +106,24 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
                 std::stringstream ss;
                 ss << "could not read data group >>" << tag << "<< in file " << filename;
                 errmsg=ss.str();
+                errtype=2;
             } else {
                 std::stringstream ss;
                 ss << "error while reading data group >>" << tag << "<< in file "
                    << filename << ": " << e.what();
                 errmsg=ss.str();
+                errtype=2;
             }
         }
     }
 	world.gop.broadcast_serializable(*this, 0);
-    if (errmsg.size()>0) throw std::runtime_error(errmsg);
+    // throw on *every* rank, with the same message and the same type. Throwing
+    // on rank 0 only would unwind one rank out of the application while the
+    // others keep computing.
+    world.gop.broadcast_serializable(errmsg, 0);
+    world.gop.broadcast(errtype, 0);
+    if (errtype==1) throw std::invalid_argument(errmsg);
+    if (errtype==2) throw std::runtime_error(errmsg);
 }
 
 /// read the parameters from the command line and broadcast

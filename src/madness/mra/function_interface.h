@@ -84,7 +84,7 @@ namespace madness {
 	    }
 
 	    /// Can we screen this function based on the bounding box information?
-	    virtual bool screened(const Vector<double,NDIM>& c1, const Vector<double,NDIM>& c2) const {
+	    virtual bool screened(const Vector<double,NDIM>&, const Vector<double,NDIM>&) const {
 	        return false;
 	    }
 
@@ -96,27 +96,27 @@ MADNESS_PRAGMA_GCC(diagnostic ignored "-Woverloaded-virtual")
 MADNESS_PRAGMA_CLANG(diagnostic push)
 MADNESS_PRAGMA_CLANG(diagnostic ignored "-Woverloaded-virtual")
 
-	    virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,1>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 
-	    virtual void operator()(const Vector<double*,2>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,2>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 
-	    virtual void operator()(const Vector<double*,3>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,3>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 
-	    virtual void operator()(const Vector<double*,4>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,4>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 
-	    virtual void operator()(const Vector<double*,5>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,5>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 
-	    virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
+	    virtual void operator()(const Vector<double*,6>&, T*, int) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
 MADNESS_PRAGMA_CLANG(diagnostic pop)
@@ -140,7 +140,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 	        return coeffT();
 	    }
 
-	    virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
+	    virtual coeffT values(const keyT&, const Tensor<double>&) const {
 	        MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
 	        return coeffT();
 	    }
@@ -376,7 +376,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             return coeffT(map_coeff(c),FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
 		}
 
-		T operator()(const Vector<double, NDIM>& x) const {
+		T operator()(const Vector<double, NDIM>&) const {
 			print("there is no operator()(coordT&) in TwoElectronInterface, for good reason");
 			MADNESS_ASSERT(0);
 			return T(0);

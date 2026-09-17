@@ -198,11 +198,19 @@ where `func` is a string defining the DFT XC functional. Predefined options are 
 > `func = hf, bp86, lda, pbe, b3lyp, pbe0`
 
 Other XC functionals can be created individually  as in
-> `xc "LDA_X 1.0 LDA_C_VWN 1.0"`\
-> `xc "GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25"`
+> `xc LDA_X 1.0 LDA_C_VWN 1.0`\
+> `xc GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25`
 
 where the number after the functional determines its weight. The two lines define 
-LDA and PBE0 functionals, respectively.
+LDA and PBE0 functionals, respectively. The double-quoted spelling
+(`xc "GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25"`) is equivalent and still accepted.
+
+The same forms work on the command line, where the `dft` group is passed as one
+argument and its keyvals are separated by semicolons:
+> `madqc --geometry=he --dft="xc=GGA_X_PBE 0.75 GGA_C_PBE 1.0 HF_X 0.25; k=8"`
+
+Use `;` between keyvals, not blanks: a blank-separated `--dft="xc=pbe k=8"` makes
+`k=8` part of the `xc` line instead of a keyval of its own.
 
 For more details see the [libxc](https://tddft.org/programs/libxc/) webpage.
 

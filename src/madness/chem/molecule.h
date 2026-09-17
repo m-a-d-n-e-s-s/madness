@@ -144,6 +144,12 @@ class Molecule {
     GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
+        // The deck has to carry a geometry group -- unless the geometry already
+        // came in through `--geometry=`/`--molecule=`, in which case there is
+        // nothing to read and a missing group is not an error. This used to be
+        // unconditionally fatal and was papered over by
+        // read_input_and_commandline_options swallowing the exception.
+        throw_if_datagroup_not_found = not is_user_defined("source_name");
         // read the data group the input file actually uses, then apply
         // `--geometry=...`/`--molecule=...` overrides for the other spelling
         // as well (a no-op if that key is absent)
@@ -195,7 +201,7 @@ class Molecule {
       // `--geometry=<name>` is the documented spelling (see the help text of
       // moldft/nemo/cc2/madqc); `--molecule=<name>` is accepted as an alias.
       // value_raw, not value: this may be a path, and paths are case-sensitive.
-      for (const std::string &key : {"geometry", "molecule"}) {
+      for (const char *key : {"geometry", "molecule"}) {
         if (parser.key_exists(key)) {
           set_user_defined_value("source_name", parser.value_raw(key));
         }

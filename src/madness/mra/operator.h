@@ -329,20 +329,12 @@ namespace madness {
             R* MADNESS_RESTRICT w1=work1.ptr();
             R* MADNESS_RESTRICT w2=work2.ptr();
 
-#ifdef HAVE_IBMBGQ
-            mTxmq_padding(dimi, trans[0].r, dimk, dimk, w1, f.ptr(), trans[0].U);
-#else
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), trans[0].U, dimk);
-#endif
 
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
             for (std::size_t d=1; d<NDIM; ++d) {
-#ifdef HAVE_IBMBGQ
-                mTxmq_padding(dimi, trans[d].r, dimk, dimk, w2, w1, trans[d].U);
-#else
                 mTxmq(dimi, trans[d].r, dimk, w2, w1, trans[d].U, dimk);
-#endif
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
                 std::swap(w1,w2);
@@ -356,11 +348,7 @@ namespace madness {
                 for (std::size_t d=0; d<NDIM; ++d) {
                     if (trans[d].VT) {
                         dimi = size/trans[d].r;
-#ifdef HAVE_IBMBGQ
-                        mTxmq_padding(dimi, dimk, trans[d].r, dimk, w2, w1, trans[d].VT);
-#else
                         mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
-#endif
                         size = dimk*size/trans[d].r;
                     }
                     else {
@@ -662,30 +650,18 @@ namespace madness {
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
             //PROFILE_MEMBER_FUNC(SeparatedConvolution);
             
-            double prodR=1.0, prodT=1.0;
+            double prod=1.0, sum=0.0;
             for (std::size_t d=0; d<NDIM; ++d) {
-                prodR *= ops[d]->Rnormf;
-                prodT *= ops[d]->Tnormf;
-
+                double a = ops[d]->NSnormf;
+                double b = ops[d]->Tnormf;
+                double aa = std::min(a,b);
+                double bb = std::max(a,b);
+                prod *= bb;
+                if (bb > 0.0) sum +=(aa/bb);
             }
-//            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
+            if (n) prod *= sum;
 
-            // this kicks in if the line above has no numerically significant digits.
-//            if (prodR < 1e-8*prodT) {
-                double prod=1.0, sum=0.0;
-                for (std::size_t d=0; d<NDIM; ++d) {
-                    double a = ops[d]->NSnormf;
-                    double b = ops[d]->Tnormf;
-                    double aa = std::min(a,b);
-                    double bb = std::max(a,b);
-                    prod *= bb;
-                    if (bb > 0.0) sum +=(aa/bb);
-                }
-                if (n) prod *= sum;
-                prodR = prod;
-//            }
-
-            return prodR;
+            return prod;
         }
 
 

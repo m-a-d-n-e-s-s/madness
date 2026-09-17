@@ -32,6 +32,12 @@ add_mad_executable(test_protocol_key
 add_mad_executable(test_response_metadata
                    "tests/test_response_metadata.cpp"
                    "MADchem")
+# dalton.dir import contract (showcase W3): locate-by-convention (+ tarball
+# extraction), geometry fingerprint, .out method/basis parse, exact 1-to-1
+# frequency matching. Pure filesystem/parsing — no World, no fixtures.
+add_mad_executable(test_dalton_import
+                   "tests/test_dalton_import.cpp;GroundState.cpp"
+                   "MADchem")
 add_mad_executable(test_response_property_planner
                    "tests/test_response_property_planner.cpp"
                    "MADchem")
@@ -197,7 +203,7 @@ if (BUILD_TESTING)
   # Tier 1 — "unit": pure logic, no fixtures, no MPI launcher required.
   foreach(_t test_calc_manager test_protocol_key test_response_metadata
              test_response_property_planner test_state_metrics
-             test_diagonalize_slots)
+             test_diagonalize_slots test_dalton_import)
     add_test(NAME madness/test/molresponse/${_t}/run COMMAND ${_t})
     set_property(TEST madness/test/molresponse/${_t}/run
                  PROPERTY LABELS "unit;response;short" APPEND)

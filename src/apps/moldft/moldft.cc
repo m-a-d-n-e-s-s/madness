@@ -124,6 +124,7 @@ int main(int argc, char **argv) {
                     print("\n");
                     calc.param.print("dft");
                 }
+                calc.dispersion.print_citation(world);
                 END_TIMER(world, "initialize");
                 // Come up with an initial OK data map
                 if (world.size() > 1) {

@@ -13,7 +13,7 @@
 // then re-read by the universe in assemble_alpha. F1 tests BOTH directions of
 // nio/nproc round-tripping.
 //
-//   mpirun -np <N> ./test_fd_subworld_fanout --archive=<moldft restart> \
+//   mpirun -np <N> ./test_fd_subworld_fanout --archive=<moldft restart>
 //          [--thresh=1e-4] [--maxiter=25] [--calc-dir=<scratch>]
 // PASS iff  max|α_sub − α_ref| < 1e-9.  Needs ≥2 nodes for a real partition;
 // 1 node is a no-op partition and MUST still match exactly (free regression).

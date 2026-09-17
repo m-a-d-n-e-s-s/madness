@@ -477,7 +477,9 @@ namespace madness {
                 MADNESS_ASSERT(gamma>0.0);
             }
 
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const double e = exp(-gamma * rr);
                 if (rr < 5.e-2) {
@@ -505,7 +507,9 @@ namespace madness {
                 MADNESS_ASSERT(gamma>0.0);
             }
 
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const double e = exp(-gamma * rr);
                 return (1.0 - e) * u(rr, dcut) / (2.0 * gamma);
@@ -522,8 +526,8 @@ namespace madness {
                                                      dcut(dcut) {
                 MADNESS_ASSERT(axis>=0 and axis<3);
             }
-
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const coord_3d vr12{r[0] - r[3], r[1] - r[4], r[2] - r[5]};
                 const coord_3d N = unitvec(vr12);
@@ -541,8 +545,8 @@ namespace madness {
         struct f2_ : FunctionFunctorInterface<double, 6> {
             double gamma;
             f2_(double gamma) : gamma(gamma) { MADNESS_ASSERT(gamma>0.0); }
-
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const double e = exp(-gamma * rr);
                 const double f = (1.0 - e) / (2.0 * gamma);
@@ -558,8 +562,8 @@ namespace madness {
                 MADNESS_ASSERT(gamma>0.0);
                 MADNESS_ASSERT(gamma==1.0);
             }
-
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const double f = exp(-2.0 * gamma * rr) / (4.0 * gamma * gamma);
                 return f;
@@ -724,8 +728,10 @@ namespace madness {
                 MADNESS_ASSERT(gamma==0.5);
             }
 
+        using FunctionFunctorInterface<double,6>::operator();
+
             // only valid for gamma=1
-            double operator()(const coord_6d& r) const {
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 double val = (1.0 - 0.5 * exp(-gamma * rr));
                 if (exponent == 1) return val;
@@ -746,8 +752,10 @@ namespace madness {
                 MADNESS_ASSERT(gamma==0.5);
             }
 
+        using FunctionFunctorInterface<double,6>::operator();
+
             // only valid for gamma=1
-            double operator()(const coord_6d& r) const {
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 // Taylor expansion for small r
                 if (rr < 1.e-4) { // valid for gamma==0.5, otherwise singular
@@ -774,7 +782,9 @@ namespace madness {
                 MADNESS_ASSERT(axis<3);
             }
 
-            double operator()(const coord_6d& r) const {
+        using FunctionFunctorInterface<double,6>::operator();
+
+        double operator()(const coord_6d& r) const override {
                 const double rr = r12(r);
                 const coord_3d vr12{r[0] - r[3], r[1] - r[4], r[2] - r[5]};
                 const coord_3d N = unitvec(vr12);
