@@ -1895,7 +1895,7 @@ private:
     	} else if (rho<b) {
 
     		const double num=Z* (2 + (power<N>(-1)* a* power<N>(-1 + rho/b)
-    			    * (-2 *a*N*N + (1 + a) *N* (1 + a *(-3 + N) + N)* rho +
+    			    * (-2 *a*N*N + (1 + a) *N* (1 + a *(-3 + static_cast<int>(N)) + N)* rho +
     			      2 *(1 + a)*(1+a)* rho*rho))/power<2>(a* N - (1 + a)*rho));
 
     		const double denom=2.* (r + power<N>(-1) *a* r* power<N>(-1 + rho/b));
@@ -1943,7 +1943,7 @@ private:
 
         if (rho<b) {
             const double negn= power<N>(-1.0);
-            return (negn*power<3>(1 + a)*(-2 + N)*(-1 + N)*power<3>(Z)*power<N-3>(-1 + ((1 + a)*r*Z)/(a*N)))/
+            return (negn*power<3>(1 + a)*(-2 + static_cast<int>(N))*(-1 + static_cast<int>(N))*power<3>(Z)*power<N-3>(-1 + ((1 + a)*r*Z)/(a*N)))/
                     (power<2>(a*N)*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
         } else {
             return 0.0;
@@ -1962,10 +1962,10 @@ private:
             const double rn=sqrt(N-1);
             const double r0=0.0;
             const double r1=((2.*(-8. + 9.*rn) + N*(25. + 10.*rn + N))*r*power<4>(Z))/
-                    (6.*power<2>(-2 + N)*rn);
+                    (6.*power<2>(-2 + static_cast<int>(N))*rn);
             const double r2=((-4*(17 + 9*rn) + N*(92 + 80*rn +
                     N*(-29 - 33*rn + N*(4 + 7*rn + N))))*power<5>(Z))/
-                            (8.*power<3>(-2 + N)*(-1 + N)*rn);
+                            (8.*power<3>(-2 + static_cast<int>(N))*(-1 + static_cast<int>(N))*rn);
             result=(r0 + r*r1 + r*r*r2);
 
         } else {
