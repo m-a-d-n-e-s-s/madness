@@ -135,19 +135,36 @@ struct ConvergencePolicy {
   int    stall_window = 6;
   double stall_ratio  = 0.10;
 
-  /// Plateau test on a gate-distance history (one entry per iteration, newest
-  /// last). True when the newest entry is still above 1 (targets not met), the
-  /// history spans the window, and the newest entry is not smaller than
-  /// (1 - stall_ratio) x the entry `stall_window` iterations earlier.
-  bool plateau(const std::vector<double> &gate_history) const {
-    if (stall_window <= 0) return false;
-    const std::size_t n = gate_history.size();
-    if (n <= static_cast<std::size_t>(stall_window)) return false;
-    const double g_now  = gate_history[n - 1];
-    const double g_then = gate_history[n - 1 - static_cast<std::size_t>(stall_window)];
-    if (!(g_now > 1.0)) return false;                 // targets met (or NaN): not a stall
-    if (!std::isfinite(g_now) || !std::isfinite(g_then)) return false;  // no measurement yet
-    return g_now > (1.0 - stall_ratio) * g_then;
+  /// Plateau test. `tracks` holds one history per gated quantity (FD: the BSH
+  /// residual and the density change; ES: the density change and |dw|), each
+  /// normalised by its own target, one entry per iteration, newest last.
+  ///
+  /// A solve is stalled only when EVERY quantity has stopped improving. Testing
+  /// the max over quantities instead was wrong and cost a production run: the
+  /// nuclear leg of a Raman solve has a density change that barely moves while
+  /// its BSH residual falls by a factor of two every few iterations, and the
+  /// max-gate reads that as a plateau and stops a converging solve (h2o oxygen
+  /// displacements, 2026-09-16: stopped at iteration 7 with residual 1.2 where
+  /// the equivalent hydrogen legs reached 9e-5 by iteration 11).
+  ///
+  /// A track is "not improving" when its newest entry is above 1 (its target is
+  /// not met) and is no smaller than (1 - stall_ratio) x its entry
+  /// `stall_window` iterations earlier. Tracks are compared only over entries
+  /// that measure the same thing, so a history must be at least window+1 long;
+  /// a non-finite entry (a quantity with no measurement yet, e.g. the first
+  /// iteration's density change or an ES eigenvalue step) makes its track
+  /// inconclusive, and one inconclusive track is enough to withhold a stall.
+  bool plateau(const std::vector<std::vector<double>> &tracks) const {
+    if (stall_window <= 0 || tracks.empty()) return false;
+    const auto w = static_cast<std::size_t>(stall_window);
+    for (const auto &h : tracks) {
+      if (h.size() <= w) return false;                    // not enough history yet
+      const double now = h[h.size() - 1], then = h[h.size() - 1 - w];
+      if (!std::isfinite(now) || !std::isfinite(then)) return false;  // inconclusive
+      if (!(now > 1.0)) return false;                     // this one has met its target
+      if (now <= (1.0 - stall_ratio) * then) return false;  // this one is still improving
+    }
+    return true;
   }
 
   // Lock debounce (ESSolver full-deflation locking): a root must satisfy the

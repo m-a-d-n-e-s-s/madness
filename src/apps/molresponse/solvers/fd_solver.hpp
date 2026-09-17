@@ -57,6 +57,7 @@
 #include <fstream>
 #include <string>
 #include <type_traits>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -79,9 +80,11 @@ public:
     /// the diagonal property estimate of this channel, tracked per iteration
     /// so the property's own convergence can be read off the log (2026-09-11).
     std::vector<double>                     last_property;
-    /// Normalised gate distance per iteration (newest last) for the plateau
-    /// detector (ConvergencePolicy::plateau); reset when the thresh changes.
-    std::vector<double>                     gate_history;
+    /// Normalised distance per iteration (newest last), ONE TRACK PER GATED
+    /// QUANTITY: [0] = max bsh/bsh_target, [1] = max drho/density_target.
+    /// A stall needs every track flat (ConvergencePolicy::plateau); reset when
+    /// the thresh changes.
+    std::vector<std::vector<double>>        gate_history;
     double                                  gate_thresh = -1.0;
     int                                     iter = 0;
     bool                                    diverged = false;
@@ -175,7 +178,8 @@ private:
     for (double r : out.last_density_residual) max_drho = std::max(max_drho, r);
     plog("iter", out.iter,
           "  max_res =", max_res, "  max_dρ =", max_drho,
-          "  gate =", out.gate_history.empty() ? 0.0 : out.gate_history.back());
+          "  gate =", out.gate_history.empty() || out.gate_history[0].empty()
+                          ? 0.0 : out.gate_history[0].back());
     if (print_level_ >= PrintLevel::Verbose) {
       for (size_t c = 0; c < out.last_bsh_residual.size(); ++c) {
         double dr = (c < out.last_density_residual.size())
@@ -209,28 +213,37 @@ private:
     return s;
   }
 
-  /// Plateau bookkeeping: append this iteration's normalised gate distance
-  /// (max over channels of bsh/bsh_target and drho/density_target) to the
-  /// history (reset on a thresh change) and set out.stalled per policy.
+  /// Plateau bookkeeping: append this iteration's normalised distance for EACH
+  /// gated quantity (bsh, density) to its own track (reset on a thresh change)
+  /// and set out.stalled per policy. Tracking them separately is what keeps a
+  /// slow-moving density from masking a residual that is still falling.
   void update_stall(State &out, const State &in) const {
     const double thr = madness::FunctionDefaults<3>::get_thresh();
-    out.gate_history = (in.gate_thresh == thr) ? in.gate_history
-                                               : std::vector<double>{};
+    out.gate_history = (in.gate_thresh == thr)
+                           ? in.gate_history
+                           : std::vector<std::vector<double>>(2);
     out.gate_thresh  = thr;
-    double g = 0.0;
+    if (out.gate_history.size() < 2) out.gate_history.resize(2);
+    double g_bsh = 0.0, g_rho = 0.0;
     for (std::size_t c = 0; c < out.last_bsh_residual.size(); ++c) {
-      g = std::max(g, out.last_bsh_residual[c] / targets_.bsh_residual);
-      if (out.iter > 1 && c < out.last_density_residual.size())
-        g = std::max(g, out.last_density_residual[c] / targets_.density_residual);
+      g_bsh = std::max(g_bsh, out.last_bsh_residual[c] / targets_.bsh_residual);
+      if (c < out.last_density_residual.size())
+        g_rho = std::max(g_rho, out.last_density_residual[c] / targets_.density_residual);
     }
-    out.gate_history.push_back(g);
+    // iter 1 has no previous density, so drho is 0 and would read as "target
+    // met"; mark it as no measurement so the track cannot be compared against it.
+    out.gate_history[0].push_back(g_bsh);
+    out.gate_history[1].push_back(out.iter > 1 ? g_rho
+                                   : std::numeric_limits<double>::infinity());
     out.stalled = !out.diverged && policy_.plateau(out.gate_history);
     if (out.stalled && print_level_ >= PrintLevel::Normal && world_.rank() == 0) {
-      const std::size_t n = out.gate_history.size();
-      plog("[STALL] iter", out.iter, ": gate distance", g, "vs",
-           out.gate_history[n - 1 - static_cast<std::size_t>(policy_.stall_window)],
-           policy_.stall_window, "iters ago (<", 100.0 * policy_.stall_ratio,
-           "% improvement) — residual plateau above the targets; stopping.");
+      const std::size_t n = out.gate_history[0].size();
+      const std::size_t w = static_cast<std::size_t>(policy_.stall_window);
+      plog("[STALL] iter", out.iter, ": every gated quantity flat over", policy_.stall_window,
+           "iters (<", 100.0 * policy_.stall_ratio, "% improvement) — bsh",
+           out.gate_history[0][n - 1], "vs", out.gate_history[0][n - 1 - w],
+           ", density", out.gate_history[1][n - 1], "vs", out.gate_history[1][n - 1 - w],
+           "(normalised); stopping.");
     }
   }
 
@@ -444,7 +457,8 @@ private:
                               ? s.last_density_residual[c] : 0.0;
       const double prop = (static_cast<size_t>(c) < s.last_property.size())
                               ? s.last_property[c] : 0.0;
-      const double gate = s.gate_history.empty() ? 0.0 : s.gate_history.back();
+      const double gate = (s.gate_history.empty() || s.gate_history[0].empty())
+                              ? 0.0 : s.gate_history[0].back();
       out << s.iter << ',' << pthr << ',' << c << ','
           << target_.responses[c].omega << ',' << bsh << ','
           << drho << ',' << (s.diverged ? 1 : 0) << ','
