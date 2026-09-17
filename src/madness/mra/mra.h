@@ -769,10 +769,12 @@ namespace madness {
             return impl->get_pmap();
         }
 
-        /// replicate this function according to type
+        /// Replicates this function according to its distribution type.
         ///
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// RankReplicated gives every rank every coefficient node. NodeReplicated
+        /// gives one copy per host, and the lowest rank on that host owns it. The
+        /// two methods below give the ownership rules and the limits of each policy.
+        /// NodeReplicated requires fence=true.
         void replicate(const DistributionType type, bool fence=true) const {
             verify();
             if (type==DistributionType::RankReplicated) impl->replicate(fence);
@@ -780,20 +782,24 @@ namespace madness {
             else MADNESS_EXCEPTION("Function::replicate: unknown DistributionType",type);
         }
 
-        /// replicate this function, generating a unique pmap
-
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// Replicates this function on every rank.
+        ///
+        /// Every rank owns every coefficient node, so rank-local operations such as
+        /// eval_local_only work on every rank. Global reductions count the data more
+        /// than once. Queued tasks must not change the coefficients until the call
+        /// returns.
         void replicate(bool fence=true) const {
             verify();
             impl->replicate(fence);
         }
 
-        /// replicate this function, one copy per host
-
-        /// map will refer the to first rank on each host to avoid inter-node communication
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// Replicates this function once per host.
+        ///
+        /// The lowest rank on each host owns all coefficient nodes. Other ranks route
+        /// ordinary container access, such as find, to that rank. eval_local_only does
+        /// no communication, so it returns false on those ranks. Global reductions
+        /// count one copy per host. If every rank needs local coefficient access,
+        /// replicate() is the correct policy. fence must be true.
         void replicate_on_hosts(bool fence=true) const {
             verify();
             impl->replicate_on_hosts(fence);

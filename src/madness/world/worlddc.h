@@ -595,6 +595,7 @@ namespace madness
         WorldContainerImpl(); // Inhibit default constructor
 
         std::shared_ptr<WorldDCPmapInterface<keyT>> pmap; ///< Function/class to map from keys to owning process
+        bool rank_replication_complete_ = false;          ///< True if the last replicate() completed and no reset followed
         const ProcessID me;                               ///< My MPI rank
         internal_containerT local;                        ///< Locally owned data
         std::vector<keyT> *move_list;                     ///< Tempoary used to record data that needs redistributing
@@ -662,28 +663,52 @@ namespace madness
 
         void reset_pmap_to_local()
         {
+            rank_replication_complete_ = false;
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(this->get_world()));
             pmap->register_callback(this);
         }
 
-        /// replicates this WorldContainer on all ProcessIDs and generates a
-        /// ProcessMap where all nodes are local
+        /// Replicates this WorldContainer on every ProcessID.
+        ///
+        /// This call is collective, and every rank must call it in the same order.
+        /// If no rank called clear(), reset the pmap, or redistributed after the
+        /// last completed call, this call sends no data. A requested fence still
+        /// occurs. This call does not reconcile replicas, so per-key changes must
+        /// be the same on every rank.
+        ///
+        /// A rank runs queued tasks while it waits in a broadcast. These tasks must
+        /// not change this container until the call returns. If a task erases a key
+        /// on the root, MADNESS_CHECK throws on that rank, and the other ranks wait.
         void replicate(bool fence) {
             World &world = this->get_world();
+
+            // clear() is local, so the ranks can disagree about the flag. All ranks
+            // take the fast path only if all ranks agree.
+            int complete = rank_replication_complete_ ? 1 : 0;
+            world.gop.min(complete);
+            if (complete) {
+                MADNESS_CHECK(pmap->distribution_type() == RankReplicated);
+                if (fence) world.gop.fence();
+                return;
+            }
+
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(world));
             pmap->register_callback(this);
 
             do_replicate(world);
+            rank_replication_complete_ = true;
             if (fence) world.gop.fence();
         }
 
-        /// replicates this WorldContainer on all hosts and generates a
-        /// ProcessMap where all nodes are host-local (not rank-local)
-        /// will always fence
+        /// Replicates this WorldContainer on all hosts, one ProcessID per host.
+        ///
+        /// The new pmap is host-local, not rank-local. This call always fences.
+        /// Queued tasks must not change this container until the call returns.
         void replicate_on_hosts(bool fence) {
             MADNESS_CHECK(fence);
+            rank_replication_complete_ = false;
 
             /// print in rank-order
 //            auto oprint = [&](World& world, auto &&... args) {
@@ -798,6 +823,11 @@ namespace madness
         }
 
         void do_replicate(World& world) {
+            // Received entries go to a side buffer, not into local, so each
+            // rank broadcasts only the entries it held on entry and every entry
+            // is sent exactly once. Inserting as we go would make later roots
+            // re-broadcast what they received from earlier ones.
+            std::vector<pairT> received;
             for (ProcessID rank = 0; rank < world.size(); rank++)
             {
                 if (rank == world.rank())
@@ -817,16 +847,19 @@ namespace madness
                 {
                     size_t sz = 0;
                     world.gop.broadcast_serializable(sz, rank);
+                    received.reserve(received.size() + sz);
                     for (size_t i = 0; i < sz; i++)
                     {
                         keyT key{};
                         valueT value{};
                         world.gop.broadcast_serializable(key, rank);
                         world.gop.broadcast_serializable(value, rank);
-                        insert(pairT(key, value));
+                        received.emplace_back(std::move(key), std::move(value));
                     }
                 }
             }
+            for (auto& datum : received)
+                insert(datum);
         }
 
         const hashfunT &get_hash() const { return local.get_hash(); }
@@ -901,6 +934,7 @@ namespace madness
 
         void clear()
         {
+            rank_replication_complete_ = false;
             local.clear();
         }
 
@@ -1091,6 +1125,7 @@ namespace madness
         // First phase of redistributions changes pmap and makes list of stuff to move
         void redistribute_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
         {
+            rank_replication_complete_ = false;
             pmap = newpmap;
             move_list = new std::vector<keyT>();
             for (typename internal_containerT::iterator iter = local.begin(); iter != local.end(); ++iter)
@@ -1149,6 +1184,7 @@ namespace madness
         /// to move by destination. Quiescent window required.
         void redistribute_coalesced_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
         {
+            rank_replication_complete_ = false;
             pmap->deregister_callback(this);
             pmap = newpmap;
             pmap->register_callback(this);
@@ -1349,7 +1385,10 @@ namespace madness
             return p;
         }
 
-        /// replicates this WorldContainer on all ProcessIDs
+        /// Replicates this WorldContainer on all ProcessIDs.
+        ///
+        /// This call is collective. Queued tasks must not change this container
+        /// until the call returns. See WorldContainerImpl::replicate().
         void replicate(bool fence = true)
         {
             p->replicate(fence);
