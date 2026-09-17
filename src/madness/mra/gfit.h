@@ -79,6 +79,7 @@ public:
         } else if (type==OT_F212)   {*this=F12sqFit(mu,lo,hi,eps,debug);
         } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,debug);
         } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_INVRSQ) {*this=InverseRSqFit(lo,hi,eps,debug);
         } else {
             print("Operator type not implemented: ",type);
             MADNESS_EXCEPTION("Operator type not implemented: ",1);
@@ -102,6 +103,65 @@ public:
 	static GFit CoulombFit(double lo, double hi, double eps, bool prnt=false) {
 		GFit fit=BSHFit(0.0,lo,hi,eps/(4.0*constants::pi),prnt);
 		fit.coeffs_.scale(4.0*constants::pi);   // BSHFit scales by 1/(4 pi), undo here
+		return fit;
+	}
+
+	/// return a fit for the inverse-square function 1/r^2
+
+	/// Built from the Beylkin-Monzon integral representation
+	///   1/r^2 = ∫_0^∞ exp(-t r^2) dt
+	/// After the substitution t = exp(2s), this is trapezoidally
+	/// discretized to give 1/r^2 ≈ Σ_k c_k exp(-α_k r^2) with
+	/// c_k = 2 h exp(2 s_k), α_k = exp(2 s_k).
+	///
+	/// Implementation is a thin wrapper around bsh_fit_ndim(4, 0, ...),
+	/// which fits the 4-D Poisson Green's function (proportional to 1/r^2
+	/// with a factor 0.5/π^2). The coefficients are rescaled by 4π^2 so
+	/// that the returned fit is the pointwise approximation of 1/r^2.
+	///
+	/// @param[in]  lo  the smallest length scale that needs to be precisely represented
+	/// @param[in]  hi  the largest length scale that needs to be precisely represented
+	/// @param[in]  eps the precision threshold
+	/// @param[in]  prnt print level
+	static GFit InverseRSqFit(double lo, double hi, double eps, bool prnt=false) {
+		GFit fit;
+		// Direct Beylkin-Monzon discretization of
+		//   1/r^2 = 2 ∫_{-∞}^{+∞} exp(2s) exp(-exp(2s) r^2) ds
+		// with trapezoidal rule in s.
+		double TT;
+		if      (eps >= 1e-4)  TT = 10.0;
+		else if (eps >= 1e-6)  TT = 14.0;
+		else if (eps >= 1e-8)  TT = 18.0;
+		else if (eps >= 1e-10) TT = 22.0;
+		else if (eps >= 1e-12) TT = 26.0;
+		else                   TT = 30.0;
+		double slo = std::log(eps/hi) - 1.0;
+		double shi = 0.5 * std::log(TT/(lo*lo));
+		double h = 1.0/(0.2 - 0.5*std::log10(eps));
+		h = std::floor(64.0*h)/64.0;
+		shi = std::ceil(shi/h)*h;
+		slo = std::floor(slo/h)*h;
+		long npt = long((shi - slo)/h + 0.5);
+
+		std::vector<double> c_vec, a_vec;
+		for (int i=0; i<npt; ++i) {
+			double s = slo + h*(npt - i);
+			double alpha = std::exp(2.0*s);
+			double coeff = 2.0*h*alpha;
+			c_vec.push_back(coeff);
+			a_vec.push_back(alpha);
+		}
+		fit.coeffs_ = Tensor<double>(long(c_vec.size()));
+		fit.exponents_ = Tensor<double>(long(a_vec.size()));
+		for (size_t i=0; i<c_vec.size(); ++i) {
+			fit.coeffs_[i] = c_vec[i];
+			fit.exponents_[i] = a_vec[i];
+		}
+		if (prnt) {
+			print("inverse-square fit");
+			auto exact = [](const double r) -> double { return 1.0/(r*r); };
+			fit.print_accuracy(exact, lo, hi);
+		}
 		return fit;
 	}
 

@@ -35,6 +35,9 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
 
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const CCPairFunction<T,NDIM>& argument);
+
     /// simple projector class
 
     /// use this class to project a function or a set of functions on
@@ -163,10 +166,16 @@ namespace madness {
             }
         }
 
+        /// apply this projector on argument, return type is whatever the implementation of apply
+        /// returns. Most likely it will be argT or std::vector<argT>
         template<typename argT>
-        typename std::enable_if<!std::is_same<argT,Function<T,2*NDIM> >::value, argT>::type
-        operator()(const argT& argument) const {
-            return madness::apply(*this,argument);
+        auto operator()(const argT& argument) const
+            -> typename std::enable_if<
+                !std::is_same<argT, Function<T, 2 * NDIM>>::value,
+                decltype(madness::apply(std::declval<const Projector<T, NDIM>&>(),
+                                        std::declval<const argT&>()))
+            >::type {
+            return madness::apply(*this, argument);
         }
 
         vecfuncT get_bra_vector() const {return mo_bra_;}
@@ -234,7 +243,12 @@ namespace madness {
         }
 
         template<typename argT>
-        argT operator()(const argT& argument) const {
+        std::vector<argT> operator()(const std::vector<argT>& argument) const {
+            return madness::apply(*this,argument);
+        }
+
+        template<typename argT>
+        std::vector<argT> operator()(const argT& argument) const {
             return madness::apply(*this,argument);
         }
 
@@ -319,9 +333,14 @@ namespace madness {
         }
 
         template<typename argT>
-        argT operator()(const argT& argument) const {
+        std::vector<argT> operator()(const std::vector<argT>& argument) const {
             return madness::apply(*this,argument);
         }
+
+        template<typename argT>
+        std::vector<argT> operator()(const argT& argument) const {
+    	    return madness::apply(*this,argument);
+    	}
 
         /// apply the projection parts of the strong orthogonality operator Q12 on a function f
 
