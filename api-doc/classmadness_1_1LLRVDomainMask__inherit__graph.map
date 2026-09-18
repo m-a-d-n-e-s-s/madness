@@ -1,0 +1,5 @@
+<map id="madness::LLRVDomainMask" name="madness::LLRVDomainMask">
+<area shape="rect" id="Node000001" title="Provides the Li&#45;Lowengrub&#45;Ratz&#45;Voight (LLRV) domain mask characteristic functions." alt="" coords="19,79,225,104"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1DomainMaskInterface.html" title="The interface for masking functions defined by signed distance functions." alt="" coords="5,5,239,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,44,125,79,119,79,119,44"/>
+</map>

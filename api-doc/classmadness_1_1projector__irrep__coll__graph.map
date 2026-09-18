@@ -1,0 +1,8 @@
+<map id="madness::projector_irrep" name="madness::projector_irrep">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,181,152,221"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1charactertable.html" title=" " alt="" coords="95,93,278,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="165,130,102,183,99,179,161,126"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="21,5,80,31"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="47,45,43,80,45,118,56,151,70,180,65,182,51,153,40,119,38,80,42,44"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="82,36,170,91,167,95,79,40"/>
+</map>

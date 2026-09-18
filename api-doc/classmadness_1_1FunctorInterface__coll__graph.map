@@ -1,0 +1,5 @@
+<map id="madness::FunctorInterface&lt; T, NDIM, opT &gt;" name="madness::FunctorInterface&lt; T, NDIM, opT &gt;">
+<area shape="rect" id="Node000001" title="FunctorInterface interfaces a class or struct with an operator()()" alt="" coords="5,93,200,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="7,5,199,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,59,105,93,100,93,100,59"/>
+</map>

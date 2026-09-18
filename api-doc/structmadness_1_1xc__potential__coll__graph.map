@@ -1,0 +1,5 @@
+<map id="madness::xc_potential" name="madness::xc_potential">
+<area shape="rect" id="Node000001" title="Class to compute terms of the potential." alt="" coords="6,93,175,119"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals." alt="" coords="5,5,176,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,45,93,93,88,93,88,45"/>
+</map>

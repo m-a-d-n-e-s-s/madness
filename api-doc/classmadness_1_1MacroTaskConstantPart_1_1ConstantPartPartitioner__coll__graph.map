@@ -1,0 +1,7 @@
+<map id="madness::MacroTaskConstantPart::ConstantPartPartitioner" name="madness::MacroTaskConstantPart::ConstantPartPartitioner">
+<area shape="rect" id="Node000001" title=" " alt="" coords="10,168,226,208"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1MacroTaskPartitioner.html" title="partition one (two) vectors into 1D (2D) batches." alt="" coords="5,93,231,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,132,121,168,115,168,115,132"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="89,5,147,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="121,45,121,93,115,93,115,45"/>
+</map>

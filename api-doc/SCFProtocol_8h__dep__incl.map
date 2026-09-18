@@ -1,0 +1,124 @@
+<map id="SCFProtocol.h" name="SCFProtocol.h">
+<area shape="rect" id="Node000001" title="solution protocol for SCF calculations" alt="" coords="1183,5,1295,31"/>
+<area shape="rect" id="Node000002" href="$madchem_8h.html" title=" " alt="" coords="1264,460,1363,485"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1169,30,1054,48,926,78,869,97,823,119,792,144,784,157,781,171,781,327,785,344,796,360,814,375,837,388,898,411,972,430,1053,444,1133,454,1264,466,1264,471,1132,460,1052,449,971,435,897,416,835,393,811,379,792,364,780,346,776,328,776,170,779,155,788,140,820,114,867,92,925,73,1053,43,1168,25"/>
+<area shape="rect" id="Node000006" href="$nemo_8h.html" title=" " alt="" coords="1707,79,1778,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1309,26,1707,82,1707,88,1308,32"/>
+<area shape="rect" id="Node000003" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="1167,533,1230,559"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="1285,495,1219,535,1216,531,1282,490"/>
+<area shape="rect" id="Node000004" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="1254,533,1373,559"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="1316,499,1316,533,1311,533,1311,499"/>
+<area shape="rect" id="Node000005" href="$simple__hf_8cpp.html" title=" " alt="" coords="1396,533,1508,559"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="1349,489,1431,531,1428,535,1346,494"/>
+<area shape="poly" id="edge43_Node000006_Node000002" title=" " alt="" coords="1694,96,1543,100,1350,110,1178,127,1118,139,1099,146,1087,154,1081,163,1079,171,1088,190,1106,209,1126,217,1147,220,1169,219,1216,218,1241,224,1266,238,1302,275,1313,294,1320,314,1325,358,1323,412,1318,460,1312,460,1317,412,1319,358,1315,315,1309,296,1298,278,1262,242,1239,229,1215,223,1169,224,1147,225,1124,223,1103,213,1083,194,1074,172,1076,161,1083,150,1096,142,1117,134,1177,122,1350,104,1543,95,1694,91"/>
+<area shape="rect" id="Node000007" href="$CC2_8h.html" title=" " alt="" coords="514,313,574,339"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="1693,96,1087,113,720,130,567,141,451,155,397,160,349,161,265,162,227,168,192,181,158,205,124,241,119,253,123,264,150,282,193,297,245,308,304,315,422,322,514,323,514,328,422,327,303,320,244,313,191,302,148,287,119,267,113,253,119,239,154,201,189,176,226,163,264,157,349,156,397,155,450,149,566,136,720,125,1087,107,1693,91"/>
+<area shape="rect" id="Node000011" href="$pno_8cpp.html" title=" " alt="" coords="221,460,294,485"/>
+<area shape="poly" id="edge57_Node000006_Node000011" title=" " alt="" coords="1693,96,1370,99,893,109,434,127,266,139,207,147,169,155,109,169,57,182,37,191,21,205,12,225,8,252,8,327,14,360,31,387,56,410,88,428,122,442,158,452,221,465,220,470,156,458,120,447,85,433,53,414,27,391,9,362,3,328,3,251,6,223,17,202,34,187,55,177,108,163,167,149,206,141,266,134,434,121,893,104,1370,94,1693,90"/>
+<area shape="rect" id="Node000013" href="$CCPotentials_8h.html" title=" " alt="" coords="463,159,580,185"/>
+<area shape="poly" id="edge14_Node000006_Node000013" title=" " alt="" coords="1693,98,580,170,580,164,1693,93"/>
+<area shape="rect" id="Node000019" href="$PNOStructures_8h.html" title=" " alt="" coords="895,159,1023,185"/>
+<area shape="poly" id="edge23_Node000006_Node000019" title=" " alt="" coords="1694,97,1416,114,1230,130,1042,155,1004,162,1003,157,1041,149,1229,125,1415,108,1694,92"/>
+<area shape="rect" id="Node000025" href="$SCFOperators_8cc.html" title="Operators for the molecular HF and DFT code." alt="" coords="1843,240,1973,265"/>
+<area shape="poly" id="edge34_Node000006_Node000025" title=" " alt="" coords="1763,113,1836,190,1894,238,1891,242,1833,194,1759,116"/>
+<area shape="rect" id="Node000026" href="$TDHF_8h.html" title=" " alt="" coords="1098,159,1166,185"/>
+<area shape="poly" id="edge35_Node000006_Node000026" title=" " alt="" coords="1694,96,1598,100,1469,109,1324,126,1179,155,1158,162,1156,157,1178,149,1323,121,1469,104,1597,94,1693,91"/>
+<area shape="rect" id="Node000029" href="$benchmark__exchange__operator_8cc.html" title=" " alt="" coords="1191,152,1356,192"/>
+<area shape="poly" id="edge40_Node000006_Node000029" title=" " alt="" coords="1694,102,1368,155,1357,157,1356,151,1368,149,1693,97"/>
+<area shape="rect" id="Node000030" href="$exchangeoperator_8cc.html" title=" " alt="" coords="1380,159,1537,185"/>
+<area shape="poly" id="edge41_Node000006_Node000030" title=" " alt="" coords="1695,109,1501,162,1499,157,1693,103"/>
+<area shape="rect" id="Node000031" href="$helium__exact_8cc.html" title="Solves the two&#45;particle system exactly." alt="" coords="1561,159,1689,185"/>
+<area shape="poly" id="edge42_Node000006_Node000031" title=" " alt="" coords="1715,114,1644,161,1641,157,1712,110"/>
+<area shape="rect" id="Node000032" href="$madness_2chem_2mp2_8cc.html" title=" " alt="" coords="2100,240,2169,265"/>
+<area shape="poly" id="edge44_Node000006_Node000032" title=" " alt="" coords="1792,93,1951,111,2029,128,2060,138,2083,150,2103,170,2118,195,2135,239,2130,241,2114,197,2099,174,2080,154,2058,143,2028,133,1950,117,1792,99"/>
+<area shape="rect" id="Node000033" href="$mp2_8h.html" title="Solves molecular MP2 equations." alt="" coords="2702,159,2765,185"/>
+<area shape="poly" id="edge45_Node000006_Node000033" title=" " alt="" coords="1792,91,1980,95,2240,106,2501,123,2610,135,2691,149,2712,157,2710,162,2690,155,2609,140,2501,128,2240,111,1980,101,1792,96"/>
+<area shape="rect" id="Node000035" href="$apps_2nemo_2nemo_8cc.html" title=" " alt="" coords="1847,159,1924,185"/>
+<area shape="poly" id="edge49_Node000006_Node000035" title=" " alt="" coords="1777,108,1865,157,1863,161,1774,113"/>
+<area shape="rect" id="Node000036" href="$madness_2chem_2nemo_8cc.html" title=" " alt="" coords="1948,159,2025,185"/>
+<area shape="poly" id="edge50_Node000006_Node000036" title=" " alt="" coords="1792,104,1937,149,1957,157,1955,162,1935,155,1790,109"/>
+<area shape="rect" id="Node000037" href="$oep_8h.html" title=" " alt="" coords="1713,159,1772,185"/>
+<area shape="poly" id="edge51_Node000006_Node000037" title=" " alt="" coords="1745,118,1745,159,1740,159,1740,118"/>
+<area shape="rect" id="Node000040" href="$smooth_8h.html" title=" " alt="" coords="2789,159,2872,185"/>
+<area shape="poly" id="edge58_Node000006_Node000040" title=" " alt="" coords="1792,91,2280,107,2568,125,2687,136,2778,149,2804,157,2802,162,2777,155,2687,141,2567,130,2280,113,1792,96"/>
+<area shape="rect" id="Node000042" href="$test__SCFOperators_8cc.html" title=" " alt="" coords="2151,159,2313,185"/>
+<area shape="poly" id="edge60_Node000006_Node000042" title=" " alt="" coords="1792,97,2132,149,2173,157,2172,162,2132,155,1791,102"/>
+<area shape="rect" id="Node000043" href="$test__exchangeoperator_8cc.html" title=" " alt="" coords="2337,159,2527,185"/>
+<area shape="poly" id="edge61_Node000006_Node000043" title=" " alt="" coords="1792,94,2023,114,2326,149,2372,157,2371,162,2325,155,2022,120,1792,99"/>
+<area shape="rect" id="Node000044" href="$test__localizer_8cc.html" title=" " alt="" coords="2551,159,2678,185"/>
+<area shape="poly" id="edge62_Node000006_Node000044" title=" " alt="" coords="1792,91,1922,95,2107,104,2322,122,2539,149,2574,157,2573,162,2538,155,2321,127,2107,110,1922,100,1792,96"/>
+<area shape="rect" id="Node000045" href="$znemo_8h.html" title=" " alt="" coords="2023,313,2102,339"/>
+<area shape="poly" id="edge63_Node000006_Node000045" title=" " alt="" coords="1792,93,1858,100,1931,111,1996,127,2022,138,2039,150,2053,169,2063,191,2072,238,2072,282,2068,313,2062,313,2066,281,2067,238,2058,193,2049,172,2035,154,2019,142,1995,132,1930,116,1857,105,1792,99"/>
+<area shape="poly" id="edge13_Node000007_Node000002" title=" " alt="" coords="578,343,649,382,710,409,758,420,822,430,979,447,1264,466,1264,472,978,452,822,435,757,426,708,415,647,387,575,348"/>
+<area shape="rect" id="Node000008" href="$CC2_8cc.html" title=" " alt="" coords="399,387,465,412"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="516,348,452,389,449,384,513,344"/>
+<area shape="rect" id="Node000009" href="$PNO_8h.html" title=" " alt="" coords="577,387,639,412"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="566,347,600,385,596,388,562,351"/>
+<area shape="rect" id="Node000012" href="$cc2_8cc.html" title=" " alt="" coords="490,387,553,412"/>
+<area shape="poly" id="edge12_Node000007_Node000012" title=" " alt="" coords="539,353,528,387,522,386,534,351"/>
+<area shape="poly" id="edge10_Node000009_Node000002" title=" " alt="" coords="653,408,659,409,833,432,1004,449,1264,466,1264,472,1004,454,832,438,658,415,652,414"/>
+<area shape="rect" id="Node000010" href="$PNO_8cpp.html" title=" " alt="" coords="569,460,647,485"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="611,426,611,460,605,460,605,426"/>
+<area shape="poly" id="edge11_Node000009_Node000011" title=" " alt="" coords="563,415,410,446,295,468,294,462,409,441,562,409"/>
+<area shape="poly" id="edge18_Node000013_Node000002" title=" " alt="" coords="594,182,652,202,679,218,703,238,720,261,728,284,731,329,731,350,735,371,744,391,762,410,788,421,837,431,978,447,1264,466,1263,472,978,452,837,436,787,426,758,414,739,394,730,373,726,351,725,329,723,285,715,263,699,242,676,223,649,207,593,187"/>
+<area shape="poly" id="edge15_Node000013_Node000007" title=" " alt="" coords="449,178,362,183,268,194,185,213,154,226,134,242,129,253,134,264,160,282,201,296,252,307,309,314,425,322,514,322,514,328,424,327,309,320,251,312,200,302,158,287,130,267,124,253,130,238,151,222,183,208,267,189,362,178,448,172"/>
+<area shape="rect" id="Node000014" href="$CCPotentials_8cc.html" title=" " alt="" coords="144,240,267,265"/>
+<area shape="poly" id="edge16_Node000013_Node000014" title=" " alt="" coords="463,191,252,243,251,237,461,185"/>
+<area shape="rect" id="Node000015" href="$CCStructures_8cc.html" title=" " alt="" coords="291,240,415,265"/>
+<area shape="poly" id="edge17_Node000013_Node000015" title=" " alt="" coords="486,193,379,242,377,238,483,188"/>
+<area shape="rect" id="Node000016" href="$mp3_8h.html" title=" " alt="" coords="627,240,690,265"/>
+<area shape="poly" id="edge19_Node000013_Node000016" title=" " alt="" coords="555,189,640,237,637,242,552,194"/>
+<area shape="rect" id="Node000018" href="$test__ccpairfunction_8cc.html" title=" " alt="" coords="439,240,603,265"/>
+<area shape="poly" id="edge22_Node000013_Node000018" title=" " alt="" coords="524,198,524,240,519,240,519,198"/>
+<area shape="poly" id="edge20_Node000016_Node000007" title=" " alt="" coords="630,275,564,315,561,311,627,270"/>
+<area shape="rect" id="Node000017" href="$mp3_8cc.html" title=" " alt="" coords="621,313,691,339"/>
+<area shape="poly" id="edge21_Node000016_Node000017" title=" " alt="" coords="660,279,659,313,654,313,655,279"/>
+<area shape="poly" id="edge33_Node000019_Node000002" title=" " alt="" coords="1022,185,1235,238,1258,264,1276,294,1300,358,1312,418,1316,459,1310,460,1307,418,1295,359,1272,296,1254,267,1232,242,1021,190"/>
+<area shape="rect" id="Node000020" href="$PNOF12Potentials_8h.html" title=" " alt="" coords="1070,313,1221,339"/>
+<area shape="poly" id="edge24_Node000019_Node000020" title=" " alt="" coords="1022,185,1142,215,1190,229,1212,238,1218,249,1218,261,1207,282,1188,301,1167,315,1164,311,1185,296,1203,279,1213,260,1213,251,1209,242,1188,234,1140,220,1021,190"/>
+<area shape="rect" id="Node000022" href="$PNOGuessFunctions_8h.html" title=" " alt="" coords="1035,240,1199,265"/>
+<area shape="poly" id="edge28_Node000019_Node000022" title=" " alt="" coords="995,188,1095,238,1093,242,993,193"/>
+<area shape="rect" id="Node000024" href="$PNOStructures_8cpp.html" title=" " alt="" coords="817,240,959,265"/>
+<area shape="poly" id="edge32_Node000019_Node000024" title=" " alt="" coords="941,197,900,242,896,238,937,193"/>
+<area shape="poly" id="edge27_Node000020_Node000002" title=" " alt="" coords="1171,346,1302,458,1298,462,1168,350"/>
+<area shape="poly" id="edge25_Node000020_Node000009" title=" " alt="" coords="1056,342,640,396,639,391,1056,336"/>
+<area shape="rect" id="Node000021" href="$PNOF12Potentials_8cpp.html" title=" " alt="" coords="1033,387,1199,412"/>
+<area shape="poly" id="edge26_Node000020_Node000021" title=" " alt="" coords="1138,353,1123,388,1118,386,1133,351"/>
+<area shape="poly" id="edge31_Node000022_Node000002" title=" " alt="" coords="1091,276,1058,304,1028,339,1017,357,1012,376,1013,393,1022,410,1037,423,1061,433,1126,450,1199,460,1264,466,1264,471,1198,465,1125,455,1059,438,1035,427,1018,414,1008,395,1007,375,1012,355,1023,336,1054,300,1088,272"/>
+<area shape="poly" id="edge29_Node000022_Node000020" title=" " alt="" coords="1129,277,1143,312,1138,314,1125,279"/>
+<area shape="rect" id="Node000023" href="$PNOGuessFunctions_8cpp.html" title=" " alt="" coords="816,313,995,339"/>
+<area shape="poly" id="edge30_Node000022_Node000023" title=" " alt="" coords="1071,272,941,316,939,311,1070,267"/>
+<area shape="poly" id="edge39_Node000026_Node000002" title=" " alt="" coords="1172,187,1179,189,1242,197,1324,202,1404,212,1435,223,1457,238,1467,253,1472,270,1472,302,1459,335,1437,367,1410,397,1381,424,1332,462,1328,458,1378,419,1406,393,1433,364,1454,333,1467,301,1467,270,1462,256,1453,242,1433,227,1402,217,1324,207,1241,203,1178,195,1170,192"/>
+<area shape="poly" id="edge36_Node000026_Node000007" title=" " alt="" coords="1104,194,1033,237,972,268,918,284,872,294,793,302,712,305,610,316,575,322,574,316,609,311,712,300,792,297,872,289,917,279,970,263,1031,232,1101,190"/>
+<area shape="rect" id="Node000027" href="$TDHF_8cc.html" title=" " alt="" coords="1517,240,1592,265"/>
+<area shape="poly" id="edge37_Node000026_Node000027" title=" " alt="" coords="1171,187,1179,189,1268,209,1338,218,1409,225,1499,237,1517,241,1516,246,1498,243,1408,230,1337,223,1267,214,1178,195,1169,192"/>
+<area shape="rect" id="Node000028" href="$cis_8cpp.html" title=" " alt="" coords="1376,240,1443,265"/>
+<area shape="poly" id="edge38_Node000026_Node000028" title=" " alt="" coords="1173,187,1179,189,1287,220,1376,242,1375,247,1285,225,1178,195,1171,192"/>
+<area shape="poly" id="edge46_Node000033_Node000002" title=" " alt="" coords="2700,193,2603,240,2461,302,2294,365,2206,392,2118,415,2050,426,1960,437,1743,453,1363,472,1363,467,1743,448,1959,431,2049,421,2117,409,2204,387,2292,360,2459,297,2601,235,2698,189"/>
+<area shape="poly" id="edge48_Node000033_Node000032" title=" " alt="" coords="2699,192,2691,195,2615,211,2550,221,2438,226,2325,227,2259,232,2182,243,2170,245,2169,240,2181,237,2258,227,2324,222,2437,221,2550,216,2614,206,2690,189,2698,187"/>
+<area shape="rect" id="Node000034" href="$apps_2mp2_2mp2_8cc.html" title="Solves molecular MP2 equations." alt="" coords="2193,240,2263,265"/>
+<area shape="poly" id="edge47_Node000033_Node000034" title=" " alt="" coords="2699,192,2691,195,2630,209,2578,218,2488,225,2397,229,2282,243,2263,246,2262,241,2281,237,2396,224,2487,220,2577,213,2629,204,2690,189,2698,187"/>
+<area shape="poly" id="edge54_Node000037_Node000002" title=" " alt="" coords="1718,195,1424,414,1338,462,1335,458,1421,410,1715,191"/>
+<area shape="poly" id="edge52_Node000037_Node000025" title=" " alt="" coords="1780,188,1885,238,1883,242,1778,193"/>
+<area shape="poly" id="edge53_Node000037_Node000027" title=" " alt="" coords="1706,193,1702,194,1585,242,1583,237,1700,190,1704,188"/>
+<area shape="rect" id="Node000038" href="$apps_2oep_2oep_8cc.html" title=" " alt="" coords="1755,240,1819,265"/>
+<area shape="poly" id="edge55_Node000037_Node000038" title=" " alt="" coords="1758,195,1782,238,1778,241,1754,198"/>
+<area shape="rect" id="Node000039" href="$madness_2chem_2oep_8cc.html" title=" " alt="" coords="1667,240,1731,265"/>
+<area shape="poly" id="edge56_Node000037_Node000039" title=" " alt="" coords="1732,198,1708,241,1703,238,1727,195"/>
+<area shape="rect" id="Node000041" href="$density__smoothing_8cc.html" title="solve the HF equations using numerical exponential MOs" alt="" coords="2749,240,2913,265"/>
+<area shape="poly" id="edge59_Node000040_Node000041" title=" " alt="" coords="2833,198,2833,240,2828,240,2828,198"/>
+<area shape="poly" id="edge68_Node000045_Node000002" title=" " alt="" coords="2010,341,1648,415,1363,466,1362,460,1648,409,2009,336"/>
+<area shape="rect" id="Node000046" href="$diamagneticpotentialfactor_8h.html" title=" " alt="" coords="2259,387,2469,412"/>
+<area shape="poly" id="edge64_Node000045_Node000046" title=" " alt="" coords="2116,337,2316,384,2315,389,2115,342"/>
+<area shape="rect" id="Node000048" href="$madness_2chem_2znemo_8cc.html" title=" " alt="" coords="2465,460,2549,485"/>
+<area shape="poly" id="edge72_Node000045_Node000048" title=" " alt="" coords="2116,325,2207,329,2316,338,2416,356,2455,368,2483,385,2497,402,2505,423,2510,460,2504,460,2500,424,2492,405,2480,389,2453,373,2415,361,2315,343,2207,334,2115,331"/>
+<area shape="rect" id="Node000049" href="$zcis_8h.html" title=" " alt="" coords="1893,387,1952,412"/>
+<area shape="poly" id="edge69_Node000045_Node000049" title=" " alt="" coords="2029,347,1947,389,1944,384,2027,342"/>
+<area shape="rect" id="Node000052" href="$apps_2znemo_2znemo_8cc.html" title=" " alt="" coords="2021,387,2105,412"/>
+<area shape="poly" id="edge71_Node000045_Node000052" title=" " alt="" coords="2065,352,2065,387,2060,387,2060,352"/>
+<area shape="poly" id="edge66_Node000046_Node000002" title=" " alt="" coords="2245,414,2240,415,1728,450,1363,471,1363,466,1728,445,2240,409,2245,409"/>
+<area shape="rect" id="Node000047" href="$diamagneticpotentialfactor_8cc.html" title=" " alt="" coords="2224,460,2440,485"/>
+<area shape="poly" id="edge65_Node000046_Node000047" title=" " alt="" coords="2356,426,2340,461,2335,459,2351,424"/>
+<area shape="poly" id="edge67_Node000046_Node000048" title=" " alt="" coords="2400,416,2485,457,2482,462,2398,420"/>
+<area shape="poly" id="edge70_Node000049_Node000002" title=" " alt="" coords="1880,408,1363,468,1363,463,1880,403"/>
+</map>

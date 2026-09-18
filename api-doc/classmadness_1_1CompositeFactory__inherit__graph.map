@@ -1,0 +1,5 @@
+<map id="madness::CompositeFactory&lt; T, NDIM, MDIM &gt;" name="madness::CompositeFactory&lt; T, NDIM, MDIM &gt;">
+<area shape="rect" id="Node000001" title="Factory for facile setup of a CompositeFunctorInterface and its FuncImpl." alt="" coords="5,93,212,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFactory.html" title="FunctionFactory implements the named&#45;parameter idiom for Function." alt="" coords="13,5,204,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="111,59,111,93,106,93,106,59"/>
+</map>
