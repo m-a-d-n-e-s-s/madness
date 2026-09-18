@@ -329,7 +329,8 @@ public:
         FunctionDefaults<NDIM>::set_autorefine(false);
         FunctionDefaults<NDIM>::set_apply_randomize(false);
         FunctionDefaults<NDIM>::set_project_randomize(false);
-        FunctionDefaults<NDIM>::set_cubic_cell(-param.L(), param.L());
+        if constexpr (NDIM==3) FunctionDefaults<NDIM>::set_cell(param.cell());
+        else FunctionDefaults<NDIM>::set_cubic_cell(-param.L(), param.L());
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
         vtol = FunctionDefaults<NDIM>::get_thresh() * safety;

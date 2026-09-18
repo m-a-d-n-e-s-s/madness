@@ -120,6 +120,8 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
+        static double cell_geometric_mean_width; ///< volume^(1/NDIM), the mean dimension
+        static bool truncate_scale_by_min_width; ///< see set_truncate_scale_by_min_width()
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
         static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
@@ -147,6 +149,7 @@ namespace madness {
             cell_width = cell(_,1)-cell(_,0);
             cell_volume = cell_width.product();
             cell_min_width = cell_width.min();
+            cell_geometric_mean_width = (NDIM > 0) ? std::pow(cell_volume, 1.0/double(NDIM)) : 1.0;
             rcell_width = copy(cell_width);
             for (std::size_t i=0; i<NDIM; ++i) rcell_width(i) = 1.0/rcell_width(i);
         }
@@ -383,6 +386,36 @@ namespace madness {
         /// Returns the reciprocal of the width of each user cell dimension
         static const Tensor<double>& get_rcell_width() {
         	return rcell_width;
+        }
+
+        /// Returns the geometric mean width of the user cell, volume^(1/NDIM)
+        static double get_cell_geometric_mean_width() {
+        	return cell_geometric_mean_width;
+        }
+
+        /// Scale the truncation tolerance by the smallest cell dimension rather than the mean
+
+        /// truncate_mode 1, 2 and 3 scale the tolerance by the physical width of the
+        /// box (see FunctionImpl::truncate_tol). For an anisotropic cell the width has
+        /// to be reduced to one number, and the geometric mean (the default) is the one
+        /// consistent with the box volume. The smallest dimension -- the behaviour
+        /// before 2026 -- makes the tolerance follow the cell's aspect ratio instead,
+        /// which over-tightens slab and wire cells: on an H10 chain in a 100x100x18
+        /// bohr cell it cost 10-13x the time and 8x the memory of mode 0, for LDA, PBE,
+        /// TPSS and Hartree-Fock alike. Cubic cells are unaffected either way.
+        /// @param[in] value true restores the pre-2026 behaviour
+        static void set_truncate_scale_by_min_width(bool value) {
+        	truncate_scale_by_min_width = value;
+        }
+
+        /// Returns true if the truncation tolerance scales by the smallest cell dimension
+        static bool get_truncate_scale_by_min_width() {
+        	return truncate_scale_by_min_width;
+        }
+
+        /// Returns the cell width that scales the truncation tolerance, see set_truncate_scale_by_min_width()
+        static double get_truncate_cell_width() {
+        	return truncate_scale_by_min_width ? cell_min_width : cell_geometric_mean_width;
         }
 
         /// Returns the minimum width of any user cell dimension

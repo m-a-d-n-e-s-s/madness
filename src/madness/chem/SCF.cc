@@ -265,9 +265,10 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     int nbf = aobasis.nbf(molecule);
     if ((this->param.nmo_alpha()>nbf) or (this->param.nmo_beta()>nbf)) error("too few basis functions?", nbf);
 
-    FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
+    FunctionDefaults<3>::set_cell(param.cell());
     //set_protocol < 3 > (world, param.econv());
-    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_mode(param.truncate_mode());
+    FunctionDefaults<3>::set_truncate_scale_by_min_width(param.truncate_by_min_width());
     FunctionDefaults<3>::set_debug(param.print_level() >= 10);
 
 }

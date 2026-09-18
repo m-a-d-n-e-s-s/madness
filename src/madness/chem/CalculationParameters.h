@@ -81,6 +81,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
+		initialize<int>("truncate_mode",1,"how the truncation tolerance scales with box size, see FunctionImpl::truncate_tol: 0 absolute, 1 by box width, 2 by width squared, 3 as 1 with a sibling factor",{0,1,2,3});
+		initialize<bool>("truncate_by_min_width",false,"truncate_mode 1/2/3: scale the tolerance by the smallest cell dimension instead of the geometric mean; only matters for a non-cubic cell");
+		initialize<std::vector<double> >("cell",{},"simulation cell as xlo xhi ylo yhi zlo zhi; overrides the cubic cell built from l");
 		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
 		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
@@ -265,6 +268,26 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	// OptimizationParameters (chem/ParameterManager.hpp).
 
      std::string nwfile() const {return get<std::string>("nwfile");}
+
+	int truncate_mode() const {return get<int>("truncate_mode");}
+	bool truncate_by_min_width() const {return get<bool>("truncate_by_min_width");}
+
+	/// the simulation cell; the cubic cell of half-width l unless `cell` was given
+	Tensor<double> cell() const {
+		std::vector<double> vcell=get<std::vector<double> >("cell");
+		Tensor<double> cell(3,2);
+		if (vcell.size()==0) {
+			for (int i=0; i<3; ++i) {cell(i,0)=-L(); cell(i,1)=L();}
+			return cell;
+		}
+		MADNESS_CHECK_THROW(vcell.size()==6,"cell takes 6 numbers: xlo xhi ylo yhi zlo zhi");
+		for (int i=0; i<3; ++i) {
+			cell(i,0)=vcell[2*i];
+			cell(i,1)=vcell[2*i+1];
+			MADNESS_CHECK_THROW(cell(i,1)>cell(i,0),"cell: hi must exceed lo in every dimension");
+		}
+		return cell;
+	}
 
 	Tensor<double> plot_cell() const {
 		std::vector<double> vcell=get<std::vector<double> >("plot_cell");
