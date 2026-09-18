@@ -167,6 +167,7 @@ void save_es_roots(madness::World &world,
     j["iter"]         = state.iter;
     j["converged"]    = converged;
     j["diverged"]     = state.diverged;
+    j["stalled"]      = state.stalled;   // plateau detector (ConvergencePolicy::stall_*)
 
     // slot_permutation[slot] = stable_index — the cross-protocol root map.
     j["slot_permutation"] = stable_index;
@@ -235,6 +236,7 @@ void save_es_roots(madness::World &world,
           {"bundle_dir",       bundle_path.filename().string()},
           {"converged",        converged},
           {"diverged",         state.diverged},
+          {"stalled",          state.stalled},
           {"slot_permutation", stable_index},
           {"roots",            roots_arr},
           {"iter",             state.iter},

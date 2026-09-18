@@ -37,8 +37,8 @@ detail is in the [feature guides](guides/).
 | Property | Status | Notes |
 |---|---|---|
 | Polarizability α (static + dynamic) | ✅ Stable | per-row accuracy (`row_accuracy`) recorded with every tensor; benchmarked in the published literature |
-| First hyperpolarizability β (static + SHG) | ✅ Stable | 2n+1 / VBC; rows carry accuracy; benchmarked in the published literature |
-| Single-component Raman | ✅ Stable | β(dipole; dipole, nuclear) for one (atom, axis); rows carry accuracy |
+| First hyperpolarizability β (static + SHG) | ✅ Stable | 2n+1 contraction of the one quadratic source ((P,Q) builder, default since 2026-09-09); rows carry accuracy; SHG ω=0.1 validated vs DALTON to ≤0.4 % (H₂O) |
+| Single-component Raman | ✅ Stable | β(dipole; dipole, nuclear) for one (atom, axis); rows carry accuracy; same quadratic source as β (finite-frequency DALTON FD reference pending) |
 | Excited states (TDA / Full RPA) | ✅ Stable (closed shell) | eigenpairs + oscillator strengths; protocol climb + optional DALTON seeding |
 | Two-photon absorption (2PA) | 🟡 Preliminary (closed-shell singlets) | single-residue tensor + Monson–McClain observables; working equations being finalized ([guide](guides/two_photon_absorption.md)) |
 | Full-tensor per-atom Raman | 🔬 In development | per-atom/axis tensor; gated on the state-parallel layer |

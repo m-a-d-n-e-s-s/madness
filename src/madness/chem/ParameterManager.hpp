@@ -1,6 +1,7 @@
 #pragma once
 #include <madness/chem/CCParameters.h>
 #include <madness/chem/CalculationParameters.h>
+#include <algorithm>
 #include <madness/chem/ResponseParameters.hpp>
 #include <madness/chem/TDHF.h>
 #include <madness/chem/oep.h>
@@ -88,6 +89,13 @@ struct IOParameters : public QCCalculationParametersBase {
         "(MADNESS parallel archives) or hdf5 (single .h5 blobs; requires a "
         "-DMADNESS_ENABLE_HDF5=ON build)",
         {"native", "hdf5"});
+    initialize<std::string>(
+        "dalton.dir", "",
+        "run-wide seed directory: a DALTON run (loose RSPVEC + molden.inp, or a "
+        "unique *.tar.gz) that seeds every stage of this calculation — the SCF "
+        "(molden orbitals), the frequency-dependent response legs (XDIPLEN/... "
+        "records) and the excited states (EXCITLAB records). The response-block "
+        "`dalton.dir` is kept as a working alias; this one wins when both are set.");
   }
 
   std::string get_tag() const override { return std::string(tag); }
@@ -104,6 +112,9 @@ struct IOParameters : public QCCalculationParametersBase {
     return get<std::string>("backend");
   }
   [[nodiscard]] bool hdf5() const { return backend() == "hdf5"; }
+  [[nodiscard]] std::string dalton_dir() const {
+    return get<std::string>("dalton.dir");
+  }
 };
 
 template <typename... Groups> class ParameterManager {
@@ -170,8 +181,29 @@ public:
   /// here comes some logic for the calculation, e.g. the number of electrons
   /// derived from the molecule
   void set_derived_values() {
-    this->get<CalculationParameters>().set_derived_values(
-        this->get<Molecule>());
+    auto &cparam = this->get<CalculationParameters>();
+    cparam.set_derived_values(this->get<Molecule>());
+    // Derived blocks inherit the numerical knobs of the dft block unless the
+    // deck sets them in the derived block itself (set_derived_value never
+    // overrides a user-defined value). The response `protocol` ladder already
+    // comes from the dft block (there is no response-level protocol key; one in
+    // the response block is reported as an unknown parameter and ignored);
+    // dconv and maxiter used to be independent defaults (1e-6 / 25) that
+    // silently disagreed with the dft block.
+    auto &rp = this->get<ResponseParameters>();
+    // Response dconv: when the deck does not set it, derive it from the finest
+    // protocol threshold as 100 x thresh. The solvers gate at 5 x max(thresh,
+    // dconv) (convergence_policy.hpp). The factor is empirical: the BSH
+    // amplitude residual of a converged FD leg plateaus at ~2-6e-5 for
+    // thresh 1e-6/k8 and at ~4-8e-6 for thresh 1e-8/k10 (closeout series,
+    // 2026-09-11; the density residual keeps falling to ~1e-7), so dconv =
+    // thresh (gate 5e-8) is unattainable and burned 60 iterations per leg,
+    // while 100 x thresh gives the validated 1e-4 at 1e-6 and a gate of 5e-6
+    // at 1e-8, just above the floor. A tighter series sets dconv explicitly.
+    const auto proto = cparam.protocol();
+    const double finest = proto.empty() ? 1.0e-6 : *std::min_element(proto.begin(), proto.end());
+    rp.set_derived_value("dconv", 100.0 * finest);
+    rp.set_derived_value("maxiter", static_cast<size_t>(cparam.maxiter()));
   }
 
   /// dump out the merged JSON

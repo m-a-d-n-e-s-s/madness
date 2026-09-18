@@ -204,6 +204,10 @@ void save_fd_state(madness::World &world,
         // honest verdict — inspect bsh_residual to judge the deliverable quality.
         {"accepted",     accepted},
         {"diverged",     state.diverged},
+        // Plateau detector verdict (ConvergencePolicy::stall_*): the loop was
+        // stopped early because the gated residuals stopped improving above
+        // the targets. Pairs with `accepted` the same way maxiter does.
+        {"stalled",      state.stalled},
         {"iter",         state.iter},
         {"bsh_residual", bsh_res},
         {"seed",         seed},   // initial-guess origin: source/fd_restart/es_root
@@ -231,7 +235,9 @@ void save_fd_state(madness::World &world,
               "  archive=", archive_basename,
               "  bsh_res=", bsh_res,
               "  converged=", converged,
-              (accepted ? "  (ACCEPTED best-effort @ maxiter)" : ""));
+              (!accepted ? ""
+               : state.stalled ? "  (ACCEPTED best-effort @ stall)"
+                               : "  (ACCEPTED best-effort @ maxiter)"));
     // R1b: machine-readable per-state memory high-water mark (worst task, via
     // gop.max in measure_state) at this protocol boundary — feeds the R4
     // memory-scaling model / pre-flight abort (L2). Greppable: ^MEMORY_HWM.

@@ -63,6 +63,7 @@
 #include "../tools/dalton_gto.hpp"
 #include "../tools/dalton_mra.hpp"
 #include "../tools/dalton_rspvec.hpp"
+#include "es_save_load.hpp"        // save_es_roots / try_load_es_bundle (ES seed)
 #include "fd_save_load.hpp"        // response_filename
 #include "gs_fingerprint.hpp"      // fnv1a64_update / kFnv1a64Basis
 #include "response_metadata.hpp"
@@ -131,6 +132,56 @@ struct DaltonManifest {
   }
 };
 
+// ---------------------------------------------------------------------------
+// PREPARED SEED SOURCES (B24). locate_dalton_dir() may EXTRACT the DALTON
+// tarball, i.e. it writes to the filesystem. Its rank-0 guard is rank 0 OF THE
+// CALLING WORLD, so after the state-parallel fan-out every subworld has its own
+// rank 0 and they all extract into the same <calc_dir>/dalton_import: a sibling
+// then reads a molden.inp that is absent or half-written (fatal: the ground
+// state rebuild throws) or misses the RSPVEC and falls back to a zero guess
+// (silent: the leg just takes twice the iterations).
+//
+// So the universe-level import registers what it resolved, and every later
+// lookup inside a subworld reads this registry instead of the filesystem. The
+// registry is written once, on all ranks, before any fan-out, and only read
+// afterwards.
+// ---------------------------------------------------------------------------
+struct PreparedDaltonSeed {
+  std::string molden_path;
+  std::string rspvec_path;
+};
+
+/// Registry key: the dalton.dir, canonicalized when the filesystem allows it
+/// (the per-leg lookups reach this header with a different working directory
+/// than the import did, so the raw strings need not match).
+inline std::string dalton_seed_key(const std::string &dir) {
+  std::error_code ec;
+  auto p = std::filesystem::weakly_canonical(std::filesystem::path(dir), ec);
+  return ec ? dir : p.string();
+}
+
+inline std::map<std::string, PreparedDaltonSeed> &prepared_dalton_seeds() {
+  static std::map<std::string, PreparedDaltonSeed> registry;
+  return registry;
+}
+
+/// Called on EVERY rank by the universe-level import, after the manifest has
+/// been broadcast. Idempotent.
+inline void register_prepared_dalton_seed(const DaltonManifest &m) {
+  if (m.dir.empty()) return;
+  prepared_dalton_seeds()[dalton_seed_key(m.dir)] =
+      PreparedDaltonSeed{m.molden_path, m.rspvec_path};
+}
+
+/// The resolved paths for `dir`, or nullptr when the universe-level import has
+/// not run. Never touches the filesystem.
+inline const PreparedDaltonSeed *
+prepared_dalton_seed(const std::string &dir) {
+  const auto &reg = prepared_dalton_seeds();
+  auto it = reg.find(dalton_seed_key(dir));
+  return it == reg.end() ? nullptr : &it->second;
+}
+
 namespace detail_dalton_import {
 
 namespace fs = std::filesystem;
@@ -192,12 +243,19 @@ inline std::string resolve_slot(const std::string &dir,
 // Pure rank-0 function: performs filesystem reads and (only when molden/
 // RSPVEC are not loose and a unique *.tar.gz exists) an extraction into
 // `extract_dir` via a shell-out to `tar`. Throws on any ambiguity.
+//
+// `allow_extract = false` makes it read-only: the tarball branch is skipped,
+// so it is safe to call from inside a subworld, where several rank-0s would
+// otherwise extract into the same directory at once (B24). Prefer the
+// prepared-seed registry above; this is the fallback for a directory whose
+// artifacts are already loose.
 // -------------------------------------------------------------------------
 inline DaltonManifest locate_dalton_dir(const std::string &dir,
                                         const std::string &extract_dir,
                                         const std::string &molden_override = {},
                                         const std::string &rspvec_override = {},
-                                        const std::string &out_override = {}) {
+                                        const std::string &out_override = {},
+                                        bool allow_extract = true) {
   namespace fs = std::filesystem;
   using namespace detail_dalton_import;
 
@@ -224,7 +282,7 @@ inline DaltonManifest locate_dalton_dir(const std::string &dir,
   // (only the two members), so pre-extraction is never required but always
   // honored. tar's exit code is ignored on purpose (one member may be absent);
   // what matters is which files exist afterwards.
-  if (m.molden_path.empty() || m.rspvec_path.empty()) {
+  if ((m.molden_path.empty() || m.rspvec_path.empty()) && allow_extract) {
     auto tars = find_candidates(dir, "", ".tar.gz");
     if (tars.size() > 1)
       throw std::runtime_error(
@@ -274,9 +332,30 @@ inline DaltonManifest locate_dalton_dir(const std::string &dir,
     } else if (outs.size() == 1) {
       m.out_path = outs[0];
     } else if (outs.size() > 1) {
-      throw std::runtime_error(
-          "dalton import: multiple *.out candidates in " + dir + " (" +
-          list_join(outs) + ") — pass --dalton-out=PATH");
+      // Several *.out: keep the ones that are DALTON outputs (banner in the
+      // first lines). A SLURM stdout named <job>.out next to <dal>_<mol>.out is
+      // the common case (closeout jobs 2162014/15/25 aborted here).
+      std::vector<std::string> dalton_outs;
+      for (const auto &o : outs) {
+        std::ifstream in(o);
+        std::string line;
+        for (int i = 0; i < 80 && std::getline(in, line); ++i) {
+          // banner lines of a real DALTON output (a SLURM log that merely
+          // says "Running DALTON" must not match)
+          if (line.find("This is output from DALTON") != std::string::npos ||
+              line.find("Dalton - An Electronic Structure Program") != std::string::npos) {
+            dalton_outs.push_back(o);
+            break;
+          }
+        }
+      }
+      if (dalton_outs.size() == 1)
+        m.out_path = dalton_outs[0];
+      else
+        throw std::runtime_error(
+            "dalton import: multiple *.out candidates in " + dir + " (" +
+            list_join(outs) + "), " + std::to_string(dalton_outs.size()) +
+            " of them DALTON outputs — pass --dalton-out=PATH");
     }
     // zero .out files: allowed (provenance-degraded; caller warns).
   }
@@ -522,13 +601,36 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
         std::to_string(gs.orbitals_alpha().size()) +
         " occupied orbitals — different molecule/charge?");
 
-  // ---- exact 1-to-1 frequency match (no nearest fallback) -----------------
+  // ---- exact frequency match; legs absent from the RSPVEC are NOT seeded --
+  // The planner derives frequencies the DALTON grid need not carry (2w for
+  // the SHG A leg at the top grid frequency, w_f/2 for the two-photon legs);
+  // those legs start unseeded (or from the nearest record when seed.freq_tol
+  // is set, see dalton_fd_guess). Warn, drop them, seed the rest. Closeout
+  // job 2162058 aborted here on {X,Y,Z}DIPLEN @ 0.4.
   {
     std::vector<std::pair<int, double>> wanted;
     for (const auto &it : items) wanted.emplace_back(it.axis, it.freq);
     const std::string err =
         match_dalton_frequencies(entries, wanted, m.rspvec_path);
-    if (!err.empty()) throw std::runtime_error(err);
+    if (!err.empty()) {
+      if (world.rank() == 0)
+        print("[DALTON-SEED] WARNING — some requested FD legs are absent from "
+              "the RSPVEC and will not be seeded:\n", err);
+      std::vector<Item> present;
+      for (const auto &it : items) {
+        bool found = false;
+        for (const auto &e : entries)
+          if (std::string(e.lab1) == dalton_dipole_label(it.axis) &&
+              std::abs(e.freq1 - it.freq) < 1e-9) { found = true; break; }
+        if (found) present.push_back(it);
+      }
+      items = std::move(present);
+      if (items.empty()) {
+        if (world.rank() == 0)
+          print("[DALTON-SEED] no FD leg matches the RSPVEC — FD seeding skipped");
+        return rep;
+      }
+    }
   }
 
   // ---- skip decisions (rank 0 reads metadata; broadcast) ------------------
@@ -762,6 +864,307 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
 // locate (rank 0, broadcast) -> geometry fingerprint (HARD error) -> method
 // gate (non-HF = HARD error) -> seed the FD plan.
 // -------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// EXCITED-STATE SEED (2026-09-09): the in-solver form of tools/seed_from_dalton.
+//
+// A DALTON run with `.EXCITA` writes its RPA (or CIS/TDA) eigenvectors into the
+// same RSPVEC as the linear-response vectors, labelled EXCITLAB with freq1 =
+// the excitation energy. When the plan carries an ES request, project the
+// lowest n_roots of them exactly as the standalone tool does:
+//     x_i = +scale * sum_a X_ai phi_a,   y_i = -scale * sum_a Y_ai phi_a
+// (scale = sqrt2: DALTON normalizes 2(||X||^2-||Y||^2)=1, our spatial metric
+// has no spin factor; the y sign follows the eigenvector dictionary
+// y_i = -sum_a Y_ai phi_a, both pinned by the tool's seeded-convergence A/B),
+// rotate into the MADNESS occupied gauge (U = M (M^T M)^{-1/2}, see
+// occupied_gauge_rotation), Q-project, and write the bundle as
+//     <calc_dir>/es__<active protocol key>/   (converged=false)
+// -- the same seam seed_es_from_hdf5 documents: reconcile_protocol sees a
+// non-converged exact-key entry -> Resume -> try_load_es_bundle hands the
+// solver s0. Type (TDA vs Full) follows the request; a CIS/TDA RSPVEC (no Y
+// block) seeding a Full solve gets y = 0. A usable bundle already on disk is
+// never overwritten. No EXCITLAB records in the RSPVEC = a warning (the
+// directory may be an FD-only run), not an error.
+// ---------------------------------------------------------------------------
+inline DaltonSeedReport
+seed_es_from_dalton(madness::World &world, GroundState &gs,
+                    const std::vector<ESRequest> &es_reqs,
+                    const std::string &calc_dir, const DaltonManifest &m,
+                    double scale = std::sqrt(2.0), bool y_from_dalton = false) {
+  using namespace madness;
+  DaltonSeedReport rep;
+  if (es_reqs.empty()) return rep;
+  int  n_roots = 0;
+  bool full    = false;
+  for (const auto &r : es_reqs) {
+    n_roots = std::max(n_roots, r.n_roots);
+    full    = full || !r.tda;
+  }
+  if (n_roots <= 0) return rep;
+
+  const std::string active_key = protocol_key();
+  const double active_thresh   = FunctionDefaults<3>::get_thresh();
+
+  // A usable bundle (any protocol) already present -> do not overwrite.
+  {
+    bool have = false;
+    try {
+      have = full ? try_load_es_bundle<Full, ClosedShell>(world, calc_dir).has_value()
+                  : try_load_es_bundle<TDA,  ClosedShell>(world, calc_dir).has_value();
+    } catch (const std::exception &) { have = false; }
+    if (have) {
+      ++rep.n_skipped;
+      if (world.rank() == 0)
+        print("[DALTON-SEED] ES bundle already present in", calc_dir,
+              "— NOT overwriting with the DALTON seed");
+      return rep;
+    }
+  }
+
+  // ---- RSPVEC: the EXCITLAB records, lowest excitation energies first ------
+  auto rsp = read_rspvec(m.rspvec_path);
+  const auto &info    = rsp.first;
+  const auto &entries = rsp.second;
+  std::vector<size_t> exci;
+  for (size_t i = 0; i < entries.size(); ++i)
+    if (std::string(entries[i].lab1) == "EXCITLAB") exci.push_back(i);
+  if (exci.empty()) {
+    if (world.rank() == 0)
+      print("[DALTON-SEED] no EXCITLAB records in", m.rspvec_path,
+            "— ES not seeded (DALTON run had no .EXCITA?)");
+    return rep;
+  }
+  std::sort(exci.begin(), exci.end(), [&](size_t a, size_t b) {
+    return entries[a].freq1 < entries[b].freq1;
+  });
+  if (static_cast<int>(exci.size()) < n_roots)
+    throw std::runtime_error(
+        "dalton import: ES seed needs " + std::to_string(n_roots) +
+        " roots but the RSPVEC holds only " + std::to_string(exci.size()) +
+        " EXCITLAB records (DALTON *EXCITA .NEXCIT too small)");
+
+  DaltonMoldenResult molden = read_molden(m.molden_path);
+  const int n_occ = info.nish[0];
+  const int n_mo  = molden.n_mo;
+  const int n_ao  = molden.n_ao;
+  const int n_vir = n_mo - n_occ;
+  if (static_cast<size_t>(n_occ) != gs.orbitals_alpha().size())
+    throw std::runtime_error(
+        "dalton import: DALTON n_occ=" + std::to_string(n_occ) +
+        " but the MADNESS ground state has " +
+        std::to_string(gs.orbitals_alpha().size()) + " occupied orbitals");
+  if (n_vir <= 0)
+    throw std::runtime_error("dalton import: molden has no virtual orbitals");
+
+  // ---- occupied-orbital gauge rotation (same as the FD path) ---------------
+  Tensor<double> U;
+  {
+    vector_real_function_3d phi_dal;
+    for (int i = 0; i < n_occ; ++i) {
+      std::vector<double> w(
+          molden.mo_coeffs.begin() + static_cast<ptrdiff_t>(i) * n_ao,
+          molden.mo_coeffs.begin() + static_cast<ptrdiff_t>(i + 1) * n_ao);
+      phi_dal.push_back(project_dalton_weights(world, molden.basis,
+                                               std::move(w), active_thresh));
+    }
+    truncate(world, phi_dal, active_thresh);
+    U = occupied_gauge_rotation(world, phi_dal, gs.orbitals_alpha(),
+                                /*verbose=*/true);
+  }
+
+  // ---- project, rotate, Q-project each root --------------------------------
+  std::vector<vector_real_function_3d> all_x(static_cast<size_t>(n_roots)),
+                                       all_y(static_cast<size_t>(n_roots));
+  std::vector<double> omegas(static_cast<size_t>(n_roots));
+  bool any_y = false;
+  for (int r = 0; r < n_roots; ++r) {
+    const auto &e = entries[exci[static_cast<size_t>(r)]];
+    omegas[static_cast<size_t>(r)] = e.freq1;
+    auto [X, Y] = split_ov(e.vec, n_occ, n_vir);
+    auto x = project_dalton_ov_block(world, molden.basis, molden.mo_coeffs,
+                                     n_ao, n_mo, n_occ, n_vir, X,
+                                     active_thresh, +scale);
+    x = transform(world, x, U);
+    x = gs.Q()(x);
+    truncate(world, x, active_thresh);
+    all_x[static_cast<size_t>(r)] = x;
+    if (full) {
+      vector_real_function_3d y;
+      if (!Y.empty() && y_from_dalton) {
+        y = project_dalton_ov_block(world, molden.basis, molden.mo_coeffs,
+                                    n_ao, n_mo, n_occ, n_vir, Y,
+                                    active_thresh, -scale);
+        y = transform(world, y, U);
+        y = gs.Q()(y);
+        truncate(world, y, active_thresh);
+        any_y = true;
+      } else {                       // CIS/TDA record seeding a Full solve
+        y = madness::copy(world, x);
+        madness::scale(world, y, 0.0);
+      }
+      all_y[static_cast<size_t>(r)] = y;
+    }
+    // inner() is collective: evaluate on every rank, print on rank 0 (the
+    // rank-0-only call deadlocked the seeded closeout runs 2162075/77/79
+    // until ThreadPool::await timed out).
+    const double x_norm2 = inner(world, x, x).sum();
+    if (world.rank() == 0)
+      print("[DALTON-SEED] ES root", r, " omega(DALTON) =", e.freq1,
+            " ||x||^2 =", x_norm2,
+            full ? "  (full X,Y)" : "  (TDA X)");
+  }
+
+  // ---- write the bundle at the ACTIVE key, converged=false -----------------
+  const std::string bundle = calc_dir + "/es__" + active_key;
+  auto set_common = [&](auto &s) {
+    s.omega = Tensor<double>(static_cast<long>(n_roots));
+    for (int r = 0; r < n_roots; ++r) s.omega(static_cast<long>(r)) = omegas[static_cast<size_t>(r)];
+    s.iter = 0;
+    s.last_bsh_residual     = std::vector<double>(static_cast<size_t>(n_roots), 1.0);
+    s.last_density_residual = std::vector<double>(static_cast<size_t>(n_roots), 1.0);
+    s.last_omega_residual   = std::vector<double>(static_cast<size_t>(n_roots), 1.0);
+  };
+  if (full) {
+    ESSolver<Full, ClosedShell>::State s;
+    for (int r = 0; r < n_roots; ++r) {
+      ResponseStateXY<ClosedShell> root;
+      root.x_alpha = all_x[static_cast<size_t>(r)];
+      root.y_alpha = all_y[static_cast<size_t>(r)];
+      s.roots.push_back(std::move(root));
+    }
+    set_common(s);
+    save_es_roots<Full, ClosedShell>(world, s, bundle, /*converged=*/false);
+    // Preserved twin: the solve REWRITES es__<key> every iteration, so the
+    // seed guard (es_seed_guard.hpp) compared the solve with itself (attempt 9:
+    // overlap 1.000000 on every root). The executor points the guard here.
+    save_es_roots<Full, ClosedShell>(world, s, bundle + ".dseed", /*converged=*/false);
+  } else {
+    ESSolver<TDA, ClosedShell>::State s;
+    for (int r = 0; r < n_roots; ++r) {
+      ResponseStateX<ClosedShell> root;
+      root.x_alpha = all_x[static_cast<size_t>(r)];
+      s.roots.push_back(std::move(root));
+    }
+    set_common(s);
+    save_es_roots<TDA, ClosedShell>(world, s, bundle, /*converged=*/false);
+    save_es_roots<TDA, ClosedShell>(world, s, bundle + ".dseed", /*converged=*/false);
+  }
+  if (world.rank() == 0) {
+    auto meta = ResponseMetadata::load_or_create(calc_dir + "/response_metadata.json");
+    meta.set_seeded_from(m.provenance());
+    meta.save();
+    print("[DALTON-SEED] wrote ES seed bundle", bundle, " (+ preserved twin .dseed)  roots =", n_roots,
+          " type =", full ? "full" : "tda", " y-block =", any_y ? "DALTON" : "zero",
+          " (converged=false -> the ES node Resumes from it)");
+  }
+  rep.n_seeded += n_roots;
+  return rep;
+}
+
+// ---------------------------------------------------------------------------
+// NEAREST-FREQUENCY FD GUESS (2026-09-09, deck `seed.freq_tol`). For a dipole
+// FD leg whose frequency is not in the RSPVEC (the derived two-photon legs at
+// MADNESS's omega_f/2), return the DALTON N(omega) record closest in frequency
+// (|d omega| <= tol) projected exactly as seed_fd_from_dalton does (gauge
+// rotation, Q-projection, x = -Z, y = +Y). It is an INITIAL GUESS only: nothing
+// is written under a protocol key, so the restart machinery never mistakes it
+// for a solved rung. Collective; returns nullopt (with a note) when no record
+// is within tol or the directory has no dipole records.
+// ---------------------------------------------------------------------------
+inline std::optional<ResponseStateXY<ClosedShell>>
+dalton_fd_guess(madness::World &world, GroundState &gs,
+                const std::string &dalton_dir, const std::string &calc_dir,
+                int axis, double freq, double tol) {
+  using namespace madness;
+  // This runs PER LEG, inside a subworld, with as many subworlds concurrent as
+  // the wave is wide. It must therefore not write: the universe-level import
+  // already resolved (and if needed extracted) the source, so take its paths
+  // from the registry. Only when nothing was prepared do we look at the
+  // directory ourselves, and then read-only (B24).
+  DaltonManifest m;
+  std::string err;
+  if (const auto *prepared = prepared_dalton_seed(dalton_dir)) {
+    m.molden_path = prepared->molden_path;
+    m.rspvec_path = prepared->rspvec_path;
+  } else {
+    if (world.rank() == 0) {
+      try {
+        m = locate_dalton_dir(dalton_dir, calc_dir + "/dalton_import", "", "",
+                              "", /*allow_extract=*/false);
+      } catch (const std::exception &ex) { err = ex.what(); }
+    }
+    world.gop.broadcast_serializable(err, 0);
+    if (!err.empty()) {
+      if (world.rank() == 0)
+        print("[DALTON-SEED] nearest-frequency guess unavailable (seed source "
+              "was not prepared on the universe):", err);
+      return std::nullopt;
+    }
+    world.gop.broadcast_serializable(m.molden_path, 0);
+    world.gop.broadcast_serializable(m.rspvec_path, 0);
+    world.gop.fence();
+  }
+
+  auto rsp = read_rspvec(m.rspvec_path);
+  const auto &info    = rsp.first;
+  const auto &entries = rsp.second;
+  const RspVecEntry *best = nullptr;
+  double best_d = tol;
+  for (const auto &e : entries) {
+    if (std::string(e.lab1) != dalton_dipole_label(axis)) continue;
+    const double d = std::abs(e.freq1 - freq);
+    if (d <= best_d) { best_d = d; best = &e; }
+  }
+  if (!best) {
+    if (world.rank() == 0)
+      print("[DALTON-SEED] no", dalton_dipole_label(axis), "record within", tol,
+            "au of", freq, "-> zero guess");
+    return std::nullopt;
+  }
+  DaltonMoldenResult molden = read_molden(m.molden_path);
+  const int n_occ = info.nish[0];
+  const int n_ao  = molden.n_ao;
+  const int n_mo  = molden.n_mo;
+  const int n_vir = n_mo - n_occ;
+  if (static_cast<size_t>(n_occ) != gs.orbitals_alpha().size() || n_vir <= 0)
+    return std::nullopt;
+  const double thresh = FunctionDefaults<3>::get_thresh();
+
+  Tensor<double> U;
+  {
+    vector_real_function_3d phi_dal;
+    for (int i = 0; i < n_occ; ++i) {
+      std::vector<double> w(
+          molden.mo_coeffs.begin() + static_cast<ptrdiff_t>(i) * n_ao,
+          molden.mo_coeffs.begin() + static_cast<ptrdiff_t>(i + 1) * n_ao);
+      phi_dal.push_back(project_dalton_weights(world, molden.basis, std::move(w), thresh));
+    }
+    truncate(world, phi_dal, thresh);
+    U = occupied_gauge_rotation(world, phi_dal, gs.orbitals_alpha(), /*verbose=*/false);
+  }
+  auto [Z, Y] = split_ov(best->vec, n_occ, n_vir);
+  ResponseStateXY<ClosedShell> g;
+  g.x_alpha = project_dalton_ov_block(world, molden.basis, molden.mo_coeffs,
+                                      n_ao, n_mo, n_occ, n_vir, Z, thresh, -1.0);
+  g.x_alpha = transform(world, g.x_alpha, U);
+  g.x_alpha = gs.Q()(g.x_alpha);
+  truncate(world, g.x_alpha, thresh);
+  if (!Y.empty()) {
+    g.y_alpha = project_dalton_ov_block(world, molden.basis, molden.mo_coeffs,
+                                        n_ao, n_mo, n_occ, n_vir, Y, thresh, +1.0);
+    g.y_alpha = transform(world, g.y_alpha, U);
+    g.y_alpha = gs.Q()(g.y_alpha);
+    truncate(world, g.y_alpha, thresh);
+  } else {
+    g.y_alpha = madness::copy(world, g.x_alpha);
+    madness::scale(world, g.y_alpha, 0.0);
+  }
+  if (world.rank() == 0)
+    print("[DALTON-SEED] nearest-frequency guess for", dalton_dipole_label(axis),
+          "@", freq, ": DALTON record at", best->freq1, " (d omega =", best_d,
+          ", tol", tol, ")");
+  return g;
+}
+
 inline DaltonSeedReport
 run_dalton_import(madness::World &world, GroundState &gs,
                   const madness::Molecule &molecule,
@@ -770,7 +1173,8 @@ run_dalton_import(madness::World &world, GroundState &gs,
                   const std::string &molden_override = {},
                   const std::string &rspvec_override = {},
                   const std::string &out_override = {},
-                  double geometry_tol_bohr = 1e-4) {
+                  double geometry_tol_bohr = 1e-4,
+                  bool es_y_from_dalton = false) {
   DaltonManifest m;
   std::string err;
 
@@ -825,12 +1229,22 @@ run_dalton_import(madness::World &world, GroundState &gs,
   world.gop.broadcast_serializable(m.geometry_hash, 0);
   world.gop.fence();   // extraction visible before the replicated parses
 
+  // Every rank now holds the resolved paths; record them so the per-leg
+  // lookups after the fan-out never locate (and never extract) again (B24).
+  register_prepared_dalton_seed(m);
+
   if (world.rank() == 0) {
     print("[DALTON-SEED] fingerprint OK:");
     print(report);
   }
 
-  return seed_fd_from_dalton(world, gs, plan.fd, calc_dir, m);
+  auto rep = seed_fd_from_dalton(world, gs, plan.fd, calc_dir, m);
+  // ES seed (EXCITLAB eigenvectors), when the plan has an ES request.
+  const auto es_rep = seed_es_from_dalton(world, gs, plan.es, calc_dir, m,
+                                          std::sqrt(2.0), es_y_from_dalton);
+  rep.n_seeded  += es_rep.n_seeded;
+  rep.n_skipped += es_rep.n_skipped;
+  return rep;
 }
 
 } // namespace molresponse_v3

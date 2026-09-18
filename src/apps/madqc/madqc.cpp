@@ -278,6 +278,20 @@ int main(int argc, char **argv) {
         pm.get<CalculationParameters>().set_derived_value("save", true);
         auto reference =
             std::make_shared<SCFApplication<moldft_lib>>(world, pm);
+        // Seeding showcase (2026-09-09): with `dalton.dir` in the deck, the
+        // ground state is seeded from the DALTON molden before the SCF plans
+        // its restart (see molresponse_v3::seed_gs_from_dalton_dir).
+        // io.dalton.dir (run-wide) wins; response.dalton.dir is the alias.
+        if (const std::string ddir =
+                !pm.get<IOParameters>().dalton_dir().empty()
+                    ? pm.get<IOParameters>().dalton_dir()
+                    : pm.get<ResponseParameters>().dalton_dir();
+            !ddir.empty()) {
+          reference->set_pre_run_hook(
+              [ddir](World &w, const Params &p, const std::filesystem::path &d) {
+                molresponse_v3::seed_gs_from_dalton_dir(w, p, d, ddir);
+              });
+        }
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
             std::make_unique<ResponseApplication<molresponse_v3_lib>>(
@@ -319,7 +333,11 @@ int main(int argc, char **argv) {
       // machine-readable <prefix>.calc_info.json remains the source of truth.
       if (world.rank() == 0) {
         qcapp::write_results_summary(std::cout, wf.results());
-        std::ofstream report(prefix + ".out");
+        // APPEND, never truncate: with the usual `#SBATCH --output=<prefix>.out`
+        // this file IS the job's stdout, and opening it for writing wiped the
+        // whole run log at the end of every successful run (closeout attempt
+        // 12, 2026-09-10: a 97-minute LiH log reduced to the summary).
+        std::ofstream report(prefix + ".out", std::ios::app);
         qcapp::write_results_summary(report, wf.results());
         print("Wrote results summary :", prefix + ".out");
 

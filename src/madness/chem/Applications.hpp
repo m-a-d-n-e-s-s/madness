@@ -6,6 +6,7 @@
 #include <madness/chem/Results.h>
 #include <madness/chem/molopt.h>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -254,6 +255,17 @@ public:
     calc()->work_dir = workdir;
   }
 
+  /// Optional pre-run hook, invoked collectively INSIDE the SCF work directory
+  /// (cwd = the task dir, before the engine constructs its restart plan) and
+  /// only when the engine is about to run (Restart/Redo). The app layer uses it
+  /// to lay down a ground-state seed archive (e.g. madqc: `dalton.dir` ->
+  /// <prefix>.restartdata projected from the DALTON molden), which `restart
+  /// auto` then picks up like any other archive. chem/ stays ignorant of where
+  /// the seed comes from.
+  using PreRunHook = std::function<void(World &, const Params &,
+                                        const std::filesystem::path &)>;
+  void set_pre_run_hook(PreRunHook h) { pre_run_hook_ = std::move(h); }
+
   // print parameters
   /// Print the *effective* parameters of this step (user-defined, derived and
   /// default values, as annotated by QCCalculationParametersBase::print), not
@@ -376,6 +388,11 @@ public:
         print("Next action is ", static_cast<int>(action),
               " (0=Ok,1=ReloadOnly,2=Restart,3=Redo)");
 
+      if (pre_run_hook_ && (action == madness::NextAction::Restart ||
+                            action == madness::NextAction::Redo)) {
+        pre_run_hook_(world_, params_, pm.dir());
+        world_.gop.fence();
+      }
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
         // Both actions mean the same thing here -- run the engine. Restart vs
@@ -585,6 +602,8 @@ private:
   }
 
   World &world_;
+
+  PreRunHook pre_run_hook_;
   Library lib_; // owns shared_ptr<Engine>
   SCFResultsTuple scf_results;
 };

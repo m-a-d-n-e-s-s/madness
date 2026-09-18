@@ -109,9 +109,11 @@ struct CalcNode {
   std::string         es_root_id;
 
   // DerivedFD: FD frequency = es_freq_factor * (ES root energy). 0.5 keeps the
-  // FD off the response pole at ω = ωₙ (two-photon resonance, 2ω = ωₙ). 1.0 for
-  // ordinary nodes (unused there).
-  double              es_freq_factor = 1.0;
+  // FD off the response pole at ω = ωₙ (two-photon resonance, 2ω = ωₙ).
+  // Default matches DerivedFDRequest (build_dag copies the request value in;
+  // the two defaults are kept identical so a hand-built node can't silently
+  // land on a different frequency rule). Unused on ordinary nodes.
+  double              es_freq_factor = 0.5;
 
   // Hard edges (correctness): node ids that must be converged before this
   // node runs. Resolved by prerequisites_converged against the DAG + metadata.

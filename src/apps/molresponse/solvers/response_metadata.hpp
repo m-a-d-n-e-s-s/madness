@@ -113,6 +113,15 @@ public:
     j_["excited_states"][protocol_key] = entry;
   }
 
+  /// Attach the seeded-solve root-identity guard block to the ES bundle entry
+  /// at this protocol: excited_states/<protocol_key>/seed_guard = entry. Kept
+  /// separate from set_es_bundle (which full-replaces the bundle entry on every
+  /// save) because the guard is evaluated once, AFTER the final save.
+  void set_es_seed_guard(const std::string &protocol_key,
+                         const nlohmann::json &entry) {
+    j_["excited_states"][protocol_key]["seed_guard"] = entry;
+  }
+
   /// Upsert one VBC quadratic source: vbc_states/<vbc_id>/<protocol_key> = entry.
   void set_vbc_state(const std::string &vbc_id,
                      const std::string &protocol_key,

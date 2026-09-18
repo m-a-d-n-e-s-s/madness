@@ -275,6 +275,10 @@ int main(int argc, char** argv) {
         // whether the seeded Full solve converges to the intended root).
         const bool full   = parser.key_exists("full");
         const double ysign = parser.key_exists("yflip") ? +1.0 : -1.0;
+        // --yzero: keep only the X block (TDA-quality guess for a Full solve;
+        // the solver builds y itself, as after a TDA warmup). Diagnostic for
+        // the seeded-ES divergence of 2026-09-10 (closeout attempts 5/coarse).
+        const bool yzero = parser.key_exists("yzero");
 
         // Project one occ-vir block (flat, row-major occ-outer) into n_occ
         // Functions scaled by sgn*scale — shared machinery (dalton_mra.hpp).
@@ -295,7 +299,7 @@ int main(int argc, char** argv) {
             for (double v : Y_flat) ynorms[rr] += v * v;
             all_x[rr] = project_block(X_flat, +1.0);
             if (full) {
-                if (!Y_flat.empty()) {
+                if (!Y_flat.empty() && !yzero) {
                     all_y[rr] = project_block(Y_flat, ysign);
                 } else {   // CIS/TDA file (no Y block): promote with Y = 0
                     all_y[rr] = madness::copy(world, all_x[rr]);
