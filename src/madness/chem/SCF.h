@@ -147,6 +147,8 @@ class DipoleFunctor : public FunctionFunctorInterface<double, 3> {
 private:
     const int axis;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     DipoleFunctor(int axis) : axis(axis) {}
 
     double operator()(const coordT& x) const {
@@ -160,6 +162,8 @@ class MomentFunctor : public FunctionFunctorInterface<double, 3> {
 private:
     const int i, j, k;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
 
     MomentFunctor(const std::vector<int>& x) : i(x[0]), j(x[1]), k(x[2]) {}
