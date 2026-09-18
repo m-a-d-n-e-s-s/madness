@@ -233,8 +233,9 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
     gradient = tensor_to_json(grad);
 }
 
-SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule)
-    : molecule(molecule), param(param1) {
+SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule,
+         const PCMParameters& pcm_param1)
+    : molecule(molecule), param(param1), pcm_param(pcm_param1) {
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
@@ -245,6 +246,10 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     }
     world.gop.broadcast_serializable(param, 0);
     world.gop.broadcast_serializable(aobasis, 0);
+
+    // after the broadcast, so every rank derives the solvent from the same pcm_data;
+    // pure computation, so no second broadcast is needed
+    this->pcm_param.set_derived_values(param);
 
     if (param.print_level() > 2) print_timings = true;
 

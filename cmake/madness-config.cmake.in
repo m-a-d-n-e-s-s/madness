@@ -210,6 +210,47 @@ if (MADNESS_HAS_LIBXC AND NOT TARGET Libxc::xc)
     find_dependency(Libxc CONFIG REQUIRED PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
 endif()
 
+########### PCMSolver ############
+# Only acted on when MADNESS linked the imported target PCMSolver::pcm. A
+# FindPCM-based discovery is already baked into the exported target as an
+# absolute library path and needs nothing here, which is what leaves both flags
+# below false in that case.
+set(MADNESS_HAS_PCM @MADNESS_HAS_PCM@)
+set(madness_PCM_VIA_CONFIG @MADNESS_PCM_VIA_CONFIG@)
+set(madness_PCM_CONFIG "@PCMSolver_CONFIG@")
+set(madness_PCM_FETCHED @MADNESS_PCM_FETCHED@)
+if (MADNESS_HAS_PCM AND NOT TARGET PCMSolver::pcm)
+    include( CMakeFindDependencyMacro )
+    if (madness_PCM_VIA_CONFIG AND madness_PCM_CONFIG)
+        get_filename_component(_pcm_config_dir "${madness_PCM_CONFIG}" DIRECTORY)
+        find_dependency(PCMSolver CONFIG REQUIRED PATHS "${_pcm_config_dir}" NO_DEFAULT_PATH)
+    elseif (madness_PCM_FETCHED)
+        # MADNESS built PCMSolver itself. From the build tree its targets sit
+        # next to madness-targets.cmake (PCMSolver exports only its install
+        # tree, so MADNESS exports the build tree on its behalf); from the
+        # install tree its own config was installed under the MADNESS prefix.
+        if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/PCMSolver-targets.cmake")
+            include("${CMAKE_CURRENT_LIST_DIR}/PCMSolver-targets.cmake")
+        else()
+            find_dependency(PCMSolver CONFIG REQUIRED
+                            PATHS "${PACKAGE_PREFIX_DIR}/share/cmake/PCMSolver" NO_DEFAULT_PATH)
+        endif()
+    else()
+        # madness linked a PCMSolver::pcm it did not discover for itself: the
+        # project that embedded madness as a subproject defined the target.
+        # Only that project knows where it came from, so try the ordinary
+        # search and, failing that, say what is missing -- rather than let
+        # madness-targets.cmake fail later on an undefined target.
+        find_package(PCMSolver CONFIG QUIET)
+        if (NOT TARGET PCMSolver::pcm)
+            message(FATAL_ERROR
+                "madness was built against a PCMSolver::pcm target supplied by its "
+                "enclosing project, which this installation cannot re-find. Define "
+                "PCMSolver::pcm (or set PCMSolver_DIR) before find_package(madness).")
+        endif()
+    endif()
+endif()
+
 ########### simple-dftd3 ############
 # Only re-found when MADNESS actually linked the imported target; a
 # FindDFTD3-based discovery is already baked into the exported target as an

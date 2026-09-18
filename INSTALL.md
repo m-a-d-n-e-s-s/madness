@@ -215,18 +215,62 @@ If IntegratorXX absent, a Gaussian-distributed random grid will be used, leading
 different MP3 runs.
 
 
-### Polarizable Conitinuum Solver (PCM):
+### Polarizable Continuum Solver (PCM):
 
-* ENABLE_PCM --- Enables use of PCM
-* PCM_ROOT_DIR --- The install prefix for PCM 
+* ENABLE_PCM --- Enables use of PCM [default=OFF]
+* MADNESS_FETCH_PCMSOLVER --- Build PCMSolver from source if no installed copy is found [default=ON]
+* PCM_ROOT_DIR --- The install prefix for PCM
 * PCM_INCLUDE_DIR --- The path to the PCM include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
 * PCM_LIBRARY --- The path to the PCM library (should be added automatically when the correct PCM_ROOT_DIR is given)
-set either PCM_ROOT_DIR or manually set PCM_INCLUDE_DIR and PCM_LIBRARY
+* PCM_BOOST_INCLUDE_DIR --- The directory containing `boost/`, for the source build (found or fetched automatically)
+
+PCMSolver (<https://github.com/PCMSolver/pcmsolver>, LGPL-3.0-or-later) supplies
+the polarizable continuum model of solvation, which the `pcm` input group
+requests. It is off by default; with `-DENABLE_PCM=ON` MADNESS looks for it in
+three steps and stops at the first that works:
+
+1. `find_package(PCMSolver CONFIG)`, which picks up the `PCMSolver::pcm` target
+   from any PCMSolver >= 1.2 installation on `CMAKE_PREFIX_PATH` (including an
+   activated conda environment).
+2. The bundled `FindPCM` module, for installations that predate that config or
+   are laid out by hand --- set `PCM_ROOT_DIR`, or `PCM_INCLUDE_DIR` and
+   `PCM_LIBRARY` directly.
+3. Failing both, MADNESS fetches PCMSolver v1.3.0 and builds it as part of its
+   own build, installing it alongside MADNESS. Turn this off with
+   `-DMADNESS_FETCH_PCMSOLVER=OFF`.
+
+The source build needs a **Fortran compiler** (PCMSolver's cavity generator is
+Fortran) and **zlib**. If either is missing the fetch is skipped with a warning
+saying which, and MADNESS builds without PCM rather than failing to configure ---
+a deck that asks for `pcm` then aborts with an explanatory message. Because
+`ENABLE_PCM` is off by default, asking for it and not getting it is always a
+warning, not a silent downgrade.
+
+PCMSolver's only other dependency is **Boost headers** >= 1.54 (no compiled Boost
+library is used). MADNESS takes whatever Boost is on the search path; failing
+that it fetches a pinned headers-only release --- a ~50 MB download, pinned by
+version and SHA256 in `external/versions.cmake`, of which only the `boost/`
+header tree is extracted (~190 MB under `<build>/external/boost`; the tarball is
+discarded afterwards). Budget roughly 35 s for it. Point
+`-DPCM_BOOST_INCLUDE_DIR` at a directory containing `boost/` to use a copy of
+your own and skip the download entirely.
+
+Either way MADNESS pins `Boost_INCLUDE_DIR` for the vendored build, which is
+load-bearing: left to itself, PCMSolver reacts to a failed `find_package(Boost)`
+by downloading `boost_1_54_0.zip` from a 2013 SourceForge URL and unpacking it
+into the build tree, on any host where CMake does not find Boost on the default
+search path.
+
+Note that PCMSolver v1.3.0 dates from 2020: MADNESS applies a handful of
+toolchain-compatibility patches to it while fetching, listed in
+`cmake/patches/pcmsolver-v1.3.0.cmake` under the source root.
+
 See also
 madness/CMakeLists.txt
 madness/external/pcm.cmake
-madness/modules/FindPCM.cmake
-madness/src/apps/chem/CMakeLists.txt
+madness/cmake/modules/FindPCM.cmake
+madness/cmake/modules/FindOrFetchPCMSolver.cmake
+madness/src/madness/chem/pcm.h
 
 ### DFT-D3 empirical dispersion correction (simple-dftd3):
 

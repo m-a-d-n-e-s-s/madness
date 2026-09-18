@@ -409,8 +409,11 @@ public:
 
     Nemo(World& world, const commandlineparser& parser);
 
+	/// \p pcm_param defaults to the bare `pcm` group; the solvent still arrives from
+	/// param.pcm_data() via PCMParameters::set_derived_values, so a caller that never
+	/// parsed a deck keeps working.
 	Nemo(World& world, const CalculationParameters& param, const NemoCalculationParameters& nemo_param,
-		const Molecule& molecule);
+		const Molecule& molecule, const PCMParameters& pcm_param = PCMParameters());
 
     std::string name() const {return "nemo";}
     bool selftest() {return false;}

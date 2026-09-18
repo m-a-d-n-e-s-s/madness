@@ -112,7 +112,8 @@ option(ENABLE_LIBUNWIND
         OFF)
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
-option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
+option(ENABLE_PCM "Enables use of the polarizable continuum model library" OFF)
+option(MADNESS_FETCH_PCMSOLVER "Build PCMSolver from source when ENABLE_PCM is on and no installed copy is found" ON)
 option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
 option(ENABLE_DFTD3 "Enables use of simple-dftd3 for empirical dispersion corrections (DFT-D3)" ON)
 option(ENABLE_PYTHON "Enables Python bindings via pybind11" OFF)
@@ -684,6 +685,9 @@ include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchNlohmannJson.cmake)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
+  # N.B. no add_feature_info() for PCM: external/pcm.cmake registers PCMSolver
+  # with FeatureSummary as a *package*, so it is reported alongside the other
+  # optional dependencies rather than among MADNESS's own on/off switches.
   include(external/pcm.cmake)
   include(external/integratorxx.cmake)
   include(external/dftd3.cmake)
