@@ -85,6 +85,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
+		initialize<std::vector<double> >("aocc",std::vector<double>(),"explicit alpha occupations (0 or 1) by orbital index within the occupied span; a 0 is a hole");
+		initialize<std::vector<double> >("bocc",std::vector<double>(),"explicit beta occupations (0 or 1) by orbital index within the occupied span; a 0 is a hole");
 		initialize<int>   ("nopen",0,"number of unpaired electrons = nalpha-nbeta");
 		initialize<int>   ("maxiter",25,"maximum number of iterations");
 		initialize<int>   ("nio",1,"no. of io servers to use");
@@ -151,7 +153,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
 		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
 		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
-		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
+		initialize<int> ("nv_extra",0,"extra virtuals converged first and dropped stepwise down to nvalpha");
+		initialize<int> ("nv_step",0,"virtuals dropped per step-down stage (0: all extras at once)");
+		initialize<int> ("nv_its",5,"maximum iterations per intermediate step-down stage");
+		initialize<bool> ("freeze_occupied",false,"iterate only the virtuals in the mean field of restarted occupied orbitals, which stay fixed");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
 
@@ -195,7 +200,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	int nvalpha() const {return get<int>("nvalpha");}
 	int nvbeta() const {return get<int>("nvbeta");}
-	int nv_factor() const {return get<int>("nv_factor");}
+	std::vector<double> aocc() const {return get<std::vector<double> >("aocc");}
+	std::vector<double> bocc() const {return get<std::vector<double> >("bocc");}
+	int nv_extra() const {return get<int>("nv_extra");}
+	int nv_step() const {return get<int>("nv_step");}
+	int nv_its() const {return get<int>("nv_its");}
+	bool freeze_occupied() const {return get<bool>("freeze_occupied");}
 
 	int nmo_alpha() const {return get<int>("nmo_alpha");}
 	int nmo_beta() const {return get<int>("nmo_beta");}
@@ -317,6 +327,28 @@ struct CalculationParameters : public QCCalculationParametersBase {
         set_derived_value("nmo_alpha",nalpha() + nvalpha());
         set_derived_value("nmo_beta",nbeta() + nvbeta());
 
+        if (nv_extra() < 0 or nv_step() < 0 or nv_its() < 1) error("nv_extra, nv_step >= 0 and nv_its >= 1 required");
+        if (nv_extra() > 0 and nvalpha() == 0) error("nv_extra requires nvalpha > 0");
+        if (freeze_occupied() and nvalpha() == 0 and nvbeta() == 0) error("freeze_occupied requires nvalpha or nvbeta > 0");
+
+        // Explicit occupations address the occupied span. A hole there is only
+        // index-stable with canonical orbitals: every iteration re-sorts them by
+        // eigenvalue, so the empty index stays on the same orbital.
+        bool hole = false;
+        for (const auto& [name, n] : std::vector<std::pair<std::string, int>>{{"aocc", nalpha()}, {"bocc", nbeta()}}) {
+            const auto occ = get<std::vector<double> >(name);
+            if (int(occ.size()) > n) error((name + " has more entries than occupied orbitals").c_str(), occ.size());
+            for (const double o : occ) {
+                if (o != 0.0 and o != 1.0) error((name + " entries must be 0 or 1").c_str(), o);
+                if (o == 0.0) hole = true;
+            }
+        }
+        if (not bocc().empty() and spin_restricted()) error("bocc requires spin_restricted false");
+        if (hole) {
+            set_derived_value("localize", std::string("canon"));
+            if (do_localize()) error("a hole in the explicit occupations requires localize canon");
+        }
+
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
         // --> need 50 a.u. either side of the molecule
@@ -364,12 +396,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
     	}
 
 
-        //NWChem only supports Boys localization (or canonical)
-        if (nwfile() != "none") {
-             set_derived_value("localize",std::string("boys"));
-             //Error if user requested something other than Boys
-             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
-        }
 	}
 };
 
