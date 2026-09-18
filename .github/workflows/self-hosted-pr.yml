@@ -1,0 +1,51 @@
+name: Self-hosted PR Build
+
+# Runs on a real, persistent machine (not an ephemeral GitHub-hosted VM), so this
+# is only safe against untrusted PR code because "Require approval for first-time
+# contributors" (or stricter) is enabled under Settings > Actions > General > Fork
+# pull request workflows from outside collaborators. A maintainer must approve
+# before an external PR's workflow runs here.
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: self-hosted-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, madness]
+    timeout-minutes: 60
+    env:
+      CTEST_OUTPUT_ON_FAILURE: 1
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+      MAD_NUM_THREADS: 16
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build-pr -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
+            -DMADNESS_WERROR=ON \
+            -DMADNESS_TASK_BACKEND=TBB
+
+      - name: Build
+        run: cmake --build build-pr
+
+      - name: Test (short + medium)
+        run: cmake --build build-pr --target check-short-madness
+
+      - name: MPI multi-rank smoke test
+        working-directory: build-pr
+        run: |
+          cmake --build . --target testsuite
+          # --bind-to none: this host has 128 cores / 4 NUMA domains, so OpenMPI's
+          # default binding for -np 2 gives each rank only 1 core, which collides
+          # with MAD_NUM_THREADS=16 and trips MADNESS's over-subscription check.
+          mpiexec -np 2 --bind-to none ./src/madness/mra/testsuite
