@@ -121,6 +121,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
+        static double cell_geometric_mean_width; ///< volume^(1/NDIM), the mean dimension
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
         static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
@@ -148,6 +149,7 @@ namespace madness {
             cell_width = cell(_,1)-cell(_,0);
             cell_volume = cell_width.product();
             cell_min_width = cell_width.min();
+            cell_geometric_mean_width = (NDIM > 0) ? std::pow(cell_volume, 1.0/double(NDIM)) : 1.0;
             rcell_width = copy(cell_width);
             for (std::size_t i=0; i<NDIM; ++i) rcell_width(i) = 1.0/rcell_width(i);
             // the standard displacements used to apply operators are ordered by real-space distance,
@@ -391,6 +393,11 @@ namespace madness {
         /// Returns the reciprocal of the width of each user cell dimension
         static const Tensor<double>& get_rcell_width() {
         	return rcell_width;
+        }
+
+        /// Returns the geometric mean width of the user cell, volume^(1/NDIM)
+        static double get_cell_geometric_mean_width() {
+        	return cell_geometric_mean_width;
         }
 
         /// Returns the minimum width of any user cell dimension
