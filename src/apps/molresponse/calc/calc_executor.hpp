@@ -242,6 +242,11 @@ struct ExecutorSettings {
   // protocol in --protocol is the de-facto "final" rung; its recorded
   // bsh_residual is the verdict either way.
   bool              accept_at_maxiter = false;
+  // --hylleraas: after each FD solve, also evaluate the STATIONARY estimate of
+  // <v|x> and the error bound docs/guides/convergence.md states but nothing
+  // computed (|d alpha| <= |c| ||theta|| ||r_B||), plus a stationarity
+  // self-check. Static only. Off by default.
+  bool              hylleraas             = false;
   // F2 (doc 32 §5): fan independent states out across subworlds. This is the
   // number of subworlds PER PHYSICAL NODE (F2f): 0 = single-World reference
   // (byte-identical); 1 = one subworld per node (node-aligned); >1 = sub-node /
@@ -602,6 +607,12 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
   const std::vector<double> one_protocol = {thresh};
   auto sf = solvers::iterate_protocol(solver, std::move(s0), one_protocol,
                                       prepare, post_step, pp);
+
+  // Property-accuracy report: the documented error bound, evaluated, and the
+  // stationary estimate beside the naive one. AFTER iterate_protocol, so the
+  // measurement cannot perturb the solve.
+  if (ctx.hylleraas)
+    solver.report_property_accuracy(sf, pert.description(), freq);
 
   NodeResult r;
   const bool strict   = converged_now(sf, solver);

@@ -76,6 +76,12 @@ public:
     std::vector<double>                     last_bsh_residual;
     std::vector<madness::real_function_3d>  rho_alpha_prev;
     std::vector<double>                     last_density_residual;
+    /// Per-channel ||theta||, the BSH source norm at the last iteration. This is
+    /// the constant in the error bound the convergence guide states,
+    /// |d alpha| <= |c| ||theta|| ||r_B||, which until now nothing in the code
+    /// evaluated -- the bound was documented and unevaluable. Recorded per
+    /// channel so the budget can be checked at run time.
+    std::vector<double>                     last_theta_norm;
     /// Per-channel source overlap sum_i <v phi_i | x_i> (+ y block for Full):
     /// the diagonal property estimate of this channel, tracked per iteration
     /// so the property's own convergence can be read off the log (2026-09-11).
@@ -136,6 +142,167 @@ public:
         madness::FunctionDefaults<3>::get_thresh());
   }
   const ConvergencePolicy::Targets& targets() const { return targets_; }
+
+  /// <z|(A-w)|z> for the operator this solver actually solves, formed directly.
+  ///
+  /// Read off bsh_apply rather than assumed: the fixed point satisfies
+  ///
+  ///     (T - eps_i - w) x_i + (V0 x)_i - (E0 x)_i + gamma_i(x) = -v_i
+  ///
+  /// and theta(z) = V0 z - E0 z + gamma(z) + v collects every term but the
+  /// kinetic and diagonal-energy ones, so
+  ///
+  ///     <z|(A-w)|z> = sum_i [ <z_i|T|z_i> - (eps_i + w) <z_i|z_i> ]
+  ///                   + <z|theta(z)> - <z|v>
+  ///
+  /// No Green's operator and no projector enter, which is the point: the two
+  /// earlier attempts at this both went wrong by inferring the quadratic form
+  /// from the BSH map (first ignoring its level shift, then assuming Q passed
+  /// through the inner product because theta was in the Q space -- compute_V0x
+  /// returns V*x unprojected, so it is not). <z_i|T|z_i> comes from
+  /// madness::Kinetic, which uses the gradient trick and never applies a
+  /// Laplacian to an MRA function.
+  ///
+  /// Collective. Static only: at finite w the operator is symmetric in the
+  /// paired metric, not in this inner product.
+  double quadratic_form(const Storage &z, int r) {
+    auto rho   = K::compute_density(world_, target_.gs, z);
+    auto theta = assemble_theta_for(z, r, rho);
+    madness::Kinetic<double, 3> T(world_);
+    const auto zb = z.blocks();
+    double acc = 0.0;
+    for (std::size_t b = 0; b < zb.size(); ++b) {
+      const auto &zv = *zb[b];
+      if (zv.empty()) continue;
+      std::vector<madness::real_function_3d> v(zv.begin(), zv.end());
+      madness::Tensor<double> tm = T(v, v);            // collective
+      madness::Tensor<double> ov = madness::inner(world_, v, v);
+      const double w = target_.responses[r].omega;
+      for (std::size_t i = 0; i < v.size(); ++i)
+        acc += tm(static_cast<long>(i), static_cast<long>(i))
+             - (target_.gs.aeps(static_cast<long>(i)) + w) * ov(static_cast<long>(i));
+    }
+    return acc + storage_inner(world_, z, theta)
+               - source_overlap(world_, z, target_.responses[r]);
+  }
+
+  /// Stationary (Hylleraas) estimate of channel `r`'s source overlap <v|x>.
+  ///
+  /// The equation is (A-w)x = -v, so the functional stationary at the solution
+  /// is S[z] = 2<v|z> + <z|(A-w)|z>, with S[x] = <v|x>. The naive estimate
+  /// <v|z> is linear in z and therefore first order in the response error; S is
+  /// stationary, so the SAME vector gives an error quadratic in it -- exactly
+  /// -<dx|(A-w)|dx>, and exactly, because S is quadratic and the expansion
+  /// terminates.
+  ///
+  /// Evaluated at the converged vector itself: no extra BSH cycle, one kernel
+  /// build for theta(z) and one gradient pass for the kinetic term.
+  double stationary_property(const State &s, int r) {
+    if (r < 0 || r >= static_cast<int>(s.responses.size()))
+      return std::numeric_limits<double>::quiet_NaN();
+    if constexpr (!std::is_same_v<Type, Static>) {
+      return std::numeric_limits<double>::quiet_NaN();
+    } else {
+      const Storage &z = s.responses[r];
+      return 2.0 * source_overlap(world_, z, target_.responses[r])
+           + quadratic_form(z, r);
+    }
+  }
+
+  /// Is S actually stationary at the converged vector? Perturb it along a fixed
+  /// direction by eps and 2*eps and compare the two deviations: a stationary
+  /// functional gives a ratio near 4, a first-order one near 2.
+  ///
+  /// This is the check the two earlier attempts skipped. It needs no reference
+  /// value, no sweep and no curve fit -- it interrogates the functional itself,
+  /// on one converged state, so a wrong quadratic form is caught before any
+  /// compute is spent on measuring its slope.
+  /// NB the size of `eps`. The signal here is eps^2 <d|(A-w)|d>, recovered by
+  /// cancellation from terms of order ||theta|| ~ 10; at eps = 1e-3 that signal
+  /// is ~1e-6, which is the MRA representation noise at thresh = 1e-6, and the
+  /// ratio then measures the noise rather than the functional (the first run of
+  /// this check returned ~8, i.e. a cubic law, which a quadratic functional
+  /// cannot produce). eps must be large enough that eps^2 clears the floor.
+  double stationarity_ratio(const State &s, int r, double eps = 1e-1) {
+    if constexpr (!std::is_same_v<Type, Static>) {
+      return std::numeric_limits<double>::quiet_NaN();
+    } else {
+      const Storage &x = s.responses[r];
+      const double S0 = stationary_property(s, r);
+      // direction: the perturbation source, Q-projected like x and independent
+      // of the error already in x
+      auto dir = target_.responses[r].source;
+      const double dn = storage_norm(world_, dir);
+      if (!(dn > 0.0)) return std::numeric_limits<double>::quiet_NaN();
+      auto probe = [&](double a) {
+        State t = s;
+        t.responses[r] = x;
+        t.responses[r].axpy(world_, a / dn, dir);
+        return stationary_property(t, r);
+      };
+      const double d1 = std::abs(probe(eps)      - S0);
+      const double d2 = std::abs(probe(2.0 * eps) - S0);
+      return (d1 > 0.0) ? d2 / d1 : std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+  /// The LINEAR coefficient of S about the converged vector, extracted by a
+  /// central difference so no fitting is involved:
+  ///
+  ///     S(+eps) - S(-eps) = 2 eps alpha,   alpha = 2 <d | (A-w) x + v>
+  ///
+  /// alpha is twice the projected residual contracted with the probe direction
+  /// d (which lies in the Q space, being the perturbation source). If the
+  /// quadratic form matched the equation the solver solves, alpha would BE the
+  /// residual overlap and would fall with it. Reported beside ||r_B|| so the
+  /// two can be compared directly at several convergence levels.
+  double linear_coefficient(const State &s, int r, double eps = 1e-1) {
+    if constexpr (!std::is_same_v<Type, Static>) {
+      return std::numeric_limits<double>::quiet_NaN();
+    } else {
+      const Storage &x = s.responses[r];
+      auto dir = target_.responses[r].source;
+      const double dn = storage_norm(world_, dir);
+      if (!(dn > 0.0)) return std::numeric_limits<double>::quiet_NaN();
+      auto probe = [&](double a) {
+        State t = s;
+        t.responses[r] = x;
+        t.responses[r].axpy(world_, a / dn, dir);
+        return stationary_property(t, r);
+      };
+      return (probe(eps) - probe(-eps)) / (2.0 * eps);
+    }
+  }
+
+  /// One parseable line per channel: the naive and stationary estimates, the
+  /// residual, ||theta||, the documented error bound evaluated, and the
+  /// stationarity self-check. No-op unless the executor asks (--hylleraas).
+  void report_property_accuracy(const State &s, const std::string &pert,
+                                double freq, double c_conv = -2.0) {
+    for (int r = 0; r < target_.n_responses(); ++r) {
+      const double naive = (r < static_cast<int>(s.last_property.size()))
+                               ? s.last_property[r] : 0.0;
+      const double res   = (r < static_cast<int>(s.last_bsh_residual.size()))
+                               ? s.last_bsh_residual[r] : 0.0;
+      const double tn    = (r < static_cast<int>(s.last_theta_norm.size()))
+                               ? s.last_theta_norm[r] : 0.0;
+      const double S     = stationary_property(s, r);      // collective
+      // two probe sizes: a correct quadratic form gives 4 at BOTH, and the
+      // agreement between them is what says the probe is above the noise floor
+      const double ratio  = stationarity_ratio(s, r, 1e-1);   // collective
+      const double ratio2 = stationarity_ratio(s, r, 5e-2);   // collective
+      const double alin   = linear_coefficient(s, r);         // collective
+      plog("[PROPACC] pert=", pert, " freq=", freq,
+           " thresh=", madness::FunctionDefaults<3>::get_thresh(),
+           " k=", madness::FunctionDefaults<3>::get_k(),
+           " ch=", r, " iters=", s.iter,
+           " res=", res, " theta_norm=", tn,
+           " bound=", std::abs(c_conv) * tn * res,
+           " naive=", naive, " S=", S, " diff=", S - naive,
+           " stat_ratio=", ratio, " stat_ratio_half=", ratio2,
+           " lin_coeff=", alin);
+    }
+  }
 
 private:
   // F2d (doc 32 §5.6): gated print. Centralizes the Normal/rank-0 guard and the
@@ -211,6 +378,51 @@ private:
       s += ov.sum();
     }
     return s;
+  }
+
+  /// theta = V0z - E0z + gamma(z) + V_p for an ARBITRARY z, mirroring the
+  /// assembly step() performs inline. The stationary estimate must see the same
+  /// operator the iteration solves.
+  Storage assemble_theta_for(const Storage &z, int r,
+                             const madness::real_function_3d &rho) {
+    const double thr = madness::FunctionDefaults<3>::get_thresh();
+    Storage theta = K::compute_V0x(world_, target_.gs, z);
+    {
+      auto E0x = K::compute_E0x(world_, target_.gs, z);
+      theta.axpy(world_, -1.0, E0x);
+    }
+    {
+      auto gamma = K::compute_gamma(world_, target_.gs, z, rho);
+      theta.axpy(world_, +1.0, gamma);
+    }
+    add_perturbation_source(world_, theta, target_.responses[r]);
+    theta.truncate_all(world_, thr);
+    return theta;
+  }
+
+  /// Inner product of two Storages, block by block. source_overlap is this
+  /// against the channel's perturbation; the stationary property estimate and
+  /// the error-bound constant need the general form.
+  static double storage_inner(madness::World &world, const Storage &a,
+                              const Storage &b) {
+    double s = 0.0;
+    const auto ab = a.blocks();
+    const auto bb = b.blocks();
+    for (std::size_t k = 0; k < ab.size() && k < bb.size(); ++k) {
+      const auto &av = *ab[k];
+      const auto &bv = *bb[k];
+      const std::size_t n = std::min(av.size(), bv.size());
+      if (n == 0) continue;
+      madness::Tensor<double> ov = madness::inner(world,
+          std::vector<madness::real_function_3d>(av.begin(), av.begin() + n),
+          std::vector<madness::real_function_3d>(bv.begin(), bv.begin() + n));
+      s += ov.sum();
+    }
+    return s;
+  }
+
+  static double storage_norm(madness::World &world, const Storage &a) {
+    return std::sqrt(std::max(0.0, storage_inner(world, a, a)));
   }
 
   /// Plateau bookkeeping: append this iteration's normalised distance for EACH
@@ -321,6 +533,7 @@ public:
     out.last_density_residual.assign(M, 0.0);
     out.last_bsh_residual.assign(M, 0.0);
     out.last_property.assign(M, 0.0);
+    out.last_theta_norm.assign(M, 0.0);
     out.rho_alpha_prev.resize(M);
 
     // Inc-2: build the φ-only g0 exchange tensor ONCE per protocol (cached on the
@@ -370,6 +583,10 @@ public:
       }
       add_perturbation_source(world_, theta, target_.responses[r]); // theta += V_p
       theta.truncate_all(world_, thr);
+      // The constant in the error bound docs/guides/convergence.md states,
+      // |d alpha| <= |c| ||theta|| ||r_B||. Until now nothing evaluated it, so
+      // the bound was documented and uncheckable; theta is already in hand here.
+      out.last_theta_norm[r] = storage_norm(world_, theta);
 
       // BSH apply
       auto x_new = K::bsh_apply(world_, target_.gs, in.responses[r],

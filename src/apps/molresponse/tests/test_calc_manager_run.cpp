@@ -444,6 +444,10 @@ int main(int argc, char **argv) {
         // verdict).
         if (parser.key_exists("accept-at-maxiter"))
           ctx.accept_at_maxiter = true;
+        // --hylleraas: evaluate the convergence guide's error bound and the
+        // stationary property estimate after each FD solve (Static only).
+        if (parser.key_exists("hylleraas"))
+          ctx.hylleraas = true;
         // ES/KAIN experiment knobs (workstreams A + C; sweepable without
         // rebuild).
         if (parser.key_exists("kain-maxsub"))
