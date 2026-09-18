@@ -29,7 +29,7 @@ jobs:
       # See AGENTS.md's PaRSEC gotcha. This must be set job-wide, not just on
       # the MPI step: check-short-madness runs binaries directly, without mpirun.
       PARSEC_MCA_bind_threads: 0
-      MAD_NUM_THREADS=16
+      MAD_NUM_THREADS: 16
 
     steps:
       - uses: actions/checkout@v4
