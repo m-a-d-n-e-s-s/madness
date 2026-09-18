@@ -88,6 +88,8 @@ class atomic_attraction : public FunctionFunctorInterface<double, 3> {
   const size_t iatom;
 
 public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   atomic_attraction(const Molecule &mol, const size_t iatom1)
       : molecule(mol), iatom(iatom1) {}
 

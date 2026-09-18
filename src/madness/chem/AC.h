@@ -170,6 +170,8 @@ template<unsigned long int NDIM>
 class int_factor_functor : public FunctionFunctorInterface<double,NDIM>{
 
 public:
+	using FunctionFunctorInterface<double,NDIM>::operator();
+
 	int_factor_functor(){}
 	//int_factor_functor(std::vector<atom_information<NDIM> > atoms, std::string interpolation): atoms(atoms), intpol_scheme(interpolation){}
 
@@ -263,6 +265,8 @@ template<unsigned long int NDIM>
 class lr_pot_functor : public FunctionFunctorInterface<double,NDIM>{
 
 public:
+	using FunctionFunctorInterface<double,NDIM>::operator();
+
 	lr_pot_functor(){}
 	//lr_pot_functor(std::vector<atom_information<NDIM> > atoms, double dft_coeff_, std::string interpolation): atoms(atoms), dft_coeff(dft_coeff_), intpol_scheme(interpolation){}
 

@@ -58,6 +58,8 @@ class GaussianGuess : public FunctionFunctorInterface<T,NDIM> {
 
 public:
 
+    using FunctionFunctorInterface<T,NDIM>::operator();
+
     /// ctor
 
     /// @param[in]  origin  the origin of the Gauss function
