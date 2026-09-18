@@ -1929,7 +1929,7 @@ private:
 
         if (rho<b) {
             const double negn= power<N>(-1.0);
-            return (negn*power<2>(1 + a)*(-1 + N)*power<2>(Z)*power<N-2>(-1 + ((1 + a)*r*Z)/(a*N)))/
+            return (negn*power<2>(1 + a)*(-1 + static_cast<int>(N))*power<2>(Z)*power<N-2>(-1 + ((1 + a)*r*Z)/(a*N)))/
                     (a*N*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
         } else {
             return 0.0;
