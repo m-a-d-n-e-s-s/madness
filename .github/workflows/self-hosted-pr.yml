@@ -22,6 +22,14 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE: 1
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
+      # PaRSEC does its own hwloc-based thread binding independent of mpirun's
+      # --bind-to; left at its default (on) it pins the main/worker threads to a
+      # single core and MADNESS's own binding sanity check then refuses to run
+      # ("the CPU binding of this job over-subscribes the hardware threads").
+      # See AGENTS.md's PaRSEC gotcha. This must be set job-wide, not just on
+      # the MPI step: check-short-madness runs binaries directly, without mpirun.
+      PARSEC_MCA_bind_threads: 0
+      MAD_NUM_THREADS=16
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +40,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=ON \
             -DMADNESS_WERROR=ON \
-            -DMADNESS_TASK_BACKEND=PaRSEC
+            -DMADNESS_TASK_BACKEND=PaRSEC \
+            -DPARSEC_GPU_WITH_CUDA=OFF
 
       - name: Build
         run: cmake --build build-pr
@@ -44,4 +53,7 @@ jobs:
         working-directory: build-pr
         run: |
           cmake --build . --target testsuite
-          MAD_NUM_THREADS=2 mpiexec -np 2 ./src/madness/mra/testsuite
+          # --bind-to none: this host has 128 cores / 4 NUMA domains, so OpenMPI's
+          # default binding for -np 2 gives each rank only 1 core, which collides
+          # with MAD_NUM_THREADS=2 and trips the same over-subscription check.
+          mpiexec -np 2 --bind-to none ./src/madness/mra/testsuite
