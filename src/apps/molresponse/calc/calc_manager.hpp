@@ -459,7 +459,18 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
                  ? NodeAction::Fresh : NodeAction::Restart;
     // Honest-climb: budget exhausted at this rung -> done here, climb (see
     // the doc block above). `iter` is the last attempt's count (save-side).
-    if (max_iters > 0 && e->value("iter", 0) >= max_iters)
+    //
+    // A STALLED attempt counts as exhausted too. The plateau detector gives up
+    // at stall_window (~6) iterations, well short of max_iters (60 in the
+    // shipped decks), so `iter >= max_iters` never fires for it: the rung came
+    // back Resume, re-solved from the same state, plateaued in the same place,
+    // and came back Resume again. The no-progress guard in run() is the second
+    // net, and it was not catching this either (its fingerprint included
+    // wall_s/rss_gb) -- so the default path on any ladder tighter than two rungs
+    // did not terminate. A re-solve of a plateaued state is deterministic;
+    // there is nothing to gain by running it again.
+    if (max_iters > 0 &&
+        (e->value("iter", 0) >= max_iters || e->value("stalled", false)))
       return NodeAction::Skip;
     return NodeAction::Resume;
   }

@@ -63,14 +63,16 @@ void put_protocol(json &m, double thresh) {
 // Write an fd_states entry. `iter` = the last attempt's iteration count
 // (save-side state.iter) — drives reconcile's honest-climb rule.
 void put_fd(json &m, const std::string &pert, double thresh, double freq,
-            bool converged, bool diverged = false, int iter = 0) {
+            bool converged, bool diverged = false, int iter = 0,
+            bool stalled = false) {
   const std::string key = protocol_key_at(thresh);
   const std::string fk  = ResponseMetadata::freq_key(freq);
   put_protocol(m, thresh);
   m["fd_states"][pert][key][fk] = {{"freq", freq},
                                    {"converged", converged},
                                    {"diverged", diverged},
-                                   {"iter", iter}};
+                                   {"iter", iter},
+                                   {"stalled", stalled}};
 }
 
 void put_es(json &m, double thresh, bool converged, bool diverged = false) {
@@ -222,6 +224,24 @@ int main() {
            "budget remains (iter < max_iters) -> Resume (continue iterating)");
     EXPECT(reconcile_protocol(fd, m7, 1e-6) == NodeAction::Resume,
            "max_iters unspecified (0) -> legacy Resume");
+    // ---- a STALLED rung is exhausted too, however few iterations it used ----
+    // The plateau detector gives up at stall_window (~6) iterations, far short
+    // of the shipped decks' max_iters (60), so `iter >= max_iters` never fired
+    // for it: reconcile said Resume, the re-solve plateaued in the same place,
+    // and reconcile said Resume again — forever. Re-solving a plateaued state
+    // is deterministic, so there is nothing to gain from the next attempt.
+    json m7s = empty_meta();
+    put_fd(m7s, "dipole_x", 1e-6, 0.057, /*converged=*/false, /*diverged=*/false,
+           /*iter=*/6, /*stalled=*/true);
+    EXPECT(reconcile_protocol(fd, m7s, 1e-6, /*max_iters=*/60) == NodeAction::Skip,
+           "stalled well under the budget -> Skip (climb), not Resume-forever");
+    // Not stalled at the same iteration count keeps the old answer.
+    json m7n = empty_meta();
+    put_fd(m7n, "dipole_x", 1e-6, 0.057, /*converged=*/false, /*diverged=*/false,
+           /*iter=*/6, /*stalled=*/false);
+    EXPECT(reconcile_protocol(fd, m7n, 1e-6, /*max_iters=*/60) == NodeAction::Resume,
+           "same iter, not stalled -> Resume (still converging)");
+
     // A diverged state never climbs — divergence beats the exhausted-budget rule.
     json m8 = empty_meta();
     put_fd(m8, "dipole_x", 1e-6, 0.057, /*converged=*/false, /*diverged=*/true,

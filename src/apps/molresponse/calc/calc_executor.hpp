@@ -287,6 +287,24 @@ struct ExecutorContext : ExecutorSettings {
 // ---------------------------------------------------------------------------
 namespace detail_exec {
 
+/// Remove the wall-clock and RSS fields from every `metrics` object in a
+/// metadata subtree. They are measurements OF the run, not results of it: two
+/// re-solves of the same stuck state agree on every number that matters and
+/// disagree on these, which is exactly backwards for a progress comparison.
+inline void strip_volatile_metrics(nlohmann::json &j) {
+  if (j.is_object()) {
+    auto m = j.find("metrics");
+    if (m != j.end() && m->is_object()) {
+      m->erase("wall_s");
+      m->erase("rss_gb");
+    }
+    for (auto &kv : j.items()) strip_volatile_metrics(kv.value());
+  } else if (j.is_array()) {
+    for (auto &e : j) strip_volatile_metrics(e);
+  }
+}
+
+
 inline bool is_static_freq(double freq) { return std::abs(freq) < 1e-12; }
 
 /// Parse a derived-FD provenance label "es_root_NNNN" -> NNNN; -1 otherwise.
@@ -1323,9 +1341,18 @@ public:
       // don't honest-climb the schedule shape the way the FD/max_iters branch
       // does, so the bare id@protocol signature repeats even mid-convergence.
       const auto &mj = meta.json();
+      // The fingerprint must contain only what MEANS progress. StateMetrics
+      // embeds wall_s and rss_gb, which differ on every re-solve however little
+      // the solve achieved, so dumping the subtree whole made
+      // `progress == last_progress` unreachable and everything below this `if`
+      // dead code. iters/bytes/coeffs stay: those move only when the state does.
       std::string progress;
-      for (const char *k : {"fd_states", "excited_states", "vbc_states"})
-        if (mj.contains(k)) progress += mj[k].dump();
+      for (const char *k : {"fd_states", "excited_states", "vbc_states"}) {
+        if (!mj.contains(k)) continue;
+        nlohmann::json sub = mj[k];
+        detail_exec::strip_volatile_metrics(sub);
+        progress += sub.dump();
+      }
       if (sig == last_sig && progress == last_progress) {
         // No progress on this wave: quarantine its nodes and try the rest of
         // the schedule. The run only stops when nothing unquarantined remains.
