@@ -353,6 +353,13 @@ public:
         const double cutoff=smoothing;
         if (r>cutoff) {
             return 1.0/r*xyz;
+        } else if (r==0.0) {
+            // kk/r is 0/0 here and returns NaN. The limit is the zero vector:
+            // kk = (105/32)(r/cutoff) + O(r^3), so kk/r tends to 105/(32 cutoff)
+            // and kk/r*xyz tends to 0. Unreachable from Gauss quadrature, whose
+            // points are strictly interior, but reachable from any code that
+            // evaluates this functor on a grid containing a nuclear position.
+            return coord_3d{0.0,0.0,0.0};
         } else {
             const double xi=r/cutoff;
             const double xi2=xi*xi;

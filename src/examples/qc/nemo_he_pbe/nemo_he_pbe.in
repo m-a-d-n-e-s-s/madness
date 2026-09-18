@@ -1,0 +1,57 @@
+# PBE on helium with regularized (nuclear-cusp-free) orbitals.
+#
+# The first DFT deck on the nemo path. Every other nemo case here is `xc hf`, so
+# until this one nothing exercised the regularized density-gradient path at all:
+# XCOperator's nemo constructor, `dft_deriv` reaching a nemo run, and the
+# interaction between the nuclear correlation factor and the GGA flux term were
+# all uncovered. That matters because the nemo path does something the moldft one
+# does not -- it forms the full physical density rho = R^2 rho_nemo, cusp
+# included, and then takes grad(log rho) numerically straight across the cusp.
+#
+# WHY THE VALUE IS THE ONE TO ASSERT ON. Same system, same functional, same
+# settings through `--wf=scf` (moldft) instead gives -2.892864, i.e. 70 uHa
+# higher. That is not a disagreement between the two paths -- tightened to
+# `protocol [1e-4, 1e-6, 1e-8]` they converge to
+#
+#     nemo    -2.892934765
+#     moldft  -2.892934759
+#
+# agreeing to 6e-09. The 70 uHa is moldft's remaining discretization error at
+# thresh 1e-6, which nemo has already shed: the regularized path reaches its
+# converged answer two protocol rungs earlier. Asserting on the nemo number at
+# this cheap setting therefore tests something real, and a regression in the
+# regularized gradient would show up as the value drifting toward the moldft one.
+#
+# EXTERNAL ANCHOR. TURBOMOLE PBE, grid m5, $scfconv 8:
+#     aug-cc-pV5Z  -2.89288309
+#     aug-cc-pV6Z  -2.89292686
+# so the converged MRA value sits 7.9 uHa below the largest Gaussian basis, with
+# the 6Z-5Z increment still -43.8 uHa -- the right sign and size for a GGA
+# basis-set increment, and a ratio of 0.18 that reproduces an independent earlier
+# He/PBE cross-check to the digit.
+#
+# NOT COVERED HERE: meta-GGA. nemo has no meta-GGA support -- `nemo.cc` never
+# calls XCOperator::set_tau(), so `xc tpss` on this path aborts with "meta-gga
+# functional without a kinetic energy density", and even once that is plumbed
+# set_tau() refuses while a nuclear correlation factor is set, because tau has to
+# be built from grad(R F) = R (grad F - U1 F) rather than grad(F). See
+# XC-MADNESS-ASSESSMENT.md section 4.4; the ingredients already exist as
+# OEP::compute_total_kinetic_density.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_he_pbe.in)
+
+dft
+    xc       pbe
+    k        7
+    maxiter  20
+    econv    1e-5
+    dconv    1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    He  0.0  0.0  0.0
+end

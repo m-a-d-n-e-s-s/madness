@@ -584,29 +584,6 @@ public:
 
     /// the Laplacian of the density
 
-    /// The Laplacian should currently only be used for subsequent convolution
-    /// with a Green's function (which is reasonably stable), but not on its own!
-    ///
-    /// The Laplacian of the cuspy density is numerically fairly unstable:
-    ///  - a singular term may be rewritten using the nuclear potential (see below)
-    ///  - the Laplacian of the regularized density is still very noisy
-    ///
-    /// It may be computed as
-    /// \f[
-    ///   \Delta \rho = \Delta (R^2 \rho_R)
-    ///          = \Delta (R^2) \rho_R + 2\nabla R \nabla \rho_R + R^2 \Delta \rho_R
-    ///          = 2 R^2 U1^2 \rho_R -4 R^2 ( U-V ) \rho_R + R^2 \Delta\rho_R
-    /// \f]
-    /// where we can use the identity
-    /// \f[
-    ///   U=V + R^{-1}[T,R]
-    ///   -2 R (U-V) = \Delta R + 2\nabla R\dot \nabla
-    /// \f]
-    /// first term comes from the definition of the U potential as the commutator
-    /// over the kinetic energy (aka the Laplacian)
-    /// @param[in]  rhonemo    the regularized density \rho_R
-    /// @return     the laplacian of the reconstructed density \Delta (R^2\rho_R)
-    real_function_3d make_laplacian_density(const real_function_3d& rhonemo) const;
 
     /// compute the kinetic energy potential using Eq. (16) of
     /// R. A. King and N. C. Handy, “Kinetic energy functionals from the Kohn–Sham potential,”
@@ -729,9 +706,19 @@ protected:
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
+	/// @param[out] xcflux  the vector field Y_i that the orbital update pushes
+	///                     through the Green's function, see
+	///                     XCOperator::weak_xc_terms. Assigned in the weak form
+	///                     only and left EMPTY otherwise, which is how the caller
+	///                     tells the two forms apart.
+	/// @param[out] fock_xc the xc block of the Fock matrix. In the weak form it
+	///                     cannot be recovered from xcnemo any more, because what
+	///                     is missing from xcnemo is exactly the term that has no
+	///                     multiplicative representation. Assigned in the weak
+	///                     form only and left untouched otherwise.
 	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
-			vecfuncT& Unemo) const;
+			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const;
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;

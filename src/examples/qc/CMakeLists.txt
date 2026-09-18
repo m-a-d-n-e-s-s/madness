@@ -24,7 +24,13 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
     add_qctest(scf_he_tpss     madqc "qctest;medium;applications")    #  17 s
     # the open-shell counterpart of scf_he_tpss: the only deck with unequal spin
     # densities, hence the only one exercising the spin-polarized sigma matrix
-#    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+    # the only DFT deck on the nemo path: XCOperator's nemo constructor, the
+    # regularized density-gradient path, and the ncf/GGA-flux interaction
+    add_qctest(nemo_he_pbe     madqc "qctest;medium;applications")    #  12 s
+    # meta-gga on the nemo path: tau from the nemos via the psi = R F product
+    # rule, and the non-multiplicative term with the R factors cancelled
+    add_qctest(nemo_he_tpss    madqc "qctest;medium;applications")    #  24 s
   endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s

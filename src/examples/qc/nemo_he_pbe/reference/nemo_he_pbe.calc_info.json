@@ -6,19 +6,20 @@
     "tasks": [
         {
             "convergence": {
-                "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 0.0001
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-06
             },
             "convergence_info": {
-                "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 0.0001
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-06
             },
             "hamiltonian": {
                 "dispersion": "none",
                 "dispersion_atm": false,
                 "dispersion_functional": "none",
                 "localize": "new",
-                "xc": "tpss"
+                "ncf": "slater:2.000000",
+                "xc": "pbe"
             },
             "metadata": {
                 "mpi_size": 1
@@ -34,7 +35,7 @@
                 ],
                 "parameters": {
                     "core_type": "none",
-                    "eprec": 1e-06,
+                    "eprec": 0.0001,
                     "field": [
                         0.0,
                         0.0,
@@ -43,13 +44,13 @@
                     "no_orient": false,
                     "psp_calc": false,
                     "pure_ae": true,
-                    "source_name": "scf_li_tpss.in",
+                    "source_name": "nemo_he_pbe.in",
                     "source_type": "inputfile",
                     "symtol": -0.01,
                     "units": "atomic"
                 },
                 "symbols": [
-                    "Li"
+                    "He"
                 ]
             },
             "optimization_results": {
@@ -80,13 +81,29 @@
             },
             "properties": {
                 "dipole": {
-                    "ndim": -1,
-                    "size": 0
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -4.1346045668842224e-15,
+                        -8.224128578954043e-15,
+                        -9.677555813535914e-15
+                    ]
                 },
-                "energy": -7.488963883016434,
+                "energy": -2.892934589961646,
                 "gradient": {
-                    "ndim": -1,
-                    "size": 0
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -4.892197758010752e-13,
+                        1.9773072068574038e-13,
+                        -2.316480340880389e-13
+                    ]
                 }
             },
             "scf": {
@@ -102,7 +119,7 @@
                     ],
                     "parameters": {
                         "core_type": "none",
-                        "eprec": 1e-06,
+                        "eprec": 0.0001,
                         "field": [
                             0.0,
                             0.0,
@@ -111,80 +128,82 @@
                         "no_orient": false,
                         "psp_calc": false,
                         "pure_ae": true,
-                        "source_name": "scf_li_tpss.in",
+                        "source_name": "nemo_he_pbe.in",
                         "source_type": "inputfile",
                         "symtol": -0.01,
                         "units": "atomic"
                     },
                     "symbols": [
-                        "Li"
+                        "He"
                     ]
                 },
                 "properties": {
                     "dipole": {
-                        "ndim": -1,
-                        "size": 0
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            -4.1346045668842224e-15,
+                            -8.224128578954043e-15,
+                            -9.677555813535914e-15
+                        ]
                     },
-                    "energy": -7.488963883016434,
+                    "energy": -2.892934589961646,
                     "gradient": {
-                        "ndim": -1,
-                        "size": 0
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            -4.892197758010752e-13,
+                            1.9773072068574038e-13,
+                            -2.316480340880389e-13
+                        ]
                     }
                 },
                 "scf_dispersion_correction_energy": 0.0,
                 "scf_eigenvalues_a": {
-                    "dims": [
-                        2
-                    ],
-                    "ndim": 1,
-                    "size": 2,
-                    "vals": [
-                        -1.9383641615194191,
-                        -0.11972577996414935
-                    ]
-                },
-                "scf_eigenvalues_b": {
                     "dims": [
                         1
                     ],
                     "ndim": 1,
                     "size": 1,
                     "vals": [
-                        -1.9323636981664762
+                        -0.5792864524815877
                     ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
                 },
                 "scf_fock_a": {
                     "ndim": -1,
                     "size": 0
                 },
-                "scf_total_energy": 0.0
+                "scf_total_energy": -2.892934589961646
             },
             "scf_eigenvalues_a": {
-                "dims": [
-                    2
-                ],
-                "ndim": 1,
-                "size": 2,
-                "vals": [
-                    -1.9383641615194191,
-                    -0.11972577996414935
-                ]
-            },
-            "scf_eigenvalues_b": {
                 "dims": [
                     1
                 ],
                 "ndim": 1,
                 "size": 1,
                 "vals": [
-                    -1.9323636981664762
+                    -0.5792864524815877
                 ]
+            },
+            "scf_eigenvalues_b": {
+                "ndim": -1,
+                "size": 0
             },
             "scf_fock_a": {
                 "ndim": -1,
                 "size": 0
             },
-            "scf_total_energy": 0.0
+            "scf_total_energy": -2.892934589961646
         }
     ]
 }

@@ -1,0 +1,10 @@
+{
+  "description": "TPSS on helium with regularized (nemo) orbitals -- the only meta-GGA deck on the nemo path, covering tau built from the nemos via the psi = R F product rule and the non-multiplicative term with the R factors cancelled analytically",
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-3},
+    {"key": ["tasks", 0, "convergence_info", "converged_for_thresh"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

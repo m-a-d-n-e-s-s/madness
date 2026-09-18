@@ -19,6 +19,7 @@ MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
 #include <madness/mra/key.h>
 #include <madness/world/MADworld.h>
 #include <madness/mra/function_common_data.h>
+#include <madness/mra/function_interface.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
@@ -91,18 +92,46 @@ public:
         // hole rather than reused, so the surviving indices keep their meaning.
         enum_ddens_ptx=25,      ///< \f$ \nabla\rho_{pt}\f$
         enum_ddens_pty=26,      ///< \f$ \nabla\rho_{pt}\f$
-        enum_ddens_ptz=27       ///< \f$ \nabla\rho_{pt}\f$
+        enum_ddens_ptz=27,      ///< \f$ \nabla\rho_{pt}\f$
+
+        // ---- the nemo meta-gga decomposition, kept apart on purpose ----------
+        //
+        // With psi = R F the product rule gives
+        //   |grad psi|^2 = R^2 ( |grad F|^2 - 2 F U1.grad F + |U1|^2 F^2 ).
+        // The first group below is everything in that expression which is SMOOTH:
+        // F is cusp-free by construction, so |grad F|^2, n and G are shallow (depth
+        // 8-9 on LiH) and belong in MRA. R^2 is smooth too.
+        //
+        // U1 = -grad(R)/R is not. U1_x ~ x/r is non-smooth at every nucleus
+        // componentwise, its direction smoothed only over eprec, and as a Function
+        // it costs depth ~20. Carrying it in MRA is bad twice over: the depth taxes
+        // every intermediate through refine_to_common_level, and any *product* with
+        // it has to be projected onto a fixed tree, which is where the oscillations
+        // come from. So it is never a Function. The second group is filled by the
+        // op from the analytic functor at the quadrature points of the box it is
+        // already working on -- exactly as make_libxc_args contracts zeta pointwise
+        // rather than carrying chi. See nemo_u1_functors.
+        enum_nemo_R2=28,        ///< \f$ R^2 \f$, the ncf squared          [MRA, smooth]
+        enum_gradfa=29,         ///< \f$ \sum_i w_i|\nabla F_{i\alpha}|^2 \f$  [MRA, smooth]
+        enum_gradfb=30,         ///< beta counterpart                        [MRA, smooth]
+        enum_na=31,             ///< \f$ n_\alpha=\sum_i w_iF_{i\alpha}^2 \f$   [MRA, smooth]
+        enum_nb=32,             ///< beta counterpart                        [MRA, smooth]
+        enum_Ga_x=33,           ///< \f$ G_{\alpha,x}=\sum_i w_iF_i\partial_xF_i \f$ [MRA, smooth]
+        enum_Ga_y=34,           ///< \f$ G_{\alpha,y} \f$                    [MRA, smooth]
+        enum_Ga_z=35,           ///< \f$ G_{\alpha,z} \f$                    [MRA, smooth]
+        enum_Gb_x=36,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_y=37,           ///< beta counterpart                        [MRA, smooth]
+        enum_Gb_z=38,           ///< beta counterpart                        [MRA, smooth]
+
+        enum_u1_x=39,           ///< \f$ U_{1,x} \f$        [functor, never MRA]
+        enum_u1_y=40,           ///< \f$ U_{1,y} \f$        [functor, never MRA]
+        enum_u1_z=41,           ///< \f$ U_{1,z} \f$        [functor, never MRA]
+        enum_u1sq=42            ///< \f$ |\mathbf U_1|^2 \f$ [functor, never MRA]
     };
-    const static int number_xc_args=28;     ///< max number of intermediates
+    const static int number_xc_args=43;     ///< max number of intermediates
 
     /// return the munging threshold for the density
     double get_rhotol() const {return rhotol;}
-
-    /// return the binary munging threshold for the final result in the GGA potential/kernel
-
-    /// the GGA potential will be munged based on the smallness of the original
-    /// density, which we call binary munging
-    double get_ggatol() const {return ggatol;}
 
     /// return the floor for the kinetic energy density
 
@@ -111,13 +140,66 @@ public:
     /// default for a real-space code, where tau is a numerical derivative
     double get_tautol() const {return tautol;}
 
+    /// return the margin by which the von Weizsaecker clamp overshoots
+    double get_tauwmargin() const {return tauwmargin;}
+
+    /// the von Weizsaecker lower bound on tau, as the clamp actually applies it
+
+    /// tau >= tau_W = |grad rho_s|^2/(8 rho_s) is exact for any wavefunction, and
+    /// meta-ggas need it: they are built on z = tau_W/tau, whose domain is [0,1],
+    /// and outside it the Fermi hole curvature turns negative and libxc's
+    /// correlation kernels return NaN.
+    ///
+    /// Build it from SIGMA, not from chi. libxc forms z from the sigma it is handed,
+    /// so the bound has to be built from that same sigma. The form rho*chi/8 equals
+    /// sigma/(8 rho) only when sigma is literally rho^2 chi, which is false: sigma
+    /// carries a positivity floor that chi does not.
+    ///
+    /// And overshoot it. Clamping to exactly tau_W puts z at 1 to within one ulp --
+    /// the endpoint of the domain, and the worst-conditioned point in it, where a
+    /// one-ulp change in tau moves de/dtau by a factor of 30. Landing strictly
+    /// inside costs nothing: the clamp only ever fires where tau was below a bound
+    /// it should have satisfied anyway. Same device as r2SCAN's eta*tau_W.
+    ///
+    /// Returns 0 where the density has been munged away, so the clamp is inert
+    /// there: sigma's floor divided by a vanishing rho would grow like 1/rho.
+    double tau_w_bound(const double sigma, const double rho) const {
+        if (rho <= 0.0) return 0.0;
+        return sigma/(8.0*rho*(1.0-tauwmargin));
+    }
+
 protected:
 
-    bool spin_polarized;        ///< True if the functional is spin polarized
-    double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-    double rhomin, rhotol;      ///< See initialize and munge*
-    double ggatol;              ///< See initialize and munge*
-    double tautol;              ///< floor for the kinetic energy density, see initialize
+    bool spin_polarized=false;        ///< True if the functional is spin polarized
+    double hf_coeff=0.0;              ///< Factor multiplying HF exchange (+1.0 gives HF)
+    int nderiv=0;                     ///< Jacob's ladder rung; 0: lda, 1: gga, 2: mgga
+
+#ifdef MADNESS_HAS_LIBXC
+    static constexpr double default_rhomin=0.0;      ///< libxc can handle rho=0.0
+#else
+    static constexpr double default_rhomin=1.e-12;   ///< our lda will divide by rho
+#endif
+    static constexpr double default_rhotol=1.e-7;
+    static constexpr double default_tautol=1.e-12;
+    static constexpr double default_tauwmargin=1.e-6;
+
+    double rhomin=default_rhomin;     ///< what munge() puts in place of a density
+    double rhotol=default_rhotol;     ///< See initialize and munge*
+    double tautol=default_tautol;     ///< floor for the kinetic energy density, see initialize
+    double tauwmargin=default_tauwmargin; ///< von Weizsaecker clamp overshoot, see tau_w_bound
+
+    /// put the configurable screening thresholds back to their defaults
+
+    /// initialize() may be called more than once on the same object, and the xc
+    /// input line can override any of these (RHOMIN/RHOTOL/TAUTOL), so they have
+    /// to be restored before the next line is parsed -- otherwise one
+    /// functional's thresholds leak into the next one.
+    void reset_screening_defaults() {
+        rhomin=default_rhomin;
+        rhotol=default_rhotol;
+        tautol=default_tautol;
+        tauwmargin=default_tauwmargin;
+    }
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -155,8 +237,6 @@ protected:
                          std::vector<madness::Tensor<double> >& drho_pt,
                          const bool need_response) const;
 
-    /// the number of xc kernel derivatives (lda: 0, gga: 1, etc)
-    int nderiv;
 
 
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
@@ -220,23 +300,27 @@ private:
         return rho;
     }
 
-    /// munge rho if refrho is small
+    /// zero a quantity where the reference density is small
 
-    /// special case for perturbed densities, which might be negative and diffuse.
-    /// Munge rho (e.g. the perturbed density) if the reference density refrho
-    /// e.g. the ground state density is small. Only where the reference density
-    /// is large enough DFT is numerically well-defined.
+    /// Used for perturbed densities, which may be negative and much more diffuse
+    /// than the ground state, and for screening outputs. Only where the reference
+    /// density is large enough is DFT numerically well defined.
+    ///
+    /// Substitutes zero, not rhomin. The argument is not necessarily a density --
+    /// de/dtau and the semilocal response terms go through here too -- so a density
+    /// floor is the wrong thing to leave behind, and "screened" means "contributes
+    /// nothing". rhomin stays what munge() puts in place of a density.
     /// @param[in]  rho     number to be munged
     /// @param[in]  refrho  reference value for munging
     /// @param[in]  thresh  threshold for munging
     double binary_munge(double rho, double refrho, const double thresh) const {
-        if (refrho<thresh) rho=rhomin;
+        if (refrho<thresh) rho=0.0;
         return rho;
     }
 
 public:
     /// Default constructor is required
-    XCfunctional();
+    XCfunctional() {};
 
     /// Initialize the object from the user input data
 
@@ -388,16 +472,109 @@ public:
     }
 };
 
+/// the cuspy half of the nemo tau decomposition, supplied pointwise
+
+/// Holds the four analytic ncf quantities that must never become MRA functions --
+/// \f$ U_{1,x}, U_{1,y}, U_{1,z}, |\mathbf U_1|^2 \f$ -- and writes their values
+/// into the argument vector at the quadrature points of whatever box the caller is
+/// operating on. Empty unless a nuclear correlation factor is in play, in which case
+/// active() is true and the four enum_u1* slots are filled.
+///
+/// The point is that nothing is projected. A product of U1 with anything, formed as
+/// a Function, has to be represented on some tree; on a tree too coarse for U1's
+/// eprec-scale structure the polynomial fit rings across the whole box. Evaluating
+/// U1 here instead means its values go straight into the functional's pointwise
+/// arithmetic and only the *potential* is ever projected -- which the existing
+/// machinery already does, and already has to.
+///
+/// \f$ |\mathbf U_1|^2 \f$ comes from its own functor rather than from summing the
+/// squares of the three components: that functor treats its diagonal specially,
+/// because smoothed_unitvec has norm < 1 inside eprec while the exact diagonal is
+/// \f$ (S'/S)^2 \f$.
+struct nemo_u1_functors {
+    typedef madness::FunctionFunctorInterface<double,3> functorT;
+
+    nemo_u1_functors() : cdata(madness::FunctionCommonData<double,3>::get(
+                                       madness::FunctionDefaults<3>::get_k())) {}
+
+    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors
+    explicit nemo_u1_functors(const std::vector<std::shared_ptr<functorT> >& u1)
+            : f(u1), cdata(madness::FunctionCommonData<double,3>::get(
+                                   madness::FunctionDefaults<3>::get_k())) {
+        MADNESS_CHECK_THROW(f.empty() or f.size()==4,
+                            "nemo_u1_functors wants U1_{x,y,z} and |U1|^2, in that order");
+    }
+
+    bool active() const {return f.size()==4;}
+
+    /// write U1 and |U1|^2 at this box's quadrature points into t[enum_u1*]
+    void append(const madness::Key<3>& key,
+                std::vector<madness::Tensor<double> >& t) const {
+        if (not active()) return;
+        if (long(t.size()) < XCfunctional::number_xc_args)
+            t.resize(XCfunctional::number_xc_args);
+
+        const madness::Tensor<double>& qx = cdata.quad_x;
+        const long npt = qx.dim(0);
+        // cdata was captured at construction from FunctionDefaults; if the functions
+        // actually carry a different k the quadrature points below are the wrong
+        // ones and every U1 value lands at the wrong place. Silent, and it would
+        // look like a physics error, so check rather than trust.
+        if (t[XCfunctional::enum_rhoa].size())
+            MADNESS_CHECK_THROW(t[XCfunctional::enum_rhoa].dim(0) == npt,
+                                "nemo_u1_functors: quadrature order does not match "
+                                "the xc arguments -- k changed after construction");
+        const double h = std::pow(0.5, double(key.level()));
+        const madness::Tensor<double>& cell = madness::FunctionDefaults<3>::get_cell();
+        const madness::Tensor<double>& cw = madness::FunctionDefaults<3>::get_cell_width();
+
+        const long dims[3] = {npt, npt, npt};
+        madness::Tensor<double> v[4];
+        double* p[4];
+        for (int q = 0; q < 4; ++q) {
+            v[q] = madness::Tensor<double>(3L, dims);
+            p[q] = v[q].ptr();
+        }
+
+        // the same box-to-user-coordinate construction fcube() uses, written out so
+        // this header needs no mraimpl.h
+        long idx = 0;
+        madness::Vector<double,3> c;
+        for (long i = 0; i < npt; ++i) {
+            c[0] = cell(0,0) + h*cw[0]*(key.translation()[0] + qx(i));
+            for (long j = 0; j < npt; ++j) {
+                c[1] = cell(1,0) + h*cw[1]*(key.translation()[1] + qx(j));
+                for (long k = 0; k < npt; ++k, ++idx) {
+                    c[2] = cell(2,0) + h*cw[2]*(key.translation()[2] + qx(k));
+                    for (int q = 0; q < 4; ++q) p[q][idx] = (*f[q])(c);
+                }
+            }
+        }
+        t[XCfunctional::enum_u1_x]  = v[0];
+        t[XCfunctional::enum_u1_y]  = v[1];
+        t[XCfunctional::enum_u1_z]  = v[2];
+        t[XCfunctional::enum_u1sq]  = v[3];
+    }
+
+    std::vector<std::shared_ptr<functorT> > f;
+    madness::FunctionCommonData<double,3> cdata;
+};
+
 /// Class to compute the energy functional
 struct xc_functional {
     const XCfunctional* xc;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_functional(const XCfunctional& xc) : xc(&xc) {}
+    xc_functional(const XCfunctional& xc, const nemo_u1_functors& u1) : xc(&xc), u1(u1) {}
 
     madness::Tensor<double> operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        return xc->exc(t);
+        if (not u1.active()) return xc->exc(t);
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->exc(tt);
     }
 };
 
@@ -406,8 +583,12 @@ struct xc_functional {
 struct xc_potential {
     const XCfunctional* xc;
     const int ispin;
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_potential(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin)
+    {}
+    xc_potential(const XCfunctional& xc, int ispin, const nemo_u1_functors& u1)
+            : xc(&xc), ispin(ispin), u1(u1)
     {}
 
     std::size_t get_result_size() const {
@@ -425,8 +606,12 @@ struct xc_potential {
     std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        std::vector<madness::Tensor<double> > r = xc->vxc(t, ispin);
-        return r;
+        if (not u1.active()) return xc->vxc(t, ispin);
+        // U1 is cuspy, so it arrives here as values rather than as a Function --
+        // see nemo_u1_functors. Nothing involving it is ever projected.
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->vxc(tt, ispin);
     }
 };
 

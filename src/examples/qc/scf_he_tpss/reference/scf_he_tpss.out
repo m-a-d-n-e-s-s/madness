@@ -6,9 +6,9 @@
   Task 0 : SCF  (model = scf)
   ----------------------------------------------------------------------
     Molecule         : He
-    Total energy     :       -2.909662675 Ha         -79.1760 eV
+    Total energy     :       -2.909662877 Ha         -79.1760 eV
     Orbital eps (a)  : -0.5988  (Ha)
-    Converged        :  thresh = 1e-06  dconv = 0.001
+    Converged        :  thresh = 1e-06  dconv = 0.0001
     Wall time        :  0.0 s   (1 MPI x 1 threads)
 
 ======================================================================

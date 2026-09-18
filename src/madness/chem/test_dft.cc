@@ -32,6 +32,7 @@
 #include <madness.h>
 #include<madness/chem/SCFOperators.h>
 #include<madness/chem/xcfunctional.h>
+#include <madness/mra/legendre.h>
 
 using namespace madness;
 
@@ -290,10 +291,10 @@ int test_meta_gga_dedtau_polarized(World& world) {
             const Tensor<double> em=xcfunc.exc(spin==0 ? build(-h,0.0) : build(0.0,-h));
             const double fd=(ep.ptr()[j]-em.ptr()[j])/(2.0*h);
             const double an=(spin==0 ? va.ptr()[j] : vb.ptr()[j]);
-            // de/dtau is screened on the same-spin density (ggatol), so a point
+            // de/dtau is screened on the same-spin density at rhotol, so a point
             // below that floor is legitimately zero and carries no information
             const double dens=(spin==0 ? rhoa[j] : rhob[j]);
-            const bool screened=(dens<xcfunc.get_ggatol());
+            const bool screened=(dens<xcfunc.get_rhotol());
             if (world.rank()==0)
                 printf("  spin %d  rho %8.1e  de/dtau %13.6e  finite diff %13.6e%s\n",
                        spin,dens,an,fd,screened ? "   (screened)" : "");
@@ -302,6 +303,70 @@ int test_meta_gga_dedtau_polarized(World& world) {
                           "polarized de/dtau does not match the finite difference")) result=1;
         }
     }
+    return result;
+}
+
+
+/// the meta-gga energy of a one-orbital density, against a radial libxc reference
+
+/// For a single occupied orbital tau equals the von Weizsaecker bound exactly,
+/// so the iso-orbital indicator z = tau_W/tau is 1 everywhere and the energy is
+/// as sensitive to the *consistency* of tau and grad(rho) as it can be: if the
+/// two come from different numerical derivatives, z scatters around 1 pointwise
+/// and the energy error is 100x the derivative error of either ingredient.
+/// The reference reproduces the operator's own munging (rhotol, the sigma floor,
+/// the tau_W clamp with its overshoot) so that only the MRA error is measured.
+int test_meta_gga_one_orbital_energy(World& world) {
+
+    if (world.rank()==0) print("\nentering test_meta_gga_one_orbital_energy");
+    const double thresh_save=FunctionDefaults<3>::get_thresh();
+    FunctionDefaults<3>::set_thresh(1.e-4);
+    int result=0;
+
+    // hydrogenic 1s, Z=1: psi = exp(-r)/sqrt(pi), rho = 2 psi^2, |grad rho| = 2 rho
+    auto psi_f=[](const coord_3d& r) {return std::exp(-r.normf())/std::sqrt(constants::pi);};
+    real_function_3d psi=real_factory_3d(world).f(psi_f);
+    real_function_3d arho=psi*psi;
+
+    XCOperator<double,3> xc(world,"MGGA_X_TPSS",false,copy(arho),copy(arho),"abgv");
+    Tensor<double> occ(1l); occ(0l)=1.0;
+    xc.set_tau(vecfuncT(1,psi),occ);
+    const double energy=xc.compute_xc_energy();
+
+    // radial reference with libxc, same munging as XCfunctional::make_libxc_args
+    xc_func_type func;
+    MADNESS_CHECK(xc_func_init(&func,xc_functional_get_number("MGGA_X_TPSS"),XC_UNPOLARIZED)==0);
+    XCfunctional xcfunc;                       // same defaults as the operator's own
+    xcfunc.initialize("MGGA_X_TPSS",false,world);
+    const double rhotol=xcfunc.get_rhotol();
+    const double tauwmargin=xcfunc.get_tauwmargin();
+    const int npanel=4000, ng=20;
+    std::vector<double> x(ng), w(ng);
+    gauss_legendre(ng,0.0,1.0,x.data(),w.data());
+    const double h=40.0/npanel;
+    double reference=0.0;
+    for (int p=0; p<npanel; ++p) {
+        for (int g=0; g<ng; ++g) {
+            const double r=(p+x[g])*h;
+            const double rho=2.0*std::exp(-2.0*r)/constants::pi;
+            if (rho<=rhotol) continue;
+            const double sigma=std::max(1.e-14,4.0*rho*rho);
+            double tau=std::max(1.e-12,0.5*rho);                      // |grad psi|^2 = rho/2
+            tau=std::max(tau,sigma/(8.0*rho*(1.0-tauwmargin)));       // the operator's clamp
+            double exc=0.0, lapl=0.0;
+            xc_mgga_exc(&func,1,&rho,&sigma,&lapl,&tau,&exc);
+            reference+=w[g]*h*4.0*constants::pi*r*r*rho*exc;
+        }
+    }
+    xc_func_end(&func);
+
+    const double err=energy-reference;
+    if (world.rank()==0) print("  E_x(TPSS)",energy," reference",reference," error",err);
+    // consistent tau and grad(rho) land at ~2e-7 here; separately differentiated
+    // ones at ~4e-5
+    if (check_err(err,5.e-7,"one-orbital meta-gga energy")) result=1;
+
+    FunctionDefaults<3>::set_thresh(thresh_save);
     return result;
 }
 
@@ -323,6 +388,7 @@ int main(int argc, char** argv) {
     result+=test_hybrid_coefficients(world);
     result+=test_meta_gga(world);
     result+=test_meta_gga_dedtau_polarized(world);
+    result+=test_meta_gga_one_orbital_energy(world);
 
     if (world.rank()==0) {
         if (result==0) print("\ntests passed\n");

@@ -81,7 +81,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
-		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
@@ -222,6 +223,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::string deriv() const {return get<std::string>("deriv");}
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
+	bool xc_weak_gga() const {return get<bool>("xc_weak_gga");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string dispersion() const {return get<std::string>("dispersion");}

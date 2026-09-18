@@ -980,6 +980,186 @@ int test_fock(World& world) {
 }
 
 
+/// the xc Fock matrix: weak form vs divergence form, with and without an ncf
+
+/// All four assemblies compute the same physical object,
+/// \f$ F_{ij} = \langle\psi_i|\hat v_{xc}|\psi_j\rangle \f$, so they must agree.
+/// That is a stronger statement than a hardwired reference number, which only pins
+/// the code to itself: here two structurally independent algorithms have to meet --
+/// the divergence form, whose multiplicative potential contains
+/// \f$ -\nabla\cdot\mathbf X \f$, and the weak form, which never forms that
+/// divergence at all -- each evaluated on a different representation of the same
+/// orbitals, \f$\psi\f$ and the regularized \f$ F=\psi/R \f$.
+///
+/// The model is defined through \f$ F \f$ rather than \f$\psi\f$: smooth sums of
+/// Gaussians, from which \f$ \psi = RF \f$ inherits *exactly* the Kato cusp of the
+/// correlation factor at every nucleus. That is the paper's model density read
+/// backwards, and it lets the test avoid any division and never repeat the ncf's
+/// own formula.
+int test_XCOperator_matrix(World& world) {
+
+    if (world.rank()==0) print("\nentering test_XCOperator_matrix");
+#ifndef MADNESS_HAS_LIBXC
+    if (world.rank()==0) print("no libxc -- skipping, pbe is not available");
+    return 0;
+#else
+    FunctionDefaults<3>::set_k(8);
+    FunctionDefaults<3>::set_thresh(1.e-6);
+    FunctionDefaults<3>::set_cubic_cell(-20,20);
+    const double thresh=FunctionDefaults<3>::get_thresh();
+
+    // molecule and correlation factor
+    CalculationParameters param;
+    param.set_user_defined_value<std::vector<double>>("protocol",{1.e-6});
+    param.set_user_defined_value("k",8);
+    write_test_input test_input(param);
+    commandlineparser parser;
+    parser.set_keyval("input",test_input.filename());
+    SCF calc(world,parser);
+    calc.make_nuclear_potential(world);
+
+    std::shared_ptr<NuclearCorrelationFactor> ncf=
+            create_nuclear_correlation_factor(world,calc.molecule,
+                    calc.potentialmanager,std::make_pair(std::string("slater"),2.0));
+    ncf->initialize(thresh);
+
+    // model orbitals, defined as the SMOOTH regularized functions F
+    MADNESS_CHECK(calc.molecule.natom()>=2);
+    Vector<double,3> c0=calc.molecule.get_atom(0).get_coords();
+    Vector<double,3> c1=calc.molecule.get_atom(1).get_coords();
+    std::vector<int> ijk(3);
+    real_function_3d g0=real_factory_3d(world)
+            .functor(GaussianGuess<double,3>(c0,1.0,ijk)).truncate_on_project();
+    real_function_3d g1=real_factory_3d(world)
+            .functor(GaussianGuess<double,3>(c1,0.8,ijk)).truncate_on_project();
+
+    vecfuncT F(2);
+    F[0]=(g0+0.30*g1).truncate();
+    F[1]=(0.20*g0+g1).truncate();
+
+    // psi = R F carries the exact cusp; R2F is the bra the matrix form wants
+    const real_function_3d R =ncf->function();
+    const real_function_3d R2=ncf->square();
+    vecfuncT psi=mul(world,R ,F); truncate(world,psi);
+    vecfuncT R2F=mul(world,R2,F); truncate(world,R2F);
+
+    // one physical density, rho_alpha = sum_i |psi_i|^2, expressed the two ways the
+    // two paths need it: rho itself, and the regularized rho/R^2
+    real_function_3d arho=real_factory_3d(world);
+    real_function_3d arho_reg=real_factory_3d(world);
+    for (int i=0; i<2; ++i) {
+        arho    +=psi[i]*psi[i];
+        arho_reg+=F[i]*F[i];
+    }
+    arho.truncate();
+    arho_reg.truncate();
+
+    // four operators on that one density. Both weak-form conditions are per-object
+    // -- the caller's allow_weak_form() opt-in and set_weak_gga(), which stands in
+    // for CalculationParameters::xc_weak_gga() here -- so the weak and the
+    // divergence form coexist in one process with no global state involved.
+    XCOperator<double,3> div_nn(world,"pbe",false,arho,arho);
+    XCOperator<double,3> weak_nn(world,"pbe",false,arho,arho);
+    XCOperator<double,3> div_cf(world,"pbe",false,arho,arho,ncf,arho_reg,arho_reg);
+    XCOperator<double,3> weak_cf(world,"pbe",false,arho,arho,ncf,arho_reg,arho_reg);
+    weak_nn.allow_weak_form().set_weak_gga(true);
+    weak_cf.allow_weak_form().set_weak_gga(true);
+    div_nn.set_weak_gga(false);
+    div_cf.set_weak_gga(false);
+    if (not (weak_nn.is_weak_form() and weak_cf.is_weak_form())) {
+        print("\nfailing test: the weak form did not engage despite allow_weak_form()"
+              " and set_weak_gga(true)\n");
+        return 1;
+    }
+    // the divergence pair must stay multiplicative on BOTH counts: no opt-in, and
+    // the parameter turned off. Either alone is enough, which is the contract.
+    MADNESS_CHECK(not div_nn.is_weak_form());
+    MADNESS_CHECK(not div_cf.is_weak_form());
+
+    auto fock=[](XCOperator<double,3>& op, const vecfuncT& bra, const vecfuncT& ket) {
+        op.make_xc_potential();
+        return op(bra,ket);
+    };
+    Tensor<double> M_div_nn =fock(div_nn ,psi,psi);
+    Tensor<double> M_weak_nn=fock(weak_nn,psi,psi);
+    Tensor<double> M_div_cf =fock(div_cf ,R2F,F);
+    Tensor<double> M_weak_cf=fock(weak_cf,R2F,F);
+
+    const double scale=M_div_nn.normf();
+    print("  |F| =",scale);
+    int result=0;
+
+    // 1. every assembly must be symmetric. In the weak form the semilocal term is
+    //    symmetric only mathematically -- d_a(bra_i ket_j) is symmetric in i,j while
+    //    neither of its two pieces is -- so this is a live check, and a flipped U1
+    //    sign in the tau term would make it O(1).
+    // Tolerances are set from what this actually achieves (measured 8e-15 .. 9e-10
+    // across every check below) with a factor ~100 of headroom, not from what would
+    // still be physically acceptable. A loose bound here would pass a broken
+    // implementation: a flipped sign is O(1) and a dropped term O(0.1).
+    const double tol=1.e-7;
+
+    auto check_sym=[&](const Tensor<double>& M, std::string name) {
+        const double asym=(M-transpose(M)).normf()/scale;
+        print("  symmetry ",name,asym);
+        return check_err(asym,tol,"xc Fock matrix not symmetric: "+name);
+    };
+    result+=check_sym(M_div_nn ,"divergence, no ncf");
+    result+=check_sym(M_weak_nn,"weak,       no ncf");
+    result+=check_sym(M_div_cf ,"divergence, ncf   ");
+    result+=check_sym(M_weak_cf,"weak,       ncf   ");
+
+    // 2. the four must agree with each other, but the two comparisons are not of
+    //    the same kind and do not deserve the same tolerance.
+    auto check_same=[&](const Tensor<double>& A, const Tensor<double>& B,
+                        const double tol_, std::string name) {
+        const double err=(A-B).normf()/scale;
+        print("  agreement",name,err);
+        return check_err(err,tol_,"xc Fock matrices disagree: "+name);
+    };
+
+    //    (a) weak vs divergence, at fixed ncf: two algorithms, ONE discretization
+    //    of the inputs. Nothing but the assembly differs, so this is tight.
+    result+=check_same(M_div_nn ,M_weak_nn,tol,"no ncf     : weak vs divergence");
+    result+=check_same(M_div_cf ,M_weak_cf,tol,"ncf        : weak vs divergence");
+
+    //    (b) ncf vs no ncf, at fixed algorithm: two DISCRETIZATIONS of the same
+    //    mathematical object. With an ncf, zeta = grad(ln rho_reg) - 2 U1 from the
+    //    smooth regularized density and the analytic U1; without one there is no
+    //    choice but grad(ln rho), a numerical derivative across the cusp. The two
+    //    sides therefore do not compare like with like, and the gap below is a
+    //    discretization difference rather than an error in either.
+    //
+    //    The gap measured here, 2.9e-5, is ~4.5 digits and reproduces the number
+    //    recorded in assemble_nemo_ddens: the two forms agree to 4-5 digits
+    //    outside 1e-3 bohr and diverge inside it. Do NOT read it as the ncf path
+    //    being wrong -- by the Kato-ratio evidence there it is the accurate one.
+    //    The check is still worth making: an error in the R^2/U1 bookkeeping would
+    //    show up here as O(1), not as O(1e-5).
+    const double tol_disc=1.e-3;
+    result+=check_same(M_div_nn ,M_div_cf ,tol_disc,"divergence : ncf vs no ncf     ");
+    result+=check_same(M_weak_nn,M_weak_cf,tol_disc,"weak       : ncf vs no ncf     ");
+
+    // 3. the scalar overload is the 1x1 case
+    const double s00=div_cf(R2F[0],F[0]);
+    print("  scalar   ",s00,M_div_cf(0l,0l));
+    result+=check_err(fabs(s00-M_div_cf(0l,0l)),1.e-10*scale+1.e-12,
+                      "scalar overload disagrees with the matrix");
+
+    // 4. the bra-weight guard must fire rather than return a plausible wrong matrix
+    int nthrow=0;
+    try { div_cf(F  ,F  ); } catch (...) { nthrow++; }
+    try { div_cf(R2F,R2F); } catch (...) { nthrow++; }
+    print("  guards fired",nthrow,"of 2");
+    if (nthrow!=2) {
+        print("\nfailing test: the bra-weight guard did not fire\n");
+        result+=1;
+    }
+
+    return result;
+#endif
+}
+
 int main(int argc, char** argv) {
     madness::initialize(argc, argv);
 
@@ -1023,6 +1203,7 @@ int main(int argc, char** argv) {
 #endif
     	result+=test_nuclear(world);
     	result+=test_dnuclear(world);
+    	result+=test_XCOperator_matrix(world);
 //    	result+=test_nemo(world);
 	}
 
