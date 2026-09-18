@@ -1,0 +1,216 @@
+name: Docker Image
+
+# Builds the container in admin/docker/ubuntu and exercises it the way the
+# README tells users to. This exists because nothing else in CI touches the
+# Dockerfile, so breakage there is invisible: a stale build-arg, a dependency
+# that stopped shipping a CMake config, or an install step that quietly skips a
+# component all survive indefinitely otherwise.
+#
+# What each step is guarding, in order:
+#   * the image builds at all, with the Dockerfile's own build-time assertions
+#     (libxc found, MKL found, madqc installed, mra+chem data present) firing
+#     inside it;
+#   * a checked-in qc deck reproduces its reference *from the container*, which
+#     covers the runtime data paths, startup(), the SCF and the sequential BLAS
+#     in one shot;
+#   * libxc is live at runtime, not merely detected at configure time;
+#   * find_package(madness CONFIG) works from the install tree even though the
+#     build tree was deleted, i.e. the developer half of the image is real;
+#   * the bundled example does not regress into misusing the runtime.
+#
+# Deliberately NOT covered, so the gap is visible rather than assumed away:
+#   * the hand-written Makefile route in README section 3 Option B. It omits
+#     MADNESS's public compile definitions (MADNESS_LINALG_USE_LAPACKE) and the
+#     MKL include path, and is documented as amd64-only best-effort; asserting on
+#     it here would gate the image on a route we do not claim to support.
+#   * non-amd64 images. The Dockerfile has an OpenBLAS-serial path for them, but
+#     GitHub's hosted runners are x86-64 and QEMU-emulated builds of a full
+#     MADNESS compile are not affordable here.
+#
+# The build is a full from-scratch MADNESS compile with no ccache, so it is
+# path-filtered rather than run on every push. The weekly schedule is what
+# catches drift originating in the source tree instead of in admin/docker.
+
+on:
+  push:
+    paths:
+      - 'admin/docker/**'
+      - '.dockerignore'
+      - '.github/workflows/docker.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'admin/docker/**'
+      - '.dockerignore'
+      - '.github/workflows/docker.yml'
+  schedule:
+    # Mondays 06:00 UTC. Catches Dockerfile breakage caused by changes
+    # elsewhere in the tree, which the path filters above deliberately miss.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Cheap guard on the publishing entry point. Kept separate from the image job
+  # so it runs in seconds and is not gated on a 1-hour build: the previous
+  # regression here was images/Makefile passing a build-arg the Dockerfile no
+  # longer declares, plus a build context that no longer held the source tree.
+  makefile:
+    name: "images/Makefile dry run"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The build context must be the repository root
+        run: test -f "$(cd admin/docker/images && cd ../../.. && pwd)/CMakeLists.txt"
+
+      - name: Every target must invoke the Dockerfile with UBUNTU_VERSION and the repo root
+        working-directory: admin/docker/images
+        run: |
+          set -euo pipefail
+          for target in all all/tar push/all build/24.04; do
+            echo "=== make -n ${target}"
+            make -n "${target}" | tee dryrun.log
+            grep -q -- '--build-arg UBUNTU_VERSION=' dryrun.log
+            grep -q -- '-f ../ubuntu/Dockerfile ../../..' dryrun.log
+          done
+
+  image:
+    name: "build and smoke-test the image"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      IMAGE: madness:ci
+      MAD_NUM_THREADS: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      # A from-scratch MADNESS build tree plus the image does not comfortably
+      # fit next to the runner's preinstalled toolchains.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+                      /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}"
+          df -h /
+
+      - name: Build the image
+        run: |
+          set -euo pipefail
+          docker build -t "$IMAGE" -f admin/docker/ubuntu/Dockerfile .
+          docker image inspect "$IMAGE" --format 'size: {{.Size}} bytes, arch: {{.Architecture}}'
+
+      - name: madqc responds
+        run: docker run --rm "$IMAGE" madqc --help
+
+      # The versioned data directory is reached through a symlink so the image
+      # does not hardcode MADNESS_VERSION; if that link dangles, every
+      # calculation fails in startup() instead of here.
+      - name: Data directory resolves
+        run: |
+          set -euo pipefail
+          docker run --rm "$IMAGE" sh -c 'ls -l "$MRA_DATA_DIR"/coeffs "$MRA_CHEMDATA_DIR"/sto-3g'
+
+      # Point the qctest harness at the container instead of a native madqc, so
+      # the deck, its run.sh and its reference tolerances are the ones checked
+      # into src/examples/qc -- the container is held to the same numerical
+      # contract as a native build, and the wrapper doubles as a test of the
+      # `docker run` invocation the README recommends.
+      - name: Reproduce a checked-in qc deck from the container
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/madqc-docker" <<'EOF'
+          #!/bin/sh
+          exec docker run --rm \
+            -v "$(pwd)":/work -w /work \
+            --user "$(id -u):$(id -g)" \
+            -e MAD_NUM_THREADS \
+            "${MADNESS_IMAGE}" madqc "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/madqc-docker"
+          mkdir -p "$RUNNER_TEMP/scf_he_hf"
+          cd "$RUNNER_TEMP/scf_he_hf"
+          MADNESS_IMAGE="$IMAGE" MADQC="$RUNNER_TEMP/madqc-docker" \
+            python3 "$GITHUB_WORKSPACE/bin/run_qctest.py" \
+              --case "$GITHUB_WORKSPACE/src/examples/qc/scf_he_hf"
+
+      - name: Output files are owned by the invoking user, not root
+        run: |
+          set -euo pipefail
+          owner=$(stat -c '%u' "$RUNNER_TEMP/scf_he_hf/scf_he_hf.calc_info.json")
+          echo "calc_info.json uid=${owner}, runner uid=$(id -u)"
+          test "${owner}" = "$(id -u)"
+
+      # MADNESS_HAS_LIBXC is asserted at build time inside the Dockerfile; this
+      # additionally proves the linked libxc computes an exchange-correlation
+      # potential, which a config-only check cannot show.
+      - name: A DFT functional runs
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lda" && cd "$RUNNER_TEMP/lda"
+          cat > he_lda.in <<'EOF'
+          dft
+              xc       lda
+              maxiter  10
+              econv    1e-4
+              dconv    1e-3
+          end
+
+          molecule
+              units   atomic
+              eprec   1e-6
+              He  0.0  0.0  0.0
+          end
+          EOF
+          docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+            -e MAD_NUM_THREADS "$IMAGE" madqc --wf=scf he_lda.in
+          python3 - <<'PY'
+          import json, sys
+          e = json.load(open('he_lda.calc_info.json'))['tasks'][0]['properties']['energy']
+          print('He/LDA total energy:', e)
+          # Deliberately a sanity band, not a reference value: the point is that
+          # the functional was evaluated at all, and src/examples/qc owns the
+          # numbers. A native run of this deck gives -2.8348 Ha.
+          if not -5.0 < e < -1.0:
+              sys.exit(f'implausible LDA energy for helium: {e}')
+          PY
+
+      # The build tree is deleted inside the image, so this is where a
+      # FetchContent'ed dependency whose config file was never installed, or a
+      # missing install component, would surface.
+      - name: Developer example builds against the install tree via CMake
+        run: |
+          set -euo pipefail
+          cp -r admin/docker/examples/hello_world "$RUNNER_TEMP/hello_world"
+          cd "$RUNNER_TEMP/hello_world"
+          docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+            "$IMAGE" bash -c 'cmake -B build -S . && cmake --build build'
+          docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+            -e MAD_NUM_THREADS "$IMAGE" ./build/hello_madness > hello.log 2> hello.err
+          cat hello.log hello.err
+
+      # Regression guard for the runtime invariants the example exists to show:
+      # constructing a second World on MPI_COMM_WORLD, or letting one outlive
+      # finalize(), makes finalize() print this warning while still exiting 0.
+      - name: Example respects the runtime lifetime invariants
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hello_world"
+          grep -q 'Calculation completed successfully' hello.log
+          if grep -q 'still exist' hello.log hello.err; then
+            echo "::error::a World survived madness::finalize() in the hello_world example"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import re, sys
+          text = open('hello.log').read()
+          m = re.search(r'Computed integral of sin\(x\) on \[0, pi\]:\s*(\S+)', text)
+          if not m:
+              sys.exit('example printed no integral')
+          value = float(m.group(1))
+          print('integral =', value)
+          if abs(value - 2.0) > 1e-6:
+              sys.exit(f'integral of sin(x) over [0, pi] should be 2.0, got {value}')
+          PY
