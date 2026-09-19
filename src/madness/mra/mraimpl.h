@@ -2902,26 +2902,25 @@ namespace madness {
     void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key,
                                              const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
-        if (coeffs.probe(key)) {
-            const nodeT& node = coeffs.find(key).get()->second;
-            Future< std::pair<keyT,coeffT> > result(ref);
-            if (node.has_coeff()) {
-                //madness::print("sock found it with coeff",key);
-                result.set(std::pair<keyT,coeffT>(key,node.coeff()));
+        keyT curr = key;
+        while (curr.level() >= 0 && coeffs.is_local(curr)) {
+            if (coeffs.probe(curr)) {
+                const nodeT& node = coeffs.find(curr).get()->second;
+                Future< std::pair<keyT,coeffT> > result(ref);
+                if (node.has_coeff()) {
+                    //madness::print("sock found it with coeff",curr);
+                    result.set(std::pair<keyT,coeffT>(curr,node.coeff()));
+                }
+                else {
+                    //madness::print("sock found it without coeff",curr);
+                    result.set(std::pair<keyT,coeffT>(curr,coeffT()));
+                }
+                return;
             }
-            else {
-                //madness::print("sock found it without coeff",key);
-                result.set(std::pair<keyT,coeffT>(key,coeffT()));
-            }
+            curr = curr.parent();
         }
-        else {
-            keyT parent = key.parent();
-            //madness::print("sock forwarding to parent",key,parent);
-            //PROFILE_BLOCK(sitome_send); // Too fine grain for routine profiling
-	    if (coeffs.is_local(parent)) 
-	      woT::send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
-	    else
-	      woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
+        if (curr.level() >= 0) {
+            woT::task(coeffs.owner(curr), &FunctionImpl<T,NDIM>::sock_it_to_me, curr, ref, TaskAttributes::hipri());
         }
     }
 

@@ -89,18 +89,19 @@ namespace madness {
 
 
         /// Set value associated with key ... gives ownership of a new copy to the container
-        inline void set(const Key<NDIM>& key, const Q& val) {
-            [[maybe_unused]] auto&& [it, inserted] = cache.insert(pairT(key,val));
+        inline const Q* set(const Key<NDIM>& key, const Q& val) {
+            auto [it, inserted] = cache.insert(pairT(key,val));
+            return &(it->second);
         }
 
-        inline void set(Level n, Translation l, const Q& val) {
+        inline const Q* set(Level n, Translation l, const Q& val) {
             Key<NDIM> key(n,Vector<Translation,NDIM>(l));
-            set(key, val);
+            return set(key, val);
         }
 
-        inline void set(Level n, const Key<NDIM>& disp, const Q& val) {
+        inline const Q* set(Level n, const Key<NDIM>& disp, const Q& val) {
             Key<NDIM> key(n,disp.translation());
-            set(key, val);
+            return set(key, val);
         }
     };
 }

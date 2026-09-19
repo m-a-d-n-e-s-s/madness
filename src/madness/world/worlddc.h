@@ -995,13 +995,16 @@ namespace madness
 
         Future<const_iterator> find(const keyT &key) const
         {
-            // Ugliness here to avoid replicating find() and
-            // associated handlers for const.  Assumption is that
-            // const and non-const iterators are identical except for
-            // const attribute ... at some point probably need to do
-            // the right thing.
-            Future<iterator> r = const_cast<implT *>(this)->find(key);
-            return *(Future<const_iterator> *)(&r);
+            ProcessID dest = owner(key);
+            if (dest == me)
+            {
+                return Future<const_iterator>(const_iterator(local.find(key)));
+            }
+            else
+            {
+                Future<iterator> r = const_cast<implT *>(this)->find(key);
+                return Future<const_iterator>(const_iterator(r.get()));
+            }
         }
 
         Future<iterator> find(const keyT &key)

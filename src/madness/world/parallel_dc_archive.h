@@ -71,13 +71,11 @@ namespace madness {
                 , ar(v)
             {
                 if (rank==0) {
-                    containerT::const_iterator it = dc.find(key).get();
-                    if (it != dc.end()) {
-                        v = it->second;
+                    containerT::const_accessor acc;
+                    if (dc.find(acc, key)) {
+                        v = acc->second;
                     }
                     else {
-                    	std::cout << "key " << key << " in world " << subworld.id()
-                    			<< "dc.world " << dc.get_world().id() << std::endl;
                         MADNESS_EXCEPTION("record not found", key);
                     }
                 }

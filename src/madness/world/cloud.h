@@ -1216,7 +1216,6 @@ public:
 
         if (use_cache) {
             cache(world, target, record);
-            if (is_replicated) container.erase(record);
         }
 
         return target;
