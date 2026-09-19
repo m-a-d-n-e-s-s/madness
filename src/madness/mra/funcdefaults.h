@@ -362,6 +362,7 @@ namespace madness {
             rcell_width.clear();
             cell_volume = 0.0;
             cell_min_width = 0.0;
+            cell_geometric_mean_width = 0.0;
         }
 
         /// Sets the user cell for the simulation

@@ -87,6 +87,31 @@ int test_cubic_cell_unchanged(World& world) {
     return errors;
 }
 
+/// clear_cell() must reset the cached mean width with the other cell metrics,
+/// or modes 1-3 keep scaling by the width of a cell that is no longer set
+int test_clear_cell_resets_cached_widths(World& world) {
+    int errors = 0;
+    Tensor<double> cell(3, 2);
+    cell(0, 0) = -200.0; cell(0, 1) = 200.0;
+    cell(1, 0) = -200.0; cell(1, 1) = 200.0;
+    cell(2, 0) = -20.0;  cell(2, 1) = 20.0;
+    FunctionDefaults<3>::set_cell(cell);
+    errors += check("a cell is set", FunctionDefaults<3>::get_cell_geometric_mean_width(),
+                    std::pow(400.0 * 400.0 * 40.0, 1.0 / 3.0));
+
+    FunctionDefaults<3>::clear_cell();
+    errors += check("cleared: min width", FunctionDefaults<3>::get_cell_min_width(), 0.0);
+    errors += check("cleared: geometric mean width",
+                    FunctionDefaults<3>::get_cell_geometric_mean_width(), 0.0);
+
+    // set_cubic_cell() writes into the existing cell tensor, which clear_cell()
+    // emptied, so the cell has to be handed over whole
+    Tensor<double> cubic(3, 2);
+    cubic(_, 0) = -50.0; cubic(_, 1) = 50.0;
+    FunctionDefaults<3>::set_cell(cubic);            // leave a usable cell behind
+    return errors;
+}
+
 }   // namespace
 
 int main(int argc, char** argv) {
@@ -96,6 +121,7 @@ int main(int argc, char** argv) {
     int errors = 0;
     errors += test_anisotropic_cell(world);
     errors += test_cubic_cell_unchanged(world);
+    errors += test_clear_cell_resets_cached_widths(world);
 
     if (world.rank() == 0) {
         if (errors == 0) print("\ntest_truncate_tol passed\n");
