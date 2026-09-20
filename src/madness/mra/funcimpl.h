@@ -5123,6 +5123,9 @@ template<size_t NDIM>
             int nused = 1;  // Counts #used at each distance
             std::optional<double> real_last_distsq;
             std::optional<std::uint64_t> lattice_last_distsq;
+            // the shell-wise stop below assumes a kernel that decays away from the source; an operator
+            // whose kernel does not (the rest-of-crystal operator) opts out and sweeps every displacement
+            const bool shell_stop = op->screen_by_shell_decay();
 
             // displacements to a face of the kernel range boundary are typically same magnitude (modulo variation),
             // but faces can be at quite different distances (anisotropic cells, lattice summation along some axes only,
@@ -5164,7 +5167,7 @@ template<size_t NDIM>
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
                   !nearlyEqual(real_distsq, *real_last_distsq) || (nearlyEqual(*real_last_distsq, 0) && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
-                if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
+                if (shell_stop && nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
                   // of neighbors made significant contributions.  Thus,

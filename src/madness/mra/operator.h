@@ -1197,6 +1197,17 @@ namespace madness {
             return Displacements<NDIM>().get_disp(n, lattice_summed());
         }
 
+        /// May FunctionImpl::do_apply stop at the first shell of displacements that contributes nothing?
+
+        /// True for a kernel that decays away from the source, which is what that screening assumes.
+        /// False for the rest-of-crystal operator (OperatorInfo::images_only): its kernel vanishes
+        /// near the source and turns on near the lattice images, so for a source close to a periodic
+        /// face the empty near shells would end the sweep before the wrapped displacement that carries
+        /// the nearest-image interaction. Measured with a unit Gaussian 1.8 bohr from the periodic
+        /// face of a 100x100x18 cell: one mid-range fit term lost 4% of its images potential and the
+        /// total 2.5e-3, independent of the threshold; the cubic 18^3 cell happened to be unaffected.
+        bool screen_by_shell_decay() const { return !info.images_only; }
+
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
         const array_of_bools<NDIM>& lattice_summed() const { return lattice_summed_; }
         /// @return flag for each axis indicating whether functions that this op acts on are periodic on the box in that direction (false by default)
