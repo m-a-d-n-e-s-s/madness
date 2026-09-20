@@ -239,7 +239,14 @@ namespace madness {
             const Q* VT;
         };
 
-        static inline std::pair<Tensor<double>,Tensor<double>>
+        /// the Gaussian fit of the kernel, and the low-exponent tail that a
+        /// lattice-summed operator drops from it (empty unless something was dropped)
+        struct FitCoeffs {
+            Tensor<double> coeff, expnt;
+            Tensor<double> dropped_coeff, dropped_expnt;
+        };
+
+        static inline FitCoeffs
         make_coeff_for_operator(World& world, OperatorInfo& info,
                                 const std::array<LatticeRange, NDIM>& lattice_ranges) {
 
@@ -274,15 +281,24 @@ namespace madness {
           info.hi = hi;
           GFit<double, NDIM> fit(info);
 
+          FitCoeffs result;
           Tensor<double> coeff = fit.coeffs();
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
+            const Tensor<double> full_coeff = coeff, full_expnt = expnt;
             fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
+            const long nkept = coeff.dim(0), nfull = full_coeff.dim(0);
+            if (nkept < nfull) {
+              result.dropped_coeff = copy(full_coeff(Slice(nkept, nfull - 1)));
+              result.dropped_expnt = copy(full_expnt(Slice(nkept, nfull - 1)));
+            }
           }
 
-          return std::make_pair(coeff, expnt);
+          result.coeff = coeff;
+          result.expnt = expnt;
+          return result;
         }
 
 //        /// return the right block of the upsampled operator (modified NS only)
@@ -1042,11 +1058,11 @@ namespace madness {
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
             info.images_only = info1.images_only;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
+            auto [coeff, expnt, dropped_coeff, dropped_expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
             if (info.images_only) {
-                initialize_images_only(coeff,expnt,lattice_ranges,range,bloch_k);
+                initialize_images_only(coeff,expnt,dropped_coeff,dropped_expnt,lattice_ranges,range,bloch_k);
             } else {
                 ops.resize(rank);
                 initialize(coeff,expnt,lattice_ranges,range,bloch_k);
@@ -1066,7 +1082,18 @@ namespace madness {
         /// keeps the same lattice_summed() pattern, so init_lattice_summed() holds and
         /// the displacements stay on the non-periodic domain. Non-periodic axes get the
         /// ordinary plain factor.
+        ///
+        /// An infinite lattice sum drops the low-exponent Gaussians of the fit
+        /// (make_coeff_for_operator): their lattice sum is flat over the cell, a
+        /// gauge constant. Their home-cell part is not flat, and a home operator
+        /// built from the full fit keeps it. So that home(full fit) + images still
+        /// equals the lattice sum up to that gauge constant, the dropped terms enter
+        /// here as home-only terms with negated coefficients: the operator is then
+        /// exactly (lattice sum as MADNESS computes it) - (home cell with the full
+        /// kernel). Measured on a 1D-periodic H10 chain, L = 18 bohr: without this,
+        /// the 15 dropped terms shift the periodic energy correction by 3e-5 Ha.
         void initialize_images_only(const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                                    const Tensor<double>& dropped_coeff, const Tensor<double>& dropped_expnt,
                                     const std::array<LatticeRange, NDIM>& lattice_range,
                                     const std::array<KernelRange, NDIM>& range,
                                     const Vector<double, NDIM>& bloch_k) {
@@ -1079,25 +1106,30 @@ namespace madness {
             MADNESS_CHECK_THROW(!per.empty(),
                                 "images_only: the operator has no lattice-summed axis, so there are no images to sum");
             const int npat = (1 << per.size()) - 1;
+            const int ndropped = dropped_coeff.size() ? int(dropped_coeff.dim(0)) : 0;
 
-            ops.resize(std::size_t(rank0) * npat);
+            ops.resize(std::size_t(rank0) * npat + ndropped);
             rank = int(ops.size());
-            for (int pat = 1; pat <= npat; ++pat) {
-                for (int mu = 0; mu < rank0; ++mu) {
-                    auto& term = ops[std::size_t(pat - 1) * rank0 + mu];
-                    const Q c = std::pow(sqrt(expnt(mu)/pi), static_cast<int>(NDIM));
-                    term.setfac(coeff(mu)/c);
-                    for (std::size_t d = 0; d < NDIM; ++d) {
-                        LatticeImages images = LatticeImages::all;
-                        if (lattice_range[d]) {
-                            const int bit = int(std::find(per.begin(), per.end(), d) - per.begin());
-                            images = ((pat >> bit) & 1) ? LatticeImages::exclude_home : LatticeImages::home_only;
-                        }
-                        term.setop(d, GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0,
-                                            lattice_range[d], bloch_k[d], range[d], images));
+            // pattern 0 (every lattice-summed axis R = 0 only) is the home cell; it is
+            // used only for the dropped terms below
+            auto set_term = [&](ConvolutionND<Q,NDIM>& term, Q c_mu, double e_mu, int pat) {
+                const Q c = std::pow(sqrt(e_mu/pi), static_cast<int>(NDIM));
+                term.setfac(c_mu/c);
+                for (std::size_t d = 0; d < NDIM; ++d) {
+                    LatticeImages images = LatticeImages::all;
+                    if (lattice_range[d]) {
+                        const int bit = int(std::find(per.begin(), per.end(), d) - per.begin());
+                        images = ((pat >> bit) & 1) ? LatticeImages::exclude_home : LatticeImages::home_only;
                     }
+                    term.setop(d, GaussianConvolution1DCache<Q>::get(k, e_mu*width[d]*width[d], 0,
+                                        lattice_range[d], bloch_k[d], range[d], images));
                 }
-            }
+            };
+            for (int pat = 1; pat <= npat; ++pat)
+                for (int mu = 0; mu < rank0; ++mu)
+                    set_term(ops[std::size_t(pat - 1) * rank0 + mu], coeff(mu), expnt(mu), pat);
+            for (int mu = 0; mu < ndropped; ++mu)
+                set_term(ops[std::size_t(rank0) * npat + mu], -dropped_coeff(mu), dropped_expnt(mu), 0);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)

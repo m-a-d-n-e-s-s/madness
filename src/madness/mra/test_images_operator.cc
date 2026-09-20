@@ -33,14 +33,17 @@ double f_func(const coord_3d& r) {
     return std::exp(-1.5*a) + 0.7*std::exp(-0.8*b);
 }
 
-/// full == home + images for the periodic axes given by `periodic`, lattice range N
-int check_identity(World& world, const std::array<bool,3>& periodic, int N, const std::string& label) {
+/// full == home + images for the periodic axes given by `periodic`, lattice range `N`.
+/// `home` is built from the full fit; an infinite `N` drops the low-exponent tail of
+/// the fit from `full`, and the images operator carries that tail as negated
+/// home-only terms, so the identity holds term by term in that case too.
+int check_identity(World& world, const std::array<bool,3>& periodic, const LatticeRange& N, const std::string& label) {
     BoundaryConditions<3> bc(BC_FREE);
     std::array<LatticeRange,3> lr_full, lr_home;
     int nper = 0;
     for (int d = 0; d < 3; ++d) {
         lr_home[d] = LatticeRange(0);
-        if (periodic[d]) { bc(d,0) = bc(d,1) = BC_PERIODIC; lr_full[d] = LatticeRange(N); ++nper; }
+        if (periodic[d]) { bc(d,0) = bc(d,1) = BC_PERIODIC; lr_full[d] = N; ++nper; }
         else lr_full[d] = LatticeRange(0);
     }
     FunctionDefaults<3>::set_bc(bc);
@@ -58,12 +61,13 @@ int check_identity(World& world, const std::array<bool,3>& periodic, int N, cons
 
     real_function_3d vfull = full(f), vhome = home(f), vimg = images(f);
     const double err = (vfull - vhome - vimg).norm2();
-    const int expected_rank = ((1 << nper) - 1) * full.get_rank();
+    const int ndropped = home.get_rank() - full.get_rank();   // > 0 only for an infinite sum
+    const int expected_rank = ((1 << nper) - 1) * full.get_rank() + ndropped;
 
     int errors = 0;
     if (world.rank() == 0)
         print(" ", label, ": |full - home - images| =", err, "  ranks: full", full.get_rank(),
-              " images", images.get_rank(), "(expected", expected_rank, ")  |images f| =", vimg.norm2());
+              " home", home.get_rank(), " images", images.get_rank(), "(expected", expected_rank, ")  |images f| =", vimg.norm2());
     if (err > 20.0 * thresh) { print("FAIL: identity violated"); ++errors; }
     if (images.get_rank() != expected_rank) { print("FAIL: rank"); ++errors; }
     // the images potential must be non-trivial: it is what the identity is for
@@ -83,8 +87,10 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(0);
 
     int errors = 0;
-    errors += check_identity(world, {false, false, true}, 2, "periodic z, N=2   (1 pattern)");
-    errors += check_identity(world, {true,  true,  true}, 1, "periodic xyz, N=1 (7 patterns)");
+    errors += check_identity(world, {false, false, true}, LatticeRange(2),    "periodic z, N=2   (1 pattern)");
+    errors += check_identity(world, {true,  true,  true}, LatticeRange(1),    "periodic xyz, N=1 (7 patterns)");
+    errors += check_identity(world, {false, false, true}, LatticeRange(true), "periodic z, N=inf (1 pattern + dropped tail)");
+    errors += check_identity(world, {true,  true,  true}, LatticeRange(true), "periodic xyz, N=inf (7 patterns + dropped tail)");
 
     if (world.rank() == 0) {
         if (errors == 0) print("\ntest_images_operator passed\n");
