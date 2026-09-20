@@ -470,12 +470,6 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
     return *this;
 }
 
-template 
-class Exchange<double_complex, 3>::ExchangeImpl;
-
-template
-class Exchange<double, 3>::ExchangeImpl;
-
 template class Exchange<double_complex, 3>;
 template class Exchange<double, 3>;
 
