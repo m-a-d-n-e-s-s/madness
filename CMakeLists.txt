@@ -88,6 +88,7 @@ endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 redefaultable_option(MADNESS_WERROR "Treat compiler warnings as errors when compiling MADNESS's own translation units (does not propagate to consumers of installed MADNESS targets)" OFF)
 include(MADNESSWarnings)
+include(MADNESSArchitecture)
 
 # Enable optional libraries ====================================================
 
