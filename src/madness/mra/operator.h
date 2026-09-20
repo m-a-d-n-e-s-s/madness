@@ -1041,12 +1041,63 @@ namespace madness {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
+            info.images_only = info1.images_only;
             auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
-            ops.resize(rank);
-            initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            if (info.images_only) {
+                initialize_images_only(coeff,expnt,lattice_ranges,range,bloch_k);
+            } else {
+                ops.resize(rank);
+                initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            }
             init_lattice_summed();
+        }
+
+        /// the rest-of-crystal operator: the lattice sum with the home cell (L = 0) removed
+
+        /// Removing one lattice vector is not "drop R = 0 on every axis": that also
+        /// drops every image with any zero component, and for a chain periodic along
+        /// z the only images at all are (0, 0, n_z). Sum instead over the 2^p - 1
+        /// nonzero bit patterns of the p lattice-summed axes; in each pattern an axis
+        /// whose bit is set sums R != 0 and one whose bit is clear takes R = 0 only.
+        /// Term by term the fit is the one the full lattice sum uses, so
+        /// full == home + images exactly, with no cancellation anywhere. Every term
+        /// keeps the same lattice_summed() pattern, so init_lattice_summed() holds and
+        /// the displacements stay on the non-periodic domain. Non-periodic axes get the
+        /// ordinary plain factor.
+        void initialize_images_only(const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                                    const std::array<LatticeRange, NDIM>& lattice_range,
+                                    const std::array<KernelRange, NDIM>& range,
+                                    const Vector<double, NDIM>& bloch_k) {
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
+            const double pi = constants::pi;
+            const int rank0 = coeff.dim(0);
+
+            std::vector<std::size_t> per;    // the lattice-summed axes
+            for (std::size_t d = 0; d < NDIM; ++d) if (lattice_range[d]) per.push_back(d);
+            MADNESS_CHECK_THROW(!per.empty(),
+                                "images_only: the operator has no lattice-summed axis, so there are no images to sum");
+            const int npat = (1 << per.size()) - 1;
+
+            ops.resize(std::size_t(rank0) * npat);
+            rank = int(ops.size());
+            for (int pat = 1; pat <= npat; ++pat) {
+                for (int mu = 0; mu < rank0; ++mu) {
+                    auto& term = ops[std::size_t(pat - 1) * rank0 + mu];
+                    const Q c = std::pow(sqrt(expnt(mu)/pi), static_cast<int>(NDIM));
+                    term.setfac(coeff(mu)/c);
+                    for (std::size_t d = 0; d < NDIM; ++d) {
+                        LatticeImages images = LatticeImages::all;
+                        if (lattice_range[d]) {
+                            const int bit = int(std::find(per.begin(), per.end(), d) - per.begin());
+                            images = ((pat >> bit) & 1) ? LatticeImages::exclude_home : LatticeImages::home_only;
+                        }
+                        term.setop(d, GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0,
+                                            lattice_range[d], bloch_k[d], range[d], images));
+                    }
+                }
+            }
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
