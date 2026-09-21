@@ -164,6 +164,16 @@ namespace madness {
 #ifndef HAVE_IBMBGP
         pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 #endif
+        // Explicitly set a sufficient stack size (8 MB).
+        // On macOS, pthread_create defaults to a tiny 512 KB stack, which overflows
+        // during deep recursion, template expansion, or complex scientific tasks,
+        // resulting in bus errors (guard page) or autorelease pool page corruption.
+        size_t stacksize = 8 * 1024 * 1024;
+#ifdef PTHREAD_STACK_MIN
+        if (stacksize < static_cast<size_t>(PTHREAD_STACK_MIN)) stacksize = PTHREAD_STACK_MIN;
+#endif
+        pthread_attr_setstacksize(&attr, stacksize);
+
         int result = pthread_create(&id, &attr, &ThreadBase::main, (void *) this);
         if (result) MADNESS_EXCEPTION("failed creating thread", result);
 
