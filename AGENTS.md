@@ -39,6 +39,11 @@ If several exist side-by-side, check their
 cached CMake options (`grep … CMakeCache.txt`) — configure state often
 diverges between them.
 
+Check whether `ninja` is available (`which ninja`). When available, always
+prefer configuring CMake with the Ninja generator (`cmake -G Ninja ...`) and
+building with `ninja`, as it scales much better across cores and is significantly
+faster than `make`.
+
 For focused iteration, these scope flags drop rebuild time substantially:
 
 - `-DMADNESS_BUILD_MADWORLD_ONLY=ON` — build only the runtime, skipping
