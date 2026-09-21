@@ -9,8 +9,8 @@ set(MADNESS_TARGET_ARCH "default" CACHE STRING
 set(MADNESS_TUNE_ARCH "" CACHE STRING
     "Optional CPU scheduling tuning (maps to -mtune on x86, e.g., 'native' or 'zen4')")
 
-set(MADNESS_RELAXED_MATH "safe" CACHE STRING
-    "Floating-point optimization mode: 'safe' (associative + FMA contraction, preserves NaN/Inf), 'fast' (-ffast-math), or 'strict'/OFF (IEEE-754)")
+set(MADNESS_RELAXED_MATH "default" CACHE STRING
+    "Floating-point optimization mode: 'default' (associative + FMA contraction, preserves NaN/Inf), 'fast' (-ffast-math), or 'strict'/OFF (IEEE-754)")
 
 # Check if target architecture flags are disabled
 if (MADNESS_TARGET_ARCH MATCHES "^(none|NONE|OFF|off|False|FALSE|0)$")
@@ -88,7 +88,7 @@ else()
 endif()
 
 # Floating-point relaxation mode
-if (MADNESS_RELAXED_MATH STREQUAL "safe")
+if (MADNESS_RELAXED_MATH STREQUAL "default")
   set(_math_flags_to_check
       "-fassociative-math"
       "-fno-signed-zeros"
