@@ -1,5 +1,5 @@
 {
-  "description": "Static beta_zzz(0;0,0) and alpha_zz(0) of LiH (HF, quadratic response, z only) at one rung (protocol 1e-4, k 6). The one beta row (index 0) is A=z, B=C=dipole_z, freq_b=freq_c=0 -- the static beta_zzz; LiH is polar, so it is a large number (~3e2 au) rather than a symmetry zero. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit a1f865a83 (job 2193043). beta rtol 0.01 (~100x the run-to-run spread at dconv 1e-4); the 1e-6 scripted-test value was 315.595 au. Tier: registered `long` (42 s), a deviation from the plan's CI tier -- the deck at `l 80.0` measured 50 s and at `l 50.0` (same beta_zzz to 0.08 %) 42 s, and a static beta cannot be cut further: it needs the z FD leg and one VBC solve.",
+  "description": "Static beta_zzz(0;0,0) and alpha_zz(0) of LiH (HF, quadratic response, z only) at one rung (protocol 1e-4, k 6). The one beta row (index 0) is A=z, B=C=dipole_z, freq_b=freq_c=0 -- the static beta_zzz; LiH is polar, so it is a large number (~3e2 au) rather than a symmetry zero. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit a1f865a83 (job 2193043). beta rtol 0.01 (10x the run-to-run spread); the 1e-6 scripted-test value was 315.595 au. Tier: registered `long` (42 s), a deviation from the plan's CI tier -- the deck at `l 80.0` measured 50 s and at `l 50.0` (same beta_zzz to 0.08 %) 42 s, and a static beta cannot be cut further: it needs the z FD leg and one VBC solve.",
   "checks": [
     {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
     {"key": ["tasks", 1, "type"], "tol": 0},
@@ -14,6 +14,7 @@
     {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "B"], "tol": 0},
     {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "C"], "tol": 0},
     {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "freq_b"], "tol": 0, "allow_zero": true},
+    {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "freq_c"], "tol": 0, "allow_zero": true},
     {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "converged"], "tol": 0},
     {"key": ["tasks", 1, "properties", "response_properties", "beta", "1e-04_k6", 0, "beta"], "rtol": 0.01}
   ]
