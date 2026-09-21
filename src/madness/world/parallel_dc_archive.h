@@ -71,9 +71,9 @@ namespace madness {
                 , ar(v)
             {
                 if (rank==0) {
-                    containerT::const_accessor acc;
-                    if (dc.find(acc, key)) {
-                        v = acc->second;
+                    containerT::const_iterator it = dc.find(key).get();
+                    if (it != dc.end()) {
+                        v = it->second;
                     }
                     else {
                         MADNESS_EXCEPTION("record not found", key);
