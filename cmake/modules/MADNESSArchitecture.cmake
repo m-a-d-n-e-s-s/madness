@@ -51,10 +51,9 @@ if (_madness_apply_arch)
 
   elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
     if (APPLE)
-      # On macOS Apple Silicon, Apple Clang natively targets Darwin ARM64 with Apple
-      # Silicon's 16-byte memory alignment and ABI conventions. Forcing a generic
-      # -march=armv8-a flag overrides Apple Silicon's target profile and causes
-      # SIGBUS (BUS_ADRALN / Invalid address alignment) on SIMD/vector operations.
+      # On macOS Apple Silicon, Apple Clang natively targets Darwin ARM64, whose baseline
+      # includes Apple Silicon capabilities (ARMv8.5-A+). Forcing a generic Linux-style
+      # -march=armv8-a flag is unnecessary and inappropriately downgrades the baseline.
       if (MADNESS_TARGET_ARCH STREQUAL "native")
         check_cxx_compiler_flag("-mcpu=native" _HAS_MCPU_NATIVE)
         if (_HAS_MCPU_NATIVE)
