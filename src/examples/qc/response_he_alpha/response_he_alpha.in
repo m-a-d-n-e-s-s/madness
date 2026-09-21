@@ -1,0 +1,31 @@
+# HF linear response on helium -- the smallest complete `response` deck.
+#
+# One rung (protocol 1e-4, k 6), one direction, a static and a dynamic
+# frequency: alpha_zz(0) and alpha_zz(0.05 au). The point is the code path and
+# the convergence, not the digit; the digit is checked against reference/ to the
+# run-to-run spread x10 (check.json).
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_he_alpha.in)
+
+dft
+    xc        hf
+    econv     1e-4
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    maxiter   20
+end
+
+response
+    dipole              true
+    dipole.directions   z
+    dipole.frequencies  [0.0, 0.05]
+    maxiter             30
+    print_level         1
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

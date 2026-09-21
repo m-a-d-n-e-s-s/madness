@@ -58,6 +58,11 @@ no simple-dftd3 to register it with. That laptop is not uniformly slower: it ran
 so treat the 12 s as an upper bound of the same order, and re-measure it on
 node26 once simple-dftd3 is available there.
 
+`response_he_alpha` was measured on a Seawulf Milan node at
+`MAD_NUM_THREADS=7` (the thread count its `CMakeLists.txt` comment
+records), one second inside the `short` boundary; re-measure before
+leaning on the tier.
+
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
@@ -71,6 +76,7 @@ node26 once simple-dftd3 is available there.
 | `scf_he_tpss` | `scf` | He | the only meta-GGA — the non-multiplicative kinetic-energy-density term | 17 s | medium |
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
+| `response_he_alpha` | `response` | He | linear response: static + dynamic α_zz at one rung; the task-record envelope | 9 s | short |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |
@@ -100,24 +106,15 @@ The four optimization cases all use `--optimize --wf=<scf|nemo>`, which since th
 in-SCF `dft gopt` form was removed is the only way to optimize a geometry.
 
 `scf_lih_optimize` and `scf_lih_optimize_tight` are the same molecule at two
-threshold settings: the first at the derived defaults (gtol 1e-4), the second
-with `gtol`/`xtol`/`gradient_precision` pinned in the `optimization` group at the
-values the retired in-SCF path used to impose (gtol 1e-5). Same minimum,
-different stopping point. When the in-SCF path was removed the tight case
-reproduced its numbers exactly, which is what established that moving the
-optimizer out of the SCF changed no arithmetic — only who chooses the thresholds.
-
-Both assert `max_gradient` as `max: <gtol>`, not against the reference. At
-`dconv 1e-4` the gradient at one geometry depends on where the SCF started by up
-to ~7e-5 (with `restart auto` each step starts from the previous step's AO
-projections, while a cold start uses the atomic guess), so the point inside gtol
-where the optimizer stops is a property of the trajectory, not of the minimum.
-The references' own `max_gradient` values (4.0e-07, 9.1e-07) came from
-trajectories that today's code does not follow; the energy and geometry checks
-still hold against them.
-
-`nemo_lih_optimize` lands at r = 3.034271, the difference between a regularized
-and a plain SCF reference.
+threshold settings: the first at the derived defaults (2 steps, max gradient
+4.0e-07, r = 3.035076 bohr), the second with `gtol`/`xtol`/`gradient_precision`
+pinned in the `optimization` group at the values the retired in-SCF path used to
+impose (3 steps, 9.1e-07, r = 3.034046). Same minimum, different stopping
+point — energies -7.987363036 and -7.987363048, i.e. 1.2e-08 Ha apart. The tight
+case reproduces the removed path's numbers exactly, which is what establishes that
+moving the optimizer out of the SCF changed no arithmetic — only who chooses the
+thresholds. `nemo_lih_optimize` lands at r = 3.034271, the difference between a
+regularized and a plain SCF reference.
 
 All four converge on the criteria rather than through MolOpt's "insufficient
 precision" escape; if one ever starts taking a single step and stopping, suspect
@@ -218,27 +215,42 @@ dipole component, a gradient at a stationary point).
 
 ## Response cases
 
-The response regression cases (α, β, excited states, Raman, 2PA) are ported in a
-later pull request together with their references. Today this section holds only the
-refusal cases, which need no reference.
+The `response_*` cases are the regression suite for `madqc --wf=response`
+(molresponse): does each property still run, still converge, and still give the
+number it gave last time. Every case is one rung (`protocol [1e-4]`, `k 6`,
+`xc hf`); nothing here is a converged number — the converged numbers live in
+the response benchmarks (DALTON comparisons at `1e-6`/`1e-8`), not in CI. The
+nightly water case runs at the same HF/aug-cc-pVQZ optimized geometry those
+benchmarks use, so its numbers can be read against DALTON to about a percent.
 
-### Refusal cases
+Three things every response `check.json` asserts:
 
-Three `response_he_*` cases are decks that must be **refused**. Their `check.json` carries `"expect_error": "<text>"` in place of `checks`, and they have no `reference/` directory. A case passes only if all of these hold:
+1. **Converged.** `tasks[1].convergence.status == "converged"` (the response
+   task's envelope: every state at the finest rung converged and
+   `run_summary.stop_reason == "complete"`), `n_unconverged == 0`, and
+   `convergence.iterations` under a `max` cap of 1.5× the reference count — a
+   jump in iterations is a regression even when the number lands.
+2. **Same number.** Each asserted property within `tol`/`rtol` of `reference/`:
+   α `tol 1e-3` (absolute, au), β `rtol 0.01`, excitation energies `tol 1e-3`,
+   2PA `rtol 0.05`, Raman `rtol 0.02` — 10× the run-to-run spread at
+   `dconv 1e-4`, loose enough not to flap on thread scheduling.
+3. **Envelope intact.** `precision.k`, `precision.protocol_key`, `type`,
+   `stop_reason` compared exactly.
 
-- `madqc` exits non-zero;
-- `calc_info.json` records a `task_failed` entry;
-- that entry's error contains the text.
+Wall time is recorded in the reference (`provenance.wall_s`,
+`run_info.timing`) and never asserted: a wall-time gate on a shared node is
+noise.
 
-A run that succeeds, a crash that leaves no record, and a failure for some other reason all fail the case.
+Key paths: α is `tasks[1].properties.response_properties.alpha.<pk>[row].alpha[i][j]`
+with `<pk>` the protocol key (`"1e-04_k6"`), rows in `dipole.frequencies`
+order and `i,j` indexing the letters of `dipole.directions`; β and Raman rows
+are `…beta.<pk>[row]` / `…raman.<pk>[row]` with `A`, `B`, `C`, `freq_b`,
+`freq_c` naming the component (rows ordered A fastest, then B, then C); 2PA is
+`…tpa.<pk>[row]` with `es_root_id`, `omega`, `D_linear`; excitation energies
+are `tasks[1].metadata.excited_states.<pk>.roots[i].omega`.
 
-| Case | Refused because |
-|---|---|
-| `response_he_beta_or_refused` | `beta.or`: no quadratic source for optical rectification yet |
-| `response_he_raman_bad_atom` | `raman.nuc_atom` beyond the molecule |
-| `response_he_lda_beta_refused` | β on a DFT ground state, which needs the unimplemented g''_xc |
-
-Each one replaces a run that used to exit 0 without the property, or fail later with an unnamed error.
+The nightly set is the `long`/`verylong` response cases:
+`ctest -L qctest -R "madness/test/qc/response_" -LE "short|medium"`.
 
 ## Adding a case
 

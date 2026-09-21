@@ -1,0 +1,20 @@
+{
+  "description": "HF linear response on helium: static and dynamic (0.05 au) alpha_zz at one rung (protocol 1e-4, k 6). Row order in response_properties.alpha follows dipole.frequencies. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit 5653a1ba0 (job 2192938). alpha tol 1e-3 = 10x the run-to-run spread at dconv 1e-4.",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 6},
+    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "omega"], "tol": 0, "allow_zero": true},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 1, "omega"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 1, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 1, "alpha", 0, 0], "tol": 1e-3}
+  ]
+}
