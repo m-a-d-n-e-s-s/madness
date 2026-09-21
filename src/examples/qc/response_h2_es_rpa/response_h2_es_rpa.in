@@ -1,0 +1,36 @@
+# Excited states of H2 at the RPA (full TDHF) level -- the same deck as
+# response_h2_es_tda with excited.tda false.
+# The lowest root at one rung (protocol 1e-4, k 6) plus the static
+# alpha_zz that the same run gives for free.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_h2_es_rpa.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         100.0
+    localize  canon
+    maxiter   30
+end
+
+response
+    dipole                 true
+    dipole.directions      z
+    dipole.frequencies     [0.0]
+    excited.enable         true
+    excited.num_states     1
+    excited.tda            false
+    excited.guess_max_iter 1
+    excited.maxiter        20
+    excited.maxsub         4
+    print_level            1
+end
+
+molecule
+    eprec  1e-5
+    units  angstrom
+    H  0.0  0.0  -0.37
+    H  0.0  0.0   0.37
+end

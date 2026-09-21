@@ -49,6 +49,10 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #   9 s
   # the first `response` case: the smallest complete molresponse deck (see README)
   add_qctest(response_he_alpha madqc "qctest;short;applications")     #   9 s, 7 threads
+  # the same H2 deck twice: the `excited.*` path, once in the Tamm-Dancoff
+  # approximation and once at full RPA (`excited.tda false`)
+  add_qctest(response_h2_es_tda madqc "qctest;medium;applications")   #  22 s, 7 threads
+  add_qctest(response_h2_es_rpa madqc "qctest;medium;applications")   #  25 s, 7 threads
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
   # asserts the optimizer projects translations/rotations out of the gradient
   # before testing convergence, and that explicit `optimization` values beat the

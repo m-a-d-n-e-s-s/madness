@@ -1,0 +1,17 @@
+{
+  "description": "H2 excited states, TDA, the lowest root at one rung (protocol 1e-4, k 6) plus static alpha_zz. excited.num_states is 1 so the case fits the medium tier; the same deck at 2 roots gave the identical omega_0 to 1e-13. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit e5374f95e (job 2193025). omega tol 1e-3 au.",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 9},
+    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "n_roots"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "converged"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 1e-3}
+  ]
+}
