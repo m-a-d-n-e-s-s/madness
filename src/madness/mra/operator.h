@@ -50,6 +50,7 @@
 #include <madness/mra/function_common_data.h>
 #include <madness/mra/gfit.h>
 #include <madness/mra/operatorinfo.h>
+#include <atomic>
 
 namespace madness {
 
@@ -169,6 +170,15 @@ namespace madness {
         array_of_bools<NDIM> func_domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
         std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
+
+        /// per-level lists of the displacements with a nonzero block, built lazily by get_disp_active()
+        struct ActiveDisplacements {
+            std::array<std::vector<Key<NDIM>>, 64> lists;
+            std::array<std::atomic<const std::vector<Key<NDIM>>*>, 64> ptr;
+            Mutex mutex;
+            ActiveDisplacements() { for (auto& p : ptr) p.store(nullptr, std::memory_order_relaxed); }
+        };
+        mutable ActiveDisplacements disp_active_;
 
       public:
         bool modified_=false;     ///< use modified NS form
@@ -1197,15 +1207,43 @@ namespace madness {
             return Displacements<NDIM>().get_disp(n, lattice_summed());
         }
 
+        /// The displacements of get_disp(n) with a nonzero block, ordered by decreasing block norm
+
+        /// The block at (level, displacement) does not depend on the source (NS form), so the list is
+        /// built once per level, lazily. It is what do_apply sweeps for an operator that cannot use the
+        /// shell-decay stop (see screen_by_shell_decay()): in this order the sweep can stop at the first
+        /// displacement whose contribution is negligible for the source at hand, with no assumption
+        /// about how the kernel decays in space, and it applies exactly the blocks a full sweep would.
+        const std::vector<Key<NDIM>>& get_disp_active(Level n) const {
+            MADNESS_ASSERT(!modified());
+            MADNESS_ASSERT(std::size_t(n) < disp_active_.lists.size());
+            if (auto p = disp_active_.ptr[n].load(std::memory_order_acquire)) return *p;
+            ScopedMutex<Mutex> lock(disp_active_.mutex);
+            if (auto p = disp_active_.ptr[n].load(std::memory_order_acquire)) return *p;
+            auto& list = disp_active_.lists[n];
+            std::vector<std::pair<double, Key<NDIM>>> ranked;
+            for (const auto& d : get_disp(n)) {
+                const double norm = getop_ns(n, d)->norm;
+                if (norm > 0.0) ranked.emplace_back(norm, d);
+            }
+            std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+            for (const auto& [norm, d] : ranked) list.push_back(d);
+            disp_active_.ptr[n].store(&list, std::memory_order_release);
+            return list;
+        }
+
         /// May FunctionImpl::do_apply stop at the first shell of displacements that contributes nothing?
 
         /// True for a kernel that decays away from the source, which is what that screening assumes.
-        /// False for the rest-of-crystal operator (OperatorInfo::images_only): its kernel vanishes
-        /// near the source and turns on near the lattice images, so for a source close to a periodic
-        /// face the empty near shells would end the sweep before the wrapped displacement that carries
-        /// the nearest-image interaction. Measured with a unit Gaussian 1.8 bohr from the periodic
-        /// face of a 100x100x18 cell: one mid-range fit term lost 4% of its images potential and the
-        /// total 2.5e-3, independent of the threshold; the cubic 18^3 cell happened to be unaffected.
+        /// False for the rest-of-crystal operator (OperatorInfo::images_only): the kernel is
+        /// translation-invariant but not lattice-periodic, so the wrapped displacement l - 2^n is not
+        /// equivalent to l as the lattice-modulated shells assume -- the home-direction block is exactly
+        /// zero while the image-direction block is the whole kernel. For a source close to a periodic
+        /// face the zero-block near shells then end the sweep before the wrapped displacement that
+        /// carries the nearest-image interaction. Measured with a unit Gaussian 1.8 bohr from the
+        /// periodic face of a 100x100x18 cell: one mid-range fit term lost 4% of its images potential
+        /// and the total 2.5e-3, independent of the threshold; the cubic 18^3 cell happened to be
+        /// unaffected. Such an operator is swept over get_disp_active() instead.
         bool screen_by_shell_decay() const { return !info.images_only; }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction

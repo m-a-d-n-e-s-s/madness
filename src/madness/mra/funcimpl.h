@@ -5151,6 +5151,10 @@ template<size_t NDIM>
             for (const auto& displacement: displacements) {
               if (skip_predicate(displacement)) continue;
 
+              // without the shell-decay stop the list is ordered by decreasing block norm (get_disp_active),
+              // so the first negligible contribution ends the sweep for this source
+              if (!shell_stop && cnorm * op->norm(key.level(), displacement, source) <= tol / fac) break;
+
               keyT d;
               Key<NDIM - opdim> nullkey(key.level());
               MADNESS_ASSERT(op->particle() == 1 || op->particle() == 2);
@@ -5209,7 +5213,8 @@ template<size_t NDIM>
           // list of displacements sorted in order of increasing distance
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
-          const std::vector<opkeyT> &disp = op->get_disp(key.level());
+          // an operator that cannot use the shell-decay stop sweeps only the displacements with a nonzero block
+          const std::vector<opkeyT> &disp = op->screen_by_shell_decay() ? op->get_disp(key.level()) : op->get_disp_active(key.level());
           const auto max_distsq_reached = for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
