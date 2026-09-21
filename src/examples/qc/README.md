@@ -179,9 +179,20 @@ read.
 }
 ```
 
-`key` is a path of keys and list indices into `<prefix>.calc_info.json`. `tol` is
-an absolute tolerance; `0` means "must match exactly", and ints and strings always
-compare exactly. A key absent from either file is a failure, not a skip. Optional
+`key` is a path of keys and list indices into `<prefix>.calc_info.json`. Each
+check then carries one or more of:
+
+- `tol` — an absolute tolerance against the reference; `0` means "must match
+  exactly", and ints, strings and booleans always compare exactly.
+- `rtol` — a relative tolerance, |run − reference| ≤ `rtol` · |reference|. A
+  reference of exactly zero is rejected (the bound would be zero) unless
+  `allow_zero` is set, in which case the run must reproduce the zero.
+- `max` — an upper bound on the *produced* value alone; the reference is not
+  consulted. Use it for iteration counts and residuals, where the reference is a
+  budget rather than a number to reproduce. It may be combined with `tol` or
+  `rtol` in the same entry.
+
+A key absent from either file is a failure, not a skip. Optional
 `requires` gates a case on resources — `{"threads": 20}`, `{"mpi": true}`,
 `{"env": ["MAD_ROOT_DIR"]}` — and turns it into a ctest skip rather than a
 failure.

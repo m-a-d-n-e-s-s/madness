@@ -10,6 +10,13 @@
 
 if (BUILD_TESTING AND Python3_EXECUTABLE)
 
+  # The runner's own comparison semantics (tol / rtol / max / allow_zero), so a
+  # change to run_qctest.py cannot silently loosen every case at once.
+  add_test(NAME madness/test/qc/run_qctest_selftest/run
+           COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/bin/test_run_qctest.py")
+  set_tests_properties(madness/test/qc/run_qctest_selftest/run
+                       PROPERTIES LABELS "qctest;short;applications")
+
   # Tiers are MEASURED wall times (node26, 96 cores, MAD_NUM_THREADS=20), not
   # estimates: short < 10 s, medium < 30 s, long < 2 min, verylong beyond.
   # Re-measure before retagging; short+medium gate every CI run via
