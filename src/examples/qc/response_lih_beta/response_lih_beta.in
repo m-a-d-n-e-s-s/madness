@@ -1,0 +1,37 @@
+# Static first hyperpolarizability of LiH -- the smallest `quadratic` deck.
+# One direction (z, the molecular axis), one rung (protocol 1e-4, k 6): alpha_zz(0)
+# and beta_zzz(0;0,0). LiH is polar, so beta_zzz is large (~3e2 au) and a
+# meaningful regression number; a centrosymmetric molecule would give zero.
+# `l 50.0` rather than 80.0 to hold the wall down: the larger box costs 8 s and
+# moves beta_zzz by 0.08 % (315.512 -> 315.777).
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_lih_beta.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         50.0
+    localize  new
+    maxiter   30
+end
+
+response
+    dipole              true
+    dipole.directions   z
+    dipole.frequencies  [0.0]
+    quadratic           true
+    kain                true
+    dconv               1e-4
+    maxiter             60
+    print_level         1
+end
+
+molecule
+    eprec      1e-6
+    no_orient  true
+    units      angstrom
+    Li  0.0  0.0  -0.803105264950
+    H   0.0  0.0   0.803105264950
+end

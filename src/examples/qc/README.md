@@ -58,11 +58,12 @@ no simple-dftd3 to register it with. That laptop is not uniformly slower: it ran
 so treat the 12 s as an upper bound of the same order, and re-measure it on
 node26 once simple-dftd3 is available there.
 
-The three `response_*` cases were measured on a Seawulf Milan node at
+The four `response_*` cases were measured on a Seawulf Milan node at
 `MAD_NUM_THREADS=7` (the thread count their `CMakeLists.txt` comments
 record), not on node26: `response_he_alpha` one second inside the `short`
 boundary, `response_h2_es_tda` and `response_h2_es_rpa` a handful of
-seconds inside `medium`; re-measure before leaning on those tiers.
+seconds inside `medium`, and `response_lih_beta` well inside `long`;
+re-measure before leaning on those tiers.
 
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
@@ -80,6 +81,7 @@ seconds inside `medium`; re-measure before leaning on those tiers.
 | `response_he_alpha` | `response` | He | linear response: static + dynamic α_zz at one rung; the task-record envelope | 9 s | short |
 | `response_h2_es_tda` | `response` | H₂ | the lowest TDA excitation energy (`excited.*`), one rung | 22 s | medium |
 | `response_h2_es_rpa` | `response` | H₂ | the same at RPA (`excited.tda false`) | 25 s | medium |
+| `response_lih_beta` | `response` | LiH | static β_zzz (`quadratic true`) plus α_zz, one rung | 42 s | long |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |

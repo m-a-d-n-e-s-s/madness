@@ -53,6 +53,10 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # approximation and once at full RPA (`excited.tda false`)
   add_qctest(response_h2_es_tda madqc "qctest;medium;applications")   #  22 s, 7 threads
   add_qctest(response_h2_es_rpa madqc "qctest;medium;applications")   #  25 s, 7 threads
+  # the `quadratic` path: the z FD leg plus one VBC solve for the static
+  # beta_zzz of LiH. `long` rather than the CI tier the rest of the response
+  # set sits in -- a static beta cannot be cut below this (see check.json)
+  add_qctest(response_lih_beta madqc "qctest;long;applications")      #  42 s, 7 threads
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
   # asserts the optimizer projects translations/rotations out of the gradient
   # before testing convergence, and that explicit `optimization` values beat the
