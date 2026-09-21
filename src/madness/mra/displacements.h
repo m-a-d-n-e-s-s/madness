@@ -85,19 +85,44 @@ namespace madness {
             return bmax;
         }
 
-    private:
-        static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq(widths);
-            const auto b_width = b.real_distsq(widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq() < b.distsq();
-            else return a_width < b_width;
+        // Represents a displacement paired with its precomputed distance metrics.
+        // Precomputing the distances avoids repeatedly evaluating floating-point arithmetic
+        // inside the comparison operator and guarantees a strict total ordering immune to
+        // floating-point reassociation or FMA instruction differences across operands.
+        struct DispEntry {
+            Key<NDIM> key;
+            double real_distsq;
+            uint64_t distsq;
+
+            bool operator<(const DispEntry& other) const {
+                if (real_distsq != other.real_distsq) return real_distsq < other.real_distsq;
+                if (distsq != other.distsq) return distsq < other.distsq;
+                return key.translation() < other.key.translation();
+            }
+        };
+
+        static void sort_displacements(std::vector<Key<NDIM>>& d, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq(w), k.distsq()});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
         }
 
-        static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq_bc(periodic_axes, widths);
-            const auto b_width = b.real_distsq_bc(periodic_axes, widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
-            else return a_width < b_width;
+        static void sort_displacements_periodic(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq_bc(paxes, w), k.distsq_bc(paxes)});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
         }
 
         static void make_disp(int bmax) {
@@ -153,7 +178,7 @@ namespace madness {
                 MADNESS_EXCEPTION("make_disp: hard dimension loop",NDIM);
             }
 
-            std::sort(disp.begin(), disp.end(), cmp_keys);
+            sort_displacements(disp, widths);
         }
 
         static void make_disp_periodic(int bmax, Level n) {
@@ -194,7 +219,7 @@ namespace madness {
                 disp_periodic[n].push_back(Key<NDIM>(n,d));
             }
 
-            std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+            sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
 //             print("KEYS AT LEVEL", n);
 //             print(disp_periodic[n]);
 
@@ -301,11 +326,11 @@ namespace madness {
           if (!changed) return;
           widths = copy(width);
           if (!disp.empty()) {
-            std::sort(disp.begin(), disp.end(), cmp_keys);
+            sort_displacements(disp, widths);
           }
           for (size_t n = 0; n < 64; ++n) {
             if (!disp_periodic[n].empty()) {
-              std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+              sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
             }
           }
         }
