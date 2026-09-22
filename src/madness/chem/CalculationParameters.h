@@ -153,6 +153,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
 		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
 		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
+		initialize<int> ("nv_factor",1,"RETIRED -- use `nv_extra`/`nv_step`");
 		initialize<int> ("nv_extra",0,"extra virtuals converged first and dropped stepwise down to nvalpha");
 		initialize<int> ("nv_step",0,"virtuals dropped per step-down stage (0: all extras at once)");
 		initialize<int> ("nv_its",5,"maximum iterations per intermediate step-down stage");
@@ -389,6 +390,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
         if (is_user_defined("no_compute"))
         	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
+        if (is_user_defined("nv_factor"))
+        	error("\n\n`nv_factor` has been retired: the virtual step-down is now `nv_extra`, "
+        	      "`nv_step` and `nv_its`\n\n");
 
     	// dispersion correction
     	if (dispersion()!="none" and xc()!="hf") {

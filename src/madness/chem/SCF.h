@@ -366,7 +366,9 @@ public:
 
     void save_mos(World& world);
 
-    void load_mos(World& world);
+    /// @param[in]	allow_fewer	pad the virtuals from the atomic guess when the archive
+    ///							holds fewer orbitals than requested; otherwise that throws
+    void load_mos(World& world, const bool allow_fewer = true);
 
     bool restart_aos(World& world);
 
@@ -544,13 +546,14 @@ public:
                              const tensorT& occ, const double thresh) const;
 
     /// canonicalize the virtual orbitals: diagonalize the virtual-virtual Fock
-    /// block and rotate psi and Vpsi in phase. Occupied orbitals are untouched;
-    /// the occupied-virtual coupling is left for the caller to decouple. No-op
-    /// when there are no virtuals or the rotation is near-identity.
+    /// block and rotate psi, Vpsi and the occupied-virtual coupling in phase.
+    /// Occupied orbitals are untouched. No-op when there are no virtuals or,
+    /// unless forced, when the rotation is near-identity.
     /// @param[in]	nocc	number of occupied orbitals; the block [nocc, nmo) is canonicalized
+    /// @param[in]	force	rotate even when the rotation is near-identity (final publication)
     /// @return		true if a rotation was applied
     bool canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
-                               vecfuncT& Vpsi, const int nocc) const;
+                               vecfuncT& Vpsi, const int nocc, const bool force = false) const;
 
 
     void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old,
@@ -662,8 +665,12 @@ public:
         }
 
         calc.get_initial_orbitals(world, plan);
-        MADNESS_CHECK_THROW(not calc.param.freeze_occupied() or plan.source == RestartSource::restartdata,
-                            "freeze_occupied needs converged occupied orbitals from a restartdata archive");
+        // an archive converged at a looser rung is reprojected and accepted
+        MADNESS_CHECK_THROW(not calc.param.freeze_occupied() or
+                            (plan.source == RestartSource::restartdata and plan.archive_converged and
+                             plan.archive_same_hamiltonian),
+                            "freeze_occupied needs occupied orbitals from a restartdata archive that "
+                            "converged for this Hamiltonian");
 
         // Reading can invalidate the plan's premise. load_mos resets
         // converged_for_thresh when it has to reproject, and it may have fallen

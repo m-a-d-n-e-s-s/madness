@@ -336,7 +336,7 @@ void SCF::save_mos(World& world) {
     }
 }
 
-void SCF::load_mos(World& world) {
+void SCF::load_mos(World& world, const bool allow_fewer) {
     PROFILE_MEMBER_FUNC(SCF);
     //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
 
@@ -422,7 +422,7 @@ void SCF::load_mos(World& world) {
 
     // load orbitals
     MolecularOrbitals<double,3> amos, bmos;
-    amos.load_mos(ar, molecule, param.nmo_alpha(), true);
+    amos.load_mos(ar, molecule, param.nmo_alpha(), allow_fewer);
     amo= amos.get_mos();
     aocc=amos.get_occ();
     aeps=amos.get_eps();
@@ -435,7 +435,7 @@ void SCF::load_mos(World& world) {
     check_and_set_thresh(amo);
 
     if (param.have_beta()) {
-        bmos.load_mos(ar, molecule, param.nmo_beta(), true);
+        bmos.load_mos(ar, molecule, param.nmo_beta(), allow_fewer);
         bmo= bmos.get_mos();
         bocc=bmos.get_occ();
         beps=bmos.get_eps();
@@ -500,7 +500,8 @@ void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
     auto load_from=[&](World& world, const RestartSource source) {
         if (world.rank()==0) print("reading initial orbitals from "+madness::to_string(source));
         if (source==RestartSource::restartdata) {
-            load_mos(world);
+            // pad a short archive only when the run iterates
+            load_mos(world, plan.iterate);
             // load_mos reads nmo_alpha orbitals (occupied + virtuals), so this
             // must compare against nmo_alpha -- comparing against nalpha made
             // every restart with nvalpha>0 throw.
@@ -2209,7 +2210,7 @@ tensorT SCF::diag_fock_matrix(World& world, tensorT& fock, vecfuncT& psi,
 }
 
 bool SCF::canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
-                                vecfuncT& Vpsi, const int nocc) const {
+                                vecfuncT& Vpsi, const int nocc, const bool force) const {
     PROFILE_MEMBER_FUNC(SCF);
     const int nmo = psi.size();
     const int nv = nmo - nocc;
@@ -2242,7 +2243,7 @@ bool SCF::canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
     for (int i = 0; i < nv; ++i)
         for (int j = 0; j < nv; ++j)
             if (i != j) offdiag = std::max(offdiag, std::abs(U(i, j)));
-    if (offdiag <= 0.01) {
+    if (offdiag <= 0.01 and not force) {
         if (world.rank() == 0 && param.print_level() >= 3)
             printf("  canonicalize virtuals: skipped (max offdiag %.1e)\n", offdiag);
         return false;
@@ -2265,9 +2266,14 @@ bool SCF::canonicalize_virtuals(World& world, tensorT& fock, vecfuncT& psi,
         Vpsi[nocc + k] = vVpsi[k];
     }
 
-    // Only the block diagonal is written: the occupied-virtual coupling is
-    // zeroed by the caller's occupation-block decoupling, and the whole matrix
-    // is rebuilt next iteration.
+    // rotate the occupied-virtual coupling along: the final diagonalization
+    // in solve() reads it
+    if (nocc > 0) {
+        const Slice o(0, nocc - 1);
+        const tensorT F_ov = inner(copy(fock(o, v)), U);
+        fock(o, v) = F_ov;
+        fock(v, o) = transpose(F_ov);
+    }
     for (int i = 0; i < nv; ++i)
         for (int j = 0; j < nv; ++j)
             fock(nocc + i, nocc + j) = (i == j) ? evals(i) : 0.0;
@@ -2355,6 +2361,9 @@ void SCF::solve_virtuals(World& world) {
     if (world.rank() == 0 and param.print_level() > 1)
         printf("\nfreeze_occupied: iterating %d alpha and %d beta virtuals in the fixed mean field\n", nva, nvb);
 
+    // the input occupations override the archive's, as in solve()
+    apply_explicit_occupations(world);
+
     // Nuclear and Coulomb potentials of the occupied density, once. XC and
     // exchange are added per call by apply_potential, which takes the occupied
     // orbitals from this object rather than from its argument.
@@ -2406,6 +2415,8 @@ void SCF::solve_virtuals(World& world) {
                 converged = true;
                 break;
             }
+            // no update after the last evaluation, as in solve()
+            if (iter == param.maxiter() - 1) break;
             compress(world, vmo, false);
             compress(world, rv, false);
             world.gop.fence();
@@ -3015,6 +3026,14 @@ void SCF::solve(World& world) {
                 }
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
+                }
+
+                // the virtuals were last canonicalized before the previous
+                // update; rotate them once more for the published vectors
+                if (param.do_localize()) {
+                    canonicalize_virtuals(world, focka, amo, Vpsia, param.nalpha(), true);
+                    if (param.nbeta() != 0 && !param.spin_restricted())
+                        canonicalize_virtuals(world, fockb, bmo, Vpsib, param.nbeta(), true);
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors

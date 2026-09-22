@@ -204,6 +204,11 @@ struct RestartPlan {
     /// Fewer than requested means the missing virtuals start from the atomic guess.
     std::size_t archive_nmo_alpha = 0;
 
+    /// when source is restartdata: the header records a convergence at some
+    /// rung, and its eprec, xc and nuclear correlation factor agree with this run's
+    bool archive_converged = false;
+    bool archive_same_hamiltonian = false;
+
     /// true if orbitals have to be read from disk before anything else happens
     bool needs_load() const { return source != RestartSource::initial_guess; }
 
@@ -220,7 +225,8 @@ struct RestartPlan {
     void serialize(Archive& ar) {
         int m = static_cast<int>(mode);
         int s = static_cast<int>(source);
-        ar & m & s & iterate & protocol_start & stale_energy & warn & why & archive_nmo_alpha;
+        ar & m & s & iterate & protocol_start & stale_energy & warn & why & archive_nmo_alpha
+           & archive_converged & archive_same_hamiltonian;
         mode = static_cast<RestartMode>(m);
         source = static_cast<RestartSource>(s);
     }
@@ -327,9 +333,16 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
     };
 
     // ---- use restartdata, iterating from wherever it left off --------------
+    // what the archive's header says about the orbitals it holds
+    auto describe_archive = [&](const RestartMetadata& meta) {
+        plan.archive_converged = meta.converged_for_thresh < 1.0;
+        plan.archive_same_hamiltonian = hamiltonian_mismatch(meta).empty();
+    };
+
     auto continue_from_archive = [&](const RestartMetadata& meta, const std::string& why) {
         plan.source = RestartSource::restartdata;
         plan.stale_energy = meta.current_energy;
+        describe_archive(meta);
         const auto rung = first_rung_tighter_than(protocol, meta.converged_for_thresh);
         plan.iterate = true;
         plan.protocol_start = rung.value_or(last);
@@ -407,6 +420,7 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             plan.iterate = false;
             plan.protocol_start = last;
             plan.stale_energy = meta.current_energy;
+            describe_archive(meta);
             const std::string other = hamiltonian_mismatch(meta);
             if (not other.empty()) {
                 // Not overridden -- the user asked for these orbitals and gets
@@ -524,6 +538,7 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         plan.iterate = false;
         plan.protocol_start = last;
         plan.stale_energy = meta.current_energy;
+        describe_archive(meta);
         plan.why = "restart auto: archive is converged to thresh " +
                    format_thresh(target_thresh) + " and dconv " +
                    format_thresh(target_dconv);
