@@ -61,15 +61,19 @@ int check_identity(World& world, const std::array<bool,3>& periodic, const Latti
 
     real_function_3d vfull = full(f), vhome = home(f), vimg = images(f);
     const double err = (vfull - vhome - vimg).norm2();
-    const int ndropped = home.get_rank() - full.get_rank();   // > 0 only for an infinite sum
-    const int expected_rank = ((1 << nper) - 1) * full.get_rank() + ndropped;
+    // the images operator carries the truncated fit's patterns plus, for an infinite sum, one
+    // home-only term per Gaussian by which the truncated fit differs from the full one: at least
+    // the dropped terms, at most every term if the truncation also rescales kept coefficients
+    const int npat = (1 << nper) - 1;
+    const int min_rank = npat * full.get_rank() + (home.get_rank() - full.get_rank());
+    const int max_rank = npat * full.get_rank() + home.get_rank();
 
     int errors = 0;
     if (world.rank() == 0)
         print(" ", label, ": |full - home - images| =", err, "  ranks: full", full.get_rank(),
-              " home", home.get_rank(), " images", images.get_rank(), "(expected", expected_rank, ")  |images f| =", vimg.norm2());
+              " home", home.get_rank(), " images", images.get_rank(), "(expected", min_rank, "..", max_rank, ")  |images f| =", vimg.norm2());
     if (err > 20.0 * thresh) { print("FAIL: identity violated"); ++errors; }
-    if (images.get_rank() != expected_rank) { print("FAIL: rank"); ++errors; }
+    if (images.get_rank() < min_rank || images.get_rank() > max_rank) { print("FAIL: rank"); ++errors; }
     // the images potential must be non-trivial: it is what the identity is for
     if (vimg.norm2() < 1.e-3) { print("FAIL: images operator is (near) zero"); ++errors; }
     return errors;
