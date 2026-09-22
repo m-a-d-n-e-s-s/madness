@@ -1,0 +1,51 @@
+# Water at its HF/aug-cc-pVQZ optimized geometry (DALTON .OPTIMIZE, 2026-09-09,
+# E = -76.066676264 Eh) -- the nightly response case. One rung (protocol 1e-4,
+# k 6): alpha(0) xyz, one Raman component (d alpha / d z_O: raman.nuc_atom 0,
+# raman.nuc_axis 2), two excited states (RPA) and their two-photon absorption.
+# This is the geometry every DALTON comparison in the response benchmarks uses
+# (refs/madness_results.json::h2o_hfopt), so the numbers can be read against
+# those to about a percent; the assertions compare only to reference/.
+#
+# dconv 1e-3 (not 1e-4): the FD gate is bsh < 5*dconv ABSOLUTE, and the
+# nuclear-displacement leg's response is ~1e3 larger than a dipole leg's, so at
+# 5e-4 it plateaus near 4e-3 and Raman is dropped. 5e-3 is the loosest gate that
+# still converges every leg here; the number is a regression baseline, not a
+# converged Raman intensity (that lives at 1e-6/k8).
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_h2o_raman_tpa.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         200.0
+    localize  new
+    maxiter   30
+end
+
+response
+    dipole                true
+    dipole.directions     xyz
+    dipole.frequencies    [0.0]
+    requested_properties  [polarizability, raman]
+    raman.nuc_atom        0
+    raman.nuc_axis        2
+    excited.enable        true
+    excited.num_states    2
+    excited.tda           false
+    excited.tpa           true
+    excited.maxiter       30
+    dconv                 1e-3
+    maxiter               60
+    print_level           1
+end
+
+molecule
+    eprec      1e-6
+    units      atomic
+    no_orient  true
+    O   0.0000000000   0.0000005943   0.1925923500
+    H   0.0000000000   1.4214240411  -0.8721230117
+    H   0.0000000000  -1.4214246355  -0.8721234678
+end

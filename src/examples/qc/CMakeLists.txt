@@ -57,6 +57,11 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # beta_zzz of LiH. `long` rather than the CI tier the rest of the response
   # set sits in -- a static beta cannot be cut below this (see check.json)
   add_qctest(response_lih_beta madqc "qctest;long;applications")      #  42 s, 7 threads
+  # the nightly case: water at its HF/aug-cc-pVQZ optimized geometry -- alpha(0)
+  # xyz, one Raman component (d alpha_zz/d z_O), two RPA excited states and their
+  # 2PA. `verylong`, nightly only; runs `dconv 1e-3` so the nuclear leg converges
+  # (see check.json)
+  add_qctest(response_h2o_raman_tpa madqc "qctest;verylong;applications") # 1951 s, 7 threads; nightly
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
   # asserts the optimizer projects translations/rotations out of the gradient
   # before testing convergence, and that explicit `optimization` values beat the

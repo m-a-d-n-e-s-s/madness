@@ -1,0 +1,33 @@
+{
+  "description": "Water at the DALTON HF/aug-cc-pVQZ optimized geometry, HF, one rung (protocol 1e-4, k 6): alpha(0) xyz, the Raman component d alpha_zz/d z_O (raman.nuc_atom 0, axis 2) = 4.352445 au (row 8, A=z B=dipole_z C=nuc_0_z), two RPA excited states (omega 0.322421, 0.383335) and their 2PA D_linear (2.487983, 21.026868). The response block runs dconv 1e-3, not 1e-4: the FD gate is bsh < 5*dconv ABSOLUTE and the nuclear-displacement leg's response is ~1e3 larger than a dipole leg's, so at 5e-4 it plateaus near 4e-3, stalls, and Raman is dropped from the output entirely. DALTON d-aug-cc-pVQZ at this geometry (refs h2o_hfopt): alpha diag 7.830/8.877/8.292, and the finite-difference d alpha_zz/d z_O is 4.28802 at protocol 1e-6/k8 -- both for reading, not asserted; nothing here is a converged number. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit f43678a96 (job 2193262), wall 1942 s. Nightly tier.",
+  "requires": {"threads": 4},
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 18},
+    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 1, 1], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 2, 2], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "raman", "1e-04_k6", 8, "A"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "raman", "1e-04_k6", 8, "B"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "raman", "1e-04_k6", 8, "C"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "raman", "1e-04_k6", 8, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "raman", "1e-04_k6", 8, "beta"], "rtol": 0.02},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "n_roots"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "converged"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 1, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "tpa", "1e-04_k6", 0, "es_root_id"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "tpa", "1e-04_k6", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "tpa", "1e-04_k6", 0, "D_linear"], "rtol": 0.05},
+    {"key": ["tasks", 1, "properties", "response_properties", "tpa", "1e-04_k6", 1, "es_root_id"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "tpa", "1e-04_k6", 1, "D_linear"], "rtol": 0.05}
+  ]
+}
