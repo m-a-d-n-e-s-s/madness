@@ -14,6 +14,9 @@ concurrency:
   group: self-hosted-pr-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+   contents: read
+
 jobs:
   build:
     runs-on: [self-hosted, madness]
@@ -25,7 +28,7 @@ jobs:
       MAD_NUM_THREADS: 16
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure CMake
         run: |
