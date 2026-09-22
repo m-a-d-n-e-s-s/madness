@@ -3,6 +3,7 @@
   "checks": [
     {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
     {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
     {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},

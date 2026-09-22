@@ -47,12 +47,14 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # the only case with k varying across the protocol; must agree with nemo_he_hf
   add_qctest(nemo_he_varyk     madqc "qctest;medium;applications")    #  13 s
   add_qctest(cis_he_singlets   madqc "qctest;medium;applications")    #   9 s
-  # the first `response` case: the smallest complete molresponse deck (see README)
-  add_qctest(response_he_alpha madqc "qctest;short;applications")     #   9 s, 7 threads
+  # the first `response` case: the smallest complete molresponse deck (see README).
+  # `medium`, not `short`: at the explicit `dconv 1e-4` it measures 10 s, on the
+  # far side of the 10 s short boundary. Still inside check-short-madness.
+  add_qctest(response_he_alpha madqc "qctest;medium;applications")    #  10 s, 7 threads
   # the same H2 deck twice: the `excited.*` path, once in the Tamm-Dancoff
   # approximation and once at full RPA (`excited.tda false`)
-  add_qctest(response_h2_es_tda madqc "qctest;medium;applications")   #  22 s, 7 threads
-  add_qctest(response_h2_es_rpa madqc "qctest;medium;applications")   #  25 s, 7 threads
+  add_qctest(response_h2_es_tda madqc "qctest;medium;applications")   #  21 s, 7 threads
+  add_qctest(response_h2_es_rpa madqc "qctest;medium;applications")   #  24 s, 7 threads
   # the `quadratic` path: the z FD leg plus one VBC solve for the static
   # beta_zzz of LiH. `long` rather than the CI tier the rest of the response
   # set sits in -- a static beta cannot be cut below this (see check.json)

@@ -1,5 +1,5 @@
 {
-  "description": "HF linear response on helium: static and dynamic (0.05 au) alpha_zz at one rung (protocol 1e-4, k 6). Row order in response_properties.alpha follows dipole.frequencies. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit 5653a1ba0 (job 2192938). alpha tol 1e-3 = 10x the run-to-run spread at dconv 1e-4.",
+  "description": "HF linear response on helium: static and dynamic (0.05 au) alpha_zz at one rung (protocol 1e-4, k 6). Row order in response_properties.alpha follows dipole.frequencies. The response block sets dconv 1e-4 explicitly: left unset it derives to 100*thresh = 0.01, and since the FD gate is bsh < 5*dconv that let the solve stop at bsh 1.6e-3 after 4 iterations. At dconv 1e-4 the gate is 5e-4 and the two legs converge at bsh 4.9e-7 (static) and 1.1e-5 (0.05 au) in 6 iterations. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit 80e89f829 (job 2193424), wall 10 s. alpha tol 1e-3 (absolute, au) is a floor far above the run-to-run spread, not an accuracy claim.",
   "checks": [
     {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
     {"key": ["tasks", 0, "convergence", "status"], "tol": 0},
@@ -8,7 +8,7 @@
     {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
-    {"key": ["tasks", 1, "convergence", "iterations"], "max": 6},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 9},
     {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
     {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "omega"], "tol": 0, "allow_zero": true},
     {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},

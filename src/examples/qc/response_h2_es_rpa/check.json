@@ -1,12 +1,13 @@
 {
-  "description": "H2 excited states, RPA, the lowest root at one rung (protocol 1e-4, k 6) plus static alpha_zz. excited.num_states is 1 so the case fits the medium tier; the same deck at 2 roots gave the identical omega_0 to 1e-13. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit e5374f95e (job 2193026). omega tol 1e-3 au.",
+  "description": "H2 excited states, RPA, the lowest root at one rung (protocol 1e-4, k 6) plus static alpha_zz. excited.num_states is 1 so the case fits the medium tier; the same deck at 2 roots gave the identical omega_0 to 1e-13. The response block sets dconv 1e-4 explicitly: left unset it derives to 100*thresh = 0.01, and since the FD/ES gates ride at 5*dconv that 5e-2 gate let the RPA root stop at bsh 1.1e-2 -- an omega 5.0e-4 away from this reference, half the asserted 1e-3 tolerance, so the old number was one solver nudge from a red. At dconv 1e-4 the gates are 5e-4: 9 envelope iterations, the FD leg at bsh 2.3e-6 and the ES root at bsh 2.9e-5 / density 2.0e-4 after 9 ES iterations. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan long-96core-shared, 2026-09-21, commit 80e89f829 (job 2193426), wall 24 s. omega tol 1e-3 au.",
   "checks": [
     {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
     {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
     {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
     {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
-    {"key": ["tasks", 1, "convergence", "iterations"], "max": 9},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 14},
     {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
     {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "n_roots"], "tol": 0},
     {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "converged"], "tol": 0},

@@ -19,6 +19,7 @@ response
     dipole                 true
     dipole.directions      z
     dipole.frequencies     [0.0]
+    dconv                  1e-4
     excited.enable         true
     excited.num_states     1
     excited.tda            true
