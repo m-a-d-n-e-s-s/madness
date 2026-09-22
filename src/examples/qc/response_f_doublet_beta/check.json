@@ -1,0 +1,26 @@
+{
+  "description": "Fluorine atom, DOUBLET reference (nopen 1 -> 5 alpha / 4 beta orbitals), static and dynamic hyperpolarizability requested at one rung (protocol 1e-4, k 6, response dconv 1e-4). This case pins a GAP: the shell-generic solver converges all three finite-difference legs (static, 0.05, and the second-harmonic leg at 0.10), but the quadratic source is closed-shell only, so both beta nodes stall, are quarantined by the no-progress guard, and NO property row is assembled -- response_properties is empty and the run still exits 0. Alpha assembly is refused for the same reason (calc_executor.hpp:2323). The assertions below therefore pin the unrestricted reference, the converged legs, and the recorded drop. When open-shell quadratic response lands, replace the stop_reason and dropped_work checks with beta_zzz values and regenerate with a justification. Reference: RelWithDebInfo, TBB, 1 rank x 7 threads, Seawulf Milan shared, 2026-09-22, commit 087307c22, job 2195093, wall 287 s.",
+  "requires": {"threads": 4},
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 4], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_b", "vals", 0], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_b", "vals", 3], "tol": 1e-4},
+    {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_states"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 17},
+    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "run_summary", "dropped_work", 0, "id"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "run_summary", "dropped_work", 0, "reason"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "run_summary", "dropped_work", 1, "id"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "fd_states", "dipole_z", "1e-04_k6", "f0.00000", "converged"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "fd_states", "dipole_z", "1e-04_k6", "f0.05000", "converged"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "fd_states", "dipole_z", "1e-04_k6", "f0.10000", "converged"], "tol": 0}
+  ]
+}

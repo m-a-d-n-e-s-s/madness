@@ -1,0 +1,52 @@
+# Open-shell response on a DOUBLET reference: fluorine atom, one unpaired
+# electron (nopen 1 -> 5 alpha, 4 beta), static and dynamic hyperpolarizability
+# requested.
+#
+# This case pins a GAP, not a number. The response solver is shell-generic and
+# every finite-difference leg below converges, but the quadratic source is
+# closed-shell only, so the beta nodes stall, are quarantined, and no property
+# row is ever assembled -- the run still exits 0. See the open-shell report
+# (reports/2026-09-04_report_openshell_lr): "the quadratic source is closed-shell
+# only ... what is missing is the per-spin construction of the occupied-space
+# relaxation block and the assembly of the source over the alpha and beta blocks".
+# Alpha assembly is refused for the same reason (calc_executor.hpp:2323).
+#
+# When open-shell quadratic response lands, replace the dropped_work and
+# stop_reason assertions below with beta_zzz values and regenerate.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_f_doublet_beta.in)
+
+dft
+    xc              hf
+    nopen           1
+    spin_restricted false
+    econv           1e-4
+    dconv           1e-4
+    k               6
+    protocol        [1e-4]
+    l               30.0
+    maxiter         30
+end
+
+response
+    dipole               true
+    dipole.directions    z
+    dipole.frequencies   [0.0, 0.05]
+    quadratic            true
+    requested_properties [polarizability, hyperpolarizability]
+    dconv                1e-4
+    maxiter              30
+    print_level          1
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    F  0.0  0.0  0.0
+end
+
+# Fluorine, not lithium: the convergence gate is an ABSOLUTE residual
+# (bsh < 5*max(thresh,dconv)), so a system with a large polarizability cannot
+# reach it. Li (alpha ~164 au) diverges here even statically, residual ~8;
+# F (alpha ~3.7 au, first excitation ~0.47 au) converges every leg, and the
+# second-harmonic leg at 0.10 au stays far below the pole.

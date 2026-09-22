@@ -1,0 +1,46 @@
+# Open-shell response on a TRIPLET reference: carbon atom, two unpaired
+# electrons (nopen 2 -> 4 alpha, 2 beta), static and dynamic hyperpolarizability
+# requested.
+#
+# This case pins a GAP, not a number. The response solver is shell-generic and
+# every finite-difference leg below converges, but the quadratic source is
+# closed-shell only, so the beta nodes stall, are quarantined, and no property
+# row is ever assembled -- the run still exits 0. See the open-shell report
+# (reports/2026-09-04_report_openshell_lr): "the quadratic source is closed-shell
+# only ... what is missing is the per-spin construction of the occupied-space
+# relaxation block and the assembly of the source over the alpha and beta blocks".
+# Alpha assembly is refused for the same reason (calc_executor.hpp:2323).
+#
+# When open-shell quadratic response lands, replace the dropped_work and
+# stop_reason assertions below with beta_zzz values and regenerate.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_c_triplet_beta.in)
+
+dft
+    xc              hf
+    nopen           2
+    spin_restricted false
+    econv           1e-4
+    dconv           1e-4
+    k               6
+    protocol        [1e-4]
+    l               30.0
+    maxiter         30
+end
+
+response
+    dipole               true
+    dipole.directions    z
+    dipole.frequencies   [0.0, 0.05]
+    quadratic            true
+    requested_properties [polarizability, hyperpolarizability]
+    dconv                1e-4
+    maxiter              30
+    print_level          1
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    C  0.0  0.0  0.0
+end

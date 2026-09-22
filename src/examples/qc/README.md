@@ -58,7 +58,7 @@ no simple-dftd3 to register it with. That laptop is not uniformly slower: it ran
 so treat the 12 s as an upper bound of the same order, and re-measure it on
 node26 once simple-dftd3 is available there.
 
-The five `response_*` cases were measured on a Seawulf Milan node at
+The seven `response_*` cases were measured on a Seawulf Milan node at
 `MAD_NUM_THREADS=7` (the thread count their `CMakeLists.txt` comments
 record), not on node26: `response_he_alpha` just over the `short` boundary at
 10 s and so registered `medium`, `response_h2_es_tda` and `response_h2_es_rpa`
@@ -84,6 +84,8 @@ inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
 | `response_h2_es_rpa` | `response` | H₂ | the same at RPA (`excited.tda false`) | 24 s | medium |
 | `response_lih_beta` | `response` | LiH | static β_zzz (`quadratic true`) plus α_zz, one rung | 42 s | long |
 | `response_h2o_raman_tpa` | `response` | H₂O | at the HF/aug-cc-pVQZ optimized geometry: α(0) xyz, one Raman component, two RPA excited states and their 2PA — the nightly case | 1951 s | verylong |
+| `response_f_doublet_beta` | `response` | F | **open shell**, doublet (`nopen 1`): static + dynamic β requested; pins that the legs converge and the quadratic source is refused | 287 s | verylong |
+| `response_c_triplet_beta` | `response` | C | **open shell**, triplet (`nopen 2`): the same, with two unpaired electrons | 305 s | verylong |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |
@@ -283,6 +285,20 @@ The nightly set is the `long`/`verylong` response cases:
 is a tier, not a schedule: until a scheduled runner exists, those cases run only
 when someone invokes them — `cm_qctest nightly` in the author's harness, or the
 ctest line above.
+
+**Two cases pin a gap, not a number.** `response_f_doublet_beta` and
+`response_c_triplet_beta` run an unrestricted (open-shell) reference and request
+static and dynamic β. The response *solver* is shell-generic and every
+finite-difference leg in both cases converges, but the quadratic source is
+closed-shell only, so the β nodes stall, are quarantined by the no-progress
+guard, and no property row is assembled — `response_properties` comes back empty
+and the run still exits 0. Open-shell α assembly is refused for the same reason
+(`calc_executor.hpp:2323`): the assembly readers are hardcoded to the
+closed-shell archive layout. These two cases therefore assert the unrestricted
+reference (the α and β eigenvalue sets differ in size), the converged legs, and
+the recorded drop (`stop_reason`, `dropped_work`). A red on either one means that
+behaviour changed, which is the point. When open-shell quadratic response lands,
+replace those assertions with β values and regenerate.
 
 ## Adding a case
 

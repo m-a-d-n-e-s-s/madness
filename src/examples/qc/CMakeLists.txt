@@ -64,6 +64,12 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # 2PA. `verylong`, nightly only; runs `dconv 1e-3` so the nuclear leg converges
   # (see check.json)
   add_qctest(response_h2o_raman_tpa madqc "qctest;verylong;applications") # 1951 s, 7 threads; nightly
+  # Open-shell (unrestricted) reference. These pin a GAP rather than a property:
+  # the solver is shell-generic and every FD leg converges, but the quadratic
+  # source is closed-shell only, so the beta nodes stall and no property row is
+  # assembled. See each check.json description.
+  add_qctest(response_f_doublet_beta  madqc "qctest;verylong;applications")  # 287 s, 7 threads; nightly, open shell nopen 1
+  add_qctest(response_c_triplet_beta  madqc "qctest;verylong;applications")  # 305 s, 7 threads; nightly, open shell nopen 2
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
   # asserts the optimizer projects translations/rotations out of the gradient
   # before testing convergence, and that explicit `optimization` values beat the

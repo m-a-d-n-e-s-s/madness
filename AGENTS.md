@@ -110,6 +110,10 @@ Raman/excited-state/2PA case (`verylong`); all five cases run at
 `protocol [1e-4]`. Nightly:
 `ctest -L qctest -R "madness/test/qc/response_" -LE "short|medium"`. The
 README's "Response cases" section documents the `calc_info.json` key paths.
+Two nightly cases (`response_f_doublet_beta`, `response_c_triplet_beta`) are
+open-shell and deliberately pin a gap: the solver is shell-generic but the
+quadratic source is closed-shell only, so they assert converged legs plus the
+recorded drop rather than a β value.
 
 ```
 ctest -L qctest                                   # all cases

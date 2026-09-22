@@ -1,0 +1,24 @@
+
+======================================================================
+  MADQC RESULTS SUMMARY
+======================================================================
+
+  Task 0 : SCF  (model = scf)
+  ----------------------------------------------------------------------
+    Molecule         : F
+    Total energy     :      -99.416140083 Ha       -2705.2510 eV
+    Orbital eps (a)  : -26.4058 -1.6732 -0.7316 -0.7316 -0.8453  (Ha)
+    Orbital eps (b)  : -26.3582 -1.4776 -0.6799 -0.6799  (Ha)
+    Converged        :  thresh = 0.0001  dconv = 0.0001
+    Wall time        :  0.0 s   (1 MPI x 1 threads)
+
+  Task 1 : RESPONSE
+  ----------------------------------------------------------------------
+    *** scheduler stop_reason: complete_with_stalled_and_dropped_beta
+        stalled : vbc:dipole_z__dipole_z@f0.00000_f0.00000
+        stalled : vbc:dipole_z__dipole_z@f0.05000_f0.05000
+        dropped : vbc:dipole_z__dipole_z@f0.00000_f0.00000  (stalled (quarantined by the no-progress guard))
+        dropped : vbc:dipole_z__dipole_z@f0.05000_f0.05000  (stalled (quarantined by the no-progress guard))
+
+======================================================================
+
