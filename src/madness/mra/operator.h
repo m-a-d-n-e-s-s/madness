@@ -296,13 +296,26 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            const Tensor<double> full_coeff = coeff, full_expnt = expnt;
+            // deep copies: Tensor assignment shares the buffer, and the truncation edits
+            // coefficients in place (truncate_mixed_expansion folds the tail into its
+            // neighbours rather than dropping it)
+            const Tensor<double> full_coeff = copy(coeff), full_expnt = copy(expnt);
             fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
+            // what the truncation removed, as Gaussians: full fit minus truncated fit. The
+            // truncation only shortens the exponent list (and may rescale kept coefficients),
+            // so the difference lives on the full fit's exponents.
             const long nkept = coeff.dim(0), nfull = full_coeff.dim(0);
-            if (nkept < nfull) {
-              result.dropped_coeff = copy(full_coeff(Slice(nkept, nfull - 1)));
-              result.dropped_expnt = copy(full_expnt(Slice(nkept, nfull - 1)));
+            MADNESS_CHECK(nkept <= nfull && (nkept == 0 || (expnt(nkept - 1) == full_expnt(nkept - 1))));
+            std::vector<double> dc, de;
+            for (long i = 0; i < nfull; ++i) {
+              const double diff = full_coeff(i) - (i < nkept ? coeff(i) : 0.0);
+              if (diff != 0.0) { dc.push_back(diff); de.push_back(full_expnt(i)); }
+            }
+            if (!dc.empty()) {
+              result.dropped_coeff = Tensor<double>(long(dc.size()));
+              result.dropped_expnt = Tensor<double>(long(de.size()));
+              for (std::size_t i = 0; i < dc.size(); ++i) { result.dropped_coeff(long(i)) = dc[i]; result.dropped_expnt(long(i)) = de[i]; }
             }
           }
 
