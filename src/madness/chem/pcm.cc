@@ -47,6 +47,8 @@ namespace detail {
 /// to convert the apparent surface charge potential to a real_function_3d
 struct asc_potential : public FunctionFunctorInterface<double,3> {
 
+    using FunctionFunctorInterface<double,3>::operator();
+
     /// the coordinates of the apparent surface charges
     std::vector<coord_3d> asc_coord;
 
