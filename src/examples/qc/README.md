@@ -60,9 +60,9 @@ node26 once simple-dftd3 is available there.
 
 The five `response_*` cases were measured on a Seawulf Milan node at
 `MAD_NUM_THREADS=7` (the thread count their `CMakeLists.txt` comments
-record), not on node26: `response_he_alpha` one second inside the `short`
-boundary, `response_h2_es_tda` and `response_h2_es_rpa` a handful of
-seconds inside `medium`, `response_lih_beta` well inside `long`, and
+record), not on node26: `response_he_alpha` just over the `short` boundary at
+10 s and so registered `medium`, `response_h2_es_tda` and `response_h2_es_rpa`
+a handful of seconds inside `medium`, `response_lih_beta` well inside `long`, and
 `response_h2o_raman_tpa` — the nightly case — `verylong` at 1951 s, well
 inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
 
@@ -79,9 +79,9 @@ inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
 | `scf_he_tpss` | `scf` | He | the only meta-GGA — the non-multiplicative kinetic-energy-density term | 17 s | medium |
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
-| `response_he_alpha` | `response` | He | linear response: static + dynamic α_zz at one rung; the task-record envelope | 9 s | short |
-| `response_h2_es_tda` | `response` | H₂ | the lowest TDA excitation energy (`excited.*`), one rung | 22 s | medium |
-| `response_h2_es_rpa` | `response` | H₂ | the same at RPA (`excited.tda false`) | 25 s | medium |
+| `response_he_alpha` | `response` | He | linear response: static + dynamic α_zz at one rung; the task-record envelope | 10 s | medium |
+| `response_h2_es_tda` | `response` | H₂ | the lowest TDA excitation energy (`excited.*`), one rung | 21 s | medium |
+| `response_h2_es_rpa` | `response` | H₂ | the same at RPA (`excited.tda false`) | 24 s | medium |
 | `response_lih_beta` | `response` | LiH | static β_zzz (`quadratic true`) plus α_zz, one rung | 42 s | long |
 | `response_h2o_raman_tpa` | `response` | H₂O | at the HF/aug-cc-pVQZ optimized geometry: α(0) xyz, one Raman component, two RPA excited states and their 2PA — the nightly case | 1951 s | verylong |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
@@ -239,14 +239,36 @@ Three things every response `check.json` asserts:
    jump in iterations is a regression even when the number lands.
 2. **Same number.** Each asserted property within `tol`/`rtol` of `reference/`:
    α `tol 1e-3` (absolute, au), β `rtol 0.01`, excitation energies `tol 1e-3`,
-   2PA `rtol 0.05`, Raman `rtol 0.02` — 10× the run-to-run spread at
-   `dconv 1e-4`, loose enough not to flap on thread scheduling.
+   2PA `rtol 0.05`, Raman `rtol 0.02`. Every case sets its response-block
+   `dconv` explicitly — `1e-4` for `response_he_alpha`, `response_h2_es_tda`,
+   `response_h2_es_rpa` and `response_lih_beta`, `1e-3` for
+   `response_h2o_raman_tpa` (see the gate note below) — so none of them falls
+   back on the derived `100 × thresh`. Repeating a case against a reference
+   generated from the same build moves the asserted numbers by ~1e-15
+   (measured: 5e-15 on He's α_zz, 1e-15 on both H₂ roots), i.e. floating-point
+   reassociation from thread scheduling and nothing else. The tolerances above
+   are therefore a floor, not a spread estimate: they are ~12 orders of
+   magnitude above the noise, so a check cannot flap, and a solver change that
+   legitimately moves one of these (still coarsely converged) iterates lands as
+   a reference update someone has to justify rather than as a silent pass.
 3. **Envelope intact.** `precision.k`, `precision.protocol_key`, `type`,
    `stop_reason` compared exactly.
 
 Wall time is recorded in the reference (`provenance.wall_s`,
 `run_info.timing`) and never asserted: a wall-time gate on a shared node is
 noise.
+
+`response_h2o_raman_tpa` is the one case whose response block runs
+`dconv 1e-3`. The FD/ES convergence gate is absolute (`bsh < 5*dconv`), and the
+Raman leg's nuclear-displacement response is ~10³ larger than a dipole leg's,
+so at `dconv 1e-4` that leg plateaus near 4e-3, never reaches the 5e-4 gate,
+and Raman is dropped from the output entirely; at `dconv 1e-3` the nuclear leg
+converges at bsh ≈ 4.4e-3 against the 5e-3 gate. A red on that case's
+`convergence.status` therefore most likely means the Raman leg stalled again
+(`stop_reason complete_with_dropped_beta`) — a real signal about the solver,
+not scheduling noise. The Raman value it pins is a regression baseline, not a
+converged Raman intensity; the converged number was validated separately at
+`1e-6`/`k8`.
 
 Key paths: α is `tasks[1].properties.response_properties.alpha.<pk>[row].alpha[i][j]`
 with `<pk>` the protocol key (`"1e-04_k6"`), rows in `dipole.frequencies`
@@ -257,7 +279,10 @@ are `…beta.<pk>[row]` / `…raman.<pk>[row]` with `A`, `B`, `C`, `freq_b`,
 are `tasks[1].metadata.excited_states.<pk>.roots[i].omega`.
 
 The nightly set is the `long`/`verylong` response cases:
-`ctest -L qctest -R "madness/test/qc/response_" -LE "short|medium"`.
+`ctest -L qctest -R "madness/test/qc/response_" -LE "short|medium"`. "Nightly"
+is a tier, not a schedule: until a scheduled runner exists, those cases run only
+when someone invokes them — `cm_qctest nightly` in the author's harness, or the
+ctest line above.
 
 ## Adding a case
 
