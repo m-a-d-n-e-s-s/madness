@@ -1,8 +1,8 @@
 name: Self-hosted PR Build
 
 # Runs on a real, persistent machine (not an ephemeral GitHub-hosted VM), so this
-# is only safe against untrusted PR code because "Require approval for first-time
-# contributors" (or stricter) is enabled under Settings > Actions > General > Fork
+# is only safe against untrusted PR code because "Require approval for external
+# contributors" is enabled under Settings > Actions > General > Fork
 # pull request workflows from outside collaborators. A maintainer must approve
 # before an external PR's workflow runs here.
 on:
