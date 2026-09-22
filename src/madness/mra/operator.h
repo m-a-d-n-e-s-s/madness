@@ -240,7 +240,7 @@ namespace madness {
               break;
             }
           }
-	  auto hi_fin = hi;
+          auto hi_fin = hi;
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }

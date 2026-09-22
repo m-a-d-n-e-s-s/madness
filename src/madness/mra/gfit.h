@@ -329,12 +329,15 @@ public:
         expnt = expnt(Slice(0,npt-1));
     }
 
-    // c: coefficients of Gaussian fit to truncate
-    // e: exponents of Gaussian fit to truncate
-    // ranges: LatticeRanges of dimensions
-    // lo: Smallest length-scale to be represented accurately
-    // hi_fin: Largest length-scale finite dimensions must represent accurately
-    // eps: Numerical parameter that controls how accurate the truncation must be for finite dimensions
+    /// Truncate an linear combination of Gaussians (expressed as coefficient and exponent) tensors
+    /// for computational expense. Truncation is boundary-condition aware, since periodic dimensions
+    /// can usually be truncated more aggressively.
+    /// @param[c] coefficients of Gaussian fit to truncate
+    /// @param[e] exponents of Gaussian fit to truncate
+    /// @param[ranges] LatticeRanges of dimensions
+    /// @param[lo] Smallest length-scale to be represented accurately
+    /// @param[hi_fin] Largest length-scale finite dimensions must represent accurately
+    /// @param[eps] Numerical parameter that controls how accurate the truncation must be for finite dimensions
     void truncate_mixed_expansion(Tensor<double>& c, Tensor<double> & e, const std::array<LatticeRange, NDIM>& lattice_ranges, const Tensor<double>& cell_width, double lo, double hi_fin, double eps) {
 	int last_index_must_not_change = 0;
 	const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
@@ -344,21 +347,23 @@ public:
 		// Determine what lattice sums are constant, knowing that it's equivalent to
 		// gauge-changing an operator.
 		// First, we define 'diffuse' via tcut.
-            	double max_infinite_dim_spacing = 0;
-            	for(int d=0; d!=NDIM; ++d) {
-              		if (lattice_ranges[d].infinite())
-                		max_infinite_dim_spacing =
-                    			std::max(max_infinite_dim_spacing, cell_width(d));
-            	}
+        double max_infinite_dim_spacing = 0;
+        for (int d=0; d!=NDIM; ++d) {
+            if (lattice_ranges[d].infinite())
+                max_infinite_dim_spacing =
+                    std::max(max_infinite_dim_spacing, cell_width(d));
+        }
 		double tcut = 0.25 / max_infinite_dim_spacing / max_infinite_dim_spacing;
 		// Now we use tcut to determine the cutoff point.
  		for (int i=0; i<e.dim(0); ++i) {
 			if (e(i) < tcut) {
 				last_index_must_not_change = i - 1;
+                // If all dimensions are infinite, we can truncate immediately.
 				if (infinite_all) {
 					c = c(Slice(0, last_index_must_not_change + 1));
 					e = e(Slice(0, last_index_must_not_change + 1));
 				}
+                break;
 			}
 		}
 		if (infinite_all) return;
@@ -383,6 +388,9 @@ public:
         e = e(Slice(0,npt-1));
     }
 
+    /// WARNING! Obsolete. Prefer truncate_mixed_expansion. Large changes in
+    ///   accuracy or computational expense upon conversion should be treated
+    ///   as likely bugs.
     void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
 			double L, bool discardG0) const {
 		double tcut = 0.25/L/L;
