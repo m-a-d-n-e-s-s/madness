@@ -25,6 +25,7 @@
 // selected in madqc.cpp instead).
 // -----------------------------------------------------------------------------
 
+#include <apps/molresponse/deck_settings.hpp>
 #include <apps/molresponse/orchestrator/response_workflow.hpp>
 #include <apps/molresponse/solvers/dalton_import.hpp>
 #include <apps/molresponse/solvers/dalton_gs_seed.hpp>   // GS seed from molden (dalton.dir)
@@ -348,6 +349,8 @@ struct molresponse_v3_lib {
     // above to resolve the ground archive relative to this cwd.)
     in.settings.calc_dir = ".";
     in.settings.max_iters = static_cast<int>(rp.maxiter());
+    // excited.maxiter / guess_max_iter / maxsub (review C2), when the deck sets them.
+    apply_deck_es_knobs(rp, in.settings);
     // Deck `subworlds N` -> the F2 state-parallel fan-out (same path as the
     // standalone --fd-subworlds flag; archive_file above makes it live).
     in.settings.fd_subworlds = std::max(0, rp.subworlds());

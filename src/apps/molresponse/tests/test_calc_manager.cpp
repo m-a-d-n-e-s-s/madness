@@ -502,6 +502,39 @@ int main() {
            "max_iters == 0 keeps the legacy Resume");
   }
 
+  // ====== reconcile: excited.maxiter is the ES budget ========================
+  // review/findings C2: the deck's excited.maxiter never reached the ES solve;
+  // ES ran (and honest-climbed) on response.maxiter. es_max_iters > 0 is the
+  // ES budget, 0 inherits max_iters, and FD nodes never see it.
+  std::printf("=== reconcile: ES iteration budget ===\n");
+  {
+    ResponsePlan plan;
+    plan.es.push_back({/*tda=*/true, /*n_roots=*/1, {1e-4}});
+    auto dag = build_dag(plan, 0);
+    const CalcNode *es = find_id(dag, es_node_id(true, 1));
+    json m = empty_meta();
+    put_es_bundle(m, 1e-4, /*converged=*/false, "tda", 1, /*stalled=*/false, /*iter=*/20);
+    EXPECT(reconcile_protocol(*es, m, 1e-4, /*max_iters=*/30, /*es_max_iters=*/20) ==
+               NodeAction::Skip,
+           "ES bundle at its own budget -> Skip though max_iters has room");
+    EXPECT(reconcile_protocol(*es, m, 1e-4, /*max_iters=*/30, /*es_max_iters=*/0) ==
+               NodeAction::Resume,
+           "es_max_iters == 0 inherits max_iters");
+    EXPECT(reconcile_protocol(*es, m, 1e-4, /*max_iters=*/10, /*es_max_iters=*/40) ==
+               NodeAction::Resume,
+           "a larger ES budget keeps the bundle going past max_iters");
+    EXPECT(schedule(dag, {1e-4}, m, /*max_iters=*/30, /*es_max_iters=*/20).empty(),
+           "schedule passes the ES budget to reconcile");
+
+    CalcNode fd; fd.kind = CalcKind::FD; fd.pert = Perturbation::dipole(2);
+    fd.freq = 0.0; fd.protocols = {1e-4}; fd.id = fd_node_id(fd.pert, fd.freq);
+    json mf = empty_meta();
+    put_fd(mf, "dipole_z", 1e-4, 0.0, /*converged=*/false, false, /*iter=*/20);
+    EXPECT(reconcile_protocol(fd, mf, 1e-4, /*max_iters=*/30, /*es_max_iters=*/20) ==
+               NodeAction::Resume,
+           "FD ignores the ES budget");
+  }
+
   // ====== ES restart source: never a diverged bundle ==========================
   // review/findings C4: try_load_es_bundle preferred the exact-key bundle even
   // when it had diverged, so a Restart re-seeded from the blown-up state. The

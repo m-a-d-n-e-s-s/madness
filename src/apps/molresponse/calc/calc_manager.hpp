@@ -427,8 +427,12 @@ std::vector<CalcNode> build_dag(const ResponsePlan &plan, int n_atoms) {
 /// LARGER --maxiter turns the same entry back into Resume (iter < max_iters), so
 /// "continue iterating" is still available. max_iters == 0 = legacy strict
 /// behavior (Resume forever; run() then halts on no-progress).
+///
+/// `es_max_iters` > 0 replaces max_iters for ES nodes (deck excited.maxiter);
+/// 0 inherits max_iters. FD and VBC nodes never see it.
 NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
-                          double thresh, int max_iters = 0) {
+                          double thresh, int max_iters = 0,
+                          int es_max_iters = 0) {
   const int         k   = default_k_for_thresh(thresh);
   const std::string key = protocol_key(thresh, k);
 
@@ -450,8 +454,9 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
       // budget-exhausted bundle is done at this rung. Without this a stalled
       // bundle came back Resume on every pass, and the no-progress guard only
       // stops it if a re-solve writes byte-identical metadata.
-      if (max_iters > 0 &&
-          (e->value("iter", 0) >= max_iters || e->value("stalled", false)))
+      const int budget = es_max_iters > 0 ? es_max_iters : max_iters;
+      if (budget > 0 &&
+          (e->value("iter", 0) >= budget || e->value("stalled", false)))
         return NodeAction::Skip;
       return NodeAction::Resume;
     }
@@ -579,7 +584,8 @@ bool prerequisites_converged(const CalcNode &node, const std::vector<CalcNode> &
 std::vector<std::vector<WorkItem>>
 schedule(const std::vector<CalcNode> &dag,
          const std::vector<double> &global_ramp,
-         const nlohmann::json &meta, int max_iters = 0) {
+         const nlohmann::json &meta, int max_iters = 0,
+         int es_max_iters = 0) {
   using detail_calc::ramp_contains;
   std::vector<std::vector<WorkItem>> waves;
 
@@ -596,7 +602,7 @@ schedule(const std::vector<CalcNode> &dag,
                        WorkItem &out) -> bool {
     if (!ramp_contains(n->protocols, thresh)) return false;
     if (!prerequisites_converged(*n, dag, meta, thresh))   return false;
-    const NodeAction a = reconcile_protocol(*n, meta, thresh, max_iters);
+    const NodeAction a = reconcile_protocol(*n, meta, thresh, max_iters, es_max_iters);
     if (a == NodeAction::Skip) return false;
     out = WorkItem{n, thresh, a};
     return true;

@@ -108,6 +108,9 @@ struct ExecutorSettings {
   PrintLevel        print_level = PrintLevel::Normal;
   std::string       calc_dir;      // holds response_metadata.json + archives
   int               max_iters = 25;
+  // ES iteration budget per rung (deck excited.maxiter); 0 = inherit max_iters.
+  int               es_max_iters = 0;
+  int es_iter_budget() const { return es_max_iters > 0 ? es_max_iters : max_iters; }
   // Cross-type seed toggle (optional): a derived FD starts from its converged
   // ES-root vector rather than the perturbation source. Default OFF — measured
   // neutral-to-slightly-worse at ωₙ/2 (off-resonance, H2); the ES root is the
@@ -788,7 +791,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   };
 
   solvers::IterateProtocolPolicy pp;
-  pp.max_iters_per_step = ctx.max_iters;
+  pp.max_iters_per_step = ctx.es_iter_budget();   // excited.maxiter, else max_iters
   const std::vector<double> one_protocol = {thresh};
   auto sf = solvers::iterate_protocol(solver, std::move(s0), one_protocol,
                                       prepare, post_step, pp);
@@ -988,7 +991,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   };
 
   solvers::IterateProtocolPolicy pp;
-  pp.max_iters_per_step = ctx.max_iters;
+  pp.max_iters_per_step = ctx.es_iter_budget();   // excited.maxiter, else max_iters
   const std::vector<double> one_protocol = {thresh};
   auto sf = solvers::iterate_protocol(solver, std::move(s0), one_protocol,
                                       prepare, post_step, pp);
@@ -1182,6 +1185,7 @@ enum class SeedStrategy { NearestConverged };
 struct CalcManagerPolicy {
   SeedStrategy seed = SeedStrategy::NearestConverged;
   int          max_iters_per_step = 25;
+  int          es_max_iters_per_step = 0;   // ES budget; 0 = max_iters_per_step
   int          fd_subworlds = 0;   // F2f: subworlds PER NODE (0=off, 1=node-aligned)
   int          fd_subworld_ranks = 0;   // ranks per subworld; >0 = universe split (may span nodes)
 };
@@ -1275,7 +1279,8 @@ public:
       expand_converged_es(world, meta_json);
       // max_iters flows into reconcile so a budget-exhausted rung climbs the
       // ladder (honest-climb) instead of Resume-looping into the no-progress halt.
-      auto waves = schedule(dag_, ramp, meta_json, policy_.max_iters_per_step);
+      auto waves = schedule(dag_, ramp, meta_json, policy_.max_iters_per_step,
+                            policy_.es_max_iters_per_step);
       // Review fix (confirmed HIGH — front-wave starvation): quarantine nodes
       // that stopped making progress instead of halting the WHOLE run. Only
       // the front wave ever executes, so a deterministically-stuck node (e.g.

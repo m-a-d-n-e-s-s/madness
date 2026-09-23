@@ -153,6 +153,7 @@ run_response_with_ground(madness::World &world, GroundState &gs, double L,
   detail_workflow::StageTimer t_build;
   CalcManager::Policy mgr_policy;
   mgr_policy.max_iters_per_step = in.settings.max_iters;
+  mgr_policy.es_max_iters_per_step = in.settings.es_max_iters;
   mgr_policy.fd_subworlds       = in.settings.fd_subworlds;   // F2
   mgr_policy.fd_subworld_ranks  = in.settings.fd_subworld_ranks;
   CalcManager mgr(in.plan, in.settings.calc_dir, mgr_policy);
