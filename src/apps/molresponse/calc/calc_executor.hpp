@@ -211,6 +211,9 @@ struct ExecutorSettings {
   double            es_warmup_oversample  = 3.0;
   int               es_kain_maxsub        = 8;
   double            es_maxrotn            = 0.5;
+  // KAIN in the MAIN ES solve (deck `kain`, when set). The warmup is KAIN-free
+  // regardless: its whole length is the tda_warmup_iters no-KAIN window.
+  bool              es_kain               = true;
   // Delay KAIN onset in the MAIN ES solve by this many iters (pure BSH +
   // step-restriction first, so roots stabilize before KAIN starts recording
   // history). 0 = KAIN from iter 1 (previous behaviour). Distinct from
@@ -315,6 +318,29 @@ inline nlohmann::json load_metadata_rank0(madness::World &world,
   if (!err.empty()) throw std::runtime_error(err);
   world.gop.broadcast_serializable(text, 0);
   return nlohmann::json::parse(text);
+}
+
+/// The ES warmup and main-solve policies, from the caller's settings. Shared by
+/// the TDA and Full executors. The warmup runs es_tda_warmup_iters iterations
+/// inside a no-KAIN window of the same length, so it is KAIN-free whatever
+/// `kain` says; the main solve delays KAIN by es_main_kain_delay.
+struct EsIterationPolicies {
+  ConvergencePolicy warm;
+  ConvergencePolicy main;
+};
+inline EsIterationPolicies es_iteration_policies(const ExecutorSettings &s) {
+  EsIterationPolicies p;
+  p.warm                          = s.policy;
+  p.warm.kain                     = true;
+  p.warm.kain_maxsub              = s.es_kain_maxsub;
+  p.warm.maxrotn                  = s.es_maxrotn;
+  p.warm.tda_warmup_iters         = s.es_tda_warmup_iters;
+  p.warm.warmup_oversample_factor = s.es_warmup_oversample;
+  p.main                  = p.warm;
+  p.main.kain             = s.es_kain;
+  p.main.tda_warmup_iters = s.es_main_kain_delay;
+  p.main.lock_converged   = s.es_lock_converged;  // warmup never locks
+  return p;
 }
 
 /// Remove the wall-clock and RSS fields from every `metrics` object in a
@@ -701,15 +727,10 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   // Warmup policy (KAIN on, kain_maxsub/maxrotn from ctx); the main solve
   // disables the warmup window — the fresh guess is an oversampled TDA warmup
   // (>= 2x roots by default), same recipe as the Full path.
-  ConvergencePolicy warm_policy = ctx.policy;
-  warm_policy.kain                     = true;
-  warm_policy.kain_maxsub              = ctx.es_kain_maxsub;
-  warm_policy.maxrotn                  = ctx.es_maxrotn;
-  warm_policy.tda_warmup_iters         = ctx.es_tda_warmup_iters;
-  warm_policy.warmup_oversample_factor = ctx.es_warmup_oversample;
-  ConvergencePolicy main_policy = warm_policy;
-  main_policy.tda_warmup_iters = ctx.es_main_kain_delay;
-  main_policy.lock_converged   = ctx.es_lock_converged;  // warmup never locks
+  const detail_exec::EsIterationPolicies es_policies =
+      detail_exec::es_iteration_policies(ctx);
+  const ConvergencePolicy &warm_policy = es_policies.warm;
+  const ConvergencePolicy &main_policy = es_policies.main;
 
   Solver::State s0;
   bool seeded = false;
@@ -858,15 +879,10 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
 
   // Warmup policy (KAIN on, kain_maxsub / maxrotn from ctx); the main solve
   // disables the TDA warmup window (it was done explicitly for the fresh guess).
-  ConvergencePolicy warm_policy = ctx.policy;
-  warm_policy.kain                     = true;
-  warm_policy.kain_maxsub              = ctx.es_kain_maxsub;
-  warm_policy.maxrotn                  = ctx.es_maxrotn;
-  warm_policy.tda_warmup_iters         = ctx.es_tda_warmup_iters;
-  warm_policy.warmup_oversample_factor = ctx.es_warmup_oversample;
-  ConvergencePolicy main_policy = warm_policy;
-  main_policy.tda_warmup_iters = ctx.es_main_kain_delay;
-  main_policy.lock_converged   = ctx.es_lock_converged;  // warmup never locks
+  const detail_exec::EsIterationPolicies es_policies =
+      detail_exec::es_iteration_policies(ctx);
+  const ConvergencePolicy &warm_policy = es_policies.warm;
+  const ConvergencePolicy &main_policy = es_policies.main;
 
   Solver::State s0;
   bool seeded = false;

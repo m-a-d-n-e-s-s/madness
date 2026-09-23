@@ -1,0 +1,36 @@
+# Excited states of H2 at the RPA level with KAIN off -- response_h2_es_rpa
+# plus `kain false`. Review finding C3: the deck's kain / maxrotn used to reach
+# only the FD solves, because both ES executors overwrote them; this case is
+# the ES solve run without KAIN, which the kain.min_residual rationale names as
+# the configuration for rough starts. The root must converge to the same omega.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_h2_es_rpa_nokain.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         100.0
+    localize  canon
+    maxiter   30
+end
+
+response
+    dipole                 true
+    dipole.directions      z
+    dipole.frequencies     [0.0]
+    dconv                  1e-4
+    excited.enable         true
+    excited.num_states     1
+    excited.tda            false
+    kain                   false
+    print_level            1
+end
+
+molecule
+    eprec  1e-5
+    units  angstrom
+    H  0.0  0.0  -0.37
+    H  0.0  0.0   0.37
+end

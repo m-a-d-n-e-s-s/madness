@@ -65,6 +65,52 @@ int main() {
     expect(s.es_iter_budget() == 12, "es_max_iters > 0 wins");
   }
 
+  // review/findings C3: deck `kain` / `maxrotn` reached only FD; both ES
+  // executors overwrote them before building the main ES policy.
+  std::printf("=== deck kain / maxrotn reach ES ===\n");
+  {
+    ResponseParameters rp;
+    rp.set_user_defined_value<bool>("kain", false);
+    rp.set_user_defined_value<double>("maxrotn", 0.3);
+    ExecutorSettings s;
+    apply_deck_es_knobs(rp, s);
+    expect(!s.es_kain, "deck kain false -> es_kain false");
+    expect(s.es_maxrotn == 0.3, "deck maxrotn -> es_maxrotn");
+
+    ResponseParameters unset;
+    const ExecutorSettings def;
+    ExecutorSettings u;
+    apply_deck_es_knobs(unset, u);
+    expect(u.es_kain == def.es_kain && u.es_kain,
+           "unset kain keeps ES KAIN on (the deck default kain=false is not applied)");
+    expect(u.es_maxrotn == def.es_maxrotn, "unset maxrotn keeps es_maxrotn");
+  }
+
+  std::printf("=== ES warmup / main policies ===\n");
+  {
+    using molresponse_v3::detail_exec::es_iteration_policies;
+    ExecutorSettings s;
+    s.policy.kain_min_residual = 0.02;
+    s.es_kain = false;
+    s.es_maxrotn = 0.3;
+    s.es_kain_maxsub = 4;
+    s.es_tda_warmup_iters = 3;
+    s.es_main_kain_delay = 2;
+    const auto p = es_iteration_policies(s);
+    expect(!p.main.kain, "es_kain false -> main ES solve runs without KAIN");
+    expect(p.warm.tda_warmup_iters == 3,
+           "warmup is a KAIN-free window of es_tda_warmup_iters");
+    expect(p.main.maxrotn == 0.3 && p.warm.maxrotn == 0.3, "es_maxrotn -> both");
+    expect(p.main.kain_maxsub == 4 && p.warm.kain_maxsub == 4, "es_kain_maxsub -> both");
+    expect(p.main.tda_warmup_iters == 2, "main KAIN delay = es_main_kain_delay");
+    expect(p.main.kain_min_residual == 0.02, "kain.min_residual reaches the main solve");
+    expect(p.main.lock_converged == s.es_lock_converged && !p.warm.lock_converged,
+           "only the main solve locks converged roots");
+
+    const auto d = es_iteration_policies(ExecutorSettings{});
+    expect(d.main.kain && d.warm.kain, "defaults: KAIN on");
+  }
+
   std::printf("\n%s (%d failure(s))\n", failed ? "FAILED" : "PASSED", failed);
   return failed ? 1 : 0;
 }

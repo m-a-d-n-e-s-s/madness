@@ -384,10 +384,13 @@ struct molresponse_v3_lib {
               "sidesteps the question entirely on multi-node runs.");
     }
     in.settings.policy.dconv_user = rp.dconv();
-    // Deck overrides for the iteration policy (2026-09-10): the response block's
-    // `kain` / `maxrotn` reach the FD/ES solvers only when the deck SETS them.
-    // The deck default kain=false predates the solvers' KAIN-on default;
-    // honouring it unconditionally would switch KAIN off for every run.
+    // Deck overrides for the iteration policy (2026-09-10), applied only when
+    // the deck SETS them: the deck default kain=false predates the solvers'
+    // KAIN-on default, so honouring it unconditionally would switch KAIN off
+    // for every run. This policy is the FD solves' as is. The ES executors
+    // build their own from it (es_iteration_policies): kain.min_residual and
+    // the stall detector carry over, while kain / maxrotn reach ES through
+    // apply_deck_es_knobs above.
     if (rp.is_user_defined("kain"))    in.settings.policy.kain    = rp.kain();
     if (rp.is_user_defined("maxrotn")) in.settings.policy.maxrotn = rp.maxrotn();
     if (rp.is_user_defined("kain.min_residual"))
