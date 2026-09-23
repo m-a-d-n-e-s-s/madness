@@ -616,6 +616,17 @@ double Nemo::solve(const SCFProtocol &proto) {
 
       nemo = transform(world, nemo, U, trantol(), true);
       Vnemo = transform(world, Vnemo, U, trantol(), true);
+      // the flux Y_i is a per-orbital quantity like Vnemo_i and must follow the
+      // rotation, or flux_bsh_term pairs orbital i with another orbital's flux.
+      // Rotate each Cartesian component separately: xcflux is indexed [i][axis].
+      if (weak_xc) {
+        for (int axis = 0; axis < 3; ++axis) {
+          vecfuncT Y(xcflux.size());
+          for (size_t i = 0; i < xcflux.size(); ++i) Y[i] = xcflux[i][axis];
+          Y = transform(world, Y, U, trantol(), true);
+          for (size_t i = 0; i < xcflux.size(); ++i) xcflux[i][axis] = Y[i];
+        }
+      }
       // rotate_subspace(world, U, solver, 0, nemo.size());
 
       truncate(world, nemo);

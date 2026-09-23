@@ -118,7 +118,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
-		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<std::string> ("dispersion","none","DFT-D3 dispersion correction",{"none","d3bj","d3zero"});
 		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
@@ -225,7 +224,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	bool xc_weak_gga() const {return get<bool>("xc_weak_gga");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
-	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string dispersion() const {return get<std::string>("dispersion");}
 	std::string dispersion_functional() const {return get<std::string>("dispersion_functional");}
 	bool dispersion_atm() const {return get<bool>("dispersion_atm");}

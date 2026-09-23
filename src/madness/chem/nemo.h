@@ -778,7 +778,11 @@ public:
 
 	bool do_pcm() const {return get_calc_param().pcm_data() != "none";}
 	
-	bool do_ac() const {return get_calc_param().ac_data() != "none";}
+	/// the asymptotic correction is defunct: its `ac_data` parameter was removed,
+	/// and the code paths guarded by do_ac() are kept but never taken. It was
+	/// never reconciled with the weak xc form, whose Fock block is built from the
+	/// uncorrected potential.
+	bool do_ac() const {return false;}
 
 	AC<3> get_ac() const {return ac;}
 
