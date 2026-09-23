@@ -29,6 +29,9 @@ add_mad_executable(test_v3_fd_skeleton
 add_mad_executable(test_protocol_key
                    "tests/test_protocol_key.cpp"
                    "MADchem")
+add_mad_executable(test_bsh_shift
+                   "tests/test_bsh_shift.cpp"
+                   "MADchem")
 add_mad_executable(test_response_metadata
                    "tests/test_response_metadata.cpp"
                    "MADchem")
@@ -234,7 +237,7 @@ install(TARGETS molresponse
 # --- any machine, and heavier tiers are opt-in by label / cache variable. ----
 if (BUILD_TESTING)
   # Tier 1 — "unit": pure logic, no fixtures, no MPI launcher required.
-  foreach(_t test_calc_manager test_protocol_key test_response_metadata
+  foreach(_t test_calc_manager test_protocol_key test_bsh_shift test_response_metadata
              test_response_property_planner test_state_metrics
              test_diagonalize_slots test_dalton_import)
     add_test(NAME madness/test/molresponse/${_t}/run COMMAND ${_t})

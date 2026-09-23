@@ -83,12 +83,14 @@ apply_kinetic(madness::World &world,
 }
 
 /// Pick a level-shift so the per-orbital BSH μ² stays positive.
-/// `eps` carries OCCUPIED orbital energies only (HOMO last). When
-/// `HOMO + omega` would push μ² = -2(ε_HOMO + omega) ≤ 0, return
-/// a shift that pushes the effective energy below zero by `guard`.
+/// `eps` carries OCCUPIED orbital energies only. When the highest one plus
+/// `omega` would push μ² = -2(ε_max + omega) ≤ 0, return a shift that pushes
+/// the effective energy below zero by `guard`. The highest energy is taken as
+/// the MAXIMUM, not the last entry: with localized orbitals `eps` holds the
+/// Fock diagonals in LMO order, which is not sorted (review finding C11).
 inline double bsh_shift(const madness::Tensor<double> &eps, double omega) {
   constexpr double guard = 0.05;
-  const double homo_shifted = eps(eps.size() - 1) + omega;
+  const double homo_shifted = eps.max() + omega;
   return (homo_shifted >= 0.0) ? -guard - homo_shifted : 0.0;
 }
 
