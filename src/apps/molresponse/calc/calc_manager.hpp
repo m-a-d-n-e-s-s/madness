@@ -51,6 +51,7 @@
 #include <cmath>
 #include <functional>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -643,6 +644,57 @@ schedule(const std::vector<CalcNode> &dag,
   }
 
   return waves;
+}
+
+// ---------------------------------------------------------------------------
+// audit_dropped_work — planned work the run ended without delivering. Pure.
+// ---------------------------------------------------------------------------
+
+/// An empty schedule does NOT mean every planned node executed: honest-climb can
+/// walk a stubborn prerequisite up the whole ladder unconverged, and nodes gated
+/// on it are then invisible to schedule(). Audit the plan against the metadata.
+/// Returns [{id, top_protocol_key, reason}]. The run records this under
+/// run_summary/dropped_work and names it in stop_reason.
+inline nlohmann::json audit_dropped_work(const std::vector<CalcNode> &dag,
+                                         const nlohmann::json &meta,
+                                         const std::set<std::string> &stalled_ids) {
+  nlohmann::json dropped = nlohmann::json::array();
+  for (const auto &n : dag) {
+    if (n.kind != CalcKind::VBC || n.protocols.empty()) continue;
+    const std::string top = protocol_key_at(n.protocols.back());
+    const bool has_entry = meta.contains("vbc_states") &&
+                           meta["vbc_states"].contains(n.id) &&
+                           meta["vbc_states"][n.id].contains(top);
+    if (has_entry && meta["vbc_states"][n.id][top].value("converged", false))
+      continue;
+    // solve_vbc is one-shot and always saves converged=true, so a present VBC
+    // entry is caught by the `continue` above; the "built ... not converged" arm
+    // is defensive coverage in case VBC ever gains partial saves.
+    const char *reason =
+        stalled_ids.count(n.id)
+            ? "stalled (quarantined by the no-progress guard)"
+            : has_entry ? "built at the top rung but not converged"
+                        : "prerequisites never converged (gated out of every wave)";
+    dropped.push_back({{"id", n.id}, {"top_protocol_key", top}, {"reason", reason}});
+  }
+  // Two-photon legs ("*" DerivedFD) expand only once their ES bundle converges
+  // at its top rung. If it never did (stalled, budget exhausted, quarantined),
+  // the legs and the 2PA rows they feed were never produced: report it.
+  for (const auto &n : dag) {
+    if (!n.is_symbolic() || n.prerequisites.empty()) continue;
+    const CalcNode *es = nullptr;
+    for (const auto &e : dag)
+      if (e.id == n.prerequisites.front()) { es = &e; break; }
+    if (!es || es->protocols.empty()) continue;
+    const std::string top = protocol_key_at(es->protocols.back());
+    const auto *entry = detail_calc::es_entry(meta, top, *es);
+    if (entry && detail_calc::entry_converged(*entry)) continue;
+    dropped.push_back({{"id", n.id}, {"top_protocol_key", top},
+                       {"reason", "excited-state bundle " + es->id +
+                                      " never converged at its top rung "
+                                      "(two-photon legs never expanded)"}});
+  }
+  return dropped;
 }
 
 // ---------------------------------------------------------------------------

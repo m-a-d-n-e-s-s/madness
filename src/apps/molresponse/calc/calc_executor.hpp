@@ -1278,32 +1278,10 @@ public:
         // invisible to schedule()), and the beta/raman it feeds is dropped
         // without a trace. Audit the plan against the on-disk metadata: any
         // VBC node without a converged entry at its top rung never delivered.
-        nlohmann::json dropped = nlohmann::json::array();
-        for (const auto &n : dag_) {
-          if (n.kind != CalcKind::VBC || n.protocols.empty()) continue;
-          const std::string top = protocol_key_at(n.protocols.back());
-          const auto &j = meta.json();
-          const bool has_entry = j.contains("vbc_states") &&
-                                 j["vbc_states"].contains(n.id) &&
-                                 j["vbc_states"][n.id].contains(top);
-          if (has_entry && j["vbc_states"][n.id][top].value("converged", false))
-            continue;
-          // NB: solve_vbc is one-shot and always saves converged=true, so a
-          // present VBC entry is caught by the `continue` above — the
-          // "built ... not converged" arm is currently unreachable for VBC and
-          // kept only as defensive coverage if VBC ever gains partial saves
-          // (review LOW).
-          const char *reason =
-              stalled_ids.count(n.id)
-                  ? "stalled (quarantined by the no-progress guard)"
-                  : has_entry
-                        ? "built at the top rung but not converged"
-                        : "prerequisites never converged (gated out of every wave)";
-          dropped.push_back({{"id", n.id},
-                             {"top_protocol_key", top},
-                             {"reason", reason}});
-        }
-        // Dropped VBC ⇒ the beta/raman rows it feeds cannot be assembled.
+        // (audit_dropped_work, calc_manager.hpp: undelivered VBC sources and
+        // two-photon legs whose ES bundle never converged.)
+        const nlohmann::json dropped = audit_dropped_work(dag_, meta.json(), stalled_ids);
+        // Dropped work ⇒ the beta/raman/2PA rows it feeds cannot be assembled.
         // Record the audit in the metadata (rank 0, through the layer) even
         // when empty, so a later completing run CLEARS a stale drop list.
         if (world.rank() == 0) {

@@ -527,6 +527,49 @@ int main() {
            "empty metadata -> no source");
   }
 
+  // ====== audit_dropped_work: planned work the run never delivered ==========
+  // The VBC audit moved out of CalcManager::run so it can be tested; it now
+  // also reports two-photon legs whose ES bundle never converged at its top
+  // rung (with C12's honest climb such a bundle ends the run unconverged, and
+  // the "*" legs are then never expanded — previously without any trace).
+  std::printf("=== audit_dropped_work ===\n");
+  {
+    ResponsePropertyRequest r;
+    r.kind = ResponsePropertyKind::Hyperpolarizability;
+    r.beta_process = BetaProcess::SHG;
+    r.frequencies = {0.0};
+    r.axes = {'z'};
+    r.protocol_thresholds = {1e-4};
+    ResponsePlan plan = plan_one(r);
+    plan.es.push_back({/*tda=*/false, /*n_roots=*/1, {1e-4}});
+    plan.derived_fd.push_back({Perturbation::dipole(2), "*", {1e-4}});
+    auto dag = build_dag(plan, 0);
+    const std::string vbc_id = "vbc:dipole_z__dipole_z@f0.00000_f0.00000";
+    const std::string dfd_id = derived_fd_node_id(Perturbation::dipole(2), "*");
+
+    json m = empty_meta();   // nothing delivered
+    auto d = audit_dropped_work(dag, m, {});
+    EXPECT(d.size() == 2, "undelivered VBC and 2PA legs both reported");
+    EXPECT(d.size() == 2 && d[0].value("id", "") == vbc_id &&
+               d[0].value("reason", "") ==
+                   "prerequisites never converged (gated out of every wave)",
+           "VBC entry first, reason unchanged");
+    EXPECT(d.size() == 2 && d[1].value("id", "") == dfd_id &&
+               d[1].value("reason", "").find("never converged") != std::string::npos,
+           "2PA legs reported with the ES bundle as the reason");
+
+    auto s = audit_dropped_work(dag, m, {vbc_id});
+    EXPECT(!s.empty() && s[0].value("reason", "") ==
+                             "stalled (quarantined by the no-progress guard)",
+           "stalled VBC reason unchanged");
+
+    json ok = empty_meta();
+    put_vbc(ok, vbc_id, 1e-4, /*converged=*/true);
+    put_es_bundle(ok, 1e-4, /*converged=*/true, "full", 1);
+    EXPECT(audit_dropped_work(dag, ok, {}).empty(),
+           "delivered VBC + converged ES bundle -> nothing dropped");
+  }
+
   std::printf("\n%s  (%d failures)\n", failed ? "FAILED" : "PASSED", failed);
   return failed ? 1 : 0;
 }
