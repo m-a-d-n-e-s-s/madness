@@ -94,7 +94,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
-        initialize<std::string>("dft_deriv", "abgv", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
+        initialize<std::string>("dft_deriv", "bspline", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
     }
 
     std::string get_tag() const override {
