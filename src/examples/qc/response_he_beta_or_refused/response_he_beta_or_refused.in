@@ -1,0 +1,27 @@
+# beta.or (optical rectification) has no quadratic source yet; the deck must be refused, not silently return no beta (review C10)
+#
+# Refusal case: check.json expect_error; no reference. Run: ./run.sh
+
+dft
+    xc        hf
+    econv     1e-4
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    maxiter   20
+end
+
+response
+    dipole              true
+    dipole.directions   z
+    dipole.frequencies  [0.05]
+    quadratic           true
+    beta.or             true
+    dconv               1e-4
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

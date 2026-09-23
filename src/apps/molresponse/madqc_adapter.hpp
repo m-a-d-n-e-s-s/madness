@@ -267,6 +267,15 @@ struct molresponse_v3_lib {
     // hyperpolarizability instead of silently dropping it (M3 golden regen
     // caught this: the alpha+beta deck produced alpha-only output).
     if (wants("hyperpolarizability") || rp.quadratic()) {
+      // Optical rectification needs signed-frequency legs in the quadratic
+      // source, which the planner does not build yet (beta_vbc_pairs returns
+      // no pair for OR): the legs would solve and beta would silently be
+      // absent (review finding C10).
+      if (rp.beta_or())
+        throw std::runtime_error(
+            "response: beta.or (optical rectification) is not implemented — its "
+            "quadratic source needs signed-frequency legs. Drop beta.or for SHG "
+            "(or static, at frequency 0) beta.");
       ResponsePropertyRequest r;
       r.kind = ResponsePropertyKind::Hyperpolarizability;
       r.beta_process = rp.beta_or() ? BetaProcess::OR : BetaProcess::SHG;
@@ -294,6 +303,14 @@ struct molresponse_v3_lib {
             "response: raman.nuc_atom must be >= 0 and raman.nuc_axis in 0..2 — "
             "the full per-atom Raman tensor is not implemented; drive the 3N "
             "coordinates as 3N runs over one calc dir");
+      // Upper bound (review finding C13): an out-of-range atom otherwise fails
+      // later, inside the nuclear-derivative functor, as an unnamed exception.
+      if (const int natom = static_cast<int>(scf_calc->molecule.natom());
+          r.raman_nuc_atom >= natom)
+        throw std::runtime_error(
+            "response: raman.nuc_atom " + std::to_string(r.raman_nuc_atom) +
+            " is out of range for a molecule of " + std::to_string(natom) +
+            " atom(s) (atoms are numbered from 0)");
       add(r);
     }
     if (rp.excited_enable()) {

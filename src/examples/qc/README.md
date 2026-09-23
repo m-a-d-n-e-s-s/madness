@@ -216,6 +216,30 @@ checked to `1e-3` is just as empty. Compare a key that carries a value, or set
 `"allow_zero": true` where the near-zero is the physics (a symmetry-vanishing
 dipole component, a gradient at a stationary point).
 
+## Response cases
+
+The response regression cases (α, β, excited states, Raman, 2PA) are ported in a
+later pull request together with their references. Today this section holds only the
+refusal cases, which need no reference.
+
+### Refusal cases
+
+Three `response_he_*` cases are decks that must be **refused**. Their `check.json` carries `"expect_error": "<text>"` in place of `checks`, and they have no `reference/` directory. A case passes only if all of these hold:
+
+- `madqc` exits non-zero;
+- `calc_info.json` records a `task_failed` entry;
+- that entry's error contains the text.
+
+A run that succeeds, a crash that leaves no record, and a failure for some other reason all fail the case.
+
+| Case | Refused because |
+|---|---|
+| `response_he_beta_or_refused` | `beta.or`: no quadratic source for optical rectification yet |
+| `response_he_raman_bad_atom` | `raman.nuc_atom` beyond the molecule |
+| `response_he_lda_beta_refused` | β on a DFT ground state, which needs the unimplemented g''_xc |
+
+Each one replaces a run that used to exit 0 without the property, or fail later with an unnamed error.
+
 ## Adding a case
 
 No code, four data files:

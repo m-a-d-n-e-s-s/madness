@@ -1,0 +1,4 @@
+{
+  "description": "beta on a DFT ground state needs g''_xc, which is not implemented; refused since the f_xc merge",
+  "expect_error": "second xc kernel g''_xc"
+}

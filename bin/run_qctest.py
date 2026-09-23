@@ -6,7 +6,9 @@ A qctest case is a self-contained directory (see src/examples/qc/README.md):
     <case>/<case>.in                        the input deck
     <case>/run.sh                           one-liner invocation
     <case>/check.json                       result keys + tolerances
-        (each check: "key" plus "tol" | "rtol" | "max"; see compare())
+        (each check: "key" plus "tol" | "rtol" | "max"; see compare()),
+        or "expect_error": "<text>" for a case that must be REFUSED
+        (see check_expected_error(); no checks and no reference needed)
     <case>/reference/<case>.calc_info.json  compared numerically
     <case>/reference/<case>.out             for humans; never compared
 
@@ -50,7 +52,7 @@ def load_check(case, updating):
         sys.exit(f"qctest: no check.json in {case}")
     with open(check_file) as f:
         check = json.load(f)
-    if not check.get("checks") and not updating:
+    if not check.get("checks") and not check.get("expect_error") and not updating:
         sys.exit(f"qctest: {check_file} lists no checks")
     return check
 
@@ -269,6 +271,31 @@ def compare(output, reference, checks):
     return cmp.success
 
 
+def check_expected_error(output, exitcode, expected):
+    """A refusal case passes only if the run was refused, loudly, for the stated reason.
+
+    madqc must exit non-zero AND record the failure in its calc_info.json as a
+    `task_failed` entry whose `error` contains `expected` (Workflow::run writes it
+    before rethrowing). A run that succeeds, a crash that leaves no record, and a
+    failure for some other reason all fail the case -- a refusal test that any
+    error satisfies would pass on a segfault.
+    """
+    if exitcode == 0:
+        print(f"FAILED: expected the run to be refused ({expected!r}), but it exited 0")
+        return False
+    if not output.is_file():
+        print(f"FAILED: exit code {exitcode} but no {output.name} records why")
+        return False
+    with open(output) as f:
+        tasks = json.load(f).get("tasks", [])
+    errors = [t.get("error", "") for t in tasks if t.get("type") == "task_failed"]
+    if any(expected in e for e in errors):
+        print(f"refused as expected: {expected!r}")
+        return True
+    print(f"FAILED: expected a task_failed error containing {expected!r}; recorded: {errors}")
+    return False
+
+
 def update_reference(case, output, report):
     refdir = case / "reference"
     refdir.mkdir(exist_ok=True)
@@ -320,6 +347,14 @@ def main():
     # which is why cases name the deck after themselves.)
     output = workdir / check.get("output", f"{case.name}.calc_info.json")
     report = workdir / output.name.replace(".calc_info.json", ".out")
+
+    if check.get("expect_error"):
+        if args.update:
+            print("note: refusal case -- no reference to update")
+            return 0
+        ok = check_expected_error(output, exitcode, check["expect_error"])
+        print("final success:", ok)
+        return 0 if ok else 1
 
     if not output.is_file():
         print(f"FAILED: expected result file {output.name} was not produced")
