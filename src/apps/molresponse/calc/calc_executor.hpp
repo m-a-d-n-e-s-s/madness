@@ -292,6 +292,28 @@ struct ExecutorContext : ExecutorSettings {
 // ---------------------------------------------------------------------------
 namespace detail_exec {
 
+/// Collective: rank 0 reads response_metadata.json (ResponseMetadata is
+/// rank-0 only) and broadcasts it, so every rank schedules from the same
+/// bytes rather than from whatever its own filesystem view shows after the
+/// fence. A rank-0 read failure is broadcast too, so all ranks throw together
+/// instead of the others waiting in the broadcast.
+inline nlohmann::json load_metadata_rank0(madness::World &world,
+                                          const std::string &path) {
+  std::string text, err;
+  if (world.rank() == 0) {
+    try {
+      text = ResponseMetadata::load_or_create(path).json().dump();
+    } catch (const std::exception &e) {
+      err = e.what();
+      if (err.empty()) err = "unknown error";
+    }
+  }
+  world.gop.broadcast_serializable(err, 0);
+  if (!err.empty()) throw std::runtime_error(err);
+  world.gop.broadcast_serializable(text, 0);
+  return nlohmann::json::parse(text);
+}
+
 /// Remove the wall-clock and RSS fields from every `metrics` object in a
 /// metadata subtree. They are measurements OF the run, not results of it: two
 /// re-solves of the same stuck state agree on every number that matters and
@@ -1247,13 +1269,13 @@ public:
     std::set<std::string> stalled_ids;   // quarantined no-progress nodes
     for (;;) {
       world.gop.fence();
-      auto meta = ResponseMetadata::load_or_create(meta_path);
+      const nlohmann::json meta_json = detail_exec::load_metadata_rank0(world, meta_path);
       // Grow the DAG from any ES bundle converged ON DISK (idempotent and
       // restart-safe: reads roots from metadata, not in-memory run state).
-      expand_converged_es(world, meta.json());
+      expand_converged_es(world, meta_json);
       // max_iters flows into reconcile so a budget-exhausted rung climbs the
       // ladder (honest-climb) instead of Resume-looping into the no-progress halt.
-      auto waves = schedule(dag_, ramp, meta.json(), policy_.max_iters_per_step);
+      auto waves = schedule(dag_, ramp, meta_json, policy_.max_iters_per_step);
       // Review fix (confirmed HIGH — front-wave starvation): quarantine nodes
       // that stopped making progress instead of halting the WHOLE run. Only
       // the front wave ever executes, so a deterministically-stuck node (e.g.
@@ -1280,7 +1302,7 @@ public:
         // VBC node without a converged entry at its top rung never delivered.
         // (audit_dropped_work, calc_manager.hpp: undelivered VBC sources and
         // two-photon legs whose ES bundle never converged.)
-        const nlohmann::json dropped = audit_dropped_work(dag_, meta.json(), stalled_ids);
+        const nlohmann::json dropped = audit_dropped_work(dag_, meta_json, stalled_ids);
         // Dropped work ⇒ the beta/raman/2PA rows it feeds cannot be assembled.
         // Record the audit in the metadata (rank 0, through the layer) even
         // when empty, so a later completing run CLEARS a stale drop list.
@@ -1331,7 +1353,7 @@ public:
       // legacy max_iters==0 "Resume forever" FD mode), whose reconcile branches
       // don't honest-climb the schedule shape the way the FD/max_iters branch
       // does, so the bare id@protocol signature repeats even mid-convergence.
-      const auto &mj = meta.json();
+      const auto &mj = meta_json;
       // The fingerprint must contain only what MEANS progress. StateMetrics
       // embeds wall_s and rss_gb, which differ on every re-solve however little
       // the solve achieved, so dumping the subtree whole made
