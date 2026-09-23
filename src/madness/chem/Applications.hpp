@@ -5,6 +5,8 @@
 #include <madness/chem/PathManager.hpp>
 #include <madness/chem/Results.h>
 #include <madness/chem/molopt.h>
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -1163,13 +1165,21 @@ struct moldft_lib {
     scf_res.beps = scf->beps;
     scf_res.scf_dispersion_correction_energy =
         scf->dispersion.energy(world, scf->molecule);
-    scf_res.uses_dftd3 = scf->dispersion.active();
+    const auto &task_cp = params_copy.get<CalculationParameters>();
+    scf_res.uses_dftd3 = (task_cp.dispersion() != "none");
 #ifdef MADNESS_HAS_PCM
-    scf_res.uses_pcm = (scf->param.pcm_data() != "none");
+    scf_res.uses_pcm = (task_cp.pcm_data() != "none");
 #else
     scf_res.uses_pcm = false;
 #endif
-    scf_res.uses_libxc = scf->xc.uses_libxc_module();
+#ifdef MADNESS_HAS_LIBXC
+    std::string xc_name = task_cp.xc();
+    std::transform(xc_name.begin(), xc_name.end(), xc_name.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    scf_res.uses_libxc = (xc_name != "hf");
+#else
+    scf_res.uses_libxc = false;
+#endif
     scf_res.properties = prop_res;
 
     return results;
