@@ -4,12 +4,38 @@ if(ENABLE_PCM)
   # which carries the transitive link deps a static build needs (zlib, the
   # Fortran runtime) -- worth trying before FindPCM, which only knows how to
   # look for one header and one library and leaves those deps to luck.
-  find_package(PCMSolver CONFIG QUIET)
+  #
+  # chem/pcm.cc needs the v1.3.0 API (pcmsolver_default_input(), declared in
+  # PCMInput.h), so an older install must be passed over rather than accepted
+  # and left to fail at compile time. PCMSolver's version file is
+  # SameMinorVersion, so this admits 1.3.x only -- the release the fetch below
+  # pins and patches, and the last one upstream made.
+  find_package(PCMSolver 1.3 CONFIG QUIET)
+  if(NOT TARGET PCMSolver::pcm AND PCMSolver_CONSIDERED_VERSIONS)
+    message(STATUS "Ignoring PCMSolver ${PCMSolver_CONSIDERED_VERSIONS} "
+        "(${PCMSolver_CONSIDERED_CONFIGS}): MADNESS needs 1.3")
+  endif()
 
   # QUIET because coming up empty here is not yet news -- the fetch below is
   # the last word on whether MADNESS ends up with PCM.
   if(NOT TARGET PCMSolver::pcm)
     find_package(PCM COMPONENTS pcm QUIET)
+
+    # FindPCM knows no version, so check for the API itself. Rejecting has to
+    # drop its find_path/find_library cache entries too, or the next configure
+    # skips the search and resurrects the old copy.
+    if(PCM_FOUND)
+      file(STRINGS "${PCM_INCLUDE_DIRS}/PCMSolver/PCMInput.h" _pcm_has_default_input
+          REGEX "pcmsolver_default_input")
+      if(NOT _pcm_has_default_input)
+        message(STATUS "Ignoring PCMSolver at ${PCM_INCLUDE_DIRS}: its PCMInput.h "
+            "lacks pcmsolver_default_input(), so it predates the 1.3 API MADNESS needs")
+        set(PCM_FOUND FALSE)
+        unset(PCM_INCLUDE_DIRS CACHE)
+        unset(PCM_LIBRARIES CACHE)
+      endif()
+      unset(_pcm_has_default_input)
+    endif()
   endif()
 
   # Nothing on the system: build our own copy, following the FindOrFetch*
