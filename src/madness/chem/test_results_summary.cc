@@ -49,7 +49,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  world.gop.fence();
+  int total_failures = success;
+  world.gop.sum(total_failures);
   madness::finalize();
-  return success;
+  return total_failures;
 }
