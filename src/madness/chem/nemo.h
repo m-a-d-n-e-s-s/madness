@@ -718,7 +718,35 @@ protected:
 	///                     form only and left untouched otherwise.
 	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
-			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const;
+			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const {
+		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+				xcflux, fock_xc, true);
+	}
+
+	/// compute all potentials applied on nemo, without the weak-form split
+
+	/// The pre-weak-form signature, kept for callers that have no use for the
+	/// flux. It never opts in to the weak form, whatever `xc_weak_gga` says, so
+	/// xcnemo always carries the complete multiplicative xc potential and the
+	/// xc block of the Fock matrix can be read off it as before. Silently
+	/// discarding xcflux instead would drop the semilocal term.
+	void compute_nemo_potentials(const vecfuncT& nemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
+			vecfuncT& Unemo) const {
+		std::vector<vecfuncT> xcflux;
+		tensorT fock_xc;
+		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+				xcflux, fock_xc, false);
+	}
+
+	/// implementation of both compute_nemo_potentials forms
+
+	/// @param[in]	allow_weak	opt in to the weak form; it is then used iff
+	///							the `xc_weak_gga` parameter asks for it
+	void compute_nemo_potentials_impl(const vecfuncT& nemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
+			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc,
+			const bool allow_weak) const;
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;

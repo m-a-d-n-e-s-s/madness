@@ -447,12 +447,8 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT &nemo,
   truncate(world, R2nemo);
 
   // compute potentials the Fock matrix: J - K + Vnuc. This caller does not
-  // implement the weak-form split, so it never opts in and the two out-params
-  // come back empty.
-  std::vector<vecfuncT> xcflux;
-  tensorT fock_xc;
-  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo, xcflux,
-                          fock_xc);
+  // implement the weak-form split, so it uses the form that never opts in.
+  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
   //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
   vecfuncT JKUpsi = Unemo + Jnemo - Knemo;
@@ -796,11 +792,12 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
 /// @param[out]	Knemo	exchange operator applied on the nemos
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
-                                   vecfuncT &Knemo, vecfuncT &xcnemo,
-                                   vecfuncT &pcmnemo, vecfuncT &Unemo,
-                                   std::vector<vecfuncT> &xcflux,
-                                   tensorT &fock_xc) const {
+void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
+                                        vecfuncT &Knemo, vecfuncT &xcnemo,
+                                        vecfuncT &pcmnemo, vecfuncT &Unemo,
+                                        std::vector<vecfuncT> &xcflux,
+                                        tensorT &fock_xc,
+                                        const bool allow_weak) const {
 
   {
     timer t(world, get_calc_param().print_level() > 2);
@@ -851,8 +848,9 @@ void Nemo::compute_nemo_potentials(const vecfuncT &nemo, vecfuncT &Jnemo,
     // compute the exchange-correlation potential
     if (calc->xc.is_dft()) {
       XCOperator<double, 3> xcoperator(world, this, ispin);
-      // this is the only site that implements the weak-form split
-      xcoperator.allow_weak_form();
+      // this is the only site that implements the weak-form split, and only the
+      // flux-returning form of compute_nemo_potentials asks for it
+      if (allow_weak) xcoperator.allow_weak_form();
       // tau is an orbital functional, so it cannot be rebuilt from the density --
       // it has to be handed over before the potential is evaluated. On this path
       // the orbitals are the nemos F; set_tau does the psi = R F product rule.
