@@ -5,8 +5,6 @@
 #include <madness/chem/PathManager.hpp>
 #include <madness/chem/Results.h>
 #include <madness/chem/molopt.h>
-#include <algorithm>
-#include <cctype>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -1173,10 +1171,7 @@ struct moldft_lib {
     scf_res.uses_pcm = false;
 #endif
 #ifdef MADNESS_HAS_LIBXC
-    std::string xc_name = task_cp.xc();
-    std::transform(xc_name.begin(), xc_name.end(), xc_name.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
-    scf_res.uses_libxc = (xc_name != "hf");
+    scf_res.uses_libxc = scf->xc.is_dft();
 #else
     scf_res.uses_libxc = false;
 #endif
