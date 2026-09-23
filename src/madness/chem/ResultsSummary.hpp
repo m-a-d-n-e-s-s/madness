@@ -127,8 +127,11 @@ inline void collect_citation_flags_recursive(const nlohmann::json &node,
       merge_scf_citation_flags(node, flags);
   }
 
-  for (const auto &[_, v] : node.items())
+  for (const auto &[k, v] : node.items()) {
+    if (k == "citations")
+      continue;
     collect_citation_flags_recursive(v, flags);
+  }
 }
 
 inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
