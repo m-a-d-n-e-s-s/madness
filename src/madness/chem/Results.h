@@ -431,6 +431,9 @@ public:
   // empirical dispersion (DFT-D3) contribution already contained in
   // scf_total_energy; 0.0 when no correction was applied
   double scf_dispersion_correction_energy = 0.0;
+  bool uses_dftd3 = false;
+  bool uses_pcm = false;
+  bool uses_libxc = false;
   //
   PropertyResults properties;
   SCFResults() = default;
@@ -455,6 +458,9 @@ public:
     j["model"] = model;
     j["scf_total_energy"] = scf_total_energy;
     j["scf_dispersion_correction_energy"] = scf_dispersion_correction_energy;
+    j["citations"] = {{"dftd3", uses_dftd3},
+                      {"pcm", uses_pcm},
+                      {"libxc", uses_libxc}};
 
     // Optional nested block
     if (has_data(properties)) {
@@ -489,6 +495,12 @@ public:
       scf_total_energy = j.value("scf_total_energy", 0.0);
     scf_dispersion_correction_energy =
         j.value("scf_dispersion_correction_energy", 0.0);
+    if (j.contains("citations")) {
+      const auto &c = j["citations"];
+      uses_dftd3 = c.value("dftd3", false);
+      uses_pcm = c.value("pcm", false);
+      uses_libxc = c.value("libxc", false);
+    }
 
     // Nested properties: optional
     if (j.contains("properties")) {

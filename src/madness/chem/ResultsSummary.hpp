@@ -94,6 +94,66 @@ inline std::string clean_axis(const std::string &s) {
 
 inline std::string rule(char c = '-', int n = 70) { return std::string(n, c); }
 
+struct CitationFlags {
+  bool dftd3 = false;
+  bool pcm = false;
+  bool libxc = false;
+  bool any() const { return dftd3 || pcm || libxc; }
+};
+
+inline void merge_scf_citation_flags(const nlohmann::json &scf,
+                                     CitationFlags &flags) {
+  if (scf.contains("citations") && scf["citations"].is_object()) {
+    const auto &c = scf["citations"];
+    flags.dftd3 = flags.dftd3 || c.value("dftd3", false);
+    flags.pcm = flags.pcm || c.value("pcm", false);
+    flags.libxc = flags.libxc || c.value("libxc", false);
+  }
+  flags.dftd3 = flags.dftd3 ||
+                (scf.value("scf_dispersion_correction_energy", 0.0) != 0.0);
+}
+
+inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
+  CitationFlags flags;
+  if (!calc_info.contains("tasks") || !calc_info["tasks"].is_array())
+    return flags;
+  for (const auto &t : calc_info["tasks"]) {
+    if (t.contains("scf") && t["scf"].is_object())
+      merge_scf_citation_flags(t["scf"], flags);
+    if (t.value("model", std::string()) == "scf" || t.contains("scf_eigenvalues_a"))
+      merge_scf_citation_flags(t, flags);
+  }
+  return flags;
+}
+
+inline void write_citations_section(std::ostream &os,
+                                    const CitationFlags &flags) {
+  if (!flags.any())
+    return;
+  os << "\n  Citations for external modules\n";
+  os << "  " << rule('-') << "\n";
+  if (flags.dftd3) {
+    os << "    DFT-D3 / simple-dftd3:\n";
+    os << "      S. Grimme, J. Antony, S. Ehrlich, H. Krieg,\n";
+    os << "      J. Chem. Phys. 132, 154104 (2010). doi:10.1063/1.3382344\n";
+    os << "      S. Grimme, S. Ehrlich, L. Goerigk,\n";
+    os << "      J. Comput. Chem. 32, 1456 (2011). doi:10.1002/jcc.21759\n";
+  }
+  if (flags.pcm) {
+    os << "    PCMSolver (PCM):\n";
+    os << "      R. Di Remigio, L. Frediani, and contributors,\n";
+    os << "      PCMSolver: an API for the Polarizable Continuum Model\n";
+    os << "      electrostatic problem. doi:10.5281/zenodo.1156166\n";
+  }
+  if (flags.libxc) {
+    os << "    Libxc:\n";
+    os << "      M. A. L. Marques, M. J. T. Oliveira, T. Burnus,\n";
+    os << "      Comput. Phys. Commun. 183, 2272 (2012). doi:10.1016/j.cpc.2012.05.007\n";
+    os << "      S. Lehtola, C. Steigemann, M. J. T. Oliveira, M. A. L. Marques,\n";
+    os << "      SoftwareX 7, 1 (2018). doi:10.1016/j.softx.2017.11.002\n";
+  }
+}
+
 inline void write_scf_section(std::ostream &os, const nlohmann::json &t) {
   const auto &props = t.value("properties", nlohmann::json::object());
 
@@ -414,6 +474,7 @@ inline void write_results_summary(std::ostream &os,
         write_excitations_section(os, t);
     }
   }
+  write_citations_section(os, collect_citation_flags(calc_info));
   os << "\n" << rule('=') << "\n\n";
 }
 

@@ -1163,6 +1163,9 @@ struct moldft_lib {
     scf_res.beps = scf->beps;
     scf_res.scf_dispersion_correction_energy =
         scf->dispersion.energy(world, scf->molecule);
+    scf_res.uses_dftd3 = scf->dispersion.active();
+    scf_res.uses_pcm = (scf->param.pcm_data() != "none");
+    scf_res.uses_libxc = scf->xc.uses_libxc_module();
     scf_res.properties = prop_res;
 
     return results;
