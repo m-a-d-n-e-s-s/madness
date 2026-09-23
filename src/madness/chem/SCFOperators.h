@@ -49,6 +49,7 @@ class NemoBase;
 class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
+struct nemo_u1_functors;
 class MacroTaskQ;
 class Molecule;
 
@@ -721,6 +722,19 @@ public:
     /// ctor with a Nemo calculation, will initialize the necessary intermediates
     XCOperator(World& world, const Nemo* nemo, int ispin=0);
 
+    /// ctor for the regularized (nemo) path, without a Nemo object
+
+    /// @param[in] arho,brho          the physical densities rho_s
+    /// @param[in] ncf_               the nuclear correlation factor
+    /// @param[in] arho_reg,brho_reg  the regularized densities rho_s/R^2, which let
+    ///                               prep_xc_args build zeta without putting the
+    ///                               nuclear cusp under a numerical derivative
+    XCOperator(World& world, std::string xc_data, const bool spin_polarized,
+               const real_function_3d& arho, const real_function_3d& brho,
+               std::shared_ptr<NuclearCorrelationFactor> ncf_,
+               const real_function_3d& arho_reg_, const real_function_3d& brho_reg_,
+               std::string deriv="abgv");
+
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
@@ -754,16 +768,82 @@ public:
         return vKket[0];
     }
 
-    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
-         MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator",1);
-    };
+    /// the xc contribution to the Fock matrix, as a matrix element
 
-    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra, const std::vector<Function<T,NDIM>>& vket) const {
-        MADNESS_EXCEPTION("no implementation of matrix elements of the xc operator", 1);
+    /// The 1x1 case of the vector form below; the same bra convention applies.
+    T operator()(const Function<T,NDIM>& bra, const Function<T,NDIM>& ket) const {
+        std::vector<Function<T,NDIM> > vbra(1,bra), vket(1,ket);
+        return this->operator()(vbra,vket)(0l,0l);
     }
+
+    /// the xc contribution to the Fock matrix
+
+    /// With a nuclear correlation factor the bra must carry R^2 -- call it as
+    /// xcoperator(R2nemo, nemo), the way Kinetic is called in
+    /// Nemo::compute_fock_matrix. Without one, bra and ket are the same orbitals.
+    Tensor<T> operator()(const std::vector<Function<T,NDIM>>& vbra,
+                         const std::vector<Function<T,NDIM>>& vket) const;
+
+    /// opt in to the weak form, if the `xc_weak_gga` parameter asks for it
+
+    /// Load-bearing: in weak form make_xc_potential() returns only de/drho, so a
+    /// caller that does not also apply weak_xc_terms() and add the matrix form's
+    /// contribution (operator()(vbra,vket)) would silently drop the whole semilocal
+    /// contribution and return a plausible but wrong energy. Only
+    /// Nemo::compute_nemo_potentials implements the split, so only it opts in; SCF,
+    /// OEP, TDHF and the response kernels keep the multiplicative potential.
+    XCOperator& allow_weak_form() {weak_form_ok=true; return *this;}
+
+    /// override CalculationParameters::xc_weak_gga(), for callers without one
+    XCOperator& set_weak_gga(const bool flag) {weak_gga=flag; return *this;}
+
+    /// true if this operator is running in weak form, i.e. make_xc_potential()
+    /// returns only de/drho and the flux is carried separately
+
+    /// Requires both the caller's allow_weak_form() opt-in and the user's
+    /// `xc_weak_gga` parameter. A functional with no sigma dependence has no flux,
+    /// so it is never in weak form either.
+    ///
+    /// Why it exists: the semilocal potential is -div(X) with
+    /// X = 2 de/dsigma grad(rho), and X has a jump at every nucleus
+    /// (zeta = grad log rho -> -2Z r_hat, whose Cartesian components flip sign
+    /// across the origin). Differentiating that jump is what produces the +-8e4
+    /// excursions, and no rearrangement of the multiplicative form avoids it,
+    /// because div(X) *is* a derivative of X.
+    ///
+    /// The weak form never differentiates X:
+    ///     <phi|v|psi> = int (df/drho) phi psi + int X . grad(phi psi)
+    /// and in a Green's-function code the same holds for the orbital update,
+    /// because a radial convolution commutes with the gradient:
+    ///     G * (psi div X) = div(G * (X psi)) - G * (X . grad psi)
+    /// so the divergence acts on G*(X psi), which is C^1, and the jump is only
+    /// ever convolved. Same for the meta-gga term -1/2 div(v_tau grad psi).
+    bool is_weak_form() const;
+
+    /// the semilocal flux X = 2 (de/dsigma_ss) grad(rho_s) + (de/dsigma_ab) grad(rho_s')
+
+    /// Only assigned in weak form, by make_xc_potential(). Same-spin and cross-spin
+    /// contributions are summed: they enter as a single divergence.
+    const vecfuncT& get_semilocal_flux() const {return semilocal_flux;}
+
+    /// weak-form split of the non-multiplicative xc terms
+
+    /// Writes the decomposition
+    ///   v_xc^{semilocal+tau} psi_i = mult_i - div(Y_i)
+    /// with (nemo kets F_i, W_i = v_tau (grad F_i - U1 F_i))
+    ///   mult_i = X.grad(F_i) + 1/2 U1.W_i,   Y_i = X F_i + 1/2 W_i.
+    /// `mult` goes into V psi; `flux` is what the caller pushes through the
+    /// Green's function, as 2 div(G*Y_i), so that neither X nor v_tau is ever
+    /// differentiated. Requires make_xc_potential() first.
+    void weak_xc_terms(const std::vector<Function<T,NDIM> >& vket,
+                       std::vector<Function<T,NDIM> >& mult,
+                       std::vector<std::vector<Function<T,NDIM> > >& flux) const;
 
     /// compute the xc energy using the precomputed intermediates vf and delrho
     double compute_xc_energy() const;
+
+    /// the multiplicative part of the potential, as make_xc_potential() returned it
+    real_function_3d get_vlocal() const {return vlocal;}
 
     /// return the local xc potential
     real_function_3d make_xc_potential() const;
@@ -785,9 +865,22 @@ public:
     /// @param[in]  aocc occupation numbers of amo
     /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
     /// @param[in]  bocc occupation numbers of bmo
+    /// how the two U1 terms of tau's product rule are evaluated
+
+    /// U1 = -grad(R)/R is analytic but componentwise non-smooth at each nucleus
+    /// (U1_x ~ x/r), so carrying it as an MRA Function costs depth ~18 and every
+    /// product with it inherits that depth -- which refine_to_common_level then
+    /// imposes on every xc intermediate.
+    enum class TauU1 {
+        mra,         ///< U1 and |U1|^2 projected into Functions and multiplied
+        pointwise    ///< U1 evaluated from its functor at the orbital tree's
+                     ///< quadrature points; nothing involving it is projected
+    };
+
     void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
                  const vecfuncT& bmo=vecfuncT(),
-                 const Tensor<double>& bocc=Tensor<double>()) const;
+                 const Tensor<double>& bocc=Tensor<double>(),
+                 const TauU1 u1mode=TauU1::pointwise) const;
 
     /// the kinetic energy density of one spin channel, as set by set_tau()
 
@@ -870,12 +963,50 @@ private:
     /// gradient operator honouring dft_deriv, for the meta-gga term
     std::shared_ptr<Derivative<T,NDIM> > make_derivative(const int axis) const;
 
+    /// divergence of a vector field, honouring dft_deriv
+    real_function_3d div_dft_deriv(const vecfuncT& v) const;
+
+    /// caller has opted in to the weak form, see allow_weak_form()
+    bool weak_form_ok=false;
+
+    /// the user asked for the weak form: CalculationParameters::xc_weak_gga()
+
+    /// Two independent conditions, and both are needed. weak_form_ok says the
+    /// *caller* implements the split; this says the *user* wants it.
+    bool weak_gga=false;
+
+    /// the semilocal flux, assigned by make_xc_potential() in weak form only
+    mutable vecfuncT semilocal_flux;
+
+    /// the multiplicative potential, stashed by make_xc_potential()
+    mutable real_function_3d vlocal;
+
+    /// the body of make_xc_potential(); the wrapper only stashes vlocal
+    real_function_3d make_xc_potential_impl() const;
+
+    /// true once set_tau() has supplied tau, by either route
+    bool has_tau_args() const;
+
+    /// the four analytic U1 quantities the xc ops evaluate pointwise
+
+    /// Empty unless the pointwise route is in use. They are handed to the op rather
+    /// than projected into xc_args precisely because a projected product with U1 is
+    /// what rings; see nemo_u1_functors.
+    nemo_u1_functors make_u1_functors() const;
+
     /// compute the intermediates for the XC functionals
 
     /// @param[in]  arho    density of the alpha orbitals
     /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
     /// @return xc_args vector of intermediates as described above
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
+    /// compute the intermediates for the XC functionals
+
+    /// If the regularized densities are supplied, zeta = grad log(rho) is built as
+    /// grad log(rho_reg) - 2 U1 -- exact, and it keeps the nuclear cusp of
+    /// rho = R^2 rho_reg out from under the numerical derivative.
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
+                          const real_function_3d& arho_reg = real_function_3d(),
+                          const real_function_3d& brho_reg = real_function_3d()) const;
 
     /// compute the intermediates for the XC functionals
 

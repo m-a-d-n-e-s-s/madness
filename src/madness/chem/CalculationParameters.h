@@ -81,7 +81,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
-		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
@@ -117,7 +118,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
-		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
 		initialize<std::string> ("dispersion","none","DFT-D3 dispersion correction",{"none","d3bj","d3zero"});
 		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
@@ -222,8 +222,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::string deriv() const {return get<std::string>("deriv");}
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
+	bool xc_weak_gga() const {return get<bool>("xc_weak_gga");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
-	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string dispersion() const {return get<std::string>("dispersion");}
 	std::string dispersion_functional() const {return get<std::string>("dispersion_functional");}
 	bool dispersion_atm() const {return get<bool>("dispersion_atm");}

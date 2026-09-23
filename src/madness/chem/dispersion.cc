@@ -161,7 +161,7 @@ DispersionCorrection::DispersionCorrection(const std::string& spec,
     // `GGA_X_PBE 1.0 GGA_C_PBE 1.0`), so its first token is a guess. It is only
     // a fallback; `dispersion_functional` overrides it, and an unusable guess
     // fails loudly below rather than silently picking the wrong parameters.
-    // "none" is the parameter default, spelled the way pcm_data/ac_data/nwfile
+    // "none" is the parameter default, spelled the way pcm_data/nwfile
     // spell "unset" -- an empty default value cannot be read back out of
     // QCCalculationParametersBase.
     const std::string requested = first_token(functional);

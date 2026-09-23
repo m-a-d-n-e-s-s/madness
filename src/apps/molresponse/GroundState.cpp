@@ -407,7 +407,7 @@ void GroundState::build_v_local(World& world, double vtol,
     if (scf_->xc.is_dft() && scf_->xc.hf_exchange_coefficient() != 1.0) {
         XCOperator<double, 3> xc_op(world, scf_->param.xc(),
                                      is_spin_restricted(),
-                                     arho, arho);
+                                     arho, arho, scf_->param.dft_deriv());
         v_local_ += xc_op.make_xc_potential();
     }
     arho.clear();
