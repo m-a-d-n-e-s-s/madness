@@ -163,7 +163,7 @@ Nemo::Nemo(World &world, const commandlineparser &parser)
                       std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
-    pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
+    pcm = PCM(world, this->molecule(), calc->pcm_param, true);
   symmetry_projector = projector_irrep(get_calc_param().pointgroup())
                            .set_ordering("keep")
                            .set_verbosity(0)
@@ -175,8 +175,8 @@ Nemo::Nemo(World &world, const commandlineparser &parser)
 
 Nemo::Nemo(World &world, const CalculationParameters &param,
            const NemoCalculationParameters &nemo_param,
-           const Molecule &molecule)
-    : NemoBase(world), calc(std::make_shared<SCF>(world, param, molecule)),
+           const Molecule &molecule, const PCMParameters &pcm_param)
+    : NemoBase(world), calc(std::make_shared<SCF>(world, param, molecule, pcm_param)),
       nemo_param(nemo_param), coords_sum(-1.0), ac(world, calc) {
 
   // amo holds the regularized F = psi/R, not psi. Tell the SCF that owns the
@@ -187,7 +187,7 @@ Nemo::Nemo(World &world, const CalculationParameters &param,
                       std::to_string(get_nemo_param().ncf().second);
 
   if (do_pcm())
-    pcm = PCM(world, this->molecule(), get_calc_param().pcm_data(), true);
+    pcm = PCM(world, this->molecule(), calc->pcm_param, true);
   symmetry_projector = projector_irrep(get_calc_param().pointgroup())
                            .set_ordering("keep")
                            .set_verbosity(0)

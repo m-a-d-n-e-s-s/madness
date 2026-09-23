@@ -5,6 +5,7 @@
 #include <madness/chem/ResponseParameters.hpp>
 #include <madness/chem/TDHF.h>
 #include <madness/chem/oep.h>
+#include <madness/chem/pcm.h>
 #include <madness/mra/QCCalculationParametersBase.h>
 
 #include <type_traits>
@@ -283,5 +284,5 @@ private:
 using Params =
     ParameterManager<CalculationParameters, ResponseParameters,
                      Nemo::NemoCalculationParameters, OptimizationParameters,
-                     OEP_Parameters, CCParameters, TDHFParameters, Molecule,
-                     IOParameters>;
+                     OEP_Parameters, CCParameters, TDHFParameters, PCMParameters,
+                     Molecule, IOParameters>;

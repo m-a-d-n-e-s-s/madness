@@ -1182,6 +1182,11 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // The `pcm` group has to make the same round trip as `dft`: the SCF is
+        // rebuilt from this regenerated mad.in, so anything omitted here is
+        // silently lost. Written unconditionally -- an empty `pcm/end` block is
+        // harmless, and PCMParameters is inert unless dft's pcm_data is set.
+        in["pcm"] = params.get<PCMParameters>().to_json_if_precedence("defined");
         // `prefix` must be carried explicitly. It is the one parameter that is
         // DERIVED from information the engine cannot recompute -- the name of
         // the original input file (ParameterManager.hpp) -- and this round trip
@@ -1192,7 +1197,7 @@ private:
         // computes is re-derived identically by the SCF ctor.
         in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
-        write_json_to_input_file(in, {"dft"}, ofs);
+        write_json_to_input_file(in, {"dft", "pcm"}, ofs);
         mol.print_defined_only(ofs);
       }
     }
@@ -1282,7 +1287,8 @@ private:
   void initialize_(World &world, const Params &params) {
     nemo_ = std::make_shared<Nemo>(
         world, params.get<CalculationParameters>(),
-        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>());
+        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>(),
+        params.get<PCMParameters>());
   }
 
   std::shared_ptr<Calc> nemo_;

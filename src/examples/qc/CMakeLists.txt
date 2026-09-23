@@ -64,6 +64,14 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
     add_qctest(scf_lih_pbe_d3  madqc "qctest;medium;applications")     #  12 s, laptop
   endif()
 
+  # The polarizable continuum model, and the only deck carrying a `pcm` group.
+  # Needs PCMSolver: without it the deck aborts by design (chem/pcm.cc throws
+  # rather than quietly running in vacuum), so it cannot be registered
+  # unconditionally -- ENABLE_PCM is off by default.
+  if (MADNESS_HAS_PCM)
+    add_qctest(scf_lih_pcm_water madqc "qctest;medium;applications")   #  12 s
+  endif()
+
 endif()
 
 # The decks are user-facing documentation, not just fixtures: install them so the
