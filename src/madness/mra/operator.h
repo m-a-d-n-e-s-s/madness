@@ -135,6 +135,23 @@ namespace madness {
 
     */
 
+    /// The largest distance a kernel must represent along the axes that are not summed over an
+    /// infinite lattice: within the cell, plus N cells along an axis summed over N images.
+    /// This is the accuracy range of the finite axes for GFit::truncate_mixed_expansion.
+    template <std::size_t NDIM>
+    inline double lattice_finite_reach(const std::array<LatticeRange, NDIM>& lattice_ranges,
+                                       const Tensor<double>& cell_width) {
+        double reach2 = 0.0, diag2 = 0.0;
+        for (std::size_t d = 0; d != NDIM; ++d) {
+            const double w = cell_width(long(d));
+            diag2 += w * w;
+            if (lattice_ranges[d].infinite()) continue;
+            const double r = (lattice_ranges[d].get_range() + 1) * w;
+            reach2 += r * r;
+        }
+        return reach2 > 0.0 ? std::sqrt(reach2) : std::sqrt(diag2);
+    }
+
     template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
@@ -240,7 +257,7 @@ namespace madness {
               break;
             }
           }
-          auto hi_fin = hi;
+          const double hi_fin = lattice_finite_reach(lattice_ranges, cell_width);
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
@@ -2018,7 +2035,7 @@ namespace madness {
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
       const auto lattice_summed_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return static_cast<bool>(b);});
       const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
-      auto hi_fin = hi;
+      const double hi_fin = lattice_finite_reach(lattice_ranges, cell_width);
       if (lattice_summed_any) {
         hi *= 100;
       }
@@ -2054,6 +2071,7 @@ namespace madness {
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       const auto lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return static_cast<bool>(b); });
+      const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2062,8 +2080,8 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+      if (infinite_any) {
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
       }
 
       int rank = coeff.dim(0);
@@ -2114,6 +2132,7 @@ namespace madness {
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       bool lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
+      const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2122,8 +2141,8 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+      if (infinite_any) {
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
       }
 
       int rank = coeff.dim(0);
