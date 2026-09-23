@@ -132,17 +132,6 @@ inline void collect_citation_flags_from_task(const nlohmann::json &task,
       collect_citation_flags_from_task(subtask, flags);
 }
 
-inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
-  CitationFlags flags;
-  if (calc_info.contains("tasks") && calc_info["tasks"].is_array()) {
-    for (const auto &t : calc_info["tasks"])
-      collect_citation_flags_from_task(t, flags);
-  } else {
-    collect_citation_flags_from_task(calc_info, flags);
-  }
-  return flags;
-}
-
 inline void write_citations_section(std::ostream &os,
                                     const CitationFlags &flags) {
   if (!flags.any())
@@ -441,7 +430,9 @@ inline void write_results_summary(std::ostream &os,
   }
 
   int i = 0;
+  CitationFlags citation_flags;
   for (const auto &t : calc_info["tasks"]) {
+    collect_citation_flags_from_task(t, citation_flags);
     const std::string type = t.value("type", std::string());
     const std::string model = t.value("model", std::string());
 
@@ -491,7 +482,7 @@ inline void write_results_summary(std::ostream &os,
         write_excitations_section(os, t);
     }
   }
-  write_citations_section(os, collect_citation_flags(calc_info));
+  write_citations_section(os, citation_flags);
   os << "\n" << rule('=') << "\n\n";
 }
 
