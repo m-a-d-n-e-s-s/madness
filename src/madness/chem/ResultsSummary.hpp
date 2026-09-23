@@ -101,22 +101,27 @@ struct CitationFlags {
   bool any() const { return dftd3 || pcm || libxc; }
 };
 
+inline void merge_citation_object(const nlohmann::json &c,
+                                  CitationFlags &flags) {
+  if (!c.is_object())
+    return;
+  flags.dftd3 = flags.dftd3 || c.value("dftd3", false);
+  flags.pcm = flags.pcm || c.value("pcm", false);
+  flags.libxc = flags.libxc || c.value("libxc", false);
+}
+
 inline void merge_scf_citation_flags(const nlohmann::json &scf,
                                      CitationFlags &flags) {
-  if (scf.contains("citations") && scf["citations"].is_object()) {
-    const auto &c = scf["citations"];
-    flags.dftd3 = flags.dftd3 || c.value("dftd3", false);
-    flags.pcm = flags.pcm || c.value("pcm", false);
-    flags.libxc = flags.libxc || c.value("libxc", false);
-  }
+  if (scf.contains("citations"))
+    merge_citation_object(scf["citations"], flags);
 }
 
 inline void collect_citation_flags_from_task(const nlohmann::json &task,
                                              CitationFlags &flags) {
   if (!task.is_object())
     return;
-  if (task.contains("citations") && task["citations"].is_object())
-    merge_scf_citation_flags(task, flags);
+  if (task.contains("citations"))
+    merge_citation_object(task["citations"], flags);
   if (task.contains("scf") && task["scf"].is_object())
     merge_scf_citation_flags(task["scf"], flags);
   if (task.contains("tasks") && task["tasks"].is_array())
