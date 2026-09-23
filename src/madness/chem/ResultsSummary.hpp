@@ -109,8 +109,6 @@ inline void merge_scf_citation_flags(const nlohmann::json &scf,
     flags.pcm = flags.pcm || c.value("pcm", false);
     flags.libxc = flags.libxc || c.value("libxc", false);
   }
-  flags.dftd3 = flags.dftd3 ||
-                (scf.value("scf_dispersion_correction_energy", 0.0) != 0.0);
 }
 
 inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {

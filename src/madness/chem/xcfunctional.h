@@ -357,7 +357,7 @@ public:
     /// Returns true if this run is using libxc-backed functionals.
     bool uses_libxc_module() const {
 #ifdef MADNESS_HAS_LIBXC
-        return is_dft();
+        return !funcs.empty();
 #else
         return false;
 #endif
