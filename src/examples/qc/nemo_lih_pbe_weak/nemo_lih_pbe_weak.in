@@ -16,10 +16,10 @@
 #
 # CROSS-CHECK. The weak form is a rewriting, not a new approximation, so it
 # must reproduce the ordinary multiplicative form. The same deck with
-# `xc_weak_gga false` gives -8.0473206 at this single `protocol [1e-5]` rung
-# (-8.0473104 here; the 10 uHa gap is the rung's convergence, both runs stop at
-# an energy change of ~8e-6), and at a protocol ending at 1e-6 the two agree to
-# 0.8 uHa (-8.0473234 vs -8.0473226).
+# `xc_weak_gga false` gives -8.0473162 at this single `protocol [1e-5]` rung
+# (-8.0473189 here; both runs stop at an energy change of ~8e-6), and with the
+# default protocol, ending at 1e-6, the two agree to 1.8 uHa (-8.0473240 vs
+# -8.0473222, both stopping at an energy change of ~6e-7).
 #
 # NOT COVERED: canonicalization must rotate Y_i along with the orbitals. At
 # convergence the canonicalizing transformation is essentially the identity,
