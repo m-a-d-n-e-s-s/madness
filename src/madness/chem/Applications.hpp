@@ -1171,7 +1171,7 @@ struct moldft_lib {
     scf_res.uses_pcm = false;
 #endif
 #ifdef MADNESS_HAS_LIBXC
-    scf_res.uses_libxc = scf->xc.is_dft();
+    scf_res.uses_libxc = scf->xc.uses_libxc_backend();
 #else
     scf_res.uses_libxc = false;
 #endif
