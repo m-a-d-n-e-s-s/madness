@@ -983,8 +983,10 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the in-memory `sf` (no bundle reload), so it never
   // hits the cross-np load path that caused the parked ES heap-OOB (now guarded
-  // in load_es_roots). See the TDA path above for the full note. Re-enabled.
-  if (r.converged && ctx.print_level >= PrintLevel::Normal)
+  // in load_es_roots). See the TDA path above for the full note. Ungated, like the
+  // TDA path: at print_level 0 the RPA transition properties were silently not
+  // written (review finding C7).
+  if (r.converged)
     report_es_analysis<Full, ClosedShell>(
         world, gs, sf, ctx.print_level,
         ctx.calc_dir + "/es_analysis__" + protocol_key() + ".json");

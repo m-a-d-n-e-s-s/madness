@@ -8,7 +8,9 @@ A qctest case is a self-contained directory (see src/examples/qc/README.md):
     <case>/check.json                       result keys + tolerances
         (each check: "key" plus "tol" | "rtol" | "max"; see compare()),
         or "expect_error": "<text>" for a case that must be REFUSED
-        (see check_expected_error(); no checks and no reference needed)
+        (see check_expected_error(); no checks and no reference needed);
+        optional "expect_files": [glob, ...] relative to the work dir, each of
+        which must match a produced file (see check_expected_files())
     <case>/reference/<case>.calc_info.json  compared numerically
     <case>/reference/<case>.out             for humans; never compared
 
@@ -296,6 +298,23 @@ def check_expected_error(output, exitcode, expected):
     return False
 
 
+def check_expected_files(workdir, patterns):
+    """Every glob in `patterns` (relative to workdir) must match at least one file.
+
+    For side outputs that calc_info.json does not carry but the case must still
+    produce -- e.g. the excited-state analysis JSON next to the calc dir.
+    """
+    ok = True
+    for pat in patterns:
+        hits = sorted(workdir.glob(pat))
+        if hits:
+            print(f"expected file present: {pat} -> {hits[0].relative_to(workdir)}")
+        else:
+            print(f"FAILED: no file matches {pat!r} under {workdir}")
+            ok = False
+    return ok
+
+
 def update_reference(case, output, report):
     refdir = case / "reference"
     refdir.mkdir(exist_ok=True)
@@ -370,6 +389,7 @@ def main():
         return 1
 
     ok = compare(output, reference, check["checks"])
+    ok = check_expected_files(workdir, check.get("expect_files", [])) and ok
     print("final success:", ok and exitcode == 0)
     return 0 if (ok and exitcode == 0) else 1
 

@@ -119,5 +119,27 @@ class ExpectErrorTests(unittest.TestCase):
         self.assertEqual(run_qctest.load_check(self.dir, False)["expect_error"], "x")
 
 
+class ExpectFilesTests(unittest.TestCase):
+    """Side outputs a case must produce (e.g. the ES analysis JSON)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_every_pattern_must_match_a_file(self):
+        (self.dir / "a" / "b").mkdir(parents=True)
+        (self.dir / "a" / "b" / "es_analysis__1e-04_k6.json").write_text("{}")
+        self.assertTrue(run_qctest.check_expected_files(
+            self.dir, ["a/*/es_analysis__*.json"]))
+        self.assertFalse(run_qctest.check_expected_files(
+            self.dir, ["a/*/es_analysis__*.json", "a/*/missing_*.json"]))
+
+    def test_no_patterns_passes(self):
+        self.assertTrue(run_qctest.check_expected_files(self.dir, []))
+
+
 if __name__ == "__main__":
     unittest.main()
