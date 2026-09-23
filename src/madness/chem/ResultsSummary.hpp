@@ -111,19 +111,29 @@ inline void merge_scf_citation_flags(const nlohmann::json &scf,
   }
 }
 
+inline void collect_citation_flags_recursive(const nlohmann::json &node,
+                                             CitationFlags &flags) {
+  if (node.is_array()) {
+    for (const auto &e : node)
+      collect_citation_flags_recursive(e, flags);
+    return;
+  }
+  if (!node.is_object())
+    return;
+
+  if (node.contains("citations") && node["citations"].is_object()) {
+    const auto &c = node["citations"];
+    if (c.contains("dftd3") || c.contains("pcm") || c.contains("libxc"))
+      merge_scf_citation_flags(node, flags);
+  }
+
+  for (const auto &[_, v] : node.items())
+    collect_citation_flags_recursive(v, flags);
+}
+
 inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
   CitationFlags flags;
-  if (!calc_info.contains("tasks") || !calc_info["tasks"].is_array())
-    return flags;
-  for (const auto &t : calc_info["tasks"]) {
-    const bool scf_like =
-        (t.value("model", std::string()) == "scf") || t.contains("scf_eigenvalues_a");
-    if (t.contains("scf") && t["scf"].is_object()) {
-      merge_scf_citation_flags(t["scf"], flags);
-    } else if (scf_like) {
-      merge_scf_citation_flags(t, flags);
-    }
-  }
+  collect_citation_flags_recursive(calc_info, flags);
   return flags;
 }
 
