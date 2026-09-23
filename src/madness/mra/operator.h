@@ -257,7 +257,16 @@ namespace madness {
               break;
             }
           }
-          const double hi_fin = lattice_finite_reach(lattice_ranges, cell_width);
+          // A Gaussian's lattice sum is a gauge constant only if the kernel is summed over the
+          // whole lattice. An axis with an infinite lattice range but a finite kernel range is
+          // summed over the images the range reaches, so for the truncation it counts as a finite
+          // sum over that many images -- consistent with infinite_summed_any above.
+          std::array<LatticeRange, NDIM> summed_ranges = lattice_ranges;
+          for (size_t i = 0; i < NDIM; i++) {
+            if (lattice_ranges[i].infinite() && info.range[i].finite())
+              summed_ranges[i] = LatticeRange((info.range[i].iextent_x2() + 1) / 2);
+          }
+          const double hi_fin = lattice_finite_reach(summed_ranges, cell_width);
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
@@ -269,7 +278,7 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, info.lo, hi_fin, info.thresh);
+            fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
           }
 
