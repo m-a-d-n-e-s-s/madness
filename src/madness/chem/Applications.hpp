@@ -1165,7 +1165,7 @@ struct moldft_lib {
         scf->dispersion.energy(world, scf->molecule);
     scf_res.uses_dftd3 = scf->dispersion.active();
 #ifdef MADNESS_HAS_PCM
-    scf_res.uses_pcm = (scf->param.pcm_data() != "none");
+    scf_res.uses_pcm = (scf->pcm_param.solvent() != "none");
 #else
     scf_res.uses_pcm = false;
 #endif
