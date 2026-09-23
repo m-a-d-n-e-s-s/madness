@@ -341,9 +341,7 @@ public:
     /// tcut = 0.25/L^2 (L the largest such cell width) has a lattice sum that is flat to
     /// exp(-4 pi^2) over the cell: a gauge constant. If every axis is summed, those terms
     /// are dropped (all but the first, as before). If some axes are not summed, the same
-    /// terms are not flat along them and carry real potential there -- dropping them was
-    /// an error that grew with the transverse cell size (3.9e-3 in the potential of a
-    /// neutral chain in a 100x100x18 cell at eps 1e-6, and independent of eps) -- so they
+    /// terms are not flat along them and carry real potential there -- so they
     /// are kept as far as the finite axes need them: the tail is folded into its neighbours
     /// while the fit stays accurate to eps on [lo, hi_fin], where hi_fin is the largest
     /// distance the finite axes can reach. The first term below tcut is never merged into a
@@ -363,7 +361,8 @@ public:
         const bool infinite_all = std::all_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite(); });
         if (!infinite_any) return;   // no lattice sum is a constant: nothing can be dropped
 
-        // 'diffuse' is relative to the widest infinitely summed axis
+        // The widest infinitely summed axis determines how "diffuse" a Gaussian sum needs to be for
+        // all infinite lattice sums to be constant.
         double max_infinite_width = 0;
         for (std::size_t d = 0; d != NDIM; ++d)
             if (lattice_ranges[d].infinite()) max_infinite_width = std::max(max_infinite_width, cell_width(long(d)));
