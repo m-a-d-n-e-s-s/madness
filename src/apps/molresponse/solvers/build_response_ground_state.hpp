@@ -69,7 +69,14 @@ inline void debug_gs_fock_check(madness::World &world, const ResponseGroundState
     K[i] = madness::inner(phi[i], Kphi[i]);
   }
   auto gram = madness::matrix_inner(world, phi, phi);
-  std::vector<double> zs = {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0};
+  // Sample points along z, kept only if they lie inside the cell: Function::eval
+  // throws on a coordinate outside it (the L=30 open-shell qctest decks and z=40).
+  std::vector<double> zs;
+  {
+    const auto &cell = madness::FunctionDefaults<3>::get_cell();
+    for (double z : {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0})
+      if (z > cell(2, 0) && z < cell(2, 1)) zs.push_back(z);
+  }
   std::vector<double> vz(zs.size(), 0.0);
   {
     auto vl = madness::copy(t.V_local_alpha);
