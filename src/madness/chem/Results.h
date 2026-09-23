@@ -495,7 +495,7 @@ public:
       scf_total_energy = j.value("scf_total_energy", 0.0);
     scf_dispersion_correction_energy =
         j.value("scf_dispersion_correction_energy", 0.0);
-    if (j.contains("citations")) {
+    if (j.contains("citations") && j["citations"].is_object()) {
       const auto &c = j["citations"];
       uses_dftd3 = c.value("dftd3", false);
       uses_pcm = c.value("pcm", false);
