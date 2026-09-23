@@ -233,13 +233,29 @@ fd_entry(const nlohmann::json &meta, const std::string &pert,
 // can never disagree. (Replaced the old converged-only has_coarser_converged_fd,
 // which missed coarser PARTIALS and didn't exclude diverged seeds.)
 
-/// ES bundle entry at a key, or nullptr.
+/// Is this excited_states entry the bundle `node` asks for? The entry must
+/// record the same type (tda/full) and root count. A legacy entry that records
+/// neither is accepted (it predates the identity fields). Review finding C5: an
+/// entry keyed on protocol alone let a converged TDA bundle satisfy a later RPA
+/// or larger-n_roots request in the same calc dir.
+inline bool es_entry_matches(const nlohmann::json &e, const CalcNode &node) {
+  if (e.contains("type") &&
+      e.value("type", std::string{}) != (node.tda ? "tda" : "full"))
+    return false;
+  if (e.contains("n_roots") && e.value("n_roots", 0) != node.n_roots)
+    return false;
+  return true;
+}
+
+/// ES bundle entry at a key that IS the requested bundle, or nullptr.
 inline const nlohmann::json *es_entry(const nlohmann::json &meta,
-                                      const std::string &key) {
+                                      const std::string &key,
+                                      const CalcNode &node) {
   if (!meta.contains("excited_states") ||
       !meta["excited_states"].contains(key))
     return nullptr;
-  return &meta["excited_states"][key];
+  const auto &e = meta["excited_states"][key];
+  return es_entry_matches(e, node) ? &e : nullptr;
 }
 
 /// VBC status entry at vbc_states/<id>/<key>, or nullptr.
@@ -270,11 +286,13 @@ inline bool has_coarser_converged_vbc(const nlohmann::json &meta,
 }
 
 inline bool has_coarser_converged_es(const nlohmann::json &meta,
+                                     const CalcNode &node,
                                      double target_thresh, int target_k) {
   if (!meta.contains("excited_states") || !meta.contains("protocols"))
     return false;
   const auto &protos = meta["protocols"];
   for (const auto &[key, ent] : meta["excited_states"].items()) {
+    if (!es_entry_matches(ent, node)) continue;
     if (!entry_converged(ent)) continue;
     if (!protos.contains(key)) continue;
     const double t  = protos[key].value("thresh", 0.0);
@@ -422,14 +440,21 @@ NodeAction reconcile_protocol(const CalcNode &node, const nlohmann::json &meta,
   // saves identical metadata, which run()'s progress-aware no-progress guard
   // then quarantines — no infinite Restart loop.)
   if (node.kind == CalcKind::ES) {
-    if (const auto *e = detail_calc::es_entry(meta, key)) {
+    if (const auto *e = detail_calc::es_entry(meta, key, node)) {
       if (detail_calc::entry_converged(*e)) return NodeAction::Skip;
       if (detail_calc::entry_diverged(*e))
-        return detail_calc::has_coarser_converged_es(meta, thresh, k)
+        return detail_calc::has_coarser_converged_es(meta, node, thresh, k)
                    ? NodeAction::Restart : NodeAction::Fresh;
+      // Honest climb, as for FD below (review finding C12): a stalled or
+      // budget-exhausted bundle is done at this rung. Without this a stalled
+      // bundle came back Resume on every pass, and the no-progress guard only
+      // stops it if a re-solve writes byte-identical metadata.
+      if (max_iters > 0 &&
+          (e->value("iter", 0) >= max_iters || e->value("stalled", false)))
+        return NodeAction::Skip;
       return NodeAction::Resume;
     }
-    return detail_calc::has_coarser_converged_es(meta, thresh, k)
+    return detail_calc::has_coarser_converged_es(meta, node, thresh, k)
                ? NodeAction::Restart
                : NodeAction::Fresh;
   }
@@ -509,7 +534,7 @@ bool prerequisites_converged(const CalcNode &node, const std::vector<CalcNode> &
     if (!dep) return false;
     bool ok = false;
     if (dep->kind == CalcKind::ES) {
-      const auto *e = detail_calc::es_entry(meta, key);
+      const auto *e = detail_calc::es_entry(meta, key, *dep);
       ok = e && detail_calc::entry_converged(*e);
     } else {
       const auto *e = detail_calc::fd_entry(meta, dep->pert.description(),

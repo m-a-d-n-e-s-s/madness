@@ -693,7 +693,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   // during the solve — see es_seed_guard.hpp).
   std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
-    auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
+    auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir, n_roots);
     if (loaded) {
       seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
                                         loaded->source_protocol_key);
@@ -851,7 +851,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   // artifact), so seed_ref stays empty on that path.
   std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
-    auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
+    auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir, n_roots);
     if (loaded) {
       seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
                                         loaded->source_protocol_key);
@@ -1667,6 +1667,7 @@ private:
       const std::string es_key = protocol_key_at(es->protocols.back());
       if (!meta["excited_states"].contains(es_key)) continue;
       const auto &b = meta["excited_states"][es_key];
+      if (!detail_calc::es_entry_matches(b, *es)) continue;  // another bundle's roots (C5)
       if (!b.value("converged", false)) continue;       // ES not converged yet
       if (!b.contains("roots") || !b["roots"].is_array()) continue;
 

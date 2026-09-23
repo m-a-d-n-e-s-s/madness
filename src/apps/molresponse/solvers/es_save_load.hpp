@@ -476,14 +476,18 @@ struct ESRestartResult {
 
 template <typename Type, typename Shell>
 std::optional<ESRestartResult<Type, Shell>>
-try_load_es_bundle(madness::World &world, const std::string &calc_dir) {
+try_load_es_bundle(madness::World &world, const std::string &calc_dir,
+                   int n_roots = 0) {
   const std::string active_key = protocol_key();
   const double active_thresh   = madness::FunctionDefaults<3>::get_thresh();
   const int    active_k        = madness::FunctionDefaults<3>::get_k();
   const std::string want_type  = detail_save_load::type_tag<Type>();
   const std::string want_shell = detail_save_load::shell_tag<Shell>();
 
-  // Rank-0 picks (source_key, bundle_dir). Both empty ↔ no match.
+  // Rank-0 picks (source_key, bundle_dir). Both empty ↔ no match. Selection goes
+  // through best_usable_es_source_key (response_metadata.hpp): same type, shell
+  // and (when n_roots > 0) root count, coarser-or-equal, and never a diverged
+  // bundle (review finding C4). n_roots = 0 accepts any root count.
   std::string source_key;
   std::string bundle_dir;
   if (world.rank() == 0) {
@@ -491,46 +495,10 @@ try_load_es_bundle(madness::World &world, const std::string &calc_dir) {
     if (std::filesystem::exists(meta_path)) {
       auto meta = ResponseMetadata::load_or_create(meta_path);
       const auto &j = meta.json();
-      if (j.contains("excited_states") && j["excited_states"].is_object() &&
-          j.contains("protocols")      && j["protocols"].is_object()) {
-        struct Cand { std::string key; std::string bdir; double thresh; int k; };
-        std::vector<Cand> cands;
-        for (const auto &[key, ent] : j["excited_states"].items()) {
-          // Type/shell must match the requested instantiation — the loader
-          // also validates, but filter here so we don't pick an unloadable
-          // candidate over a loadable one.
-          if (ent.value("type",  std::string{}) != want_type)  continue;
-          if (ent.value("shell", std::string{}) != want_shell) continue;
-          if (!j["protocols"].contains(key))                    continue;
-          const double t  = j["protocols"][key].value("thresh", 0.0);
-          const int    kk = j["protocols"][key].value("k", 0);
-          if (t >= active_thresh && kk <= active_k) {
-            cands.push_back({
-                key,
-                ent.value("bundle_dir", std::string{}),
-                t, kk});
-          }
-        }
-        // Exact match wins.
-        for (const auto &c : cands) {
-          if (c.key == active_key) {
-            source_key = c.key;
-            bundle_dir = c.bdir;
-            break;
-          }
-        }
-        // Else closest-to-active: max k, then min thresh.
-        if (source_key.empty() && !cands.empty()) {
-          auto best = std::max_element(
-              cands.begin(), cands.end(),
-              [](const Cand &a, const Cand &b) {
-                if (a.k != b.k)      return a.k < b.k;        // higher k wins
-                return a.thresh > b.thresh;                   // smaller thresh wins
-              });
-          source_key = best->key;
-          bundle_dir = best->bdir;
-        }
-      }
+      source_key = best_usable_es_source_key(j, want_type, want_shell, n_roots,
+                                             active_thresh, active_k, active_key);
+      if (!source_key.empty())
+        bundle_dir = j["excited_states"][source_key].value("bundle_dir", std::string{});
     }
   }
   world.gop.broadcast_serializable(source_key, 0);

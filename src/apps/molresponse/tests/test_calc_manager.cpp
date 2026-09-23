@@ -82,6 +82,20 @@ void put_es(json &m, double thresh, bool converged, bool diverged = false) {
                               {"diverged", diverged}};
 }
 
+// ES bundle entry with the identity + progress fields save_es_roots writes
+// (type "tda"/"full", shell, n_roots, iter, stalled). put_es above writes the
+// legacy shape (no identity fields).
+void put_es_bundle(json &m, double thresh, bool converged, const std::string &type,
+                   int n_roots, bool stalled = false, int iter = 0,
+                   bool diverged = false) {
+  const std::string key = protocol_key_at(thresh);
+  put_protocol(m, thresh);
+  m["excited_states"][key] = {{"type", type},         {"shell", "closed"},
+                              {"n_roots", n_roots},   {"bundle_dir", "es__" + key},
+                              {"converged", converged}, {"diverged", diverged},
+                              {"stalled", stalled},   {"iter", iter}};
+}
+
 void put_vbc(json &m, const std::string &id, double thresh, bool converged,
              bool diverged = false) {
   const std::string key = protocol_key_at(thresh);
@@ -424,6 +438,93 @@ int main() {
     for (const auto &wave : w0)
       if (wave_has(wave, vbc->id)) vbc_scheduled = true;
     EXPECT(!vbc_scheduled, "VBC not scheduled while FD prereq unconverged");
+  }
+
+  // ====== reconcile ES: the bundle on disk must BE the requested bundle ======
+  // review/findings C5: the ES verdict keyed on protocol only, so a converged TDA
+  // bundle satisfied a later RPA (or larger n_roots) request in the same calc dir.
+  std::printf("=== reconcile ES: bundle identity (type, n_roots) ===\n");
+  {
+    ResponsePlan plan;
+    plan.es.push_back({/*tda=*/false, /*n_roots=*/2, {1e-4}});
+    auto dag = build_dag(plan, 0);
+    const CalcNode *es = find_id(dag, es_node_id(false, 2));
+    json m = empty_meta();
+    put_es_bundle(m, 1e-4, /*converged=*/true, "tda", 2);
+    EXPECT(reconcile_protocol(*es, m, 1e-4) != NodeAction::Skip,
+           "converged TDA bundle does not satisfy an RPA request");
+    json m2 = empty_meta();
+    put_es_bundle(m2, 1e-4, /*converged=*/true, "full", 1);
+    EXPECT(reconcile_protocol(*es, m2, 1e-4) != NodeAction::Skip,
+           "converged 1-root bundle does not satisfy a 2-root request");
+    json m3 = empty_meta();
+    put_es_bundle(m3, 1e-4, /*converged=*/true, "full", 2);
+    EXPECT(reconcile_protocol(*es, m3, 1e-4) == NodeAction::Skip,
+           "matching converged bundle -> Skip");
+    json m4 = empty_meta();
+    put_es(m4, 1e-4, /*converged=*/true);   // legacy entry: no type / n_roots
+    EXPECT(reconcile_protocol(*es, m4, 1e-4) == NodeAction::Skip,
+           "legacy entry without identity fields still Skips");
+
+    // The derived-FD prerequisite must see the same identity: a converged TDA
+    // bundle does not unblock legs planned for the RPA bundle.
+    plan.derived_fd.push_back({Perturbation::dipole(2), "*", {1e-4}});
+    auto dag2 = build_dag(plan, 0);
+    const CalcNode *dfd = find_id(dag2, derived_fd_node_id(Perturbation::dipole(2), "*"));
+    EXPECT(dfd && !prerequisites_converged(*dfd, dag2, m, 1e-4),
+           "TDA bundle does not satisfy the RPA bundle prerequisite");
+    EXPECT(dfd && prerequisites_converged(*dfd, dag2, m3, 1e-4),
+           "matching bundle satisfies the prerequisite");
+  }
+
+  // ====== reconcile ES: honest climb (a stalled / exhausted rung is done) =====
+  // review/findings C12: ES had no analogue of the FD honest-climb rule, so a
+  // stalled bundle was re-queued as Resume on every pass with no bound.
+  std::printf("=== reconcile ES: honest climb ===\n");
+  {
+    ResponsePlan plan;
+    plan.es.push_back({/*tda=*/true, /*n_roots=*/1, {1e-4}});
+    auto dag = build_dag(plan, 0);
+    const CalcNode *es = find_id(dag, es_node_id(true, 1));
+    json ms = empty_meta();
+    put_es_bundle(ms, 1e-4, /*converged=*/false, "tda", 1, /*stalled=*/true, /*iter=*/7);
+    EXPECT(reconcile_protocol(*es, ms, 1e-4, /*max_iters=*/30) == NodeAction::Skip,
+           "stalled unconverged ES bundle -> Skip");
+    json mx = empty_meta();
+    put_es_bundle(mx, 1e-4, /*converged=*/false, "tda", 1, /*stalled=*/false, /*iter=*/30);
+    EXPECT(reconcile_protocol(*es, mx, 1e-4, /*max_iters=*/30) == NodeAction::Skip,
+           "budget-exhausted ES bundle -> Skip");
+    json mp = empty_meta();
+    put_es_bundle(mp, 1e-4, /*converged=*/false, "tda", 1, /*stalled=*/false, /*iter=*/5);
+    EXPECT(reconcile_protocol(*es, mp, 1e-4, /*max_iters=*/30) == NodeAction::Resume,
+           "partial ES bundle with budget left -> Resume");
+    EXPECT(reconcile_protocol(*es, ms, 1e-4, /*max_iters=*/0) == NodeAction::Resume,
+           "max_iters == 0 keeps the legacy Resume");
+  }
+
+  // ====== ES restart source: never a diverged bundle ==========================
+  // review/findings C4: try_load_es_bundle preferred the exact-key bundle even
+  // when it had diverged, so a Restart re-seeded from the blown-up state. The
+  // selection is now a pure helper shared with the loader (mirrors the FD one).
+  std::printf("=== best_usable_es_source_key ===\n");
+  {
+    const std::string k4 = protocol_key_at(1e-4), k6 = protocol_key_at(1e-6);
+    json m = empty_meta();
+    put_es_bundle(m, 1e-4, /*converged=*/true, "full", 2);
+    put_es_bundle(m, 1e-6, /*converged=*/false, "full", 2, false, 3, /*diverged=*/true);
+    EXPECT(best_usable_es_source_key(m, "full", "closed", 2, 1e-6, 8, k6) == k4,
+           "diverged exact bundle is skipped; the coarser converged one is used");
+    json mp = empty_meta();
+    put_es_bundle(mp, 1e-4, /*converged=*/true, "full", 2);
+    put_es_bundle(mp, 1e-6, /*converged=*/false, "full", 2, false, 3);
+    EXPECT(best_usable_es_source_key(mp, "full", "closed", 2, 1e-6, 8, k6) == k6,
+           "non-diverged exact partial is preferred");
+    EXPECT(best_usable_es_source_key(m, "tda", "closed", 2, 1e-6, 8, k6).empty(),
+           "type mismatch -> no source");
+    EXPECT(best_usable_es_source_key(m, "full", "closed", 3, 1e-6, 8, k6).empty(),
+           "n_roots mismatch -> no source");
+    EXPECT(best_usable_es_source_key(empty_meta(), "full", "closed", 2, 1e-6, 8, k6).empty(),
+           "empty metadata -> no source");
   }
 
   std::printf("\n%s  (%d failures)\n", failed ? "FAILED" : "PASSED", failed);
