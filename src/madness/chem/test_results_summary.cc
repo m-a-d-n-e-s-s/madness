@@ -47,6 +47,20 @@ int main(int argc, char **argv) {
       t.checkpoint(ok, "prints module citations only when requested");
       success += !ok;
     }
+
+    {
+      std::ostringstream os;
+      nlohmann::json failed = {{"type", "task_failed"},
+                               {"status", "failed"},
+                               {"citations",
+                                {{"dftd3", false}, {"pcm", true}, {"libxc", false}}}};
+      qcapp::write_results_summary(os, {{"tasks", nlohmann::json::array({failed})}});
+      const auto out = os.str();
+      const bool ok =
+          has_text(out, "Citations for external modules") && has_text(out, "PCMSolver (PCM)");
+      t.checkpoint(ok, "prints citations for requested modules even when task is failed");
+      success += !ok;
+    }
   }
 
   int total_failures = success;

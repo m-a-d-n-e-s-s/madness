@@ -137,14 +137,8 @@ inline void collect_citation_flags_recursive(const nlohmann::json &node,
 inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
   CitationFlags flags;
   if (calc_info.contains("tasks") && calc_info["tasks"].is_array()) {
-    for (const auto &t : calc_info["tasks"]) {
-      const bool failed =
-          (t.value("status", std::string()) == "failed") ||
-          (t.value("type", std::string()) == "task_failed");
-      if (failed)
-        continue;
+    for (const auto &t : calc_info["tasks"])
       collect_citation_flags_recursive(t, flags);
-    }
   } else {
     collect_citation_flags_recursive(calc_info, flags);
   }
