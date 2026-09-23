@@ -1,0 +1,229 @@
+{
+    "io": {
+        "backend": "native",
+        "hdf5_compiled": false
+    },
+    "tasks": [
+        {
+            "convergence": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "convergence_info": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "hamiltonian": {
+                "dispersion": "none",
+                "dispersion_atm": false,
+                "dispersion_functional": "none",
+                "localize": "canon",
+                "ncf": "slater:2.000000",
+                "xc": "pbe"
+            },
+            "metadata": {
+                "mpi_size": 1
+            },
+            "model": "scf",
+            "molecule": {
+                "geometry": [
+                    [
+                        0.0,
+                        -0.0,
+                        0.75
+                    ],
+                    [
+                        0.0,
+                        -0.0,
+                        -2.25
+                    ]
+                ],
+                "parameters": {
+                    "core_type": "none",
+                    "eprec": 1e-06,
+                    "field": [
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "no_orient": false,
+                    "psp_calc": false,
+                    "pure_ae": true,
+                    "source_name": "nemo_lih_pbe_weak.in",
+                    "source_type": "inputfile",
+                    "symtol": -0.01,
+                    "units": "atomic"
+                },
+                "symbols": [
+                    "Li",
+                    "H"
+                ]
+            },
+            "optimization_results": {
+                "final_energy": 0.0,
+                "final_geometry": {
+                    "geometry": null,
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 0.0001,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "tbd",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": null
+                },
+                "max_gradient": 0.0,
+                "max_step": 0.0,
+                "nsteps": 0
+            },
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -2.3407643476255687e-14,
+                        3.2571088170350537e-15,
+                        2.2032155605743213
+                    ]
+                },
+                "energy": -8.047310209651117,
+                "gradient": {
+                    "dims": [
+                        6
+                    ],
+                    "ndim": 1,
+                    "size": 6,
+                    "vals": [
+                        2.3869795029440866e-14,
+                        7.549516567451064e-15,
+                        -0.0015339124956296746,
+                        1.6445178552260131e-15,
+                        -4.718447854656915e-16,
+                        0.0017683365596546374
+                    ]
+                }
+            },
+            "scf": {
+                "is_opt": false,
+                "model": "scf",
+                "molecule": {
+                    "geometry": [
+                        [
+                            0.0,
+                            -0.0,
+                            0.75
+                        ],
+                        [
+                            0.0,
+                            -0.0,
+                            -2.25
+                        ]
+                    ],
+                    "parameters": {
+                        "core_type": "none",
+                        "eprec": 1e-06,
+                        "field": [
+                            0.0,
+                            0.0,
+                            0.0
+                        ],
+                        "no_orient": false,
+                        "psp_calc": false,
+                        "pure_ae": true,
+                        "source_name": "nemo_lih_pbe_weak.in",
+                        "source_type": "inputfile",
+                        "symtol": -0.01,
+                        "units": "atomic"
+                    },
+                    "symbols": [
+                        "Li",
+                        "H"
+                    ]
+                },
+                "properties": {
+                    "dipole": {
+                        "dims": [
+                            3
+                        ],
+                        "ndim": 1,
+                        "size": 3,
+                        "vals": [
+                            -2.3407643476255687e-14,
+                            3.2571088170350537e-15,
+                            2.2032155605743213
+                        ]
+                    },
+                    "energy": -8.047310209651117,
+                    "gradient": {
+                        "dims": [
+                            6
+                        ],
+                        "ndim": 1,
+                        "size": 6,
+                        "vals": [
+                            2.3869795029440866e-14,
+                            7.549516567451064e-15,
+                            -0.0015339124956296746,
+                            1.6445178552260131e-15,
+                            -4.718447854656915e-16,
+                            0.0017683365596546374
+                        ]
+                    }
+                },
+                "scf_dispersion_correction_energy": 0.0,
+                "scf_eigenvalues_a": {
+                    "dims": [
+                        2
+                    ],
+                    "ndim": 1,
+                    "size": 2,
+                    "vals": [
+                        -1.868088027032916,
+                        -0.16076745688837343
+                    ]
+                },
+                "scf_eigenvalues_b": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_fock_a": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "scf_total_energy": -8.047310209651117
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    2
+                ],
+                "ndim": 1,
+                "size": 2,
+                "vals": [
+                    -1.868088027032916,
+                    -0.16076745688837343
+                ]
+            },
+            "scf_eigenvalues_b": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": -8.047310209651117
+        }
+    ]
+}

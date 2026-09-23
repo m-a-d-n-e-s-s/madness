@@ -31,6 +31,9 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
     # meta-gga on the nemo path: tau from the nemos via the psi = R F product
     # rule, and the non-multiplicative term with the R factors cancelled
     add_qctest(nemo_he_tpss    madqc "qctest;medium;applications")    #  24 s
+    # the weak form of the semilocal xc potential (xc_weak_gga), on two orbitals
+    # so the per-orbital flux is exercised; must agree with the multiplicative form
+    add_qctest(nemo_lih_pbe_weak madqc "qctest;medium;applications")  #  23 s
   endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
