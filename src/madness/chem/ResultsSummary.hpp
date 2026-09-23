@@ -111,36 +111,29 @@ inline void merge_scf_citation_flags(const nlohmann::json &scf,
   }
 }
 
-inline void collect_citation_flags_recursive(const nlohmann::json &node,
+inline void collect_citation_flags_from_task(const nlohmann::json &task,
                                              CitationFlags &flags) {
-  if (node.is_array()) {
-    for (const auto &e : node)
-      collect_citation_flags_recursive(e, flags);
+  if (!task.is_object())
     return;
-  }
-  if (!node.is_object())
-    return;
-
-  if (node.contains("citations") && node["citations"].is_object()) {
-    const auto &c = node["citations"];
-    if (c.contains("dftd3") || c.contains("pcm") || c.contains("libxc"))
-      merge_scf_citation_flags(node, flags);
-  }
-
-  for (const auto &[k, v] : node.items()) {
-    if (k == "citations")
-      continue;
-    collect_citation_flags_recursive(v, flags);
-  }
+  if (task.contains("citations") && task["citations"].is_object())
+    merge_scf_citation_flags(task, flags);
+  if (task.contains("scf") && task["scf"].is_object())
+    merge_scf_citation_flags(task["scf"], flags);
+  if (task.contains("tasks") && task["tasks"].is_array())
+    for (const auto &subtask : task["tasks"])
+      collect_citation_flags_from_task(subtask, flags);
+  if (task.contains("subtasks") && task["subtasks"].is_array())
+    for (const auto &subtask : task["subtasks"])
+      collect_citation_flags_from_task(subtask, flags);
 }
 
 inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
   CitationFlags flags;
   if (calc_info.contains("tasks") && calc_info["tasks"].is_array()) {
     for (const auto &t : calc_info["tasks"])
-      collect_citation_flags_recursive(t, flags);
+      collect_citation_flags_from_task(t, flags);
   } else {
-    collect_citation_flags_recursive(calc_info, flags);
+    collect_citation_flags_from_task(calc_info, flags);
   }
   return flags;
 }
