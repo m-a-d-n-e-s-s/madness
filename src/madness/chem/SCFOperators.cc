@@ -428,23 +428,24 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
 
     ncf = nemo->ncf;
 
-    ncf = nemo->ncf;
-
     nbeta = nemo->get_calc()->param.nbeta();
     const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
     // compute the alpha and beta densities
-    real_function_3d arho, brho;
+    real_function_3d arho, brho, brhonemo;
     real_function_3d arhonemo = nemo->make_density(nemo->get_calc()->aocc, nemo->get_calc()->amo);
     arho = (arhonemo * nemo->R_square).truncate(extra_truncation);
     if (have_beta) {
-        real_function_3d brhonemo = nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo);
+        brhonemo = nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo);
         brho = (brhonemo * nemo->R_square).truncate(extra_truncation);
     } else {
         brho = arho;
+        brhonemo = arhonemo;
     }
 
-    xc_args = prep_xc_args(arho, brho);
+    // hand over the regularized densities rho_s/R^2 as well, so that prep_xc_args
+    // builds zeta = grad log(rho_reg) - 2 U1 and never differentiates the cusp
+    xc_args = prep_xc_args(arho, brho, arhonemo, brhonemo);
 }
 
 
