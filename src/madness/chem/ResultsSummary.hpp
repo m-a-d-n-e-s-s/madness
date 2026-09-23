@@ -116,10 +116,13 @@ inline CitationFlags collect_citation_flags(const nlohmann::json &calc_info) {
   if (!calc_info.contains("tasks") || !calc_info["tasks"].is_array())
     return flags;
   for (const auto &t : calc_info["tasks"]) {
-    if (t.contains("scf") && t["scf"].is_object())
+    const bool scf_like =
+        (t.value("model", std::string()) == "scf") || t.contains("scf_eigenvalues_a");
+    if (t.contains("scf") && t["scf"].is_object()) {
       merge_scf_citation_flags(t["scf"], flags);
-    if (t.value("model", std::string()) == "scf" || t.contains("scf_eigenvalues_a"))
+    } else if (scf_like) {
       merge_scf_citation_flags(t, flags);
+    }
   }
   return flags;
 }
