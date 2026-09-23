@@ -41,8 +41,14 @@ jobs:
       - name: Build
         run: cmake --build build-pr
 
-      - name: Test (short + medium)
+      - name: Test (short)
         run: cmake --build build-pr --target check-short-madness
+
+      - name: Test (long)
+        run: cmake --build build-pr --target check-madness
+
+      - name: Test (qctest)
+        run: cmake --build build-pr --target check-qctest-madness
 
       - name: MPI multi-rank smoke test
         working-directory: build-pr
