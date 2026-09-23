@@ -1541,7 +1541,8 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis,
   const Coulomb<double, 3> J(world, this);
   const Exchange<double, 3> K = Exchange<double, 3>(world, this, 0);
   const XCOperator<double, 3> xc(
-      world, xc_data, not get_calc_param().spin_restricted(), arho, arho);
+      world, xc_data, not get_calc_param().spin_restricted(), arho, arho,
+      get_calc_param().dft_deriv());
   const Nuclear<double, 3> V(world, this);
 
   Tensor<double> h_diff(3l);
