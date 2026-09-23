@@ -32,9 +32,11 @@
 //                               optical ω(s) + nuclear-displacement FD at 0
 //                               for all atoms (quadratic / VBC). Feeds the
 //                               Tier-B vibrational Raman spectrum.
-//                             Resonant (resonance Raman): ES bundle + dipole
-//                               FD at the excitation energies. Feeds the
-//                               Tier-B resonance-Raman profile.
+//                             Resonant: ES bundle (roots only by default).
+//                               With request.tpa, also dipole FD legs at
+//                               es_freq_factor·ωₙ per axis (default 0.5 —
+//                               the two-photon point, off the linear pole)
+//                               feeding the 2PA residue contraction.
 //
 // Symbolic requests resolved by the calc manager post-solve:
 //   - derived_fd[].es_root_id == "*"  → one per converged ES root.
@@ -84,6 +86,13 @@ struct ResponsePropertyRequest {
   BetaProcess          beta_process = BetaProcess::SHG;       // Hyperpolarizability
   GradientMode         gradient_mode = GradientMode::Nuclear;  // PolarizabilityGradient
   int                  n_roots      = 0;                       // Resonant gradient
+  /// Resonant gradient only: also emit the two-photon ingredients — derived
+  /// dipole FD legs at es_freq_factor·ωₙ per axis (the 2PA machinery; ~3
+  /// extra FD solves per root) — for the downstream 2PA contraction. false
+  /// (default) = roots only: the ES bundle solves and nothing else. The FD
+  /// legs serve ONLY the 2PA residue (oscillator strengths come from the ES
+  /// vectors), so an ES request without `tpa` should not pay for them.
+  bool                 tpa          = false;
   std::vector<double>  protocol_thresholds;                    // ramp; all states get this
 };
 
@@ -341,14 +350,18 @@ inline ResponsePlan plan_one(const ResponsePropertyRequest &req) {
           }
         }
       } else {
-        // Resonance Raman: transition polarizability via excited states.
+        // Excited states via the resonant-gradient bundle. Roots only by
+        // default; req.tpa adds the derived dipole FD legs at ωₙ/2 per axis
+        // (the two-photon ingredients — see DerivedFDRequest.es_freq_factor).
         plan.es.push_back({/*tda=*/true, req.n_roots, req.protocol_thresholds});
-        for (char ax : req.axes) {
-          int i = axis_index(ax);
-          if (i < 0) continue;
-          plan.derived_fd.push_back(
-              {Perturbation::dipole(i), /*es_root_id=*/"*",
-               req.protocol_thresholds});
+        if (req.tpa) {
+          for (char ax : req.axes) {
+            int i = axis_index(ax);
+            if (i < 0) continue;
+            plan.derived_fd.push_back(
+                {Perturbation::dipole(i), /*es_root_id=*/"*",
+                 req.protocol_thresholds});
+          }
         }
       }
       break;

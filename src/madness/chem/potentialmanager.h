@@ -52,7 +52,7 @@
 #include <cmath>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
-#include <madness/misc/interpolation_1d.h>
+#include <madness/mra/interpolation_1d.h>
 #include <madness/mra/mra.h>
 
 namespace madness {
@@ -70,6 +70,8 @@ class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     MolecularPotentialFunctor(const Molecule& molecule)
         : molecule(molecule) {}
 
@@ -93,6 +95,8 @@ class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> 
 private:
     const Molecule& molecule;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     MolecularCorePotentialFunctor(const Molecule& molecule)
         : molecule(molecule) {}
 
@@ -118,6 +122,8 @@ class CoreOrbitalFunctor : public FunctionFunctorInterface<double,3> {
     const unsigned int core;
     const int m;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     CoreOrbitalFunctor(Molecule& molecule, int atom, unsigned int core, int m)
         : molecule(molecule), atom(atom), core(core), m(m) {};
     double operator()(const coord_3d& r) const {
@@ -140,6 +146,8 @@ class CoreOrbitalDerivativeFunctor : public FunctionFunctorInterface<double,3> {
     const unsigned int core;
     const int m;
 public:
+    using FunctionFunctorInterface<double,3>::operator();
+
     CoreOrbitalDerivativeFunctor(Molecule& molecule, int atom, int axis, unsigned int core, int m)
         : molecule(molecule), atom(atom), axis(axis), core(core), m(m) {};
     double operator()(const coord_3d& r) const {
@@ -167,6 +175,8 @@ private:
   int special_level_ = 15;
   double rscale = 1.0;
 public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   /**
   * @brief Constructs a NuclearDensityFunctor for evaluating nuclear densities.
   *
@@ -208,6 +218,8 @@ class GaussianNuclearDensityPotentialFunctor : public FunctionFunctorInterface<d
   int special_level_ = 15;
 
  public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   GaussianNuclearDensityPotentialFunctor(const madness::Molecule& molecule, int special_level = 15)
       : molecule(molecule), special_level_(special_level) {}
 
@@ -234,6 +246,8 @@ class FermiNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
   int special_level_ = 18;
 
  public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   FermiNuclearDensityFunctor(const Atom& atom, int special_level = 18)
       : atom(atom), special_level_(special_level) {}
 
@@ -261,6 +275,8 @@ class FermiNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
  */
 class WignerSeitzPotentialFunctor : public FunctionFunctorInterface<double,3> {
 public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   /**
    * @brief Constructs a WignerSeitzPotentialFunctor evaluating the potential
    *        in a simulation cell due to point charges, optionally with periodic
@@ -347,6 +363,8 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
   Tensor<double> cell;
   Level special_level_;
  public:
+  using FunctionFunctorInterface<double,3>::operator();
+
   /**
    * @brief Constructs a SAPFunctor for evaluating a smoothed 1/r potential.
    *

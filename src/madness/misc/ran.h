@@ -33,7 +33,8 @@
 #define MADNESS_MISC_RAN_H__INCLUDED
 
 #include <madness/madness_config.h>
-#include <madness/world/thread.h>
+#include <algorithm>
+#include <mutex>
 
 #include <complex>
 typedef std::complex<float> float_complex;
@@ -68,8 +69,9 @@ namespace madness {
     /// The streams are thread safe.
     ///
     /// A default stream is provided as madness::default_random_generator.
-    class Random : private Mutex {
+    class Random {
     private:
+        mutable std::mutex mutex_;  ///< serializes access to the stream; mutable so getstate() can be const
         const int r;
         const int s;
         const double beta;
@@ -87,7 +89,7 @@ namespace madness {
         virtual ~Random();
 
         double get() {
-            ScopedMutex<Mutex> safe(this);
+            std::lock_guard<std::mutex> safe(mutex_);
             if (cur >= r) generate();
             return u[cur++];
         }
@@ -95,7 +97,7 @@ namespace madness {
         /// Returns a vector of uniform doubles in [0,1)
         template <typename T>
         void getv(int n, T * MADNESS_RESTRICT v) {
-            ScopedMutex<Mutex> safe(this);
+            std::lock_guard<std::mutex> safe(mutex_);
             while (n) {
                 if (cur >= r) generate();
                 int ndo = std::min(n,r-cur);

@@ -428,6 +428,9 @@ public:
 
   std::string model = "scf";     // model used for the SCF calculation
   double scf_total_energy = 0.0; // total energy of the SCF calculation
+  // empirical dispersion (DFT-D3) contribution already contained in
+  // scf_total_energy; 0.0 when no correction was applied
+  double scf_dispersion_correction_energy = 0.0;
   //
   PropertyResults properties;
   SCFResults() = default;
@@ -451,6 +454,7 @@ public:
     // Scalars / metadata
     j["model"] = model;
     j["scf_total_energy"] = scf_total_energy;
+    j["scf_dispersion_correction_energy"] = scf_dispersion_correction_energy;
 
     // Optional nested block
     if (has_data(properties)) {
@@ -483,6 +487,8 @@ public:
       model = j.value("model", std::string("scf"));
     if (j.contains("scf_total_energy"))
       scf_total_energy = j.value("scf_total_energy", 0.0);
+    scf_dispersion_correction_energy =
+        j.value("scf_dispersion_correction_energy", 0.0);
 
     // Nested properties: optional
     if (j.contains("properties")) {

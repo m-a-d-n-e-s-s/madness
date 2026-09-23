@@ -1,0 +1,10 @@
+{
+  "description": "PBE0 single point on helium -- the only deck on a hybrid functional, and the only one where exact exchange and a semilocal functional both contribute to the total energy",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "scf", "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-3},
+    {"key": ["tasks", 0, "convergence_info", "converged_for_thresh"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

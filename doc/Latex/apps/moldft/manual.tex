@@ -463,23 +463,34 @@ The default convergence test is on both the 2-norm of change in density per atom
 
 \section{Geometry optimization}
 
-By default geometry optimization is performed using the BFGS Hessian update algorithm.  The convergence test is on all of the 2-norm of the gradient, the change in the energy between iterations, and the maximum change in Cartesian coordinates (all in atomic units).  The 
+Geometry optimization is no longer something {\tt moldft} does to itself.  It is a
+task of its own, run through {\tt madqc}:
 
-For geometry optimization it is recommended to select {\tt dconv 1e-5} to obtain more accurate gradients.
+\begin{verbatim}
+    madqc --optimize --wf=scf  deck.in
+    madqc --optimize --wf=nemo deck.in
+\end{verbatim}
 
-{\tt gopt} --- Requests optimization of the geometry
+\noindent{\tt --wf} names the reference method whose geometry is to be optimized.
+By default the BFGS Hessian update is used, and the convergence test is on the
+maximum element of the gradient (with translations and rotations projected out),
+the change in the energy between iterations, and the maximum change in Cartesian
+coordinates (all in atomic units).
 
-{\tt gtol value} --- E.g., {\tt gtol 1e-4} --- Sets the convergence threshold for the 2-norm of the gradient (default {\tt 1e-3}).
+All of its knobs live in the {\tt optimization} parameter group --- {\tt maxiter},
+{\tt maxstep}, {\tt algopt}, {\tt etol}, {\tt gtol}, {\tt xtol},
+{\tt value\_precision}, {\tt gradient\_precision}, {\tt initial\_hessian} --- see
+{\tt madqc --print\_parameters=optimization}.  Anything left unset is derived from
+the accuracy actually available: the energy thresholds from the wavefunction
+threshold, the gradient thresholds from {\tt dconv}.  Setting them tighter than
+the underlying gradient warrants makes the optimizer grind against its own noise
+rather than converge, so a deck normally sets only {\tt maxiter}.
 
-{\tt gtest value} --- E.g., {\tt gtest 1e-4} --- Sets the convergence threshold for the maximum change in Cartesian coordinates (default {\tt 1e-3} atomic units).
-
-{\tt gval value} --- E.g., {\tt gval 1e-6} --- Sets the available precision in the energy (default is {\tt 1e-5} atomic units).
-
-{\tt gprec value} --- E.g., {\tt gtest 1e-6} --- Sets the available precision in the gradient (default is {\tt 1e-5} atomic units).
-
-{\tt gmaxiter value} --- E.g., {\tt gmaxiter 100} --- Sets the maximum number of geometry optimization iterations (default is 20).
-
-{\tt algopt value} --- E.g., {\tt algopt SR1} --- Selects the quasi-Newton update method (default is ).  Options are {\tt BFGS} (default) or {\tt SR1} (not heavily tested).  Case sensitive.
+The former {\tt dft} keyvals {\tt gopt}, {\tt gtol}, {\tt gtest}, {\tt gval},
+{\tt gprec}, {\tt gmaxiter}, {\tt ginitial\_hessian} and {\tt algopt} are retired.
+They remain registered so that a deck still setting one fails with a message
+naming its replacement, rather than silently computing a single point at the
+input geometry.
 
 \section{Properties}
 

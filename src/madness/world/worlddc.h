@@ -42,6 +42,9 @@
 
 #include <functional>
 #include <set>
+#include <map>
+#include <vector>
+#include <algorithm>
 #include <unordered_set>
 
 
@@ -142,6 +145,14 @@ namespace madness
         virtual DistributionType distribution_type() const
         {
             return Distributed;
+        }
+
+        /// The one rank every key maps to on every process, or -1. Lets a cross-world
+        /// copy fetch from one owner instead of polling all ranks. Stronger than
+        /// WorldDCLocalPmap, whose owner is the calling rank.
+        virtual ProcessID single_owner() const
+        {
+            return -1;
         }
 
         /// Registers object for receipt of redistribute callbacks
@@ -286,6 +297,23 @@ namespace madness
         {
             return RankReplicated;
         }
+    };
+
+    /// Places every key on one fixed rank (all ranks agree on the owner).
+    ///
+    /// Moves a container's whole content onto one rank, so a cross-world copy is
+    /// a single fetch. Distribution type stays Distributed; see single_owner().
+    /// \ingroup worlddc
+    template <typename keyT>
+    class WorldDCSingleOwnerPmap : public WorldDCPmapInterface<keyT>
+    {
+    private:
+        const ProcessID owner_;
+
+    public:
+        WorldDCSingleOwnerPmap(ProcessID owner) : owner_(owner) {}
+        ProcessID owner(const keyT & /*key*/) const override { return owner_; }
+        ProcessID single_owner() const override { return owner_; }
     };
 
     /// node-replicated map will return the lowest rank on the node as owner
@@ -567,9 +595,11 @@ namespace madness
         WorldContainerImpl(); // Inhibit default constructor
 
         std::shared_ptr<WorldDCPmapInterface<keyT>> pmap; ///< Function/class to map from keys to owning process
+        bool rank_replication_complete_ = false;          ///< True if the last replicate() completed and no reset followed
         const ProcessID me;                               ///< My MPI rank
         internal_containerT local;                        ///< Locally owned data
         std::vector<keyT> *move_list;                     ///< Tempoary used to record data that needs redistributing
+        std::map<ProcessID, std::vector<keyT>> coalesced_move_; ///< Temporary: keys to move, bucketed by destination (coalesced redistribute)
 
         /// Handles find request
         void find_handler(ProcessID requestor, const keyT &key, const RemoteReference<FutureImpl<iterator>> &ref)
@@ -633,28 +663,52 @@ namespace madness
 
         void reset_pmap_to_local()
         {
+            rank_replication_complete_ = false;
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(this->get_world()));
             pmap->register_callback(this);
         }
 
-        /// replicates this WorldContainer on all ProcessIDs and generates a
-        /// ProcessMap where all nodes are local
+        /// Replicates this WorldContainer on every ProcessID.
+        ///
+        /// This call is collective, and every rank must call it in the same order.
+        /// If no rank called clear(), reset the pmap, or redistributed after the
+        /// last completed call, this call sends no data. A requested fence still
+        /// occurs. This call does not reconcile replicas, so per-key changes must
+        /// be the same on every rank.
+        ///
+        /// A rank runs queued tasks while it waits in a broadcast. These tasks must
+        /// not change this container until the call returns. If a task erases a key
+        /// on the root, MADNESS_CHECK throws on that rank, and the other ranks wait.
         void replicate(bool fence) {
             World &world = this->get_world();
+
+            // clear() is local, so the ranks can disagree about the flag. All ranks
+            // take the fast path only if all ranks agree.
+            int complete = rank_replication_complete_ ? 1 : 0;
+            world.gop.min(complete);
+            if (complete) {
+                MADNESS_CHECK(pmap->distribution_type() == RankReplicated);
+                if (fence) world.gop.fence();
+                return;
+            }
+
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(world));
             pmap->register_callback(this);
 
             do_replicate(world);
+            rank_replication_complete_ = true;
             if (fence) world.gop.fence();
         }
 
-        /// replicates this WorldContainer on all hosts and generates a
-        /// ProcessMap where all nodes are host-local (not rank-local)
-        /// will always fence
+        /// Replicates this WorldContainer on all hosts, one ProcessID per host.
+        ///
+        /// The new pmap is host-local, not rank-local. This call always fences.
+        /// Queued tasks must not change this container until the call returns.
         void replicate_on_hosts(bool fence) {
             MADNESS_CHECK(fence);
+            rank_replication_complete_ = false;
 
             /// print in rank-order
 //            auto oprint = [&](World& world, auto &&... args) {
@@ -769,6 +823,11 @@ namespace madness
         }
 
         void do_replicate(World& world) {
+            // Received entries go to a side buffer, not into local, so each
+            // rank broadcasts only the entries it held on entry and every entry
+            // is sent exactly once. Inserting as we go would make later roots
+            // re-broadcast what they received from earlier ones.
+            std::vector<pairT> received;
             for (ProcessID rank = 0; rank < world.size(); rank++)
             {
                 if (rank == world.rank())
@@ -786,18 +845,21 @@ namespace madness
                 }
                 else
                 {
-                    size_t sz;
+                    size_t sz = 0;
                     world.gop.broadcast_serializable(sz, rank);
+                    received.reserve(received.size() + sz);
                     for (size_t i = 0; i < sz; i++)
                     {
-                        keyT key;
-                        valueT value;
+                        keyT key{};
+                        valueT value{};
                         world.gop.broadcast_serializable(key, rank);
                         world.gop.broadcast_serializable(value, rank);
-                        insert(pairT(key, value));
+                        received.emplace_back(std::move(key), std::move(value));
                     }
                 }
             }
+            for (auto& datum : received)
+                insert(datum);
         }
 
         const hashfunT &get_hash() const { return local.get_hash(); }
@@ -856,8 +918,23 @@ namespace madness
             return local.insert(acc, key);
         }
 
+        /// AM target of the coalesced redistribute: bulk-insert boxes this rank owns
+        /// under the already-adopted new pmap. Keys are disjoint from those this rank
+        /// is concurrently erasing (their new owner != me), so per-bucket locking
+        /// suffices. See redistribute_coalesced_phase2.
+        void insert_batch(const std::vector<pairT> &boxes)
+        {
+            for (const pairT &kv : boxes)
+            {
+                accessor acc;
+                [[maybe_unused]] auto inserted = local.insert(acc, kv.first);
+                acc->second = kv.second;
+            }
+        }
+
         void clear()
         {
+            rank_replication_complete_ = false;
             local.clear();
         }
 
@@ -1048,6 +1125,7 @@ namespace madness
         // First phase of redistributions changes pmap and makes list of stuff to move
         void redistribute_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
         {
+            rank_replication_complete_ = false;
             pmap = newpmap;
             move_list = new std::vector<keyT>();
             for (typename internal_containerT::iterator iter = local.begin(); iter != local.end(); ++iter)
@@ -1094,6 +1172,68 @@ namespace madness
         void redistribute_phase3()
         {
             delete move_list;
+        }
+
+        // --- Coalesced redistribute: like redistribute_phase1/2, but phase2 sends ONE
+        // bulk AM per (destination, chunk) instead of one AM per box. The caller owns
+        // the fences: fence, phase1 on all containers, fence, phase2, fence. The middle
+        // fence is REQUIRED -- phase1 iterates the ConcurrentHashMap and needs a
+        // quiescent window; phase2 tolerates concurrent insert_batch (disjoint keys).
+
+        /// phase1: adopt newpmap (callback swap as in replicate()) and bucket the keys
+        /// to move by destination. Quiescent window required.
+        void redistribute_coalesced_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
+        {
+            rank_replication_complete_ = false;
+            pmap->deregister_callback(this);
+            pmap = newpmap;
+            pmap->register_callback(this);
+            coalesced_move_.clear();
+            for (typename internal_containerT::iterator iter = local.begin(); iter != local.end(); ++iter)
+            {
+                ProcessID d = owner(iter->first); // uses the new pmap
+                if (d != me)
+                    coalesced_move_[d].push_back(iter->first);
+            }
+        }
+
+        /// phase2: per destination, chunk the key list (at most cap_boxes per chunk),
+        /// erase each box after copying it into the batch, send one insert_batch AM
+        /// per chunk.
+        void redistribute_coalesced_phase2(std::size_t cap_boxes, bool rotate)
+        {
+            if (cap_boxes == 0) cap_boxes = 1;
+            std::vector<ProcessID> dsts;
+            dsts.reserve(coalesced_move_.size());
+            for (const auto &kv : coalesced_move_) dsts.push_back(kv.first);
+            // rotate: destinations > me first, so ranks don't all hammer dst 0 at once
+            if (rotate)
+                std::stable_partition(dsts.begin(), dsts.end(),
+                                      [this](ProcessID d) { return d > me; });
+            for (ProcessID d : dsts)
+            {
+                const std::vector<keyT> &keys = coalesced_move_[d];
+                std::vector<pairT> batch;
+                batch.reserve(std::min(cap_boxes, keys.size()));
+                for (std::size_t i = 0; i < keys.size(); ++i)
+                {
+                    typename internal_containerT::iterator iter = local.find(keys[i]);
+                    if (iter != local.end())
+                    {
+                        batch.push_back(pairT(keys[i], iter->second));
+                        local.erase(iter); // delete local copy of the data
+                    }
+                    if (batch.size() >= cap_boxes || i + 1 == keys.size())
+                    {
+                        if (!batch.empty())
+                        {
+                            this->task(d, &implT::insert_batch, batch); // one bulk AM per chunk
+                            batch.clear();
+                        }
+                    }
+                }
+            }
+            coalesced_move_.clear();
         }
     };
 
@@ -1245,7 +1385,10 @@ namespace madness
             return p;
         }
 
-        /// replicates this WorldContainer on all ProcessIDs
+        /// Replicates this WorldContainer on all ProcessIDs.
+        ///
+        /// This call is collective. Queued tasks must not change this container
+        /// until the call returns. See WorldContainerImpl::replicate().
         void replicate(bool fence = true)
         {
             p->replicate(fence);
@@ -1255,6 +1398,23 @@ namespace madness
         void replicate_on_hosts(bool fence = true)
         {
             p->replicate_on_hosts(fence);
+        }
+
+        /// Coalesced redistribute, phase 1: adopt newpmap, bucket the move list.
+        /// Caller fences before (quiescent window).
+        void redistribute_coalesced_phase1(const std::shared_ptr<WorldDCPmapInterface<keyT>> &newpmap)
+        {
+            check_initialized();
+            p->redistribute_coalesced_phase1(newpmap);
+        }
+
+        /// Coalesced redistribute, phase 2: one bulk AM per (destination, chunk of at
+        /// most cap_boxes), erase-after-copy. Caller fences after; rotate staggers
+        /// destinations to reduce incast.
+        void redistribute_coalesced_phase2(std::size_t cap_boxes, bool rotate = true)
+        {
+            check_initialized();
+            p->redistribute_coalesced_phase2(cap_boxes, rotate);
         }
 
         /// Inserts/replaces key+value pair (non-blocking communication if key not local)
@@ -2092,7 +2252,10 @@ namespace madness
                 public:
                     op_inspector(const_iterator start, const_iterator end, size_t &size)
                         : start(start), end(end), size(size) {}
-                    void run(World &world)
+
+                    using TaskInterface::run;
+
+                    void run(World &world) override
                     {
                         BufferOutputArchive bo;
                         for (const_iterator it = start; it != end; ++it)
@@ -2110,7 +2273,10 @@ namespace madness
                 public:
                     op_executor(const_iterator start, const_iterator end, unsigned char *buf, size_t size)
                         : start(start), end(end), buf(buf), size(size) {}
-                    void run(World &world)
+
+                    using TaskInterface::run;
+
+                    void run(World &world) override
                     {
                         BufferOutputArchive bo(buf, size);
                         for (const_iterator it = start; it != end; ++it)

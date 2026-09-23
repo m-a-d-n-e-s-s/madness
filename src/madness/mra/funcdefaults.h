@@ -48,6 +48,7 @@
 #include <optional>
 
 namespace madness {
+    template <std::size_t NDIM> class Displacements;  // defined in displacements.h, included at the end of this file
     template <typename T, std::size_t NDIM> class FunctionImpl;
 
     /// The maximum wavelet order presently supported
@@ -58,7 +59,7 @@ namespace madness {
 
     enum TreeState {
     	reconstructed,				///< s coeffs at the leaves only
-		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
+		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root, empty leaves may be present
 		nonstandard, 				///< s and d coeffs in internal nodes
     	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
         nonstandard_after_apply, 	///< s and d coeffs, state after operator application
@@ -120,6 +121,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
+        static double cell_geometric_mean_width; ///< volume^(1/NDIM), the mean dimension
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
         static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
@@ -147,8 +149,12 @@ namespace madness {
             cell_width = cell(_,1)-cell(_,0);
             cell_volume = cell_width.product();
             cell_min_width = cell_width.min();
+            cell_geometric_mean_width = (NDIM > 0) ? std::pow(cell_volume, 1.0/double(NDIM)) : 1.0;
             rcell_width = copy(cell_width);
             for (std::size_t i=0; i<NDIM; ++i) rcell_width(i) = 1.0/rcell_width(i);
+            // the standard displacements used to apply operators are ordered by real-space distance,
+            // which depends on the cell; keep them in sync (see Displacements::set_width)
+            Displacements<NDIM>::set_width(cell_width);
         }
 
     public:
@@ -262,14 +268,12 @@ namespace madness {
         	autorefine=value;
         }
 
-        /// Gets the default debug flag (is this used anymore?)
+        /// Gets the default debug flag, which gates verbose MRA diagnostics
         static bool get_debug() {
         	return debug;
         }
 
-        /// Sets the default debug flag (is this used anymore?)
-
-        /// Not sure if this does anything useful
+        /// Sets the default debug flag; see get_debug
         static void set_debug(bool value) {
         	debug=value;
         }
@@ -358,11 +362,15 @@ namespace madness {
             rcell_width.clear();
             cell_volume = 0.0;
             cell_min_width = 0.0;
+            cell_geometric_mean_width = 0.0;
         }
 
         /// Sets the user cell for the simulation
 
-        /// Existing functions are probably rendered useless
+        /// Existing functions are probably rendered useless.
+        /// @warning Must be called in a quiescent window: no operator application (FunctionImpl::apply, including
+        ///          unfenced ones) may be in flight, since the standard displacements used by operators are
+        ///          reordered in place when the cell changes (see Displacements::set_width).
         static void set_cell(const Tensor<double>& value) {
         	cell=copy(value);
         	recompute_cell_info();
@@ -370,7 +378,8 @@ namespace madness {
 
         /// Sets the user cell to be cubic with each dimension having range \c [lo,hi]
 
-        /// Existing functions are probably rendered useless
+        /// Existing functions are probably rendered useless.
+        /// @warning Same quiescence requirement as set_cell().
         static void set_cubic_cell(double lo, double hi) {
         	cell(_,0)=lo;
         	cell(_,1)=hi;
@@ -385,6 +394,11 @@ namespace madness {
         /// Returns the reciprocal of the width of each user cell dimension
         static const Tensor<double>& get_rcell_width() {
         	return rcell_width;
+        }
+
+        /// Returns the geometric mean width of the user cell, volume^(1/NDIM)
+        static double get_cell_geometric_mean_width() {
+        	return cell_geometric_mean_width;
         }
 
         /// Returns the minimum width of any user cell dimension
@@ -479,4 +493,11 @@ namespace madness {
 
 
 }
+
+// Displacements depends on FunctionDefaults (boundary conditions) and FunctionDefaults on Displacements
+// (recompute_cell_info). Displacements is forward-declared above so that FunctionDefaults can be defined first,
+// and its header is included here, after FunctionDefaults is complete; displacements.h in turn includes this
+// header at its top, so either header can be included first (the include guards break the cycle).
+#include <madness/mra/displacements.h>
+
 #endif // MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED

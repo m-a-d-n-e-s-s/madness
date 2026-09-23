@@ -57,10 +57,14 @@ endif()
     # express.
     add_scripted_tests(test_cis_symmetry_h2o.py madqc "verylong;applications")
     add_scripted_tests(test_molresponse_h2o_alpha_beta_z.py madqc "verylong;applications")
-    # Phase-0 driver-hardening gate (raman thread): SCF restart + corrupt-
-    # checkpoint recovery. Heavier (3 sequential madqc runs); enable + run on
-    # an allocation once the raman build is validated.
-    # add_scripted_tests(test_moldft_restart_e2e.py madqc "long;applications")
+    # Driver-hardening gate: SCF restart, refusal to answer a changed
+    # Hamiltonian out of the checkpoint, and corrupt-checkpoint recovery. Four
+    # sequential madqc runs on helium, so it is heavier than a single-shot test.
+    # Registered commented out when it was written ("pending on-alloc build")
+    # and never enabled, which is how two wrong paths in it went unnoticed --
+    # it looked for the archive and the checkpoint in the cwd rather than in
+    # <prefix>/task_0/moldft/. Both fixed; enabled here.
+    add_scripted_tests(test_moldft_restart_e2e.py madqc "long;applications")
     # RE-ENABLED (R-1 close-out, 2026-07-10 vbc gate 2083856): rescoped to
     # molresponse_v3 — alpha xyz + static beta + SINGLE-COMPONENT raman
     # (atom 0, z) via requested_properties; reference regenerated from a v3 run

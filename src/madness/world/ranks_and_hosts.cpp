@@ -4,6 +4,14 @@
 
 #include<ranks_and_hosts.h>
 
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <string>
+#include <sys/resource.h>
+#include <unistd.h>
+
 namespace madness {
 
 

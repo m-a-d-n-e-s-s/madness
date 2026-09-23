@@ -380,6 +380,8 @@ private:
 public:
     Gaussian_Functor(GaussianFunction func, std::vector<madness::coord_3d> centers) : func(func), centers(centers) {}
 
+    using madness::FunctionFunctorInterface<double, 3>::operator();
+
     double operator()(const madness::coord_3d& r) const final {
         return func(r);
     }

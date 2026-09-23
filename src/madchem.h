@@ -34,6 +34,7 @@
 #include<madness/chem/QCPropertyInterface.h>
 #include<madness/chem/SCF.h>
 #include<madness/chem/SCFOperators.h>
+#include<madness/chem/Restart.h>
 #include<madness/chem/SCFProtocol.h>
 #include<madness/chem/TDHF.h>
 #include<madness/chem/atomutil.h>

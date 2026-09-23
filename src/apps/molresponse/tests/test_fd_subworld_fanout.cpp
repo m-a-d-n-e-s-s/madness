@@ -13,7 +13,7 @@
 // then re-read by the universe in assemble_alpha. F1 tests BOTH directions of
 // nio/nproc round-tripping.
 //
-//   mpirun -np <N> ./test_fd_subworld_fanout --archive=<moldft restart> \
+//   mpirun -np <N> ./test_fd_subworld_fanout --archive=<moldft restart>
 //          [--thresh=1e-4] [--maxiter=25] [--calc-dir=<scratch>]
 // PASS iff  max|α_sub − α_ref| < 1e-9.  Needs ≥2 nodes for a real partition;
 // 1 node is a no-op partition and MUST still match exactly (free regression).
@@ -198,6 +198,7 @@ int main(int argc, char **argv) {
   auto sub = make_node_aligned_subworld(universe, &info);
   const int G   = info.n_nodes;
   const int nid = my_node_index(universe);
+  auto universe_pmap = FunctionDefaults<3>::get_pmap();   // restored after the block (the SAME object)
   {
     // S1 discipline: point the global default pmap at the subworld so everything
     // built inside (GS MOs via from_archive, sources, response vectors) is
@@ -221,7 +222,7 @@ int main(int argc, char **argv) {
     sub->gop.fence();
   }  // ctx_sub / gs_s (subworld Functions) destruct here, sub still alive
   sub->gop.fence();
-  FunctionDefaults<3>::set_default_pmap(universe);   // restore BEFORE reset
+  FunctionDefaults<3>::set_pmap(universe_pmap);   // restore the ORIGINAL pmap object (not a new map)   // restore BEFORE reset
   sub.reset();
   universe.gop.fence();
 

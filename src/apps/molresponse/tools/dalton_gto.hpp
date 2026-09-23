@@ -233,6 +233,7 @@ struct DaltonMoldenBasis {
 
 struct DaltonMoldenResult {
     std::vector<std::string> atom_symbols;
+    std::vector<int> atomic_numbers;             // [Atoms] column 3
     std::vector<std::array<double, 3>> coords;   // in Bohr
     DaltonMoldenBasis basis;
     std::vector<double> mo_coeffs;     // column-major: C[mu + n_ao*mo_idx]
@@ -314,6 +315,7 @@ inline DaltonMoldenResult read_molden(const std::string& path) {
     }
 
     std::vector<std::string> atom_symbols;
+    std::vector<int> atomic_numbers;
     std::vector<std::array<double, 3>> coords;
     for (int i = ab_start + 1; i < ab_end; i++) {
         std::istringstream ss(lines[static_cast<size_t>(i)]);
@@ -323,6 +325,7 @@ inline DaltonMoldenResult read_molden(const std::string& path) {
         // Format: symbol  idx  atomic_num  x  y  z
         if (!(ss >> sym >> idx >> anum >> x >> y >> z)) continue;
         atom_symbols.push_back(sym);
+        atomic_numbers.push_back(anum);
         if (unit_angstrom) {
             const double bohr_per_ang = 1.8897259886;
             coords.push_back({x * bohr_per_ang, y * bohr_per_ang, z * bohr_per_ang});
@@ -454,6 +457,7 @@ inline DaltonMoldenResult read_molden(const std::string& path) {
 
     DaltonMoldenResult res;
     res.atom_symbols = std::move(atom_symbols);
+    res.atomic_numbers = std::move(atomic_numbers);
     res.coords = std::move(coords);
     res.basis = std::move(basis);
     res.mo_coeffs = std::move(mo_coeffs_all);

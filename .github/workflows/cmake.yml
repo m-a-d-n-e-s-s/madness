@@ -37,6 +37,10 @@ jobs:
       CCACHE_COMPRESSLEVEL : 6
       MAD_SMALL_TESTS : 1
       MAD_NUM_THREADS : 3
+      # conda-forge's simple-dftd3 links its own OpenBLAS and OpenMP runtimes;
+      # MADNESS owns parallelism and needs a sequential BLAS, so pin both to 1
+      OMP_NUM_THREADS : 1
+      OPENBLAS_NUM_THREADS : 1
       CTEST_OUTPUT_ON_FAILURE : 1
       BUILD_CONFIG : >
         -G Ninja
@@ -48,7 +52,7 @@ jobs:
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMPI_CXX_SKIP_MPICXX=ON
-        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
+        -DCMAKE_CXX_STANDARD=20
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type == 'Debug' }}
         -DENABLE_GENTENSOR=${{ matrix.gentensor || 'OFF' }}
@@ -82,6 +86,9 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
+        # No blis here: Homebrew ships an OpenMP-threaded build, which
+        # external/lapack.cmake rejects, so installing it tested nothing.
+        # macOS uses Accelerate, which is built in.
         brew install ninja boost eigen open-mpi bison ccache libxc
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
@@ -95,11 +102,13 @@ jobs:
     - name: Install prerequisites Ubuntu packages
       if: ${{ matrix.os == 'ubuntu-24.04' }}
       run: |
+        wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
+        sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
         sudo apt-get update
-        sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache
+        sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache libxc-dev
+        sudo apt install intel-oneapi-mkl-devel
+        echo "MKLROOT=/opt/intel/oneapi/mkl/latest" >> $GITHUB_ENV
         if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
-          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
-          sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
           sudo apt-get install intel-oneapi-tbb-devel
           echo "TBBROOT=/opt/intel/oneapi/tbb/latest" >> $GITHUB_ENV
         fi
@@ -109,6 +118,30 @@ jobs:
         if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
           sudo apt-get install libcereal-dev
         fi
+
+    # simple-dftd3 backs the `dispersion` keyword and is packaged by neither apt
+    # nor Homebrew, so it has to come from conda-forge. Without it MADNESS still
+    # builds and every other test runs, but test_dispersion and the
+    # scf_lih_pbe_d3 qctest are not registered at all -- the correction would
+    # have no CI coverage whatsoever.
+    - name: Install simple-dftd3 (conda-forge)
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        environment-name: sdftd3
+        create-args: simple-dftd3
+        init-shell: bash
+        cache-environment: true
+
+    # Only DFTD3_ROOT_DIR is handed to CMake, deliberately NOT CMAKE_PREFIX_PATH:
+    # the conda prefix also carries nlohmann_json, libxc and a BLAS, and letting
+    # the rest of the build resolve those out of it would silently change what is
+    # being tested.
+    - name: Locate simple-dftd3
+      shell: bash -el {0}
+      run: |
+        echo "DFTD3_ROOT_DIR=$CONDA_PREFIX" >> $GITHUB_ENV
+        ls -l "$CONDA_PREFIX/include/s-dftd3.h"
+        ls -l "$CONDA_PREFIX"/lib/libs-dftd3.*
 
     - name: Prepare ccache timestamp
       id: ccache_cache_timestamp
@@ -133,7 +166,7 @@ jobs:
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND
+      run: cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DDFTD3_ROOT_DIR="$DFTD3_ROOT_DIR"
 
     - name: Build
       working-directory: ${{github.workspace}}/build

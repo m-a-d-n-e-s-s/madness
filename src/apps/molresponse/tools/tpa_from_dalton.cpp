@@ -35,6 +35,7 @@
 
 #include "dalton_rspvec.hpp"
 #include "dalton_gto.hpp"
+#include "dalton_mra.hpp"                // shared AO->MRA projection machinery
 
 #include "../Perturbations.hpp"          // dipole_operator (length gauge)
 #include "../ResponseProtocol.hpp"
@@ -58,63 +59,12 @@ using namespace molresponse_v3;
 
 namespace {
 
-// Gaussian-LC functor (same as seed_from_dalton's; local copy keeps the reader
-// headers untouched).
-class DaltonResponseFunctor : public madness::FunctionFunctorInterface<double, 3> {
-  const DaltonMoldenBasis &basis;
-  std::vector<double> weights; // AO weights for this function
-  std::vector<madness::coord_3d> centers;
-
-public:
-  DaltonResponseFunctor(const DaltonMoldenBasis &b, std::vector<double> w)
-      : basis(b), weights(std::move(w)) {
-    for (const auto &sh : basis.shells) centers.push_back({sh.cx, sh.cy, sh.cz});
-  }
-  double operator()(const madness::coord_3d &r) const override {
-    double val = 0.0;
-    double bf[9];
-    for (size_t s = 0; s < basis.shells.size(); s++) {
-      const auto &sh = basis.shells[s];
-      sh.evaluate(r[0], r[1], r[2], bf);
-      const int off = basis.ao_offsets[s];
-      for (int k = 0; k < sh.n_ao; k++)
-        val += weights[static_cast<size_t>(off + k)] * bf[k];
-    }
-    return val;
-  }
-  std::vector<madness::coord_3d> special_points() const override { return centers; }
-};
-
+// AO->MRA projection machinery (DaltonResponseFunctor / project_dalton_weights
+// / project_dalton_ov_block) now shared in dalton_mra.hpp — also used by the
+// FD seed path (solvers/dalton_import.hpp). Local aliases keep call sites.
 using vecfuncT = std::vector<real_function_3d>;
-
-real_function_3d project_weights(World &world, const DaltonMoldenBasis &basis,
-                                 std::vector<double> w, double thresh) {
-  std::shared_ptr<FunctionFunctorInterface<double, 3>> f =
-      std::make_shared<DaltonResponseFunctor>(basis, std::move(w));
-  return FunctionFactory<double, 3>(world).functor(f).thresh(thresh)
-      .truncate_on_project();
-}
-
-// Per-occupied response functions from one flat (occ-outer, vir-inner) block:
-//   x_i(r) = sum_a blk[i,a] * phi_{n_occ+a}(r) = sum_mu (C_vir·blkᵀ)[mu,i] chi_mu(r)
-vecfuncT project_block(World &world, const DaltonMoldenBasis &basis,
-                       const std::vector<double> &C, int n_ao, int n_mo,
-                       int n_occ, int n_vir, const std::vector<double> &blk,
-                       double thresh, double scale) {
-  vecfuncT out;
-  for (int i = 0; i < n_occ; ++i) {
-    std::vector<double> w(static_cast<size_t>(n_ao), 0.0);
-    for (int a = 0; a < n_vir; ++a) {
-      const double coef = blk[static_cast<size_t>(i) * n_vir + a] * scale;
-      if (coef == 0.0) continue;
-      const double *col = &C[static_cast<size_t>(n_ao) * (n_occ + a)];
-      for (int mu = 0; mu < n_ao; ++mu) w[static_cast<size_t>(mu)] += col[mu] * coef;
-    }
-    out.push_back(project_weights(world, basis, std::move(w), thresh));
-  }
-  truncate(world, out);
-  return out;
-}
+constexpr auto project_weights = project_dalton_weights;
+constexpr auto project_block   = project_dalton_ov_block;
 
 double coef_norm2(const std::vector<double> &v) {
   double s = 0.0;

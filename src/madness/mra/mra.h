@@ -769,10 +769,12 @@ namespace madness {
             return impl->get_pmap();
         }
 
-        /// replicate this function according to type
+        /// Replicates this function according to its distribution type.
         ///
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// RankReplicated gives every rank every coefficient node. NodeReplicated
+        /// gives one copy per host, and the lowest rank on that host owns it. The
+        /// two methods below give the ownership rules and the limits of each policy.
+        /// NodeReplicated requires fence=true.
         void replicate(const DistributionType type, bool fence=true) const {
             verify();
             if (type==DistributionType::RankReplicated) impl->replicate(fence);
@@ -780,20 +782,24 @@ namespace madness {
             else MADNESS_EXCEPTION("Function::replicate: unknown DistributionType",type);
         }
 
-        /// replicate this function, generating a unique pmap
-
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// Replicates this function on every rank.
+        ///
+        /// Every rank owns every coefficient node, so rank-local operations such as
+        /// eval_local_only work on every rank. Global reductions count the data more
+        /// than once. Queued tasks must not change the coefficients until the call
+        /// returns.
         void replicate(bool fence=true) const {
             verify();
             impl->replicate(fence);
         }
 
-        /// replicate this function, one copy per host
-
-        /// map will refer the to first rank on each host to avoid inter-node communication
-        /// ** note that global operations will return unexpected results **
-        /// Be sure you know what you are doing!
+        /// Replicates this function once per host.
+        ///
+        /// The lowest rank on each host owns all coefficient nodes. Other ranks route
+        /// ordinary container access, such as find, to that rank. eval_local_only does
+        /// no communication, so it returns false on those ranks. Global reductions
+        /// count one copy per host. If every rank needs local coefficient access,
+        /// replicate() is the correct policy. fence must be true.
         void replicate_on_hosts(bool fence=true) const {
             verify();
             impl->replicate_on_hosts(fence);
@@ -809,23 +815,45 @@ namespace madness {
 
         /// Returns the square of the norm of the local function ... no communication
 
-        /// Works in either basis
+        /// Works in any state that holds its coefficients once, cf.
+        /// FunctionImpl::has_summable_coefficients()
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
-                "function must be compressed or reconstructed for norm2sq_local");
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "norm2sq_local needs a tree that holds its coefficients once");
             return impl->norm2sq_local();
         }
 
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
-        /// See comments for err() w.r.t. applying to many functions.
+        /// Works in any state whose coefficients norm2sq_local() can sum, which
+        /// includes the redundant and nonstandard-with-leaves trees left behind
+        /// by mul_sparse() and friends; the remaining states are reconstructed
+        /// first.  See comments for err() w.r.t. applying to many functions.
+        ///
+        /// Throws if the function is on-demand: it carries no coefficients, so
+        /// its norm is not defined until it is materialized.
+        ///
+        /// N.B. that reconstruction is a mutation -- it discards the interior
+        /// coefficients -- so this (logically const) method fences before it
+        /// changes state: any task still reading those coefficients, e.g. a
+        /// mul_sparse() invoked with fence=false, must be done with them before
+        /// they are removed.
+        ///
+        /// The branch is taken on the tree state, which is replicated, so all
+        /// ranks take the same branch and the global ops stay collective.
         double norm2() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
+            if (!impl->has_summable_coefficients()) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "norm2 is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -974,6 +1002,10 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
+
+        /// N.B. with fence=false the per-node norm reset is skipped: norm_tree
+        /// keeps the -1.0 broadened marker and dnorm_tree its previous value,
+        /// so broadening cannot be repeated until the norms are recomputed.
         void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                      bool fence = true) const {
             verify();
@@ -1244,15 +1276,33 @@ namespace madness {
         T trace_local() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            MADNESS_CHECK_THROW(impl->has_summable_coefficients(),
+                "trace_local needs a tree that holds its coefficients once");
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
 
 
         /// Returns global value of \c int(f(x),x) ... global comm required
+
+        /// Works in any state whose coefficients trace_local() can sum; the
+        /// remaining states are reconstructed first.  For efficient use
+        /// especially with many functions, reconstruct them all first and use
+        /// trace_local instead, so you can perform a global sum on all at the
+        /// same time.
+        ///
+        /// Throws if the function is on-demand, and fences before reconstructing;
+        /// see norm2() for both, including why the branch stays collective.
         T trace() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
+            if (!impl->has_summable_coefficients()) {
+                MADNESS_CHECK_THROW(not is_on_demand(),
+                    "trace is not defined for an on-demand function; materialize it first");
+                impl->world.gop.fence();
+                reconstruct();
+            }
+            if (VERIFY_TREE) verify_tree();
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
             impl->world.gop.fence();
@@ -1424,9 +1474,7 @@ namespace madness {
             // if this and g are the same, use norm2()
             if constexpr (std::is_same_v<T,R>) {
               if (this->get_impl() == g.get_impl()) {
-                TreeState state = this->get_impl()->get_tree_state();
-                if (not(state == reconstructed or state == compressed))
-                  change_tree_state(reconstructed);
+                // let norm2() handle tree state
                 double norm = this->norm2();
                 return norm * norm;
               }
@@ -1935,14 +1983,12 @@ namespace madness {
         return mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_make_redundant)[0];
     }
 
-    /// Same as \c operator* but with optional fence
-
-    /// @param[in] tol  0 (the default) multiplies exactly; see mul_sparse to screen
+    /// Same as \c operator* but with optional fence; see mul_sparse to screen
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true,
-        bool do_make_redundant=true, double tol=0.0) {
-        return mul_sparse(left,right,tol,fence,do_make_redundant);
+        bool do_make_redundant=true) {
+        return mul_sparse(left,right,/*tol=*/0.0,fence,do_make_redundant);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values
@@ -2584,7 +2630,10 @@ namespace madness {
 //        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
         f.change_tree_state(redundant,false);
-        g.change_tree_state(redundant);
+        g.change_tree_state(redundant,false);
+        // neither call is fenced, and either may be a no-op if the function already is
+        // redundant -- fence explicitly before the trees are traversed
+        result.world().gop.fence();
 		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
 		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
 

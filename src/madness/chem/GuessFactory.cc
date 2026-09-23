@@ -159,7 +159,6 @@ std::vector<std::vector<double> > PolynomialFunctor::read_string(const std::stri
 {
 	std::stringstream line(string);
 	std::string name;
-	size_t counter = 0;
 	std::vector<double> current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
 	std::vector<std::vector<double> > read_data;
 	while (line >> name) {
@@ -176,7 +175,6 @@ std::vector<std::vector<double> > PolynomialFunctor::read_string(const std::stri
 		line >> current_data[2];
 		else
 		if (name == ",") {
-			counter++;
 			read_data.push_back(current_data);
 			current_data = vector_factory(0.0, 0.0, 0.0, 1.0);
 		}

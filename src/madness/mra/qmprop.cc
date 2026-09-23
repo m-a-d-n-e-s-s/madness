@@ -34,7 +34,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/adquad.h>
 #include <madness/misc/cfft.h>
-#include <madness/misc/interpolation_1d.h>
+#include <madness/mra/interpolation_1d.h>
 #include <cmath>
 #include <complex>
 #include <madness/constants.h>

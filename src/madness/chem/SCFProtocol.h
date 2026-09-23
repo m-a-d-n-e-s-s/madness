@@ -39,18 +39,28 @@
 #ifndef MADNESS_CHEM_SCFPROTOCOL_H__INCLUDED
 #define MADNESS_CHEM_SCFPROTOCOL_H__INCLUDED
 
-namespace madness {
-
 #include<madness/chem/CalculationParameters.h>
 
+namespace madness {
+
 /// struct for running a protocol of subsequently tightening precision
+
+/// The ladder is `CalculationParameters::protocol()` and nothing else -- the
+/// same list moldft walks, so both engines refine through identical steps and
+/// `k` follows from `SCF::set_protocol`'s thresh->k table. `econv` and `dconv`
+/// are convergence criteria applied at each rung, relaxed to the rung's own
+/// threshold the way `SCF::solve` already relaxes dconv: you cannot converge a
+/// quantity tighter than the basis represents it.
 class SCFProtocol {
 public:
     SCFProtocol(World& w, const CalculationParameters& param)
-            : world(w), converged(false),
-              start_prec(1.e-4), current_prec(start_prec), end_prec(param.econv()),
-              thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
-        user_dconv=param.dconv();
+            : world(w), converged(false), protocol(param.protocol()), index(0),
+              user_econv(param.econv()), user_dconv(param.dconv()) {
+        MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in SCFProtocol");
+        start_prec = protocol.front();
+        end_prec = protocol.back();
+        current_prec = start_prec;
+        infer_thresholds(current_prec);
     }
 
     World& world;
@@ -64,14 +74,40 @@ public:
     double thresh;          ///< numerical precision of representing functions
     double econv;           ///< energy convergence of SCF calculations
     double dconv;           ///< density convergence of SCF calculations
-    double user_dconv;      ///< density convergence provided by user
+
+    /// number of rungs in the ladder
+    std::size_t size() const {return protocol.size();}
+
+    /// index of the rung this protocol will start at
+    std::size_t start_index() const {return index;}
+
+    /// start at a given rung rather than at the first
+
+    /// used to skip rungs a restart has already converged through
+    void set_start_index(const std::size_t i) {
+        MADNESS_CHECK_THROW(i<protocol.size(), "start index beyond the protocol");
+        index=i;
+        start_prec=protocol[index];
+        current_prec=start_prec;
+        infer_thresholds(current_prec);
+    }
+
+    /// drop the last rung, i.e. stop one step short of the full precision
+
+    /// used for cheap pre-iterations; never empties the ladder
+    void drop_last_rung() {
+        if (protocol.size()<2) return;
+        protocol.pop_back();
+        end_prec=protocol.back();
+        if (index>=protocol.size()) set_start_index(protocol.size()-1);
+    }
 
     void initialize() {
 
         // don't do anything if this protocol is already converged
         if (converged) return;
 
-        current_prec=start_prec;
+        current_prec=protocol[index];
         infer_thresholds(current_prec);
 
         if (world.rank()==0) {
@@ -79,18 +115,19 @@ public:
             ss <<"\nstarting protocol at time" << std::setw(8) << std::setprecision(2)
                << wall_time() << "s";
             print(ss.str());
-            print("precision steps ",start_prec," --> ",end_prec);
+            print("precision steps ",current_prec," --> ",end_prec,
+                  " (rung",index,"of",protocol.size(),")");
             print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         }
     }
 
     bool finished() const {return converged;}
 
-    /// go to the next level
+    /// go to the next rung of the ladder
     SCFProtocol& operator++() {
-        if (current_prec*0.9999>end_prec) {
-            current_prec*=0.1;
-            if (current_prec<end_prec) current_prec=end_prec;
+        if (index+1<protocol.size()) {
+            ++index;
+            current_prec=protocol[index];
             infer_thresholds(current_prec);
         } else {
             converged=true;
@@ -99,19 +136,40 @@ public:
         return *this;
     }
 
-    /// infer thresholds starting from a target precision
+    /// true if the current rung is the last one
+    bool on_last_rung() const {return index+1==protocol.size();}
+
+    /// infer thresholds for a given rung of the ladder
+
+    /// The rung sets the representation threshold. econv and dconv are the
+    /// user's, but never tighter than the rung can support.
+    ///
+    /// dconv needs care. The BSH residual cannot fall much below the threshold
+    /// the orbitals are represented at, and nemo tests `bsh_norm < dconv`
+    /// strictly, so a dconv equal to the rung's threshold is unreachable and the
+    /// rung burns maxiter without converging. Intermediate rungs therefore use
+    /// the long-standing 0.1*sqrt(thresh) relaxation -- 1e-3 at thresh 1e-4,
+    /// 1e-4 at thresh 1e-6 -- which is comfortably looser than the rung; they
+    /// are only a stepping stone, so there is nothing to gain from converging
+    /// them tightly. The last rung is the answer, so it honours the user's dconv
+    /// (never demanding tighter than the representation supports).
     void infer_thresholds(const double prec) {
-        econv=prec;
-        thresh=econv;
-        dconv=std::min(1.e-3,sqrt(econv)*0.1);
-//            dconv=std::min(1.e-3,econv*10.0);
-        if (approx(current_prec,end_prec)) dconv=user_dconv;    // respect the user
+        thresh=prec;
+        econv=std::max(prec,user_econv);
+        if (on_last_rung()) dconv=std::max(prec,user_dconv);
+        else dconv=std::max(user_dconv,std::min(1.e-3,sqrt(prec)*0.1));
     }
 
     /// compare two positive doubles to be equal
     bool approx(const double a, const double b) const {
         return (std::abs(a/b-1.0)<1.e-12);
     }
+
+private:
+    std::vector<double> protocol;   ///< the ladder, from CalculationParameters
+    std::size_t index;              ///< current rung
+    double user_econv;              ///< energy convergence provided by user
+    double user_dconv;              ///< density convergence provided by user
 };
 
 

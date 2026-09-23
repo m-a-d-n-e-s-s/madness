@@ -55,10 +55,12 @@
 // #endif
 
 // Standard C++ header files needed by MADworld.h
+#include <atomic>   // std::atomic
 #include <cstddef>
 #include <cstdint>  // std::uint64_t
 #include <iostream>
 #include <list>     // std::list
+#include <memory>   // std::shared_ptr
 #include <optional> // std::optional
 #include <utility>  // std::pair
 
@@ -188,6 +190,13 @@ namespace madness {
         unsigned long obj_id; ///< Counter for generating unique IDs within this world.
         void* user_state; ///< Holds a user-defined and managed local state.
 
+        /// Tracks the liveness of this \c World; cleared at the end of \c ~World.
+
+        /// Shared with the objects that memoize a reference to this \c World
+        /// (see \c WorldObjectBase) so that they can detect that it is gone.
+        /// \sa World::liveness
+        std::shared_ptr<std::atomic<bool>> alive;
+
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
 
@@ -313,6 +322,21 @@ namespace madness {
         ///
         /// \return The system-wide unique integer ID of this \c World.
         unsigned long id() const { return _id; }
+
+        /// The type of the handle returned by \c liveness().
+        using liveness_handleT = std::shared_ptr<const std::atomic<bool>>;
+
+        /// Returns a handle reporting whether this \c World is still alive.
+
+        /// Unlike a \c World reference, the handle stays valid --- and
+        /// dereferenceable --- after this \c World has been destroyed, at which
+        /// point it reports \c false. This lets objects that memoize a \c World
+        /// reference (see \c WorldObjectBase) validate it before use, at the
+        /// cost of a relaxed atomic load. The handle becomes \c false at the
+        /// very end of \c ~World, i.e. objects destroyed by \c ~World itself
+        /// still observe their \c World as alive.
+        /// \return The liveness handle of this \c World.
+        liveness_handleT liveness() const { return alive; }
 
         /// Returns the process rank in this \c World (same as MPI_Comm_rank()).
 

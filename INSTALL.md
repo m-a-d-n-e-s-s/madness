@@ -228,6 +228,52 @@ madness/external/pcm.cmake
 madness/modules/FindPCM.cmake
 madness/src/apps/chem/CMakeLists.txt
 
+### DFT-D3 empirical dispersion correction (simple-dftd3):
+
+* ENABLE_DFTD3 --- Enables use of simple-dftd3 [default=ON]
+* DFTD3_ROOT_DIR --- The install prefix for simple-dftd3
+* DFTD3_INCLUDE_DIR --- The path to the include directory holding `s-dftd3.h` (derived from DFTD3_ROOT_DIR)
+* DFTD3_LIBRARY --- The path to the directory holding `libs-dftd3` (derived from DFTD3_ROOT_DIR)
+
+simple-dftd3 (<https://github.com/dftd3/simple-dftd3>, LGPL-3.0-or-later) supplies
+Grimme's D3 dispersion correction, which the `dft` input group requests with
+`dispersion d3bj` or `dispersion d3zero`. Without the library MADNESS builds and
+runs exactly as before; a deck that asks for a correction then aborts with an
+explanatory message rather than silently omitting it.
+
+The easiest source is conda-forge:
+
+```
+conda install -c conda-forge simple-dftd3
+cmake ../madness
+```
+
+Inside an activated environment no hint is needed: the find module falls back to
+`$CONDA_PREFIX` for both its pkg-config search path and its library/header
+search. (conda does not put its `.pc` files on `PKG_CONFIG_PATH` nor its prefix
+on CMake's default search path, so without that fallback the package would
+appear missing for no visible reason.) Outside one, point it at the prefix:
+
+```
+cmake -DDFTD3_ROOT_DIR=/path/to/prefix ../madness
+```
+
+A CMake-built installation exports an `s-dftd3::s-dftd3` target and is found by
+`find_package(s-dftd3 CONFIG)` alone, so adding its prefix to
+`CMAKE_PREFIX_PATH` is enough; the conda-forge binary is meson-built and ships
+pkg-config only, which the bundled `FindDFTD3` module handles.
+
+Note that the conda-forge build links conda's own (threaded) BLAS and OpenMP
+runtimes. MADNESS owns its parallelism and requires a *sequential* BLAS, so set
+`OPENBLAS_NUM_THREADS=1` and `OMP_NUM_THREADS=1` in the environment, or configure
+with `-DENABLE_DFTD3=OFF` if this conflicts with your BLAS.
+
+See also
+madness/CMakeLists.txt
+madness/external/dftd3.cmake
+madness/cmake/modules/FindDFTD3.cmake
+madness/src/madness/chem/dispersion.h
+
 ### Performance Application Programming Interface (PAPI):
 
 * ENABLE_PAPI --- Enables use of PAPI [default=OFF]

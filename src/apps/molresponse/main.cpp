@@ -54,6 +54,17 @@ void print_usage() {
   print("  --calc-dir=DIR       output dir (response_metadata.json + archives)");
   print("  --print-level=0..3   verbosity (default 1)");
   print("  --beta [--beta-static]  hyperpolarizability β (SHG, or static) via VBC");
+  print("  --es-roots=N         excited states: TDA bundle of N roots (same plan");
+  print("                       as a madqc `excited.enable` deck). Roots only —");
+  print("                       add --tpa for two-photon absorption");
+  print("  --tpa                with --es-roots: also solve the derived dipole FD");
+  print("                       legs at ωₙ/2 and run the 2PA residue contraction");
+  print("  --es-guess=MODE      ES initial guess: solid_harmonics (default) |");
+  print("                       virtual_ao | random. solid_harmonics is purely");
+  print("                       angular — on atoms it cannot reach totally-");
+  print("                       symmetric (e.g. s->s) states; virtual_ao can.");
+  print("  --es-guess-basis=B   AO basis for --es-guess=virtual_ao");
+  print("                       (default aug-cc-pvdz)");
 }
 
 } // namespace
@@ -120,12 +131,34 @@ int main(int argc, char **argv) {
                          : 1;
       in.settings.print_level =
           static_cast<PrintLevel>(std::max(0, std::min(3, pl)));
+      // ES initial-guess knobs (apply to any planned ES bundle). The default
+      // (solid_harmonics) is unchanged; virtual_ao is the energy-ordered
+      // AO-virtual (NWChem CIS-diagonal) guess — required to reach totally-
+      // symmetric / radially-excited states on atoms, which the angular-only
+      // solid-harmonic trials structurally cannot span.
+      if (parser.key_exists("es-guess"))
+        in.settings.es_guess = parse_es_guess_mode(parser.value("es-guess"));
+      if (parser.key_exists("es-guess-basis"))
+        in.settings.es_guess_basis = parser.value("es-guess-basis");
+
+      const int es_roots = parser.key_exists("es-roots")
+                               ? std::stoi(parser.value("es-roots"))
+                               : 0;
 
       ResponsePropertyRequest req;
       req.axes = axes;
       req.protocol_thresholds = in.protocols;
       req.frequencies = freqs;
-      if (parser.key_exists("beta")) {
+      if (es_roots > 0) {
+        // Excited states — the same plan shape a madqc `excited.enable` deck
+        // produces (resonant gradient). Roots only unless --tpa also asks for
+        // the two-photon ingredients (derived dipole FD at ωₙ/2 per axis +
+        // the residue contraction).
+        req.kind = ResponsePropertyKind::PolarizabilityGradient;
+        req.gradient_mode = GradientMode::Resonant;
+        req.n_roots = es_roots;
+        req.tpa = parser.key_exists("tpa");
+      } else if (parser.key_exists("beta")) {
         req.kind = ResponsePropertyKind::Hyperpolarizability;
         req.beta_process = parser.key_exists("beta-static") ? BetaProcess::Static
                                                             : BetaProcess::SHG;
@@ -141,8 +174,17 @@ int main(int argc, char **argv) {
         print("  protocol   =", in.protocols);
         print("  calc_dir   =", in.settings.calc_dir);
         print("  mode       =",
-              (parser.key_exists("beta") ? "hyperpolarizability (beta)"
-                                         : "polarizability (alpha)"));
+              (es_roots > 0 ? "excited states (resonant gradient)"
+               : parser.key_exists("beta") ? "hyperpolarizability (beta)"
+                                           : "polarizability (alpha)"));
+        if (es_roots > 0) {
+          print("  es_roots   =", es_roots);
+          if (in.settings.es_guess == ESGuessMode::VirtualAO)
+            print("  es_guess   =", to_string(in.settings.es_guess),
+                  " basis =", in.settings.es_guess_basis);
+          else
+            print("  es_guess   =", to_string(in.settings.es_guess));
+        }
         print("");
       }
 
@@ -154,6 +196,20 @@ int main(int argc, char **argv) {
         for (const char *name : {"alpha", "beta", "raman"})
           if (p.contains(name) && p[name].contains(top))
             print("[RESULT]", name, "recorded @", top);
+        if (es_roots > 0 && out.metadata.contains("excited_states") &&
+            out.metadata["excited_states"].contains(top)) {
+          const auto &es = out.metadata["excited_states"][top];
+          print("[RESULT] excited_states @", top,
+                " converged =", es.value("converged", false));
+          if (es.contains("roots")) {
+            int idx = 0;
+            for (const auto &r : es["roots"]) {
+              const double w = r.value("omega", 0.0);
+              print("[RESULT]   root", idx++, " omega =", w, "Ha  (",
+                    w * 27.211386, "eV )");
+            }
+          }
+        }
         if (out.timing.contains("total"))
           print("[RESULT] total_wall_s =",
                 out.timing["total"].value("wall_s", 0.0));

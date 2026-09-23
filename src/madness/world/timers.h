@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <time.h>       // clock_gettime, CLOCK_PROCESS_CPUTIME_ID (POSIX, not in <ctime>)
 #include <sys/time.h>
 #include <unistd.h>
 #include <madness/madness_config.h>
@@ -141,6 +142,23 @@ namespace madness {
 #endif
     }
 
+    /// Returns the CPU time consumed by this process, in seconds.
+
+    /// Aggregated over all threads of the process, so a task's compute time can be
+    /// separated from its idle time. This is *not* what cpu_time() returns: that
+    /// reads a cycle counter on x86 and therefore measures elapsed time. An
+    /// instrumentation helper, not part of the documented timing API.
+    /// \return The process CPU time (in seconds).
+    static inline double process_cpu_time() {
+#if defined(CLOCK_PROCESS_CPUTIME_ID)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+            return static_cast<double>(ts.tv_sec) + 1.0e-9 * static_cast<double>(ts.tv_nsec);
+        }
+#endif
+        return static_cast<double>(std::clock()) / static_cast<double>(CLOCKS_PER_SEC);
+    }
+
 
     /// Do nothing and especially do not touch memory.
 
@@ -148,6 +166,10 @@ namespace madness {
     inline void cpu_relax() {
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
+#elif defined(__aarch64__) || defined(__arm__)
+        /* YIELD is the architectural spin-wait hint; a bare NOP tells the core
+         * nothing and wastes issue slots in a contended spin loop. */
+        asm volatile("yield" : : : "memory");
 #elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
         asm volatile ("nop\n");
 #else

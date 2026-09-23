@@ -59,24 +59,32 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
 
     set(LINK_FLAGS "")
     foreach(_dep ${_dep_mad_comp})
-      if (${_dep}_is_mad_hdr_lib)
-        set(deptargetname MAD${_dep})
-      else(${_dep}_is_mad_hdr_lib)
-        set(deptargetname MAD${_dep})
-      endif(${_dep}_is_mad_hdr_lib)
+      # NB header-only components also live under the MAD${_dep} name
+      set(deptargetname MAD${_dep})
 
       if(TARGET ${deptargetname})
-        target_compile_definitions(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_COMPILE_DEFINITIONS>)
-        target_include_directories(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_INCLUDE_DIRECTORIES>)
-        target_compile_options(${targetname} PUBLIC
-            $<TARGET_PROPERTY:${deptargetname},INTERFACE_COMPILE_OPTIONS>)
-        if (${_dep}_is_mad_hdr_lib)
-          target_link_libraries(${targetname} INTERFACE ${_dep})
-        else()
-          target_link_libraries(${targetname} PUBLIC ${deptargetname})
-        endif()
+        # Propagate the dependency's usage requirements through the link alone.
+        #
+        # Do NOT also copy the dependency's INTERFACE_{COMPILE_DEFINITIONS,INCLUDE_DIRECTORIES,
+        # COMPILE_OPTIONS} into ${targetname}'s own properties. The link below already gives
+        # both ${targetname}'s consumers and MAD${_name}-obj (which forwards
+        # $<TARGET_PROPERTY:${targetname},INCLUDE_DIRECTORIES> & co. above) the dependency's
+        # full, transitively-resolved usage requirements, so the copy adds nothing to the
+        # build graph -- but it does leave a $<TARGET_PROPERTY:${deptargetname},...> genex
+        # sitting in ${targetname}'s own property. Downstream tooling that reads those
+        # properties raw (e.g. TiledArray's DetectMADNESSConfig.cmake, which feeds
+        # MADworld's INTERFACE_INCLUDE_DIRECTORIES into a standalone try_compile that knows
+        # nothing about MADmisc) then dies with 'Target "MADmisc" not found.'
+        # Copying the *resolved* values instead is no better: get_target_property() does not
+        # traverse the dependency's own link interface, so the MPI/json/PaRSEC/LAPACK
+        # requirements that reach us through it would be silently dropped, and the snapshot
+        # would capture only what the dependency happens to carry at macro-call time.
+        # PUBLIC (not INTERFACE) even when ${deptargetname} is header-only: MAD${_name}-obj
+        # compiles ${targetname}'s own sources against $<TARGET_PROPERTY:${targetname},
+        # INCLUDE_DIRECTORIES> & co., and only a PUBLIC link puts the dependency's usage
+        # requirements into those properties. An INTERFACE link would serve consumers but
+        # leave our own translation units without the dependency's include dirs and macros.
+        target_link_libraries(${targetname} PUBLIC ${deptargetname})
 
         # import LINK_FLAGS from dependent
         get_property(deptargetname_LINK_FLAGS_SET TARGET ${deptargetname} PROPERTY LINK_FLAGS SET)
@@ -101,7 +109,7 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   add_library(MAD${_name} INTERFACE)
   
   # Add target dependencies
-  add_dependencies(libraries-madness MAD${_name})
+  add_dependencies(madness-libraries MAD${_name})
   
   target_include_directories(MAD${_name} INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
@@ -124,18 +132,12 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
     if(TARGET install-madness-${_dep})
       add_dependencies(install-madness-${_name} install-madness-${_dep})
     endif()
-    if(TARGET ${_dep})
-        target_compile_definitions(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_DEFINITIONS>)
-        target_include_directories(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_INCLUDE_DIRECTORIES>)
-        target_compile_options(MAD${_name} PUBLIC 
-          $<TARGET_PROPERTY:${_dep},INTERFACE_COMPILE_OPTIONS>)
-      if (${_dep}_is_mad_hdr_lib)
-        target_link_libraries(MAD${_name} INTERFACE ${_dep})
-      else()
-        target_link_libraries(MAD${_name} PUBLIC ${_dep})
-      endif()
+    # NB the dependency target is MAD${_dep}, not ${_dep}; see add_mad_library() for why
+    # the link interface alone carries the dependency's usage requirements.
+    # MAD${_name} is a plain INTERFACE library (no sources), so INTERFACE is the only
+    # scope CMake accepts here.
+    if(TARGET MAD${_dep})
+      target_link_libraries(MAD${_name} INTERFACE MAD${_dep})
     endif()
   endforeach()
   
@@ -148,5 +150,4 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
     endif()
   endif()
 
-  set(${_name}_is_mad_hdr_lib TRUE)
 endmacro()

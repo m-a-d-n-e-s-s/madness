@@ -27,7 +27,7 @@ if(MADNESS_ENABLE_CEREAL)
 endif()
 
 # Create the MADworld-obj and MADworld library targets
-add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
+add_mad_library(world MADWORLD_SOURCES MADWORLD_HEADERS "misc;common;${ELEMENTAL_PACKAGE_NAME}" "madness/world")
 
 # DISABLEPIE flag can break linking of dependent libraries (e.g. on Linux using gcc6)
 # instead for each dependent executable target T do:
@@ -97,7 +97,7 @@ if(BUILD_TESTING)
   # The list of unit test source files
   set(WORLD_TEST_SOURCES test_prof.cc test_ar.cc test_hashdc.cc test_hello.cc
       test_atomicint.cc test_future.cc test_future2.cc test_future3.cc 
-      test_dc.cc test_hashthreaded.cc test_queue.cc test_world.cc 
+      test_dc.cc test_hashthreaded.cc test_queue.cc test_replication.cc test_world.cc
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
       test_thread_specific.cc
@@ -131,6 +131,9 @@ if(BUILD_TESTING)
   endif ()
 
   set_tests_properties(madness/test/world/test_googletest/run PROPERTIES WILL_FAIL TRUE)
+
+  # MPI variant of test_replication. As for the MRA MPI tests,
+  # MADNESS_MPI_NODE_OPTIONS sets the MPI options at run time.
+  add_mpi_tests(world test_replication "2" "MADworld;MADgtest" "unittests;short")
   
 endif()
-
