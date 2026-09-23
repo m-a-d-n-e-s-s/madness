@@ -1745,26 +1745,7 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
   const double acc_thr = madness::FunctionDefaults<3>::get_thresh();
   const int    acc_k   = madness::FunctionDefaults<3>::get_k();
   auto fd_acc = [&](const Perturbation &p, double f) -> nlohmann::json {
-    nlohmann::json a;   // rank-0 only: rows are assembled on rank 0
-    const std::string chan = p.description();
-    const std::string fk   = ResponseMetadata::freq_key(f);
-    const std::string sk =
-        best_usable_fd_source_key(acc_meta, chan, fk, acc_thr, acc_k, key);
-    a["input"] = chan;
-    a["freq"]  = f;
-    a["source_protocol_key"] = sk;
-    if (!sk.empty() && acc_meta["fd_states"][chan][sk].contains(fk)) {
-      const auto &e = acc_meta["fd_states"][chan][sk][fk];
-      // Same semantics as alpha's row_accuracy (review fix): `converged` is the
-      // honest STRICT verdict — an accepted-at-maxiter source (metadata
-      // converged forced true to unblock the VBC gate) reports converged=false
-      // + accepted=true here, never a silently over-stated accuracy claim.
-      const bool acc = e.value("accepted", false);
-      a["converged"]    = e.value("converged", false) && !acc;
-      a["accepted"]     = acc;
-      a["bsh_residual"] = e.value("bsh_residual", 0.0);
-    }
-    return a;
+    return fd_leg_accuracy(acc_meta, p, f, acc_thr, acc_k, key);  // rank-0 only
   };
 
   for (const auto &vr : plan.vbc) {
@@ -1970,6 +1951,15 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
     print("\n=== TPA assembly  protocol_key=", key, "  n_roots=", nroots, " ===");
 
   std::vector<nlohmann::json> rows;
+  // Rank-0 metadata snapshot for per-row accuracy (the three FD legs at w_f/2),
+  // same discipline as alpha/beta (review finding C9): a 2PA row built on an
+  // unconverged or accepted-at-maxiter leg says so.
+  nlohmann::json acc_meta;
+  if (world.rank() == 0)
+    acc_meta = ResponseMetadata::load_or_create(
+                   ctx.calc_dir + "/response_metadata.json").json();
+  const double acc_thr = madness::FunctionDefaults<3>::get_thresh();
+  const int    acc_k   = madness::FunctionDefaults<3>::get_k();
   // rank-0 table data (S tensor + observables per root) for the Dalton-style print.
   std::vector<int>                     tbl_f;
   std::vector<double>                  tbl_w;
@@ -2192,6 +2182,20 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
                       {"sigma_linear_gm", obs.sigma_linear_gm},
                       {"sigma_circular_gm", obs.sigma_circular_gm},
                       {"delta_parallel", obs.D_linear}});
+      {
+        nlohmann::json legs = nlohmann::json::array();
+        bool all_conv = true; double max_res = 0.0;
+        for (int a = 0; a < 3; ++a) {
+          auto leg = fd_leg_accuracy(acc_meta, Perturbation::dipole(a), wf_half,
+                                     acc_thr, acc_k, key);
+          all_conv = all_conv && leg.value("converged", false);
+          max_res  = std::max(max_res, leg.value("bsh_residual", 0.0));
+          legs.push_back(std::move(leg));
+        }
+        rows.back()["row_accuracy"]     = std::move(legs);
+        rows.back()["converged"]        = all_conv;
+        rows.back()["max_bsh_residual"] = max_res;
+      }
       tbl_f.push_back(static_cast<int>(f)); tbl_w.push_back(wf);
       tbl_S.push_back(S); tbl_o.push_back(obs);
     }
@@ -2326,13 +2330,12 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
       if (world.rank() == 0) {
         auto meta = ResponseMetadata::load_or_create(
             ctx.calc_dir + "/response_metadata.json");
-        sk = best_usable_fd_source_key(meta.json(), chan, fkey, thresh, k_now, key);
-        if (!sk.empty()) {
-          const auto &e = meta.json()["fd_states"][chan][sk][fkey];
-          ac = e.value("accepted",  false) ? 1 : 0;
-          cv = (e.value("converged", false) && !ac) ? 1 : 0;
-          rs = e.value("bsh_residual", 0.0);
-        }
+        const auto a = fd_leg_accuracy(meta.json(), Perturbation::dipole(ax[i]), w,
+                                       thresh, k_now, key);
+        sk = a.value("source_protocol_key", std::string{});
+        cv = a.value("converged", false) ? 1 : 0;
+        ac = a.value("accepted", false) ? 1 : 0;
+        rs = a.value("bsh_residual", 0.0);
       }
       world.gop.broadcast_serializable(sk, 0);
       world.gop.broadcast(cv, 0);

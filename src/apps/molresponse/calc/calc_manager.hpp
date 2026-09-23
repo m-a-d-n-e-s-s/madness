@@ -647,6 +647,37 @@ schedule(const std::vector<CalcNode> &dag,
 }
 
 // ---------------------------------------------------------------------------
+// fd_leg_accuracy — the honest verdict of one FD leg behind a property row. Pure.
+// ---------------------------------------------------------------------------
+
+/// Accuracy record of the FD state (pert, freq) a property row was built from,
+/// at target (thresh, k): the SAME source the loader uses (best_usable_fd_source_key),
+/// so the reported accuracy is the accuracy of the state actually contracted.
+/// `converged` is the STRICT verdict — an accepted-at-maxiter state (converged
+/// forced true in fd_states so dependent gates unblock) reports converged=false
+/// and accepted=true. Shared by the alpha, beta/Raman and 2PA assemblers
+/// (review findings C9, D4). Returns {input, freq, source_protocol_key,
+/// converged, accepted, bsh_residual}; source_protocol_key is "" when no usable
+/// state exists.
+inline nlohmann::json fd_leg_accuracy(const nlohmann::json &meta, const Perturbation &p,
+                                      double freq, double thresh, int k,
+                                      const std::string &key) {
+  const std::string chan = p.description();
+  const std::string fk   = ResponseMetadata::freq_key(freq);
+  const std::string sk   = best_usable_fd_source_key(meta, chan, fk, thresh, k, key);
+  nlohmann::json a{{"input", chan}, {"freq", freq}, {"source_protocol_key", sk},
+                   {"converged", false}, {"accepted", false}, {"bsh_residual", 0.0}};
+  if (!sk.empty()) {
+    const auto &e = meta["fd_states"][chan][sk][fk];
+    const bool acc    = e.value("accepted", false);
+    a["converged"]    = e.value("converged", false) && !acc;
+    a["accepted"]     = acc;
+    a["bsh_residual"] = e.value("bsh_residual", 0.0);
+  }
+  return a;
+}
+
+// ---------------------------------------------------------------------------
 // audit_dropped_work — planned work the run ended without delivering. Pure.
 // ---------------------------------------------------------------------------
 

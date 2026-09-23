@@ -570,6 +570,31 @@ int main() {
            "delivered VBC + converged ES bundle -> nothing dropped");
   }
 
+  // ====== fd_leg_accuracy: the honest per-leg verdict every property row uses ==
+  // review/findings C9 + D4: alpha and beta each wrote this logic; 2PA rows had
+  // none. `converged` is the STRICT verdict: an accepted-at-maxiter leg (converged
+  // forced true in fd_states to unblock gates) reports converged=false.
+  std::printf("=== fd_leg_accuracy ===\n");
+  {
+    const std::string k4 = protocol_key_at(1e-4);
+    json m = empty_meta();
+    put_fd(m, "dipole_z", 1e-4, 0.1, /*converged=*/true);
+    m["fd_states"]["dipole_z"][k4]["f0.10000"]["bsh_residual"] = 2.5e-4;
+    auto a = fd_leg_accuracy(m, Perturbation::dipole(2), 0.1, 1e-4, 6, k4);
+    EXPECT(a.value("source_protocol_key", "") == k4 && a.value("converged", false) &&
+               !a.value("accepted", true) && a.value("bsh_residual", 0.0) == 2.5e-4,
+           "converged leg: strict verdict, source key and residual");
+    m["fd_states"]["dipole_z"][k4]["f0.10000"]["accepted"] = true;
+    auto b = fd_leg_accuracy(m, Perturbation::dipole(2), 0.1, 1e-4, 6, k4);
+    EXPECT(!b.value("converged", true) && b.value("accepted", false),
+           "accepted-at-maxiter leg reports converged=false, accepted=true");
+    auto c = fd_leg_accuracy(empty_meta(), Perturbation::dipole(2), 0.1, 1e-4, 6, k4);
+    EXPECT(c.value("source_protocol_key", "x").empty() && !c.value("converged", true),
+           "no usable leg: empty source key, not converged");
+    EXPECT(c.value("input", "") == "dipole_z" && c.value("freq", -1.0) == 0.1,
+           "the leg is identified by input and freq");
+  }
+
   std::printf("\n%s  (%d failures)\n", failed ? "FAILED" : "PASSED", failed);
   return failed ? 1 : 0;
 }
