@@ -19,8 +19,13 @@ permissions:
 
 jobs:
   build:
+    name: build (GENTENSOR=${{ matrix.gentensor }})
     runs-on: [self-hosted, madness]
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gentensor: ["OFF", "ON"]
     env:
       CTEST_OUTPUT_ON_FAILURE: 1
       OMP_NUM_THREADS: 1
@@ -36,7 +41,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=ON \
             -DMADNESS_WERROR=ON \
-            -DMADNESS_TASK_BACKEND=TBB
+            -DMADNESS_TASK_BACKEND=TBB \
+            -DENABLE_GENTENSOR=${{ matrix.gentensor }}
 
       - name: Build
         run: cmake --build build-pr
