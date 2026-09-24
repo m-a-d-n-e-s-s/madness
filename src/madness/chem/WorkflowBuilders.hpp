@@ -120,6 +120,10 @@ inline void add_optimize_workflow_drivers(World &world, Params &pm,
 
 inline void add_cc2_workflow_drivers(World &world, Params &pm,
                                      qcapp::Workflow &wf) {
+#if !HAVE_GENTENSOR
+  MADNESS_EXCEPTION("cc2 and mp2 only with -DENABLE_GENTENSOR configured",1);
+#endif
+
   TensorType tt = TT_2D;
   FunctionDefaults<6>::set_tensor_type(tt);
 
