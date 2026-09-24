@@ -250,11 +250,25 @@ namespace madness {
         }
     };
 
+    /// Which lattice translations a lattice-summed 1D kernel includes
+
+    /// A lattice-summed kernel sums its 1D factors over the images R = -maxR..maxR.
+    /// The rest-of-crystal operator needs the sum with the single lattice vector
+    /// L = 0 removed, and that is not "exclude R = 0 on every axis" -- it is a sum
+    /// over the nonzero patterns of the periodic axes, in which each axis sums
+    /// either the images only or the home cell only. See OperatorInfo::images_only.
+    enum class LatticeImages {
+        all,           ///< R = -maxR..maxR, the ordinary lattice sum
+        exclude_home,  ///< R != 0 only
+        home_only      ///< R = 0 only; still lattice_summed(), so the displacements stay on the non-periodic domain
+    };
+
     /// Provides the common functionality/interface of all 1D convolutions
 
     /// interface for 1 term and for 1 dimension;
     /// the actual data are kept in ConvolutionData1D
     /// Derived classes must implement rnlp, issmall, natural_level
+
     template <typename Q>
     class Convolution1D {
     public:
@@ -263,6 +277,7 @@ namespace madness {
         int npt;        ///< Number of quadrature points (is this used?)
         int maxR;       ///< Number of lattice translations for sum
         double bloch_k;  ///< k in exp(i k R) Bloch phase factor folded into lattice sum
+        LatticeImages images;  ///< which of the translations R = -maxR..maxR are summed
         KernelRange range;  ///< if range is nonnull, kernel range limited to to range (in simulation cell units), useful for finite-range convolutions with periodic functions
         Tensor<double> quad_x;
         Tensor<double> quad_w;
@@ -276,17 +291,29 @@ namespace madness {
         mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
         bool lattice_summed() const { return maxR != 0; }
+
+        /// @return true if image R takes part in the lattice sum, see LatticeImages
+        bool includes_image(int R) const {
+            switch (images) {
+                case LatticeImages::all: return true;
+                case LatticeImages::exclude_home: return R != 0;
+                case LatticeImages::home_only: return R == 0;
+            }
+            return true;
+        }
         bool range_restricted() const { return range.finite(); }
 
         virtual ~Convolution1D() {};
 
         Convolution1D(int k, int npt, int maxR,
                       double bloch_k = 0.0,
-                      KernelRange rng = {})
+                      KernelRange rng = {},
+                      LatticeImages images = LatticeImages::all)
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
                 , bloch_k(bloch_k)
+                , images(images)
                 , range(rng)
                 , quad_x(npt)
                 , quad_w(npt)
@@ -332,6 +359,7 @@ namespace madness {
           if (lattice_summed()) {
             const Translation twon = Translation(1) << n;
             for (int R = -maxR; R <= maxR; ++R) {
+              if (!includes_image(R)) continue;
               if (!is_small(R * twon + lx))
                 return false;
             }
@@ -564,6 +592,7 @@ namespace madness {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
                     for (int R=-maxR; R<=maxR; ++R) {
+                        if (!includes_image(R)) continue;
                         r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(R));
                     }
                 }
@@ -752,8 +781,9 @@ namespace madness {
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
         		int m, const LatticeRange& lattice_range, double bloch_k = 0.0,
-                        KernelRange rng = {})
-            : Convolution1D<Q>(k,k+11,maxR(lattice_range,expnt,rng),bloch_k, rng)
+                        KernelRange rng = {},
+                        LatticeImages images = LatticeImages::all)
+            : Convolution1D<Q>(k,k+11,maxR(lattice_range,expnt,rng),bloch_k, rng, images)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
@@ -993,13 +1023,15 @@ namespace madness {
 
         static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, const LatticeRange& lattice_range,
                                                                double bloch_k = 0.0,
-                                                               const KernelRange& range = {}) {
+                                                               const KernelRange& range = {},
+                                                               LatticeImages images = LatticeImages::all) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, lattice_range.get_range());
             hash_combine(key, bloch_k);
             if (range) hash_combine(key, range);
+            hash_combine(key, static_cast<int>(images));
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -1012,7 +1044,8 @@ namespace madness {
                                                                                     m,
                                                                                     lattice_range,
                                                                                     bloch_k,
-                                                                                    range
+                                                                                    range,
+                                                                                    images
                                                                                     )));
                 MADNESS_ASSERT(inserted);
                 it = map.find(key);
@@ -1027,7 +1060,8 @@ namespace madness {
                            result->m == m &&
                            result->lattice_summed() == static_cast<bool>(lattice_range) &&
                            result->range == range &&
-                           result->bloch_k == bloch_k);
+                           result->bloch_k == bloch_k &&
+                           result->images == images);
             return result;
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)

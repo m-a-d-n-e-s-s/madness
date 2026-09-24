@@ -50,6 +50,7 @@
 #include <madness/mra/function_common_data.h>
 #include <madness/mra/gfit.h>
 #include <madness/mra/operatorinfo.h>
+#include <atomic>
 
 namespace madness {
 
@@ -152,6 +153,20 @@ namespace madness {
         return reach2 > 0.0 ? std::sqrt(reach2) : std::sqrt(diag2);
     }
 
+    /// Displacements with a nonzero operator block at one level that wrap the same way along
+    /// each axis, ordered by decreasing block norm; see SeparatedConvolution::get_disp_active()
+
+    /// A wrapped displacement (|l_d| > 2^(n-1), the periodic image of a near displacement) has a
+    /// target inside the cell only for sources within a few boxes of the face it wraps across.
+    /// [lo, hi] bounds the sources that can reach at least one member on every axis, so a source
+    /// outside the box skips the whole group.
+    template <std::size_t NDIM>
+    struct ActiveDisplacementGroup {
+        std::array<int, NDIM> wrap;              ///< per axis: 0 not wrapped, -1 wrapped downwards (l < 0), +1 upwards
+        std::array<Translation, NDIM> lo, hi;    ///< a source s can reach a member only if lo[d] <= s[d] <= hi[d]
+        std::vector<Key<NDIM>> list;             ///< the displacements, by decreasing block norm
+    };
+
     template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
@@ -169,6 +184,16 @@ namespace madness {
         array_of_bools<NDIM> func_domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
         std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
+
+        /// per-level groups of the displacements with a nonzero block, built lazily by get_disp_active()
+        struct ActiveDisplacements {
+            std::array<std::vector<ActiveDisplacementGroup<NDIM>>, 64> groups;
+            std::array<std::atomic<const std::vector<ActiveDisplacementGroup<NDIM>>*>, 64> ptr;
+            Mutex mutex;
+            ActiveDisplacements() { for (auto& p : ptr) p.store(nullptr, std::memory_order_relaxed); }
+        };
+        mutable ActiveDisplacements disp_active_;
+        std::optional<bool> screen_by_shell_decay_override_;   ///< set_screen_by_shell_decay()
 
       public:
         bool modified_=false;     ///< use modified NS form
@@ -239,7 +264,14 @@ namespace madness {
             const Q* VT;
         };
 
-        static inline std::pair<Tensor<double>,Tensor<double>>
+        /// the Gaussian fit of the kernel, and the low-exponent tail that a
+        /// lattice-summed operator drops from it (empty unless something was dropped)
+        struct FitCoeffs {
+            Tensor<double> coeff, expnt;
+            Tensor<double> dropped_coeff, dropped_expnt;
+        };
+
+        static inline FitCoeffs
         make_coeff_for_operator(World& world, OperatorInfo& info,
                                 const std::array<LatticeRange, NDIM>& lattice_ranges) {
 
@@ -274,15 +306,37 @@ namespace madness {
           info.hi = hi;
           GFit<double, NDIM> fit(info);
 
+          FitCoeffs result;
           Tensor<double> coeff = fit.coeffs();
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
+            // deep copies: Tensor assignment shares the buffer, and the truncation edits
+            // coefficients in place (truncate_mixed_expansion folds the tail into its
+            // neighbours rather than dropping it)
+            const Tensor<double> full_coeff = copy(coeff), full_expnt = copy(expnt);
             fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
+            // what the truncation removed, as Gaussians: full fit minus truncated fit. The
+            // truncation only shortens the exponent list (and may rescale kept coefficients),
+            // so the difference lives on the full fit's exponents.
+            const long nkept = coeff.dim(0), nfull = full_coeff.dim(0);
+            MADNESS_CHECK(nkept <= nfull && (nkept == 0 || (expnt(nkept - 1) == full_expnt(nkept - 1))));
+            std::vector<double> dc, de;
+            for (long i = 0; i < nfull; ++i) {
+              const double diff = full_coeff(i) - (i < nkept ? coeff(i) : 0.0);
+              if (diff != 0.0) { dc.push_back(diff); de.push_back(full_expnt(i)); }
+            }
+            if (!dc.empty()) {
+              result.dropped_coeff = Tensor<double>(long(dc.size()));
+              result.dropped_expnt = Tensor<double>(long(de.size()));
+              for (std::size_t i = 0; i < dc.size(); ++i) { result.dropped_coeff(long(i)) = dc[i]; result.dropped_expnt(long(i)) = de[i]; }
+            }
           }
 
-          return std::make_pair(coeff, expnt);
+          result.coeff = coeff;
+          result.expnt = expnt;
+          return result;
         }
 
 //        /// return the right block of the upsampled operator (modified NS only)
@@ -1041,12 +1095,79 @@ namespace madness {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
+            info.images_only = info1.images_only;
+            auto [coeff, expnt, dropped_coeff, dropped_expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
-            ops.resize(rank);
-            initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            if (info.images_only) {
+                initialize_images_only(coeff,expnt,dropped_coeff,dropped_expnt,lattice_ranges,range,bloch_k);
+            } else {
+                ops.resize(rank);
+                initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            }
             init_lattice_summed();
+        }
+
+        /// the rest-of-crystal operator: the lattice sum with the home cell (L = 0) removed
+
+        /// Removing one lattice vector is not "drop R = 0 on every axis": that also
+        /// drops every image with any zero component, and for a chain periodic along
+        /// z the only images at all are (0, 0, n_z). Sum instead over the 2^p - 1
+        /// nonzero bit patterns of the p lattice-summed axes; in each pattern an axis
+        /// whose bit is set sums R != 0 and one whose bit is clear takes R = 0 only.
+        /// Term by term the fit is the one the full lattice sum uses, so
+        /// full == home + images exactly, with no cancellation anywhere. Every term
+        /// keeps the same lattice_summed() pattern, so init_lattice_summed() holds and
+        /// the displacements stay on the non-periodic domain. Non-periodic axes get the
+        /// ordinary plain factor.
+        ///
+        /// An infinite lattice sum drops the low-exponent Gaussians of the fit
+        /// (make_coeff_for_operator): their lattice sum is flat over the cell, a
+        /// gauge constant. Their home-cell part is not flat, and a home operator
+        /// built from the full fit keeps it. So that home(full fit) + images still
+        /// equals the lattice sum up to that gauge constant, the dropped terms enter
+        /// here as home-only terms with negated coefficients: the operator is then
+        /// exactly (lattice sum as MADNESS computes it) - (home cell with the full
+        /// kernel). Measured on a 1D-periodic H10 chain, L = 18 bohr: without this,
+        /// the 15 dropped terms shift the periodic energy correction by 3e-5 Ha.
+        void initialize_images_only(const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                                    const Tensor<double>& dropped_coeff, const Tensor<double>& dropped_expnt,
+                                    const std::array<LatticeRange, NDIM>& lattice_range,
+                                    const std::array<KernelRange, NDIM>& range,
+                                    const Vector<double, NDIM>& bloch_k) {
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
+            const double pi = constants::pi;
+            const int rank0 = coeff.dim(0);
+
+            std::vector<std::size_t> per;    // the lattice-summed axes
+            for (std::size_t d = 0; d < NDIM; ++d) if (lattice_range[d]) per.push_back(d);
+            MADNESS_CHECK_THROW(!per.empty(),
+                                "images_only: the operator has no lattice-summed axis, so there are no images to sum");
+            const int npat = (1 << per.size()) - 1;
+            const int ndropped = dropped_coeff.size() ? int(dropped_coeff.dim(0)) : 0;
+
+            ops.resize(std::size_t(rank0) * npat + ndropped);
+            rank = int(ops.size());
+            // pattern 0 (every lattice-summed axis R = 0 only) is the home cell; it is
+            // used only for the dropped terms below
+            auto set_term = [&](ConvolutionND<Q,NDIM>& term, Q c_mu, double e_mu, int pat) {
+                const Q c = std::pow(sqrt(e_mu/pi), static_cast<int>(NDIM));
+                term.setfac(c_mu/c);
+                for (std::size_t d = 0; d < NDIM; ++d) {
+                    LatticeImages images = LatticeImages::all;
+                    if (lattice_range[d]) {
+                        const int bit = int(std::find(per.begin(), per.end(), d) - per.begin());
+                        images = ((pat >> bit) & 1) ? LatticeImages::exclude_home : LatticeImages::home_only;
+                    }
+                    term.setop(d, GaussianConvolution1DCache<Q>::get(k, e_mu*width[d]*width[d], 0,
+                                        lattice_range[d], bloch_k[d], range[d], images));
+                }
+            };
+            for (int pat = 1; pat <= npat; ++pat)
+                for (int mu = 0; mu < rank0; ++mu)
+                    set_term(ops[std::size_t(pat - 1) * rank0 + mu], coeff(mu), expnt(mu), pat);
+            for (int mu = 0; mu < ndropped; ++mu)
+                set_term(ops[std::size_t(rank0) * npat + mu], -dropped_coeff(mu), dropped_expnt(mu), 0);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1113,6 +1234,73 @@ namespace madness {
         const std::vector< Key<NDIM> >& get_disp(Level n) const {
             return Displacements<NDIM>().get_disp(n, lattice_summed());
         }
+
+        /// The displacements of get_disp(n) with a nonzero block, grouped by how they wrap and
+        /// ordered by decreasing block norm within each group
+
+        /// The block at (level, displacement) does not depend on the source (NS form), so this is
+        /// built once per level, lazily. It is what do_apply visits for an operator that cannot use
+        /// the shell-decay stop (see screen_by_shell_decay()): within a group the loop can stop at the
+        /// first displacement whose contribution is negligible for the source at hand, with no
+        /// assumption about how the kernel decays in space, and it applies exactly the blocks a
+        /// visit of the whole list would. The grouping is what keeps that cheap away from the
+        /// periodic faces: the large blocks of the rest-of-crystal kernel at fine levels sit on
+        /// wrapped displacements, which only a source near the face can reach; every other source
+        /// skips those groups by their [lo, hi] bounds instead of rejecting each member by validity.
+        const std::vector<ActiveDisplacementGroup<NDIM>>& get_disp_active(Level n) const {
+            MADNESS_ASSERT(!modified());
+            MADNESS_ASSERT(std::size_t(n) < disp_active_.groups.size());
+            if (auto p = disp_active_.ptr[n].load(std::memory_order_acquire)) return *p;
+            ScopedMutex<Mutex> lock(disp_active_.mutex);
+            if (auto p = disp_active_.ptr[n].load(std::memory_order_acquire)) return *p;
+            auto& groups = disp_active_.groups[n];
+            std::vector<std::pair<double, Key<NDIM>>> ranked;
+            for (const auto& d : get_disp(n)) {
+                const double norm = getop_ns(n, d)->norm;
+                if (norm > 0.0) ranked.emplace_back(norm, d);
+            }
+            std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+            const Translation twon = Translation(1) << n, half = twon >> 1;
+            for (const auto& [norm, d] : ranked) {
+                std::array<int, NDIM> wrap;
+                for (std::size_t i = 0; i < NDIM; ++i) {
+                    const Translation l = d.translation()[i];
+                    wrap[i] = (l > half) ? +1 : (l < -half ? -1 : 0);
+                }
+                auto it = std::find_if(groups.begin(), groups.end(), [&](const auto& g) { return g.wrap == wrap; });
+                if (it == groups.end()) {
+                    groups.push_back(ActiveDisplacementGroup<NDIM>{wrap, {}, {}, {}});
+                    it = groups.end() - 1;
+                    for (std::size_t i = 0; i < NDIM; ++i) { it->lo[i] = twon; it->hi[i] = -1; }
+                }
+                it->list.push_back(d);
+                // the target s + l lies in [0, 2^n) iff s in [-l, 2^n - 1 - l]
+                for (std::size_t i = 0; i < NDIM; ++i) {
+                    const Translation l = d.translation()[i];
+                    it->lo[i] = std::min(it->lo[i], std::max<Translation>(0, -l));
+                    it->hi[i] = std::max(it->hi[i], std::min<Translation>(twon - 1, twon - 1 - l));
+                }
+            }
+            disp_active_.ptr[n].store(&groups, std::memory_order_release);
+            return groups;
+        }
+
+        /// May FunctionImpl::do_apply stop at the first shell of displacements that contributes nothing?
+
+        /// True for a kernel that decays monotonically away from the source, which is what that
+        /// screening assumes. False for the rest-of-crystal operator (OperatorInfo::images_only),
+        /// which decays monotonically only beyond the nearest image: it is translation-invariant but
+        /// not lattice-periodic, so the wrapped displacement l - 2^n is not equivalent to l as the
+        /// lattice-modulated shells assume -- the home-direction block is exactly zero while the
+        /// image-direction block is the whole kernel. For a source close to a periodic face the
+        /// zero-block near shells would end the loop before the wrapped displacement that carries
+        /// the nearest-image interaction (measured with a unit Gaussian 1.8 bohr from the periodic
+        /// face of a 100x100x18 cell: one mid-range fit term lost 4% of its images potential and the
+        /// total 2.5e-3, independent of the threshold). Such an operator visits get_disp_active()
+        /// instead. set_screen_by_shell_decay() overrides the default, e.g. to test that the two
+        /// paths agree.
+        bool screen_by_shell_decay() const { return screen_by_shell_decay_override_.value_or(!info.images_only); }
+        void set_screen_by_shell_decay(bool value) { screen_by_shell_decay_override_ = value; }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
         const array_of_bools<NDIM>& lattice_summed() const { return lattice_summed_; }
