@@ -55,8 +55,12 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
-  add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
-  add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  # The 6D pair functions of MP2/CC2 are only tractable with the compressed
+  # tensor representation, so these decks need ENABLE_GENTENSOR.
+  if (ENABLE_GENTENSOR)
+    add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
+    add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  endif()
   add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
   add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s
