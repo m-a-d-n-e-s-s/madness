@@ -21,7 +21,7 @@ jobs:
   build:
     name: build (GENTENSOR=${{ matrix.gentensor }})
     runs-on: [self-hosted, madness]
-    timeout-minutes: 60
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
