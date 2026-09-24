@@ -68,6 +68,9 @@ inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
 † `response_h2_es_rpa_nokain` was measured on a Neoverse-N1 host, where
 `response_h2_es_rpa` itself takes 32 s, so it costs the same as its parent and
 is registered `medium` with it.
+`response_h2o_tpa` and `response_h2o_tpa_seeded` were measured on the same
+host, concurrently with each other and with a CI runner; treat those times as
+upper bounds.
 
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
@@ -88,6 +91,8 @@ is registered `medium` with it.
 | `response_h2_es_rpa_nokain` | `response` | H₂ | the RPA deck with `kain false`: the deck's `kain` reaches the ES solve (review C3), and the looser FD stop without KAIN shows in α | 31 s† | medium |
 | `response_lih_beta` | `response` | LiH | static β_zzz (`quadratic true`) plus α_zz, one rung | 42 s | long |
 | `response_h2o_raman_tpa` | `response` | H₂O | at the HF/aug-cc-pVQZ optimized geometry: α(0) xyz, one Raman component, two RPA excited states and their 2PA — the nightly case | 1951 s | verylong |
+| `response_h2o_tpa` | `response` | H₂O | two RPA roots + their 2PA from the cold guess; the unseeded half of a pair | 3319 s† | verylong |
+| `response_h2o_tpa_seeded` | `response` | H₂O | the same seeded from DALTON (`io.dalton.dir`, a committed HF/aug-cc-pVDZ `.TWO-PHOTON` run): SCF, ES and the 2PA legs all start from the seed; iteration caps below the cold counts and seed-guard overlaps | 2621–3320 s† | verylong |
 | `response_f_doublet_beta` | `response` | F | **open shell**, doublet (`nopen 1`): static + dynamic β requested; pins that the legs converge and the quadratic source is refused | 287 s | verylong |
 | `response_c_triplet_beta` | `response` | C | **open shell**, triplet (`nopen 2`): the same, with two unpaired electrons | 305 s | verylong |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |

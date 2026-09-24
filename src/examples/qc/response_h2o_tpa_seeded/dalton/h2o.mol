@@ -1,0 +1,10 @@
+BASIS
+aug-cc-pVDZ
+Water at the HF/aug-cc-pVQZ optimized geometry (bohr), as response_h2o_raman_tpa
+seed for the MADNESS seeded ES + 2PA qctest
+Atomtypes=2 Nosymmetry
+Charge=8.0 Atoms=1
+O     0.0000000000   0.0000005943   0.1925923500
+Charge=1.0 Atoms=2
+H     0.0000000000   1.4214240411  -0.8721230117
+H     0.0000000000  -1.4214246355  -0.8721234678

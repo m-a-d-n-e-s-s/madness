@@ -1,0 +1,53 @@
+# Water, two RPA excited states and their two-photon absorption, SEEDED from
+# DALTON: the seeded half of a pair with response_h2o_tpa (same deck, cold
+# guess). io.dalton.dir points at dalton/, a DALTON (master 984913d) HF/aug-cc-pVDZ
+# **RESPONSE *QUADRATIC .TWO-PHOTON run at this geometry (inputs h2o_tpa.dal and
+# h2o.mol, output h2o_tpa.out; DALTON omega 0.32186 / 0.38334, D_linear 2.19 /
+# 21.0). The seed reaches every stage: the SCF starts from the molden orbitals,
+# the ES solve from the EXCITLAB eigenvectors, and the derived 2PA legs from
+# the nearest DIPLEN record at DALTON's omega_f/2 (seed.freq_tol). The answer
+# must match the cold case; the iteration count is what the seed buys. At this
+# rung it matches to about the gates (omega ~1e-4, D ~0.5%; see check.json).
+#
+# A seeded ES solve converges the states the seed hands it. Those are the
+# seeding basis's eigenstates, and basis incompleteness can make them differ
+# from the MRA ones: for diffuse states a singly vs doubly augmented basis can
+# lead to different states. The seed-guard checks catch a root that tracked a
+# different state than the seed intended.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_h2o_tpa_seeded.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         200.0
+    localize  new
+    maxiter   30
+end
+
+io
+    dalton.dir  dalton
+end
+
+response
+    requested_properties  []
+    excited.enable        true
+    excited.num_states    2
+    excited.tda           false
+    excited.tpa           true
+    dconv                 1e-4
+    maxiter               60
+    seed.freq_tol         0.01
+    print_level           1
+end
+
+molecule
+    eprec      1e-6
+    units      atomic
+    no_orient  true
+    O   0.0000000000   0.0000005943   0.1925923500
+    H   0.0000000000   1.4214240411  -0.8721230117
+    H   0.0000000000  -1.4214246355  -0.8721234678
+end

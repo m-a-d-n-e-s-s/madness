@@ -70,6 +70,10 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # the solver is shell-generic and every FD leg converges, but the quadratic
   # source is closed-shell only, so the beta nodes stall and no property row is
   # assembled. See each check.json description.
+  # a DALTON seed vs the cold guess on the same water ES + 2PA deck: the
+  # seeded case caps its iterations below the cold counts (see check.json)
+  add_qctest(response_h2o_tpa         madqc "qctest;verylong;applications") # 3319 s on dd (N1), 7 threads; nightly
+  add_qctest(response_h2o_tpa_seeded  madqc "qctest;verylong;applications") # 2621-3320 s on dd (N1), 7 threads; nightly, dalton.dir
   add_qctest(response_f_doublet_beta  madqc "qctest;verylong;applications")  # 287 s, 7 threads; nightly, open shell nopen 1
   add_qctest(response_c_triplet_beta  madqc "qctest;verylong;applications")  # 305 s, 7 threads; nightly, open shell nopen 2
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s

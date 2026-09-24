@@ -1,0 +1,42 @@
+# Water, two RPA excited states and their two-photon absorption, from a cold
+# guess. The unseeded half of a pair: response_h2o_tpa_seeded is the same deck
+# started from a DALTON HF/aug-cc-pVDZ calculation (io.dalton.dir), and the two
+# together measure what the seed buys for the ES solve and the 2PA legs.
+# Geometry and rung are response_h2o_raman_tpa's, without the Raman leg and
+# alpha(0): requested_properties [] drops the static legs the default would add,
+# since 2PA needs only the dipole legs at omega_f/2. The response gates are
+# tighter than that case's (dconv 1e-4, not 1e-3, which it needs only for its
+# nuclear leg): at 5e-3 gates a good seed passes almost at once and stops where
+# it happens to be, so the pair would compare stopping points, not convergence.
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_h2o_tpa.in)
+
+dft
+    xc        hf
+    dconv     1e-4
+    k         6
+    protocol  [1e-4]
+    l         200.0
+    localize  new
+    maxiter   30
+end
+
+response
+    requested_properties  []
+    excited.enable        true
+    excited.num_states    2
+    excited.tda           false
+    excited.tpa           true
+    dconv                 1e-4
+    maxiter               60
+    print_level           1
+end
+
+molecule
+    eprec      1e-6
+    units      atomic
+    no_orient  true
+    O   0.0000000000   0.0000005943   0.1925923500
+    H   0.0000000000   1.4214240411  -0.8721230117
+    H   0.0000000000  -1.4214246355  -0.8721234678
+end

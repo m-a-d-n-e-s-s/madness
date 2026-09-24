@@ -1,0 +1,217 @@
+{
+  "description": "Water at the response_h2o_raman_tpa geometry, HF, one rung (protocol 1e-4, k 6): two RPA excited states (omega 0.3223886, 0.3832919) and their 2PA D_linear (2.49802, 21.00695), from the cold guess. The unseeded half of the pair with response_h2o_tpa_seeded; together they measure what a DALTON seed buys. requested_properties [] drops the static alpha legs the default would add (2PA needs only the legs at omega_f/2). Response dconv 1e-4, not the Raman case's 1e-3: at 1e-3 (5e-3 gates) the seeded run stopped after 3 ES iterations 2.8e-4 from the cold omega and 1.7% off in D, so the pair measured where each run stopped rather than how fast it converged. At 1e-4 every FD leg exits at bsh 3.5-4.9e-4 (gate 5e-4), ES 11 iterations, 6 FD legs 108 iterations, 25 envelope iterations. Caps: envelope 30, ES 14. Reference: RelWithDebInfo, Pthreads, ArmPL, 1 rank x 7 threads, dd (Neoverse-N1), 2026-09-24, at 1f84425ca, wall 3319 s (concurrent with the seeded case and a CI runner). omega tol 1e-3 au, D_linear rtol 2e-2. Nightly tier.",
+  "expect_files": [
+    "response_h2o_tpa/task_1/molresponse/es_analysis__*.json"
+  ],
+  "checks": [
+    {
+      "key": [
+        "tasks",
+        0,
+        "properties",
+        "energy"
+      ],
+      "tol": 1e-05
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "type"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "k"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "protocol_key"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "status"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "n_unconverged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "iterations"
+      ],
+      "max": 30
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "run_summary",
+        "stop_reason"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "excited_states",
+        "1e-04_k6",
+        "n_roots"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "excited_states",
+        "1e-04_k6",
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "excited_states",
+        "1e-04_k6",
+        "iter"
+      ],
+      "max": 14
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "excited_states",
+        "1e-04_k6",
+        "roots",
+        0,
+        "omega"
+      ],
+      "tol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "excited_states",
+        "1e-04_k6",
+        "roots",
+        1,
+        "omega"
+      ],
+      "tol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        0,
+        "es_root_id"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        0,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        0,
+        "D_linear"
+      ],
+      "rtol": 0.02
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        1,
+        "es_root_id"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        1,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "tpa",
+        "1e-04_k6",
+        1,
+        "D_linear"
+      ],
+      "rtol": 0.02
+    }
+  ]
+}
