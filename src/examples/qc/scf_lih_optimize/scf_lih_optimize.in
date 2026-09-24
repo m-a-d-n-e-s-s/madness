@@ -12,9 +12,14 @@
 # same code path.
 #
 # The `optimization` group is what governs the optimizer. Any threshold left unset
-# is derived from the wavefunction accuracy (protocol().back(), Dalton-style), so
-# the 1e-6 rung is what puts gtol at 1e-5; a deck that sets `gtol` explicitly wins
-# over that. See `madqc --print_parameters=optimization`.
+# is derived: gtol from the density convergence, max(1e-4, dconv), so 1e-4 here;
+# etol and value_precision from protocol().back(). A deck that sets `gtol`
+# explicitly wins over that. See `madqc --print_parameters=optimization`.
+#
+# check.json asserts max_gradient <= gtol rather than matching the reference.
+# At dconv 1e-4 the gradient at a given geometry depends on where each SCF started
+# (the previous step's orbitals vs. the atomic guess) by up to ~7e-5, so where
+# the optimizer stops inside gtol is not a reproducible number.
 #
 # Starts 0.015 bohr inside the HF minimum, which the optimizer closes in two steps.
 #
