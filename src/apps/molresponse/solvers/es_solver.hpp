@@ -107,6 +107,14 @@ public:
     /// QUANTITY: [0] = max drho/density_target, [1] = max |dw|/omega_target,
     /// over the ACTIVE roots. A stall needs both flat; reset on a thresh change.
     std::vector<std::vector<double>>        gate_history;
+    /// The same two tracks per slot, root_gate_history[s] = {drho_s/target,
+    /// |dw_s|/target}, for ConvergencePolicy::root_plateau. Slots hold roots in
+    /// eigenvalue order within a protocol (sort_state_by_omega runs only at
+    /// ramp boundaries), and the history resets with gate_history.
+    std::vector<std::vector<std::vector<double>>> root_gate_history;
+    /// Slots whose root had plateaued above its targets at the last iteration
+    /// (active and not converged). Recorded per root in the bundle metadata.
+    std::vector<int>                        stalled_roots;
     double                                  gate_thresh = -1.0;
     int                                     iter = 0;
     /// Set by step() when the explosion guard trips; iterate<>
@@ -1095,8 +1103,47 @@ public:
     const bool measured = any && out.iter > 1;
     out.gate_history[0].push_back(measured ? g_rho : inf);
     out.gate_history[1].push_back(measured && om_ok ? g_om : inf);
-    out.stalled = !out.diverged && policy_.plateau(out.gate_history);
-    if (out.stalled && print_level_ >= PrintLevel::Normal && world_.rank() == 0) {
+
+    // Per root: the max tracks above miss a root whose |dw| has met its target
+    // while its density change sits flat above target (root_plateau).
+    out.root_gate_history = (in.gate_thresh == thr)
+                                ? in.root_gate_history
+                                : std::vector<std::vector<std::vector<double>>>{};
+    if (out.root_gate_history.size() < M) out.root_gate_history.resize(M);
+    std::vector<char> active(M, 0), conv(M, 0), plat(M, 0);
+    out.stalled_roots.clear();
+    for (std::size_t s2 = 0; s2 < M; ++s2) {
+      auto &h = out.root_gate_history[s2];
+      if (h.size() < 2) h.resize(2);
+      const bool om_s = s2 < out.last_omega_residual.size() &&
+                        out.last_omega_residual[s2] < 1.0e8;
+      h[0].push_back(out.iter > 1
+                         ? out.last_density_residual[s2] / targets_.density_residual
+                         : inf);
+      h[1].push_back(out.iter > 1 && om_s
+                         ? out.last_omega_residual[s2] / targets_.omega_residual
+                         : inf);
+      active[s2] = !(s2 < out.locked.size() && out.locked[s2]);
+      conv[s2]   = es_root_converged(out, static_cast<int>(s2));
+      plat[s2]   = policy_.root_plateau(h);
+      if (active[s2] && !conv[s2] && plat[s2])
+        out.stalled_roots.push_back(static_cast<int>(s2));
+    }
+    const bool solve_flat = policy_.plateau(out.gate_history);
+    const bool roots_flat = es_roots_stalled(active, conv, plat);
+    out.stalled = !out.diverged && (solve_flat || roots_flat);
+    if (out.stalled && !solve_flat && print_level_ >= PrintLevel::Normal &&
+        world_.rank() == 0) {
+      print("[STALL] iter", out.iter, ": no active root is still improving —",
+            out.stalled_roots.size(), "root(s) flat above target over",
+            policy_.stall_window, "iters (<", 100.0 * policy_.stall_ratio,
+            "% improvement), the rest converged; stopping.");
+      for (int s2 : out.stalled_roots)
+        print("  root", s2, ": density", out.root_gate_history[s2][0].back(),
+              ", |dw|", out.root_gate_history[s2][1].back(), "(normalised)");
+    }
+    if (out.stalled && solve_flat && print_level_ >= PrintLevel::Normal &&
+        world_.rank() == 0) {
       const std::size_t n = out.gate_history[0].size();
       const std::size_t w = static_cast<std::size_t>(policy_.stall_window);
       print("[STALL] iter", out.iter, ": density and |dw| both flat over",

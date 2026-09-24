@@ -192,6 +192,10 @@ void save_es_roots(madness::World &world,
           (static_cast<size_t>(s) < state.last_density_residual.size())
               ? state.last_density_residual[s]
               : std::numeric_limits<double>::quiet_NaN();
+      // per-root plateau verdict (ConvergencePolicy::root_plateau)
+      entry["stalled"] = std::find(state.stalled_roots.begin(),
+                                   state.stalled_roots.end(), s) !=
+                         state.stalled_roots.end();
       entry["file"] = detail_save_load::root_file(s);
       entry["coeffs"] = root_coeffs[static_cast<size_t>(s)];
       entry["bytes"]  = root_coeffs[static_cast<size_t>(s)] * sizeof(double);

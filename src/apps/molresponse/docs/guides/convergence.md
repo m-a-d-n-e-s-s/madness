@@ -70,6 +70,20 @@ bundle as not converged. `stall.window 0` disables the detector. An iteration
 without a measurable |dw| records +inf, which never counts as a stall, so a cold
 ES start cannot trip it.
 
+ES also keeps the two tracks **per root** (`drho_s / density_target`,
+`|dw_s| / omega_target`, one history per slot). The max above misses the usual
+way a single root gets stuck: its |dw| converges first (second order) while its
+density change sits flat above target. The |dw| track then reads "met" for every
+root, and a met track withholds the solve-level verdict, so the solve would run
+to maxiter. A root is **plateaued** when it has at least one unmet track and
+every unmet track is flat by the same window/ratio test (a met track does not
+block it). The ES solve also stalls when at least one active root has plateaued
+and every other active root is converged or plateaued, so no root is still
+making progress. The log prints `[STALL] iter N: no active root is still
+improving` with the stuck roots, and each root entry in the bundle metadata
+carries `"stalled"`. This only adds an exit: a solve the max test would stop is
+stopped as before, and a converging solve is unaffected.
+
 ## What the residual means for a property
 
 With `r_B` the reported BSH residual and `theta = v - W x` the BSH source (the

@@ -32,6 +32,11 @@ add_mad_executable(test_protocol_key
 add_mad_executable(test_bsh_shift
                    "tests/test_bsh_shift.cpp"
                    "MADchem")
+# Per-root ES plateau detection: a stuck root is caught even when its |dw| has
+# met the target (the solve-level max tracks miss it). Pure logic.
+add_mad_executable(test_es_plateau
+                   "tests/test_es_plateau.cpp"
+                   "MADchem")
 # Deck excited.* iteration keys -> ExecutorSettings (review finding C2).
 add_mad_executable(test_deck_settings
                    "tests/test_deck_settings.cpp;GroundState.cpp"
@@ -241,7 +246,7 @@ install(TARGETS molresponse
 # --- any machine, and heavier tiers are opt-in by label / cache variable. ----
 if (BUILD_TESTING)
   # Tier 1 — "unit": pure logic, no fixtures, no MPI launcher required.
-  foreach(_t test_calc_manager test_protocol_key test_bsh_shift test_deck_settings
+  foreach(_t test_calc_manager test_protocol_key test_bsh_shift test_deck_settings test_es_plateau
              test_response_metadata
              test_response_property_planner test_state_metrics
              test_diagonalize_slots test_dalton_import)
