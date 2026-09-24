@@ -48,6 +48,8 @@
 #include "../tensor/tensor_lapack.h"
 #include "../world/madness_exception.h"
 #include "../world/print.h"
+#include <madness/mra/kernelrange.h>
+#include <algorithm>
 #include <madness/mra/operatorinfo.h>
 
 
@@ -309,12 +311,17 @@ public:
 	/// return the exponents of the fit
 	Tensor<T> exponents() const {return exponents_;}
 
+    /// Fold the most diffuse Gaussians of a fit into their neighbours while the fit stays accurate
+    /// to eps on [lo, hi]. Works from the tail inwards and stops at the first term that cannot be
+    /// merged; terms before `first_prunable` are never merged into (so `first_prunable - 1` and
+    /// everything before it keep their coefficients).
     void static prune_small_coefficients(const double eps, const double lo, const double hi,
-                                  Tensor<double>& coeff, Tensor<double>& expnt) {
+                                  Tensor<double>& coeff, Tensor<double>& expnt,
+                                  const long first_prunable = 1) {
         double mid = lo + (hi-lo)*0.5;
         long npt=coeff.size();
         long i;
-        for (i=npt-1; i>0; --i) {
+        for (i=npt-1; i>=std::max(first_prunable, 1L); --i) {
             double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
             double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
                            cnew*exp(-expnt[i-1]*lo*lo);
@@ -328,37 +335,56 @@ public:
         expnt = expnt(Slice(0,npt-1));
     }
 
-    void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
-			double L, bool discardG0) const {
-		double tcut = 0.25/L/L;
+    /// Truncate the fit of a kernel that is lattice-summed along some axes
 
-		if (discardG0) {
-			// Relies on expnts being in decreasing order
-			for (int i=0; i<e.dim(0); ++i) {
-				if (e(i) < tcut) {
-					c = c(Slice(0,i));
-					e = e(Slice(0,i));
-					break;
-				}
-			}
-		} else {
-//			// Relies on expnts being in decreasing order
-//			int icut = -1;
-//			for (int i=0; i<e.dim(0); ++i) {
-//				if (e(i) < tcut) {
-//					icut = i;
-//					break;
-//				}
-//			}
-//			if (icut > 0) {
-//				for (int i=icut+1; i<e.dim(0); ++i) {
-//					c(icut) += c(i);
-//				}
-//				c = c(Slice(0,icut));
-//				e = e(Slice(0,icut));
-//			}
-		}
-	}
+    /// Along an axis with an infinite lattice sum, a Gaussian with exponent below
+    /// tcut = 0.25/L^2 (L the largest such cell width) has a lattice sum that is flat to
+    /// exp(-4 pi^2) over the cell: a gauge constant. If every axis is summed, those terms
+    /// are dropped (all but the first, as before). If some axes are not summed, the same
+    /// terms are not flat along them and carry real potential there -- so they
+    /// are kept as far as the finite axes need them: the tail is folded into its neighbours
+    /// while the fit stays accurate to eps on [lo, hi_fin], where hi_fin is the largest
+    /// distance the finite axes can reach. The first term below tcut is never merged into a
+    /// term above it, whose lattice sum is not flat.
+    /// @param[in,out] c    coefficients of the fit; truncated (and possibly rescaled) on return
+    /// @param[in,out] e    exponents of the fit, in decreasing order
+    /// @param[in] lattice_ranges  lattice range of each axis
+    /// @param[in] cell_width      width of each axis of the cell
+    /// @param[in] lo      smallest distance the fit must represent accurately
+    /// @param[in] hi_fin  largest distance the finite (non-infinite) axes must represent accurately
+    /// @param[in] eps     accuracy of the fit on [lo, hi_fin]
+    static void truncate_mixed_expansion(Tensor<double>& c, Tensor<double>& e,
+                                         const std::array<LatticeRange, NDIM>& lattice_ranges,
+                                         const Tensor<double>& cell_width,
+                                         double lo, double hi_fin, double eps) {
+        const bool infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite(); });
+        const bool infinite_all = std::all_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite(); });
+        if (!infinite_any) return;   // no lattice sum is a constant: nothing can be dropped
+
+        // The widest infinitely summed axis determines how "diffuse" a Gaussian sum needs to be for
+        // all infinite lattice sums to be constant.
+        double max_infinite_width = 0;
+        for (std::size_t d = 0; d != NDIM; ++d)
+            if (lattice_ranges[d].infinite()) max_infinite_width = std::max(max_infinite_width, cell_width(long(d)));
+        const double tcut = 0.25 / (max_infinite_width * max_infinite_width);
+
+        // the first term whose lattice sums are flat (exponents decrease with the index)
+        long icut = -1;
+        for (long i = 0; i < e.dim(0); ++i) {
+            if (e(i) < tcut) { icut = i; break; }
+        }
+        if (icut < 0) return;   // no diffuse terms
+
+        if (infinite_all) {   // every axis is summed: the diffuse tail is a constant, keep its first term only
+            c = c(Slice(0, icut));
+            e = e(Slice(0, icut));
+            return;
+        }
+        // mixed: fold the tail into its neighbours as far as the finite axes allow. The first
+        // prunable term is icut + 1, so icut may absorb its neighbours but the term before it,
+        // whose lattice sum is not flat, is never touched.
+        prune_small_coefficients(eps, lo, hi_fin, c, e, /* first_prunable = */ icut + 1);
+    }
 
 private:
 

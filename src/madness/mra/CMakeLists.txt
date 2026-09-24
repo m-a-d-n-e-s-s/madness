@@ -40,7 +40,7 @@ if(BUILD_TESTING)
       testgaxpyext.cc testvmra.cc test_vectormacrotask.cc test_cloud.cc test_tree_state.cc testsolver.cc
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
       test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc test_displacements.cc
-      test_truncate_tol.cc)
+      test_truncate_tol.cc test_periodic_truncation.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
