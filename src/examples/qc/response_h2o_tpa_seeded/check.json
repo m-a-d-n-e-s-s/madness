@@ -1,5 +1,5 @@
 {
-  "description": "The same water ES + 2PA deck as response_h2o_tpa, seeded from DALTON (io.dalton.dir dalton: HF/aug-cc-pVDZ *QUADRATIC .TWO-PHOTON, DALTON master 984913d; inputs and output in dalton/). The seed reaches every stage: SCF from the molden orbitals (6 iterations vs 8 cold), ES from the EXCITLAB eigenvectors (7 vs 11), and the six 2PA legs from the nearest DIPLEN record within seed.freq_tol 0.01 (81 FD iterations vs 108). The caps are set below the cold counts, so a seed that stops helping fails: envelope max 21 (actual 17, cold 25), ES max 9 (actual 7, cold 11). The seed-guard checks pin that each root tracked its own seed state (seed_overlap 0.99954 / 0.99832 to 0.01, best_seed_slot exact): a seed only converges the states the seeding basis describes, and for diffuse states a singly vs doubly augmented basis can lead to different ones. Against the cold case: omega +1.2e-4 / +9.3e-5, D_linear -0.45% / -0.33%, E_SCF +1.2e-5; both runs stop at their 5e-4 gates, so at protocol 1e-4/k6 the two agree only to about that. Each case checks against its own reference. Reference: RelWithDebInfo, Pthreads, ArmPL, 1 rank x 7 threads, dd (Neoverse-N1), 2026-09-24, at 1f84425ca, wall 2621 s (concurrent with the cold case and a CI runner; 3320 s under ctest on the same host, reproducing every value to 1e-12). omega tol 1e-3 au, D_linear rtol 2e-2. Nightly tier.",
+  "description": "The same water ES + 2PA deck as response_h2o_tpa, seeded from DALTON (io.dalton.dir dalton: HF/aug-cc-pVDZ *QUADRATIC .TWO-PHOTON, DALTON master 984913d; inputs and output in dalton/). The seed reaches every stage: SCF from the molden orbitals (6 iterations vs 8 cold), ES from the EXCITLAB eigenvectors (7 vs 11), and the six 2PA legs from the nearest DIPLEN record within seed.freq_tol 0.01 (81 FD iterations vs 108). The caps are set below the cold counts, so a seed that stops helping fails: envelope max 21 (actual 17, cold 25), ES max 9 (actual 7, cold 11). The seed-guard checks pin that each root tracked its own seed state (seed_overlap 0.99954 / 0.99832, asserted min 0.99; best_seed_slot exact): a seed only converges the states the seeding basis describes, and for diffuse states a singly vs doubly augmented basis can lead to different ones. Against the cold case: omega +1.2e-4 / +9.3e-5, D_linear -0.45% / -0.33%, E_SCF +1.2e-5; both runs stop at their 5e-4 gates, so at protocol 1e-4/k6 the two agree only to about that. Each case checks against its own reference. Reference: RelWithDebInfo, Pthreads, ArmPL, 1 rank x 7 threads, dd (Neoverse-N1), 2026-09-24, at 1f84425ca, wall 2621 s (concurrent with the cold case and a CI runner; 3320 s under ctest on the same host, reproducing every value to 1e-12). omega tol 1e-3 au, D_linear rtol 2e-2. Nightly tier.",
   "expect_files": [
     "response_h2o_tpa_seeded/task_1/molresponse/es_analysis__*.json"
   ],
@@ -239,7 +239,7 @@
         0,
         "seed_overlap"
       ],
-      "tol": 0.01
+      "min": 0.99
     },
     {
       "key": [
@@ -267,7 +267,7 @@
         1,
         "seed_overlap"
       ],
-      "tol": 0.01
+      "min": 0.99
     }
   ]
 }
