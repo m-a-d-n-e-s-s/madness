@@ -122,6 +122,30 @@ int check_near_face(World& world) {
     return errors;
 }
 
+/// The norm-ordered visit (get_disp_active, used by the images operator) must reproduce the
+/// shell-stopped one for an ordinary decaying kernel: same result, only slower. Free-space
+/// Coulomb potential of the near-face density in the 100x100x18 cell, both ways.
+int check_norm_ordered_visit(World& world) {
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    std::array<LatticeRange,3> lr_home{LatticeRange(0), LatticeRange(0), LatticeRange(0)};
+    OperatorInfo info(0.0, 1.e-4, thresh, OT_G12, false);
+    real_convolution_3d shells(world, info, lr_home), ordered(world, info, lr_home);
+    ordered.set_screen_by_shell_decay(false);
+
+    const std::vector<coord_3d> sp{coord_3d{0.0, 0.0, g_z0}};
+    real_function_3d f = real_factory_3d(world).f(near_face_f).special_points(sp).special_level(8);
+    f.truncate();
+    double t0 = wall_time(); real_function_3d v1 = shells(f);  const double t_shells = wall_time() - t0;
+    t0 = wall_time();        real_function_3d v2 = ordered(f); const double t_ordered = wall_time() - t0;
+    const double err = (v1 - v2).norm2();
+    int errors = 0;
+    if (world.rank() == 0)
+        print("  free-space Coulomb, shell-stopped vs norm-ordered visit: |difference| =", err,
+              " |V| =", v1.norm2(), "  times", t_shells, "s vs", t_ordered, "s");
+    if (err > 10.0 * thresh) { print("FAIL: the norm-ordered visit differs from the shell-stopped one"); ++errors; }
+    return errors;
+}
+
 }   // namespace
 
 int main(int argc, char** argv) {
@@ -140,6 +164,7 @@ int main(int argc, char** argv) {
     errors += check_identity(world, {true,  true,  true}, LatticeRange(true), "periodic xyz, N=inf (7 patterns + dropped tail)");
     FunctionDefaults<3>::set_thresh(1.e-6);
     errors += check_near_face(world);
+    errors += check_norm_ordered_visit(world);
 
     if (world.rank() == 0) {
         if (errors == 0) print("\ntest_images_operator passed\n");

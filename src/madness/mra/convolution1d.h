@@ -250,11 +250,6 @@ namespace madness {
         }
     };
 
-    /// Provides the common functionality/interface of all 1D convolutions
-
-    /// interface for 1 term and for 1 dimension;
-    /// the actual data are kept in ConvolutionData1D
-    /// Derived classes must implement rnlp, issmall, natural_level
     /// Which lattice translations a lattice-summed 1D kernel includes
 
     /// A lattice-summed kernel sums its 1D factors over the images R = -maxR..maxR.
@@ -267,6 +262,12 @@ namespace madness {
         exclude_home,  ///< R != 0 only
         home_only      ///< R = 0 only; still lattice_summed(), so the displacements stay on the non-periodic domain
     };
+
+    /// Provides the common functionality/interface of all 1D convolutions
+
+    /// interface for 1 term and for 1 dimension;
+    /// the actual data are kept in ConvolutionData1D
+    /// Derived classes must implement rnlp, issmall, natural_level
 
     template <typename Q>
     class Convolution1D {

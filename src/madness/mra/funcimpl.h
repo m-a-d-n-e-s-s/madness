@@ -5123,8 +5123,10 @@ template<size_t NDIM>
             int nused = 1;  // Counts #used at each distance
             std::optional<double> real_last_distsq;
             std::optional<std::uint64_t> lattice_last_distsq;
-            // the shell-wise stop below assumes a kernel that decays away from the source; an operator
-            // whose kernel does not (the rest-of-crystal operator) opts out and sweeps every displacement
+            // the shell-wise stop below assumes a kernel that decays monotonically away from the source;
+            // an operator whose kernel only does so eventually (the rest-of-crystal kernel vanishes near
+            // the source and decays beyond the nearest image) opts out and visits its norm-ordered
+            // groups of displacements instead (SeparatedConvolution::get_disp_active)
             const bool shell_stop = op->screen_by_shell_decay();
 
             // displacements to a face of the kernel range boundary are typically same magnitude (modulo variation),
@@ -5152,7 +5154,7 @@ template<size_t NDIM>
               if (skip_predicate(displacement)) continue;
 
               // without the shell-decay stop the list is ordered by decreasing block norm (get_disp_active),
-              // so the first negligible contribution ends the sweep for this source
+              // so the first negligible contribution ends the loop for this source
               if (!shell_stop && cnorm * op->norm(key.level(), displacement, source) <= tol / fac) break;
 
               keyT d;
@@ -5213,9 +5215,26 @@ template<size_t NDIM>
           // list of displacements sorted in order of increasing distance
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
-          // an operator that cannot use the shell-decay stop sweeps only the displacements with a nonzero block
-          const std::vector<opkeyT> &disp = op->screen_by_shell_decay() ? op->get_disp(key.level()) : op->get_disp_active(key.level());
-          const auto max_distsq_reached = for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
+          std::optional<double> max_distsq_reached;
+          if (op->screen_by_shell_decay()) {
+            max_distsq_reached = for_each(op->get_disp(key.level()), default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
+          } else {
+            // an operator that cannot use the shell-decay stop visits the groups of displacements with a
+            // nonzero block (by wrap pattern, each ordered by decreasing block norm), skipping the groups
+            // none of whose members has a target inside the cell for this source
+            for (const auto& group : op->get_disp_active(key.level())) {
+              bool reachable = true;
+              for (std::size_t d = 0; d < opdim && reachable; ++d) {
+                const std::size_t fd = (op->particle() == 1) ? d : d + (NDIM - opdim);   // function axis of operator axis d
+                if (func_is_treated_by_op_as_periodic[fd]) continue;   // targets wrap: the bounds do not apply
+                const Translation s = key.translation()[fd];
+                reachable = (s >= group.lo[d] && s <= group.hi[d]);
+              }
+              if (!reachable) continue;
+              const auto reached = for_each(group.list, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
+              if (reached) max_distsq_reached = std::max(max_distsq_reached.value_or(0.0), *reached);
+            }
+          }
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
           // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements

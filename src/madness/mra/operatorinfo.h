@@ -68,9 +68,8 @@ struct OperatorInfo {
     std::vector<KernelRange> range = std::vector<KernelRange>(6);
     bool debug=false;
     std::optional<bool> truncate_lowexp_gaussians;  // if given, overrides the default for whether to truncate low-exponent gaussians
-    /// lattice-summed kernels only: sum over the images and exclude the home cell (L = 0),
-    /// giving the rest-of-crystal operator; full == home + images with the same fit.
-    /// Rank grows by 2^p - 1 for p lattice-summed axes, see SeparatedConvolution::initialize_images_only.
+    /// if true, a lattice-summed operator excludes the home cell (L = 0): the rest-of-crystal
+    /// operator, see SeparatedConvolution::initialize_images_only
     bool images_only = false;
 
     template <std::size_t NDIM>
