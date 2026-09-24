@@ -221,6 +221,20 @@ int main(int argc, char **argv) {
       // logic and interdependent parameter follow later
       Params pm(world, parser);
 
+      // A relative `dalton.dir` names a directory beside the deck, but every
+      // stage runs from its own task directory (task_0/moldft, ...), where the
+      // same relative path finds nothing. Resolve it once, against the launch
+      // directory, before any stage changes directory.
+      auto absolute_dalton_dir = [](auto &params) {
+        const std::string d = params.template get<std::string>("dalton.dir");
+        if (!d.empty() && std::filesystem::path(d).is_relative())
+          params.template set_user_defined_value<std::string>(
+              "dalton.dir",
+              std::filesystem::absolute(d).lexically_normal().string());
+      };
+      absolute_dalton_dir(pm.get<IOParameters>());
+      absolute_dalton_dir(pm.get<ResponseParameters>());
+
       // Deck-level `io` block (roadmap change 5): run-wide restart-backend
       // selection. `io backend hdf5` turns the HDF5 opt-in on for every task
       // that supports it; the response-only `response.hdf5 true` keeps
