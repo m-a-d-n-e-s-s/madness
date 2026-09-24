@@ -65,6 +65,9 @@ record), not on node26: `response_he_alpha` just over the `short` boundary at
 a handful of seconds inside `medium`, `response_lih_beta` well inside `long`, and
 `response_h2o_raman_tpa` — the nightly case — `verylong` at 1951 s, well
 inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
+† `response_h2_es_rpa_nokain` was measured on a Neoverse-N1 host, where
+`response_h2_es_rpa` itself takes 32 s, so it costs the same as its parent and
+is registered `medium` with it.
 
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
@@ -82,6 +85,7 @@ inside the 7200 s ctest timeout; re-measure before leaning on those tiers.
 | `response_he_alpha` | `response` | He | linear response: static + dynamic α_zz at one rung; the task-record envelope | 10 s | medium |
 | `response_h2_es_tda` | `response` | H₂ | the lowest TDA excitation energy (`excited.*`), one rung | 21 s | medium |
 | `response_h2_es_rpa` | `response` | H₂ | the same at RPA (`excited.tda false`) | 24 s | medium |
+| `response_h2_es_rpa_nokain` | `response` | H₂ | the RPA deck with `kain false`: the deck's `kain` reaches the ES solve (review C3), and the looser FD stop without KAIN shows in α | 31 s† | medium |
 | `response_lih_beta` | `response` | LiH | static β_zzz (`quadratic true`) plus α_zz, one rung | 42 s | long |
 | `response_h2o_raman_tpa` | `response` | H₂O | at the HF/aug-cc-pVQZ optimized geometry: α(0) xyz, one Raman component, two RPA excited states and their 2PA — the nightly case | 1951 s | verylong |
 | `response_f_doublet_beta` | `response` | F | **open shell**, doublet (`nopen 1`): static + dynamic β requested; pins that the legs converge and the quadratic source is refused | 287 s | verylong |

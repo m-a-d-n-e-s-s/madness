@@ -55,6 +55,8 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # approximation and once at full RPA (`excited.tda false`)
   add_qctest(response_h2_es_tda madqc "qctest;medium;applications")   #  21 s, 7 threads
   add_qctest(response_h2_es_rpa madqc "qctest;medium;applications")   #  24 s, 7 threads
+  # the RPA deck again with `kain false`: the ES solve without KAIN (review C3)
+  add_qctest(response_h2_es_rpa_nokain madqc "qctest;medium;applications") # 31 s on dd (N1), 7 threads; parent 32 s there
   # the `quadratic` path: the z FD leg plus one VBC solve for the static
   # beta_zzz of LiH. `long` rather than the CI tier the rest of the response
   # set sits in -- a static beta cannot be cut below this (see check.json)

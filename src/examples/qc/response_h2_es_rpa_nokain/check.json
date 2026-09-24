@@ -1,0 +1,19 @@
+{
+  "description": "H2 excited states, RPA, with KAIN switched off: response_h2_es_rpa plus `kain false` in the response block. Review finding C3: the deck's kain / maxrotn used to reach only the FD solves, because both ES executors overwrote them. This case runs the ES solve without KAIN. It took 13 envelope iterations (the parent takes 9): FD leg 13 iterations to bsh 1.5e-4, ES root 5 iterations to density 2.6e-4 / bsh 3.6e-3. The ES gate is density + omega, with bsh a sanity check only. Against response_h2_es_rpa: omega +2.4e-5, alpha_zz -5.4e-4. alpha is linear in the FD vector and so carries the looser FD stop into the value; that is why this case has its own reference instead of sharing the parent's. Reference: RelWithDebInfo, Pthreads, ArmPL, 1 rank x 7 threads, dd (Neoverse-N1), 2026-09-23, on c1d2b7fb4, wall 31 s. The parent measures the same 31-32 s on dd and 24 s on Milan, so the case is medium like the parent. omega and alpha tol 1e-3 au.",
+  "expect_files": ["response_h2_es_rpa_nokain/task_1/molresponse/es_analysis__*.json"],
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 1, "type"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
+    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
+    {"key": ["tasks", 1, "convergence", "iterations"], "max": 18},
+    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "n_roots"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "converged"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 1e-3}
+  ]
+}
