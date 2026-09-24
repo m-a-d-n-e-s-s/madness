@@ -91,7 +91,8 @@ double near_face_f(const coord_3d& r) {
     const double a = 100.0, z = r[2] - g_z0;
     return std::pow(a/constants::pi, 1.5)*std::exp(-a*(r[0]*r[0] + r[1]*r[1] + z*z));
 }
-int check_near_face(World& world) {
+int check_near_face(World& world, double z0 = 7.2, const char* what = "source 1.8 bohr from the periodic face") {
+    g_z0 = z0;
     Tensor<double> cell(3,2);
     cell(0,0) = -50; cell(0,1) = 50; cell(1,0) = -50; cell(1,1) = 50; cell(2,0) = -9; cell(2,1) = 9;
     FunctionDefaults<3>::set_cell(cell);
@@ -114,8 +115,7 @@ int check_near_face(World& world) {
     const double err = (vfull - vhome - vimg).norm2();
     int errors = 0;
     if (world.rank() == 0)
-        print("  100x100x18, source 1.8 bohr from the periodic face: |full - home - images| =", err,
-              "  |images f| =", vimg.norm2());
+        print("  100x100x18,", what, ": |full - home - images| =", err, "  |images f| =", vimg.norm2());
     // the residual left is the displacement-reach floor shared by full and home in this cell
     // (each ~1e-4 from the exact potential at thresh 1e-6); before the fix it was 2.5e-3
     if (err > 100.0 * thresh) { print("FAIL: identity violated near the periodic face"); ++errors; }
@@ -164,6 +164,11 @@ int main(int argc, char** argv) {
     errors += check_identity(world, {true,  true,  true}, LatticeRange(true), "periodic xyz, N=inf (7 patterns + dropped tail)");
     FunctionDefaults<3>::set_thresh(1.e-6);
     errors += check_near_face(world);
+    // a nucleus on a cell facet: the projected density is split between the two faces and the
+    // nearest-image interaction between the halves is at distance zero, so the images kernel is
+    // not smooth there and the short-range blocks at wrapped displacements must be applied at
+    // every level near that face
+    errors += check_near_face(world, -9.0, "source on the periodic face   ");
     errors += check_norm_ordered_visit(world);
 
     if (world.rank() == 0) {
