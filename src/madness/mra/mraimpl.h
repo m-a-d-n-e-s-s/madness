@@ -2903,7 +2903,7 @@ namespace madness {
                                              const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
         keyT curr = key;
-        while (curr.level() >= 0 && coeffs.is_local(curr)) {
+        while (coeffs.is_local(curr)) {
             if (coeffs.probe(curr)) {
                 const nodeT& node = coeffs.find(curr).get()->second;
                 Future< std::pair<keyT,coeffT> > result(ref);
@@ -2917,11 +2917,11 @@ namespace madness {
                 }
                 return;
             }
+            // Key::parent() of the root is the root, so without this a tree missing its root spins here
+            MADNESS_CHECK_THROW(curr.level() > 0, "sock_it_to_me: no ancestor of the key is in the tree");
             curr = curr.parent();
         }
-        if (curr.level() >= 0) {
-            woT::task(coeffs.owner(curr), &FunctionImpl<T,NDIM>::sock_it_to_me, curr, ref, TaskAttributes::hipri());
-        }
+        woT::task(coeffs.owner(curr), &FunctionImpl<T,NDIM>::sock_it_to_me, curr, ref, TaskAttributes::hipri());
     }
 
     // like sock_it_to_me, but it replaces empty node with averaged coeffs from further down the tree
