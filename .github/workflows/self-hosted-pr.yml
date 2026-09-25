@@ -47,7 +47,7 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE: 1
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
-      MAD_NUM_THREADS: 32
+      MAD_NUM_THREADS: 30
 
     steps:
       - uses: actions/checkout@v6
@@ -77,4 +77,4 @@ jobs:
           # --bind-to none: this host has 128 cores / 4 NUMA domains, so OpenMPI's
           # default binding for -np 2 gives each rank only 1 core, which collides
           # with MAD_NUM_THREADS and trips MADNESS's over-subscription check.
-          mpiexec -np 2 --bind-to none ./src/madness/mra/testsuite
+          mpiexec -np 2 -x MAD_NUM_THREADS=14 --bind-to none ./src/madness/mra/testsuite
