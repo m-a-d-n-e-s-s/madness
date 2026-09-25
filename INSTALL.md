@@ -112,6 +112,26 @@ The following CMake cache variables turn features on and off.
       only and does not propagate to consumers of an installed MADNESS package.
       Supported with GNU, Clang, AppleClang, and IntelLLVM compilers; ignored
       with a warning on others. Enabled in CI. [default=`OFF`]
+* MADNESS_TARGET_ARCH --- CPU architecture to generate code for [default=`default`]:
+  * `default` --- the toolchain's own baseline (e.g. plain x86-64 for a stock GCC or Clang), so the build runs on
+    any machine the toolchain targets. On x86 this leaves AVX2/FMA unused and costs roughly 15-20% in run time;
+    configure prints a warning saying so.
+  * `performance` --- `-march=x86-64-v3` on x86 (AVX2, FMA, BMI2: Intel Haswell / AMD Excavator, 2013, and newer).
+    The build dies with an illegal instruction on older CPUs, and on VMs or emulators that hide AVX2, so choose it
+    only when every machine that will run the build qualifies — the build host may be newer than the compute
+    nodes. Same as `default` on ARM.
+  * `native` --- the build host's CPU (`-march=native` / `-mcpu=native`); not portable at all.
+  * `none` / `OFF` --- add no architecture flags.
+  * anything else is passed to the compiler as `-march=<value>` (x86, `armv*` on ARM) or `-mcpu=<value>` (ARM).
+
+  If `CMAKE_C_FLAGS`/`CMAKE_CXX_FLAGS` (or a toolchain file) already contain `-march=` or `-mcpu=`, `default`
+  leaves them alone and prints no warning.
+* MADNESS_TUNE_ARCH --- CPU to tune instruction scheduling for (`-mtune=<value>`), without changing which
+  machines the build runs on [default=empty]
+* MADNESS_RELAXED_MATH --- floating-point optimizations [default=`strict`]: `strict` (IEEE-754), `relaxed`
+  (`-fassociative-math -fno-signed-zeros -fno-trapping-math -ffp-contract=fast`: lets the compiler vectorize
+  reductions and fuse multiply-adds, keeps NaN/Inf semantics) or `fast` (`-ffast-math`). The relaxed modes change
+  results in the last digits from build to build, so numerical references produced under `strict` may drift.
 
 ## External libraries
 

@@ -4,7 +4,7 @@ include(CheckCXXCompilerFlag)
 include(CheckCCompilerFlag)
 
 set(MADNESS_TARGET_ARCH "default" CACHE STRING
-    "Target CPU architecture: 'default' (x86-64-v3 on x86, compiler default on ARM), 'native', 'legacy', 'none'/OFF, or custom compiler arch/cpu string")
+    "Target CPU architecture: 'default' (the toolchain's baseline, portable), 'performance' (x86-64-v3 on x86: AVX2/FMA/BMI2, Haswell/Excavator and newer), 'native' (the build host), 'none'/OFF, or a custom compiler arch/cpu string")
 
 set(MADNESS_TUNE_ARCH "" CACHE STRING
     "Optional CPU scheduling tuning (maps to -mtune on x86, e.g., 'native' or 'zen4')")
@@ -19,9 +19,10 @@ else()
   set(_madness_apply_arch ON)
 endif()
 
-# An architecture the user already chose through the compiler flags (by hand or via a toolchain file) wins over
-# the implicit default: the flags added below come after CMAKE_<LANG>_FLAGS on the command line, and the last
-# -march/-mcpu wins, so applying the default would silently override the user's choice.
+# 'default' adds no flags, so the binaries run wherever the toolchain's own output runs: distro and cluster builds
+# are routinely compiled on a newer host than the one they run on, and a configure-time check cannot see that.
+# An architecture the user already chose through the compiler flags (by hand or via a toolchain file) counts as
+# a deliberate choice, so no warning about the portable baseline is due then.
 if (_madness_apply_arch AND MADNESS_TARGET_ARCH STREQUAL "default")
   string(TOUPPER "${CMAKE_BUILD_TYPE}" _madness_build_type)
   set(_madness_user_flags "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS}")
@@ -31,7 +32,7 @@ if (_madness_apply_arch AND MADNESS_TARGET_ARCH STREQUAL "default")
   if (_madness_user_flags MATCHES "(^| )-(march|mcpu)=")
     set(_madness_apply_arch OFF)
     set(_madness_arch_from_user_flags ON)
-    message(STATUS "MADNESS: CMAKE_<LANG>_FLAGS already select the target architecture, MADNESS_TARGET_ARCH=default adds nothing")
+    message(STATUS "MADNESS: CMAKE_<LANG>_FLAGS select the target architecture")
   endif()
 endif()
 
@@ -40,22 +41,20 @@ if (_madness_apply_arch)
 
   if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64|i.86)$")
     if (MADNESS_TARGET_ARCH STREQUAL "default")
+      message(WARNING "MADNESS: building for the portable x86-64 baseline (no AVX2/FMA), which runs MADNESS "
+                      "roughly 15-20% slower than an AVX2 build. If every machine that will run this build has AVX2 "
+                      "(Intel Haswell / AMD Excavator, 2013, or newer), configure with "
+                      "-DMADNESS_TARGET_ARCH=performance, or with -DMADNESS_TARGET_ARCH=native to target this host only.")
+    elseif (MADNESS_TARGET_ARCH STREQUAL "performance")
       check_cxx_compiler_flag("-march=x86-64-v3" _HAS_X86_64_V3)
       if (_HAS_X86_64_V3)
         list(APPEND _arch_flags_to_apply "-march=x86-64-v3")
       else()
-        check_cxx_compiler_flag("-mavx2" _HAS_AVX2)
-        if (_HAS_AVX2)
-          list(APPEND _arch_flags_to_apply "-mavx2" "-mfma")
-        endif()
+        # compilers older than GCC 11 / Clang 12 do not know the x86-64-v3 level; spell out its main extensions
+        list(APPEND _arch_flags_to_apply "-mavx2" "-mfma" "-mbmi2")
       endif()
     elseif (MADNESS_TARGET_ARCH STREQUAL "native")
       list(APPEND _arch_flags_to_apply "-march=native")
-    elseif (MADNESS_TARGET_ARCH STREQUAL "legacy")
-      check_cxx_compiler_flag("-march=x86-64" _HAS_X86_64_BASE)
-      if (_HAS_X86_64_BASE)
-        list(APPEND _arch_flags_to_apply "-march=x86-64")
-      endif()
     else()
       # Custom user-supplied architecture name
       list(APPEND _arch_flags_to_apply "-march=${MADNESS_TARGET_ARCH}")
@@ -75,7 +74,7 @@ if (_madness_apply_arch)
         if (_HAS_MCPU_NATIVE)
           list(APPEND _arch_flags_to_apply "-mcpu=native")
         endif()
-      elseif (NOT (MADNESS_TARGET_ARCH STREQUAL "default" OR MADNESS_TARGET_ARCH STREQUAL "legacy"))
+      elseif (NOT (MADNESS_TARGET_ARCH STREQUAL "default" OR MADNESS_TARGET_ARCH STREQUAL "performance"))
         if (MADNESS_TARGET_ARCH MATCHES "^armv")
           list(APPEND _arch_flags_to_apply "-march=${MADNESS_TARGET_ARCH}")
         else()
@@ -84,10 +83,9 @@ if (_madness_apply_arch)
       endif()
     else()
       # 'default' keeps the compiler's own baseline, which is never below armv8-a and may be higher
-      # (e.g. a toolchain configured --with-cpu=neoverse-v2); forcing -march=armv8-a would downgrade it.
-      if (MADNESS_TARGET_ARCH STREQUAL "default")
-      elseif (MADNESS_TARGET_ARCH STREQUAL "legacy")
-        list(APPEND _arch_flags_to_apply "-march=armv8-a")
+      # (e.g. a toolchain configured --with-cpu=neoverse-v2). There is no portable ARM counterpart of x86-64-v3
+      # worth selecting by default, so 'performance' does the same; use 'native' or an explicit CPU instead.
+      if (MADNESS_TARGET_ARCH STREQUAL "default" OR MADNESS_TARGET_ARCH STREQUAL "performance")
       elseif (MADNESS_TARGET_ARCH STREQUAL "native")
         check_cxx_compiler_flag("-mcpu=native" _HAS_MCPU_NATIVE)
         if (_HAS_MCPU_NATIVE)
