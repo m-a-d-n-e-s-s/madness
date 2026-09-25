@@ -332,7 +332,10 @@ void SCF::save_mos(World& world) {
     // as no aoamo/aobmo overlap matrix can be computed
     if (param.nwfile() == "none") {
         tensorT Saoamo = matrix_inner(world, ao, amo);
-        tensorT Saobmo = (!param.spin_restricted()) ? matrix_inner(world, ao, bmo) : tensorT();
+        // no beta orbitals (nbeta == 0): matrix_inner refuses an empty vector, and load_mos expects ao.size() x 0
+        tensorT Saobmo = param.spin_restricted() ? tensorT()
+                       : bmo.empty()             ? tensorT(long(ao.size()), 0l)
+                                                 : matrix_inner(world, ao, bmo);
         if (world.rank() == 0) {
             archive::BinaryFstreamOutputArchive arao(param.prefix()+".restartaodata");
             arao << Saoamo << aeps << aocc << aset;
