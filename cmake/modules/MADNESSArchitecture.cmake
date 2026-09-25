@@ -4,19 +4,35 @@ include(CheckCXXCompilerFlag)
 include(CheckCCompilerFlag)
 
 set(MADNESS_TARGET_ARCH "default" CACHE STRING
-    "Target CPU architecture: 'default' (x86-64-v3 on x86, armv8-a on ARM), 'native', 'legacy', 'none'/OFF, or custom compiler arch/cpu string")
+    "Target CPU architecture: 'default' (x86-64-v3 on x86, compiler default on ARM), 'native', 'legacy', 'none'/OFF, or custom compiler arch/cpu string")
 
 set(MADNESS_TUNE_ARCH "" CACHE STRING
     "Optional CPU scheduling tuning (maps to -mtune on x86, e.g., 'native' or 'zen4')")
 
-set(MADNESS_RELAXED_MATH "default" CACHE STRING
-    "Floating-point optimization mode: 'default' (associative + FMA contraction, preserves NaN/Inf), 'fast' (-ffast-math), or 'strict'/OFF (IEEE-754)")
+set(MADNESS_RELAXED_MATH "strict" CACHE STRING
+    "Floating-point optimization mode: 'strict'/OFF (IEEE-754, the default), 'relaxed' (associative + FMA contraction, preserves NaN/Inf), or 'fast' (-ffast-math)")
 
 # Check if target architecture flags are disabled
 if (MADNESS_TARGET_ARCH MATCHES "^(none|NONE|OFF|off|False|FALSE|0)$")
   set(_madness_apply_arch OFF)
 else()
   set(_madness_apply_arch ON)
+endif()
+
+# An architecture the user already chose through the compiler flags (by hand or via a toolchain file) wins over
+# the implicit default: the flags added below come after CMAKE_<LANG>_FLAGS on the command line, and the last
+# -march/-mcpu wins, so applying the default would silently override the user's choice.
+if (_madness_apply_arch AND MADNESS_TARGET_ARCH STREQUAL "default")
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" _madness_build_type)
+  set(_madness_user_flags "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS}")
+  if (_madness_build_type)
+    string(APPEND _madness_user_flags " ${CMAKE_C_FLAGS_${_madness_build_type}} ${CMAKE_CXX_FLAGS_${_madness_build_type}}")
+  endif()
+  if (_madness_user_flags MATCHES "(^| )-(march|mcpu)=")
+    set(_madness_apply_arch OFF)
+    set(_madness_arch_from_user_flags ON)
+    message(STATUS "MADNESS: CMAKE_<LANG>_FLAGS already select the target architecture, MADNESS_TARGET_ARCH=default adds nothing")
+  endif()
 endif()
 
 if (_madness_apply_arch)
@@ -67,7 +83,10 @@ if (_madness_apply_arch)
         endif()
       endif()
     else()
-      if (MADNESS_TARGET_ARCH STREQUAL "default" OR MADNESS_TARGET_ARCH STREQUAL "legacy")
+      # 'default' keeps the compiler's own baseline, which is never below armv8-a and may be higher
+      # (e.g. a toolchain configured --with-cpu=neoverse-v2); forcing -march=armv8-a would downgrade it.
+      if (MADNESS_TARGET_ARCH STREQUAL "default")
+      elseif (MADNESS_TARGET_ARCH STREQUAL "legacy")
         list(APPEND _arch_flags_to_apply "-march=armv8-a")
       elseif (MADNESS_TARGET_ARCH STREQUAL "native")
         check_cxx_compiler_flag("-mcpu=native" _HAS_MCPU_NATIVE)
@@ -101,12 +120,13 @@ if (_madness_apply_arch)
     endif()
   endforeach()
 
-else()
+elseif (NOT _madness_arch_from_user_flags)
   message(STATUS "MADNESS: Target architecture flags disabled (MADNESS_TARGET_ARCH=${MADNESS_TARGET_ARCH})")
 endif()
 
-# Floating-point relaxation mode
-if (MADNESS_RELAXED_MATH STREQUAL "default")
+# Floating-point relaxation mode. Opt-in: relaxed modes change results between builds (the reduction order depends
+# on the vectorization the compiler chooses), which moves numerical references and regression baselines.
+if (MADNESS_RELAXED_MATH STREQUAL "relaxed")
   set(_math_flags_to_check
       "-fassociative-math"
       "-fno-signed-zeros"
