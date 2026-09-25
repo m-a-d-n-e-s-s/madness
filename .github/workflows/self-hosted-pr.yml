@@ -1,0 +1,80 @@
+name: Self-hosted PR Build
+
+# Runs on a real, persistent machine (not an ephemeral GitHub-hosted VM), so this
+# is only safe against untrusted PR code because "Require approval for external
+# contributors" is enabled under Settings > Actions > General > Fork
+# pull request workflows from outside collaborators. A maintainer must approve
+# before an external PR's workflow runs here.
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: self-hosted-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+   contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.suite.name }} (GENTENSOR=${{ matrix.gentensor }})
+    runs-on: [self-hosted, madness]
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        gentensor: ["OFF", "ON"]
+        # Disjoint slices of the madness/test/ tree by ctest label, so no test
+        # runs in more than one job. Every test there carries a cost tier
+        # (short/medium/long/verylong); qctest cases carry `qctest` as well.
+        #  - short:  every short/medium test, qctest cases included, i.e.
+        #            exactly what check-short-madness runs
+        #  - long:   long tests that aren't qctest cases
+        #  - qctest: long qctest cases (the short/medium ones ran in `short`)
+        # The verylong tier (hours per test with GENTENSOR) is left to
+        # self-hosted-nightly.yml. -L is a regex, so `long` is anchored to
+        # keep it from matching `verylong`.
+        suite:
+          - name: short
+            args: -L "short|medium"
+          - name: long
+            args: -L "^long$" -LE qctest
+          - name: qctest
+            args: -L qctest -LE "short|medium|verylong"
+    env:
+      CTEST_OUTPUT_ON_FAILURE: 1
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+      MAD_NUM_THREADS: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build-pr -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-march=native -O3" \
+            -DBUILD_TESTING=ON \
+            -DMADNESS_WERROR=ON \
+            -DMADNESS_TASK_BACKEND=TBB \
+            -DENABLE_GENTENSOR=${{ matrix.gentensor }}
+
+      - name: Build
+        run: cmake --build build-pr
+
+      - name: Test (${{ matrix.suite.name }})
+        working-directory: build-pr
+        run: ctest ${{ matrix.suite.args }} -R "madness/test/"
+
+      - name: MPI multi-rank smoke test
+        if: matrix.suite.name == 'short'
+        working-directory: build-pr
+        run: |
+          cmake --build . --target testsuite
+          # --bind-to none: this host has 128 cores / 4 NUMA domains, so OpenMPI's
+          # default binding for -np 2 gives each rank only 1 core, which collides
+          # with MAD_NUM_THREADS and trips MADNESS's over-subscription check.
+          mpiexec -np 2 -x MAD_NUM_THREADS=14 --bind-to none ./src/madness/mra/testsuite
