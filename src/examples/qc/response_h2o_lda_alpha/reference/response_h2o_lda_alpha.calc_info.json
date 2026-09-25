@@ -1,0 +1,69 @@
+{
+  "reference_source": "DALTON master 984913d, SVWN5/t-aug-cc-pVQZ, **PROPERTIES .ALPHA (*ABALNR .FREQUE 0.0 0.05); see dalton_reference/. Only the keys check.json names are meaningful; alpha off-diagonals are zero-filled and not checked. DALTON E = -75.909693246232.",
+  "tasks": [
+    {
+      "type": "scf"
+    },
+    {
+      "type": "response",
+      "precision": {
+        "k": 8,
+        "protocol_key": "1e-06_k8"
+      },
+      "convergence": {
+        "status": "converged",
+        "n_unconverged": 0
+      },
+      "properties": {
+        "response_properties": {
+          "alpha": {
+            "1e-06_k8": [
+              {
+                "omega": 0.0,
+                "converged": true,
+                "alpha": [
+                  [
+                    10.49982,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    10.27436,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0,
+                    10.34337
+                  ]
+                ]
+              },
+              {
+                "omega": 0.05,
+                "converged": true,
+                "alpha": [
+                  [
+                    10.67091,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    10.35192,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0,
+                    10.4557
+                  ]
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

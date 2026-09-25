@@ -71,6 +71,12 @@ is registered `medium` with it.
 `response_h2o_tpa` and `response_h2o_tpa_seeded` were measured on the same
 host, concurrently with each other and with a CI runner; treat those times as
 upper bounds.
+The four `response_*_alpha` DFT cases compare against DALTON, not against a
+MADNESS reference: each `reference/*.calc_info.json` carries only the checked
+keys, filled with DALTON t-aug-cc-pVQZ values, and says so in its
+`reference_source` field, with the DALTON inputs and output in
+`dalton_reference/`. Do not regenerate them with `--update`; that would replace
+DALTON's numbers with MADNESS's own. They were timed on the same Neoverse-N1 host.
 
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
@@ -95,6 +101,10 @@ upper bounds.
 | `response_h2o_tpa_seeded` | `response` | H₂O | the same seeded from DALTON (`io.dalton.dir`, a committed HF/aug-cc-pVDZ `.TWO-PHOTON` run): SCF, ES and the 2PA legs all start from the seed; iteration caps below the cold counts and seed-guard overlaps | 2621–3320 s† | verylong |
 | `response_f_doublet_beta` | `response` | F | **open shell**, doublet (`nopen 1`): static + dynamic β requested; pins that the legs converge and the quadratic source is refused | 287 s | verylong |
 | `response_c_triplet_beta` | `response` | C | **open shell**, triplet (`nopen 2`): the same, with two unpaired electrons | 305 s | verylong |
+| `response_he_lda_alpha` | `response` | He | LDA α(0), α(0.05) **against DALTON** (t-aug-cc-pVQZ): `reference/` holds DALTON's numbers, not a MADNESS run | 22 s† | medium |
+| `response_he_pbe0_alpha` | `response` | He | the same with PBE0 (hybrid: f_xc plus exact exchange in the response) | 52 s† | long |
+| `response_h2o_lda_alpha` | `response` | H₂O | LDA α diagonal at 0 and 0.05 **against DALTON** t-aug-cc-pVQZ | 512 s† | verylong |
+| `response_h2o_pbe0_alpha` | `response` | H₂O | the same with PBE0 | 4581 s† | verylong |
 | `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |

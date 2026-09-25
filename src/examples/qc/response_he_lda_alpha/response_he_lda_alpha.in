@@ -1,0 +1,32 @@
+# DFT linear response validated against DALTON: He, LDA (Slater + VWN5), alpha_zz
+# at omega = 0 and 0.05 au. The reference/ values are DALTON's, not a MADNESS run:
+# t-aug-cc-pVQZ, where the step from d-aug moves alpha by at most 0.012% (He) /
+# 0.006% (H2O). DALTON inputs and output are in dalton_reference/. Phase 3.3 of
+# the molresponse plan; the functional definitions match (lda = LDA_X + VWN5 =
+# DALTON SVWN5; pbe0 = PBE0).
+#
+# Run:   ./run.sh          (or: madqc --wf=response response_he_lda_alpha.in)
+
+dft
+    xc        lda
+    econv     1e-6
+    dconv     1e-5
+    protocol  [1e-4, 1e-6]
+    maxiter   30
+end
+
+response
+    dipole              true
+    dipole.directions   z
+    dipole.frequencies  [0.0, 0.05]
+    dconv               1e-5
+    protocol            [1e-4, 1e-6]
+    maxiter             40
+    print_level         1
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

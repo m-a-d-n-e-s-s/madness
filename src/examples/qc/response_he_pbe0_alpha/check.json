@@ -1,0 +1,118 @@
+{
+  "description": "He PBE0 static and dynamic (0.05 au) alpha_zz, protocol [1e-4, 1e-6] (k 8), checked against DALTON t-aug-cc-pVQZ to rtol 1e-3: reference/ holds DALTON's numbers (1.494831 at 0; 1.499638 at 0.05), not a MADNESS run. MADNESS at this rung gave 1.494696 / 1.499501 (dd, 2026-09-25). Basis convergence of the reference: aug -> d-aug -> t-aug; the last step moves alpha by <= 0.012% (He) / 0.006% (H2O). The agreement found in scoping was 0.009-0.06%, so rtol 1e-3 leaves margin for DALTON's residual basis error and MADNESS's rung error. Excitation energies are deliberately not checked here: see the open DFT omega offset (HF agrees with DALTON to 2e-6, LDA/PBE0 lowest water root +6.9e-4 / +4.0e-4 au).",
+  "checks": [
+    {
+      "key": [
+        "tasks",
+        1,
+        "type"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "k"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "protocol_key"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "status"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "n_unconverged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "omega"
+      ],
+      "tol": 1e-12
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "alpha",
+        0,
+        0
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "alpha",
+        0,
+        0
+      ],
+      "rtol": 0.001
+    }
+  ]
+}

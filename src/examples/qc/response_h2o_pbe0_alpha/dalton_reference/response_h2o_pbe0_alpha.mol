@@ -1,0 +1,10 @@
+BASIS
+t-aug-cc-pVQZ
+Water at the response_h2o_raman_tpa geometry (bohr)
+DFT validation
+Atomtypes=2 Nosymmetry
+Charge=8.0 Atoms=1
+O     0.0000000000   0.0000005943   0.1925923500
+Charge=1.0 Atoms=2
+H     0.0000000000   1.4214240411  -0.8721230117
+H     0.0000000000  -1.4214246355  -0.8721234678

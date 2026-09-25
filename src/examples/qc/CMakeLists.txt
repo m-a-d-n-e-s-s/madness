@@ -76,6 +76,18 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   add_qctest(response_h2o_tpa_seeded  madqc "qctest;verylong;applications") # 2621-3320 s on dd (N1), 7 threads; nightly, dalton.dir
   add_qctest(response_f_doublet_beta  madqc "qctest;verylong;applications")  # 287 s, 7 threads; nightly, open shell nopen 1
   add_qctest(response_c_triplet_beta  madqc "qctest;verylong;applications")  # 305 s, 7 threads; nightly, open shell nopen 2
+  # DFT linear response checked against DALTON, not against a MADNESS run: the
+  # reference/ values are DALTON t-aug-cc-pVQZ alphas (inputs and output in each
+  # case's dalton_reference/). Phase 3.3 of the molresponse plan.
+  add_qctest(response_he_lda_alpha     madqc "qctest;medium;applications")   #   22 s on dd (N1), 7 threads
+  add_qctest(response_he_pbe0_alpha    madqc "qctest;long;applications")     #   52 s on dd (N1), 7 threads
+  add_qctest(response_h2o_lda_alpha    madqc "qctest;verylong;applications") #  512 s on dd (N1), 7 threads; nightly
+  add_qctest(response_h2o_pbe0_alpha   madqc "qctest;verylong;applications") # 4581 s on dd (N1), 7 threads; nightly
+  # Refusal cases (check.json "expect_error"): each deck must be rejected with the
+  # stated reason rather than run and quietly drop the property. No reference/.
+  add_qctest(response_he_beta_or_refused   madqc "qctest;short;applications")
+  add_qctest(response_he_raman_bad_atom    madqc "qctest;short;applications")
+  add_qctest(response_he_lda_beta_refused  madqc "qctest;short;applications")
   add_qctest(scf_h2o_hf        madqc "qctest;long;applications")      #  35 s
   # asserts the optimizer projects translations/rotations out of the gradient
   # before testing convergence, and that explicit `optimization` values beat the
@@ -91,8 +103,12 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
-  add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
-  add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  # The 6D pair functions of MP2/CC2 are only tractable with the compressed
+  # tensor representation, so these decks need ENABLE_GENTENSOR.
+  if (ENABLE_GENTENSOR)
+    add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
+    add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  endif()
   add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
   add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s

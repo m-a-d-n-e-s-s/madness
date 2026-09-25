@@ -1,0 +1,178 @@
+{
+  "description": "H2O LDA (Slater + VWN5) static and dynamic (0.05 au) the alpha diagonal (xx, yy, zz), protocol [1e-4, 1e-6] (k 8), checked against DALTON t-aug-cc-pVQZ to rtol 1e-3: reference/ holds DALTON's numbers (10.49982, 10.27436, 10.34337 at 0; 10.67091, 10.35192, 10.4557 at 0.05), not a MADNESS run. MADNESS at this rung gave (10.49362, 10.27046, 10.34011) at 0 and (10.66424, 10.34792, 10.45225) at 0.05 (dd, 2026-09-25; within 0.06%). Basis convergence of the reference: aug -> d-aug -> t-aug; the last step moves alpha by <= 0.012% (He) / 0.006% (H2O). The agreement found in scoping was 0.009-0.06%, so rtol 1e-3 leaves margin for DALTON's residual basis error and MADNESS's rung error. Excitation energies are deliberately not checked here: see the open DFT omega offset (HF agrees with DALTON to 2e-6, LDA/PBE0 lowest water root +6.9e-4 / +4.0e-4 au).",
+  "checks": [
+    {
+      "key": [
+        "tasks",
+        1,
+        "type"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "k"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "precision",
+        "protocol_key"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "status"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "convergence",
+        "n_unconverged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "omega"
+      ],
+      "tol": 1e-12
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "alpha",
+        0,
+        0
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "alpha",
+        1,
+        1
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        0,
+        "alpha",
+        2,
+        2
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "converged"
+      ],
+      "tol": 0
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "alpha",
+        0,
+        0
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "alpha",
+        1,
+        1
+      ],
+      "rtol": 0.001
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "properties",
+        "response_properties",
+        "alpha",
+        "1e-06_k8",
+        1,
+        "alpha",
+        2,
+        2
+      ],
+      "rtol": 0.001
+    }
+  ]
+}
