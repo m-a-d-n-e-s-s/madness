@@ -49,6 +49,18 @@
 
 namespace madness {
 
+    /// Whether two squared real-space distances of displacements (see Key::real_distsq, Key::real_distsq_bc)
+    /// belong to the same shell.
+
+    /// The distances are sums of (cell width * lattice offset)^2, so equivalent displacements (e.g. {3,2,2} and
+    /// {2,2,3} in an (a,b,a) cell) can differ by a few ulps from summation order alone, whereas distinct shells
+    /// differ by many orders of magnitude more than that. The test is purely relative, so the grouping does not
+    /// depend on the units or the size of the cell. Zero (a displacement touching the central box) is exact and
+    /// only matches zero.
+    inline bool same_displacement_shell(double a, double b) {
+        return a == b || std::abs(a - b) <= 1e-10 * std::max(std::abs(a), std::abs(b));
+    }
+
     // How should we treat destinations "extra" to the [0, 2^n) standard domain?
     enum class ExtraDomainPolicy {
         Discard,  // Use case: most computations.
@@ -86,9 +98,14 @@ namespace madness {
         }
 
         // Represents a displacement paired with its precomputed distance metrics.
-        // Precomputing the distances avoids repeatedly evaluating floating-point arithmetic
-        // inside the comparison operator and guarantees a strict total ordering immune to
-        // floating-point reassociation or FMA instruction differences across operands.
+        // Precomputing the distances gives every displacement a single value, so the comparison is a strict
+        // weak ordering even if the compiler evaluates real_distsq differently at different call sites
+        // (FMA contraction, reassociation); recomputing it inside the comparator made std::sort UB.
+        // N.B. the order is exact, not soft: equivalent displacements whose distances differ by rounding are
+        // ordered by that rounding rather than by the tie-breakers. That is harmless, since any shell is still
+        // contiguous (distinct shells are far apart compared to rounding), and consumers group displacements
+        // into shells with same_displacement_shell; only the zero shell, whose distance is exact, is ordered
+        // within by distsq, and consumers rely on that.
         struct DispEntry {
             Key<NDIM> key;
             double real_distsq;
@@ -510,7 +527,7 @@ namespace madness {
               // among standard displacements => keep if longer than the longest standard displacement considered
               // N.B. same distance as used to order the standard displacements (see FunctionImpl::do_apply)
               const auto distsq = displacement->real_distsq_bc(is_lattice_summed_, cell_width_);
-              return distsq > reach_->max_distsq;
+              return distsq > reach_->max_distsq && !same_displacement_shell(distsq, reach_->max_distsq);
             }
             else  // not among standard displacements => keep it
               return true;
