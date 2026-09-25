@@ -23,6 +23,20 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
         initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
         initialize<bool>("kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
+        initialize<double>("kain.min_residual", 0.1,
+                           "KAIN hold-off: apply KAIN in an iteration only when its raw BSH "
+                           "residual is below this (plain BSH steps above it; a DALTON-seeded "
+                           "ES start at 20-25% residual otherwise derails on KAIN's first "
+                           "extrapolation). 0 disables.");
+        initialize<int>("stall.window", 6,
+                        "Plateau detector: stop a response/ES solve when its gated residuals "
+                        "(FD: bsh, density; ES: density, |dw|) have not improved by "
+                        "stall.ratio over this many iterations while still above the "
+                        "targets (the truncation-noise floor). Same acceptance as maxiter, "
+                        "fewer wasted iterations. 0 disables.");
+        initialize<double>("stall.ratio", 0.1,
+                           "Plateau detector: minimum relative improvement of the gate "
+                           "distance over stall.window iterations to count as progress.");
         initialize<double>("maxrotn", .50, "Max orbital rotation per iteration");
         initialize<size_t>("maxsub", 8, "size of iterative subspace ... set to 0 or 1 to disable");
         initialize<std::string>("xc", "hf", "XC input line");
@@ -48,6 +62,13 @@ struct ResponseParameters : public QCCalculationParametersBase {
                         "node-aligned subworlds (F2 state-parallel path); 0 = "
                         "single-World reference path. Use <= nodes, and note "
                         "PMIx on some clusters caps tasks/node at 2.");
+        initialize<int>("subworld_ranks", 0,
+                        "ranks per state-parallel subworld (large-system regime). "
+                        "> 0 switches the fan-out to a universe-level contiguous "
+                        "split: G = min(items, universe_ranks / subworld_ranks) "
+                        "subworlds that may span nodes (e.g. 64 = 8 nodes x 8 ranks "
+                        "per state, the SCF sizing for ~300 MOs). 0 = per-node "
+                        "packing controlled by `subworlds`.");
         initialize<bool>("beta.shg", true,
                          "compute only SHG beta triplets (omegaB=omegaC, "
                          "omegaA=-(omegaB+omegaC))");
@@ -55,6 +76,11 @@ struct ResponseParameters : public QCCalculationParametersBase {
                          "compute only optical-rectification beta triplets "
                          "(omegaB=0, omegaA=-omegaC)");
         initialize<bool>("beta.all_triplets", false, "compute full beta triplet grid over all (omegaB, omegaC) pairs");
+        initialize<std::vector<double>>("beta.frequencies", {},
+                                        "driver frequencies for the hyperpolarizability (SHG: legs at w and 2w). "
+                                        "Empty (default) = every dipole.frequencies entry, which for a grid "
+                                        "reaching 0.2 au also solves 2w = 0.4 au legs above the first pole "
+                                        "(closeout attempt 12: near-resonant legs that never converge).");
         initialize<std::string>("state_parallel", "off", "state-level subgroup scheduling mode (off, auto, on)", {"off", "auto", "on"});
         initialize<size_t>("state_parallel_groups", 1, "number of processor groups for state-level subgroup scheduling");
         initialize<size_t>("state_parallel_min_states", 4,
@@ -70,10 +96,29 @@ struct ResponseParameters : public QCCalculationParametersBase {
         initialize<bool>("excited.enable", false, "enable excited-state bundle planning metadata scaffolding");
         initialize<size_t>("excited.num_states", 1, "number of excited states to target when enabled");
         initialize<bool>("excited.tda", false, "use Tamm-Dancoff approximation in excited-state stage");
+        initialize<bool>("excited.tpa", false,
+                         "two-photon absorption: with excited.enable, also "
+                         "solve the derived dipole FD legs at half of each "
+                         "converged root energy (3 per root) and run the 2PA "
+                         "residue contraction. Off = roots only.");
         initialize<size_t>("excited.guess_max_iter", 5, "maximum iterations for excited-state guess stage");
         initialize<size_t>("excited.maxiter", 20, "maximum iterations for excited-state solve stage");
         initialize<size_t>("excited.maxsub", 8, "subspace size for excited-state iterative solves");
         initialize<size_t>("excited.owner_group", 0, "subgroup lane reserved for excited-state bundle execution");
+        initialize<std::string>("excited.guess", "solid_harmonics",
+                                "excited-state initial-guess generator. solid_harmonics "
+                                "(default): angular trials (solid harmonic x occupied "
+                                "orbital) — structurally blind to totally-symmetric / "
+                                "radially-excited states on atoms. virtual_ao: "
+                                "energy-ordered single excitations into AO-basis virtual "
+                                "orbitals (NWChem CIS-diagonal guess; closed-shell only). "
+                                "random: envelope-localized noise (cold but unbiased).",
+                                {"solid_harmonics", "virtual_ao", "random"});
+        initialize<std::string>("excited.guess_basis", "aug-cc-pvdz",
+                                "Gaussian AO basis projected to build the virtual_ao "
+                                "excited-state guess (ignored by other guess modes). "
+                                "Radial rank per l-sector = #shells(l) - #occupied(l), "
+                                "so a larger basis reaches further up the radial ladder.");
         //** if properites are requested, then one should specify directions,
         // frequencies, and atom_indices(for nuclear response) */
         initialize<bool>("property", false, "Compute properties");
@@ -91,10 +136,35 @@ struct ResponseParameters : public QCCalculationParametersBase {
                                 "the projected RSPVEC vectors. Import-only — madness never "
                                 "invokes DALTON. Geometry fingerprint mismatch is a hard error; "
                                 "frequencies must match exactly 1-to-1.");
+        initialize<std::string>("seed.start_rung", "coarse",
+                                "protocol rung where a SEEDED response run starts. 'coarse' "
+                                "(default) climbs the full coarse->fine ladder; 'fine' skips "
+                                "straight to the finest rung when a dalton.dir seed is present "
+                                "(between-pole runs: the coarse rung burns maxiter unconverged "
+                                "and launders away the seed's head start — the seed is already "
+                                "at the physics). Ignored without dalton.dir.",
+                                {"coarse", "fine"});
+        initialize<std::string>("seed.es_y", "zero",
+                                "excited-state seed from dalton.dir: y block = 'dalton' (DALTON de-excitation "
+                                "vector, -sqrt2 Y) or 'zero' (X only; the Full solver builds y as after a TDA "
+                                "warmup). 2026-09-10: the DALTON y block made the seeded RPA solve diverge "
+                                "(h2o, lih) while X-only seeds behave like a converged TDA warmup; default zero "
+                                "until the y convention is validated.", {"dalton", "zero"});
+        initialize<bool>("seed.es_warmup", false,
+                         "excited-state seed from dalton.dir: false = start the Full (RPA) solve "
+                         "directly from the seed at the active rung (no TDA warmup); true = run the "
+                         "KAIN-free TDA warmup from the seed's X block first, then promote to Full. "
+                         "Diagnostic knob (2026-09-10); the seeded workflow wants false.");
+        initialize<double>("seed.freq_tol", 0.0,
+                           "nearest-frequency DALTON seed for FD legs whose frequency is NOT "
+                           "in the RSPVEC (the derived two-photon legs at omega_f/2: MADNESS's "
+                           "omega_f differs from DALTON's by ~1e-3 au). 0 (default) = exact "
+                           "match only (dalton.dir behaviour); > 0 = use the closest DALTON N(omega) "
+                           "record within this tolerance (au) as the initial guess. Ignored without dalton.dir.");
         initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
         initialize<size_t>("maxiter", 25, "maximum number of response iterations");
         initialize<std::string>("deriv", "abgv", "derivative method", {"abgv", "bspline", "ble"});
-        initialize<std::string>("dft_deriv", "abgv", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
+        initialize<std::string>("dft_deriv", "bspline", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
     }
 
     std::string get_tag() const override {
@@ -135,6 +205,9 @@ public:
     [[nodiscard]] int subworlds() const {
         return get<int>("subworlds");
     }
+    [[nodiscard]] int subworld_ranks() const {
+        return get<int>("subworld_ranks");
+    }
     [[nodiscard]] bool step_restrict() const {
         return get<bool>("step_restrict");
     }
@@ -150,8 +223,29 @@ public:
     [[nodiscard]] std::string dalton_dir() const {
         return get<std::string>("dalton.dir");
     }
+    [[nodiscard]] std::string seed_start_rung() const {
+        return get<std::string>("seed.start_rung");
+    }
+    [[nodiscard]] bool seed_es_warmup() const {
+        return get<bool>("seed.es_warmup");
+    }
+    [[nodiscard]] std::string seed_es_y() const {
+        return get<std::string>("seed.es_y");
+    }
+    [[nodiscard]] double seed_freq_tol() const {
+        return get<double>("seed.freq_tol");
+    }
     [[nodiscard]] bool kain() const {
         return get<bool>("kain");
+    }
+    [[nodiscard]] double kain_min_residual() const {
+        return get<double>("kain.min_residual");
+    }
+    [[nodiscard]] int stall_window() const {
+        return get<int>("stall.window");
+    }
+    [[nodiscard]] double stall_ratio() const {
+        return get<double>("stall.ratio");
     }
     [[nodiscard]] size_t maxsub() const {
         return get<size_t>("maxsub");
@@ -183,6 +277,9 @@ public:
     [[nodiscard]] bool beta_or() const {
         return get<bool>("beta.or");
     }
+    [[nodiscard]] std::vector<double> beta_frequencies() const {
+        return get<std::vector<double>>("beta.frequencies");
+    }
     [[nodiscard]] bool beta_all_triplets() const {
         return get<bool>("beta.all_triplets");
     }
@@ -210,6 +307,9 @@ public:
     [[nodiscard]] bool excited_enable() const {
         return get<bool>("excited.enable");
     }
+    [[nodiscard]] bool excited_tpa() const {
+        return get<bool>("excited.tpa");
+    }
     [[nodiscard]] size_t excited_num_states() const {
         return get<size_t>("excited.num_states");
     }
@@ -227,6 +327,12 @@ public:
     }
     [[nodiscard]] size_t excited_owner_group() const {
         return get<size_t>("excited.owner_group");
+    }
+    [[nodiscard]] std::string excited_guess() const {
+        return get<std::string>("excited.guess");
+    }
+    [[nodiscard]] std::string excited_guess_basis() const {
+        return get<std::string>("excited.guess_basis");
     }
     [[nodiscard]] std::vector<double> dipole_frequencies() const {
         return get<std::vector<double>>("dipole.frequencies");

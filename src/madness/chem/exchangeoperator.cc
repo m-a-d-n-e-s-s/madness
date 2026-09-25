@@ -13,19 +13,25 @@ template<typename T, std::size_t NDIM>
 Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, const int ispin)
         : world(world), symmetric_(false), lo(calc->param.lo()) {
 
+    // The exchange sum runs over occupied orbitals only: drop zero-occupation
+    // orbitals (the virtuals when nvalpha/nvbeta > 0). Fractional occupations
+    // would need an occ-scaled bra, which the symmetric algorithms cannot
+    // represent -- refuse them rather than sum them unweighted.
+    const Tensor<double>& occ = (ispin == 0) ? calc->aocc : calc->bocc;
+    const std::vector<Function<double, 3>>& mo = (ispin == 0) ? calc->amo : calc->bmo;
+    std::vector<Function<double, 3>> occupied_mo;
+    for (size_t i = 0; i < mo.size(); ++i) {
+        if (long(i) < occ.size() and occ(long(i)) == 0.0) continue;
+        MADNESS_CHECK_THROW(long(i) >= occ.size() or occ(long(i)) == 1.0,
+                            "Exchange requires occupation numbers of 0 or 1");
+        occupied_mo.push_back(mo[i]);
+    }
+
     if constexpr (std::is_same_v<T,double_complex>) {
-        if (ispin == 0) { // alpha spin
-            mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
-        } else if (ispin == 1) {  // beta spin
-            mo_ket = convert<double, T, NDIM>(world, calc->bmo);
-        }
+        mo_ket = convert<double, T, NDIM>(world, occupied_mo);        // deep copy necessary if T==double_complex
         mo_bra = conj(world, mo_ket);
     } else {
-        if (ispin == 0) { // alpha spin
-            mo_ket = calc->amo;        // deep copy necessary if T==double_complex
-        } else if (ispin == 1) {  // beta spin
-            mo_ket = calc->bmo;
-        }
+        mo_ket = occupied_mo;
         mo_bra = mo_ket;
     }
 

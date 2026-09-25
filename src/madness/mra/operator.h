@@ -137,6 +137,23 @@ namespace madness {
 
     */
 
+    /// The largest distance a kernel must represent along the axes that are not summed over an
+    /// infinite lattice: within the cell, plus N cells along an axis summed over N images.
+    /// This is the accuracy range of the finite axes for GFit::truncate_mixed_expansion.
+    template <std::size_t NDIM>
+    inline double lattice_finite_reach(const std::array<LatticeRange, NDIM>& lattice_ranges,
+                                       const Tensor<double>& cell_width) {
+        double reach2 = 0.0, diag2 = 0.0;
+        for (std::size_t d = 0; d != NDIM; ++d) {
+            const double w = cell_width(long(d));
+            diag2 += w * w;
+            if (lattice_ranges[d].infinite()) continue;
+            const double r = (lattice_ranges[d].get_range() + 1) * w;
+            reach2 += r * r;
+        }
+        return reach2 > 0.0 ? std::sqrt(reach2) : std::sqrt(diag2);
+    }
+
     template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
@@ -249,6 +266,16 @@ namespace madness {
               break;
             }
           }
+          // A Gaussian's lattice sum is a gauge constant only if the kernel is summed over the
+          // whole lattice. An axis with an infinite lattice range but a finite kernel range is
+          // summed over the images the range reaches, so for the truncation it counts as a finite
+          // sum over that many images -- consistent with infinite_summed_any above.
+          std::array<LatticeRange, NDIM> summed_ranges = lattice_ranges;
+          for (size_t i = 0; i < NDIM; i++) {
+            if (lattice_ranges[i].infinite() && info.range[i].finite())
+              summed_ranges[i] = LatticeRange((info.range[i].iextent_x2() + 1) / 2);
+          }
+          const double hi_fin = lattice_finite_reach(summed_ranges, cell_width);
           if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
@@ -260,18 +287,7 @@ namespace madness {
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
-            // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
-            // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
-            double max_lattice_spacing = 0;
-            for(int d=0; d!=NDIM; ++d) {
-              if (lattice_ranges[d])
-                max_lattice_spacing =
-                    std::max(max_lattice_spacing, cell_width(d));
-            }
-            // WARNING: discardG0 = true ignores the coefficients of truncated
-            //          terms
-            fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                            /* discardG0 = */ true);
+            fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
           }
 
@@ -2106,6 +2122,7 @@ namespace madness {
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
       const auto lattice_summed_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return static_cast<bool>(b);});
       const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
+      const double hi_fin = lattice_finite_reach(lattice_ranges, cell_width);
       if (lattice_summed_any) {
         hi *= 100;
       }
@@ -2115,18 +2132,7 @@ namespace madness {
       Tensor<double> expnt = fit.exponents();
 
       if (infinite_any) {
-        // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
-        // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
-        double max_lattice_spacing = 0;
-        for(int d=0; d!=3; ++d) {
-          if (lattice_ranges[d])
-            max_lattice_spacing =
-                std::max(max_lattice_spacing, cell_width(d));
-        }
-        // WARNING: discardG0 = true ignores the coefficients of truncated
-        //          terms
-        fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
-                                        /* discardG0 = */ false);
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, lo, hi_fin, eps);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
                                                  lattice_ranges, k);
@@ -2152,6 +2158,7 @@ namespace madness {
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       const auto lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return static_cast<bool>(b); });
+      const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2160,8 +2167,8 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+      if (infinite_any) {
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
       }
 
       int rank = coeff.dim(0);
@@ -2212,6 +2219,7 @@ namespace madness {
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       bool lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
+      const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2220,8 +2228,8 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+      if (infinite_any) {
+        fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
       }
 
       int rank = coeff.dim(0);

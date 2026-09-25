@@ -1,0 +1,49 @@
+# PBE on LiH with regularized orbitals, in the weak form of the semilocal xc
+# potential.
+#
+# `xc_weak_gga true` never puts the semilocal xc potential -div(X), with
+# X = 2 de/dsigma grad(rho), on the grid: X jumps at every nucleus, and
+# differentiating that jump is noisy. Instead the divergence is moved onto the
+# Green's function -- the orbital update gets the extra term 2 div(G Y_i) for a
+# per-orbital vector field Y_i (the "flux"), and the xc block of the Fock matrix
+# comes from XCOperator's matrix form rather than from xcnemo. See
+# XCOperator::weak_xc_terms and Nemo::solve.
+#
+# The first deck to run the weak form at all, and it uses two orbitals on
+# purpose: with one orbital (He) nothing is per-orbital, so the bookkeeping
+# that pairs Y_i with orbital i -- through canonicalization and the BSH update
+# -- is never exercised.
+#
+# CROSS-CHECK. The weak form is a rewriting, not a new approximation, so it
+# must reproduce the ordinary multiplicative form. The same deck with
+# `xc_weak_gga false` gives -8.0473162 at this single `protocol [1e-5]` rung
+# (-8.0473189 here; both runs stop at an energy change of ~8e-6), and with the
+# default protocol, ending at 1e-6, the two agree to 1.8 uHa (-8.0473240 vs
+# -8.0473222, both stopping at an energy change of ~6e-7).
+#
+# NOT COVERED: canonicalization must rotate Y_i along with the orbitals. At
+# convergence the canonicalizing transformation is essentially the identity,
+# so dropping that rotation changes this deck's energy by only 3e-9 -- this
+# deck would not catch it.
+#
+# Run:   ./run.sh          (or: madqc --wf=nemo nemo_lih_pbe_weak.in)
+
+dft
+    xc          pbe
+    protocol    [1e-5]
+    localize    canon
+    xc_weak_gga true
+    maxiter     20
+    econv       1e-5
+    dconv       1e-3
+end
+
+nemo
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.0
+end

@@ -170,6 +170,8 @@ template<unsigned long int NDIM>
 class int_factor_functor : public FunctionFunctorInterface<double,NDIM>{
 
 public:
+	using FunctionFunctorInterface<double,NDIM>::operator();
+
 	int_factor_functor(){}
 	//int_factor_functor(std::vector<atom_information<NDIM> > atoms, std::string interpolation): atoms(atoms), intpol_scheme(interpolation){}
 
@@ -263,6 +265,8 @@ template<unsigned long int NDIM>
 class lr_pot_functor : public FunctionFunctorInterface<double,NDIM>{
 
 public:
+	using FunctionFunctorInterface<double,NDIM>::operator();
+
 	lr_pot_functor(){}
 	//lr_pot_functor(std::vector<atom_information<NDIM> > atoms, double dft_coeff_, std::string interpolation): atoms(atoms), dft_coeff(dft_coeff_), intpol_scheme(interpolation){}
 
@@ -438,14 +442,17 @@ public:
 
    AC(const ACParameters<NDIM>& ac_param): ac_param_(ac_param) {}
 
+   /// defunct: the `ac_data` calculation parameter was removed, so this always
+   /// initializes as if `ac_data none` had been given
    AC(World &world, std::shared_ptr<SCF> calc){
+	   const std::string ac_data="none";
 	   if(world.rank()==0){
-		   initialized_=ac_param_.initialize(calc->molecule, calc->param.ac_data(), 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge());
+		   initialized_=ac_param_.initialize(calc->molecule, ac_data, 1.0-calc->xc.hf_exchange_coefficient(), calc->param.charge());
 	   }
 	   world.gop.broadcast_serializable(initialized_,0);
 	   world.gop.broadcast_serializable(ac_param_, 0);
 //	   ac_param_.print(world);
-	   if(calc->param.ac_data()!="none") ac_param_.check(world);
+	   if(ac_data!="none") ac_param_.check(world);
    }
 
    AC(const AC& other): ac_param_(other.ac_param_){}

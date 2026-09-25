@@ -2490,17 +2490,25 @@ namespace madness {
 
 
 
-    /// shorthand div operator
+    /// which first derivative the div_* variants use
+
+    /// abgv is the default ABGV operator; bspline and ble are the smoothing
+    /// first derivatives, cf. Derivative::set_bspline1() and set_ble1() and the
+    /// grad_bspline_one() / grad_ble_one() gradients.
+    enum class DerivMethod { abgv, bspline, ble };
+
+    /// shorthand div operator, with a choice of first derivative
 
     /// returns the dot product of nabla with a vector f
-    /// @param[in]  f       the vector of functions on which the div operator works on
-    /// @param[in]  refine  refinement before diff'ing makes the result more accurate
+    /// @param[in]  v       the vector of functions on which the div operator works on
+    /// @param[in]  method  which first derivative to use
+    /// @param[in]  do_refine  refinement before diff'ing makes the result more accurate
     /// @param[in]  fence   fence after completion; currently always fences
-    /// @return     the vector \frac{\partial}{\partial x_i} f
+    /// @return     the divergence \sum_i \frac{\partial}{\partial x_i} v_i
     /// TODO: add this to operator fusion
     template <typename T, std::size_t NDIM>
-    Function<T,NDIM> div(const std::vector<Function<T,NDIM> >& v,
-            bool do_refine=false, bool fence=true) {
+    Function<T,NDIM> div_deriv(const std::vector<Function<T,NDIM> >& v,
+            const DerivMethod method, bool do_refine=false, bool fence=true) {
 
         MADNESS_ASSERT(v.size()>0);
         World& world=v[0].world();
@@ -2510,10 +2518,44 @@ namespace madness {
         std::vector< std::shared_ptr< Derivative<T,NDIM> > > grad=
                 gradient_operator<T,NDIM>(world);
 
+        // read in new coeff for each operator, as grad_bspline_one()/grad_ble_one() do
+        if (method==DerivMethod::bspline)
+            for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_bspline1();
+        else if (method==DerivMethod::ble)
+            for (unsigned int i=0; i<NDIM; ++i) (*grad[i]).set_ble1();
+
         std::vector<Function<T,NDIM> > result(NDIM);
         for (size_t i=0; i<NDIM; ++i) result[i]=apply(*(grad[i]),v[i],false);
         world.gop.fence();
         return sum(world,result,fence);
+    }
+
+    /// div with the ABGV derivative
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div_abgv(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+        return div_deriv(v,DerivMethod::abgv,do_refine,fence);
+    }
+
+    /// div with the b-spline smoothing first derivative
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div_bspline(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+        return div_deriv(v,DerivMethod::bspline,do_refine,fence);
+    }
+
+    /// div with the BLE smoothing first derivative
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div_ble(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+        return div_deriv(v,DerivMethod::ble,do_refine,fence);
+    }
+
+    /// shorthand div operator, with the default (ABGV) derivative
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> div(const std::vector<Function<T,NDIM> >& v,
+            bool do_refine=false, bool fence=true) {
+        return div_abgv(v,do_refine,fence);
     }
 
     /// shorthand rot operator

@@ -13,7 +13,10 @@
 // bundles with the HDF5 backend (np-portable) and run this at any NP.
 //
 // Usage:
-//   es_overlap --seed-dir=<es__KEY seed bundle> --bundle-dir=<converged es bundle>
+//   es_overlap --seed-dir=<es__KEY seed bundle> --bundle-dir=<converged es bundle> [--full]
+// Prints the full |<seed_r|root_i>| matrix (all seed roots x all converged
+// roots) plus the best match per seed root. --full loads Full (X,Y) bundles and
+// uses the RPA metric <X|X> - <Y|Y>; default TDA (X only).
 
 #include "../ResponseProtocol.hpp"
 #include "../kernels/tags.hpp"                 // TDA, ClosedShell
@@ -27,10 +30,53 @@
 #include <madness/world/MADworld.h>
 
 #include <cmath>
+#include <cstdio>
 #include <string>
+#include <vector>
 
 using namespace madness;
 using namespace molresponse_v3;
+
+
+template <typename Type>
+static int run_overlap(World &world, const std::string &seed_dir,
+                       const std::string &bundle_dir) {
+  auto seed = load_es_roots<Type, ClosedShell>(world, seed_dir);
+  auto conv = load_es_roots<Type, ClosedShell>(world, bundle_dir);
+  MADNESS_CHECK(!seed.roots.empty());
+  const std::size_t R = seed.roots.size(), N = conv.roots.size();
+
+  std::vector<double> snn(R), rnn(N);
+  for (std::size_t r = 0; r < R; ++r) snn[r] = rs::metric_inner(seed.roots[r], seed.roots[r]);
+  for (std::size_t i = 0; i < N; ++i) rnn[i] = rs::metric_inner(conv.roots[i], conv.roots[i]);
+  std::vector<std::vector<double>> ov(R, std::vector<double>(N, 0.0));
+  for (std::size_t r = 0; r < R; ++r)
+    for (std::size_t i = 0; i < N; ++i) {
+      const double sr = rs::metric_inner(seed.roots[r], conv.roots[i]);   // collective
+      ov[r][i] = (snn[r] > 0.0 && rnn[i] > 0.0) ? std::abs(sr) / std::sqrt(snn[r] * rnn[i]) : 0.0;
+    }
+
+  if (world.rank() == 0) {
+    print("\n=== es_overlap ===");
+    print("  seed   :", seed_dir, " n_roots=", (int)R);
+    print("  bundle :", bundle_dir, " n_roots=", (int)N);
+    std::printf("  converged roots: ");
+    for (std::size_t i = 0; i < N; ++i)
+      std::printf("  %2zu:%8.4f", i, i < (std::size_t)conv.omega.size() ? conv.omega(long(i)) : 0.0);
+    std::printf("  (au)\n  |<seed_r|root_i>| (rows = seed roots, omega_seed in au):\n");
+    for (std::size_t r = 0; r < R; ++r) {
+      const double os = r < (std::size_t)seed.omega.size() ? seed.omega(long(r)) : 0.0;
+      std::printf("  seed %2zu %8.4f :", r, os);
+      std::size_t best = 0; for (std::size_t i = 1; i < N; ++i) if (ov[r][i] > ov[r][best]) best = i;
+      double sumsq = 0.0; for (double v : ov[r]) sumsq += v * v;
+      for (std::size_t i = 0; i < N; ++i) std::printf(" %7.4f", ov[r][i]);
+      std::printf("   best=%zu (%.4f)  ||P_conv seed||=%.4f\n", best, ov[r][best], std::sqrt(sumsq));
+    }
+    std::printf("  (||P_conv seed|| = norm of the seed's projection onto the span of the "
+                "converged roots; 1 = the seed lies in that span)\n");
+  }
+  return 0;
+}
 
 int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
@@ -40,55 +86,14 @@ int main(int argc, char **argv) {
   if (!parser.key_exists("seed-dir") || !parser.key_exists("bundle-dir")) {
     if (world.rank() == 0)
       print("Usage: es_overlap --seed-dir=<es__KEY seed bundle> "
-            "--bundle-dir=<converged es bundle>");
+            "--bundle-dir=<converged es bundle> [--full]");
     finalize();
     return 2;
   }
   const std::string seed_dir = parser.value_raw("seed-dir");
   const std::string bundle_dir = parser.value_raw("bundle-dir");
-
-  {
-    auto seed = load_es_roots<TDA, ClosedShell>(world, seed_dir);
-    auto conv = load_es_roots<TDA, ClosedShell>(world, bundle_dir);
-    MADNESS_CHECK(!seed.roots.empty());
-
-    const auto &s = seed.roots[0];
-    const double snn = rs::metric_inner(s, s);
-    const double seed_omega =
-        (seed.omega.size() > 0) ? seed.omega(0L) : 0.0;
-
-    int best = -1;
-    double best_ov = -1.0;
-    if (world.rank() == 0) {
-      print("\n=== es_overlap ===");
-      print("  seed   :", seed_dir, " omega=", seed_omega,
-            "au (", 27.2114 * seed_omega, "eV)");
-      print("  bundle :", bundle_dir, " n_roots=",
-            static_cast<int>(conv.roots.size()));
-      print("  root    omega(au)    omega(eV)   |<seed|root>|");
-    }
-    for (std::size_t i = 0; i < conv.roots.size(); ++i) {
-      const auto &r = conv.roots[i];
-      const double rnn = rs::metric_inner(r, r);
-      const double sr = rs::metric_inner(s, r);
-      const double ov =
-          (snn > 0.0 && rnn > 0.0) ? std::abs(sr) / std::sqrt(snn * rnn) : 0.0;
-      const double om =
-          (i < static_cast<std::size_t>(conv.omega.size())) ? conv.omega(i) : 0.0;
-      if (world.rank() == 0)
-        std::printf("  %3zu   %11.6f  %10.3f     %.4f\n", i, om, 27.2114 * om,
-                    ov);
-      if (ov > best_ov) { best_ov = ov; best = static_cast<int>(i); }
-    }
-    if (world.rank() == 0 && best >= 0) {
-      const double om = conv.omega(best);
-      std::printf("\nBEST MATCH: root %d  omega=%.6f au (%.3f eV)  overlap=%.4f\n",
-                  best, om, 27.2114 * om, best_ov);
-      std::printf("(seed was %.3f eV; energy-lowest root is #0 at %.3f eV)\n",
-                  27.2114 * seed_omega,
-                  27.2114 * (conv.omega.size() > 0 ? conv.omega(0L) : 0.0));
-    }
-  }
+  if (parser.key_exists("full")) run_overlap<Full>(world, seed_dir, bundle_dir);
+  else                           run_overlap<TDA>(world, seed_dir, bundle_dir);
 
   finalize();
   return 0;

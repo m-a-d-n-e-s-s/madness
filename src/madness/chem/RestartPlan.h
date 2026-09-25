@@ -35,6 +35,7 @@
 #ifndef MADNESS_CHEM_RESTARTPLAN_H__INCLUDED
 #define MADNESS_CHEM_RESTARTPLAN_H__INCLUDED
 
+#include <cstdio>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/Restart.h>
 
@@ -121,6 +122,9 @@ struct RestartSources {
     /// out loud rather than quietly recomputing.
     std::optional<RestartMetadata> meta;
 
+    /// alpha orbitals in the archive, 0 when unknown
+    std::size_t nmo_alpha = 0;
+
     /// <prefix>.restartaodata exists
     bool restartao_present = false;
 
@@ -155,8 +159,14 @@ enum class GeometryMatch {
 /// Order matters: the orbitals in an archive are expanded about the atoms in
 /// the order the archive's molecule lists them, so a permuted molecule is not
 /// the same molecule as far as restart is concerned.
+// Tolerance: 1e-6 bohr. MRA orbitals at thresh 1e-6 do not resolve smaller
+// displacements, and the same geometry reaches an archive through different
+// parsers at slightly different precision (madqc Params vs moldft's own read
+// differed by 4e-8 bohr on 2026-09-10 and a DALTON-seeded restartdata was
+// rejected as "geometry moved"). A real optimization step moves atoms by
+// >= 1e-4 bohr.
 inline GeometryMatch compare_geometry(const Molecule& archive, const Molecule& requested,
-                                      const double tol = 1.e-8) {
+                                      const double tol = 1.e-6) {
     if (archive.natom() != requested.natom()) return GeometryMatch::different_composition;
     for (std::size_t i = 0; i < requested.natom(); ++i) {
         if (archive.get_atomic_number(i) != requested.get_atomic_number(i))
@@ -197,6 +207,15 @@ struct RestartPlan {
     /// one line, for the log and for the results json
     std::string why;
 
+    /// alpha orbitals the archive holds when source is restartdata, 0 when unknown.
+    /// Fewer than requested means the missing virtuals start from the atomic guess.
+    std::size_t archive_nmo_alpha = 0;
+
+    /// when source is restartdata: the header records a convergence at some
+    /// rung, and its eprec, xc and nuclear correlation factor agree with this run's
+    bool archive_converged = false;
+    bool archive_same_hamiltonian = false;
+
     /// true if orbitals have to be read from disk before anything else happens
     bool needs_load() const { return source != RestartSource::initial_guess; }
 
@@ -213,7 +232,8 @@ struct RestartPlan {
     void serialize(Archive& ar) {
         int m = static_cast<int>(mode);
         int s = static_cast<int>(source);
-        ar & m & s & iterate & protocol_start & stale_energy & warn & why;
+        ar & m & s & iterate & protocol_start & stale_energy & warn & why & archive_nmo_alpha
+           & archive_converged & archive_same_hamiltonian;
         mode = static_cast<RestartMode>(m);
         source = static_cast<RestartSource>(s);
     }
@@ -264,7 +284,8 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                                  const Representation wanted,
                                  const double eprec = 0.0,
                                  const std::string& xc = "",
-                                 const std::string& ncf = "") {
+                                 const std::string& ncf = "",
+                                 const std::size_t nmo_alpha = 0) {
 
     MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in plan_restart");
     const std::size_t last = protocol.size() - 1;
@@ -279,6 +300,11 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
 
     RestartPlan plan;
     plan.mode = mode;
+    plan.archive_nmo_alpha = disk.nmo_alpha;
+
+    // an archive with fewer orbitals than requested (virtuals added on restart)
+    // is a guess for the missing ones, whatever its convergence claim says
+    const bool pads_virtuals = nmo_alpha > 0 and disk.nmo_alpha > 0 and disk.nmo_alpha < nmo_alpha;
 
     // does the archive solve the same Hamiltonian this run is asking about?
     //
@@ -314,9 +340,16 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
     };
 
     // ---- use restartdata, iterating from wherever it left off --------------
+    // what the archive's header says about the orbitals it holds
+    auto describe_archive = [&](const RestartMetadata& meta) {
+        plan.archive_converged = meta.converged_for_thresh < 1.0;
+        plan.archive_same_hamiltonian = hamiltonian_mismatch(meta).empty();
+    };
+
     auto continue_from_archive = [&](const RestartMetadata& meta, const std::string& why) {
         plan.source = RestartSource::restartdata;
         plan.stale_energy = meta.current_energy;
+        describe_archive(meta);
         const auto rung = first_rung_tighter_than(protocol, meta.converged_for_thresh);
         plan.iterate = true;
         plan.protocol_start = rung.value_or(last);
@@ -385,6 +418,8 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             MADNESS_CHECK_THROW(
                     compare_geometry(meta.molecule, requested) == GeometryMatch::same,
                     "restart read_only: archive geometry does not match the requested geometry");
+            MADNESS_CHECK_THROW(not pads_virtuals,
+                    "restart read_only: the archive holds fewer orbitals than requested");
             // The user asserted these orbitals are the answer. Respect that even
             // when they are not converged to the requested precision -- warn and
             // hand back the stale energy rather than second-guessing.
@@ -392,6 +427,7 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             plan.iterate = false;
             plan.protocol_start = last;
             plan.stale_energy = meta.current_energy;
+            describe_archive(meta);
             const std::string other = hamiltonian_mismatch(meta);
             if (not other.empty()) {
                 // Not overridden -- the user asked for these orbitals and gets
@@ -486,7 +522,19 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
             plan.why = "restart auto: geometry moved, using the AO projections";
             return plan;
         }
-        return give_up("restart auto: geometry moved and no AO projections available");
+        {
+            // say by how much: a sub-1e-8 mismatch (10-digit coordinates from
+            // another program) reads very differently from a real optimization step
+            double dmax = 0.0; std::size_t imax = 0;
+            for (std::size_t i = 0; i < requested.natom(); ++i) {
+                const Atom a = meta.molecule.get_atom(i), b = requested.get_atom(i);
+                const double d = std::max({std::abs(a.x - b.x), std::abs(a.y - b.y), std::abs(a.z - b.z)});
+                if (d > dmax) { dmax = d; imax = i; }
+            }
+            char buf[160];
+            std::snprintf(buf, sizeof buf, " (max |dR| = %.3e bohr at atom %zu; tolerance 1e-6)", dmax, imax);
+            return give_up(std::string("restart auto: geometry moved and no AO projections available") + buf);
+        }
     }
 
     // A different eprec, functional or nuclear correlation factor is a different
@@ -499,11 +547,17 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         return continue_from_archive(meta, "restart auto: " + other +
                                            " -- a different Hamiltonian, so re-converging");
 
+    if (pads_virtuals)
+        return continue_from_archive(meta, "restart auto: archive holds " + std::to_string(disk.nmo_alpha) +
+                                           " alpha orbitals, " + std::to_string(nmo_alpha) +
+                                           " requested; the missing virtuals start from the atomic guess");
+
     if (meta.is_converged_to(target_thresh, target_dconv)) {
         plan.source = RestartSource::restartdata;
         plan.iterate = false;
         plan.protocol_start = last;
         plan.stale_energy = meta.current_energy;
+        describe_archive(meta);
         plan.why = "restart auto: archive is converged to thresh " +
                    format_thresh(target_thresh) + " and dconv " +
                    format_thresh(target_dconv);
@@ -536,7 +590,11 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
     disk.restartdata_present = (flags[0] == 1);
     disk.restartao_present = (flags[1] == 1);
 
-    if (disk.restartdata_present) disk.meta = peek_restartdata(world, prefix + ".restartdata");
+    if (disk.restartdata_present) {
+        disk.meta = peek_restartdata(world, prefix + ".restartdata");
+        if (const auto summary = peek_restartdata_summary(world, prefix + ".restartdata"))
+            disk.nmo_alpha = summary->nmo_alpha;
+    }
     return disk;
 }
 
@@ -570,7 +628,7 @@ inline RestartPlan make_restart_plan(World& world, const RestartMode mode,
 
     RestartPlan plan = plan_restart(mode, disk, can, param.protocol(), param.dconv(),
                                     requested, wanted, requested.parameters.eprec(),
-                                    param.xc(), ncf);
+                                    param.xc(), ncf, std::size_t(param.nmo_alpha()));
     world.gop.broadcast_serializable(plan, 0);
 
     if (world.rank() == 0 and param.print_level() > 1) {

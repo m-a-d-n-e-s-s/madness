@@ -45,7 +45,14 @@ using vecfuncT = std::vector<madness::real_function_3d>;
 /// One exchange operator K(bra, ket) entering the gamma contraction. `bra` and
 /// `ket` are the occupied/response orbital pair that builds the exchange kernel;
 /// apply_gamma then acts that operator on `apply_to` (the orbitals of the
-/// response component being assembled). The references must outlive the
+/// response component being assembled).
+///
+/// MEANING (exchangeoperator.cc:336): K(bra,ket) f = Sum_k ket_k Int bra_k f / r,
+/// i.e. the pair {bra,ket} is the pair density |ket><bra|. The response density
+/// gamma^B = |x><phi| + |phi><y| at +omega is therefore {phi,x},{y,phi} (as the
+/// linear kernels write it) and {x,phi},{phi,y} is its dagger, gamma^B(-omega).
+/// See source_spec.hpp "THE LEG DICTIONARY" and
+/// reports/2026-09-09_orientation_derivation for why this matters at second order. The references must outlive the
 /// apply_gamma call (they always do -- callers pass kernel-local lvalues inside
 /// a braced-init-list argument).
 struct ExchangePair {
@@ -68,6 +75,29 @@ apply_gamma_raw(madness::World &world,
                   const madness::real_function_3d &J,
                   const vecfuncT &apply_to,
                   std::initializer_list<ExchangePair> pairs,
+                  double c_xc, double lo) {
+  using namespace madness;
+  auto out = mul(world, J, apply_to, true);
+  if (c_xc > 0.0) {
+    for (const auto &p : pairs) {
+      auto k = common_ops::apply_exchange(world, p.bra, p.ket, apply_to, lo);
+      gaxpy(world, 1.0, out, -c_xc, k);
+    }
+  }
+  return out;
+}
+
+/// Runtime-sized overload of apply_gamma_raw for callers whose pair list is
+/// built dynamically (the declarative source-spec engine, source_spec.hpp,
+/// whose entries carry between zero and four exchange legs). Identical
+/// contraction, same term order; kept as a separate body (not a delegate) so
+/// the initializer_list path used by the validated linear/VBC kernels is
+/// byte-untouched.
+inline vecfuncT
+apply_gamma_raw(madness::World &world,
+                  const madness::real_function_3d &J,
+                  const vecfuncT &apply_to,
+                  const std::vector<ExchangePair> &pairs,
                   double c_xc, double lo) {
   using namespace madness;
   auto out = mul(world, J, apply_to, true);

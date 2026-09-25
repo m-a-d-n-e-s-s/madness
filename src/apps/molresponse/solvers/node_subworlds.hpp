@@ -52,6 +52,7 @@ struct NodeSubworldInfo {
   int         subworld_index  = 0;
   int         gid             = 0;
   int         n_subworlds      = 1;
+  int         nodes_spanned    = 1;   ///< distinct hosts in THIS subworld (universe pool may be >1)
 };
 
 /// Create one subworld per physical node (MPI_COMM_TYPE_SHARED). All ranks on
@@ -114,6 +115,67 @@ make_subworld_pool(madness::World &universe, int groups_per_node,
     info->subworld_index  = color;
     info->gid             = nidx * gpn + color;            // global subworld id
     info->n_subworlds     = static_cast<int>(rph.size()) * gpn;
+  }
+  return subworld;
+}
+
+/// Universe-level pool (2026-09-10): split the universe into `n_subworlds`
+/// CONTIGUOUS blocks of ranks that MAY SPAN NODES. This is the large-system
+/// regime: a 300-MO system (valinomycin) runs one SCF on 6-8 nodes x 8 ranks,
+/// so each independent response state must own ~48-64 ranks, i.e. a subworld of
+/// 6-8 whole nodes. Node alignment is the special case n_subworlds = n_nodes
+/// (or a multiple of it) — the universe ranks are enumerated host by host
+/// (sorted host map, then rank), so equal blocks fall on node boundaries
+/// whenever universe_size/n_subworlds is a multiple of ranks_per_node; when it
+/// is not, a block straddles two hosts (φ is then replicated over the block's
+/// hosts — the same memory footprint as a multi-node SCF). n_subworlds is
+/// clamped to [1, universe_size] uniformly on every rank. Collective on
+/// `universe`. gid = block index; groups_per_node is reported as 0 (n/a).
+inline std::shared_ptr<madness::World>
+make_subworld_pool_universe(madness::World &universe, int n_subworlds,
+                            NodeSubworldInfo *info = nullptr) {
+  const auto rph = madness::ranks_per_host(universe);   // collective, sorted
+  const std::string host = madness::get_hostname();
+  const int N = universe.size();
+  const int G = std::max(1, std::min(n_subworlds, N));   // universe-uniform
+  // Host-ordered position of this rank: hosts in sorted-map order, ranks
+  // ascending within a host. Under --ntasks-per-node launches this equals the
+  // universe rank; it is computed explicitly so a host-interleaved rank order
+  // still yields node-contiguous blocks.
+  int pos = 0, nidx = 0, my_nidx = 0;
+  bool found = false;
+  for (const auto &kv : rph) {
+    if (kv.first == host) my_nidx = nidx;
+    for (int r : kv.second) {
+      if (r == universe.rank()) { found = true; break; }
+      ++pos;
+    }
+    if (found) break;
+    ++nidx;
+  }
+  if (!found) pos = universe.rank();                     // defensive fallback
+  const int color = static_cast<int>((static_cast<long>(pos) * G) / N); // 0..G-1
+  SafeMPI::Intracomm sub_comm =
+      universe.mpi.comm().Split(color, /*Key=*/universe.rank());
+  auto subworld = std::make_shared<madness::World>(sub_comm);
+  universe.gop.fence();
+
+  if (info) {
+    info->hostname        = host;
+    info->universe_rank   = universe.rank();
+    info->universe_size   = N;
+    info->subworld_rank   = subworld->rank();
+    info->subworld_size   = subworld->size();
+    info->n_nodes         = static_cast<int>(rph.size());
+    info->node_index      = my_nidx;
+    info->groups_per_node = 0;                             // n/a: universe split
+    info->subworld_index  = color;
+    info->gid             = color;
+    info->n_subworlds     = G;
+    int lo = my_nidx, hi = my_nidx;                        // hosts spanned
+    subworld->gop.min(lo);
+    subworld->gop.max(hi);
+    info->nodes_spanned   = hi - lo + 1;
   }
   return subworld;
 }

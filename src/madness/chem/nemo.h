@@ -411,8 +411,11 @@ public:
 
     Nemo(World& world, const commandlineparser& parser);
 
+	/// \p pcm_param defaults to the bare `pcm` group; the solvent still arrives from
+	/// param.pcm_data() via PCMParameters::set_derived_values, so a caller that never
+	/// parsed a deck keeps working.
 	Nemo(World& world, const CalculationParameters& param, const NemoCalculationParameters& nemo_param,
-		const Molecule& molecule);
+		const Molecule& molecule, const PCMParameters& pcm_param = PCMParameters());
 
     std::string name() const {return "nemo";}
     bool selftest() {return false;}
@@ -586,29 +589,6 @@ public:
 
     /// the Laplacian of the density
 
-    /// The Laplacian should currently only be used for subsequent convolution
-    /// with a Green's function (which is reasonably stable), but not on its own!
-    ///
-    /// The Laplacian of the cuspy density is numerically fairly unstable:
-    ///  - a singular term may be rewritten using the nuclear potential (see below)
-    ///  - the Laplacian of the regularized density is still very noisy
-    ///
-    /// It may be computed as
-    /// \f[
-    ///   \Delta \rho = \Delta (R^2 \rho_R)
-    ///          = \Delta (R^2) \rho_R + 2\nabla R \nabla \rho_R + R^2 \Delta \rho_R
-    ///          = 2 R^2 U1^2 \rho_R -4 R^2 ( U-V ) \rho_R + R^2 \Delta\rho_R
-    /// \f]
-    /// where we can use the identity
-    /// \f[
-    ///   U=V + R^{-1}[T,R]
-    ///   -2 R (U-V) = \Delta R + 2\nabla R\dot \nabla
-    /// \f]
-    /// first term comes from the definition of the U potential as the commutator
-    /// over the kinetic energy (aka the Laplacian)
-    /// @param[in]  rhonemo    the regularized density \rho_R
-    /// @return     the laplacian of the reconstructed density \Delta (R^2\rho_R)
-    real_function_3d make_laplacian_density(const real_function_3d& rhonemo) const;
 
     /// compute the kinetic energy potential using Eq. (16) of
     /// R. A. King and N. C. Handy, “Kinetic energy functionals from the Kohn–Sham potential,”
@@ -734,9 +714,47 @@ protected:
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
 	/// @param[out]	Unemo	regularized nuclear potential applied on the nemos
+	/// @param[out] xcflux  the vector field Y_i that the orbital update pushes
+	///                     through the Green's function, see
+	///                     XCOperator::weak_xc_terms. Assigned in the weak form
+	///                     only and left EMPTY otherwise, which is how the caller
+	///                     tells the two forms apart.
+	/// @param[out] fock_xc the xc block of the Fock matrix. In the weak form it
+	///                     cannot be recovered from xcnemo any more, because what
+	///                     is missing from xcnemo is exactly the term that has no
+	///                     multiplicative representation. Assigned in the weak
+	///                     form only and left untouched otherwise.
 	void compute_nemo_potentials(const vecfuncT& nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
-			vecfuncT& Unemo) const;
+			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const {
+		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+				xcflux, fock_xc, true);
+	}
+
+	/// compute all potentials applied on nemo, without the weak-form split
+
+	/// The pre-weak-form signature, kept for callers that have no use for the
+	/// flux. It never opts in to the weak form, whatever `xc_weak_gga` says, so
+	/// xcnemo always carries the complete multiplicative xc potential and the
+	/// xc block of the Fock matrix can be read off it as before. Silently
+	/// discarding xcflux instead would drop the semilocal term.
+	void compute_nemo_potentials(const vecfuncT& nemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
+			vecfuncT& Unemo) const {
+		std::vector<vecfuncT> xcflux;
+		tensorT fock_xc;
+		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+				xcflux, fock_xc, false);
+	}
+
+	/// implementation of both compute_nemo_potentials forms
+
+	/// @param[in]	allow_weak	opt in to the weak form; it is then used iff
+	///							the `xc_weak_gga` parameter asks for it
+	void compute_nemo_potentials_impl(const vecfuncT& nemo,
+			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
+			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc,
+			const bool allow_weak) const;
 
 	/// return the Coulomb potential
 	real_function_3d get_coulomb_potential(const vecfuncT& psi) const;
@@ -768,7 +786,11 @@ public:
 
 	bool do_pcm() const {return get_calc_param().pcm_data() != "none";}
 	
-	bool do_ac() const {return get_calc_param().ac_data() != "none";}
+	/// the asymptotic correction is defunct: its `ac_data` parameter was removed,
+	/// and the code paths guarded by do_ac() are kept but never taken. It was
+	/// never reconciled with the weak xc form, whose Fock block is built from the
+	/// uncorrected potential.
+	bool do_ac() const {return false;}
 
 	AC<3> get_ac() const {return ac;}
 

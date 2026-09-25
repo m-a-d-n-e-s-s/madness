@@ -198,6 +198,7 @@ int main(int argc, char **argv) {
   auto sub = make_node_aligned_subworld(universe, &info);
   const int G   = info.n_nodes;
   const int nid = my_node_index(universe);
+  auto universe_pmap = FunctionDefaults<3>::get_pmap();   // restored after the block (the SAME object)
   {
     // S1 discipline: point the global default pmap at the subworld so everything
     // built inside (GS MOs via from_archive, sources, response vectors) is
@@ -221,7 +222,7 @@ int main(int argc, char **argv) {
     sub->gop.fence();
   }  // ctx_sub / gs_s (subworld Functions) destruct here, sub still alive
   sub->gop.fence();
-  FunctionDefaults<3>::set_default_pmap(universe);   // restore BEFORE reset
+  FunctionDefaults<3>::set_pmap(universe_pmap);   // restore the ORIGINAL pmap object (not a new map)   // restore BEFORE reset
   sub.reset();
   universe.gop.fence();
 

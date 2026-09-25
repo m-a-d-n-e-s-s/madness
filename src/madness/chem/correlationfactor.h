@@ -353,6 +353,13 @@ public:
         const double cutoff=smoothing;
         if (r>cutoff) {
             return 1.0/r*xyz;
+        } else if (r==0.0) {
+            // kk/r is 0/0 here and returns NaN. The limit is the zero vector:
+            // kk = (105/32)(r/cutoff) + O(r^3), so kk/r tends to 105/(32 cutoff)
+            // and kk/r*xyz tends to 0. Unreachable from Gauss quadrature, whose
+            // points are strictly interior, but reachable from any code that
+            // evaluates this functor on a grid containing a nuclear position.
+            return coord_3d{0.0,0.0,0.0};
         } else {
             const double xi=r/cutoff;
             const double xi2=xi*xi;
@@ -1895,7 +1902,7 @@ private:
     	} else if (rho<b) {
 
     		const double num=Z* (2 + (power<N>(-1)* a* power<N>(-1 + rho/b)
-    			    * (-2 *a*N*N + (1 + a) *N* (1 + a *(-3 + N) + N)* rho +
+    			    * (-2 *a*N*N + (1 + a) *N* (1 + a *(-3 + static_cast<int>(N)) + N)* rho +
     			      2 *(1 + a)*(1+a)* rho*rho))/power<2>(a* N - (1 + a)*rho));
 
     		const double denom=2.* (r + power<N>(-1) *a* r* power<N>(-1 + rho/b));
@@ -1929,7 +1936,7 @@ private:
 
         if (rho<b) {
             const double negn= power<N>(-1.0);
-            return (negn*power<2>(1 + a)*(-1 + N)*power<2>(Z)*power<N-2>(-1 + ((1 + a)*r*Z)/(a*N)))/
+            return (negn*power<2>(1 + a)*(-1 + static_cast<int>(N))*power<2>(Z)*power<N-2>(-1 + ((1 + a)*r*Z)/(a*N)))/
                     (a*N*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
         } else {
             return 0.0;
@@ -1943,7 +1950,7 @@ private:
 
         if (rho<b) {
             const double negn= power<N>(-1.0);
-            return (negn*power<3>(1 + a)*(-2 + N)*(-1 + N)*power<3>(Z)*power<N-3>(-1 + ((1 + a)*r*Z)/(a*N)))/
+            return (negn*power<3>(1 + a)*(-2 + static_cast<int>(N))*(-1 + static_cast<int>(N))*power<3>(Z)*power<N-3>(-1 + ((1 + a)*r*Z)/(a*N)))/
                     (power<2>(a*N)*(1 + negn*a*power<N>(-1 + ((1 + a)*r*Z)/(a*N))));
         } else {
             return 0.0;
@@ -1962,10 +1969,10 @@ private:
             const double rn=sqrt(N-1);
             const double r0=0.0;
             const double r1=((2.*(-8. + 9.*rn) + N*(25. + 10.*rn + N))*r*power<4>(Z))/
-                    (6.*power<2>(-2 + N)*rn);
+                    (6.*power<2>(-2 + static_cast<int>(N))*rn);
             const double r2=((-4*(17 + 9*rn) + N*(92 + 80*rn +
                     N*(-29 - 33*rn + N*(4 + 7*rn + N))))*power<5>(Z))/
-                            (8.*power<3>(-2 + N)*(-1 + N)*rn);
+                            (8.*power<3>(-2 + static_cast<int>(N))*(-1 + static_cast<int>(N))*rn);
             result=(r0 + r*r1 + r*r*r2);
 
         } else {

@@ -32,6 +32,9 @@
 // =========================================================================
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <vector>
 
 namespace molresponse_v3 {
 
@@ -112,6 +115,41 @@ struct ConvergencePolicy {
   // Minimum iters before we even check convergence (lets KAIN warm up).
   int min_iters_before_conv = 0;
 
+  // ---- Plateau (stall) detector, 2026-09-11 ----
+  // Within one protocol the residual bottoms out at a truncation-noise floor
+  // (measured: BSH amplitude residual 2-6e-5 at thresh 1e-6/k8, 4-8e-6 at
+  // 1e-8/k10, while the density residual keeps falling). A target below that
+  // floor is never met and the solve burns every remaining iteration doing
+  // nothing (the 1e-8 closeout attempt with dconv = thresh: 60 iterations per
+  // leg, flat). The detector watches the normalised gate distance
+  //   g = max_c max(bsh_c / bsh_target, drho_c / density_target)   (FD)
+  //   g = max_s max(drho_s / density_target, |dw_s| / omega_target) (ES, active roots)
+  // and declares a stall when g has not improved by at least `stall_ratio`
+  // (relative) over the last `stall_window` iterations while still > 1. A
+  // stalled solve exits the loop with converged = false and State::stalled =
+  // true; the executor records `stalled` in the metadata and applies the same
+  // best-effort acceptance it applies at maxiter (--accept-at-maxiter). So the
+  // verdict is unchanged - only the wasted iterations are gone. The history is
+  // reset whenever the protocol thresh changes (targets change with it).
+  // stall_window <= 0 disables. Deck: response { stall.window 6  stall.ratio 0.1 }.
+  int    stall_window = 6;
+  double stall_ratio  = 0.10;
+
+  /// Plateau test on a gate-distance history (one entry per iteration, newest
+  /// last). True when the newest entry is still above 1 (targets not met), the
+  /// history spans the window, and the newest entry is not smaller than
+  /// (1 - stall_ratio) x the entry `stall_window` iterations earlier.
+  bool plateau(const std::vector<double> &gate_history) const {
+    if (stall_window <= 0) return false;
+    const std::size_t n = gate_history.size();
+    if (n <= static_cast<std::size_t>(stall_window)) return false;
+    const double g_now  = gate_history[n - 1];
+    const double g_then = gate_history[n - 1 - static_cast<std::size_t>(stall_window)];
+    if (!(g_now > 1.0)) return false;                 // targets met (or NaN): not a stall
+    if (!std::isfinite(g_now) || !std::isfinite(g_then)) return false;  // no measurement yet
+    return g_now > (1.0 - stall_ratio) * g_then;
+  }
+
   // Lock debounce (ESSolver full-deflation locking): a root must satisfy the
   // convergence criterion for this many CONSECUTIVE iters before it is locked.
   // Prevents premature locking of an unsettled root (which poisoned the
@@ -138,6 +176,17 @@ struct ConvergencePolicy {
   // actually accelerate strongly-polarizable response iterations;
   // back-set to 3.0 if you want strict SCF semantics.
   double kain_cmax_cap = 100.0;
+  // KAIN hold-off for rough starts (2026-09-10). KAIN is applied in an
+  // iteration only when that iteration's raw BSH residual (max over roots)
+  // is already below this value; above it the step is the plain BSH update
+  // and no history is recorded. Why: a DALTON-seeded ES solve enters with a
+  // 20-25 % residual; at its second iteration KAIN extrapolated from a
+  // two-vector history with coefficients of 5-8, the step-restriction cap
+  // then scaled that garbage direction into the state, and the next Ritz
+  // matrix had a negative eigenvalue (the "eps_core ghost", closeout
+  // attempts 3-10, lih/h2o/c2h4). The cold path never exposes KAIN to such a
+  // start because its TDA warm-up is KAIN-free. 0 disables the hold-off.
+  double kain_min_residual = 0.1;
   // Warmup oversampling factor — used by the run_oversampled_tda_warmup
   // helper. The warm-up phase runs with ceil(warmup_oversample_factor *
   // n_roots) trial states; after warmup completes the lowest n_roots

@@ -1,0 +1,23 @@
+# Ne 1s core hole by fixed-index occupation (Delta-SCF). aocc empties orbital 0;
+# the orbital count stays that of the neutral atom, so this is the 1s-ionized
+# cation. Canonical orbitals are required: they are re-sorted by eigenvalue
+# every iteration, which keeps the hole on the 1s.
+#
+# E(hole) = -96.63581 (energy converged to 2e-7; the residual cycles at ~3e-6
+# in the degenerate 2p shell). Against the neutral E = -128.54710 this gives a
+# 1s binding energy of 868.35 eV (Koopmans -eps(1s) = 891.78 eV, experiment
+# 870.2 eV; HF Delta-SCF is expected below experiment).
+
+dft
+  xc hf
+  spin_restricted false
+  localize canon
+  aocc [0,1,1,1,1]
+  protocol [1e-4,1e-6]
+  maxiter 40
+end
+
+geometry
+  eprec 1e-7
+  ne 0 0 0
+end

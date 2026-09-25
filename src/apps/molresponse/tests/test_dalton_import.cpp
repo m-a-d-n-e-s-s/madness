@@ -226,6 +226,28 @@ int main() {
            "molden extracted from unique *.tar.gz");
     EXPECT(m.rspvec_path == (ex4 / "RSPVEC").string(),
            "RSPVEC extracted from unique *.tar.gz");
+
+    // B24: a per-leg lookup runs inside a subworld, where several rank-0s
+    // would extract into the same directory at once. Read-only mode must not
+    // extract, and the prepared-seed registry must answer instead.
+    const fs::path ex4ro = tmp / "extract4_readonly";
+    bool threw = false;
+    try {
+      (void)locate_dalton_dir(d4.string(), ex4ro.string(), "", "", "",
+                              /*allow_extract=*/false);
+    } catch (const std::exception &) { threw = true; }
+    EXPECT(threw, "read-only locate refuses a tarball-only dir");
+    EXPECT(!fs::exists(ex4ro), "read-only locate wrote nothing");
+
+    EXPECT(prepared_dalton_seed(d4.string()) == nullptr,
+           "nothing prepared for this dir yet");
+    register_prepared_dalton_seed(m);
+    const auto *p = prepared_dalton_seed(d4.string());
+    EXPECT(p != nullptr, "registry answers after the universe-level import");
+    EXPECT(p && p->molden_path == m.molden_path && p->rspvec_path == m.rspvec_path,
+           "registry returns the paths the import resolved");
+    EXPECT(prepared_dalton_seed((d4.string() + "/.")) != nullptr,
+           "registry key is canonical, not the literal string");
   }
 
   // ---- 6. geometry fingerprint ----------------------------------------------

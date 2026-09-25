@@ -152,6 +152,7 @@ int main() {
     r.kind = ResponsePropertyKind::PolarizabilityGradient;
     r.gradient_mode = GradientMode::Resonant;
     r.n_roots = 4;
+    r.tpa = true;   // this case pins the DERIVED-FD DAG mechanics, so ask for the legs
     r.protocol_thresholds = P;
     auto dag = build_dag(plan_one(r), 0);
     const CalcNode *es = find_id(dag, "es:tda_n4");
@@ -303,11 +304,14 @@ int main() {
   // ====== schedule: skips converged, symbolic excluded ====================
   std::printf("=== schedule: skip converged + exclude symbolic ===\n");
   {
-    // Resonant: ES bundle + symbolic derived. Symbolic node must never appear.
+    // Resonant + tpa: ES bundle + symbolic derived. The case tests that the
+    // scheduler EXCLUDES symbolic nodes, so the plan must contain one —
+    // without tpa the roots-only plan has none and the loop passes trivially.
     ResponsePropertyRequest r;
     r.kind = ResponsePropertyKind::PolarizabilityGradient;
     r.gradient_mode = GradientMode::Resonant;
     r.n_roots = 2;
+    r.tpa = true;
     r.protocol_thresholds = P;
     auto dag = build_dag(plan_one(r), 0);
     auto waves = schedule(dag, P, empty_meta());

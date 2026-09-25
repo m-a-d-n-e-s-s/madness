@@ -6,6 +6,7 @@
 #include <madness/chem/Results.h>
 #include <madness/chem/molopt.h>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -254,6 +255,17 @@ public:
     calc()->work_dir = workdir;
   }
 
+  /// Optional pre-run hook, invoked collectively INSIDE the SCF work directory
+  /// (cwd = the task dir, before the engine constructs its restart plan) and
+  /// only when the engine is about to run (Restart/Redo). The app layer uses it
+  /// to lay down a ground-state seed archive (e.g. madqc: `dalton.dir` ->
+  /// <prefix>.restartdata projected from the DALTON molden), which `restart
+  /// auto` then picks up like any other archive. chem/ stays ignorant of where
+  /// the seed comes from.
+  using PreRunHook = std::function<void(World &, const Params &,
+                                        const std::filesystem::path &)>;
+  void set_pre_run_hook(PreRunHook h) { pre_run_hook_ = std::move(h); }
+
   // print parameters
   /// Print the *effective* parameters of this step (user-defined, derived and
   /// default values, as annotated by QCCalculationParametersBase::print), not
@@ -376,6 +388,11 @@ public:
         print("Next action is ", static_cast<int>(action),
               " (0=Ok,1=ReloadOnly,2=Restart,3=Redo)");
 
+      if (pre_run_hook_ && (action == madness::NextAction::Restart ||
+                            action == madness::NextAction::Redo)) {
+        pre_run_hook_(world_, params_, pm.dir());
+        world_.gop.fence();
+      }
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
         // Both actions mean the same thing here -- run the engine. Restart vs
@@ -585,6 +602,8 @@ private:
   }
 
   World &world_;
+
+  PreRunHook pre_run_hook_;
   Library lib_; // owns shared_ptr<Engine>
   SCFResultsTuple scf_results;
 };
@@ -1144,6 +1163,17 @@ struct moldft_lib {
     scf_res.beps = scf->beps;
     scf_res.scf_dispersion_correction_energy =
         scf->dispersion.energy(world, scf->molecule);
+    scf_res.uses_dftd3 = scf->dispersion.active();
+#ifdef MADNESS_HAS_PCM
+    scf_res.uses_pcm = (scf->pcm_param.solvent() != "none");
+#else
+    scf_res.uses_pcm = false;
+#endif
+#ifdef MADNESS_HAS_LIBXC
+    scf_res.uses_libxc = scf->xc.uses_libxc_backend();
+#else
+    scf_res.uses_libxc = false;
+#endif
     scf_res.properties = prop_res;
 
     return results;
@@ -1163,6 +1193,11 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // The `pcm` group has to make the same round trip as `dft`: the SCF is
+        // rebuilt from this regenerated mad.in, so anything omitted here is
+        // silently lost. Written unconditionally -- an empty `pcm/end` block is
+        // harmless, and PCMParameters is inert unless dft's pcm_data is set.
+        in["pcm"] = params.get<PCMParameters>().to_json_if_precedence("defined");
         // `prefix` must be carried explicitly. It is the one parameter that is
         // DERIVED from information the engine cannot recompute -- the name of
         // the original input file (ParameterManager.hpp) -- and this round trip
@@ -1173,7 +1208,7 @@ private:
         // computes is re-derived identically by the SCF ctor.
         in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
-        write_json_to_input_file(in, {"dft"}, ofs);
+        write_json_to_input_file(in, {"dft", "pcm"}, ofs);
         mol.print_defined_only(ofs);
       }
     }
@@ -1263,7 +1298,8 @@ private:
   void initialize_(World &world, const Params &params) {
     nemo_ = std::make_shared<Nemo>(
         world, params.get<CalculationParameters>(),
-        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>());
+        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>(),
+        params.get<PCMParameters>());
   }
 
   std::shared_ptr<Calc> nemo_;

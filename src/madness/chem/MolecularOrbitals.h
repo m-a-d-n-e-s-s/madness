@@ -298,14 +298,17 @@ public:
 	}
 
 	/// legacy code
-    void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
+	/// @param[in]	allow_fewer	return the archive's orbitals when it holds fewer than requested
+	///							(the caller pads); otherwise that is an error
+    void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input,
+                  const bool allow_fewer = false) {
 
 		unsigned int nmo = 0;
 
 		ar & nmo;
 		// must hold in release builds too: too few orbitals in the archive
 		// otherwise silently yields a short mo vector further down
-		MADNESS_CHECK_THROW(nmo >= nmo_from_input,
+		MADNESS_CHECK_THROW(allow_fewer or nmo >= nmo_from_input,
 				"restart archive holds fewer orbitals than requested");
 		ar & eps & occ & localize_sets;
 		mo.resize(nmo);

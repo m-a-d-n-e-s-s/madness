@@ -712,6 +712,12 @@ namespace madness {
     ///            is unchanged — coarse-level errors pass through G at amplitude ~1/|E|
     ///            and are only reduced by tightening tol itself, not by choosing this mode.
     ///            CAUTION: same as mode -1 — use only for intermediates fed into G.
+
+    /// Modes 1, 2 and 3 scale the tolerance by the physical width of the box. The
+    /// width of an anisotropic cell has to be reduced to one number, and that is the
+    /// geometric mean, volume^(1/NDIM) -- not the smallest dimension, which would tie
+    /// the tolerance to the cell's aspect ratio rather than to its resolution.
+    /// Cubic cells are unaffected: there the two agree.
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::truncate_tol(double tol, const keyT& key) const {
 
@@ -726,11 +732,11 @@ namespace madness {
             return tol;
         }
         else if (truncate_mode == 1) {
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
         }
         else if (truncate_mode == 2) {
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
         }
         else if (truncate_mode == 3) {
@@ -743,7 +749,7 @@ namespace madness {
             const static double fac=1.0/std::pow(2,NDIM*0.5);
             tol*=fac;
 
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
         }
         else if (truncate_mode == 4) {
@@ -3888,6 +3894,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width = FunctionDefaults<NDIM>::make_default_cell_width();
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume = 1.;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width = 1.;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_geometric_mean_width = 1.;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::pmap_nproc{-1};
 

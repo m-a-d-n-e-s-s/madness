@@ -7,6 +7,8 @@
 #include <madness/world/MADworld.h>
 
 #include "broadcast_json.hpp"
+#include "solvers/function_hdf5_io.hpp"   // HDF5 blob archive (no-op without MADNESS_HAS_HDF5)
+#include <madness/misc/info.h>
 
 #include <cmath>
 #include <filesystem>
@@ -121,11 +123,11 @@ GroundState GroundState::from_archive(World& world,
     // Step 3: Construct SCF (calls set_derived_values internally)
     auto scf = std::make_shared<SCF>(world, params, molecule);
 
-    // Step 4: Load orbitals via SCF's own archive reader
-    scf->load_mos(world);
-
-    // Step 5: Build GroundState
+    // Step 4+5: Build GroundState, then load the orbitals through the family-
+    // aware loader (native SCF::load_mos, or the HDF5 blob).
     GroundState gs(world, scf);
+    gs.archive_path_ = archive_path;
+    gs.load_orbitals(world);
     gs.original_k_ = header.k;
     gs.current_k_ = header.k;
     return gs;
@@ -141,17 +143,37 @@ GroundState::read_archive_header(World& world,
     // ground-state archives written before the header grew its version-5 tail
     // still work here unchanged.
     ArchiveHeader h;
-    archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>
-        ar(world, archive_path.c_str());
-
     RestartMetadata meta;
-    try {
-        meta.read(ar);
-    } catch (const std::exception& e) {
-        throw std::runtime_error(
-            "GroundState::read_archive_header: cannot read the header of " +
-            archive_path + ": " + e.what() +
-            ". Regenerate the ground-state archive with a matching moldft.");
+    unsigned int nmo_alpha_read = 0;
+    if (archive_is_hdf5(world, archive_path)) {
+#ifdef MADNESS_HAS_HDF5
+        try {
+            load_parallel_archive_hdf5(world, archive_path + ".h5", [&](auto& ar) {
+                meta.read(ar);
+                ar & nmo_alpha_read;
+            });
+        } catch (const std::exception& e) {
+            throw std::runtime_error(
+                "GroundState::read_archive_header: cannot read the header of " +
+                archive_path + ".h5: " + e.what());
+        }
+#else
+        throw std::runtime_error("GroundState::read_archive_header: " + archive_path +
+                                 ".h5 found but this build has no HDF5 support");
+#endif
+    } else {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>
+            ar(world, archive_path.c_str());
+        try {
+            meta.read(ar);
+        } catch (const std::exception& e) {
+            throw std::runtime_error(
+                "GroundState::read_archive_header: cannot read the header of " +
+                archive_path + ": " + e.what() +
+                ". Regenerate the ground-state archive with a matching moldft.");
+        }
+        // nmo_alpha directly follows the header (needed to infer nopen)
+        ar & nmo_alpha_read;
     }
 
     h.version = meta.version;
@@ -175,11 +197,105 @@ GroundState::read_archive_header(World& world,
             "code needs moldft orbitals ('mo').");
     }
 
-    // Read nmo_alpha, which directly follows the header (needed to infer nopen
-    // for open-shell)
-    ar & h.nmo_alpha;
-
+    h.nmo_alpha = nmo_alpha_read;
     return h;
+}
+
+bool GroundState::archive_is_hdf5(World& world, const std::string& archive_path) {
+    int is_h5 = 0;
+    if (world.rank() == 0) {
+        namespace fs = std::filesystem;
+        const bool native = fs::exists(archive_path + ".00000") || fs::exists(archive_path);
+        is_h5 = (!native && fs::exists(archive_path + ".h5")) ? 1 : 0;
+    }
+    world.gop.broadcast(is_h5, 0);
+    return is_h5 == 1;
+}
+
+void GroundState::load_orbitals(World& world) {
+    if (!archive_is_hdf5(world, archive_path_)) {
+        scf_->load_mos(world);
+        return;
+    }
+#ifdef MADNESS_HAS_HDF5
+    RestartMetadata meta;
+    load_parallel_archive_hdf5(world, archive_path_ + ".h5", [&](auto& ar) {
+        meta.read(ar);
+        unsigned int na = 0;
+        ar & na;
+        ar & scf_->aeps & scf_->aocc & scf_->aset;
+        scf_->amo.resize(na);
+        for (unsigned int i = 0; i < na; ++i) ar & scf_->amo[i];
+        scf_->bmo.clear();
+        if (!meta.spin_restricted) {
+            unsigned int nb = 0;
+            ar & nb;
+            ar & scf_->beps & scf_->bocc & scf_->bset;
+            scf_->bmo.resize(nb);
+            for (unsigned int i = 0; i < nb; ++i) ar & scf_->bmo[i];
+        }
+    });
+    if (meta.L != scf_->param.L())
+        throw std::runtime_error("GroundState::load_orbitals: box L in " + archive_path_ +
+                                 ".h5 (" + std::to_string(meta.L) + ") differs from the run's L (" +
+                                 std::to_string(scf_->param.L()) + ")");
+    // Same post-processing as SCF::load_mos: bring the orbitals to the ACTIVE
+    // thresh / k (prepare() re-projects again on protocol climbs).
+    auto fix = [&](std::vector<real_function_3d>& mo) {
+        if (mo.empty()) return;
+        const double t = FunctionDefaults<3>::get_thresh();
+        if (mo[0].thresh() * 0.999 > t) set_thresh(world, mo, t);
+        const int k = FunctionDefaults<3>::get_k();
+        if (mo[0].k() != k)
+            for (auto& f : mo) f = madness::project(f, k, t, false);
+    };
+    fix(scf_->amo);
+    fix(scf_->bmo);
+    scf_->current_energy       = meta.current_energy;
+    scf_->converged_for_thresh = meta.converged_for_thresh;
+    scf_->converged_for_dconv  = meta.converged_for_dconv;
+    if (world.rank() == 0)
+        print("loaded ", scf_->amo.size(), " alpha MOs from ", archive_path_ + ".h5",
+              " (HDF5 blob) with thresh and k: ", scf_->amo[0].thresh(), scf_->amo[0].k());
+#else
+    throw std::runtime_error("GroundState::load_orbitals: HDF5 archive requested but this "
+                             "build has no HDF5 support");
+#endif
+}
+
+void GroundState::save_archive_hdf5(World& world, const std::string& path) const {
+#ifdef MADNESS_HAS_HDF5
+    RestartMetadata meta;
+    meta.current_energy       = scf_->current_energy;
+    meta.spin_restricted      = scf_->param.spin_restricted();
+    meta.L                    = scf_->param.L();
+    meta.k                    = scf_->amo.empty() ? FunctionDefaults<3>::get_k() : scf_->amo[0].k();
+    meta.molecule             = scf_->molecule;
+    meta.xc                   = scf_->param.xc();
+    meta.localize             = scf_->param.localize_method();
+    meta.converged_for_thresh = scf_->converged_for_thresh;
+    meta.converged_for_dconv  = scf_->converged_for_dconv;
+    meta.representation       = Representation::mo;
+    meta.ncf                  = scf_->restart_ncf;
+    meta.eprec                = scf_->molecule.parameters.eprec();
+    meta.madness_version      = MADNESS_PACKAGE_VERSION;
+    save_parallel_archive_hdf5(world, path, /*deflate=*/0, [&](auto& ar) {
+        meta.write(ar);
+        ar & static_cast<unsigned int>(scf_->amo.size());
+        ar & scf_->aeps & scf_->aocc & scf_->aset;
+        for (const auto& f : scf_->amo) ar & f;
+        if (!meta.spin_restricted) {
+            ar & static_cast<unsigned int>(scf_->bmo.size());
+            ar & scf_->beps & scf_->bocc & scf_->bset;
+            for (const auto& f : scf_->bmo) ar & f;
+        }
+    });
+    if (world.rank() == 0)
+        print("GroundState: wrote HDF5 archive ", path, " (", scf_->amo.size(), " alpha MOs)");
+#else
+    (void)world; (void)path;
+    throw std::runtime_error("GroundState::save_archive_hdf5: this build has no HDF5 support");
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +322,7 @@ void GroundState::prepare(World& world, double vtol,
         // Reload pristine MOs at original_k_ from the archive, then project to
         // target. GroundState is only built via from_archive, so the
         // checkpoint to reload from always exists.
-        scf_->load_mos(world);
+        load_orbitals(world);
         if (original_k_ != target_k) {
             reconstruct(world, scf_->amo);
             for (auto& orbital : scf_->amo) {
@@ -291,7 +407,7 @@ void GroundState::build_v_local(World& world, double vtol,
     if (scf_->xc.is_dft() && scf_->xc.hf_exchange_coefficient() != 1.0) {
         XCOperator<double, 3> xc_op(world, scf_->param.xc(),
                                      is_spin_restricted(),
-                                     arho, arho);
+                                     arho, arho, scf_->param.dft_deriv());
         v_local_ += xc_op.make_xc_potential();
     }
     arho.clear();

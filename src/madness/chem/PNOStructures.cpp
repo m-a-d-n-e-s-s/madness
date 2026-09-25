@@ -145,7 +145,7 @@ vecfuncT ParametrizedExchange::operator ()(const vecfuncT& vket,
 		xc_data = xc_data.erase(xc_data.find_last_not_of(" ") + 1);
 		const XCOperator<double,3> xc(world, xc_data,
 				!nemo.get_calc()->param.spin_restricted(), alpha_density,
-				alpha_density);
+				alpha_density, nemo.get_calc()->param.dft_deriv());
 		real_function_3d xc_pot = xc.make_xc_potential();
 		return xc_pot * vket;
 	}

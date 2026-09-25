@@ -24,7 +24,16 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
     add_qctest(scf_he_tpss     madqc "qctest;medium;applications")    #  17 s
     # the open-shell counterpart of scf_he_tpss: the only deck with unequal spin
     # densities, hence the only one exercising the spin-polarized sigma matrix
-#    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+    # the only DFT deck on the nemo path: XCOperator's nemo constructor, the
+    # regularized density-gradient path, and the ncf/GGA-flux interaction
+    add_qctest(nemo_he_pbe     madqc "qctest;medium;applications")    #  12 s
+    # meta-gga on the nemo path: tau from the nemos via the psi = R F product
+    # rule, and the non-multiplicative term with the R factors cancelled
+    add_qctest(nemo_he_tpss    madqc "qctest;medium;applications")    #  24 s
+    # the weak form of the semilocal xc potential (xc_weak_gga), on two orbitals
+    # so the per-orbital flux is exercised; must agree with the multiplicative form
+    add_qctest(nemo_lih_pbe_weak madqc "qctest;medium;applications")  #  23 s
   endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
@@ -46,8 +55,12 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
-  add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
-  add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  # The 6D pair functions of MP2/CC2 are only tractable with the compressed
+  # tensor representation, so these decks need ENABLE_GENTENSOR.
+  if (ENABLE_GENTENSOR)
+    add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
+    add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  endif()
   add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
   add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s
@@ -62,6 +75,14 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # rescue it: simple-dftd3 has no LDA damping parameters either.
   if (MADNESS_HAS_DFTD3 AND TARGET Libxc::xc)
     add_qctest(scf_lih_pbe_d3  madqc "qctest;medium;applications")     #  12 s, laptop
+  endif()
+
+  # The polarizable continuum model, and the only deck carrying a `pcm` group.
+  # Needs PCMSolver: without it the deck aborts by design (chem/pcm.cc throws
+  # rather than quietly running in vacuum), so it cannot be registered
+  # unconditionally -- ENABLE_PCM is off by default.
+  if (MADNESS_HAS_PCM)
+    add_qctest(scf_lih_pcm_water madqc "qctest;medium;applications")   #  12 s
   endif()
 
 endif()
