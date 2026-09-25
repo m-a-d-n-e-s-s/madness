@@ -11,9 +11,11 @@
 #     gradient_precision 1e-5).
 #
 #     The difference is visible: at the derived thresholds scf_lih_optimize stops
-#     after 2 steps at a max gradient of 4.0e-07 and r = 3.035076 bohr; pinned as
-#     below this case takes 3 steps to 9.1e-07 and r = 3.034046. Same minimum,
-#     different stopping point -- which is what a threshold is for.
+#     after 2 steps; pinned as below this case takes several more, because an
+#     xtol of 1e-5 bohr is below the steps that gradient noise alone produces
+#     at this dconv (~1e-4 bohr). Same minimum, different stopping point --
+#     which is what a threshold is for, and why check.json asserts
+#     max_gradient <= gtol rather than matching the reference.
 #
 #   * these are the thresholds the retired in-SCF `gopt` path used to impose on
 #     everyone. They are a fine *choice* and a poor *default*: at a looser
@@ -27,8 +29,10 @@
 # a.u., an identical dE/dz on both atoms; without the projection `max-g` never
 # reaches `gtol` and the run burns every cycle at a geometry that stopped moving.
 # `max_gradient` is the key that notices -- asserting the energy alone would not,
-# since it is right either way. LiH is linear, so the projector must also cope
-# with the vanishing rotation about the molecular axis.
+# since it is right either way. With the projection disabled this case runs out
+# of cycles at max_gradient 2.4e-05, above its gtol of 1e-5. LiH is linear, so
+# the projector must also cope with the vanishing rotation about the molecular
+# axis.
 #
 # The start is 0.015 bohr inside the HF minimum.
 #

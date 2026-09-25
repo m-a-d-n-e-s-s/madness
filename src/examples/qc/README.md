@@ -100,15 +100,24 @@ The four optimization cases all use `--optimize --wf=<scf|nemo>`, which since th
 in-SCF `dft gopt` form was removed is the only way to optimize a geometry.
 
 `scf_lih_optimize` and `scf_lih_optimize_tight` are the same molecule at two
-threshold settings: the first at the derived defaults (2 steps, max gradient
-4.0e-07, r = 3.035076 bohr), the second with `gtol`/`xtol`/`gradient_precision`
-pinned in the `optimization` group at the values the retired in-SCF path used to
-impose (3 steps, 9.1e-07, r = 3.034046). Same minimum, different stopping
-point — energies -7.987363036 and -7.987363048, i.e. 1.2e-08 Ha apart. The tight
-case reproduces the removed path's numbers exactly, which is what establishes that
-moving the optimizer out of the SCF changed no arithmetic — only who chooses the
-thresholds. `nemo_lih_optimize` lands at r = 3.034271, the difference between a
-regularized and a plain SCF reference.
+threshold settings: the first at the derived defaults (gtol 1e-4), the second
+with `gtol`/`xtol`/`gradient_precision` pinned in the `optimization` group at the
+values the retired in-SCF path used to impose (gtol 1e-5). Same minimum,
+different stopping point. When the in-SCF path was removed the tight case
+reproduced its numbers exactly, which is what established that moving the
+optimizer out of the SCF changed no arithmetic — only who chooses the thresholds.
+
+Both assert `max_gradient` as `max: <gtol>`, not against the reference. At
+`dconv 1e-4` the gradient at one geometry depends on where the SCF started by up
+to ~7e-5 (with `restart auto` each step starts from the previous step's AO
+projections, while a cold start uses the atomic guess), so the point inside gtol
+where the optimizer stops is a property of the trajectory, not of the minimum.
+The references' own `max_gradient` values (4.0e-07, 9.1e-07) came from
+trajectories that today's code does not follow; the energy and geometry checks
+still hold against them.
+
+`nemo_lih_optimize` lands at r = 3.034271, the difference between a regularized
+and a plain SCF reference.
 
 All four converge on the criteria rather than through MolOpt's "insufficient
 precision" escape; if one ever starts taking a single step and stopping, suspect
@@ -179,9 +188,20 @@ read.
 }
 ```
 
-`key` is a path of keys and list indices into `<prefix>.calc_info.json`. `tol` is
-an absolute tolerance; `0` means "must match exactly", and ints and strings always
-compare exactly. A key absent from either file is a failure, not a skip. Optional
+`key` is a path of keys and list indices into `<prefix>.calc_info.json`. Each
+check then carries one or more of:
+
+- `tol` — an absolute tolerance against the reference; `0` means "must match
+  exactly", and ints, strings and booleans always compare exactly.
+- `rtol` — a relative tolerance, |run − reference| ≤ `rtol` · |reference|. A
+  reference of exactly zero is rejected (the bound would be zero) unless
+  `allow_zero` is set, in which case the run must reproduce the zero.
+- `max` — an upper bound on the *produced* value alone; the reference is not
+  consulted. Use it for iteration counts and residuals, where the reference is a
+  budget rather than a number to reproduce. It may be combined with `tol` or
+  `rtol` in the same entry.
+
+A key absent from either file is a failure, not a skip. Optional
 `requires` gates a case on resources — `{"threads": 20}`, `{"mpi": true}`,
 `{"env": ["MAD_ROOT_DIR"]}` — and turns it into a ctest skip rather than a
 failure.
