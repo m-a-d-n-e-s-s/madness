@@ -141,5 +141,32 @@ class ExpectFilesTests(unittest.TestCase):
         self.assertTrue(run_qctest.check_expected_files(self.dir, []))
 
 
+class ExternalReferenceTests(unittest.TestCase):
+    """A reference holding another code's numbers (reference_source) must not be
+    overwritten by --update with MADNESS's own result."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.case = Path(self.tmp.name) / "case"
+        (self.case / "reference").mkdir(parents=True)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_declared_source_is_reported(self):
+        (self.case / "reference" / "case.calc_info.json").write_text(
+            json.dumps({"reference_source": "DALTON t-aug-cc-pVQZ", "tasks": []}))
+        self.assertEqual(run_qctest.external_reference_source(self.case),
+                         "DALTON t-aug-cc-pVQZ")
+
+    def test_ordinary_reference_is_not_external(self):
+        (self.case / "reference" / "case.calc_info.json").write_text(
+            json.dumps({"tasks": []}))
+        self.assertIsNone(run_qctest.external_reference_source(self.case))
+
+    def test_no_reference_yet_is_not_external(self):
+        self.assertIsNone(run_qctest.external_reference_source(self.case))
+
+
 if __name__ == "__main__":
     unittest.main()

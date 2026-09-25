@@ -315,6 +315,22 @@ def check_expected_files(workdir, patterns):
     return ok
 
 
+def external_reference_source(case):
+    """The `reference_source` a case's reference declares, or None.
+
+    A reference that holds another code's numbers (e.g. DALTON's) says so in a
+    top-level `reference_source`; --update would replace them with this run's
+    own result and turn the check into MADNESS against itself."""
+    for ref in sorted((case / "reference").glob("*.calc_info.json")):
+        try:
+            src = json.loads(ref.read_text()).get("reference_source")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if src:
+            return src
+    return None
+
+
 def update_reference(case, output, report):
     refdir = case / "reference"
     refdir.mkdir(exist_ok=True)
@@ -339,6 +355,12 @@ def main():
     if not case.is_dir():
         sys.exit(f"qctest: no such case directory: {case}")
     workdir = Path.cwd().resolve()
+    if args.update:
+        source = external_reference_source(case)
+        if source:
+            sys.exit(f"qctest: {case.name}'s reference is not a MADNESS run "
+                     f"(reference_source: {source}); refusing --update, which would "
+                     "overwrite it with this run's own result")
     check = load_check(case, args.update)
 
     print(f"qctest case: {case.name}")
