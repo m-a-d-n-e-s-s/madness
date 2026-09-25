@@ -8,6 +8,8 @@
 #include <madness/chem/pcm.h>
 #include <madness/mra/QCCalculationParametersBase.h>
 
+#include <madness/chem/ResponseParameters.hpp>
+#include<madness/chem/lowrankfunction.h>
 #include <type_traits>
 
 using namespace madness;
@@ -281,8 +283,14 @@ private:
 };
 
 // Define a concrete aliased ParameterManager type
-using Params =
-    ParameterManager<CalculationParameters, ResponseParameters,
-                     Nemo::NemoCalculationParameters, OptimizationParameters,
-                     OEP_Parameters, CCParameters, TDHFParameters, PCMParameters,
-                     Molecule, IOParameters>;
+using Params = ParameterManager<CalculationParameters,
+                                ResponseParameters,
+                                Nemo::NemoCalculationParameters,
+                                OptimizationParameters,
+                                OEP_Parameters,
+                                TDHFParameters,
+                                CCParameters,
+                                PCMParameters,
+                                LowRankFunctionParameters,
+                                Molecule,
+                                IOParameters>;
