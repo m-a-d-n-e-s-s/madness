@@ -164,6 +164,18 @@ namespace madness {
 #ifndef HAVE_IBMBGP
         pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 #endif
+        // Give worker threads at least an 8 MB stack. Some operating systems (e.g. macOS) default to
+        // 512 KB secondary thread stacks; others (glibc) derive the default from RLIMIT_STACK, and a
+        // default larger than 8 MB (e.g. from a raised `ulimit -s`) is kept.
+        {
+            const size_t min_stacksize = 8 * 1024 * 1024;
+            size_t stacksize = 0;
+            if (pthread_attr_getstacksize(&attr, &stacksize) != 0 || stacksize < min_stacksize) {
+                const int rc = pthread_attr_setstacksize(&attr, min_stacksize);
+                if (rc) MADNESS_EXCEPTION("failed setting thread stack size", rc);
+            }
+        }
+
         int result = pthread_create(&id, &attr, &ThreadBase::main, (void *) this);
         if (result) MADNESS_EXCEPTION("failed creating thread", result);
 

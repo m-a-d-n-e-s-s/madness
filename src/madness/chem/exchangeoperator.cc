@@ -397,11 +397,87 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 }
 
 
-template 
-class Exchange<double_complex, 3>::ExchangeImpl;
+/// ctor
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const double lo, const double thresh) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,lo,thresh)) {};
 
-template
-class Exchange<double, 3>::ExchangeImpl;
+/// ctor with a conventional calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
+
+/// ctor with a nemo calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
+
+/// apply the exchange operator on a vector of functions
+
+/// note that only one spin is used (either alpha or beta orbitals)
+/// @param[in]  vket       the orbitals |i> that the operator is applied on
+/// @return     a vector of orbitals  K| i>
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
+    impl->set_taskq(this->taskq);
+    auto result=impl->operator()(vket);
+    this->statistics=impl->get_statistics();
+    return result;
+};
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
+    MADNESS_CHECK(impl);
+    impl->set_bra_and_ket(bra, ket);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+bool Exchange<T,NDIM>::is_symmetric() const {
+    return impl->is_symmetric();
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
+    impl->symmetric(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
+    impl->set_algorithm(alg);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& info) {
+    impl->set_macro_task_info(info);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
+    impl->set_printlevel(level);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long level) {
+    impl->set_batch_granularity(level);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
+    impl->set_accumulation_mode(mode);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
+    impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
+template class Exchange<double_complex, 3>;
+template class Exchange<double, 3>;
 
 template<> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
 template<> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
@@ -409,7 +485,5 @@ template<> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
 template<> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
 template<> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(
         0);
-
-Exchange<double,3>::ExchangeImpl junkjunkjunk(World& world, const SCF *calc, const int ispin) {return Exchange<double,3>::ExchangeImpl(world, calc, ispin);}
 
 } /* namespace madness */

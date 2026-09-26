@@ -828,8 +828,7 @@ namespace madness {
             }
 	    //print("getop", n, d, norm);
             op.norm = sqrt(norm);
-            data.set(n, d, op);
-            return data.getptr(n,d);
+            return data.set(n, d, op);
         }
 
 
@@ -866,8 +865,7 @@ namespace madness {
             }
 
             op.norm = sqrt(norm);
-            mod_data.set(n, key, op);
-            return mod_data.getptr(n,key);
+            return mod_data.set(n, key, op);
         }
 
 

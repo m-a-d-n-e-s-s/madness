@@ -76,8 +76,6 @@ namespace madness {
                         v = it->second;
                     }
                     else {
-                    	std::cout << "key " << key << " in world " << subworld.id()
-                    			<< "dc.world " << dc.get_world().id() << std::endl;
                         MADNESS_EXCEPTION("record not found", key);
                     }
                 }

@@ -301,10 +301,13 @@ namespace {
         ITERATOR3(c,ASSERT_EQ(c(_i,_j,_k), b(_i+1,_j+1,_k+1)));
 
         // check did not go out of bounds
-        typedef typename madness::TensorTypeData<TypeParam>::scalar_type machine_prec;
-        machine_prec small=2.0*std::numeric_limits<machine_prec>::epsilon();
-        EXPECT_NEAR(c.normf(), a.normf(), small*a.normf());
-        EXPECT_NEAR(b(patch).normf(), a.normf(), small*a.normf());
+        // Note: normf() returns a floating-point value (float_scalar_type, which is double for integral types).
+        // Using scalar_type for integral types yields epsilon()==0 (zero tolerance), causing failure from
+        // multi-term floating-point summation order differences across different patch/tensor strides.
+        typedef typename madness::TensorTypeData<TypeParam>::float_scalar_type norm_prec;
+        norm_prec small = 100.0 * std::numeric_limits<norm_prec>::epsilon();
+        EXPECT_NEAR(c.normf(), a.normf(), std::max(small * a.normf(), norm_prec(1e-12)));
+        EXPECT_NEAR(b(patch).normf(), a.normf(), std::max(small * a.normf(), norm_prec(1e-12)));
 
         // patch assignment interaction with reordering of source and target
 

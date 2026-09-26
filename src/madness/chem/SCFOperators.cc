@@ -1225,86 +1225,6 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
     truncate(world, xc_args, extra_truncation);
 }
 
-/// ctor
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const double lo, const double thresh) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,lo,thresh)) {};
-
-
-/// ctor with a conventional calculation
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
-
-/// ctor with a nemo calculation
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
-
-/// apply the exchange operator on a vector of functions
-
-/// note that only one spin is used (either alpha or beta orbitals)
-/// @param[in]  vket       the orbitals |i> that the operator is applied on
-/// @return     a vector of orbitals  K| i>
-template<typename T, std::size_t NDIM>
-std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
-    impl->set_taskq(this->taskq);
-    auto result=impl->operator()(vket);
-    this->statistics=impl->get_statistics();
-    return result;
-};
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
-    MADNESS_CHECK(impl);
-    impl->set_bra_and_ket(bra, ket);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-bool Exchange<T,NDIM>::is_symmetric() const {
-    return impl->is_symmetric();
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
-    impl->symmetric(flag);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
-    impl->set_algorithm(alg);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& info) {
-    impl->set_macro_task_info(info);
-    return *this;
-}
-
- template<typename T, std::size_t NDIM>
- Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
-    impl->set_printlevel(level);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long level) {
-    impl->set_batch_granularity(level);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
-    impl->set_accumulation_mode(mode);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
-    impl->set_cost_aware_assignment(flag);
-    return *this;
-}
-
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();
@@ -1326,9 +1246,6 @@ Fock<double, 3>::Fock(World &world, const NemoBase *nemobase) : world(world) {
     else MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
 
-
-template class Exchange<double_complex,3>;
-template class Exchange<double,3>;
 
 template class Coulomb<double_complex,3>;
 template class Coulomb<double,3>;
