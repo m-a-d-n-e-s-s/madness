@@ -1,0 +1,22 @@
+<map id="madness::slater_kernel_apply" name="madness::slater_kernel_apply">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1136,235,1309,275"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="812,159,1047,199"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1021,200,1145,232,1144,237,1020,205"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="496,99,731,139"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="733,139,824,156,823,161,732,144"/>
+<area shape="poly" id="edge3_Node000003_Node000003" title=" " alt="" coords="585,82,595,75,613,72,629,74,640,80,644,89,643,99,637,98,639,90,636,84,628,79,613,77,597,80,588,87"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension." alt="" coords="260,22,380,47"/>
+<area shape="poly" id="edge7_Node000002_Node000004" title=" " alt="" coords="394,23,465,18,551,17,642,25,731,45,785,68,834,98,908,156,905,161,831,102,782,73,730,51,641,31,551,23,466,23,394,28"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="380,49,543,96,542,101,378,54"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="217,269,423,294"/>
+<area shape="poly" id="edge8_Node000002_Node000005" title=" " alt="" coords="375,295,447,312,537,325,585,328,634,327,683,321,730,309,755,299,772,286,810,253,895,196,898,201,814,257,775,290,757,303,732,315,684,326,634,332,585,333,536,330,446,317,374,300"/>
+<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="434,265,454,255,470,242,478,232,481,222,482,201,482,179,486,167,494,155,520,137,523,141,498,159,491,169,487,180,487,201,487,223,482,235,474,246,456,260,437,269"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="5,269,168,294"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="182,279,217,279,217,284,182,284"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1apply__kernel__helper.html" title=" " alt="" coords="843,267,1015,307"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="1029,277,1112,269,1135,266,1136,272,1112,275,1029,283"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1asymptotic__slater.html" title=" " alt="" coords="532,372,695,412"/>
+<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="707,376,787,355,844,331,893,304,896,309,846,335,789,360,709,381"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="224,372,416,412"/>
+<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="429,389,532,389,532,395,429,395"/>
+</map>

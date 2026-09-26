@@ -1,0 +1,11 @@
+<map id="slymer::NWChem_Interface" name="slymer::NWChem_Interface">
+<area shape="rect" id="Node000001" title="Class for interfacing with NWChem (tested on version 6.6)." alt="" coords="73,403,274,428"/>
+<area shape="rect" id="Node000002" href="$classslymer_1_1ES__Interface.html" title="Abstract base class for interfacing with electronic structure codes." alt="" coords="30,315,186,340"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="127,349,166,401,162,404,123,353"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="5,80,211,105"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="111,119,111,314,105,314,105,119"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="27,5,189,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="111,45,111,80,105,80,105,45"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="211,315,269,340"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="225,353,185,404,181,400,220,349"/>
+</map>

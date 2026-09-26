@@ -1,0 +1,5 @@
+<map id="madness::Exchange&lt; T, NDIM &gt;::ExchangeImpl&lt; T, NDIM &gt;::MacroTaskExchangeSimple::MacroTaskPartitionerExchange" name="madness::Exchange&lt; T, NDIM &gt;::ExchangeImpl&lt; T, NDIM &gt;::MacroTaskExchangeSimple::MacroTaskPartitionerExchange">
+<area shape="rect" id="Node000001" title="custom partitioning for the exchange operator in exchangeoperator.h" alt="" coords="5,79,280,148"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1MacroTaskPartitioner.html" title="partition one (two) vectors into 1D (2D) batches." alt="" coords="30,5,255,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="145,44,145,79,140,79,140,44"/>
+</map>

@@ -1,0 +1,13 @@
+<map id="CosineSphere" name="CosineSphere">
+<area shape="rect" id="Node000001" title="The cos(theta) on a sphere problem." alt="" coords="639,115,749,141"/>
+<area shape="rect" id="Node000002" href="$classEmbeddedDirichlet.html" title="Abstract base class for embedded Dirichlet problems." alt="" coords="443,115,589,141"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="603,125,638,125,638,131,603,131"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="33,5,225,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="239,16,329,22,375,31,420,46,446,60,470,78,506,113,502,117,467,82,444,64,418,50,374,36,328,27,238,21"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="99,89,158,114"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="172,102,443,120,442,126,172,107"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1DomainMaskInterface.html" title="The interface for masking functions defined by signed distance functions." alt="" coords="12,138,245,163"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="259,152,338,151,418,145,463,138,464,143,419,151,338,156,259,158"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SignedDFInterface.html" title=" " alt="" coords="5,187,252,213"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="266,197,342,189,418,173,459,157,493,139,496,143,461,162,419,179,343,194,266,202"/>
+</map>

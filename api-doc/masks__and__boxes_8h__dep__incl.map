@@ -1,0 +1,17 @@
+<map id="masks_and_boxes.h" name="masks_and_boxes.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="302,5,455,31"/>
+<area shape="rect" id="Node000002" href="$diamagneticpotentialfactor_8cc.html" title=" " alt="" coords="5,79,221,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="323,37,157,81,156,76,322,32"/>
+<area shape="rect" id="Node000003" href="$madchem_8h.html" title=" " alt="" coords="245,79,344,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="356,42,310,80,307,76,353,38"/>
+<area shape="rect" id="Node000007" href="$test__masks__and__boxes_8cc.html" title=" " alt="" coords="369,79,559,104"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="404,37,452,76,448,80,401,41"/>
+<area shape="rect" id="Node000008" href="$madness_2chem_2znemo_8cc.html" title=" " alt="" coords="583,79,667,104"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="432,32,586,76,585,81,431,37"/>
+<area shape="rect" id="Node000004" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="149,152,211,177"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="266,113,200,154,197,150,263,109"/>
+<area shape="rect" id="Node000005" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="235,152,354,177"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="297,118,297,152,292,152,292,118"/>
+<area shape="rect" id="Node000006" href="$simple__hf_8cpp.html" title=" " alt="" coords="377,152,489,177"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="330,108,412,149,409,154,328,113"/>
+</map>
