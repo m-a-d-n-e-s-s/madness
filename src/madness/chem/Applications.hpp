@@ -1130,11 +1130,13 @@ struct moldft_lib {
     if (world.rank() == 0 && scf->param.print_level() > 0)
       E.output_calc_info_schema();
 
+    // total density: 2*rho_alpha when restricted, rho_alpha + rho_beta otherwise
+    // (no beta term when nbeta == 0, e.g. a fully spin-polarized reference)
     functionT rho = scf->make_density(world, scf->aocc, scf->amo);
-    functionT brho = rho;
-    if (scf->param.nbeta() != 0 && !scf->param.spin_restricted())
-      brho = scf->make_density(world, scf->bocc, scf->bmo);
-    rho.gaxpy(1.0, brho, 1.0);
+    if (scf->param.spin_restricted())
+      rho.scale(2.0);
+    else if (scf->param.have_beta())
+      rho.gaxpy(1.0, scf->make_density(world, scf->bocc, scf->bmo), 1.0);
 
     // optionally compute gradient, dipole, etc.
     Tensor<double> grad;
@@ -1146,7 +1148,7 @@ struct moldft_lib {
 
     tensorT dip;
     if (scf->param.dipole())
-      dip = scf->dipole(world, scf->make_density(world, scf->aocc, scf->amo));
+      dip = scf->dipole(world, rho);
 
     scf->do_plots(world);
 
