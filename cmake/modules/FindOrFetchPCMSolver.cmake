@@ -222,6 +222,19 @@ endif ()
 # parallel build. Wire it up.
 add_dependencies(pcm-objlib pcmsolver-update-version)
 
+# PCMSolver's dense linear algebra -- the N x N boundary-integral matrices, their
+# products and LU/LLT factorizations, N = number of tesserae -- is plain Eigen,
+# whose products, and the blocked factorizations built on them, run in parallel
+# under OpenMP; so do the collocation loops that fill the matrices, which in
+# moldft run on one rank while the node's other cores idle. Link OpenMP whenever
+# the compiler has it. (Eigen on MKL was measured too and buys nothing here:
+# 117 s vs 98 s for a 13,876-tessera cavity on 12 threads.)
+find_package(OpenMP COMPONENTS CXX QUIET)
+if (OpenMP_CXX_FOUND)
+  target_link_libraries(pcm-objlib PRIVATE OpenMP::OpenMP_CXX)
+  target_link_libraries(pcm-static INTERFACE OpenMP::OpenMP_CXX)
+endif ()
+
 # Hand the *installed* pcm-static the Fortran runtime, minus whatever the C++
 # driver links anyway. Inside this build tree it is not needed -- Fortran being
 # an enabled language, CMake sees Fortran in pcm-static's link closure and adds
