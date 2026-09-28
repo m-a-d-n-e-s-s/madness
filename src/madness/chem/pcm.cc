@@ -383,11 +383,24 @@ real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_pote
     // nuclear potential is density independent
     if(dynamic) mep = 0.0;
 
-    // add the electronic contribution to the mep
-    for (int i=0; i<grid_size; ++i) {
-        coord_3d evalpoint={grid(3*i),grid(3*i+1),grid(3*i+2)};
-        mep[i]-=coulomb_potential(evalpoint);
+    // add the electronic contribution to the mep: Function::operator()(coord) is a
+    // collective (rank 0 evaluates and broadcasts), i.e. one synchronisation of every
+    // rank per tessera; eval() is not, so each rank evaluates its own share of the
+    // centres through futures and the shares are summed once
+    if (!coulomb_potential.is_reconstructed()) coulomb_potential.reconstruct();
+    Tensor<double> mep_el(grid_size);
+    {
+        std::vector<Future<double>> vals;
+        std::vector<int> idx;
+        for (int i=world.rank(); i<grid_size; i+=world.size()) {
+            coord_3d evalpoint={grid(3*i),grid(3*i+1),grid(3*i+2)};
+            vals.push_back(coulomb_potential.eval(evalpoint));
+            idx.push_back(i);
+        }
+        for (std::size_t j=0; j<vals.size(); ++j) mep_el(idx[j]) = vals[j].get();
+        world.gop.sum(mep_el.ptr(), grid_size);
     }
+    mep -= mep_el;
 
     // This is the Ag irreducible representation (totally symmetric)
     int irrep = 0;
