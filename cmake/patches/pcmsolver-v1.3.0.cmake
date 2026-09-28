@@ -142,6 +142,24 @@ pcm_patch(src/solver/CPCMSolver.cpp
     "-blockSLU_[irrep].solve("
     "CPCMSolver.cpp: reuse the LU in computeCharge_impl")
 
+# 6. The cavity restart file cavity.npz is written at every construction, two
+#    zip entries per tessera in append mode: O(N^2), 2.1 GB and the 2 GB zip
+#    limit at 24k tesserae. Only `cavity_type restart` reads it, so write it
+#    only when PCMSOLVER_SAVE_CAVITY is set.
+pcm_patch(src/interface/Meddle.cpp
+    "#include <string>
+#include <vector>"
+    "#include <cstdlib>
+#include <string>
+#include <vector>"
+    "Meddle.cpp: include cstdlib")
+pcm_patch(src/interface/Meddle.cpp
+    "  cavity_->saveCavity();"
+    "  // opt-in: the .npz is only read back by cavity_type = restart, and writing it
+  // (append mode, two entries per tessera) is O(N^2) and fails past 2 GB
+  if (std::getenv(\"PCMSOLVER_SAVE_CAVITY\")) cavity_->saveCavity();"
+    "Meddle.cpp: cavity.npz on request only")
+
 # 8. Collocation::computeS_impl and computeD_impl copy an Element (two dynamic
 #    Eigen matrices) for every pair (i, j): ~10^9 heap allocations for a 13.9k
 #    tessera cavity, minutes per matrix. Take references. The loops are then
