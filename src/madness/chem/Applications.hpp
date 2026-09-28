@@ -456,11 +456,8 @@ public:
       results_["convergence_info"] = results_["convergence"];
       results_["metadata"] = {{"mpi_size", world_.size()}};
 
-      // Task-entry envelope: every task states its type; precision
-      // is mirrored so consumers need not know the nested layout.
+      // Task-entry envelope: every task states its type.
       results_["type"] = results_["scf"].value("model", std::string("scf"));
-      if (results_["scf"].contains("precision"))
-        results_["precision"] = results_["scf"]["precision"];
 
       // write the checkpoint file atomically (tmp write + rename) so a crash
       // or ENOSPC mid-write cannot truncate a previously-good checkpoint and
@@ -1046,6 +1043,70 @@ NextAction valid(World &world, const SCFResultsTuple &results,
   return archive_exists ? NextAction::Restart : NextAction::Redo;
 }
 
+/// The SCF task record, shared by the moldft and nemo paths so both write the
+/// same fields: the precision the SCF ran at, the energy components and the
+/// iteration count from the engine's per-iteration log (scf_data, filled by
+/// SCF::solve and Nemo::solve alike), and whether it reached the requested
+/// thresholds. Pure bookkeeping from quantities the solve already holds --
+/// nothing here changes a number. Collective (the coefficient count is a sum).
+inline void fill_scf_task_record(World &world, const SCF &scf, double energy,
+                                 SCFResults &scf_res, ConvergenceResults &conv_res) {
+  const auto last = scf.e_data.last();
+  auto get = [&](const char *k) {
+    auto it = last.find(k);
+    return it == last.end() ? 0.0 : it->second;
+  };
+  scf_res.scf_total_energy = energy;
+
+  // Reload-only path (NextAction::ReloadOnly / restart read_only): the engine
+  // returns without ever iterating, so last() is empty here. Recording an
+  // all-zero energy decomposition and 0 iterations next to the real
+  // (archive-derived) total energy would misreport a converged reload as an
+  // unconverged, zero-energy solve, so leave `energies` unset and iterations at
+  // their -1 default.
+  if (!last.empty()) {
+    nlohmann::json e;
+    e["nuclear_repulsion_energy"]      = get("e_nrep");
+    e["scf_kinetic_energy"]            = get("e_kinetic");
+    e["scf_nuclear_attraction_energy"] = get("e_nuclear");
+    e["scf_coulomb_energy"]            = get("e_coulomb");
+    e["scf_pcm_energy"]                = get("e_pcm");
+    e["scf_one_electron_energy"]       = get("e_kinetic") + get("e_nuclear") + get("e_local");
+    e["scf_two_electron_energy"]       = get("e_coulomb") + get("e_xc");   // HF: e_xc is exact exchange
+    if (scf.xc.is_dft()) e["scf_xc_energy"] = get("e_xc");
+    scf_res.energies = e;
+    conv_res.iterations = scf.e_data.iterations();
+  }
+
+  // Collective: one reduction total instead of one per orbital
+  // (Function::size() is itself a collective global sum).
+  world.gop.fence();
+  std::size_t ncoeff = 0;
+  for (const auto &f : scf.amo) ncoeff += f.size_local();
+  for (const auto &f : scf.bmo) ncoeff += f.size_local();
+  world.gop.sum(ncoeff);
+  scf_res.precision = {{"k", FunctionDefaults<3>::get_k()},
+                       {"thresh", FunctionDefaults<3>::get_thresh()},
+                       {"protocol", scf.param.protocol()},
+                       {"econv", scf.param.econv()},
+                       {"dconv", scf.param.dconv()},
+                       {"L", scf.param.L()},
+                       {"ncoeff", ncoeff}};
+
+  // converged_for_thresh/dconv always come from the engine (on the reload
+  // path, from the archive header -- SCF.cc:456) and describe the stored
+  // wavefunction truthfully either way, so this status check runs
+  // unconditionally. It deliberately checks against param.dconv() (what
+  // the deck asked for), which is stricter than the engine's own reload
+  // test max(protocol.back(), dconv) (SCF.h:625-629).
+  const double finest = scf.param.protocol().empty()
+                            ? FunctionDefaults<3>::get_thresh()
+                            : scf.param.protocol().back();
+  conv_res.status = (scf.converged_for_thresh <= finest &&
+                     scf.converged_for_dconv <= scf.param.dconv())
+                        ? "converged" : "unconverged";
+}
+
 struct moldft_lib {
   static constexpr const char *label() { return "moldft"; }
 
@@ -1181,67 +1242,7 @@ struct moldft_lib {
     scf_res.uses_libxc = false;
 #endif
 
-    // SCF task record: what this SCF actually ran at and
-    // what it produced, under QCSchema names where they exist. Pure bookkeeping
-    // from quantities the solve already holds — nothing here changes a number.
-    {
-      const auto last = scf->e_data.last();
-      auto get = [&](const char *k) {
-        auto it = last.find(k);
-        return it == last.end() ? 0.0 : it->second;
-      };
-      scf_res.scf_total_energy = energy;   // moldft never set this (0.0); only the nemo path did (Applications.hpp:1313)
-
-      // Reload-only path (NextAction::ReloadOnly / restart read_only): value()
-      // returns without ever calling scf->e_data.add_data(), so last() is
-      // empty here. Recording an all-zero energy decomposition and
-      // scf_iterations = 0 next to the real (archive-derived) total energy
-      // would misreport a converged reload as an unconverged, zero-energy
-      // solve, so leave `energies` unset and iterations at their -1 defaults.
-      if (!last.empty()) {
-        nlohmann::json e;
-        e["nuclear_repulsion_energy"]      = get("e_nrep");
-        e["scf_kinetic_energy"]            = get("e_kinetic");
-        e["scf_nuclear_attraction_energy"] = get("e_nuclear");
-        e["scf_coulomb_energy"]            = get("e_coulomb");
-        e["scf_pcm_energy"]                = get("e_pcm");
-        e["scf_one_electron_energy"]       = get("e_kinetic") + get("e_nuclear") + get("e_local");
-        e["scf_two_electron_energy"]       = get("e_coulomb") + get("e_xc");   // HF: e_xc is exact exchange
-        if (scf->xc.is_dft()) e["scf_xc_energy"] = get("e_xc");
-        scf_res.energies = e;
-        scf_res.scf_iterations = scf->e_data.iterations();
-        conv_res.iterations = scf->e_data.iterations();
-      }
-      scf_res.xc = scf->param.xc();
-
-      // Collective: one reduction total instead of one per orbital
-      // (Function::size() is itself a collective global sum).
-      world.gop.fence();
-      std::size_t ncoeff = 0;
-      for (const auto &f : scf->amo) ncoeff += f.size_local();
-      for (const auto &f : scf->bmo) ncoeff += f.size_local();
-      world.gop.sum(ncoeff);
-      scf_res.precision = {{"k", FunctionDefaults<3>::get_k()},
-                           {"thresh", FunctionDefaults<3>::get_thresh()},
-                           {"protocol", scf->param.protocol()},
-                           {"econv", scf->param.econv()},
-                           {"dconv", scf->param.dconv()},
-                           {"L", scf->param.L()},
-                           {"ncoeff", ncoeff}};
-
-      // converged_for_thresh/dconv always come from the engine (on the reload
-      // path, from the archive header -- SCF.cc:456) and describe the stored
-      // wavefunction truthfully either way, so this status check runs
-      // unconditionally. It deliberately checks against param.dconv() (what
-      // the deck asked for), which is stricter than the engine's own reload
-      // test max(protocol.back(), dconv) (SCF.h:625-629).
-      const double finest = scf->param.protocol().empty()
-                                ? FunctionDefaults<3>::get_thresh()
-                                : scf->param.protocol().back();
-      conv_res.status = (scf->converged_for_thresh <= finest &&
-                         scf->converged_for_dconv <= scf->param.dconv())
-                            ? "converged" : "unconverged";
-    }
+    fill_scf_task_record(world, *scf, energy, scf_res, conv_res);
 
     scf_res.properties = prop_res;
 
@@ -1346,8 +1347,7 @@ struct nemo_lib {
     sr.aeps = nm->get_calc()->aeps;
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
-    sr.scf_total_energy = nm->get_calc()->current_energy;
-    sr.xc = nm->get_calc()->param.xc();
+    fill_scf_task_record(world, *nm->get_calc(), nm->get_calc()->current_energy, sr, cr);
     sr.scf_dispersion_correction_energy = nm->get_calc()->dispersion.energy(
         world, nm->get_calc()->molecule);
     // The geometry this reference was solved at. Without it, results_["molecule"]
