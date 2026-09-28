@@ -240,6 +240,11 @@ PCM::PCM(World& world, const Molecule& mol, const PCMParameters& param,
 
     // convert molecule to pcm format
     const int natom=mol.natom();
+    // PCMSolver's GePol cavity generator is compiled for at most 1000 centres and 1000
+    // spheres (MXCENT/MXSP); beyond that it overwrites its own arrays and dies
+    // without a message, as it does with added spheres (`min_radius` <= 1) on a
+    // 787-atom protein
+    MADNESS_CHECK_THROW(natom <= 1000, "PCM: PCMSolver's cavity generator is compiled for at most 1000 atoms");
     charges=Tensor<double>(mol.natom());
     coordinates=Tensor<double>(3*mol.natom());
     double* ch=charges.ptr();
