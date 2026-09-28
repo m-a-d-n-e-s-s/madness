@@ -142,3 +142,47 @@ pcm_patch(src/solver/CPCMSolver.cpp
     "-blockSLU_[irrep].solve("
     "CPCMSolver.cpp: reuse the LU in computeCharge_impl")
 
+# 8. Collocation::computeS_impl and computeD_impl copy an Element (two dynamic
+#    Eigen matrices) for every pair (i, j): ~10^9 heap allocations for a 13.9k
+#    tessera cavity, minutes per matrix. Take references. The loops are then
+#    independent over i and run under OpenMP where the build has it.
+pcm_patch(src/bi_operators/Collocation.cpp
+    "    Element source = elems[i];"
+    "    const Element & source = elems[i];"
+    "Collocation.cpp: no Element copy per row")
+pcm_patch(src/bi_operators/Collocation.cpp
+    "      Element probe = elems[j];"
+    "      const Element & probe = elems[j];"
+    "Collocation.cpp: no Element copy per pair")
+pcm_patch(src/bi_operators/Collocation.cpp
+    "  Eigen::MatrixXd S = Eigen::MatrixXd::Zero(cavitySize, cavitySize);
+  for (PCMSolverIndex i = 0; i < cavitySize; ++i) {"
+    "  Eigen::MatrixXd S = Eigen::MatrixXd::Zero(cavitySize, cavitySize);
+#pragma omp parallel for schedule(dynamic, 32)
+  for (PCMSolverIndex i = 0; i < cavitySize; ++i) {"
+    "Collocation.cpp: S fill in parallel")
+pcm_patch(src/bi_operators/Collocation.cpp
+    "  Eigen::MatrixXd D = Eigen::MatrixXd::Zero(cavitySize, cavitySize);
+  for (PCMSolverIndex i = 0; i < cavitySize; ++i) {"
+    "  Eigen::MatrixXd D = Eigen::MatrixXd::Zero(cavitySize, cavitySize);
+#pragma omp parallel for schedule(dynamic, 32)
+  for (PCMSolverIndex i = 0; i < cavitySize; ++i) {"
+    "Collocation.cpp: D fill in parallel")
+
+# 9. The positive-definiteness check of S is an Eigen LDLT, which Eigen 3.3
+#    implements unblocked and serially, O(N^3). The LLT fails exactly when S is
+#    not positive-definite and is blocked on the parallel products.
+pcm_patch(src/bi_operators/IBoundaryIntegralOperator.cpp
+    "  Eigen::LDLT<Eigen::MatrixXd> Sldlt(biop);
+  if (!Sldlt.isPositive()) {"
+    "  Eigen::LLT<Eigen::MatrixXd> Sldlt(biop);
+  if (Sldlt.info() != Eigen::Success) {"
+    "IBoundaryIntegralOperator.cpp: LLT instead of LDLT for the S check")
+
+# 10. The tessera-area diagonal is materialized as a dense N x N matrix and
+#     multiplied as one: a dense O(N^3) product and N^2 doubles in every solver
+#     build. Keep it diagonal.
+pcm_patch(src/solver/SolverImpl.cpp
+    "  Eigen::MatrixXd a = cav.elementArea().asDiagonal();"
+    "  const Eigen::DiagonalMatrix<double, Eigen::Dynamic> a = cav.elementArea().asDiagonal();"
+    "SolverImpl.cpp: keep the area matrix diagonal")
