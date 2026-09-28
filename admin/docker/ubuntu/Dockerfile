@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ------------------------------------------------------------------------------
-# MADNESS Dockerfile (Single-Node / Non-MPI, sequential BLAS)
+# MADNESS Dockerfile (MPI with TBB task backend, Intel MKL, TCMalloc-minimal)
 # Provides 'madqc' and MADNESS development libraries/headers.
 #
 # BLAS/LAPACK is chosen from the target architecture, because MADNESS owns
@@ -30,7 +30,12 @@ RUN set -eux; \
       cmake \
       ninja-build \
       python3 \
+      libgoogle-perftools-dev \
       libxc-dev \
+      libfftw3-dev \
+      libopenmpi-dev \
+      openmpi-bin \
+      libtbb-dev \
       libeigen3-dev \
       nlohmann-json3-dev \
       ca-certificates \
@@ -47,7 +52,7 @@ WORKDIR /usr/src/madness
 # Copy source tree
 COPY . /usr/src/madness
 
-# Configure, build and install MADNESS without MPI and with a sequential BLAS.
+# Configure, build and install MADNESS with MPI, TBB, tcmalloc-minimal and a sequential BLAS.
 #
 # `set -eux` plus `;` separators are load-bearing. With `&&` chaining, the
 # trailing `|| true` on the strip steps would also swallow a cmake or ninja
@@ -58,6 +63,7 @@ COPY . /usr/src/madness
 #   * libxc is found in CONFIG mode only (external/libxc.cmake), so a missing
 #     LibxcConfig.cmake would silently yield a DFT-less quantum-chemistry
 #     image. Assert on the generated config.h instead.
+#   * assert tcmalloc-minimal and TBB backend are active in config.h.
 #   * likewise assert MKL was actually found on amd64: if FindMKL fails,
 #     external/lapack.cmake quietly falls back to a generic (possibly threaded)
 #     BLAS, which is exactly what this image must not ship.
@@ -73,25 +79,37 @@ RUN set -eux; \
     else blas_args="-DENABLE_MKL=OFF"; fi; \
     cmake -S /usr/src/madness -B /tmp/build -GNinja \
       -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
-      -DENABLE_MPI=OFF \
+      -DMADNESS_TARGET_ARCH=performance \
+      -DMADNESS_RELAXED_MATH=fast \
+      -DENABLE_MPI=ON \
+      -DMPI_CXX_SKIP_MPICXX=ON \
+      -DMADNESS_TASK_BACKEND=TBB \
+      -DENABLE_TCMALLOC_MINIMAL=ON \
       -DENABLE_LIBXC=ON \
       ${blas_args} \
       -DBUILD_TESTING=OFF \
       -DCMAKE_INSTALL_PREFIX=/usr/local; \
     grep -q '^#define MADNESS_HAS_LIBXC 1' /tmp/build/src/madness/config.h; \
+    grep -q '^#define MADNESS_HAS_GOOGLE_PERF_TCMALLOC_MINIMAL 1' /tmp/build/src/madness/config.h; \
+    grep -q '^#define HAVE_INTEL_TBB 1' /tmp/build/src/madness/config.h; \
     if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
       grep -q '^#define HAVE_INTEL_MKL 1' /tmp/build/src/madness/config.h; \
     fi; \
-    ninja -C /tmp/build madness madqc; \
+    ninja -C /tmp/build madness madqc libxsmm_gemm_generator libxsmm_binaryexport_generator; \
     ninja -C /tmp/build install-madness-libraries install-madness-config; \
+    if [ -d /tmp/build/_deps/libxsmm-build ]; then \
+      cmake --install /tmp/build/_deps/libxsmm-build; \
+    fi; \
     cmake --install /tmp/build/src/apps/madqc; \
     test -x /usr/local/bin/madqc; \
     datadir="$(dirname "$(find /usr/local/share/madness -name coeffs -print -quit)")"; \
     test -f "${datadir}/coeffs"; \
     test -f "${datadir}/sto-3g"; \
     ln -sfn "${datadir}" /usr/local/share/madness/data; \
-    strip /usr/local/bin/* || true; \
-    strip -g /usr/local/lib/*.a || true; \
+    if [ "${CMAKE_BUILD_TYPE}" != "Debug" ]; then \
+      strip /usr/local/bin/* || true; \
+      strip -g /usr/local/lib/*.a || true; \
+    fi; \
     rm -rf /tmp/build
 
 # ==============================================================================
@@ -103,9 +121,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
 
 # Install runtime & development dependencies (compiler, cmake, sequential BLAS,
-# LibXC, Eigen, JSON). The BLAS, libxc and nlohmann_json packages must match the
-# builder's: the installed madness-config.cmake points consumers back at the
-# very same system packages.
+# LibXC, FFTW, OpenMPI, TBB, TCMalloc-minimal, Eigen, JSON).
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -113,7 +129,12 @@ RUN set -eux; \
       cmake \
       ninja-build \
       pkg-config \
+      libgoogle-perftools-dev \
       libxc-dev \
+      libfftw3-dev \
+      libopenmpi-dev \
+      openmpi-bin \
+      libtbb-dev \
       libeigen3-dev \
       nlohmann-json3-dev \
       ca-certificates; \
@@ -139,6 +160,9 @@ ENV LD_LIBRARY_PATH="/usr/local/lib"
 ENV CMAKE_PREFIX_PATH="/usr/local"
 ENV MRA_DATA_DIR="/usr/local/share/madness/data"
 ENV MRA_CHEMDATA_DIR="/usr/local/share/madness/data"
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
 
 # Default working directory for volume mounts
 WORKDIR /work

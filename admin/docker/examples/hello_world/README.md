@@ -41,10 +41,16 @@ You can compile and run this example directly using the MADNESS container withou
 
 ### Using Make:
 ```bash
-docker run --rm -v "$(pwd)":/work -w /work madness:latest bash -c "make && ./hello_madness"
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest bash -c "make && ./hello_madness"
 ```
 
 ### Using CMake:
 ```bash
-docker run --rm -v "$(pwd)":/work -w /work madness:latest bash -c "cmake -B build -S . && cmake --build build && ./build/hello_madness"
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest bash -c "cmake -B build -S . && cmake --build build && ./build/hello_madness"
+```
+
+### Running with Multiple MPI Processes:
+You can also launch multiple MPI processes using `mpirun`:
+```bash
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest bash -c "mpirun -np 2 -x MAD_NUM_THREADS=2 ./hello_madness"
 ```

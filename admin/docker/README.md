@@ -2,11 +2,11 @@
 
 This directory provides the Docker container configuration for **MADNESS** (Multiresolution Adaptive Numerical Environment for Scientific Simulation) and the **`madqc`** quantum chemistry application.
 
-The container is configured for single-node / non-MPI execution with stubbed-out MPI and a **sequential** (single-threaded) BLAS/LAPACK — MADNESS owns parallelism through its own task pool, so a threaded BLAS would oversubscribe the cores. It provides both:
+The container is configured with **OpenMPI**, the **TBB** task backend, **tcmalloc-minimal**, **libxc**, **libfftw**, and **Intel MKL** (sequential BLAS/LAPACK) configured with `MADNESS_TARGET_ARCH=performance` (`-march=x86-64-v3`) and `MADNESS_RELAXED_MATH=fast` (`-ffast-math`). It provides both:
 1. Ready-to-use binaries (including **`madqc`** and chemistry datasets).
-2. A complete C++20 development environment (headers, static libraries and CMake configuration files) for building and running new MADNESS-based applications.
+2. A complete C++20 development environment (headers, static libraries, CMake configuration files, OpenMPI, TBB, LibXC, FFTW, and TCMalloc-minimal) for building and running new MADNESS-based applications.
 
-Consume the installation with `find_package(madness CONFIG)`. MADNESS has no
+Consume the installation with `find_package(madness CONFIG)` or via `mpicxx`. MADNESS has no
 working `pkg-config` module — `config/MADNESS.pc.in` is an unmaintained
 autotools leftover whose substitutions come out empty — so the image
 deliberately does not ship or advertise one.
@@ -101,11 +101,20 @@ docker run --rm \
 - `--rm`: Automatically removes the container instance after execution completes.
 
 ### Controlling Threading
-MADNESS uses its internal task scheduler with a thread pool. By default, it detects and utilizes available hardware threads. You can restrict CPU cores using Docker's `--cpus` flag or set the `MAD_NUM_THREADS` environment variable:
+MADNESS uses its internal task scheduler with a thread pool. By default, it detects and utilizes available hardware threads. Note that Docker's `--cpus` quota restricts CPU time but does not alter `std::thread::hardware_concurrency()`. To prevent oversubscribing threads when restricting CPU resources, set the `MAD_NUM_THREADS` environment variable to match your core allocation:
 
 ```bash
 # Limit to 4 CPU threads
-docker run --rm --cpus=4 -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest madqc input.in
+docker run --rm --cpus=4 -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+  -e MAD_NUM_THREADS=4 madness:latest madqc input.in
+```
+
+### Running with Multiple MPI Processes
+MADNESS and `madqc` are built with OpenMPI support. To run `madqc` across multiple MPI processes, specify `MAD_NUM_THREADS` per rank to avoid oversubscribing host CPU threads:
+
+```bash
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+  madness:latest mpirun -np 2 -x MAD_NUM_THREADS=2 madqc input.in
 ```
 
 ### Recommended Shell Wrapper / Alias
@@ -148,25 +157,28 @@ docker run -it --rm \
   madness:latest /bin/bash
 ```
 
-Inside the container, you can use `g++`, `make`, and `cmake` directly.
+Inside the container, you can use `mpicxx`, `g++`, `make`, and `cmake` directly.
 
 ---
 
 ### Option B: Building via Make
 
 Option C (CMake) is the supported route — it picks up MADNESS's public compile
-definitions and BLAS include paths automatically. The hand-written form below
-hardcodes the amd64/MKL link line and must be adjusted for a non-x86-64 image
+definitions and library dependencies automatically. The hand-written form below
+spells out the amd64/MKL/OpenMPI link line and must be adjusted for a non-x86-64 image
 (`-lopenblas -llapacke` in place of the `mkl_*` libraries).
 
 Create a `Makefile` for your application:
 
 ```makefile
-CXX ?= g++
+ifeq ($(origin CXX),default)
+  CXX = mpicxx
+endif
+CXX ?= mpicxx
 CXXFLAGS ?= -std=c++20 -O2
-CPPFLAGS ?= -I/usr/local/include
+CPPFLAGS ?= -I/usr/local/include -I/usr/include/mkl
 LDFLAGS ?= -L/usr/local/lib
-LIBS ?= -lmadness -lxc -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
+LIBS ?= -lmadness -lxsmm -lxc -ltbb -ltcmalloc_minimal -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
 
 TARGET = my_app
 SRCS = main.cc
@@ -184,6 +196,7 @@ Build and run from host:
 ```bash
 docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest make
 docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest ./my_app
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" madness:latest mpirun -np 2 -x MAD_NUM_THREADS=2 ./my_app
 ```
 
 ---
@@ -234,10 +247,23 @@ demonstrate (see the "Runtime" section of `CLAUDE.md`):
 
 To build and run it with the bundled files:
 
+Using CMake:
 ```bash
 cd admin/docker/examples/hello_world
 docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
   madness:latest bash -c "cmake -B build -S . && cmake --build build && ./build/hello_madness"
+```
+
+Or using Make:
+```bash
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+  madness:latest bash -c "make && ./hello_madness"
+```
+
+Running with multiple MPI processes:
+```bash
+docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+  madness:latest bash -c "mpirun -np 2 -x MAD_NUM_THREADS=2 ./hello_madness"
 ```
 
 Expected output ends with:

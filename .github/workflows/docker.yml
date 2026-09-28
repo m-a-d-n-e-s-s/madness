@@ -19,10 +19,6 @@ name: Docker Image
 #   * the bundled example does not regress into misusing the runtime.
 #
 # Deliberately NOT covered, so the gap is visible rather than assumed away:
-#   * the hand-written Makefile route in README section 3 Option B. It omits
-#     MADNESS's public compile definitions (MADNESS_LINALG_USE_LAPACKE) and the
-#     MKL include path, and is documented as amd64-only best-effort; asserting on
-#     it here would gate the image on a route we do not claim to support.
 #   * non-amd64 images. The Dockerfile has an OpenBLAS-serial path for them, but
 #     GitHub's hosted runners are x86-64 and QEMU-emulated builds of a full
 #     MADNESS compile are not affordable here.
@@ -214,3 +210,18 @@ jobs:
           if abs(value - 2.0) > 1e-6:
               sys.exit(f'integral of sin(x) over [0, pi] should be 2.0, got {value}')
           PY
+
+      - name: Developer example builds against the install tree via Make
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hello_world"
+          docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+            "$IMAGE" bash -c 'make clean && make'
+          docker run --rm -v "$(pwd)":/work -w /work --user "$(id -u):$(id -g)" \
+            -e MAD_NUM_THREADS "$IMAGE" ./hello_madness > make_hello.log 2> make_hello.err
+          cat make_hello.log make_hello.err
+          grep -q 'Calculation completed successfully' make_hello.log
+          if grep -q 'still exist' make_hello.log make_hello.err; then
+            echo "::error::a World survived madness::finalize() in the hello_world Make example"
+            exit 1
+          fi
