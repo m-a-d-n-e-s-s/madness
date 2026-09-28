@@ -6,8 +6,9 @@
 # MADNESS_TRACKED_PCMSOLVER_TAG past the point where upstream moves any of this
 # fails loudly instead of silently building something untested.
 #
-# PCMSolver v1.3.0 is from 2020 and receives no maintenance; every hunk here is
-# a toolchain-compatibility fix, not a change of behaviour.
+# PCMSolver v1.3.0 is from 2020 and receives no maintenance. Hunks 1-4 are
+# toolchain-compatibility fixes; the later hunks make the library usable at
+# 10^4 tesserae, the cavity of a protein, and leave its surface charges unchanged.
 
 cmake_minimum_required(VERSION 3.12.0)
 
@@ -64,3 +65,80 @@ pcm_patch(cmake/custom/pcmsolver.cmake
     "add_custom_target(update_version"
     "add_custom_target(pcmsolver-update-version"
     "rename the update_version target")
+
+# 5. Both solvers refactorize their N x N block matrix at every surface-charge
+#    evaluation (`.lu().solve(...)` in computeCharge_impl), an O(N^3) LU per SCF
+#    iteration: 4 s at 3374 tesserae, minutes at 10^4. Factorize once when the
+#    matrices are built and keep the factorizations.
+pcm_patch(src/solver/IEFSolver.hpp
+    "#include <Eigen/Core>"
+    "#include <Eigen/Core>
+#include <Eigen/LU>"
+    "IEFSolver.hpp: include Eigen/LU")
+pcm_patch(src/solver/IEFSolver.hpp
+    "  /*! R_infinity matrix, symmetry blocked form */
+  std::vector<Eigen::MatrixXd> blockRinfinity_;"
+    "  /*! R_infinity matrix, symmetry blocked form */
+  std::vector<Eigen::MatrixXd> blockRinfinity_;
+  /*! LU factorizations of the T(epsilon) blocks, and of their adjoints when
+   *  hermitivitize_ is set: built once with the matrices, reused by every
+   *  computeCharge_impl call instead of refactorizing there */
+  std::vector<Eigen::PartialPivLU<Eigen::MatrixXd> > blockTepsilonLU_;
+  std::vector<Eigen::PartialPivLU<Eigen::MatrixXd> > blockTepsilonAdjLU_;"
+    "IEFSolver.hpp: cached LU factorizations")
+pcm_patch(src/solver/IEFSolver.cpp
+    "  utils::symmetryPacking(blockRinfinity_, Rinfinity_, dimBlock, nrBlocks);
+
+  built_ = true;"
+    "  utils::symmetryPacking(blockRinfinity_, Rinfinity_, dimBlock, nrBlocks);
+
+  // factorize once; computeCharge_impl then only does the triangular solves
+  blockTepsilonLU_.clear();
+  blockTepsilonAdjLU_.clear();
+  for (size_t i = 0; i < blockTepsilon_.size(); ++i) {
+    blockTepsilonLU_.push_back(Eigen::PartialPivLU<Eigen::MatrixXd>(blockTepsilon_[i]));
+    if (hermitivitize_)
+      blockTepsilonAdjLU_.push_back(Eigen::PartialPivLU<Eigen::MatrixXd>(blockTepsilon_[i].adjoint()));
+  }
+
+  built_ = true;"
+    "IEFSolver.cpp: factorize the T(epsilon) blocks at build time")
+pcm_patch(src/solver/IEFSolver.cpp
+    "-blockTepsilon_[irrep].lu().solve("
+    "-blockTepsilonLU_[irrep].solve("
+    "IEFSolver.cpp: reuse the LU in computeCharge_impl")
+pcm_patch(src/solver/IEFSolver.cpp
+    "blockTepsilon_[irrep].adjoint().lu().solve("
+    "blockTepsilonAdjLU_[irrep].solve("
+    "IEFSolver.cpp: reuse the adjoint LU in computeCharge_impl")
+pcm_patch(src/solver/CPCMSolver.hpp
+    "#include <Eigen/Core>"
+    "#include <Eigen/Core>
+#include <Eigen/LU>"
+    "CPCMSolver.hpp: include Eigen/LU")
+pcm_patch(src/solver/CPCMSolver.hpp
+    "  /*! S matrix, symmetry blocked form */
+  std::vector<Eigen::MatrixXd> blockS_;"
+    "  /*! S matrix, symmetry blocked form */
+  std::vector<Eigen::MatrixXd> blockS_;
+  /*! LU factorizations of the S blocks, built once, reused by computeCharge_impl */
+  std::vector<Eigen::PartialPivLU<Eigen::MatrixXd> > blockSLU_;"
+    "CPCMSolver.hpp: cached LU factorizations")
+pcm_patch(src/solver/CPCMSolver.cpp
+    "  utils::symmetryPacking(blockS_, S_, dimBlock, nrBlocks);
+
+  built_ = true;"
+    "  utils::symmetryPacking(blockS_, S_, dimBlock, nrBlocks);
+
+  // factorize once; computeCharge_impl then only does the triangular solves
+  blockSLU_.clear();
+  for (size_t i = 0; i < blockS_.size(); ++i)
+    blockSLU_.push_back(Eigen::PartialPivLU<Eigen::MatrixXd>(blockS_[i]));
+
+  built_ = true;"
+    "CPCMSolver.cpp: factorize the S blocks at build time")
+pcm_patch(src/solver/CPCMSolver.cpp
+    "-blockS_[irrep].lu().solve("
+    "-blockSLU_[irrep].solve("
+    "CPCMSolver.cpp: reuse the LU in computeCharge_impl")
+
