@@ -160,6 +160,24 @@ pcm_patch(src/interface/Meddle.cpp
   if (std::getenv(\"PCMSOLVER_SAVE_CAVITY\")) cavity_->saveCavity();"
     "Meddle.cpp: cavity.npz on request only")
 
+# 7. GePol's tesserae and vertex work arrays are sized at compile time (50,000
+#    tesserae, 100,000 vertices) and the C++ side passes the same numbers; a
+#    787-atom cavity at 0.3 A^2 has 29,467 tesserae and 107,375 vertices. Four
+#    times the room. The sphere and centre limits (1000 atoms) stay, since the
+#    arrays behind them are quadratic (DERCEN(MXSP,MXCENT,3,3)).
+pcm_patch(src/pedra/pcm_pcmdef.inc
+    "PARAMETER (MXTS=50000, MXSP=1000, MXTSPT = 2*MXTS)"
+    "PARAMETER (MXTS=200000, MXSP=1000, MXTSPT = 2*MXTS)"
+    "GePol: 200,000 tesserae")
+pcm_patch(src/pedra/pcm_pcmdef.inc
+    "PARAMETER (MXVER = 100000)"
+    "PARAMETER (MXVER = 400000)"
+    "GePol: 400,000 vertices")
+pcm_patch(src/cavity/GePolCavity.cpp
+    "build(suffix, 50000, 1000, 100000);"
+    "build(suffix, 200000, 1000, 400000);"
+    "GePolCavity.cpp: array sizes in step with pcm_pcmdef.inc")
+
 # 8. Collocation::computeS_impl and computeD_impl copy an Element (two dynamic
 #    Eigen matrices) for every pair (i, j): ~10^9 heap allocations for a 13.9k
 #    tessera cavity, minutes per matrix. Take references. The loops are then
