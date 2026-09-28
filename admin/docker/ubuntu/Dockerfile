@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
 # ------------------------------------------------------------------------------
-# MADNESS Dockerfile (MPI with TBB task backend, Intel MKL, TCMalloc-minimal)
+# MADNESS Dockerfile (MPI with TBB task backend, Intel MKL / ARMPL, TCMalloc-minimal)
 # Provides 'madqc' and MADNESS development libraries/headers.
 #
 # BLAS/LAPACK is chosen from the target architecture, because MADNESS owns
 # parallelism through its own task pool and therefore requires a *sequential*
 # BLAS (see CLAUDE.md):
 #   amd64 -> Intel MKL (cmake/modules/FindMKL.cmake requires mkl_sequential)
+#   arm64 -> Arm Performance Libraries (ARMPL, sequential)
 #   other -> OpenBLAS-serial + LAPACKE (MKL is x86-64 only)
 # ------------------------------------------------------------------------------
 
@@ -18,8 +19,8 @@ ARG UBUNTU_VERSION=24.04
 FROM ubuntu:${UBUNTU_VERSION} AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
-# TARGETARCH is populated automatically by BuildKit; it is empty with the
-# classic builder, in which case we assume the x86-64/MKL configuration.
+# TARGETARCH is populated automatically by BuildKit; if empty (e.g. classic builder),
+# we fall back to dpkg --print-architecture so both amd64 and arm64 are detected.
 ARG TARGETARCH
 
 # Install build-time dependencies
@@ -39,9 +40,18 @@ RUN set -eux; \
       libeigen3-dev \
       nlohmann-json3-dev \
       ca-certificates \
+      curl \
       git; \
-    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    if [ "$arch" = "amd64" ]; then \
       apt-get install -y --no-install-recommends libmkl-dev; \
+    elif [ "$arch" = "arm64" ]; then \
+      . /etc/os-release; \
+      curl -sL "https://developer.arm.com/packages/arm-toolchains/ubuntu/pool/arm-toolchains-repository_2-2~${VERSION_CODENAME}_all.deb" -o /tmp/arm-repo.deb; \
+      dpkg -i /tmp/arm-repo.deb; \
+      rm -f /tmp/arm-repo.deb; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends arm-performance-libraries; \
     else \
       apt-get install -y --no-install-recommends libopenblas-serial-dev liblapacke-dev; \
     fi; \
@@ -64,9 +74,9 @@ COPY . /usr/src/madness
 #     LibxcConfig.cmake would silently yield a DFT-less quantum-chemistry
 #     image. Assert on the generated config.h instead.
 #   * assert tcmalloc-minimal and TBB backend are active in config.h.
-#   * likewise assert MKL was actually found on amd64: if FindMKL fails,
-#     external/lapack.cmake quietly falls back to a generic (possibly threaded)
-#     BLAS, which is exactly what this image must not ship.
+#   * likewise assert vendor-tuned sequential BLAS was actually found: MKL on amd64,
+#     ARMPL on arm64. If detection fails, external/lapack.cmake quietly falls
+#     back to a generic (possibly threaded) BLAS, which this image must not ship.
 #   * install-madness-libraries covers every library component: headers, the
 #     aggregate libmadness.a, and the mra/chem data files.
 #   * The data directory is versioned (share/madness/<version>/data), so it is
@@ -75,8 +85,14 @@ COPY . /usr/src/madness
 #     chem, so testing for both also proves both components installed.
 ARG CMAKE_BUILD_TYPE=Release
 RUN set -eux; \
-    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then blas_args="-DENABLE_MKL=ON"; \
-    else blas_args="-DENABLE_MKL=OFF"; fi; \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    if [ "$arch" = "amd64" ]; then \
+      blas_args="-DENABLE_MKL=ON"; \
+    elif [ "$arch" = "arm64" ]; then \
+      blas_args="-DENABLE_MKL=OFF -DENABLE_ARMPL=ON"; \
+    else \
+      blas_args="-DENABLE_MKL=OFF"; \
+    fi; \
     cmake -S /usr/src/madness -B /tmp/build -GNinja \
       -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}" \
       -DMADNESS_TARGET_ARCH=performance \
@@ -92,8 +108,10 @@ RUN set -eux; \
     grep -q '^#define MADNESS_HAS_LIBXC 1' /tmp/build/src/madness/config.h; \
     grep -q '^#define MADNESS_HAS_GOOGLE_PERF_TCMALLOC_MINIMAL 1' /tmp/build/src/madness/config.h; \
     grep -q '^#define HAVE_INTEL_TBB 1' /tmp/build/src/madness/config.h; \
-    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
+    if [ "$arch" = "amd64" ]; then \
       grep -q '^#define HAVE_INTEL_MKL 1' /tmp/build/src/madness/config.h; \
+    elif [ "$arch" = "arm64" ]; then \
+      grep -q '^#define HAVE_ARMPL 1' /tmp/build/src/madness/config.h; \
     fi; \
     ninja -C /tmp/build madness madqc libxsmm_gemm_generator libxsmm_binaryexport_generator; \
     ninja -C /tmp/build install-madness-libraries install-madness-config; \
@@ -137,9 +155,20 @@ RUN set -eux; \
       libtbb-dev \
       libeigen3-dev \
       nlohmann-json3-dev \
-      ca-certificates; \
-    if [ "${TARGETARCH:-amd64}" = "amd64" ]; then \
+      ca-certificates \
+      curl; \
+    arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
+    if [ "$arch" = "amd64" ]; then \
       apt-get install -y --no-install-recommends libmkl-dev; \
+    elif [ "$arch" = "arm64" ]; then \
+      . /etc/os-release; \
+      curl -sL "https://developer.arm.com/packages/arm-toolchains/ubuntu/pool/arm-toolchains-repository_2-2~${VERSION_CODENAME}_all.deb" -o /tmp/arm-repo.deb; \
+      dpkg -i /tmp/arm-repo.deb; \
+      rm -f /tmp/arm-repo.deb; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends arm-performance-libraries; \
+      echo "/opt/arm/arm-performance-libraries/lib" > /etc/ld.so.conf.d/armpl.conf; \
+      ldconfig; \
     else \
       apt-get install -y --no-install-recommends libopenblas-serial-dev liblapacke-dev; \
     fi; \
@@ -155,14 +184,15 @@ COPY admin/docker/examples/hello_world /usr/local/share/madness/examples/hello_w
 # working pkg-config module (config/MADNESS.pc.in is an unmaintained autotools
 # leftover whose substitutions come out empty), so find_package(madness CONFIG)
 # is the only supported way to consume the installation.
-ENV PATH="/usr/local/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/usr/local/lib"
-ENV CMAKE_PREFIX_PATH="/usr/local"
+ENV PATH="/usr/local/bin:/opt/arm/arm-performance-libraries/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/lib:/opt/arm/arm-performance-libraries/lib"
+ENV CMAKE_PREFIX_PATH="/usr/local:/opt/arm/arm-performance-libraries"
 ENV MRA_DATA_DIR="/usr/local/share/madness/data"
 ENV MRA_CHEMDATA_DIR="/usr/local/share/madness/data"
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
+ENV OMPI_MCA_hwloc_base_binding_policy=none
 
 # Default working directory for volume mounts
 WORKDIR /work

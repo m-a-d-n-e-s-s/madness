@@ -19,8 +19,8 @@ name: Docker Image
 #   * the bundled example does not regress into misusing the runtime.
 #
 # Deliberately NOT covered, so the gap is visible rather than assumed away:
-#   * non-amd64 images. The Dockerfile has an OpenBLAS-serial path for them, but
-#     GitHub's hosted runners are x86-64 and QEMU-emulated builds of a full
+#   * arm64 images. The Dockerfile supports arm64 with ARMPL, but GitHub's hosted
+#     runners for this workflow are x86-64 and QEMU-emulated builds of a full
 #     MADNESS compile are not affordable here.
 #
 # The build is a full from-scratch MADNESS compile with no ccache, so it is

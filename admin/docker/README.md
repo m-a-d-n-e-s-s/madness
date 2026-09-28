@@ -2,7 +2,7 @@
 
 This directory provides the Docker container configuration for **MADNESS** (Multiresolution Adaptive Numerical Environment for Scientific Simulation) and the **`madqc`** quantum chemistry application.
 
-The container is configured with **OpenMPI**, the **TBB** task backend, **tcmalloc-minimal**, **libxc**, **libfftw**, and **Intel MKL** (sequential BLAS/LAPACK) configured with `MADNESS_TARGET_ARCH=performance` (`-march=x86-64-v3`) and `MADNESS_RELAXED_MATH=fast` (`-ffast-math`). It provides both:
+The container is configured with **OpenMPI**, the **TBB** task backend, **tcmalloc-minimal**, **libxc**, **libfftw**, and vendor-tuned sequential BLAS/LAPACK (**Intel MKL** on `x86_64`/`amd64`, **Arm Performance Libraries (ARMPL)** on `aarch64`/`arm64`) configured with `MADNESS_TARGET_ARCH=performance` and `MADNESS_RELAXED_MATH=fast` (`-ffast-math`). It provides both:
 1. Ready-to-use binaries (including **`madqc`** and chemistry datasets).
 2. A complete C++20 development environment (headers, static libraries, CMake configuration files, OpenMPI, TBB, LibXC, FFTW, and TCMalloc-minimal) for building and running new MADNESS-based applications.
 
@@ -31,25 +31,15 @@ docker build --build-arg CMAKE_BUILD_TYPE=Release -t madness:latest -f admin/doc
 ```
 
 ### Architecture & the BLAS choice
-Intel MKL is x86-64 only, so the BLAS/LAPACK dependency is selected from
-BuildKit's `TARGETARCH`:
+MADNESS requires a *sequential* BLAS library because it manages all parallelism internally through its own task scheduler. Vendor-tuned sequential libraries are selected based on the target architecture:
 
-| Target | Packages | CMake |
-| --- | --- | --- |
-| `linux/amd64` | `libmkl-dev` | `-DENABLE_MKL=ON` (`FindMKL.cmake` requires `mkl_sequential`) |
-| anything else | `libopenblas-serial-dev`, `liblapacke-dev` | `-DENABLE_MKL=OFF` |
+| Target | Packages | CMake | Notes |
+| --- | --- | --- | --- |
+| `linux/amd64` | `libmkl-dev` | `-DENABLE_MKL=ON` | `FindMKL.cmake` selects `mkl_sequential` |
+| `linux/arm64` | `arm-performance-libraries` | `-DENABLE_MKL=OFF -DENABLE_ARMPL=ON` | `FindARMPL.cmake` selects sequential ARMPL (`/opt/arm/arm-performance-libraries`) |
+| anything else | `libopenblas-serial-dev`, `liblapacke-dev` | `-DENABLE_MKL=OFF` | Fallback sequential BLAS |
 
-`linux/amd64` is the configuration this image is built and used in. The
-non-x86-64 path is provided so that `docker buildx build --platform linux/arm64`
-has a sequential BLAS to fall back on, but it is **not** covered by CI — treat it
-as best-effort and expect to adjust package names per Ubuntu release.
-
-```bash
-docker buildx build --platform linux/amd64 -t madness:amd64 -f admin/docker/ubuntu/Dockerfile . --load
-```
-
-With the classic (non-BuildKit) builder `TARGETARCH` is empty and the x86-64/MKL
-configuration is assumed.
+`linux/amd64` and `linux/arm64` are both fully supported with vendor-tuned math libraries. BuildKit sets `TARGETARCH` automatically (`amd64` or `arm64`). With the classic (non-BuildKit) builder `dpkg --print-architecture` is used as a fallback.
 
 ### Publishing images
 `admin/docker/images/Makefile` builds and pushes the tagged images. It invokes
@@ -165,8 +155,7 @@ Inside the container, you can use `mpicxx`, `g++`, `make`, and `cmake` directly.
 
 Option C (CMake) is the supported route — it picks up MADNESS's public compile
 definitions and library dependencies automatically. The hand-written form below
-spells out the amd64/MKL/OpenMPI link line and must be adjusted for a non-x86-64 image
-(`-lopenblas -llapacke` in place of the `mkl_*` libraries).
+switches between Intel MKL on `amd64` and ARMPL on `arm64`.
 
 Create a `Makefile` for your application:
 
@@ -176,9 +165,16 @@ ifeq ($(origin CXX),default)
 endif
 CXX ?= mpicxx
 CXXFLAGS ?= -std=c++20 -O2
-CPPFLAGS ?= -I/usr/local/include -I/usr/include/mkl
-LDFLAGS ?= -L/usr/local/lib
-LIBS ?= -lmadness -lxsmm -lxc -ltbb -ltcmalloc_minimal -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
+UNAME_M := $(shell uname -m)
+ifneq (,$(filter $(UNAME_M),aarch64 arm64))
+  CPPFLAGS ?= -I/usr/local/include -I/opt/arm/arm-performance-libraries/include
+  LDFLAGS ?= -L/usr/local/lib -L/opt/arm/arm-performance-libraries/lib
+  LIBS ?= -lmadness -lxsmm -lxc -ltbb -ltcmalloc_minimal -larmpl_lp64 -lamath -lastring -lpthread -lm -ldl
+else
+  CPPFLAGS ?= -I/usr/local/include -I/usr/include/mkl
+  LDFLAGS ?= -L/usr/local/lib
+  LIBS ?= -lmadness -lxsmm -lxc -ltbb -ltcmalloc_minimal -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
+endif
 
 TARGET = my_app
 SRCS = main.cc
