@@ -1,0 +1,22 @@
+
+======================================================================
+  MADQC RESULTS SUMMARY
+======================================================================
+
+  Task 0 : SCF  (model = scf)
+  ----------------------------------------------------------------------
+    Molecule         : Li
+    Total energy     :       -7.355920802 Ha        -200.1648 eV
+    Orbital eps (a)  : -2.5535  (Ha)
+    Converged        :  thresh = 0.0001  dconv = 0.001
+    Wall time        :  0.0 s   (1 MPI x 1 threads)
+
+  Citations for external modules
+  ----------------------------------------------------------------------
+    PCMSolver (PCM):
+      R. Di Remigio, L. Frediani, and contributors,
+      PCMSolver: an API for the Polarizable Continuum Model
+      electrostatic problem. doi:10.5281/zenodo.1156166
+
+======================================================================
+

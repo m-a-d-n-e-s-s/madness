@@ -1,0 +1,8 @@
+{
+  "description": "scf_lih_pcm_water on 2 MPI ranks; PCM on rank 0, energy must match the serial run",
+  "requires": {"mpi": true, "threads": 16},
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "metadata", "mpi_size"], "tol": 0}
+  ]
+}

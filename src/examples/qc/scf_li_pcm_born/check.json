@@ -1,0 +1,7 @@
+{
+  "description": "Hartree-Fock on Li+ in water; the PCM energy of the reference run is the Born value to 0.03 %",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

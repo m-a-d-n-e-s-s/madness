@@ -90,6 +90,11 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # unconditionally -- ENABLE_PCM is off by default.
   if (MADNESS_HAS_PCM)
     add_qctest(scf_lih_pcm_water madqc "qctest;medium;applications")   #  12 s
+    # the same deck on two ranks: PCMSolver runs on rank 0, the potential at the
+    # tesserae is gathered from all ranks and the surface charges are broadcast
+    add_qctest(scf_lih_pcm_water_mpi madqc "qctest;medium;applications") #  2 ranks
+    # Li+ in water against the Born energy stated in the deck
+    add_qctest(scf_li_pcm_born   madqc "qctest;medium;applications")
   endif()
 
 endif()

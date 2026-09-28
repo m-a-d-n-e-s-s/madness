@@ -1,0 +1,29 @@
+# The scf_lih_pcm_water deck on two MPI ranks. PCMSolver runs on rank 0 only
+# (the cavity, the boundary-integral matrices and the surface-charge solve are
+# serial), the molecular electrostatic potential at the tesserae is gathered
+# from all ranks, and the surface charges are broadcast, so the energy must match
+# the serial run to the same tolerance. See scf_lih_pcm_water.in for the deck
+# itself and scf_he_hf_mpi/run.sh for the launch conventions.
+#
+# Run:   ./run.sh          (or: NP=2 ./run.sh)
+
+dft
+    xc        hf
+    pcm_data  water      # switch PCM on, and pick the solvent
+    protocol  [1.e-4]
+    maxiter   10
+    econv     1e-4
+    dconv     1e-3
+end
+
+pcm
+    solver_type  iefpcm    # iefpcm | cpcm
+    area         0.3       # average area of a tessera [Angstrom^2]
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.014
+end

@@ -1,0 +1,37 @@
+# Hartree-Fock on Li+ in water: the polarizable continuum model against a
+# closed-form answer.
+#
+# A point charge q inside a spherical cavity of radius R in a dielectric eps
+# has the Born polarization energy -(1 - 1/eps) q^2 / (2R). PCMSolver builds
+# the cavity for a single atom as one sphere of radius 1.2 x 1.82 A (Bondi
+# radius of Li, scaled), i.e. R = 4.1272 bohr, and PCMSolver's water has
+# eps = 78.39, so the Born value is -0.119603 Eh. Li+ is a 1s^2 core with
+# no charge outside the sphere, and the PCM energy this deck prints
+# (the `PCM` line, 1/2 <sigma|V>) is -0.119563 Eh: 0.03 % above Born, the
+# discretization of the sphere into ~200 tesserae at area 0.3 A^2.
+#
+# The k=6 rung reproduces that number to all printed digits, so a single rung
+# is enough. Needs a build configured with -DENABLE_PCM=ON.
+#
+# Run:   ./run.sh          (or: madqc scf_li_pcm_born.in)
+
+dft
+    xc        hf
+    pcm_data  water
+    protocol  [1.e-4]
+    maxiter   10
+    econv     1e-4
+    dconv     1e-3
+    charge    1
+end
+
+pcm
+    solver_type  iefpcm
+    area         0.3       # average area of a tessera [Angstrom^2]
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+end
