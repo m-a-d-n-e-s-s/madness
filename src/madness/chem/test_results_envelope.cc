@@ -36,7 +36,9 @@ int test_results_envelope_roundtrip() {
     test_output t("SCFResults/ConvergenceResults envelope round-trip");
     SCFResults s;
     s.model = "scf";
+    s.xc = "hf";
     s.scf_total_energy = -76.0;
+    s.scf_iterations = 12;
     s.precision = {{"k", 8}, {"thresh", 1e-6}, {"protocol", {1e-4, 1e-6}},
                    {"econv", 1e-6}, {"dconv", 1e-4}, {"L", 200.0}, {"ncoeff", 123456}};
     s.energies = {{"nuclear_repulsion_energy", 9.19}, {"scf_one_electron_energy", -123.0},
@@ -47,32 +49,35 @@ int test_results_envelope_roundtrip() {
     t.checkpoint(j["precision"]["k"] == 8,                            "precision.k emitted");
     t.checkpoint(j["precision"]["protocol"].size() == 2,              "precision.protocol emitted");
     t.checkpoint(j.contains("nuclear_repulsion_energy"),              "energies emitted FLAT under QCSchema names");
-    // xc lives in the task's hamiltonian block and the iteration count in
-    // convergence; the scf block must not repeat them.
-    t.checkpoint(!j.contains("xc") && !j.contains("scf_iterations"),  "no xc / scf_iterations in the scf block");
+    t.checkpoint(j.value("xc", "") == "hf",                          "xc emitted");
+    t.checkpoint(j.value("scf_iterations", -1) == 12,                 "scf_iterations emitted (QCSchema name)");
     SCFResults back(j);
+    t.checkpoint(back.xc == "hf",                                     "xc round-trips");
+    t.checkpoint(back.scf_iterations == 12,                           "scf_iterations round-trips");
     t.checkpoint(back.precision["ncoeff"] == 123456,                  "precision round-trips");
     t.checkpoint(std::fabs(back.energies["scf_kinetic_energy"].get<double>() - 76.0) < 1e-15,
                  "energies round-trip");
 
     // Old checkpoint: none of the new keys present -> defaults, no throw.
     nlohmann::json old = j;
-    for (const char* k : {"precision", "nuclear_repulsion_energy",
+    for (const char* k : {"xc", "precision", "scf_iterations", "nuclear_repulsion_energy",
                           "scf_one_electron_energy", "scf_two_electron_energy", "scf_kinetic_energy"})
         old.erase(k);
     SCFResults legacy(old);
-    t.checkpoint(legacy.precision.is_null() && legacy.energies.empty(),                          "legacy checkpoint loads with defaults");
+    t.checkpoint(legacy.xc.empty() && legacy.scf_iterations == -1 && legacy.precision.is_null()
+                 && legacy.energies.empty(),                          "legacy checkpoint loads with defaults");
 
     ConvergenceResults c;
     c.set_converged_thresh(1e-6).set_converged_dconv(1e-4);
-    c.iterations = 12; c.status = "converged";
+    c.status = "converged";
     const nlohmann::json cj = c.to_json();
-    t.checkpoint(cj.value("iterations", -1) == 12 && cj.value("status", "") == "converged",
-                 "ConvergenceResults emits iterations + status");
+    // The verdict only: the iteration count is the engine's (scf.scf_iterations).
+    t.checkpoint(cj.value("status", "") == "converged" && !cj.contains("iterations"),
+                 "ConvergenceResults emits status, no iteration count");
     ConvergenceResults cb(cj);
-    t.checkpoint(cb.iterations == 12 && cb.status == "converged",     "ConvergenceResults round-trips");
+    t.checkpoint(cb.status == "converged",                            "ConvergenceResults round-trips");
     ConvergenceResults clegacy(nlohmann::json{{"converged_for_thresh", 1e-6}, {"converged_for_dconv", 1e-4}});
-    t.checkpoint(clegacy.iterations == -1 && clegacy.status == "unknown", "legacy ConvergenceResults defaults");
+    t.checkpoint(clegacy.status == "unknown",                         "legacy ConvergenceResults defaults");
     return t.end();
 }
 

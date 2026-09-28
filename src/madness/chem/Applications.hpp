@@ -1075,8 +1075,9 @@ inline void fill_scf_task_record(World &world, const SCF &scf, double energy,
     e["scf_two_electron_energy"]       = get("e_coulomb") + get("e_xc");   // HF: e_xc is exact exchange
     if (scf.xc.is_dft()) e["scf_xc_energy"] = get("e_xc");
     scf_res.energies = e;
-    conv_res.iterations = scf.e_data.iterations();
+    scf_res.scf_iterations = scf.e_data.iterations();
   }
+  scf_res.xc = scf.param.xc();
 
   // Collective: one reduction total instead of one per orbital
   // (Function::size() is itself a collective global sum).

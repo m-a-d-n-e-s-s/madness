@@ -109,7 +109,6 @@ class ConvergenceResults : public ResultsBase {
 public:
   double converged_for_thresh = 1.e10;
   double converged_for_dconv = 1.e10;
-  int iterations = -1;              // SCF iterations actually run (-1 = not recorded)
   std::string status = "unknown";   // "converged" | "unconverged" | "unknown"  (names may change with #763)
   ConvergenceResults() = default;
 
@@ -117,7 +116,6 @@ public:
   explicit ConvergenceResults(const nlohmann::json &j) {
     converged_for_thresh = j.value("converged_for_thresh", 1.e10);
     converged_for_dconv = j.value("converged_for_dconv", 1.e10);
-    iterations = j.value("iterations", -1);
     status = j.value("status", std::string("unknown"));
   }
 
@@ -125,7 +123,6 @@ public:
   ConvergenceResults &operator=(const nlohmann::json &j) {
     converged_for_thresh = j.value("converged_for_thresh", 1.e10);
     converged_for_dconv = j.value("converged_for_dconv", 1.e10);
-    iterations = j.value("iterations", -1);
     status = j.value("status", std::string("unknown"));
     return *this;
   }
@@ -146,14 +143,12 @@ public:
     nlohmann::json j;
     j["converged_for_thresh"] = converged_for_thresh;
     j["converged_for_dconv"] = converged_for_dconv;
-    j["iterations"] = iterations;
     j["status"] = status;
     return j;
   }
   void from_json(const nlohmann::json &j) override {
     converged_for_thresh = j.value("converged_for_thresh", 1.e10);
     converged_for_dconv = j.value("converged_for_dconv", 1.e10);
-    iterations = j.value("iterations", -1);
     status = j.value("status", std::string("unknown"));
   }
 };
@@ -444,10 +439,13 @@ public:
   bool uses_dftd3 = false;
   bool uses_pcm = false;
   bool uses_libxc = false;
-  // The functional is recorded once, in the task's `hamiltonian` block, and the
-  // iteration count once, in `convergence` (ConvergenceResults::iterations).
+  std::string xc;                // functional the SCF ran with (deck `dft.xc`); empty = not set
   nlohmann::json precision;     // {k, thresh, protocol, econv, dconv, L, ncoeff}
   nlohmann::json energies;      // QCSchema-named energy components, emitted flat
+  // Iteration count under its QCSchema name (AtomicResultProperties::scf_iterations;
+  // correlated methods follow the same <method>_iterations pattern). Total over
+  // all protocol rungs; -1 = the SCF did not iterate (reload).
+  int scf_iterations = -1;
   //
   PropertyResults properties;
   SCFResults() = default;
@@ -476,8 +474,10 @@ public:
                       {"pcm", uses_pcm},
                       {"libxc", uses_libxc}};
 
+    if (!xc.empty()) j["xc"] = xc;
     if (!precision.is_null()) j["precision"] = precision;
     for (const auto &kv : energies.items()) j[kv.key()] = kv.value();
+    if (scf_iterations >= 0) j["scf_iterations"] = scf_iterations;
 
     // Optional nested block
     if (has_data(properties)) {
@@ -519,7 +519,9 @@ public:
       uses_libxc = c.value("libxc", false);
     }
 
+    xc = j.value("xc", std::string());
     precision = j.contains("precision") ? j.at("precision") : nlohmann::json();
+    scf_iterations = j.value("scf_iterations", -1);
     energies = nlohmann::json::object();
     for (const char *k : {"nuclear_repulsion_energy", "scf_one_electron_energy",
                           "scf_two_electron_energy", "scf_xc_energy", "scf_kinetic_energy",

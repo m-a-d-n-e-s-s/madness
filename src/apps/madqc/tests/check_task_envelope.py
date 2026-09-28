@@ -11,9 +11,9 @@ USAGE = "Usage: check_task_envelope.py <prefix>.calc_info.json [--expect-respons
 REQUIRED_TOP = ("schema_name", "schema_version", "provenance")
 REQUIRED_PROVENANCE = ("madness", "workflow", "hostname", "nproc", "threads")
 # Always present, even on a reload-only record that never iterated.
-REQUIRED_SCF_ALWAYS = ("precision", "scf_total_energy")
+REQUIRED_SCF_ALWAYS = ("xc", "precision", "scf_total_energy")
 # Only present when the SCF actually iterated; absent -> [SKIP], not [FAIL].
-REQUIRED_SCF_ENERGY = ("nuclear_repulsion_energy",
+REQUIRED_SCF_ENERGY = ("scf_iterations", "nuclear_repulsion_energy",
                        "scf_one_electron_energy", "scf_two_electron_energy", "scf_kinetic_energy",
                        "scf_nuclear_attraction_energy", "scf_coulomb_energy")
 REQUIRED_PRECISION = ("k", "thresh", "protocol", "econv", "dconv", "L", "ncoeff")
@@ -51,18 +51,17 @@ def main() -> int:
         if scf_ok:
             for k in REQUIRED_SCF_ALWAYS: check(k in scf_block, f"scf.{k} present")
             for k in REQUIRED_PRECISION: check(k in scf_block.get("precision", {}), f"scf.precision.{k} present")
-            # Each quantity is recorded once: precision in the scf block, the
-            # functional in hamiltonian, the iteration count in convergence.
+            # Each quantity is recorded once: precision, the functional and the
+            # iteration count (QCSchema's scf_iterations) in the scf block;
+            # convergence holds the verdict only.
             check("precision" not in scf, "precision not repeated at task top level")
-            for k in ("xc", "scf_iterations"):
-                check(k not in scf_block, f"scf.{k} not repeated in the scf block")
-            check("xc" in scf.get("hamiltonian", {}), "hamiltonian.xc present")
+            check("iterations" not in (conv_block or {}), "iteration count not repeated in convergence")
             # A reload-only run (restart read_only / NextAction::ReloadOnly) never
             # calls e_data.add_data(), so the energy decomposition and iteration
             # count are never filled in (A1). That is a valid record, not a
             # broken one -- skip the checks that only make sense after a solve
             # instead of failing them.
-            reload_only = not isinstance(conv_block, dict) or conv_block.get("iterations", -1) < 0
+            reload_only = "scf_iterations" not in scf_block
             if reload_only:
                 print("  [SKIP]  energies (SCF did not iterate: reload-only record)")
             else:
@@ -80,10 +79,8 @@ def main() -> int:
         check(conv_ok, "convergence block present")
         if conv_ok:
             check(conv_block.get("status") in ("converged", "unconverged"), "convergence.status set")
-            # Same reload-only exemption as above: conv_res.iterations stays at
-            # its -1 default when the SCF never iterated (A1).
             if not reload_only:
-                check(conv_block.get("iterations", -1) >= 1, "convergence.iterations >= 1")
+                check(scf_block.get("scf_iterations", -1) >= 1, "scf.scf_iterations >= 1")
         check("wall_s" in scf.get("provenance", {}), "task provenance.wall_s present")
     if expect_response:
         resp = next((t for t in tasks if isinstance(t, dict) and t.get("type") == "response"), None)
