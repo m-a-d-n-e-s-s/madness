@@ -157,8 +157,10 @@ public:
     double compute_pcm_energy() const;
 
 private:
+    /// the world the PCM object was constructed in; PCMSolver runs on its rank 0 only
+    World* world_ = nullptr;
 #ifdef MADNESS_HAS_PCM
-    /// the main pcmsolver object
+    /// the main pcmsolver object (rank 0 only; null on the other ranks)
     std::shared_ptr<pcmsolver_context_t> pcm_context;
 #endif
 

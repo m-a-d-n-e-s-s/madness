@@ -264,13 +264,19 @@ PCM::PCM(World& world, const Molecule& mol, const PCMParameters& param,
     // the Oxy, Oxz and Oyz planes
     // we don't use symmetry
     symmetry_info=Tensor<int>(4);
-
-    pcm_context =std::shared_ptr<pcmsolver_context_t> (
-            pcmsolver_new(pcmsolver_reader, natom, charges.ptr(), coordinates.ptr(),
-                    symmetry_info.ptr(), &host_input, detail::host_writer),
-                    pcmsolver_delete);
-
-    if (verbose and (world.rank()==0)) pcmsolver_print(pcm_context.get());
+    // PCMSolver lives on rank 0 only: every instance writes its cavity restart file
+    // (cavity.npz) into the working directory on construction, so concurrent instances
+    // corrupt each other's file, and the cavity, the boundary-integral matrices and the
+    // surface charges are the same on every rank anyway. The other ranks receive the
+    // cavity grid and the surface charges by broadcast in compute_pcm_potential.
+    world_ = &world;
+    if (world.rank()==0) {
+        pcm_context =std::shared_ptr<pcmsolver_context_t> (
+                pcmsolver_new(pcmsolver_reader, natom, charges.ptr(), coordinates.ptr(),
+                        symmetry_info.ptr(), &host_input, detail::host_writer),
+                        pcmsolver_delete);
+        if (verbose) pcmsolver_print(pcm_context.get());
+    }
 
 }
 
@@ -357,10 +363,19 @@ real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_pote
         const bool dynamic) const {
 
     MADNESS_ASSERT(coulomb_potential.is_initialized());
-    const int grid_size = pcmsolver_get_cavity_size(pcm_context.get());
+    World& world = coulomb_potential.world();
+    MADNESS_CHECK_THROW(world_ == &world, "PCM: compute_pcm_potential called with a function from another world");
 
-    Tensor<double> grid(3*grid_size);
-    pcmsolver_get_centers(pcm_context.get(), grid.ptr());
+    // the cavity grid: from PCMSolver on rank 0, broadcast to the others
+    int grid_size = 0;
+    Tensor<double> grid;
+    if (world.rank()==0) {
+        grid_size = pcmsolver_get_cavity_size(pcm_context.get());
+        grid = Tensor<double>(3*grid_size);
+        pcmsolver_get_centers(pcm_context.get(), grid.ptr());
+    }
+    world.gop.broadcast(grid_size);
+    world.gop.broadcast_serializable(grid, 0);
 
     // compute the molecular electrostatic potential (mep) from the nuclei
     Tensor<double> mep = nuclear_mep(charges.size(), charges, coordinates, grid_size, grid);
@@ -377,26 +392,26 @@ real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_pote
     // This is the Ag irreducible representation (totally symmetric)
     int irrep = 0;
 
-    Tensor<double> asc(grid_size);
-
-    // compute the contribution to the response kernel
-    if (dynamic) {
-
-        const std::string mep_neq_lbl="mep_neq_lbl";
-        const std::string asc_neq_lbl="asc_neq_lbl";
-
-        pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_neq_lbl.c_str());
-        pcmsolver_compute_response_asc(pcm_context.get(), mep_neq_lbl.c_str(),asc_neq_lbl.c_str(), irrep);
-        pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_neq_lbl.c_str());
-
-    } else {
-        pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_lbl.c_str());
-        pcmsolver_compute_asc(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str(), irrep);
-        pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_lbl.c_str());
+    // the apparent surface charges: PCMSolver on rank 0, broadcast to the others
+    Tensor<double> asc;
+    if (world.rank()==0) {
+        asc = Tensor<double>(grid_size);
+        // compute the contribution to the response kernel
+        if (dynamic) {
+            const std::string mep_neq_lbl="mep_neq_lbl";
+            const std::string asc_neq_lbl="asc_neq_lbl";
+            pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_neq_lbl.c_str());
+            pcmsolver_compute_response_asc(pcm_context.get(), mep_neq_lbl.c_str(),asc_neq_lbl.c_str(), irrep);
+            pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_neq_lbl.c_str());
+        } else {
+            pcmsolver_set_surface_function(pcm_context.get(), grid_size, mep.ptr(), mep_lbl.c_str());
+            pcmsolver_compute_asc(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str(), irrep);
+            pcmsolver_get_surface_function(pcm_context.get(), grid_size, asc.ptr(), asc_lbl.c_str());
+        }
     }
+    world.gop.broadcast_serializable(asc, 0);
 
     detail::asc_potential ascpot(grid_size,grid,asc);
-    World& world = coulomb_potential.world();
     real_function_3d v=real_factory_3d(world).functor(ascpot);
 
     return -1.0*v;
@@ -404,8 +419,13 @@ real_function_3d PCM::compute_pcm_potential(const real_function_3d& coulomb_pote
 }
 
 double PCM::compute_pcm_energy() const {
-    double pcm_energy =
-            pcmsolver_compute_polarization_energy(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str());
+    // PCMSolver on rank 0 holds the surface functions of the last compute_pcm_potential;
+    // collective: every rank calls this right after compute_pcm_potential
+    MADNESS_CHECK_THROW(world_, "PCM: compute_pcm_energy on a default-constructed PCM");
+    double pcm_energy = 0.0;
+    if (world_->rank()==0)
+        pcm_energy = pcmsolver_compute_polarization_energy(pcm_context.get(), mep_lbl.c_str(), asc_lbl.c_str());
+    world_->gop.broadcast(pcm_energy);
     return pcm_energy;
 }
 
