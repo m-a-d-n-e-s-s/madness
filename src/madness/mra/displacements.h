@@ -49,6 +49,18 @@
 
 namespace madness {
 
+    /// Whether two squared real-space distances of displacements (see Key::real_distsq, Key::real_distsq_bc)
+    /// belong to the same shell.
+
+    /// The distances are sums of (cell width * lattice offset)^2, so equivalent displacements (e.g. {3,2,2} and
+    /// {2,2,3} in an (a,b,a) cell) can differ by a few ulps from summation order alone, whereas distinct shells
+    /// differ by many orders of magnitude more than that. The test is purely relative, so the grouping does not
+    /// depend on the units or the size of the cell. Zero (a displacement touching the central box) is exact and
+    /// only matches zero.
+    inline bool same_displacement_shell(double a, double b) {
+        return a == b || std::abs(a - b) <= 1e-10 * std::max(std::abs(a), std::abs(b));
+    }
+
     // How should we treat destinations "extra" to the [0, 2^n) standard domain?
     enum class ExtraDomainPolicy {
         Discard,  // Use case: most computations.
@@ -85,19 +97,49 @@ namespace madness {
             return bmax;
         }
 
-    private:
-        static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq(widths);
-            const auto b_width = b.real_distsq(widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq() < b.distsq();
-            else return a_width < b_width;
+        // Represents a displacement paired with its precomputed distance metrics.
+        // Precomputing the distances gives every displacement a single value, so the comparison is a strict
+        // weak ordering even if the compiler evaluates real_distsq differently at different call sites
+        // (FMA contraction, reassociation); recomputing it inside the comparator made std::sort UB.
+        // N.B. the order is exact, not soft: equivalent displacements whose distances differ by rounding are
+        // ordered by that rounding rather than by the tie-breakers. That is harmless, since any shell is still
+        // contiguous (distinct shells are far apart compared to rounding), and consumers group displacements
+        // into shells with same_displacement_shell; only the zero shell, whose distance is exact, is ordered
+        // within by distsq, and consumers rely on that.
+        struct DispEntry {
+            Key<NDIM> key;
+            double real_distsq;
+            uint64_t distsq;
+
+            bool operator<(const DispEntry& other) const {
+                if (real_distsq != other.real_distsq) return real_distsq < other.real_distsq;
+                if (distsq != other.distsq) return distsq < other.distsq;
+                return key.translation() < other.key.translation();
+            }
+        };
+
+        static void sort_displacements(std::vector<Key<NDIM>>& d, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq(w), k.distsq()});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
         }
 
-        static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq_bc(periodic_axes, widths);
-            const auto b_width = b.real_distsq_bc(periodic_axes, widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
-            else return a_width < b_width;
+        static void sort_displacements_periodic(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq_bc(paxes, w), k.distsq_bc(paxes)});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
         }
 
         static void make_disp(int bmax) {
@@ -153,7 +195,7 @@ namespace madness {
                 MADNESS_EXCEPTION("make_disp: hard dimension loop",NDIM);
             }
 
-            std::sort(disp.begin(), disp.end(), cmp_keys);
+            sort_displacements(disp, widths);
         }
 
         static void make_disp_periodic(int bmax, Level n) {
@@ -194,7 +236,7 @@ namespace madness {
                 disp_periodic[n].push_back(Key<NDIM>(n,d));
             }
 
-            std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+            sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
 //             print("KEYS AT LEVEL", n);
 //             print(disp_periodic[n]);
 
@@ -301,11 +343,11 @@ namespace madness {
           if (!changed) return;
           widths = copy(width);
           if (!disp.empty()) {
-            std::sort(disp.begin(), disp.end(), cmp_keys);
+            sort_displacements(disp, widths);
           }
           for (size_t n = 0; n < 64; ++n) {
             if (!disp_periodic[n].empty()) {
-              std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+              sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
             }
           }
         }
@@ -485,7 +527,7 @@ namespace madness {
               // among standard displacements => keep if longer than the longest standard displacement considered
               // N.B. same distance as used to order the standard displacements (see FunctionImpl::do_apply)
               const auto distsq = displacement->real_distsq_bc(is_lattice_summed_, cell_width_);
-              return distsq > reach_->max_distsq;
+              return distsq > reach_->max_distsq && !same_displacement_shell(distsq, reach_->max_distsq);
             }
             else  // not among standard displacements => keep it
               return true;
