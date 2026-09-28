@@ -26,6 +26,8 @@
 // -----------------------------------------------------------------------------
 
 #include <apps/molresponse/orchestrator/response_workflow.hpp>
+#include <apps/molresponse/solvers/dalton_import.hpp>
+#include <apps/molresponse/solvers/dalton_gs_seed.hpp>   // GS seed from molden (dalton.dir)
 
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/ParameterManager.hpp>   // Params
@@ -39,8 +41,129 @@
 #include <memory>
 #include <vector>
 
+namespace molresponse_v3 {
+
+/// Run-wide seed directory: `io.dalton.dir` (ParameterManager IOParameters)
+/// wins; the response-block `dalton.dir` is the alias. Same rule for HDF5:
+/// `io.backend hdf5` or the alias `response.hdf5`.
+template <typename Params>
+inline std::string effective_dalton_dir(const Params &params) {
+  const std::string io_dir = params.template get<IOParameters>().dalton_dir();
+  if (!io_dir.empty()) return io_dir;
+  return params.template get<ResponseParameters>().dalton_dir();
+}
+template <typename Params>
+inline bool effective_hdf5(const Params &params) {
+  return params.template get<IOParameters>().hdf5() ||
+         params.template get<ResponseParameters>().hdf5();
+}
+
+// ---------------------------------------------------------------------------
+// GROUND-STATE SEED HOOK (2026-09-09, seeding showcase). Installed by madqc on
+// the SCF application (SCFApplication::set_pre_run_hook) when the deck carries
+// `dalton.dir`. Runs collectively inside the SCF work dir right before the
+// engine plans its restart:
+//   * no-op when an archive <prefix>.restartdata* already exists (a real
+//     restart always wins over a seed) or when `restart` is not auto/iterate;
+//   * locates molden.inp in dalton.dir (same resolver as the FD/ES import),
+//     fingerprints its geometry against the deck's Molecule (hard error);
+//   * n_occ = (sum Z - charge)/2 (closed shell), L = deck `l`,
+//     thresh = first protocol rung; writes <prefix>.restartdata via
+//     write_gs_seed_from_molden, so RestartPlan(auto) -> restartdata/iterate.
+// The projection happens at the deck's box; SCF re-sets its own
+// FunctionDefaults afterwards, and load_mos re-projects k/thresh as needed.
+// ---------------------------------------------------------------------------
+inline void seed_gs_from_dalton_dir(World &world, const Params &params,
+                                    const std::filesystem::path &workdir,
+                                    const std::string &dalton_dir) {
+  namespace fs = std::filesystem;
+  const auto &cp  = params.get<CalculationParameters>();
+  const auto &mol = params.get<Molecule>();
+  const std::string prefix = cp.prefix();
+  const std::string mode   = cp.restart();
+  if (mode != "auto" && mode != "iterate") {
+    if (world.rank() == 0)
+      print("[DALTON-SEED] GS: restart =", mode, "-> not seeding the ground state");
+    return;
+  }
+  // Existing archive wins (rank 0 decides, collective broadcast).
+  int have = 0;
+  if (world.rank() == 0) {
+    for (const auto &e : fs::directory_iterator(workdir)) {
+      const std::string n = e.path().filename().string();
+      if (n.rfind(prefix + ".restartdata", 0) == 0) { have = 1; break; }
+    }
+  }
+  world.gop.broadcast(have, 0);
+  if (have) {
+    if (world.rank() == 0)
+      print("[DALTON-SEED] GS:", prefix + ".restartdata*", "already present in",
+            workdir.string(), "-> restart from it, not from the DALTON seed");
+    return;
+  }
+  // Locate + fingerprint (rank 0), broadcast the molden path or the error.
+  std::string molden, err, report;
+  if (world.rank() == 0) {
+    try {
+      auto m = locate_dalton_dir(dalton_dir, (workdir / "dalton_import").string(),
+                                 "", "", "");
+      auto check = fingerprint_dalton_geometry(m, mol, 1e-4);
+      report = check.report;
+      if (!check.ok)
+        throw std::runtime_error(
+            "dalton import (GS seed): GEOMETRY FINGERPRINT MISMATCH\n" + check.report);
+      molden = m.molden_path;
+    } catch (const std::exception &ex) { err = ex.what(); }
+  }
+  world.gop.broadcast_serializable(err, 0);
+  if (!err.empty()) throw std::runtime_error(err);
+  world.gop.broadcast_serializable(molden, 0);
+  world.gop.broadcast_serializable(report, 0);
+
+  const double Z     = mol.total_nuclear_charge();
+  const double nelec = Z - cp.charge();
+  const long   ne    = std::lround(nelec);
+  if (std::abs(nelec - static_cast<double>(ne)) > 1e-6 || ne % 2 != 0)
+    throw std::runtime_error("dalton import (GS seed): closed-shell seed needs an even "
+                             "electron count, got " + std::to_string(nelec));
+  GsSeedOptions opt;
+  opt.L        = cp.L();
+  opt.thresh   = cp.protocol().empty() ? 1e-4 : cp.protocol().front();
+  opt.xc       = cp.get<std::string>("xc");
+  opt.localize = cp.get<std::string>("localize");
+  opt.extra_prefixes = {prefix + ".gs_seed"};   // preserved copy (save_mos overwrites <prefix>.restartdata)
+  opt.active_molecule = &mol;   // RestartPlan matches geometry at 1e-8 and eprec exactly
+  if (world.rank() == 0) {
+    print("[DALTON-SEED] GS: metadata molecule (stamped) eprec =", mol.parameters.eprec());
+    for (std::size_t i = 0; i < mol.natom(); ++i) {
+      const auto at = mol.get_atom(i);
+      printf("[DALTON-SEED] GS:   atom %zu  Z=%d  %.10f %.10f %.10f\n", i, at.atomic_number, at.x, at.y, at.z);
+    }
+  }
+  if (world.rank() == 0) {
+    print("[DALTON-SEED] GS: seeding", prefix + ".restartdata", "from", molden,
+          " n_occ =", ne / 2, " L =", opt.L, " thresh =", opt.thresh);
+    print(report);
+  }
+  auto rep = write_gs_seed_from_molden(world, molden, static_cast<int>(ne / 2), prefix, opt);
+  if (world.rank() == 0) {
+    nlohmann::json j;
+    j["seed"] = "dalton_import"; j["stage"] = "ground_state";
+    j["molden"] = molden; j["dalton_dir"] = dalton_dir;
+    j["n_occ"] = rep.n_occ; j["n_ao"] = rep.n_ao; j["n_mo"] = rep.n_mo;
+    j["L"] = opt.L; j["thresh"] = opt.thresh;
+    j["max_offdiag_pre_loewdin"] = rep.max_offdiag_pre;
+    j["archive"] = rep.archive;
+    j["preserved_copy"] = prefix + ".gs_seed.restartdata";
+    std::ofstream out((workdir / (prefix + ".gs_seed.json")).string());
+    out << j.dump(2) << "\n";
+  }
+}
+} // namespace molresponse_v3
+
 /// Global namespace (mirrors `molresponse_lib`) so madqc can write
 /// `ResponseApplication<molresponse_v3_lib>`.
+
 struct molresponse_v3_lib {
   /// Output subdir name + the interface ResponseApplication reads.
   static const char *label() { return "molresponse"; }
@@ -62,8 +185,28 @@ struct molresponse_v3_lib {
 
     const auto &cp = params.get<CalculationParameters>();
     const auto &rp = params.get<ResponseParameters>();
-    const std::vector<double> protocol = cp.protocol();
+    std::vector<double> protocol = cp.protocol();
     MADNESS_CHECK(!protocol.empty());
+
+    // Deck `seed.start_rung fine` — a dalton.dir-seeded run skips straight to
+    // the FINEST rung (W6 between-pole finding: the coarse rung hits maxiter
+    // unconverged and launders away the seed's head start). Must happen
+    // BEFORE set_response_protocol / gs.prepare / run_dalton_import below so
+    // the seed projection lands at the fine rung's (k, thresh). Default
+    // 'coarse' = full ladder, unchanged. Shared helper with the standalone
+    // driver (apply_seed_start_rung), so the two surfaces agree.
+    const std::string dalton_dir = effective_dalton_dir(params);
+    if (apply_seed_start_rung(protocol, rp.seed_start_rung(),
+                              !dalton_dir.empty())) {
+
+      if (world.rank() == 0)
+        print("response: seed.start_rung=fine — dalton.dir seed starts the "
+              "ladder at thresh", protocol.front());
+    } else if (rp.seed_start_rung() == "fine" && dalton_dir.empty() &&
+               world.rank() == 0) {
+      print("response: seed.start_rung=fine ignored — no dalton.dir seed "
+            "configured (full ladder runs)");
+    }
 
     // 1. Ground state from the moldft ARCHIVE (not the in-memory SCF). On a
     //    restart-in-place run madqc validates the SCF as "Ok" and never loads the
@@ -127,7 +270,10 @@ struct molresponse_v3_lib {
       ResponsePropertyRequest r;
       r.kind = ResponsePropertyKind::Hyperpolarizability;
       r.beta_process = rp.beta_or() ? BetaProcess::OR : BetaProcess::SHG;
-      r.frequencies = freqs;
+      // Deck `beta.frequencies` restricts the driver frequencies (and thus the
+      // 2w legs) to the ones actually wanted; empty = the whole dipole grid.
+      const auto bf = rp.beta_frequencies();
+      r.frequencies = bf.empty() ? freqs : bf;
       add(r);
     }
     if (wants("raman")) {
@@ -147,6 +293,9 @@ struct molresponse_v3_lib {
       r.kind = ResponsePropertyKind::PolarizabilityGradient;
       r.gradient_mode = GradientMode::Resonant;
       r.n_roots = static_cast<int>(rp.excited_num_states());
+      // Roots only unless the deck also asks for the two-photon contraction
+      // (excited.tpa) — the derived FD legs serve only the 2PA residue.
+      r.tpa = rp.excited_tpa();
       add(r);
     }
     if (plans.empty()) {  // default: polarizability
@@ -177,6 +326,14 @@ struct molresponse_v3_lib {
     // Deck `subworlds N` -> the F2 state-parallel fan-out (same path as the
     // standalone --fd-subworlds flag; archive_file above makes it live).
     in.settings.fd_subworlds = std::max(0, rp.subworlds());
+    // Deck `subworld_ranks R` -> universe-level split into subworlds of R ranks
+    // that may span nodes (large-system regime); 0 keeps per-node packing.
+    in.settings.fd_subworld_ranks = std::max(0, rp.subworld_ranks());
+    // Deck `dalton.dir` + `seed.freq_tol` -> nearest-frequency DALTON guess for
+    // the derived (two-photon) FD legs (calc_executor solve_fd seam).
+    in.settings.dalton_dir    = dalton_dir;
+    in.settings.seed_freq_tol = rp.seed_freq_tol();
+    in.settings.es_seed_warmup = rp.seed_es_warmup();
     if (world.rank() == 0 && in.settings.fd_subworlds > 0) {
       print("response: deck subworlds =", in.settings.fd_subworlds,
             "(F2 state-parallel fan-out requested)");
@@ -192,19 +349,43 @@ struct molresponse_v3_lib {
       const bool hdf5_on = false;
 #endif
       if (!hdf5_on)
-        print("response: WARNING — subworlds with the NATIVE backend will hit "
-              "the cross-np archive guard at property assembly on a multi-node "
-              "run (states saved per-subworld, reloaded at universe scale). Use "
-              "`response { io { backend hdf5 } }` for multi-node subworld runs, "
-              "or set MADRESPONSE_ALLOW_NP_MISMATCH=1 if the archives are known "
-              "portable. Single-node subworld runs are unaffected.");
+        print("response: NOTE — subworlds with the NATIVE backend: per-subworld "
+              "archives are treated as np-portable by default at property "
+              "assembly (nio=1); set MADRESPONSE_STRICT_NP=1 to hard-block a "
+              "cross-np reload instead. `response { io { backend hdf5 } }` "
+              "sidesteps the question entirely on multi-node runs.");
     }
     in.settings.policy.dconv_user = rp.dconv();
+    // Deck overrides for the iteration policy (2026-09-10): the response block's
+    // `kain` / `maxrotn` reach the FD/ES solvers only when the deck SETS them.
+    // The deck default kain=false predates the solvers' KAIN-on default;
+    // honouring it unconditionally would switch KAIN off for every run.
+    if (rp.is_user_defined("kain"))    in.settings.policy.kain    = rp.kain();
+    if (rp.is_user_defined("maxrotn")) in.settings.policy.maxrotn = rp.maxrotn();
+    if (rp.is_user_defined("kain.min_residual"))
+      in.settings.policy.kain_min_residual = rp.kain_min_residual();
+    // Plateau detector (deck defaults equal the policy defaults: window 6, ratio 0.1).
+    if (rp.is_user_defined("stall.window")) in.settings.policy.stall_window = rp.stall_window();
+    if (rp.is_user_defined("stall.ratio"))  in.settings.policy.stall_ratio  = rp.stall_ratio();
     in.settings.print_level =
         static_cast<PrintLevel>(std::max(0, std::min(3, rp.print_level())));
+    // ES initial-guess knobs (deck: response { excited.guess virtual_ao,
+    // excited.guess_basis aug-cc-pvtz }). Deck default (solid_harmonics /
+    // aug-cc-pvdz) maps to the ExecutorSettings default — existing decks are
+    // unchanged. virtual_ao is the energy-ordered AO-virtual guess; it is
+    // required to reach totally-symmetric / radially-excited states on atoms,
+    // which the angular-only solid-harmonic trials structurally cannot span.
+    in.settings.es_guess       = parse_es_guess_mode(rp.excited_guess());
+    in.settings.es_guess_basis = rp.excited_guess_basis();
+    if (world.rank() == 0 && rp.excited_enable() &&
+        in.settings.es_guess != ESGuessMode::SolidHarmonics)
+      print("response: excited.guess =", to_string(in.settings.es_guess),
+            (in.settings.es_guess == ESGuessMode::VirtualAO
+                 ? std::string("(basis " + in.settings.es_guess_basis + ")")
+                 : std::string()));
     // Deck-level HDF5 opt-in (response.hdf5 true) — the env var
     // MADRESPONSE_IO_HDF5 still works; the deck parameter wins when set.
-    if (rp.hdf5()) {
+    if (effective_hdf5(params)) {
 #ifdef MADNESS_HAS_HDF5
       set_hdf5_io_enabled(true);
 #else
@@ -212,6 +393,33 @@ struct molresponse_v3_lib {
           "response.hdf5 requested but this build has no HDF5 support — "
           "configure with -DMADNESS_ENABLE_HDF5=ON");
 #endif
+    }
+
+#ifdef MADNESS_HAS_HDF5
+    // Ground state in HDF5 (2026-09-09): with the HDF5 restart opt-in, mirror
+    // moldft's native archive as <prefix>.restartdata.h5 (same stream, one
+    // blob) so a calc dir can carry GS + response + ES in HDF5. Native stays
+    // authoritative for moldft; GroundState::from_archive reads either.
+    // Always (re)write: the DALTON GS seed hook writes <prefix>.restartdata.h5
+    // BEFORE moldft runs (its HDF5 twin of the seed), so an existence check
+    // here kept the unconverged seed as the .h5 GS (closeout attempt 9, 2026-09-10:
+    // seed_h2o.restartdata.h5 == the 12:01:12 seed twin, native at 12:01:41).
+    // Native was still preferred by from_archive, so nothing was mis-loaded,
+    // but a native-less consumer would have read the seed. The preserved twin
+    // lives under <prefix>.gs_seed.restartdata.h5.
+    if (hdf5_io_enabled()) gs.save_archive_hdf5(world, archive + ".h5");
+#endif
+
+    // Deck `dalton.dir <path>` — the seed-from-directory import contract
+    // (showcase W3; import-only, madness never invokes DALTON). Runs BEFORE
+    // the workflow so reconcile sees the seed bundles as restart sources.
+    // The GS is prepared at protocol.front() above (the documented
+    // precondition); geometry-fingerprint / frequency mismatches throw here,
+    // failing the response task loudly instead of silently solving cold.
+    if (!dalton_dir.empty()) {
+      run_dalton_import(world, gs, scf_calc->molecule, in.plan,
+                        in.settings.calc_dir, dalton_dir, {}, {}, {}, 1e-4,
+                        /*es_y_from_dalton=*/rp.seed_es_y() == "dalton");
     }
 
     // Pass the RESOLVED fock path through (review finding: "" here made every

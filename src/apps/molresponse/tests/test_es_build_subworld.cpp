@@ -196,6 +196,7 @@ int main(int argc, char **argv) {
   NodeSubworldInfo info;
   auto sub = make_node_aligned_subworld(universe, &info);
   Tensor<double> A_sub;
+  auto universe_pmap = FunctionDefaults<3>::get_pmap();   // restored after the block (the SAME object)
   {
     FunctionDefaults<3>::set_default_pmap(*sub);
     std::vector<StateX> Xs(M);
@@ -216,7 +217,7 @@ int main(int argc, char **argv) {
     sub->gop.fence();
   }  // Xs / g0s / Ls (subworld Functions) destruct here, sub still alive
   sub->gop.fence();
-  FunctionDefaults<3>::set_default_pmap(universe);   // restore BEFORE sub.reset()
+  FunctionDefaults<3>::set_pmap(universe_pmap);   // restore the ORIGINAL pmap object (not a new map)   // restore BEFORE sub.reset()
   sub.reset();
   universe.gop.fence();
 

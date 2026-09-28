@@ -113,6 +113,15 @@ public:
     j_["excited_states"][protocol_key] = entry;
   }
 
+  /// Attach the seeded-solve root-identity guard block to the ES bundle entry
+  /// at this protocol: excited_states/<protocol_key>/seed_guard = entry. Kept
+  /// separate from set_es_bundle (which full-replaces the bundle entry on every
+  /// save) because the guard is evaluated once, AFTER the final save.
+  void set_es_seed_guard(const std::string &protocol_key,
+                         const nlohmann::json &entry) {
+    j_["excited_states"][protocol_key]["seed_guard"] = entry;
+  }
+
   /// Upsert one VBC quadratic source: vbc_states/<vbc_id>/<protocol_key> = entry.
   void set_vbc_state(const std::string &vbc_id,
                      const std::string &protocol_key,
@@ -125,6 +134,14 @@ public:
   /// in. Without this an HDF5 run and a native run are indistinguishable.
   void set_io_info(const std::string &backend, bool hdf5_compiled) {
     j_["io"] = {{"backend", backend}, {"hdf5_compiled", hdf5_compiled}};
+  }
+
+  /// Record external-seed provenance (the `dalton.dir` import contract,
+  /// showcase W3): which DALTON calculation seeded this dir's initial guesses
+  /// — {dalton_dir, basis, method, geometry_hash, mra_writer{version,commit}}.
+  /// Full-replace upsert (one seed source per calc dir by contract).
+  void set_seeded_from(const nlohmann::json &prov) {
+    j_["seeded_from"] = prov;
   }
 
   /// Stamp the ground-state archive identity this calc dir's response states

@@ -54,59 +54,62 @@ public:
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    redirectio(world);
+    {
+        World world(SafeMPI::COMM_WORLD);
+        redirectio(world);
 
-    try {
-        for (int64_t n=1; n<100; ++n) {
-            int64_t m = 2*n;
-            DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, m);
-            int64_t ilo, ihi;
-            A.local_colrange(ilo, ihi);
-            for (int i=ilo; i<=ihi; ++i) A.data()(i-ilo,_) = i;
+        try {
+            for (int64_t n=1; n<100; ++n) {
+                int64_t m = 2*n;
+                DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, m);
+                int64_t ilo, ihi;
+                A.local_colrange(ilo, ihi);
+                for (int i=ilo; i<=ihi; ++i) A.data()(i-ilo,_) = i;
 
-            world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
-            world.taskq.fence();
+                world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
+                world.taskq.fence();
 
-            for (int i=ilo; i<=ihi; ++i) {
-                for (int k=0; k<m; ++k) {
-                    MADNESS_CHECK(A.data()(i-ilo,k) == i);
+                for (int i=ilo; i<=ihi; ++i) {
+                    for (int k=0; k<m; ++k) {
+                        MADNESS_CHECK(A.data()(i-ilo,k) == i);
+                    }
                 }
             }
         }
-    }
-    catch (const SafeMPI::Exception& e) {
-        print(e);
-        error("caught an MPI exception");
-    }
-    catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    }
-    catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    }
-    catch (char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
-//    catch (const char* s) {
-//        print(s);
-//        error("caught a c-string exception");
-//    }
-    catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    }
-    catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    }
-    catch (...) {
-        error("caught unhandled exception");
-    }
+        catch (const SafeMPI::Exception& e) {
+            print(e);
+            error("caught an MPI exception");
+        }
+        catch (const madness::MadnessException& e) {
+            print(e);
+            error("caught a MADNESS exception");
+        }
+        catch (const madness::TensorException& e) {
+            print(e);
+            error("caught a Tensor exception");
+        }
+        catch (char* s) {
+            print(s);
+            error("caught a c-string exception");
+        }
+    //    catch (const char* s) {
+    //        print(s);
+    //        error("caught a c-string exception");
+    //    }
+        catch (const std::string& s) {
+            print(s);
+            error("caught a string (class) exception");
+        }
+        catch (const std::exception& e) {
+            print(e.what());
+            error("caught an STL exception");
+        }
+        catch (...) {
+            error("caught unhandled exception");
+        }
 
-    world.gop.fence();
+        world.gop.fence();
+    }
     finalize();
+    return 0;
 }

@@ -10,11 +10,38 @@
 
 if (BUILD_TESTING AND Python3_EXECUTABLE)
 
+  # The runner's own comparison semantics (tol / rtol / max / allow_zero), so a
+  # change to run_qctest.py cannot silently loosen every case at once.
+  add_test(NAME madness/test/qc/run_qctest_selftest/run
+           COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/bin/test_run_qctest.py")
+  set_tests_properties(madness/test/qc/run_qctest_selftest/run
+                       PROPERTIES LABELS "qctest;short;applications")
+
   # Tiers are MEASURED wall times (node26, 96 cores, MAD_NUM_THREADS=20), not
   # estimates: short < 10 s, medium < 30 s, long < 2 min, verylong beyond.
   # Re-measure before retagging; short+medium gate every CI run via
   # check-short-madness.
   add_qctest(scf_he_hf         madqc "qctest;short;applications")     #   6 s
+  # Without libxc, xcfunctional_ldaonly.cc stands in and understands only `lda`
+  # and `hf`, so any deck naming a functional beyond those has to be registered
+  # conditionally -- same guard the chem unit tests use. This is also why every
+  # other deck here is `xc hf` or `xc lda`.
+  if (TARGET Libxc::xc)
+    add_qctest(scf_he_pbe0     madqc "qctest;medium;applications")    #   9 s
+    add_qctest(scf_he_tpss     madqc "qctest;medium;applications")    #  17 s
+    # the open-shell counterpart of scf_he_tpss: the only deck with unequal spin
+    # densities, hence the only one exercising the spin-polarized sigma matrix
+    add_qctest(scf_li_tpss     madqc "qctest;medium;applications")    #  15 s
+    # the only DFT deck on the nemo path: XCOperator's nemo constructor, the
+    # regularized density-gradient path, and the ncf/GGA-flux interaction
+    add_qctest(nemo_he_pbe     madqc "qctest;medium;applications")    #  12 s
+    # meta-gga on the nemo path: tau from the nemos via the psi = R F product
+    # rule, and the non-multiplicative term with the R factors cancelled
+    add_qctest(nemo_he_tpss    madqc "qctest;medium;applications")    #  24 s
+    # the weak form of the semilocal xc potential (xc_weak_gga), on two orbitals
+    # so the per-orbital flux is exercised; must agree with the multiplicative form
+    add_qctest(nemo_lih_pbe_weak madqc "qctest;medium;applications")  #  23 s
+  endif()
   add_qctest(scf_he_hf_mpi     madqc "qctest;short;applications")     #  11 s, 2 ranks
   add_qctest(nemo_he_hf        madqc "qctest;short;applications")     #  12 s
   # the only case with k varying across the protocol; must agree with nemo_he_hf
@@ -35,13 +62,35 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # A plain `calc_type cc2` ground state on helium measured 1833 s (30.5 min) on
   # 20 threads, so there is no cc2 case: lrcc2_he_excited already solves the CC2
   # ground state on its way to the excitation, and bounds it with `iter_max`.
-  add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
-  add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  # The 6D pair functions of MP2/CC2 are only tractable with the compressed
+  # tensor representation, so these decks need ENABLE_GENTENSOR.
+  if (ENABLE_GENTENSOR)
+    add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
+    add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+  endif()
   add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
   add_qctest(nemo_h2o_canon    madqc "qctest;long;applications")      #  75 s
   add_qctest(nemo_h2o_boys     madqc "qctest;long;applications")      #  83 s
   add_qctest(nemo_h2o_new      madqc "qctest;long;applications")      #  79 s
+
+  # Grimme's D3 dispersion correction in the energy and the single-point
+  # gradient. Needs simple-dftd3, since without it the deck's `dispersion d3bj`
+  # aborts by design rather than silently doing nothing -- and needs libxc too,
+  # because its `xc pbe` is unsupported by the LDA-only functional build (which
+  # throws a bare `char const*` from xcfunctional_ldaonly.cc). `xc lda` would not
+  # rescue it: simple-dftd3 has no LDA damping parameters either.
+  if (MADNESS_HAS_DFTD3 AND TARGET Libxc::xc)
+    add_qctest(scf_lih_pbe_d3  madqc "qctest;medium;applications")     #  12 s, laptop
+  endif()
+
+  # The polarizable continuum model, and the only deck carrying a `pcm` group.
+  # Needs PCMSolver: without it the deck aborts by design (chem/pcm.cc throws
+  # rather than quietly running in vacuum), so it cannot be registered
+  # unconditionally -- ENABLE_PCM is off by default.
+  if (MADNESS_HAS_PCM)
+    add_qctest(scf_lih_pcm_water madqc "qctest;medium;applications")   #  12 s
+  endif()
 
 endif()
 

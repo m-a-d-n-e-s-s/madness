@@ -116,6 +116,7 @@ private:
     explicit GroundState(World& world, std::shared_ptr<SCF> scf);
 
     std::shared_ptr<SCF> scf_;
+    std::string archive_path_;   ///< the archive from_archive loaded (for reloads)
     int original_k_;
     int current_k_ = 0;  // k that orbitals are currently projected to
     // Truncation the orbitals currently CARRY (-1 = pristine, never
@@ -153,6 +154,24 @@ public:
 
     static ArchiveHeader read_archive_header(World& world,
                                               const std::string& archive_path);
+
+    /// Archive families (2026-09-09): the native <archive>.0000N parallel
+    /// archive, or the HDF5 blob <archive>.h5 holding the SAME RestartMetadata +
+    /// orbital stream SCF::save_mos writes (save_parallel_archive_hdf5). Native
+    /// wins when both exist. Collective (rank 0 probes, broadcast).
+    static bool archive_is_hdf5(World& world, const std::string& archive_path);
+
+    /// (Re)load the pristine orbitals of archive_path_ into scf_: native via
+    /// SCF::load_mos, HDF5 via the blob reader (then thresh/k to the active
+    /// protocol, as load_mos does). Used by from_archive and by prepare()'s
+    /// pristine reload. Collective.
+    void load_orbitals(World& world);
+
+    /// Write the held orbitals + header as an HDF5 blob at `path`
+    /// (e.g. <prefix>.restartdata.h5). Throws without MADNESS_HAS_HDF5.
+    void save_archive_hdf5(World& world, const std::string& path) const;
+
+    const std::string& archive_path() const { return archive_path_; }
 
 private:
 

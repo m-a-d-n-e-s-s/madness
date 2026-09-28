@@ -1849,7 +1849,7 @@ private:
                 cpu0 = cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
                 // screen the second multiplication too, at the same tolerance as the first
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, true, true, mul_tol);
+                auto tmp_Kf = dot_sparse(world, tmp_mo_ket, tmp_psif, mul_tol, true, true);
                 cpu1 = cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
 

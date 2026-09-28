@@ -75,8 +75,20 @@ public:
     std::vector<double>                     last_bsh_residual;
     std::vector<madness::real_function_3d>  rho_alpha_prev;
     std::vector<double>                     last_density_residual;
+    /// Per-channel source overlap sum_i <v phi_i | x_i> (+ y block for Full):
+    /// the diagonal property estimate of this channel, tracked per iteration
+    /// so the property's own convergence can be read off the log (2026-09-11).
+    std::vector<double>                     last_property;
+    /// Normalised gate distance per iteration (newest last) for the plateau
+    /// detector (ConvergencePolicy::plateau); reset when the thresh changes.
+    std::vector<double>                     gate_history;
+    double                                  gate_thresh = -1.0;
     int                                     iter = 0;
     bool                                    diverged = false;
+    /// Set by step() when the residual has plateaued above the targets
+    /// (ConvergencePolicy::stall_*). converged() returns true on it so the
+    /// loop exits; the executor records it and applies best-effort acceptance.
+    bool                                    stalled = false;
   };
 
   FDSolver(madness::World &world, FDProblem<Type, Shell> target,
@@ -162,15 +174,63 @@ private:
     double max_drho = 0.0;
     for (double r : out.last_density_residual) max_drho = std::max(max_drho, r);
     plog("iter", out.iter,
-          "  max_res =", max_res, "  max_dρ =", max_drho);
+          "  max_res =", max_res, "  max_dρ =", max_drho,
+          "  gate =", out.gate_history.empty() ? 0.0 : out.gate_history.back());
     if (print_level_ >= PrintLevel::Verbose) {
       for (size_t c = 0; c < out.last_bsh_residual.size(); ++c) {
         double dr = (c < out.last_density_residual.size())
                         ? out.last_density_residual[c] : 0.0;
+        double pr = (c < out.last_property.size()) ? out.last_property[c] : 0.0;
         plog("  ch", c, "  omega =", target_.responses[c].omega,
               "  res =", out.last_bsh_residual[c],
-              "  dρ =", dr);
+              "  dρ =", dr, "  <v|x> =", pr);
       }
+    }
+  }
+
+  /// Source overlap sum over blocks of sum_i <source_i | x_i>: the channel's
+  /// diagonal property estimate (alpha_vv up to the convention factor). Cheap
+  /// (n_occ inner products per block) and collective.
+  static double source_overlap(madness::World &world, const Storage &x,
+                               const Channel &ch) {
+    double s = 0.0;
+    const auto xb = x.blocks();
+    const auto vb = ch.source.blocks();
+    for (std::size_t b = 0; b < xb.size(); ++b) {
+      const auto &xv = *xb[b];
+      const auto &vv = *vb[b];
+      const std::size_t n = std::min(xv.size(), vv.size());
+      if (n == 0) continue;
+      madness::Tensor<double> ov = madness::inner(world,
+          std::vector<madness::real_function_3d>(xv.begin(), xv.begin() + n),
+          std::vector<madness::real_function_3d>(vv.begin(), vv.begin() + n));
+      s += ov.sum();
+    }
+    return s;
+  }
+
+  /// Plateau bookkeeping: append this iteration's normalised gate distance
+  /// (max over channels of bsh/bsh_target and drho/density_target) to the
+  /// history (reset on a thresh change) and set out.stalled per policy.
+  void update_stall(State &out, const State &in) const {
+    const double thr = madness::FunctionDefaults<3>::get_thresh();
+    out.gate_history = (in.gate_thresh == thr) ? in.gate_history
+                                               : std::vector<double>{};
+    out.gate_thresh  = thr;
+    double g = 0.0;
+    for (std::size_t c = 0; c < out.last_bsh_residual.size(); ++c) {
+      g = std::max(g, out.last_bsh_residual[c] / targets_.bsh_residual);
+      if (out.iter > 1 && c < out.last_density_residual.size())
+        g = std::max(g, out.last_density_residual[c] / targets_.density_residual);
+    }
+    out.gate_history.push_back(g);
+    out.stalled = !out.diverged && policy_.plateau(out.gate_history);
+    if (out.stalled && print_level_ >= PrintLevel::Normal && world_.rank() == 0) {
+      const std::size_t n = out.gate_history.size();
+      plog("[STALL] iter", out.iter, ": gate distance", g, "vs",
+           out.gate_history[n - 1 - static_cast<std::size_t>(policy_.stall_window)],
+           policy_.stall_window, "iters ago (<", 100.0 * policy_.stall_ratio,
+           "% improvement) — residual plateau above the targets; stopping.");
     }
   }
 
@@ -211,6 +271,10 @@ public:
     if (s.diverged)       plog("Stopped at iter", s.iter,
                                 "(diverged — residual exceeded "
                                 "explosion guard).");
+    else if (s.stalled)   plog("Stopped at iter", s.iter,
+                                "(stalled — residual plateau above the "
+                                "targets for", policy_.stall_window,
+                                "iters; not converged).");
     else if (converged)   plog("Converged in", s.iter, "iters.");
     else                  plog("Stopped at iter", s.iter,
                                 "(max iters reached, not converged).");
@@ -219,8 +283,10 @@ public:
       for (size_t c = 0; c < s.last_bsh_residual.size(); ++c) {
         double dr = (c < s.last_density_residual.size())
                         ? s.last_density_residual[c] : 0.0;
+        double pr = (c < s.last_property.size()) ? s.last_property[c] : 0.0;
         plog("    ch", c, "  omega =", target_.responses[c].omega,
-              "  bsh =", s.last_bsh_residual[c], "  dρ =", dr);
+              "  bsh =", s.last_bsh_residual[c], "  dρ =", dr,
+              "  <v|x> =", pr);
       }
     }
     plog("");
@@ -241,6 +307,7 @@ public:
 
     out.last_density_residual.assign(M, 0.0);
     out.last_bsh_residual.assign(M, 0.0);
+    out.last_property.assign(M, 0.0);
     out.rho_alpha_prev.resize(M);
 
     // Inc-2: build the φ-only g0 exchange tensor ONCE per protocol (cached on the
@@ -313,6 +380,12 @@ public:
       if (r > policy_.explosion_guard) { out.diverged = true; break; }
     }
 
+    // Property trace (after KAIN: this is the iterate that will be saved).
+    for (int r = 0; r < M; ++r)
+      out.last_property[r] = source_overlap(world_, out.responses[r],
+                                            target_.responses[r]);
+    update_stall(out, in);
+
     print_iter_banner(out);
     append_convergence_log(out);
     return out;
@@ -323,6 +396,7 @@ public:
   ///            OR diverged.
   bool converged(const State &s) const {
     if (s.diverged) return true;
+    if (s.stalled)  return true;   // exit; executor reads State::stalled
     if (s.iter < policy_.min_iters_before_conv) return false;
     if (s.last_bsh_residual.empty()) return false;
 
@@ -345,17 +419,19 @@ public:
 
 private:
   /// Append one row per channel at the end of step(). Schema:
-  ///   iter,protocol_thresh,state,omega,bsh_residual,density_residual,diverged
+  ///   iter,protocol_thresh,state,omega,bsh_residual,density_residual,diverged,
+  ///   property,gate,stalled
   /// `state` here is the channel index; `omega` is the fixed channel
-  /// frequency (not changing iter-to-iter like ES). Header is written
-  /// once per file. Only rank 0 writes.
+  /// frequency (not changing iter-to-iter like ES). `property` is the source
+  /// overlap <v|x> of the channel, `gate` the normalised gate distance
+  /// (plateau detector). Header is written once per file. Only rank 0 writes.
   void append_convergence_log(const State &s) {
     if (log_path_.empty() || world_.rank() != 0) return;
     std::ofstream out(log_path_, std::ios::app);
     if (!out) return;
     if (!log_header_written_) {
       out << "iter,protocol_thresh,state,omega,bsh_residual,"
-          << "density_residual,diverged\n";
+          << "density_residual,diverged,property,gate,stalled\n";
       log_header_written_ = true;
     }
     const double pthr = madness::FunctionDefaults<3>::get_thresh();
@@ -366,9 +442,13 @@ private:
                               ? s.last_bsh_residual[c] : 0.0;
       const double drho = (static_cast<size_t>(c) < s.last_density_residual.size())
                               ? s.last_density_residual[c] : 0.0;
+      const double prop = (static_cast<size_t>(c) < s.last_property.size())
+                              ? s.last_property[c] : 0.0;
+      const double gate = s.gate_history.empty() ? 0.0 : s.gate_history.back();
       out << s.iter << ',' << pthr << ',' << c << ','
           << target_.responses[c].omega << ',' << bsh << ','
-          << drho << ',' << (s.diverged ? 1 : 0) << '\n';
+          << drho << ',' << (s.diverged ? 1 : 0) << ','
+          << prop << ',' << gate << ',' << (s.stalled ? 1 : 0) << '\n';
     }
   }
 

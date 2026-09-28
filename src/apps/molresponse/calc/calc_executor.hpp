@@ -45,10 +45,33 @@
 #include "../solvers/convergence_policy.hpp"
 #include "../solvers/fd_problem.hpp"
 #include "../solvers/fd_save_load.hpp"
+#include "../solvers/dalton_import.hpp"   // dalton_fd_guess (seed.freq_tol)
 #include "../kernels/beta.hpp"
+#include "../kernels/tpa_source_spec.hpp"
 #include "../kernels/vbc.hpp"
 #include "../solvers/es_analysis.hpp"
 #include "../solvers/es_save_load.hpp"
+#include "../solvers/es_seed_guard.hpp"
+
+namespace molresponse_v3 {
+/// Where the seed guard should reload the seed from. A DALTON seed written at
+/// the ACTIVE key (es__<key>) is overwritten by the solve itself every
+/// iteration, so seed_es_from_dalton also writes a preserved twin es__<key>.dseed;
+/// prefer it when present (rank-0 existence check, broadcast — every rank must
+/// build the same reference). Collective.
+inline EsSeedReference make_es_seed_reference(madness::World &world,
+                                              const std::string &calc_dir,
+                                              const std::string &bundle_dir,
+                                              const std::string &source_key) {
+  const std::string live = calc_dir + "/" + bundle_dir;
+  int have_twin = 0;
+  if (world.rank() == 0)
+    have_twin = std::filesystem::exists(live + ".dseed/roots.json") ? 1 : 0;
+  world.gop.broadcast(have_twin, 0);
+  if (have_twin) return EsSeedReference{live + ".dseed", bundle_dir + ".dseed", source_key};
+  return EsSeedReference{live, bundle_dir, source_key};
+}
+}  // namespace molresponse_v3
 #include "../solvers/es_solver.hpp"
 #include "../solvers/fd_solver.hpp"
 #include "../solvers/iterate_protocol.hpp"
@@ -69,6 +92,7 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -91,15 +115,67 @@ struct ExecutorSettings {
   // make the seed selectable per node, and allow a MIXTURE of roots to target
   // in-between frequencies (not just a single root's vector).
   bool              seed_derived_from_es_root = false;
+  // DALTON nearest-frequency seed for FD legs absent from the RSPVEC (the
+  // derived two-photon legs at omega_f/2). Set from the deck (`dalton.dir`,
+  // `seed.freq_tol`) or --dalton-dir/--seed-freq-tol. 0 = off (2026-09-09).
+  std::string       dalton_dir;
+  double            seed_freq_tol         = 0.0;
+  // ES seed handling (2026-09-10): false = the Full solve starts directly from
+  // the seeded (x, y) at the active rung — the seeded workflow's intent (no TDA
+  // warmup at all); true = KAIN-free TDA warmup from the seed's X block, then
+  // promote to Full. Diagnostic only; deck `seed.es_warmup`, --seed-es-warmup.
+  bool              es_seed_warmup        = false;
   // Excited-state (Full / TDA-warmup) solve settings — defaults for the Full
   // closed-shell path (random guess, 10 warmup iters, oversampled warmup, KAIN).
   ESGuessMode       es_guess              = ESGuessMode::SolidHarmonics;  // sweep-validated default
+  // AO basis projected for the VirtualAO guess (CLI --es-guess-basis / deck
+  // response.excited.guess_basis). Radial rank per l-sector = #shells(l) −
+  // #occupied(l), so a larger basis reaches further up the radial ladder
+  // (Rydberg series want d-aug-cc-pvtz or similar). Ignored by other modes.
+  std::string       es_guess_basis        = "aug-cc-pvdz";
   // --tpa-residue: contract the 2PA moment with the corrected single-residue
   // form (tpa::tpa_moment_residue — X_f in the residue slot against V^{bc}
   // built from the two photon responses) instead of the legacy beta-reuse
   // candidate. --tpa-prefactor scales the residue moment (normalization C_N).
-  bool              tpa_residue           = false;
+  // DEFAULT TRUE since 2026-09-05: running WITHOUT this flag silently used the
+  // legacy beta-reuse contraction, which is the "reuse V^BC and negate" form —
+  // measured 3-11% below the validated composition (and DALTON) on H2O
+  // per-root moments (reports/2026-09-04_report_pq_vbc_reconciliation). The
+  // legacy form is kept behind --tpa-legacy as the measured comparison arm.
+  bool              tpa_residue           = true;
+  // Contraction composition for the two-electron residue when tpa_residue:
+  // false (DEFAULT) = the Parker-style state-free (P,Q) source via the spec
+  // engine (kernels/tpa_source_spec.hpp, symmetrized builder) — the form that
+  // matches V^BC term-for-term (one dagger + one reorientation). true = the
+  // c-grouped composition (tpa_e3_residue) — gate-equal (test_tpa_pq_vs_vbc,
+  // 3e-7) and kept as the production comparison arm (--tpa-cgrouped).
+  bool              tpa_cgrouped          = false;
+  // DIAGNOSTIC (2026-09-08): swap which eigenvector half contracts which
+  // channel, i.e. <y^f|P> + <x^f|Q> instead of <x^f|P> + <y^f|Q>. Parker's
+  // Eqs. (28a,b) can be read — under one inferred index convention for the two
+  // exchange orderings in H^+/H^- — as assigning the daggered Fock operator to
+  // the OPPOSITE channel from ours. This flag makes that reading testable
+  // against DALTON. Never for production.
+  bool              tpa_swap_pq           = false;
   double            tpa_prefactor         = 1.0;
+  // Quadratic-source builder for beta/Raman (2026-09-09,
+  // reports/2026-09-09_orientation_derivation). Both builders now encode the
+  // ONE second-order source of the theory (Hurtado eq 19): vbc::compute_vbc
+  // (kernels/vbc.hpp, legs written with the source_spec leg dictionary) and
+  // tpa::quadratic_source (the (P,Q) spec of tpa_source_spec.hpp, one call =
+  // both photon orderings, unprojected occupied components that the 2n+1
+  // contraction never sees). They are asserted equal up to Q-projection by
+  // tests/test_vbc_spec_equivalence. Before 2026-09-09 vbc.hpp built every
+  // response density transposed (H2O SHG omega=0.1 vs DALTON d-aug-cc-pVQZ:
+  // beta_zxx +12.9%, beta_xxz -4.0%); --beta-vbc-source therefore no longer
+  // selects a "legacy" object, only the other of two equivalent builders.
+  // DEFAULT: the (P,Q) builder (validated against DALTON for 2PA and SHG).
+  bool              beta_pq_source        = true;
+  // --beta-compare-sources: at beta/Raman contraction time, rebuild the OTHER
+  // builder's source from the same loaded (B,C) legs and print both beta
+  // values with their difference (an equality check on real states).
+  // Diagnostic only; costs one extra source build per pair.
+  bool              beta_compare_sources  = false;
   // --tpa-decompose: also compute the zero-operator (pure two-electron E3)
   // variant of the residue and print the per-element E3/1e split + the
   // phase- and normalization-invariant fraction f = E3/total (compare vs the
@@ -173,6 +249,12 @@ struct ExecutorSettings {
   // regime). Total subworlds G = n_nodes × this. G≤1 short-circuits to the G=0
   // path. Fans FD / NuclearFD / VBC (F2g); ES stays single-World.
   int               fd_subworlds = 0;
+  // Large-system regime (2026-09-10): ranks PER SUBWORLD. > 0 replaces the
+  // per-node packing above with a universe-level contiguous split into
+  // G = min(items, universe/fd_subworld_ranks) subworlds that may span nodes
+  // (valinomycin, 300 MOs: one SCF wants 6-8 nodes x 8 ranks, so each state
+  // needs a 48-64-rank subworld). 0 = per-node packing (fd_subworlds).
+  int               fd_subworld_ranks = 0;
   // F2 (doc 32 §5.3): when non-empty, FD metadata writes go to a per-group shard
   // response_metadata.group<tag>.json instead of the canonical file, so concurrent
   // subworlds never race it; universe rank 0 merges the shards after the fence.
@@ -398,6 +480,33 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
         }
       }
     }
+    // DALTON nearest-frequency seed (seed.freq_tol > 0): the derived legs sit
+    // at MADNESS's omega_f/2, never exactly in the RSPVEC; use the closest
+    // DALTON N(omega) within the tolerance as the initial guess.
+    if (!seeded && ctx.seed_freq_tol > 0.0 && !ctx.dalton_dir.empty() &&
+        pert.kind == Perturbation::Kind::Dipole) {
+      auto guess = dalton_fd_guess(world, gs, ctx.dalton_dir, ctx.calc_dir,
+                                   pert.axis, freq, ctx.seed_freq_tol);
+      if (guess) {
+        s0.responses[0].x_alpha = std::move(guess->x_alpha);
+        s0.responses[0].y_alpha = std::move(guess->y_alpha);
+        seeded = true;
+        seed_kind = "dalton_nearest";
+      }
+    }
+  }
+
+  // Say which guess this leg starts from BEFORE it iterates. Printing it only
+  // in the final line meant a leg that had silently lost its DALTON seed (B24)
+  // looked like a slow solve for as long as it ran.
+  if (world.rank() == 0) {
+    if (ctx.log_prefix.empty())
+      madness::print("[CALC] fd start: pert=", pert.description(), " freq=", freq,
+                     " thresh=", thresh, " seed=", seed_kind);
+    else
+      madness::print(ctx.log_prefix,
+                     "[CALC] fd start: pert=", pert.description(), " freq=", freq,
+                     " thresh=", thresh, " seed=", seed_kind);
   }
 
   Solver solver(world, tgt, ctx.policy, ctx.print_level, ctx.log_prefix);  // F2d tag
@@ -450,9 +559,11 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
   // exhausts max_iters without meeting the strict target is accepted so the
   // node climbs the ladder / unblocks VBC instead of stalling. The `accepted`
   // flag + recorded residual keep the verdict honest.
+  // A plateau (State::stalled, ConvergencePolicy::stall_*) is treated exactly
+  // like exhausting max_iters: same acceptance rule, fewer wasted iterations.
   auto accepted_now = [&](const typename Solver::State &st, const Solver &sv) {
     return ctx.accept_at_maxiter && !st.diverged &&
-           st.iter >= ctx.max_iters && !converged_now(st, sv);
+           (st.iter >= ctx.max_iters || st.stalled) && !converged_now(st, sv);
   };
 
   auto post_step = [&](double, Solver &solv, typename Solver::State &st) {
@@ -480,18 +591,22 @@ NodeResult solve_fd_protocol(ExecutorContext &ctx, const Perturbation &pert,
   r.converged = strict || accepted;
   r.reached_protocol_key = protocol_key();  // active defaults reflect this protocol step
   if (world.rank() == 0) {
-    const char *acc = accepted ? " (ACCEPTED best-effort @ maxiter — strict target "
-                                 "NOT met; see bsh_residual)" : "";
+    const char *acc = !accepted ? ""
+                      : sf.stalled ? " (ACCEPTED best-effort @ stall — residual plateau; "
+                                     "strict target NOT met; see bsh_residual)"
+                                   : " (ACCEPTED best-effort @ maxiter — strict target "
+                                     "NOT met; see bsh_residual)";
+    const char *stl = (sf.stalled && !accepted) ? " stalled=1" : "";
     // F2d: prepend the subworld tag (empty ⇒ unchanged, G=0 byte-identical).
     if (ctx.log_prefix.empty())
       madness::print("[CALC] fd solve: pert=", pert.description(), " freq=", freq,
                      " thresh=", thresh, " seed=", seed_kind, " iters=", sf.iter,
-                     " converged=", r.converged, acc);
+                     " converged=", r.converged, acc, stl);
     else
       madness::print(ctx.log_prefix,
                      "[CALC] fd solve: pert=", pert.description(), " freq=", freq,
                      " thresh=", thresh, " seed=", seed_kind, " iters=", sf.iter,
-                     " converged=", r.converged, acc);
+                     " converged=", r.converged, acc, stl);
   }
   return r;
 }
@@ -544,9 +659,18 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): remember WHERE the seed came from; the guard
+  // reloads it from disk at evaluation time (no bundle copy held in memory
+  // during the solve — see es_seed_guard.hpp).
+  std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<TDA, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
+                                        loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+    }
   }
   if (!seeded) {
     const long n_warm = std::max<long>(
@@ -555,7 +679,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
                                static_cast<double>(n_roots))));
     s0 = run_oversampled_tda_warmup<ClosedShell>(
         world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-        c_xc, lo, ctx.print_level, ctx.es_guess);
+        c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
   }
 
   Solver solver(world, std::move(problem), main_policy, ctx.print_level);
@@ -601,7 +725,7 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   // Report/save convergence with the SAME criterion the iteration stops on
   // (ESSolver::converged = energy+density, not the jittering BSH amplitude).
   auto converged_now = [](const Solver::State &st, const Solver &sv) {
-    return !st.diverged && sv.converged(st);
+    return !st.diverged && !st.stalled && sv.converged(st);
   };
 
   auto post_step = [&](double, Solver &solv, Solver::State &st) {
@@ -621,6 +745,15 @@ inline NodeResult solve_es_tda_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5): visibility on what a SEEDED solve actually did
+  // (seed overlap / ω shift per root, basin-escape + pure-tracking warnings)
+  // Collective evaluate; rank-0 print + metadata write. Fresh (unseeded)
+  // solves skip the guard entirely.
+  if (seed_ref) {
+    auto guard = evaluate_es_seed_guard<TDA, ClosedShell>(world, sf, r.converged, *seed_ref);
+    print_es_seed_guard(world, guard);
+    record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the IN-MEMORY converged state `sf` at the solve's
   // own process count and writes only a rank-0 JSON — it does NOT reload the
@@ -683,9 +816,42 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
 
   Solver::State s0;
   bool seeded = false;
+  // Root-identity guard (W5): deep-copy the seed for the post-solve overlap /
+  // ω-shift report (see es_seed_guard.hpp). NB: the cached TDA warmup guess
+  // below is NOT a seed in this sense (it is this solver's own cold-start
+  // artifact), so seed_ref stays empty on that path.
+  std::optional<EsSeedReference> seed_ref;
   if (action != NodeAction::Fresh) {
     auto loaded = try_load_es_bundle<Full, ClosedShell>(world, ctx.calc_dir);
-    if (loaded) { s0 = std::move(loaded->state); seeded = true; }
+    if (loaded) {
+      seed_ref = make_es_seed_reference(world, ctx.calc_dir, loaded->bundle_dir,
+                                        loaded->source_protocol_key);
+      s0 = std::move(loaded->state);
+      seeded = true;
+      // An EXTERNAL seed (iteration-0 bundle: DALTON EXCITLAB vectors written by
+      // seed_es_from_dalton / seed_from_dalton) is not Full-ready — its residual
+      // against the MRA operator is ~0.1 and the Full solver diverges from it
+      // (h2o, lih, c2h4, 2026-09-10). Route it the way the cold path routes its
+      // guess: TDA warmup (KAIN off, es_tda_warmup_iters) from the seed's X
+      // block, then promote to Full with y = 0. A bundle saved mid-solve
+      // (iter > 0) is a genuine restart and is used as is.
+      if (ctx.es_seed_warmup && s0.iter == 0 && ctx.es_tda_warmup_iters > 0) {
+        if (world.rank() == 0)
+          madness::print("[CALC] solve_es_full: iteration-0 seed bundle -> TDA warmup"
+                         " from the seed (", ctx.es_tda_warmup_iters,
+                         "iters, KAIN off) -> promote to Full (y = 0)");
+        ESSolver<TDA, ClosedShell>::State tda;
+        tda.roots.resize(s0.roots.size());
+        for (std::size_t r = 0; r < s0.roots.size(); ++r)
+          tda.roots[r].x_alpha = madness::copy(world, s0.roots[r].x_alpha);
+        tda.omega = madness::copy(s0.omega);
+        tda.iter  = 0;
+        tda = run_tda_warmup_from_state<ClosedShell>(
+            world, gs, std::move(tda), ctx.es_tda_warmup_iters, warm_policy,
+            c_xc, lo, ctx.print_level);
+        s0 = promote_tda_to_full_closed_shell(world, tda);
+      }
+    }
   }
   if (!seeded) {
     const std::string cache_base =
@@ -718,7 +884,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
                                  static_cast<double>(n_roots))));
       auto tda = run_oversampled_tda_warmup<ClosedShell>(
           world, gs, n_roots, n_warm, ctx.es_tda_warmup_iters, warm_policy,
-          c_xc, lo, ctx.print_level, ctx.es_guess);
+          c_xc, lo, ctx.print_level, ctx.es_guess, ctx.es_guess_basis);
       s0 = promote_tda_to_full_closed_shell(world, tda);
       if (ctx.es_warmup_cache) {
         save_es_roots<Full, ClosedShell>(world, s0, warm_cache,
@@ -759,7 +925,7 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   // Report/save convergence with the SAME criterion the iteration stops on
   // (ESSolver::converged = energy+density, not the jittering BSH amplitude).
   auto converged_now = [](const Solver::State &st, const Solver &sv) {
-    return !st.diverged && sv.converged(st);
+    return !st.diverged && !st.stalled && sv.converged(st);
   };
 
   auto post_step = [&](double, Solver &solv, Solver::State &st) {
@@ -779,6 +945,12 @@ inline NodeResult solve_es_full_closed_shell(ExecutorContext &ctx, int n_roots,
   NodeResult r;
   r.converged = converged_now(sf, solver);
   r.reached_protocol_key = protocol_key();
+  // Root-identity guard (W5) — same contract as the TDA path above.
+  if (seed_ref) {
+    auto guard = evaluate_es_seed_guard<Full, ClosedShell>(world, sf, r.converged, *seed_ref);
+    print_es_seed_guard(world, guard);
+    record_es_seed_guard(world, ctx.calc_dir, protocol_key(), guard);
+  }
   // Post-convergence transition-property report (legacy TDDFT::analysis +
   // analyze_vectors). Runs on the in-memory `sf` (no bundle reload), so it never
   // hits the cross-np load path that caused the parked ES heap-OOB (now guarded
@@ -835,7 +1007,15 @@ solve_vbc_closed_shell(ExecutorContext &ctx, const CalcNode &node, double thresh
   auto VB_op = perturbation_operator(world, gs, node.pert);
   auto VC_op = perturbation_operator(world, gs, node.pert_c);
 
-  auto vbc_src = vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op);
+  // Source selection (see ExecutorContext::beta_pq_source). Both builders sum
+  // the two photon orderings; the (P,Q) builder does so in one call.
+  auto vbc_src = ctx.beta_pq_source
+      ? tpa::quadratic_source(world, g0, *B, *C, VB_op, VC_op)
+      : vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op);
+  if (world.rank() == 0)
+    madness::print(ctx.log_prefix, "[CALC] solve_vbc: source =",
+                   ctx.beta_pq_source ? "tpa::quadratic_source (P,Q)"
+                                      : "vbc::compute_vbc (spec build, same source)");
   const double wall_s = madness::wall_time() - step_w0;   // R1b
   save_vbc_state<ClosedShell>(world, vbc_src, ctx.calc_dir, node.id,
                               /*converged=*/true, /*wall_s=*/wall_s,
@@ -950,6 +1130,7 @@ struct CalcManagerPolicy {
   SeedStrategy seed = SeedStrategy::NearestConverged;
   int          max_iters_per_step = 25;
   int          fd_subworlds = 0;   // F2f: subworlds PER NODE (0=off, 1=node-aligned)
+  int          fd_subworld_ranks = 0;   // ranks per subworld; >0 = universe split (may span nodes)
 };
 
 // ===========================================================================
@@ -1193,7 +1374,7 @@ public:
                        "  thresh=", wthresh, "  k=", wk,
                        "  items=", (int)wave.size());
       }
-      const bool fan_enabled = fan_out && policy_.fd_subworlds > 0;
+      const bool fan_enabled = fan_out && (policy_.fd_subworlds > 0 || policy_.fd_subworld_ranks > 0);
       if (!fan_enabled) {
         // Single-World reference path — byte-for-byte the pre-F2 behaviour
         // (every rank solves each wave item together, in wave order).
@@ -1227,11 +1408,49 @@ public:
           // collectives — ranks_per_host gather/broadcast, Split, gop.fence — is
           // inherently unrecoverable in MPI: the non-throwing ranks are already
           // blocked inside those collectives and never reach the max() below.)
+          // Right-size the pool to THIS wave (2026-09-10). With a fixed
+          // groups_per_node = deck `subworlds` (8 = one rank per NUMA domain), a
+          // wave of 3 static legs left 5 of 8 subworlds without an item; they
+          // waited in the universe collective below for the whole wave (~16 min
+          // per leg at thresh 1e-6) and ThreadPool::await killed them after 900 s
+          // (closeout job 2162152). The number of items is known here, so use
+          //   groups_per_node = clamp(ceil(n_items / n_nodes), 1, min(subworlds, ranks_per_node)):
+          // 3 items on one 8-rank node -> 3 subworlds of 3/3/2 ranks (no idle
+          // rank, each leg gets 2-3 ranks); 24 items on 3 nodes -> 24 x 1 rank;
+          // 12 items on 3 nodes -> 12 x 2 ranks. Subworlds stay node-aligned, so
+          // with fewer items than nodes some nodes still idle for the wave.
+          //
+          // Large-system regime (deck `subworld_ranks` R > 0): the per-node
+          // packing is replaced by a UNIVERSE-level contiguous split into
+          //   G = clamp(min(n_items, universe_size / R), 1, universe_size)
+          // subworlds of ~universe_size/G ranks each, which may span nodes. R is
+          // the SCF sizing (10-20 MOs per rank): valinomycin (300 MOs) runs one
+          // SCF on 6-8 nodes x 8 ranks, so R = 48-64 gives each independent
+          // state the same footprint as the ground-state solve. With fewer
+          // items than universe/R, the blocks grow (all ranks stay busy).
+          int gpn_wave = std::max(1, policy_.fd_subworlds);
+          int G_universe = 0;   // > 0 selects the universe-level split
+          {
+            const auto rph = madness::ranks_per_host(world);   // collective
+            const int n_nodes = std::max<int>(1, static_cast<int>(rph.size()));
+            int rpn = world.size();
+            for (const auto &kv : rph) rpn = std::min<int>(rpn, static_cast<int>(kv.second.size()));
+            const int n_items = static_cast<int>(fan_items.size());
+            if (policy_.fd_subworld_ranks > 0) {
+              const int R = std::min(policy_.fd_subworld_ranks, world.size());
+              G_universe = std::max(1, std::min(n_items, world.size() / R));
+            } else {
+              const int want = (n_items + n_nodes - 1) / n_nodes;   // ceil
+              gpn_wave = std::max(1, std::min({policy_.fd_subworlds, rpn, want}));
+            }
+          }
           NodeSubworldInfo info;
           std::shared_ptr<madness::World> sub;
           std::string pool_err;
           try {
-            sub = make_subworld_pool(world, policy_.fd_subworlds, &info);
+            sub = (G_universe > 0)
+                      ? make_subworld_pool_universe(world, G_universe, &info)
+                      : make_subworld_pool(world, gpn_wave, &info);
           } catch (const std::exception &e) { pool_err = e.what(); }
             catch (...) { pool_err = "unknown exception in make_subworld_pool"; }
           int pool_bad = pool_err.empty() ? 0 : 1;
@@ -1264,7 +1483,13 @@ public:
             if (world.rank() == 0)
               madness::print("SUBWORLD_FANOUT  pass=", pass, "  n_subworlds=", G,
                              "  groups_per_node=", info.groups_per_node,
-                             "  fan_items=", (int)fan_items.size());
+                             "  ranks_per_subworld=", info.subworld_size,
+                             "  nodes_per_subworld=", info.nodes_spanned,
+                             "  fan_items=", (int)fan_items.size(),
+                             (G_universe > 0 ? "  (universe split, deck subworld_ranks="
+                                             : "  (right-sized from deck subworlds="),
+                             (G_universe > 0 ? policy_.fd_subworld_ranks : policy_.fd_subworlds),
+                             ")");
             // S1 pmap discipline: point the default pmap at the subworld so
             // everything built inside is subworld-local; restore BEFORE reset.
             // Exception safety: a subworld-local throw must NOT skip the pmap
@@ -1276,6 +1501,17 @@ public:
             // is inherently unrecoverable in MPI — this handles the
             // synchronized-failure cases: archive open, shard save, guards.)
             std::string fan_err;
+            // Save the universe's CURRENT pmap object and restore THAT object
+            // afterwards. set_default_pmap(world) builds a NEW map, so every
+            // function created after the fan-out (seed bundles reloaded from
+            // disk, ES intermediates, V0x/gamma products) was distributed
+            // differently from the ground-state functions built before it
+            // (orbitals, V_local, K0, Q); operations mixing the two silently
+            // lost contributions: LiH sigma orbital <phi|V_local|phi> came out
+            // -0.008 instead of -0.194 and Q left 1e-2 occupied overlaps, and
+            // every seeded ES solve after a fan-out diverged (attempts 3-11,
+            // 2026-09-10). With subworlds 0 the same solve converges.
+            const auto universe_pmap = madness::FunctionDefaults<3>::get_pmap();
             madness::FunctionDefaults<3>::set_default_pmap(*sub);
             try {
               fan_out(*sub, mine, wthresh, info.gid, lp);
@@ -1285,7 +1521,7 @@ public:
             } catch (...) {
               fan_err = "unknown exception in subworld fan-out";
             }
-            madness::FunctionDefaults<3>::set_default_pmap(world);
+            madness::FunctionDefaults<3>::set_pmap(universe_pmap);   // the ORIGINAL object, not a new map
             sub.reset();
             if (!fan_err.empty())
               madness::print("[FANOUT-ERROR] universe rank", world.rank(),
@@ -1319,7 +1555,7 @@ public:
             MADNESS_EXCEPTION("per-wave shard merge failed on rank 0 "
                               "(see [SHARD-MERGE-ERROR])", 0);
           world.gop.fence();
-        } else if (policy_.fd_subworlds > 0 && !rest.empty() &&
+        } else if ((policy_.fd_subworlds > 0 || policy_.fd_subworld_ranks > 0) && !rest.empty() &&
                    world.rank() == 0) {
           // Review MED: this wave is ES-only (ES is deliberately excluded from
           // fan-out — it stays single-World), so the requested `subworlds` had
@@ -1529,6 +1765,16 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
         madness::print("[BETA] skip", vbc_id, "— missing VBC or FD input");
       continue;
     }
+    // --beta-compare-sources: the OTHER source from the same legs (the saved
+    // one is whichever ctx.beta_pq_source selected at build time).
+    std::optional<ResponseStateXY<ClosedShell>> vbc_alt;
+    if (ctx.beta_compare_sources) {
+      auto VB_op = perturbation_operator(world, gs, vr.pert_b);
+      auto VC_op = perturbation_operator(world, gs, vr.pert_c);
+      vbc_alt = ctx.beta_pq_source
+          ? vbc::compute_vbc<ClosedShell>(world, g0, *B, *C, VB_op, VC_op)
+          : tpa::quadratic_source(world, g0, *B, *C, VB_op, VC_op);
+    }
 
     for (int a = 0; a < 3; ++a) {
       const Perturbation pA = Perturbation::dipole(a);
@@ -1541,6 +1787,18 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
       }
       auto VA_op = dipole_operator(world, a);
       const double b = beta::beta_abc<ClosedShell>(world, g0, *xA, *vbc, *B, *C, VA_op);
+      if (vbc_alt) {
+        const double b_alt =
+            beta::beta_abc<ClosedShell>(world, g0, *xA, *vbc_alt, *B, *C, VA_op);
+        if (world.rank() == 0)
+          printf("%s-COMPARE A=%c B=%s C=%s fB=%g fC=%g  saved[%s]=%+.8e  other[%s]=%+.8e  "
+                 "diff=%+.3e (%.2f%%)\n", ptag, beta_axis_name(a),
+                 vr.pert_b.description().c_str(), vr.pert_c.description().c_str(),
+                 vr.freq_b, vr.freq_c,
+                 ctx.beta_pq_source ? "pq" : "vbc", b,
+                 ctx.beta_pq_source ? "vbc" : "pq", b_alt,
+                 b_alt - b, (b != 0.0 ? 100.0 * (b_alt - b) / b : 0.0));
+      }
 
       if (world.rank() == 0) {
         madness::print(ptag, " A=", beta_axis_name(a),
@@ -1672,9 +1930,10 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
   const bool loaded =
       es_full ? load_tpa_es_xy<Full>(world, ctx.calc_dir, omegas, Xfs)
               : load_tpa_es_xy<TDA>(world, ctx.calc_dir, omegas, Xfs);
-  if (world.rank() == 0)
+  if (world.rank() == 0) {
     printf("[TPA timing] ES bundle load: %.1f s\n", madness::wall_time() - t_es0);
     fflush(stdout);
+  }
   if (!loaded) {
     if (world.rank() == 0)
       print("[TPA] no ES bundle under", ctx.calc_dir, "— SKIPPED");
@@ -1784,6 +2043,9 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       // correctness assertion (DALTON's E3 shows the same invariance).
       if (world.rank() == 0) {
         print("[TPA] contraction: single-residue, S = sqrt2*(1e + E3corr),"
+              " 2e composition =",
+              (ctx.tpa_cgrouped ? "c-grouped (tpa_e3_residue)"
+                                : "Parker (P,Q) spec [production]"),
               " prefactor =", ctx.tpa_prefactor);
         fflush(stdout);
       }
@@ -1794,23 +2056,48 @@ inline void assemble_tpa(ExecutorContext &ctx, const ResponsePlan &plan,
       for (int b3 = 0; b3 < 3; ++b3) {
         for (int c3 = b3; c3 < 3; ++c3) {
           if (world.rank() == 0) {
-            printf("  [TPA e3corr] root %ld pair %c%c%s ...\n", f,
+            printf("  [TPA e3corr] root %ld pair %c%c%s (%s) ...\n", f,
                    "xyz"[b3], "xyz"[c3],
-                   (b3 != c3 ? " (both orderings)" : ""));
+                   (b3 != c3 ? " (both orderings)" : ""),
+                   (ctx.tpa_cgrouped ? "c-grouped" : "Parker spec"));
             fflush(stdout);
           }
-          const double ebc = tpa::tpa_e3_residue(
-              world, g0, mu_resp[static_cast<size_t>(b3)],
-              mu_resp[static_cast<size_t>(c3)], Xf);
-          double e = ebc;
-          if (b3 != c3) {
-            const double ecb = tpa::tpa_e3_residue(
-                world, g0, mu_resp[static_cast<size_t>(c3)],
-                mu_resp[static_cast<size_t>(b3)], Xf);
-            max_asym = std::max(max_asym, std::abs(ebc - ecb));
-            e = 0.5 * (ebc + ecb);
+          double e = 0.0;
+          if (!ctx.tpa_cgrouped) {
+            // PRODUCTION (2026-09-05): the Parker-style state-free (P,Q)
+            // source, symmetrized builder (family-D collapse). Gate 1 of
+            // test_tpa_pq_vs_vbc pins <x^f|P>+<y^f|Q> (one ordering, 2e)
+            // == tpa_e3_residue/sqrt2, and the sym builder returns the
+            // ordering SUM, so 0.5*<f|P_sym,Q_sym> lands in the same units
+            // as the averaged e/sqrt2 below — the outer sqrt2*(1e+E3corr)
+            // stays untouched.
+            auto pq = source_spec::assemble_source(
+                world, g0,
+                tpa::tpa_pq_spec_sym(world, g0,
+                                     mu_resp[static_cast<size_t>(b3)],
+                                     mu_resp[static_cast<size_t>(c3)]));
+            const double sp =
+                ctx.tpa_swap_pq
+                    ? (inner(world, Xf.y_alpha, pq[0]).sum() +
+                       inner(world, Xf.x_alpha, pq[1]).sum())
+                    : (inner(world, Xf.x_alpha, pq[0]).sum() +
+                       inner(world, Xf.y_alpha, pq[1]).sum());
+            e = 0.5 * sp;
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e;
+          } else {
+            const double ebc = tpa::tpa_e3_residue(
+                world, g0, mu_resp[static_cast<size_t>(b3)],
+                mu_resp[static_cast<size_t>(c3)], Xf);
+            e = ebc;
+            if (b3 != c3) {
+              const double ecb = tpa::tpa_e3_residue(
+                  world, g0, mu_resp[static_cast<size_t>(c3)],
+                  mu_resp[static_cast<size_t>(b3)], Xf);
+              max_asym = std::max(max_asym, std::abs(ebc - ecb));
+              e = 0.5 * (ebc + ecb);
+            }
+            S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
           }
-          S_e3c(b3, c3) = S_e3c(c3, b3) = e / std::sqrt(2.0);
         }
       }
       S = madness::copy(S_1e);
@@ -2071,7 +2358,7 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
         madness::print("[ALPHA]  row dir=", beta_axis_name(ax[i]),
                        " source_protocol=", src_key[i],
                        " converged=", (row_conv[i] != 0),
-                       (row_acc[i] ? " (ACCEPTED@maxiter)" : ""),
+                       (row_acc[i] ? " (ACCEPTED best-effort: maxiter or stall; see the fd_states entry)" : ""),
                        " bsh_res=", row_res[i]);
         for (size_t j = 0; j < ax.size(); ++j)
           madness::print("[ALPHA]  alpha_", beta_axis_name(ax[i]),

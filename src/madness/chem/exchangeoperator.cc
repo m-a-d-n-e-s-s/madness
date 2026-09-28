@@ -13,19 +13,25 @@ template<typename T, std::size_t NDIM>
 Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, const int ispin)
         : world(world), symmetric_(false), lo(calc->param.lo()) {
 
+    // The exchange sum runs over occupied orbitals only: drop zero-occupation
+    // orbitals (the virtuals when nvalpha/nvbeta > 0). Fractional occupations
+    // would need an occ-scaled bra, which the symmetric algorithms cannot
+    // represent -- refuse them rather than sum them unweighted.
+    const Tensor<double>& occ = (ispin == 0) ? calc->aocc : calc->bocc;
+    const std::vector<Function<double, 3>>& mo = (ispin == 0) ? calc->amo : calc->bmo;
+    std::vector<Function<double, 3>> occupied_mo;
+    for (size_t i = 0; i < mo.size(); ++i) {
+        if (long(i) < occ.size() and occ(long(i)) == 0.0) continue;
+        MADNESS_CHECK_THROW(long(i) >= occ.size() or occ(long(i)) == 1.0,
+                            "Exchange requires occupation numbers of 0 or 1");
+        occupied_mo.push_back(mo[i]);
+    }
+
     if constexpr (std::is_same_v<T,double_complex>) {
-        if (ispin == 0) { // alpha spin
-            mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
-        } else if (ispin == 1) {  // beta spin
-            mo_ket = convert<double, T, NDIM>(world, calc->bmo);
-        }
+        mo_ket = convert<double, T, NDIM>(world, occupied_mo);        // deep copy necessary if T==double_complex
         mo_bra = conj(world, mo_ket);
     } else {
-        if (ispin == 0) { // alpha spin
-            mo_ket = calc->amo;        // deep copy necessary if T==double_complex
-        } else if (ispin == 1) {  // beta spin
-            mo_ket = calc->bmo;
-        }
+        mo_ket = occupied_mo;
         mo_bra = mo_ket;
     }
 
@@ -380,7 +386,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
         gaxpy(subworld, 1.0, resultrow, 1.0, row_update);
         // ... while each row's own entry is written exactly once
         w0 = prof_on ? wall_time() : 0.0;
-        resultcolumn[irow] = dot(subworld, ket_columns, Nij, true, true, mul_tol);
+        resultcolumn[irow] = dot_sparse(subworld, ket_columns, Nij, mul_tol, true, true);
         tick(prof_.mul2_wall, w0);
         cpu1 = cpu_time();
         mul2_timer += long((cpu1 - cpu0) * 1000l);
@@ -391,11 +397,87 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 }
 
 
-template 
-class Exchange<double_complex, 3>::ExchangeImpl;
+/// ctor
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const double lo, const double thresh) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,lo,thresh)) {};
 
-template
-class Exchange<double, 3>::ExchangeImpl;
+/// ctor with a conventional calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
+
+/// ctor with a nemo calculation
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
+
+/// apply the exchange operator on a vector of functions
+
+/// note that only one spin is used (either alpha or beta orbitals)
+/// @param[in]  vket       the orbitals |i> that the operator is applied on
+/// @return     a vector of orbitals  K| i>
+template<typename T, std::size_t NDIM>
+std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
+    impl->set_taskq(this->taskq);
+    auto result=impl->operator()(vket);
+    this->statistics=impl->get_statistics();
+    return result;
+};
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
+    MADNESS_CHECK(impl);
+    impl->set_bra_and_ket(bra, ket);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+bool Exchange<T,NDIM>::is_symmetric() const {
+    return impl->is_symmetric();
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
+    impl->symmetric(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
+    impl->set_algorithm(alg);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& info) {
+    impl->set_macro_task_info(info);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
+    impl->set_printlevel(level);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long level) {
+    impl->set_batch_granularity(level);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
+    impl->set_accumulation_mode(mode);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
+    impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
+template class Exchange<double_complex, 3>;
+template class Exchange<double, 3>;
 
 template<> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
 template<> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
@@ -403,7 +485,5 @@ template<> Spinlock WorldObject<MacroTaskQ>::pending_mutex(0);
 template<> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending = std::list<detail::PendingMsg>();
 template<> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(
         0);
-
-Exchange<double,3>::ExchangeImpl junkjunkjunk(World& world, const SCF *calc, const int ispin) {return Exchange<double,3>::ExchangeImpl(world, calc, ispin);}
 
 } /* namespace madness */

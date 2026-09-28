@@ -84,6 +84,8 @@ struct R_times_arg_div_R {
 /// for the piecewise function f(x)={{x, x<1}, {1,x>1}}, which is squared. For this approximation
 /// see https://doi.org/10.1186/s40064-016-3278-y
 struct harmonic_potential_boxed : public FunctionFunctorInterface<double,3> {
+	using FunctionFunctorInterface<double,3>::operator();
+
 	double radius;		//
 	double tightness;	// alpha in the article
 	harmonic_potential_boxed(const double r, const double deviation=FunctionDefaults<3>::get_thresh()) :

@@ -109,12 +109,8 @@ namespace madness {
         
         inline Slice() : start(0), end(-1), step(1) {};
         inline Slice(long s, long e, long stp=1) : start(s), end(e), step(stp) {};
-        inline Slice& operator=(const Slice& s) {
-            start=s.start;
-            end=s.end;
-            step=s.step;
-            return *this;
-        };
+        Slice(const Slice&) = default;
+        Slice& operator=(const Slice&) = default;
         template <typename Archive>
         void serialize(Archive& ar) {
         	ar & start & end & step;

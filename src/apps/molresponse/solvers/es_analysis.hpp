@@ -249,7 +249,7 @@ analyze_response_orbitals(madness::World &world, const Molecule &molecule,
                           const std::vector<madness::real_function_3d> &x,
                           const std::string &label, PrintLevel print_level) {
   using namespace madness;
-  const double vtol = FunctionDefaults<3>::get_thresh();
+  const double vtol = FunctionDefaults<3>::get_thresh() * 0.1;  // SCF's analysis convention (SCF.h vtol = thresh*safety, safety=0.1)
 
   AtomicBasisSet sto3g("sto-3g");
   vecfuncT ao = SCF::project_ao_basis_only(world, sto3g, molecule);

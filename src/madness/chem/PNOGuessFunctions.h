@@ -250,6 +250,8 @@ public:
 		double exponent;  ///< exponent
 		int i, j, k;      ///< cartesian exponents
 
+		using FunctionFunctorInterface<double, 3>::operator();
+
 		double operator()(const coord_3d& xyz) const {
 			double xx = xyz[0] - x;
 			double yy = xyz[1] - y;
@@ -295,7 +297,9 @@ public:
 			return (T(0) < val) - (val < T(0));
 		}
 
-		double operator ()(const coord_3d& xyz) const;
+		using FunctionFunctorInterface<double, 3>::operator();
+
+		double operator ()(const coord_3d& xyz) const override;
 
 		std::vector<coord_3d> special_points() const final {
 			coord_3d coord;

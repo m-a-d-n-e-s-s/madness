@@ -205,23 +205,23 @@ this last instance, or for ease of rapid implementation, use the general
 
 
 #define ITERATOR1(t,exp) do { \
-        long __xd0=t.dim(0),_index=0;                                   \
+        long __xd0=t.dim(0); [[maybe_unused]] long _index=0;                                   \
         for (long _i=0; _i<__xd0; ++_i) {exp;_index++;} } while (0)
 
 #define ITERATOR2(t,exp) do { \
-        long __xd0=t.dim(0), __xd1=t.dim(1), _index=0;  \
+        long __xd0=t.dim(0), __xd1=t.dim(1); [[maybe_unused]] long _index=0;  \
 for (long _i=0; _i<__xd0; ++_i) { \
   for (long _j=0; _j<__xd1; ++_j) {exp;_index++;} } } while (0)
 
 #define ITERATOR3(t,exp) do { \
-        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2), _index=0;  \
+        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2); [[maybe_unused]] long _index=0;  \
 for (long _i=0; _i<__xd0; ++_i) { \
   for (long _j=0; _j<__xd1; ++_j) { \
     for (long _k=0; _k<__xd2; ++_k) {exp;_index++;} } } } while (0)
 
 #define ITERATOR4(t,exp) do { \
         long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),        \
-            __xd3=t.dim(3), _index=0;                               \
+            __xd3=t.dim(3); [[maybe_unused]] long _index=0;         \
 for (long _i=0; _i<__xd0; ++_i) { \
   for (long _j=0; _j<__xd1; ++_j) { \
     for (long _k=0; _k<__xd2; ++_k) { \
@@ -229,7 +229,7 @@ for (long _i=0; _i<__xd0; ++_i) { \
 
 #define ITERATOR5(t,exp) do { \
         long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),      \
-            __xd3=t.dim(3), __xd4=t.dim(4), _index=0;             \
+            __xd3=t.dim(3), __xd4=t.dim(4); [[maybe_unused]] long _index=0; \
 for (long _i=0; _i<__xd0; ++_i) { \
   for (long _j=0; _j<__xd1; ++_j) { \
     for (long _k=0; _k<__xd2; ++_k) { \
@@ -238,7 +238,7 @@ for (long _i=0; _i<__xd0; ++_i) { \
 
 #define ITERATOR6(t,exp) do { \
         long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),            \
-            __xd3=t.dim(3), __xd4=t.dim(4), __xd5=t.dim(5), _index=0;;  \
+            __xd3=t.dim(3), __xd4=t.dim(4), __xd5=t.dim(5); [[maybe_unused]] long _index=0; \
 for (long _i=0; _i<__xd0; ++_i) { \
   for (long _j=0; _j<__xd1; ++_j) { \
     for (long _k=0; _k<__xd2; ++_k) { \
@@ -701,14 +701,14 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define BINARY_OPTIMIZED_ITERATOR(X,x,Y,y,exp) do { \
   if (x.iscontiguous() && y.iscontiguous() && x.size()==y.size()) { \
     X* MADNESS_RESTRICT _p0 = x.ptr(); \
-    Y* MADNESS_RESTRICT _p1 = y.ptr(); \
+    [[maybe_unused]] Y* MADNESS_RESTRICT _p1 = y.ptr(); \
     for (long _j=0; _j<x.size(); ++_j,++_p0,++_p1) {exp;} \
   } \
   else { \
     for (TensorIterator<REMCONST(X),REMCONST(Y)> iter=x.binary_iterator(y,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
         X* MADNESS_RESTRICT _p0 = iter._p0; \
-        Y* MADNESS_RESTRICT _p1 = iter._p1; \
+        [[maybe_unused]] Y* MADNESS_RESTRICT _p1 = iter._p1; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         for (long _j=0; _j<_dimj; ++_j, _p0+=_s0, _p1+=_s1) { \
@@ -719,16 +719,16 @@ for (long _i=0; _i<__xd0; ++_i, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define TERNARY_OPTIMIZED_ITERATOR(X,x,Y,y,Z,z,exp) do { \
   if (x.iscontiguous() && y.iscontiguous() && z.iscontiguous() && x.size()==y.size() && x.size()==z.size()) { \
     X* MADNESS_RESTRICT _p0 = x.ptr(); \
-    Y* MADNESS_RESTRICT _p1 = y.ptr(); \
-    Z* MADNESS_RESTRICT _p2 = z.ptr(); \
+    [[maybe_unused]] Y* MADNESS_RESTRICT _p1 = y.ptr(); \
+    [[maybe_unused]] Z* MADNESS_RESTRICT _p2 = z.ptr(); \
     for (long _j=0; _j<x.size(); ++_j,++_p0,++_p1,++_p2) {exp;} \
   } \
   else { \
     for (TensorIterator<REMCONST(X),REMCONST(Y),REMCONST(Z)> iter=x.ternary_iterator(y,z,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
         X* MADNESS_RESTRICT _p0 = iter._p0; \
-        Y* MADNESS_RESTRICT _p1 = iter._p1; \
-        Z* MADNESS_RESTRICT _p2 = iter._p2; \
+        [[maybe_unused]] Y* MADNESS_RESTRICT _p1 = iter._p1; \
+        [[maybe_unused]] Z* MADNESS_RESTRICT _p2 = iter._p2; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         long _s2 = iter._s2; \

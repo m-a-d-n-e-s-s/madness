@@ -151,6 +151,11 @@ bool Znemo::test_U_potentials() const {
 /// compute the molecular energy
 double Znemo::value(const Tensor<double>& x) {
 
+	// Znemo's energy expression (compute_energy) has no dispersion term, and its
+	// gradient runs through NemoBase::compute_gradient, which deliberately has
+	// none either -- D3 is not parameterized for a magnetic-field Hamiltonian.
+	DispersionCorrection::reject(get_calc_param().dispersion(), "znemo");
+
 	if ((x-mol.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
 
 	// compute the molecular potential

@@ -364,6 +364,61 @@ void test_automatic() {
     expect("auto, restartdata beats nwchem and ao", A,
            with_archive(converged_archive(1.e-4, 1.e-3), true, true), moldft,
            RestartSource::restartdata, true, 1);
+
+    // An archive holding fewer orbitals than requested (virtuals added on
+    // restart) is a guess for the missing ones, however converged it is; one
+    // holding as many or more is used as it stands.
+    {
+        auto short_archive = [](const std::size_t nmo) {
+            RestartSources disk = with_archive(converged_archive(1.e-6, 1.e-4));
+            disk.nmo_alpha = nmo;
+            return disk;
+        };
+        auto plan_for = [&](const RestartMode mode, const std::size_t nmo) {
+            return plan_restart(mode, short_archive(nmo), moldft, ladder, user_dconv, lih(),
+                                Representation::mo, 0.0, "", "", 7);
+        };
+        const RestartPlan fewer = plan_for(A, 5);
+        check(fewer.source == RestartSource::restartdata, "auto, short archive: reads the archive");
+        check(fewer.iterate, "auto, short archive: iterates");
+        check(fewer.protocol_start == 1, "auto, short archive: at the archive's rung");
+        check(fewer.archive_nmo_alpha == 5, "auto, short archive: records the archive's count");
+        check(fewer.why.find("missing virtuals") != std::string::npos,
+              "auto, short archive: says why");
+        check(not plan_for(A, 7).iterate, "auto, archive with the requested count: no iterations");
+        check(not plan_for(A, 9).iterate, "auto, archive with more orbitals: no iterations");
+        check(plan_for(A, 0).iterate == false, "auto, archive count unknown: not treated as short");
+
+        const RestartPlan iterate = plan_for(RestartMode::iterate, 5);
+        check(iterate.source == RestartSource::restartdata and iterate.iterate and
+              iterate.protocol_start == 1, "iterate, short archive: continues from the archive");
+
+        bool threw = false;
+        try {
+            plan_for(RestartMode::read_only, 5);
+        } catch (const MadnessException&) { threw = true; }
+        check(threw, "read_only, short archive: refused");
+        check(not plan_for(RestartMode::read_only, 7).iterate, "read_only, full archive: accepted");
+    }
+
+    // what the plan tells freeze_occupied about the archive
+    {
+        const RestartPlan good = plan_restart(A, with_archive(converged_archive(1.e-4, 1.e-3)), moldft,
+                                              ladder, user_dconv, lih(), Representation::mo, 0.0, "hf");
+        check(good.archive_converged and good.archive_same_hamiltonian,
+              "auto, converged archive: converged for this Hamiltonian");
+        const RestartPlan never = plan_restart(A, with_archive(converged_archive(1.e10, 1.e10)), moldft,
+                                               ladder, user_dconv, lih(), Representation::mo);
+        check(never.source == RestartSource::restartdata and not never.archive_converged,
+              "auto, archive that never converged: read, but not converged");
+        RestartMetadata lda = converged_archive(1.e-6, 1.e-4);
+        lda.xc = "lda";
+        const RestartPlan other = plan_restart(A, with_archive(lda), moldft, ladder, user_dconv, lih(),
+                                               Representation::mo, 0.0, "hf");
+        check(other.source == RestartSource::restartdata and other.iterate and
+              other.archive_converged and not other.archive_same_hamiltonian,
+              "auto, xc mismatch: re-converged, flagged as another Hamiltonian");
+    }
 }
 
 void test_explicit_modes() {
@@ -477,6 +532,9 @@ void test_serialization() {
     plan.stale_energy = -8.25;
     plan.warn = true;
     plan.why = "a reason";
+    plan.archive_nmo_alpha = 5;
+    plan.archive_converged = true;
+    plan.archive_same_hamiltonian = true;
 
     const std::size_t bufsize = 4096;
     std::vector<unsigned char> buf(bufsize);
@@ -496,6 +554,10 @@ void test_serialization() {
     check(copy.stale_energy == plan.stale_energy, "serialize: stale_energy");
     check(copy.warn == plan.warn, "serialize: warn");
     check(copy.why == plan.why, "serialize: why");
+    check(copy.archive_nmo_alpha == plan.archive_nmo_alpha, "serialize: archive_nmo_alpha");
+    check(copy.archive_converged == plan.archive_converged, "serialize: archive_converged");
+    check(copy.archive_same_hamiltonian == plan.archive_same_hamiltonian,
+          "serialize: archive_same_hamiltonian");
 }
 
 }  // namespace

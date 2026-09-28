@@ -75,9 +75,9 @@ dft
     protocol  [1e-4, 1e-6]
 end
 response
-    excited_states  true
-    es.n_states     4          # number of roots
-    es.full         true       # Full/RPA (omit for TDA)
+    excited.enable      true
+    excited.num_states  4          # number of roots
+    excited.tda         false      # false = Full/RPA (default); true = TDA
 end
 ```
 

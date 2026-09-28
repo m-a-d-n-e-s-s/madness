@@ -22,11 +22,13 @@
 // =========================================================================
 
 #include <madness/chem/SCFOperators.h>   // Exchange
+#include <madness/mra/macrotaskq.h>      // MacroTaskInfo::preset
 #include <madness/mra/mra.h>              // real_function_3d, real_derivative_3d
 #include <madness/mra/operator.h>         // BSHOperatorPtr3D
 #include <madness/tensor/tensor.h>        // Tensor
 
 #include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <vector>
 
@@ -104,12 +106,58 @@ make_bsh_operators(madness::World &world,
   return ops;
 }
 
+// ---------------------------------------------------------------------------
+// Exchange algorithm configuration (2026-09-09). molresponse used to hard-code
+// `multiworld_efficient_row`, which bypasses the 2026-08 exchange work that
+// moldft uses by default (SCF.cc apply_potential, CalculationParameters
+// hfexalg=multiworld, hfex_granularity=1, hfex_accumulation=2,
+// hfex_cost_aware=true): owner-pinned batch placement, a bounded batch cache,
+// cost-aware task assignment and per-node accumulation. Every Exchange built
+// here now goes through configure_exchange(), which mirrors moldft's settings
+// and can be overridden per run for A/B timing without a rebuild:
+//   MADRESPONSE_HFEXALG           multiworld (default) | multiworld_row |
+//                                 fetch_compute | smallmem | largemem
+//   MADRESPONSE_HFEX_GRANULARITY  long, default 1
+//   MADRESPONSE_HFEX_ACCUMULATION int,  default 2 (1 = per subworld)
+//   MADRESPONSE_HFEX_COST_AWARE   0/1,  default 1
+// The contraction convention K(bra,ket) f = sum_k ket_k Int bra_k f is the
+// same for every algorithm (exchangeoperator.cc), so the quadratic-source leg
+// dictionary (source_spec.hpp) is unaffected. Numerics are algorithm-
+// independent to MRA precision; the gate is a recorded alpha/ES regression
+// (cm_record) rather than test_kernel_equivalence, whose two paths share this
+// very wrapper.
+// ---------------------------------------------------------------------------
+namespace hfex_detail {
+inline const char *env_or(const char *name, const char *dflt) {
+  const char *v = std::getenv(name);
+  return (v && *v) ? v : dflt;
+}
+} // namespace hfex_detail
+
+/// Apply the moldft-equivalent exchange settings to a freshly constructed
+/// operator. `symmetric` = bra and ket are the same set (ground-state K).
+inline madness::Exchange<double, 3> &
+configure_exchange(madness::Exchange<double, 3> &K, bool symmetric = false) {
+  using namespace hfex_detail;
+  using Ex = madness::Exchange<double, 3>;
+  // moldft's default is "multiworld_row" (= multiworld_efficient_row, the
+  // algorithm molresponse always used). "multiworld" is the TILED
+  // multiworld_efficient, a different algorithm; a 2026-09-09 build with it as
+  // the default reproduced the old fixture's Raman at 3.808 instead of the
+  // validated 4.675 (A/B in reports/2026-09-09_beta_raman_revalidation).
+  K.set_algorithm(Ex::string2algorithm(env_or("MADRESPONSE_HFEXALG", "multiworld_row")));
+  K.set_symmetric(symmetric);
+  K.set_macro_task_info(madness::MacroTaskInfo::preset("default"));
+  K.set_batch_granularity(std::atol(env_or("MADRESPONSE_HFEX_GRANULARITY", "1")));
+  K.set_accumulation_mode(std::atoi(env_or("MADRESPONSE_HFEX_ACCUMULATION", "2")));
+  K.set_cost_aware_assignment(std::atoi(env_or("MADRESPONSE_HFEX_COST_AWARE", "1")) != 0);
+  return K;
+}
+
 /// Compact wrapper around `madness::Exchange::set_bra_and_ket(bra, ket)`
-/// + apply. Each call constructs an Exchange operator with the
-/// multiworld-efficient-row algorithm and applies it to `apply_to`.
-/// Used 4-9× per compute_gamma / compute_V0x; one-line replacement
-/// for the 5-line Exchange<double, 3> ... set_bra_and_ket ... set_algorithm
-/// ... apply pattern.
+/// + apply, with the moldft-equivalent algorithm settings (configure_exchange).
+/// Used 4-9× per compute_gamma / compute_V0x and by the quadratic-source
+/// engine (two_electron.hpp). bra != ket in general (non-symmetric).
 inline std::vector<madness::real_function_3d>
 apply_exchange(madness::World &world,
                const std::vector<madness::real_function_3d> &bra,
@@ -118,8 +166,7 @@ apply_exchange(madness::World &world,
                double lo) {
   madness::Exchange<double, 3> K(world, lo);
   K.set_bra_and_ket(bra, ket);
-  K.set_algorithm(madness::Exchange<double, 3>::
-                      ExchangeAlgorithm::multiworld_efficient_row);
+  configure_exchange(K, /*symmetric=*/false);
   return K(apply_to);
 }
 
@@ -135,8 +182,7 @@ make_ground_exchange(madness::World &world,
   if (mos.empty()) return nullptr;
   auto K = std::make_shared<madness::Exchange<double, 3>>(world, lo);
   K->set_bra_and_ket(mos, mos);
-  K->set_algorithm(madness::Exchange<double, 3>::
-                       ExchangeAlgorithm::multiworld_efficient_row);
+  configure_exchange(*K, /*symmetric=*/true);   // K[mos,mos]: the moldft case
   return K;
 }
 

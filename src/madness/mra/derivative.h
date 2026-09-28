@@ -275,11 +275,19 @@ namespace madness {
                 // hit: same-level leaf or interior node. miss: neighbor is coarser, walk up below.
                 coeffT c;
                 if (f->halo_probe(neigh, c)) return Future<argT>(argT(neigh, c));
+                const auto& coeffs = f->get_coeffs();
+                keyT curr = neigh;
+                while (coeffs.is_local(curr)) {
+                    if (coeffs.probe(curr)) {
+                        const auto& node = coeffs.find(curr).get()->second;
+                        return Future<argT>(argT(curr, node.has_coeff() ? node.coeff() : coeffT()));
+                    }
+                    // Key::parent() of the root is the root, so without this a tree missing its root spins here
+                    MADNESS_CHECK_THROW(curr.level() > 0, "find_neighbor: no ancestor of the neighbor is in the tree");
+                    curr = curr.parent();
+                }
                 Future<argT> result;
-		if (f->get_coeffs().is_local(neigh))
-		  f->send(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
-		else
-		  f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
+                f->task(coeffs.owner(curr), &implT::sock_it_to_me, curr, result.remote_ref(world), TaskAttributes::hipri());
                 return result;
             }
         }

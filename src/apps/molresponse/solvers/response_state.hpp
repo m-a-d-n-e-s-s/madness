@@ -171,7 +171,7 @@ inline IoBackend save_state(World &world, const std::string &filename,
 template <class LoadCb>
 inline void load_state(World &world, const std::string &filename,
                        IoBackend backend, LoadCb &&cb) {
-  bool use_h5 = false;
+  [[maybe_unused]] bool use_h5 = false;
   if (backend == IoBackend::Hdf5) {
 #ifdef MADNESS_HAS_HDF5
     use_h5 = true;

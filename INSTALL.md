@@ -112,6 +112,26 @@ The following CMake cache variables turn features on and off.
       only and does not propagate to consumers of an installed MADNESS package.
       Supported with GNU, Clang, AppleClang, and IntelLLVM compilers; ignored
       with a warning on others. Enabled in CI. [default=`OFF`]
+* MADNESS_TARGET_ARCH --- CPU architecture to generate code for [default=`default`]:
+  * `default` --- the toolchain's own baseline (e.g. plain x86-64 for a stock GCC or Clang), so the build runs on
+    any machine the toolchain targets. On x86 this leaves AVX2/FMA unused and costs roughly 15-20% in run time;
+    configure prints a warning saying so.
+  * `performance` --- `-march=x86-64-v3` on x86 (AVX2, FMA, BMI2: Intel Haswell / AMD Excavator, 2013, and newer).
+    The build dies with an illegal instruction on older CPUs, and on VMs or emulators that hide AVX2, so choose it
+    only when every machine that will run the build qualifies — the build host may be newer than the compute
+    nodes. Same as `default` on ARM.
+  * `native` --- the build host's CPU (`-march=native` / `-mcpu=native`); not portable at all.
+  * `none` / `OFF` --- add no architecture flags.
+  * anything else is passed to the compiler as `-march=<value>` (x86, `armv*` on ARM) or `-mcpu=<value>` (ARM).
+
+  If `CMAKE_C_FLAGS`/`CMAKE_CXX_FLAGS` (or a toolchain file) already contain `-march=` or `-mcpu=`, `default`
+  leaves them alone and prints no warning.
+* MADNESS_TUNE_ARCH --- CPU to tune instruction scheduling for (`-mtune=<value>`), without changing which
+  machines the build runs on [default=empty]
+* MADNESS_RELAXED_MATH --- floating-point optimizations [default=`strict`]: `strict` (IEEE-754), `relaxed`
+  (`-fassociative-math -fno-signed-zeros -fno-trapping-math -ffp-contract=fast`: lets the compiler vectorize
+  reductions and fuse multiply-adds, keeps NaN/Inf semantics) or `fast` (`-ffast-math`). The relaxed modes change
+  results in the last digits from build to build, so numerical references produced under `strict` may drift.
 
 ## External libraries
 
@@ -215,18 +235,108 @@ If IntegratorXX absent, a Gaussian-distributed random grid will be used, leading
 different MP3 runs.
 
 
-### Polarizable Conitinuum Solver (PCM):
+### Polarizable Continuum Solver (PCM):
 
-* ENABLE_PCM --- Enables use of PCM
-* PCM_ROOT_DIR --- The install prefix for PCM 
+* ENABLE_PCM --- Enables use of PCM [default=OFF]
+* MADNESS_FETCH_PCMSOLVER --- Build PCMSolver from source if no installed copy is found [default=ON]
+* PCM_ROOT_DIR --- The install prefix for PCM
 * PCM_INCLUDE_DIR --- The path to the PCM include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
 * PCM_LIBRARY --- The path to the PCM library (should be added automatically when the correct PCM_ROOT_DIR is given)
-set either PCM_ROOT_DIR or manually set PCM_INCLUDE_DIR and PCM_LIBRARY
+* PCM_BOOST_INCLUDE_DIR --- The directory containing `boost/`, for the source build (found or fetched automatically)
+
+PCMSolver (<https://github.com/PCMSolver/pcmsolver>, LGPL-3.0-or-later) supplies
+the polarizable continuum model of solvation, which the `pcm` input group
+requests. It is off by default; with `-DENABLE_PCM=ON` MADNESS looks for it in
+three steps and stops at the first that works:
+
+1. `find_package(PCMSolver CONFIG)`, which picks up the `PCMSolver::pcm` target
+   from any PCMSolver >= 1.2 installation on `CMAKE_PREFIX_PATH` (including an
+   activated conda environment).
+2. The bundled `FindPCM` module, for installations that predate that config or
+   are laid out by hand --- set `PCM_ROOT_DIR`, or `PCM_INCLUDE_DIR` and
+   `PCM_LIBRARY` directly.
+3. Failing both, MADNESS fetches PCMSolver v1.3.0 and builds it as part of its
+   own build, installing it alongside MADNESS. Turn this off with
+   `-DMADNESS_FETCH_PCMSOLVER=OFF`.
+
+The source build needs a **Fortran compiler** (PCMSolver's cavity generator is
+Fortran) and **zlib**. If either is missing the fetch is skipped with a warning
+saying which, and MADNESS builds without PCM rather than failing to configure ---
+a deck that asks for `pcm` then aborts with an explanatory message. Because
+`ENABLE_PCM` is off by default, asking for it and not getting it is always a
+warning, not a silent downgrade.
+
+PCMSolver's only other dependency is **Boost headers** >= 1.54 (no compiled Boost
+library is used). MADNESS takes whatever Boost is on the search path; failing
+that it fetches a pinned headers-only release --- a ~50 MB download, pinned by
+version and SHA256 in `external/versions.cmake`, of which only the `boost/`
+header tree is extracted (~190 MB under `<build>/external/boost`; the tarball is
+discarded afterwards). Budget roughly 35 s for it. Point
+`-DPCM_BOOST_INCLUDE_DIR` at a directory containing `boost/` to use a copy of
+your own and skip the download entirely.
+
+Either way MADNESS pins `Boost_INCLUDE_DIR` for the vendored build, which is
+load-bearing: left to itself, PCMSolver reacts to a failed `find_package(Boost)`
+by downloading `boost_1_54_0.zip` from a 2013 SourceForge URL and unpacking it
+into the build tree, on any host where CMake does not find Boost on the default
+search path.
+
+Note that PCMSolver v1.3.0 dates from 2020: MADNESS applies a handful of
+toolchain-compatibility patches to it while fetching, listed in
+`cmake/patches/pcmsolver-v1.3.0.cmake` under the source root.
+
 See also
 madness/CMakeLists.txt
 madness/external/pcm.cmake
-madness/modules/FindPCM.cmake
-madness/src/apps/chem/CMakeLists.txt
+madness/cmake/modules/FindPCM.cmake
+madness/cmake/modules/FindOrFetchPCMSolver.cmake
+madness/src/madness/chem/pcm.h
+
+### DFT-D3 empirical dispersion correction (simple-dftd3):
+
+* ENABLE_DFTD3 --- Enables use of simple-dftd3 [default=ON]
+* DFTD3_ROOT_DIR --- The install prefix for simple-dftd3
+* DFTD3_INCLUDE_DIR --- The path to the include directory holding `s-dftd3.h` (derived from DFTD3_ROOT_DIR)
+* DFTD3_LIBRARY --- The path to the directory holding `libs-dftd3` (derived from DFTD3_ROOT_DIR)
+
+simple-dftd3 (<https://github.com/dftd3/simple-dftd3>, LGPL-3.0-or-later) supplies
+Grimme's D3 dispersion correction, which the `dft` input group requests with
+`dispersion d3bj` or `dispersion d3zero`. Without the library MADNESS builds and
+runs exactly as before; a deck that asks for a correction then aborts with an
+explanatory message rather than silently omitting it.
+
+The easiest source is conda-forge:
+
+```
+conda install -c conda-forge simple-dftd3
+cmake ../madness
+```
+
+Inside an activated environment no hint is needed: the find module falls back to
+`$CONDA_PREFIX` for both its pkg-config search path and its library/header
+search. (conda does not put its `.pc` files on `PKG_CONFIG_PATH` nor its prefix
+on CMake's default search path, so without that fallback the package would
+appear missing for no visible reason.) Outside one, point it at the prefix:
+
+```
+cmake -DDFTD3_ROOT_DIR=/path/to/prefix ../madness
+```
+
+A CMake-built installation exports an `s-dftd3::s-dftd3` target and is found by
+`find_package(s-dftd3 CONFIG)` alone, so adding its prefix to
+`CMAKE_PREFIX_PATH` is enough; the conda-forge binary is meson-built and ships
+pkg-config only, which the bundled `FindDFTD3` module handles.
+
+Note that the conda-forge build links conda's own (threaded) BLAS and OpenMP
+runtimes. MADNESS owns its parallelism and requires a *sequential* BLAS, so set
+`OPENBLAS_NUM_THREADS=1` and `OMP_NUM_THREADS=1` in the environment, or configure
+with `-DENABLE_DFTD3=OFF` if this conflicts with your BLAS.
+
+See also
+madness/CMakeLists.txt
+madness/external/dftd3.cmake
+madness/cmake/modules/FindDFTD3.cmake
+madness/src/madness/chem/dispersion.h
 
 ### Performance Application Programming Interface (PAPI):
 

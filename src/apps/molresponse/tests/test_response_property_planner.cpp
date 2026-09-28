@@ -127,8 +127,8 @@ int main() {
     EXPECT(plan.nuclear_fd.size() == 3, "still 3 nuclear-disp axes (need full 3N)");
   }
 
-  // ----- PolarizabilityGradient Resonant (resonance Raman) -----------------
-  std::printf("=== PolarizabilityGradient Resonant(n_roots=4) ===\n");
+  // ----- PolarizabilityGradient Resonant: roots only (default) -------------
+  std::printf("=== PolarizabilityGradient Resonant(n_roots=4) roots-only ===\n");
   {
     ResponsePropertyRequest r;
     r.kind = ResponsePropertyKind::PolarizabilityGradient;
@@ -137,6 +137,21 @@ int main() {
     r.protocol_thresholds = P;
     auto plan = plan_one(r);
     EXPECT(plan.fd.empty() && plan.nuclear_fd.empty(),  "no direct FD");
+    EXPECT(plan.es.size() == 1 && plan.es[0].n_roots == 4 && plan.es[0].tda,
+                                                        "1 ES (TDA, 4 roots)");
+    EXPECT(plan.derived_fd.empty(),  "roots only: no derived FD without tpa");
+  }
+
+  // ----- PolarizabilityGradient Resonant + tpa: adds the 2PA FD legs -------
+  std::printf("=== PolarizabilityGradient Resonant(n_roots=4) + tpa ===\n");
+  {
+    ResponsePropertyRequest r;
+    r.kind = ResponsePropertyKind::PolarizabilityGradient;
+    r.gradient_mode = GradientMode::Resonant;
+    r.n_roots = 4;
+    r.tpa = true;
+    r.protocol_thresholds = P;
+    auto plan = plan_one(r);
     EXPECT(plan.es.size() == 1 && plan.es[0].n_roots == 4 && plan.es[0].tda,
                                                         "1 ES (TDA, 4 roots)");
     EXPECT(plan.derived_fd.size() == 3,                 "3 derived FD (per axis)");

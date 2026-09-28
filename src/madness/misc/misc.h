@@ -35,7 +35,6 @@
 /// \file misc.h
 /// \brief Header to declare stuff which has not yet found a home
 
-#include <madness/world/madness_exception.h>
 #include <iostream>
 #include <string>
 

@@ -41,17 +41,37 @@ one -- empty, carrying the `.qctest_workdir` marker, or holding this case's own 
 Cases tagged `short` or `medium` are also picked up by `check-short-madness`
 (`ctest -L "short|medium"`), so they gate CI along with the unit tests.
 
+**A deck naming a functional beyond `lda` needs libxc.** Without it,
+`xcfunctional_ldaonly.cc` stands in and understands only `lda` and `hf`;
+anything else throws at the first potential evaluation. Such cases are therefore
+registered under `if (TARGET Libxc::xc)` in `CMakeLists.txt` and simply do not
+exist in a build without libxc -- which is the case for every Ubuntu cell in CI
+today. That constraint, not preference, is why almost everything here is
+`xc hf`.
+
 ## Cases
 
-Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`).
+Wall times are measured on node26 (96 cores, `MAD_NUM_THREADS=20`), except
+`scf_lih_pbe_d3`, which was measured on a laptop (8 threads) because node26 has
+no simple-dftd3 to register it with. That laptop is not uniformly slower: it ran
+`scf_he_hf` in 4.9 s against node26's 5 s but `oep_be_oaep` in 39 s against 28 s,
+so treat the 12 s as an upper bound of the same order, and re-measure it on
+node26 once simple-dftd3 is available there.
 
 | Case | `--wf=` | System | Demonstrates | Time | Tier |
 |------|---------|--------|--------------|------|------|
 | `scf_he_hf` | `scf` | He | the minimal deck — start here | 5 s | short |
 | `scf_he_hf_mpi` | `scf` | He | same deck on 2 MPI ranks; thread budget and `--bind-to none` | 7 s | short |
 | `nemo_he_hf` | `nemo` | He | regularized (nuclear-cusp-free) orbitals | 12 s | short |
+| `nemo_he_pbe` | `nemo` | He | the only DFT deck on the nemo path — the regularized density-gradient path, and why its value is 70 uHa below the moldft one at the same settings | 12 s | medium |
+| `nemo_he_tpss` | `nemo` | He | meta-GGA on the nemo path — tau from the nemos via the psi = R F product rule, and the non-multiplicative term with the R factors cancelled analytically | 24 s | medium |
+| `nemo_lih_pbe_weak` | `nemo` | LiH | the weak form of the semilocal xc potential (`xc_weak_gga`) — the divergence moved onto the Green's function via a per-orbital flux, cross-checked against the multiplicative form | 23 s | medium |
+| `scf_li_tpss` | `scf` | Li | the only open-shell meta-GGA — unequal spin densities, hence the spin-polarized sigma matrix and the cross-spin flux term | 15 s | medium |
+| `scf_he_pbe0` | `scf` | He | the only hybrid — exact exchange plus a semilocal functional | 9 s | medium |
+| `scf_he_tpss` | `scf` | He | the only meta-GGA — the non-multiplicative kinetic-energy-density term | 17 s | medium |
 | `oep_be_oaep` | `oep` | Be | optimized effective potential, OAEP model; virial diagnostics | 28 s | medium |
 | `cis_he_singlets` | `cis` | He | CIS excited states; the `tdhf` group | 9 s | medium |
+| `scf_lih_pbe_d3` | `scf` | LiH | Grimme D3 dispersion in the energy *and* the single-point gradient (needs simple-dftd3 + libxc) | 12 s | medium |
 | `scf_h2o_hf` | `scf` | H₂O | `protocol` ladder 1e-4 → 1e-6 | 38 s | long |
 | `scf_lih_optimize_tight` | `scf` + `--optimize` | LiH | optimizer thresholds pinned explicitly in the `optimization` group | 38 s | long |
 | `scf_lih_optimize` | `scf` + `--optimize` | LiH | geometry optimization as its own task, moldft reference | 37 s | long |
@@ -80,15 +100,24 @@ The four optimization cases all use `--optimize --wf=<scf|nemo>`, which since th
 in-SCF `dft gopt` form was removed is the only way to optimize a geometry.
 
 `scf_lih_optimize` and `scf_lih_optimize_tight` are the same molecule at two
-threshold settings: the first at the derived defaults (2 steps, max gradient
-4.0e-07, r = 3.035076 bohr), the second with `gtol`/`xtol`/`gradient_precision`
-pinned in the `optimization` group at the values the retired in-SCF path used to
-impose (3 steps, 9.1e-07, r = 3.034046). Same minimum, different stopping
-point — energies -7.987363036 and -7.987363048, i.e. 1.2e-08 Ha apart. The tight
-case reproduces the removed path's numbers exactly, which is what establishes that
-moving the optimizer out of the SCF changed no arithmetic — only who chooses the
-thresholds. `nemo_lih_optimize` lands at r = 3.034271, the difference between a
-regularized and a plain SCF reference.
+threshold settings: the first at the derived defaults (gtol 1e-4), the second
+with `gtol`/`xtol`/`gradient_precision` pinned in the `optimization` group at the
+values the retired in-SCF path used to impose (gtol 1e-5). Same minimum,
+different stopping point. When the in-SCF path was removed the tight case
+reproduced its numbers exactly, which is what established that moving the
+optimizer out of the SCF changed no arithmetic — only who chooses the thresholds.
+
+Both assert `max_gradient` as `max: <gtol>`, not against the reference. At
+`dconv 1e-4` the gradient at one geometry depends on where the SCF started by up
+to ~7e-5 (with `restart auto` each step starts from the previous step's AO
+projections, while a cold start uses the atomic guess), so the point inside gtol
+where the optimizer stops is a property of the trajectory, not of the minimum.
+The references' own `max_gradient` values (4.0e-07, 9.1e-07) came from
+trajectories that today's code does not follow; the energy and geometry checks
+still hold against them.
+
+`nemo_lih_optimize` lands at r = 3.034271, the difference between a regularized
+and a plain SCF reference.
 
 All four converge on the criteria rather than through MolOpt's "insufficient
 precision" escape; if one ever starts taking a single step and stopping, suspect
@@ -159,9 +188,20 @@ read.
 }
 ```
 
-`key` is a path of keys and list indices into `<prefix>.calc_info.json`. `tol` is
-an absolute tolerance; `0` means "must match exactly", and ints and strings always
-compare exactly. A key absent from either file is a failure, not a skip. Optional
+`key` is a path of keys and list indices into `<prefix>.calc_info.json`. Each
+check then carries one or more of:
+
+- `tol` — an absolute tolerance against the reference; `0` means "must match
+  exactly", and ints, strings and booleans always compare exactly.
+- `rtol` — a relative tolerance, |run − reference| ≤ `rtol` · |reference|. A
+  reference of exactly zero is rejected (the bound would be zero) unless
+  `allow_zero` is set, in which case the run must reproduce the zero.
+- `max` — an upper bound on the *produced* value alone; the reference is not
+  consulted. Use it for iteration counts and residuals, where the reference is a
+  budget rather than a number to reproduce. It may be combined with `tol` or
+  `rtol` in the same entry.
+
+A key absent from either file is a failure, not a skip. Optional
 `requires` gates a case on resources — `{"threads": 20}`, `{"mpi": true}`,
 `{"env": ["MAD_ROOT_DIR"]}` — and turns it into a ctest skip rather than a
 failure.

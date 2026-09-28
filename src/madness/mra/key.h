@@ -74,15 +74,15 @@ namespace madness {
 
     private:
         friend class KeyChildIterator<NDIM> ;
-        Level n;
-        Vector<Translation, NDIM> l;
-        hashT hashval;
+        Level n = 0;
+        Vector<Translation, NDIM> l = Vector<Translation, NDIM>(0);
+        hashT hashval = 0;
 
 
     public:
 
-        /// Default constructor makes an \em uninitialized key
-        Key() {}
+        /// Default constructor makes an initialized key
+        Key() : n(0), l(0), hashval(0) {}
 
         /// Constructor with given n, l
         Key(Level n, const Vector<Translation, NDIM>& l) : n(n), l(l) 
@@ -486,8 +486,8 @@ namespace madness {
         template<std::size_t LDIM>
         Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
             Vector<Translation,NDIM+LDIM> t;
-            for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
-            for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
+            if constexpr (NDIM > 0) for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
+            if constexpr (LDIM > 0) for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 

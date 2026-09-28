@@ -764,7 +764,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
             // XC Potential
             const std::string xc_data = parameters.response_kernel();
             const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(), alpha_density,
-                                alpha_density);
+                                alpha_density, parameters.dft_deriv());
             // reconstruct the full perturbed density: do not truncate!
             real_function_3d gamma = xc.apply_xc_kernel(density_pert);
             XCp = truncate(gamma * active_mo);
@@ -1483,7 +1483,7 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d& virtuals,
             real_function_3d alpha_density=get_reference()->compute_density(mo_bra_.get_vecfunction());
 
             const XCOperator<double,3> xc(world, xc_data, not get_calcparam().spin_restricted(),
-                                              alpha_density, alpha_density);
+                                              alpha_density, alpha_density, parameters.dft_deriv());
 //                real_function_3d gamma = xc.apply_xc_kernel(density_pert);
 //                vector_real_function_3d XCp = truncate(gamma * active_mo);
 //                Vpsi2 = Vpsi2 + XCp;
@@ -1656,6 +1656,7 @@ void TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("guess_excitations", std::min(nexcitations() + iterating_excitations(), 2 * nexcitations()));
 
     set_derived_value("response_kernel", scf->param.xc());
+    set_derived_value("dft_deriv", scf->param.dft_deriv());
     if (do_oep()) set_derived_value("response_kernel",std::string("lda_x"));
 //    set_derived_value("guess_occ_to_virt", scf->amo.size() - freeze());
 //    set_derived_value("guess_active_orbitals", scf->amo.size() - freeze());

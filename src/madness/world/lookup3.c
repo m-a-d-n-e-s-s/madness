@@ -43,7 +43,7 @@ on 1 byte), but shoehorning those bytes into integers efficiently is messy.
 #include <time.h>       /* defines time_t for timings in the test */
 #include <stdint.h>     /* defines uint32_t etc */
 #include <sys/param.h>  /* attempt to define endianness */
-#ifdef linux
+#if defined(__linux__) || defined(linux)
 # include <endian.h>    /* attempt to define endianness */
 #endif
 
@@ -53,18 +53,30 @@ on 1 byte), but shoehorning those bytes into integers efficiently is messy.
  */
 #if (defined(__BYTE_ORDER) && defined(__LITTLE_ENDIAN) && \
      __BYTE_ORDER == __LITTLE_ENDIAN) || \
+    (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+     __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \
     (defined(i386) || defined(__i386__) || defined(__i486__) || \
-     defined(__i586__) || defined(__i686__) || defined(vax) || defined(MIPSEL))
+     defined(__i586__) || defined(__i686__) || defined(__x86_64__) || defined(__x86_64) || defined(vax) || defined(MIPSEL))
 # define HASH_LITTLE_ENDIAN 1
 # define HASH_BIG_ENDIAN 0
 #elif (defined(__BYTE_ORDER) && defined(__BIG_ENDIAN) && \
        __BYTE_ORDER == __BIG_ENDIAN) || \
+      (defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
+       __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__) || \
       (defined(sparc) || defined(POWERPC) || defined(mc68000) || defined(sel))
 # define HASH_LITTLE_ENDIAN 0
 # define HASH_BIG_ENDIAN 1
 #else
 # define HASH_LITTLE_ENDIAN 0
 # define HASH_BIG_ENDIAN 0
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+typedef uint32_t __attribute__((__may_alias__)) uint32_alias_t;
+typedef uint16_t __attribute__((__may_alias__)) uint16_alias_t;
+#else
+typedef uint32_t uint32_alias_t;
+typedef uint16_t uint16_alias_t;
 #endif
 
 #define hashsize(n) ((uint32_t)1<<(n))
@@ -180,6 +192,7 @@ size_t          length,               /* the length of the key, in uint32_ts */
 uint32_t        initval)         /* the previous hash, or an arbitrary value */
 {
   uint32_t a,b,c;
+  const uint32_alias_t *ak = (const uint32_alias_t *)k;
 
   /* Set up the internal state */
   a = b = c = 0xdeadbeef + (((uint32_t)length)<<2) + initval;
@@ -187,20 +200,20 @@ uint32_t        initval)         /* the previous hash, or an arbitrary value */
   /*------------------------------------------------- handle most of the key */
   while (length > 3)
   {
-    a += k[0];
-    b += k[1];
-    c += k[2];
+    a += ak[0];
+    b += ak[1];
+    c += ak[2];
     mix(a,b,c);
     length -= 3;
-    k += 3;
+    ak += 3;
   }
 
   /*------------------------------------------- handle the last 3 uint32_t's */
   switch(length)                     /* all the case statements fall through */
   { 
-  case 3 : c+=k[2];
-  case 2 : b+=k[1];
-  case 1 : a+=k[0];
+  case 3 : c+=ak[2];
+  case 2 : b+=ak[1];
+  case 1 : a+=ak[0];
     final(a,b,c);
   case 0:     /* case 0: nothing left to add */
     break;
@@ -247,7 +260,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 
   u.ptr = key;
   if (HASH_LITTLE_ENDIAN && ((u.i & 0x3) == 0)) {
-    const uint32_t *k = (const uint32_t *)key;         /* read 32-bit chunks */
+    const uint32_alias_t *k = (const uint32_alias_t *)key;         /* read 32-bit chunks */
 #ifdef VALGRIND
     const uint8_t  *k8;
 #endif
@@ -315,7 +328,7 @@ uint32_t hashlittle( const void *key, size_t length, uint32_t initval)
 #endif /* !valgrind */
 
   } else if (HASH_LITTLE_ENDIAN && ((u.i & 0x1) == 0)) {
-    const uint16_t *k = (const uint16_t *)key;         /* read 16-bit chunks */
+    const uint16_alias_t *k = (const uint16_alias_t *)key;         /* read 16-bit chunks */
     const uint8_t  *k8;
 
     /*--------------- all but last block: aligned reads and different mixing */
@@ -434,7 +447,7 @@ void hashlittle2(
 
   u.ptr = key;
   if (HASH_LITTLE_ENDIAN && ((u.i & 0x3) == 0)) {
-    const uint32_t *k = (const uint32_t *)key;         /* read 32-bit chunks */
+    const uint32_alias_t *k = (const uint32_alias_t *)key;         /* read 32-bit chunks */
 #ifdef VALGRIND
     const uint8_t  *k8;
 #endif
@@ -502,7 +515,7 @@ void hashlittle2(
 #endif /* !valgrind */
 
   } else if (HASH_LITTLE_ENDIAN && ((u.i & 0x1) == 0)) {
-    const uint16_t *k = (const uint16_t *)key;         /* read 16-bit chunks */
+    const uint16_alias_t *k = (const uint16_alias_t *)key;         /* read 16-bit chunks */
     const uint8_t  *k8;
 
     /*--------------- all but last block: aligned reads and different mixing */
@@ -613,7 +626,7 @@ uint32_t hashbig( const void *key, size_t length, uint32_t initval)
 
   u.ptr = key;
   if (HASH_BIG_ENDIAN && ((u.i & 0x3) == 0)) {
-    const uint32_t *k = (const uint32_t *)key;         /* read 32-bit chunks */
+    const uint32_alias_t *k = (const uint32_alias_t *)key;         /* read 32-bit chunks */
 #ifdef VALGRIND
     const uint8_t  *k8;
 #endif

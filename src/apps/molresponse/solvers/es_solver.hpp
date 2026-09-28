@@ -35,12 +35,20 @@
 #include <madness/tensor/tensor.h>
 
 #include <algorithm>
+#include <limits>
+#include <array>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 namespace molresponse_v3 {
+
+/// CODATA 2018 hartree -> eV; excitation energies are quoted in eV in the
+/// literature (e.g. Salek et al.), so every omega print carries both.
+inline constexpr double kHartreeToEV = 27.211386245988;
+
 
 /// Read-only problem definition for ESSolver<Type, Shell>. Symmetric
 /// with FDProblem<Type, Shell> in fd_problem.hpp:
@@ -51,6 +59,13 @@ namespace molresponse_v3 {
 ///
 /// `n_roots` is a solver concern, not a ground-state property, so it
 /// lives on the problem alongside gs rather than inside the gs struct.
+/// Debug helper: the coordinate function r[d] (for orbital centroids).
+struct CoordinateFunctor : public madness::FunctionFunctorInterface<double, 3> {
+  int d;
+  explicit CoordinateFunctor(int dd) : d(dd) {}
+  double operator()(const madness::coord_3d &r) const override { return r[d]; }
+};
+
 template <typename Type, typename Shell>
 struct ESProblem {
   ResponseGroundState gs;
@@ -88,10 +103,19 @@ public:
     /// skipped by KAIN/step restriction. Empty = none (the default path never
     /// touches it). Cleared at each protocol (wavelet-thresh) change.
     std::vector<char>                       locked;
+    /// Normalised gate distance per iteration (newest last) for the plateau
+    /// detector (ConvergencePolicy::plateau); reset when the thresh changes.
+    std::vector<double>                     gate_history;
+    double                                  gate_thresh = -1.0;
     int                                     iter = 0;
     /// Set by step() when the explosion guard trips; iterate<>
     /// terminates on this so we don't burn iters on a runaway state.
     bool                                    diverged = false;
+    /// Set by step() when the gated residuals (density, |dw|) of the active
+    /// roots have plateaued above the targets (ConvergencePolicy::stall_*).
+    /// converged() returns true on it so the loop exits; the executor reports
+    /// the bundle as NOT converged and records `stalled`.
+    bool                                    stalled = false;
   };
 
   /// Preferred ctor — caller supplies a problem and a policy.
@@ -191,7 +215,11 @@ private:
   void print_header() const {
     if (print_level_ < PrintLevel::Normal || world_.rank() != 0) return;
     print("");
-    print("ESSolver<TDA, ClosedShell>  num_roots =", n_roots_,
+    // Type/Shell are compile-time tags; name them (the banner used to say
+    // "TDA, ClosedShell" for every instantiation, which misread Full solves).
+    const char *type_name  = std::is_same_v<Type, TDA> ? "TDA" : "Full";
+    const char *shell_name = std::is_same_v<Shell, ClosedShell> ? "ClosedShell" : "OpenShell";
+    print(std::string("ESSolver<") + type_name + ", " + shell_name + ">  num_roots =", n_roots_,
           " thresh =", madness::FunctionDefaults<3>::get_thresh(),
           " c_xc =", gs_.c_xc);
     print("  policy: dconv_user =", policy_.dconv_user,
@@ -208,7 +236,9 @@ private:
     double max_drho = 0.0;
     for (double r : out.last_density_residual) max_drho = std::max(max_drho, r);
     print("iter", out.iter, "  omega =", out.omega,
-          "  max_res =", max_res, "  max_dρ =", max_drho);
+          "  max_res =", max_res, "  max_dρ =", max_drho,
+          "  gate =", out.gate_history.empty() ? 0.0 : out.gate_history.back());
+    print("             omega(eV) =", out.omega * kHartreeToEV);
 
     if (print_level_ >= PrintLevel::Verbose) {
       for (size_t s = 0; s < out.last_bsh_residual.size(); ++s) {
@@ -262,18 +292,18 @@ private:
 
   void print_debug_norms(int s, const State &in,
                          const std::vector<madness::real_function_3d> &V0x_s,
-                         const std::vector<madness::real_function_3d> &T0x_s,
+                         double t_diag,   // ½Σ|∇x|² (gradient-form kinetic diagonal)
                          const std::vector<madness::real_function_3d> &gamma_s,
                          const std::vector<madness::real_function_3d> &theta_s) const {
     if (print_level_ < PrintLevel::Debug) return;
     // Collective: every rank must call norm2.
     double nx = madness::norm2(world_, in.roots[s].x_alpha);
     double nv = madness::norm2(world_, V0x_s);
-    double nt = madness::norm2(world_, T0x_s);
+    double nt = t_diag;
     double ng = madness::norm2(world_, gamma_s);
     double nh = madness::norm2(world_, theta_s);
     if (world_.rank() != 0) return;
-    printf("[NORMS] iter=%d root=%d  |x|=%.3e  |V0x|=%.3e  |T0x|=%.3e  "
+    printf("[NORMS] iter=%d root=%d  |x|=%.3e  |V0x|=%.3e  <x|T|x>=%.3e  "
            "|gamma|=%.3e  |theta|=%.3e\n",
            in.iter, s, nx, nv, nt, ng, nh);
     fflush(stdout);
@@ -291,10 +321,15 @@ public:
     if (s.diverged)       print("Stopped at iter", s.iter,
                                 "(diverged — residual exceeded "
                                 "explosion guard).");
+    else if (s.stalled)   print("Stopped at iter", s.iter,
+                                "(stalled — density/omega plateau above the "
+                                "targets for", policy_.stall_window,
+                                "iters; not converged).");
     else if (converged)   print("Converged in", s.iter, "iters.");
     else                  print("Stopped at iter", s.iter,
                                 "(max iters reached, not converged).");
     print("  omega_final =", s.omega);
+    print("  omega_final(eV) =", s.omega * kHartreeToEV);
     if (!s.last_bsh_residual.empty()) {
       print("  residuals   =");
       for (size_t i = 0; i < s.last_bsh_residual.size(); ++i) {
@@ -326,6 +361,138 @@ public:
   }
 
 private:
+  /// Debug: the four blocks that sum to the Ritz matrix, so an indefinite A can
+  /// be attributed to a piece. T = ½<∇x|∇x> (gradient form), V = <x|V0x>,
+  /// E = <x|E0x_full>, G = <x|γ>; A = T + V − E + G. Collective (inner
+  /// products); prints on rank 0 at Debug.
+  void print_debug_pieces(const std::vector<Storage> &roots,
+                          const madness::Tensor<double> &T,
+                          const std::vector<Storage> &V0x,
+                          const std::vector<Storage> &E0x_full,
+                          const std::vector<Storage> &gamma) const {
+    if (print_level_ < PrintLevel::Debug) return;
+    auto V = rs::inner(roots, V0x);
+    auto E = rs::inner(roots, E0x_full);
+    auto G = rs::inner(roots, gamma);
+    // Block norms per root (collective): |x|^2 and, for paired states, |y|^2 —
+    // the RPA metric normalizes |x|^2 - |y|^2 = 1, so these show how far the
+    // vectors have moved from the TDA limit.
+    std::vector<double> nx(roots.size(), 0.0), ny(roots.size(), 0.0);
+    for (std::size_t i = 0; i < roots.size(); ++i) {
+      nx[i] = madness::inner(world_, roots[i].x_alpha, roots[i].x_alpha).sum();
+      if constexpr (rs::detail::has_y_alpha<Storage>::value)
+        ny[i] = madness::inner(world_, roots[i].y_alpha, roots[i].y_alpha).sum();
+    }
+    // (a) Occupied overlaps of the (projected) roots: Q x should leave
+    //     max_i |<phi_i|x_j>| ~ thresh. Collective.
+    std::vector<double> ovx(roots.size(), 0.0), ovy(roots.size(), 0.0);
+    for (std::size_t j = 0; j < roots.size(); ++j) {
+      auto mx = madness::matrix_inner(world_, gs_.amo, roots[j].x_alpha);
+      ovx[j] = mx.absmax();
+      if constexpr (rs::detail::has_y_alpha<Storage>::value) {
+        auto my = madness::matrix_inner(world_, gs_.amo, roots[j].y_alpha);
+        ovy[j] = my.absmax();
+      }
+    }
+    // (b) Self-check of the Fock pieces on the occupied orbitals themselves:
+    //     1/2<grad phi|grad phi> + <phi|V_local phi> - <phi|K0 phi> must equal the
+    //     Fock diagonal F_ii (g0.focka). A mismatch means the pieces, not the
+    //     vectors, are wrong. Collective.
+    std::vector<double> fchk_T(gs_.amo.size()), fchk_V(gs_.amo.size()), fchk_K(gs_.amo.size());
+    {
+      const double vtol = madness::FunctionDefaults<3>::get_thresh() * 0.1;
+      auto Vphi = mul_sparse(world_, gs_.V_local_alpha, gs_.amo, vtol);
+      auto Kphi = common_ops::apply_ground_exchange(world_, gs_.K0_alpha, gs_.amo, gs_.amo, gs_.lo);
+      for (int d = 0; d < 3; ++d) {
+        madness::real_derivative_3d D(world_, d);
+        auto g = apply(world_, D, gs_.amo);
+        for (std::size_t i = 0; i < gs_.amo.size(); ++i) fchk_T[i] += 0.5 * madness::inner(g[i], g[i]);
+      }
+      for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+        fchk_V[i] = madness::inner(gs_.amo[i], Vphi[i]);
+        fchk_K[i] = madness::inner(gs_.amo[i], Kphi[i]);
+      }
+    }
+    // (c) Consistency of the ground-state object itself: orbital Gram matrix,
+    //     projector applied to its own orbitals, |V_local|, orbital centroids
+    //     (x,y,z) and <phi|V_local|phi> through a second code path (operator*).
+    madness::Tensor<double> gram = madness::matrix_inner(world_, gs_.amo, gs_.amo);
+    double qamo_max = 0.0;
+    {
+      auto qphi = gs_.Qa(gs_.amo);
+      auto ov = madness::matrix_inner(world_, gs_.amo, qphi);
+      qamo_max = ov.absmax();
+    }
+    const double vloc_norm = gs_.V_local_alpha.norm2();
+    std::vector<double> vphi2(gs_.amo.size(), 0.0);
+    std::vector<std::array<double,3>> cen(gs_.amo.size());
+    {
+      for (int d = 0; d < 3; ++d) {
+        std::shared_ptr<madness::FunctionFunctorInterface<double, 3>> cf(new CoordinateFunctor(d));
+        madness::real_function_3d rd = madness::real_factory_3d(world_).functor(cf);
+        for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+          auto sq = gs_.amo[i] * gs_.amo[i];
+          cen[i][d] = madness::inner(sq, rd);
+        }
+      }
+      for (std::size_t i = 0; i < gs_.amo.size(); ++i) {
+        auto vp = gs_.V_local_alpha * gs_.amo[i];
+        vphi2[i] = madness::inner(gs_.amo[i], vp);
+      }
+    }
+    // (d) V_local sampled along the z axis (x=y=0): a neutral molecule's
+    //     V_nuc + J must be strongly negative near the nuclei and vanish far out.
+    std::vector<double> zs = {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0};
+    std::vector<double> vz(zs.size(), 0.0);
+    {
+      auto vl = madness::copy(gs_.V_local_alpha);
+      vl.reconstruct();
+      for (std::size_t i = 0; i < zs.size(); ++i) vz[i] = vl(madness::coord_3d{0.0, 0.0, zs[i]});
+    }
+    if (world_.rank() != 0) return;
+    printf("[DEBUG] GS object: |V_local|_2 = %.6e   max|<phi|Q phi>| = %.3e\n", vloc_norm, qamo_max);
+    printf("[DEBUG] V_local(0,0,z):");
+    for (std::size_t i = 0; i < zs.size(); ++i) printf("  z=%.1f:%.4f", zs[i], vz[i]);
+    printf("\n");
+    printf("[DEBUG] GS orbital Gram <phi_i|phi_j>:\n"); print(gram);
+    printf("[DEBUG] GS orbital centroids (i: x y z) and <phi|V_local|phi> via operator*:\n");
+    for (std::size_t i = 0; i < gs_.amo.size(); ++i)
+      printf("   %2zu: %9.4f %9.4f %9.4f   Vphi*=%10.5f\n", i, cen[i][0], cen[i][1], cen[i][2], vphi2[i]);
+    printf("[DEBUG] Fock self-check on occupied orbitals (i: T V -K | sum | focka_ii):\n");
+    for (std::size_t i = 0; i < gs_.amo.size(); ++i)
+      printf("   %2zu: %10.5f %10.5f %10.5f | %10.5f | %10.5f\n", i, fchk_T[i], fchk_V[i], -fchk_K[i],
+             fchk_T[i] + fchk_V[i] - fchk_K[i], gs_.focka(long(i), long(i)));
+    printf("[DEBUG] occupied overlaps after projection (root: max|<phi|x>| max|<phi|y>|):\n");
+    for (std::size_t j = 0; j < roots.size(); ++j) printf("   %2zu: %10.3e %10.3e\n", j, ovx[j], ovy[j]);
+    printf("[DEBUG] block norms (root: |x|^2 |y|^2):\n");
+    for (std::size_t i = 0; i < roots.size(); ++i)
+      printf("   %2zu: %10.5f %10.5f\n", i, nx[i], ny[i]);
+    print("[DEBUG] T = 1/2<grad x|grad x>:"); print(T);
+    print("[DEBUG] V = <x|V0 x>:");           print(V);
+    print("[DEBUG] E = <x|E0_full x>:");      print(E);
+    print("[DEBUG] G = <x|gamma>:");          print(G);
+    const long n = T.dim(0);
+    printf("[DEBUG] diag pieces (root: T V E G  | T+V-E+G):\n");
+    for (long i = 0; i < n; ++i)
+      printf("   %2ld: %10.5f %10.5f %10.5f %10.5f  | %10.5f\n", i, T(i,i), V(i,i), E(i,i), G(i,i),
+             T(i,i)+V(i,i)-E(i,i)+G(i,i));
+    fflush(stdout);
+  }
+
+  /// KAIN hold-off (policy.kain_min_residual): true when THIS iteration's raw
+  /// BSH residual is still too large for a subspace extrapolation to be
+  /// trustworthy. Rank-uniform (residuals are replicated). Prints at Verbose.
+  bool kain_held_off(const State &out) const {
+    if (policy_.kain_min_residual <= 0.0 || out.last_bsh_residual.empty()) return false;
+    double mx = 0.0;
+    for (double r : out.last_bsh_residual) mx = std::max(mx, r);
+    const bool hold = mx > policy_.kain_min_residual;
+    if (hold && print_level_ >= PrintLevel::Verbose && world_.rank() == 0)
+      printf("[KAIN] iter=%d HOLD (raw BSH max_res=%.3e > kain_min_residual=%.3e): plain BSH step, no history\n",
+             out.iter, mx, policy_.kain_min_residual);
+    return hold;
+  }
+
   /// Final stage shared by both variants — KAIN apply, explosion
   /// guard, banner, log. Mutates out in place.
   void finalize_iter(const State &in, State &out,
@@ -333,10 +500,11 @@ private:
     (void)in;
     const int kain_diag =
         (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-    kain_.apply(x_pre_bsh, out.roots, kain_diag);
+    if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag);
     for (double r : out.last_bsh_residual) {
       if (r > policy_.explosion_guard) { out.diverged = true; break; }
     }
+    update_stall(out, in);
     print_iter_banner(out);
     append_convergence_log(out);
   }
@@ -345,9 +513,10 @@ public:
   /// "Keep pieces, rotate them, assemble Theta from rotated pieces."
   /// Default variant — fastest, highest memory.
   /// Algorithm:
-  ///   1. Per root, build V0x, T0x, E0x_full, E0x (no-diag), gamma.
-  ///   2. Assemble Lambda = T0x + V0x - E0x_full + gamma.
-  ///   3. Build A = <X | Lambda>, S = <X | X>, diagonalize → omega, U.
+  ///   1. Per root, build V0x, E0x_full, E0x (no-diag), gamma.
+  ///   2. Assemble Lambda = V0x - E0x_full + gamma (no kinetic term).
+  ///   3. Build A = <X | Lambda> + ½<∇X|∇X> (rs::kinetic_gram), S = <X | X>,
+  ///      diagonalize → omega, U.
   ///   4. Rotate {X, V0x, E0x, gamma} by U  (T0x and E0x_full are
   ///      Lambda-only and can be discarded).
   ///   5. Assemble Theta = V0x - E0x + gamma  (from rotated pieces).
@@ -391,11 +560,11 @@ public:
     // x_alpha; Full-ClosedShell will carry x_alpha + y_alpha; OpenShell
     // adds the *_beta members. Kernel signatures don't change between
     // (Type, Shell); the wrapping is invisible to step().
-    std::vector<Storage> V0x(M), T0x(M), E0x_full(M), E0x(M), gamma(M);
+    std::vector<Storage> V0x(M), E0x_full(M), E0x(M), gamma(M);
     std::vector<madness::real_function_3d> rho_alpha(M);
     out.last_density_residual.assign(M, 0.0);
 
-    // Stage-1 batching: build V0x and T0x for ALL roots in one bundle pass
+    // Stage-1 batching: build V0x for ALL roots in one bundle pass
     // (pure per-function maps — identical to the per-root calls). gamma /
     // E0x / density stay per-root (see kernels/tda_batch.hpp for why).
     bool did_batch_v0t0 = false;
@@ -405,9 +574,7 @@ public:
         const std::size_t n = out.roots[0].x_alpha.size();
         auto Xf  = tda_batch::flatten(out.roots);
         auto V0f = tda_batch::compute_V0x_flat(world_, gs_, Xf);
-        auto T0f = tda_batch::compute_T0x_flat(world_, Xf);
         tda_batch::unflatten_into(V0f, n, V0x);
-        tda_batch::unflatten_into(T0f, n, T0x);
         did_batch_v0t0 = true;
       }
     }
@@ -458,21 +625,20 @@ public:
     out.rho_alpha_prev = std::move(rho_alpha);
     lap(t_gamma);
 
-    // ops pass (per-root V0x/T0x if not batched, + E0x_full, E0x).
+    // ops pass (per-root V0x if not batched, + E0x_full, E0x).
     for (int s = 0; s < M; ++s) {
       if (!did_batch_v0t0) {
         V0x[s]    = K::compute_V0x(world_, gs_, out.roots[s]);
-        T0x[s]    = K::compute_T0x(world_, gs_, out.roots[s]);
       }
       E0x_full[s] = K::compute_E0x_full(world_, gs_, out.roots[s]);
       E0x[s]      = K::compute_E0x(world_, gs_, out.roots[s]);
     }
 
     // ---- 2. assemble Lambda per root --------------------------------------
+    // Λ here EXCLUDES the kinetic term; it enters A in gradient form below.
     std::vector<Storage> lambda(M);
     for (int s = 0; s < M; ++s) {
-      lambda[s] = assemble_lambda(world_, T0x[s], V0x[s],
-                                  E0x_full[s], gamma[s]);
+      lambda[s] = assemble_lambda(world_, V0x[s], E0x_full[s], gamma[s]);
     }
     lap(t_build);  // ops pass + Lambda assembly
 
@@ -491,7 +657,11 @@ public:
     // correct symplectic metric (legacy ExcitedResponse.cpp:871). The
     // rotation U mixes ROOTS not spins, so applying it to the flat
     // concat equals applying per spin block.
+    // Kinetic block in gradient form (symmetric PSD); see rs::kinetic_gram.
+    const auto Tg = rs::kinetic_gram(world_, out.roots);
     auto A     = rs::inner(out.roots, lambda);
+    A += Tg;
+    print_debug_pieces(out.roots, Tg, V0x, E0x_full, gamma);
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
@@ -553,7 +723,7 @@ public:
         }
         tda_batch::unflatten_into(NXf, n, out.roots);
         for (int s = 0; s < M; ++s)
-          print_debug_norms(s, in, V0x[s].x_alpha, T0x[s].x_alpha,
+          print_debug_norms(s, in, V0x[s].x_alpha, Tg(s, s),
                             gamma[s].x_alpha, theta[s].x_alpha);
         did_batch_bsh = true;
       }
@@ -565,7 +735,7 @@ public:
                                   theta[s], omega_new(s));
         out.last_bsh_residual[s] =
             K::compute_residual_norm(world_, out.roots[s], x_new);
-        print_debug_norms(s, in, V0x[s].x_alpha, T0x[s].x_alpha,
+        print_debug_norms(s, in, V0x[s].x_alpha, Tg(s, s),
                           gamma[s].x_alpha, theta[s].x_alpha);
         out.roots[s] = std::move(x_new);
       }
@@ -577,7 +747,7 @@ public:
     {
       const int kain_diag =
           (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-      kain_.apply(x_pre_bsh, out.roots, kain_diag);
+      if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag);
     }
     lap(t_bsh);  // BSH apply + residual + KAIN
 
@@ -596,6 +766,8 @@ public:
                      " bsh=", t_bsh, " total=", tot, " (s, rank0)");
     }
 
+    update_stall(out, in);
+
     print_iter_banner(out);
     append_convergence_log(out);
     return out;
@@ -605,7 +777,8 @@ public:
   /// rotation to assemble Theta in place." Memory-conscious variant.
   /// Algorithm:
   ///   0. Top-of-iter Q + GS (shared).
-  ///   1+2. Per root, stream Lambda = T0x + V0x − E0x_full + gamma,
+  ///   1+2. Per root, stream Lambda = V0x − E0x_full + gamma (kinetic block
+  ///        added to A in gradient form),
   ///        freeing each kernel temporary after it's folded in.
   ///   3. Subspace A = <X|Λ>, S = <X|X>, diagonalize → omega, U.
   ///   4. Rotate X only (drop Lambda).
@@ -640,13 +813,10 @@ public:
         out.last_density_residual[s] = drho.norm2();
       }
 
-      // Stream Lambda = T0x + V0x − E0x_full + gamma. Each temporary
-      // is scoped: built, axpy'd into lambda[s], then freed.
-      lambda[s] = K::compute_T0x(world_, gs_, out.roots[s]);
-      {
-        auto V = K::compute_V0x(world_, gs_, out.roots[s]);
-        lambda[s].axpy(world_, +1.0, V);
-      }
+      // Stream Lambda = V0x − E0x_full + gamma (kinetic block added to A in
+      // gradient form below — rs::kinetic_gram). Each temporary is scoped:
+      // built, axpy'd into lambda[s], then freed.
+      lambda[s] = K::compute_V0x(world_, gs_, out.roots[s]);
       {
         auto Efull = K::compute_E0x_full(world_, gs_, out.roots[s]);
         lambda[s].axpy(world_, -1.0, Efull);
@@ -664,6 +834,7 @@ public:
     // flatten/from_flat happen under the hood, so OpenShell α+β bundle
     // metric and slot-preserving rotation come for free.
     auto A     = rs::inner(out.roots, lambda);
+    A += rs::kinetic_gram(world_, out.roots);   // gradient-form kinetic block
     auto S_mat = rs::metric(out.roots, out.roots);
     auto diag_result = rs::diagonalize(A, S_mat,
                                        /*thresh_degenerate=*/-1.0,
@@ -764,6 +935,7 @@ public:
     }
 
     if (nA == 0) {  // every root converged + locked
+      update_stall(out, in);
       print_iter_banner(out);
       append_convergence_log(out);
       return out;
@@ -785,14 +957,13 @@ public:
     for (int k = 0; k < nA; ++k) out.roots[act[k]] = A_roots[k];
 
     // ---- per-active-root building blocks ----------------------------------
-    std::vector<Storage> V0x(nA), T0x(nA), E0x_full(nA), E0x(nA), gamma(nA);
+    std::vector<Storage> V0x(nA), E0x_full(nA), E0x(nA), gamma(nA);
     std::vector<madness::real_function_3d> rho_alpha(nA);
     for (int k = 0; k < nA; ++k) {
       const int s = act[k];
       rho_alpha[k] = K::compute_density(world_, gs_, out.roots[s]);
       gamma[k]     = K::compute_gamma(world_, gs_, out.roots[s], rho_alpha[k]);
       V0x[k]       = K::compute_V0x(world_, gs_, out.roots[s]);
-      T0x[k]       = K::compute_T0x(world_, gs_, out.roots[s]);
       E0x_full[k]  = K::compute_E0x_full(world_, gs_, out.roots[s]);
       E0x[k]       = K::compute_E0x(world_, gs_, out.roots[s]);
       if (s < static_cast<int>(in.rho_alpha_prev.size()) &&
@@ -803,20 +974,26 @@ public:
     }
 
     // ---- subspace over the ACTIVE block only ------------------------------
-    std::vector<Storage> lambda(nA);
+    std::vector<Storage> lambda(nA);   // V0x − E0x_full + γ; kinetic added to A below
     for (int k = 0; k < nA; ++k)
-      lambda[k] = assemble_lambda(world_, T0x[k], V0x[k], E0x_full[k], gamma[k]);
+      lambda[k] = assemble_lambda(world_, V0x[k], E0x_full[k], gamma[k]);
 
     std::vector<Storage> act_roots;
     act_roots.reserve(nA);
     for (int i : act) act_roots.push_back(out.roots[i]);
     auto A     = rs::inner(act_roots, lambda);
+    {
+      const auto Tg = rs::kinetic_gram(world_, act_roots);   // gradient-form kinetic block
+      A += Tg;
+      print_debug_pieces(act_roots, Tg, V0x, E0x_full, gamma);
+    }
     auto S_mat = rs::metric(act_roots, act_roots);
     auto dr    = rs::diagonalize(A, S_mat, /*thresh_degenerate=*/-1.0,
                                  policy_.cluster_unmix_factor,
                                  &world_);  // subworld-safe sygvp
     auto &omega_act = dr.omega;
     auto &U         = dr.U;
+    print_debug_iter(A, S_mat, omega_act, U);   // Debug: subspace A, S, omega, U (active block)
     print_rot_slots(out.iter, dr);
 
     // ---- rotate active roots + Theta pieces by U --------------------------
@@ -844,7 +1021,7 @@ public:
     // ---- KAIN + step restriction on ACTIVE slots only (masked) ------------
     {
       const int kain_diag = (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
-      kain_.apply(x_pre_bsh, out.roots, kain_diag, &out.locked);
+      if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag, &out.locked);
     }
 
     // ---- explosion guard (active) -----------------------------------------
@@ -869,6 +1046,8 @@ public:
       print("  [lock] active =", nA, " newly+previously locked =", nl, "/", M);
     }
 
+    update_stall(out, in);
+
     print_iter_banner(out);
     append_convergence_log(out);
     return out;
@@ -883,6 +1062,42 @@ public:
     if (in.omega.dim(0) != M) return;
     for (long s = 0; s < M; ++s)
       out.last_omega_residual[s] = std::abs(out.omega(s) - in.omega(s));
+  }
+
+  /// Plateau bookkeeping (2026-09-11): append the normalised gate distance of
+  /// the ACTIVE (unlocked) roots — max over roots of drho/density_target and
+  /// |dw|/omega_target, the same two quantities es_root_converged gates on —
+  /// to the history (reset on a thresh change) and set out.stalled per policy.
+  /// An iteration without a measurable |dw| (sentinel) records +inf, which the
+  /// plateau test treats as "no measurement" (never a stall).
+  void update_stall(State &out, const State &in) const {
+    const double thr = madness::FunctionDefaults<3>::get_thresh();
+    out.gate_history = (in.gate_thresh == thr) ? in.gate_history
+                                               : std::vector<double>{};
+    out.gate_thresh  = thr;
+    double g = 0.0;
+    bool any = false;
+    const std::size_t M = out.last_density_residual.size();
+    for (std::size_t s = 0; s < M; ++s) {
+      if (s < out.locked.size() && out.locked[s]) continue;
+      if (s >= out.last_omega_residual.size() ||
+          out.last_omega_residual[s] >= 1.0e8) {           // sentinel: no dw yet
+        g = std::numeric_limits<double>::infinity(); any = true; break;
+      }
+      g = std::max(g, out.last_density_residual[s] / targets_.density_residual);
+      g = std::max(g, out.last_omega_residual[s]   / targets_.omega_residual);
+      any = true;
+    }
+    if (!any || out.iter <= 1) g = std::numeric_limits<double>::infinity();
+    out.gate_history.push_back(g);
+    out.stalled = !out.diverged && policy_.plateau(out.gate_history);
+    if (out.stalled && print_level_ >= PrintLevel::Normal && world_.rank() == 0) {
+      const std::size_t n = out.gate_history.size();
+      print("[STALL] iter", out.iter, ": gate distance", g, "vs",
+            out.gate_history[n - 1 - static_cast<std::size_t>(policy_.stall_window)],
+            policy_.stall_window, "iters ago (<", 100.0 * policy_.stall_ratio,
+            "% improvement) — density/omega plateau above the targets; stopping.");
+    }
   }
 
   /// Per-root ES convergence: energy + density (NOT the BSH amplitude, which
@@ -901,6 +1116,7 @@ public:
   /// density). With locking on this is equivalent to "all roots locked".
   bool converged(const State &s) const {
     if (s.diverged) return true;  // exit; print_final reports diverged
+    if (s.stalled)  return true;  // exit; executor reads State::stalled
     if (s.iter < policy_.min_iters_before_conv) return false;
     const long M = s.omega.dim(0);
     if (M == 0) return false;

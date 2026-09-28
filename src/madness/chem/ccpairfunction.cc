@@ -168,8 +168,6 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(c
     if (other.size()==0) return other;
     if (is_collected(other)) return other;
 
-    World& world=other.front().world();
-
     /// vector includes OT_ONE, meaning no operator
     std::vector<std::vector<Function<T,NDIM>>> op_pure(OT_SIZE);
     std::vector<std::vector<Function<T,LDIM>>> op_decomposed_a(OT_SIZE);

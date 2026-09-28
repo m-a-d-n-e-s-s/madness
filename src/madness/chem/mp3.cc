@@ -698,12 +698,10 @@ double MP3::compute_mp3_ef(World& world,
     std::vector<permutation> all_tau_permutations;
     std::vector<CCPairFunction<double,6>> tmp_tau;
 
-    long counter=0;
     timer timer_prep(world);
     // loop over all k and l
     for (std::size_t k=nfrozen; k<nocc; ++k) {
         for (std::size_t l=nfrozen; l<nocc; ++l) {
-            counter++;
 
             // make all possible permutations of the 4 indices i,j,k,l
             permutation p0(i,j,k,l);

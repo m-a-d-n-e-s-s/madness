@@ -1,0 +1,33 @@
+# PBE0 on helium -- the smallest deck on a HYBRID functional.
+#
+# Every other `scf` deck here is either pure Hartree-Fock (`xc hf`) or pure DFT
+# (`xc lda`), so nothing exercised the path where exact exchange and a
+# semilocal functional are combined. That path had two defects:
+#
+#   * the exact-exchange energy was accumulated into `exc` and then overwritten
+#     by the DFT contribution, so it never reached the total energy. The
+#     orbitals were right and only the reported number was wrong, which is
+#     exactly the kind of error a deck catches and inspection does not.
+#
+#   * a hybrid named by its libxc name rather than by one of the aliases got no
+#     exact exchange at all, because the admixture was hardcoded per alias
+#     instead of queried from libxc.
+#
+# `pbe0` is the alias form; `HYB_GGA_XC_PBEH` is the same functional by its
+# libxc name and must give the same energy. The equality of the two admixtures
+# is checked directly in `test_dft`.
+#
+# Run:   ./run.sh          (or: madqc scf_he_pbe0.in)
+
+dft
+    xc       pbe0
+    maxiter  10
+    econv    1e-4
+    dconv    1e-3
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    He  0.0  0.0  0.0
+end

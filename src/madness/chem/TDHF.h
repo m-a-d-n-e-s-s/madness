@@ -105,6 +105,9 @@ namespace madness {
             initialize < bool >
             ("store_potential", true, "store the potential for orthogonalizations or recalculate it");
 
+            initialize < std::string >
+            ("dft_deriv", "bspline", "derivative method for gga potentials", {"abgv", "bspline", "ble"});
+
             initialize < size_t > ("guess_maxiter", 5, "maximum number of guess iterations ");
 
             //		/// determine how the virtuals for the guess are constructed: scf, external, custom, dipole, quadrupole
@@ -145,6 +148,8 @@ namespace madness {
         bool do_oep() const { return get<bool>("do_oep"); }
 
         std::string response_kernel() const { return get<std::string>("response_kernel"); }
+
+        std::string dft_deriv() const { return get<std::string>("dft_deriv"); }
 
         // precision
         double thresh() const { return get<double>("thresh"); }

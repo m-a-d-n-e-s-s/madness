@@ -32,6 +32,12 @@ add_mad_executable(test_protocol_key
 add_mad_executable(test_response_metadata
                    "tests/test_response_metadata.cpp"
                    "MADchem")
+# dalton.dir import contract (showcase W3): locate-by-convention (+ tarball
+# extraction), geometry fingerprint, .out method/basis parse, exact 1-to-1
+# frequency matching. Pure filesystem/parsing — no World, no fixtures.
+add_mad_executable(test_dalton_import
+                   "tests/test_dalton_import.cpp;GroundState.cpp"
+                   "MADchem")
 add_mad_executable(test_response_property_planner
                    "tests/test_response_property_planner.cpp"
                    "MADchem")
@@ -49,6 +55,30 @@ add_mad_executable(test_run_response
                    "MADchem")
 add_mad_executable(test_kernel_equivalence
                    "tests/test_kernel_equivalence.cpp;GroundState.cpp"
+                   "MADchem")
+# Pins the three algebraic identities (M1/M2/M3) behind the state-grouped
+# reformulation of the 2PA two-electron residue.
+add_mad_executable(test_tpa_regroup_identities
+                   "tests/test_tpa_regroup_identities.cpp;GroundState.cpp"
+                   "MADchem")
+# Gate for the promoted state-free (P,Q) residue source (source-unification
+# step 3, kernels/tpa_source_spec.hpp): equality vs tpa_e3_residue (2e) and
+# tpa_moment_residue_1e (1e), plus the (P,Q)-vs-V^{bc} comparison report.
+add_mad_executable(test_tpa_pq_vs_vbc
+                   "tests/test_tpa_pq_vs_vbc.cpp;GroundState.cpp"
+                   "MADchem")
+# Term-RESOLVED comparison of the two quadratic sources (V^BC vs (P,Q)):
+# every SourceEntry evaluated separately, aligned slots, per-term norms and
+# contractions (2026-09-04 review: catch compensation the contracted scalar
+# gates cannot see). Informational — the equality gates stay separate.
+add_mad_executable(test_vbc_pq_terms
+                   "tests/test_vbc_pq_terms.cpp;GroundState.cpp"
+                   "MADchem")
+# Gate for the spec-path VBC source (source-unification step 2,
+# kernels/source_spec.hpp + vbc::compute_vbc_spec): per-channel equality with
+# compute_vbc at summation-order precision, beta via both paths, Kleinman pair.
+add_mad_executable(test_vbc_spec_equivalence
+                   "tests/test_vbc_spec_equivalence.cpp;GroundState.cpp"
                    "MADchem")
 add_mad_executable(test_step_restriction
                    "tests/test_step_restriction.cpp"
@@ -181,6 +211,15 @@ endif()
 # path in and breaks the xeonmax toolchain — see es_bench MPI notes).
 add_mad_executable(seed_from_dalton "tools/seed_from_dalton.cpp;GroundState.cpp" "MADchem")
 
+# Standalone writer of the production ES seed bundle (seed_es_from_dalton), for
+# es_overlap diagnostics against a converged cold bundle.
+add_mad_executable(dalton_es_seed_bundle "tools/dalton_es_seed_bundle.cpp;GroundState.cpp" "MADchem")
+if(MADNESS_ENABLE_HDF5)
+  target_include_directories(dalton_es_seed_bundle PRIVATE ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(dalton_es_seed_bundle PRIVATE ${HDF5_LIBRARIES})
+  target_compile_definitions(dalton_es_seed_bundle PRIVATE MADNESS_HAS_HDF5)
+endif()
+
 # dalton-cis-seed (GS): project the occupied DALTON/molden MOs and write a
 # moldft version-4 .restartdata (native path only, no HDF5). Ground-state analogue
 # of seed_from_dalton; moldft --restart resumes from it (SCF::load_mos).
@@ -197,7 +236,7 @@ if (BUILD_TESTING)
   # Tier 1 — "unit": pure logic, no fixtures, no MPI launcher required.
   foreach(_t test_calc_manager test_protocol_key test_response_metadata
              test_response_property_planner test_state_metrics
-             test_diagonalize_slots)
+             test_diagonalize_slots test_dalton_import)
     add_test(NAME madness/test/molresponse/${_t}/run COMMAND ${_t})
     set_property(TEST madness/test/molresponse/${_t}/run
                  PROPERTY LABELS "unit;response;short" APPEND)
@@ -234,7 +273,24 @@ if (BUILD_TESTING)
     add_test(NAME madness/test/molresponse/test_run_response/run
              COMMAND test_run_response
                      --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
-    foreach(_t test_kernel_equivalence test_calc_manager_run test_run_response)
+    # Source-unification gates (steps 2+3): spec path == bespoke builders,
+    # plus the M1/M3 regrouping identities the (P,Q) promotion rests on.
+    add_test(NAME madness/test/molresponse/test_vbc_spec_equivalence/run
+             COMMAND test_vbc_spec_equivalence
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata
+                     --calc-dir=ctest_vbc_spec_equiv)
+    add_test(NAME madness/test/molresponse/test_tpa_pq_vs_vbc/run
+             COMMAND test_tpa_pq_vs_vbc
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_vbc_pq_terms/run
+             COMMAND test_vbc_pq_terms
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    add_test(NAME madness/test/molresponse/test_tpa_regroup_identities/run
+             COMMAND test_tpa_regroup_identities
+                     --archive=${MADNESS_RESPONSE_FIXTURE_DIR}/h2o/mad.restartdata)
+    foreach(_t test_kernel_equivalence test_calc_manager_run test_run_response
+               test_vbc_spec_equivalence test_tpa_pq_vs_vbc test_vbc_pq_terms
+               test_tpa_regroup_identities)
       set_property(TEST madness/test/molresponse/${_t}/run
                    PROPERTY LABELS "response-fixture;response;long" APPEND)
     endforeach()

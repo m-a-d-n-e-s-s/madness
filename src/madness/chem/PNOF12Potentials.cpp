@@ -6,6 +6,7 @@
  */
 
 #include<madness/chem/PNOF12Potentials.h>
+#include <algorithm>
 
 namespace madness {
 
@@ -36,8 +37,10 @@ GradSlaterOperator(World& world,
 	Tensor<double> coeff=fit.coeffs();
 	Tensor<double> expnt=fit.exponents();
 
-	if (bc(0,0) == BC_PERIODIC) {
-		fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+	{
+		const auto lattice_ranges = bc.lattice_range();
+		if (std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& r) { return r.infinite(); }))
+			fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
 	}
 
 	int rank = coeff.dim(0);

@@ -1,5 +1,9 @@
 # src/madness
 
+### MADmisc is the leaf component: it depends on nothing and MADworld links it,
+### so it must be configured first and must exist even in madworld-only builds.
+add_subdirectory(misc)
+
 ### MADWorld runtime
 add_subdirectory(world)
 # may need to build elemental as part of MADWorld
@@ -14,8 +18,8 @@ if (ENABLE_ELEMENTAL)
 				${ELEMENTAL_BINARY_DIR}/include)
 	endif ()
 endif(ENABLE_ELEMENTAL)
-if(MADNESS_BUILD_MADWORLD_ONLY)  # madness library includes just madworld
-	add_library(madness $<TARGET_OBJECTS:MADworld-obj>)
+if(MADNESS_BUILD_MADWORLD_ONLY)  # madness library includes just madworld (+ the misc leaf it links)
+	add_library(madness $<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>)
 endif(MADNESS_BUILD_MADWORLD_ONLY)
 
 ### CLAPACK will be build if BLAS/LAPACK is available
@@ -35,14 +39,13 @@ endif(LAPACK_FOUND)
 
 ### numerics + apps
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
-	add_subdirectory(misc)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
 	add_subdirectory(chem)
     # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
-    	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
+    	$<TARGET_OBJECTS:MADtensor-obj>
     	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
     	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>
 		$<TARGET_OBJECTS:MADchem-obj>)
@@ -88,9 +91,9 @@ if(MPI_FOUND)
   target_link_libraries(madness PUBLIC ${MPI_LINK_FLAGS})
   target_link_libraries(madness PUBLIC ${MPI_LIBRARIES})
 endif()
-if(HAVE_IBMBGQ OR HAVE_IBMBGP)
-  target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
-endif()
+if (MADNESS_HAS_LIBXSMM)
+  target_link_libraries(madness PUBLIC libxsmm::libxsmm)
+endif ()
 if (LAPACK_FOUND)
 
 	# if LAPACK_LIBRARIES includes IMPORTED targets make sure they are available
@@ -120,6 +123,13 @@ endif ()
 if (PCM_FOUND)
 	target_include_directories(madness PUBLIC ${PCM_INCLUDE_DIRS})
 	target_link_libraries(madness PUBLIC ${PCM_LIBRARIES})
+endif ()
+# no include directories: only chem/dispersion.cc includes the simple-dftd3 C header, and it
+# is included via an absolute path passed as MADNESS_DFTD3_HEADER (see src/madness/chem/CMakeLists.txt)
+if (TARGET s-dftd3::s-dftd3)
+	target_link_libraries(madness PUBLIC s-dftd3::s-dftd3)
+elseif (DFTD3_FOUND)
+	target_link_libraries(madness PUBLIC ${DFTD3_LIBRARIES})
 endif ()
 if (BOOST_FOUND)
 	target_include_directories(madness PUBLIC ${BOOST_INCLUDE_DIRS})

@@ -5,7 +5,7 @@
 #ifndef MPQC_SAP_INTERPOLATORS_H
 #define MPQC_SAP_INTERPOLATORS_H
 
-#include <madness/misc/interpolation_1d.h>
+#include <madness/mra/interpolation_1d.h>
 
 namespace madness {
     extern std::vector<CubicInterpolationTable<double>> SAPCharges;

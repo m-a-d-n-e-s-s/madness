@@ -33,7 +33,65 @@
 
 #include <vector>
 
+#include <cstdlib>
+#include <cstdio>
+
 namespace molresponse_v3 {
+
+/// Debug (env MADRESPONSE_GS_CHECK set): evaluate the response kernels' own
+/// Fock pieces on the ground-state orbitals they were built from —
+///   1/2<grad phi_i|grad phi_i> + <phi_i|V_local phi_i> - <phi_i|K0 phi_i>
+/// must reproduce focka(i,i) — and sample V_local along the z axis. Printed on
+/// rank 0 with a tag saying which World (size) built the object, so the
+/// universe-level ES object and the subworld FD objects can be compared.
+/// Collective on `world`. Added 2026-09-10 while chasing the seeded-ES
+/// divergence: the ES solver's object failed this check (LiH sigma:
+/// T 0.381, V -0.008, -K -0.007 vs focka -0.301).
+inline void debug_gs_fock_check(madness::World &world, const ResponseGroundState &t,
+                                const char *tag) {
+  if (!std::getenv("MADRESPONSE_GS_CHECK")) return;
+  const std::size_t n = t.amo.size();
+  if (n == 0) return;
+  const double vtol = madness::FunctionDefaults<3>::get_thresh() * 0.1;
+  auto phi = madness::copy(world, t.amo);
+  std::vector<double> T(n, 0.0), V(n, 0.0), K(n, 0.0);
+  for (int d = 0; d < 3; ++d) {
+    madness::real_derivative_3d D(world, d);
+    auto g = apply(world, D, phi);
+    for (std::size_t i = 0; i < n; ++i) T[i] += 0.5 * madness::inner(g[i], g[i]);
+  }
+  auto Vphi = mul_sparse(world, t.V_local_alpha, phi, vtol);
+  auto Kphi = common_ops::apply_ground_exchange(world, t.K0_alpha, t.amo, phi, t.lo);
+  for (std::size_t i = 0; i < n; ++i) {
+    V[i] = madness::inner(phi[i], Vphi[i]);
+    K[i] = madness::inner(phi[i], Kphi[i]);
+  }
+  auto gram = madness::matrix_inner(world, phi, phi);
+  std::vector<double> zs = {-3.0, -1.0, -0.3, 0.0, 0.3, 1.0, 1.5, 2.0, 2.7, 3.5, 5.0, 8.0, 15.0, 40.0};
+  std::vector<double> vz(zs.size(), 0.0);
+  {
+    auto vl = madness::copy(t.V_local_alpha);
+    vl.reconstruct();
+    for (std::size_t i = 0; i < zs.size(); ++i) vz[i] = vl(madness::coord_3d{0.0, 0.0, zs[i]});
+  }
+  const double vnorm = t.V_local_alpha.norm2();
+  if (world.rank() != 0) return;
+  printf("[GS-CHECK %s] world_size=%d  n_occ=%zu  |V_local|_2=%.6e  thresh=%.1e  k=%d  L=%.1f\n", tag,
+         world.size(), n, vnorm, madness::FunctionDefaults<3>::get_thresh(),
+         madness::FunctionDefaults<3>::get_k(), madness::FunctionDefaults<3>::get_cell_width()(0L));
+  printf("[GS-CHECK %s] Gram diag/offmax: ", tag);
+  double offmax = 0.0;
+  for (std::size_t i = 0; i < n; ++i) { printf("%.6f ", gram(long(i), long(i)));
+    for (std::size_t j = 0; j < n; ++j) if (i != j) offmax = std::max(offmax, std::abs(gram(long(i), long(j)))); }
+  printf(" | %.2e\n", offmax);
+  for (std::size_t i = 0; i < n; ++i)
+    printf("[GS-CHECK %s]  i=%zu  T=%10.5f  V=%10.5f  -K=%10.5f  | sum=%10.5f | focka_ii=%10.5f\n", tag, i,
+           T[i], V[i], -K[i], T[i] + V[i] - K[i], t.focka(long(i), long(i)));
+  printf("[GS-CHECK %s] V_local(0,0,z):", tag);
+  for (std::size_t i = 0; i < zs.size(); ++i) printf("  %.1f:%.4f", zs[i], vz[i]);
+  printf("\n");
+  fflush(stdout);
+}
 
 /// Build ResponseGroundState for an OpenShell run. Populates both
 /// alpha and beta fields. V_local is shared (HF / pure-XC where Vxc
@@ -66,6 +124,7 @@ build_response_ground_state_open_shell(madness::World &world, GroundState &gs,
   // compute_V0x exchange apply — see ResponseGroundState::K0_alpha).
   t.K0_alpha = common_ops::make_ground_exchange(world, t.amo, lo);
   t.K0_beta  = common_ops::make_ground_exchange(world, t.bmo, lo);
+  debug_gs_fock_check(world, t, "open");
   return t;
 }
 
@@ -91,6 +150,7 @@ build_response_ground_state_closed_shell(madness::World &world, GroundState &gs,
   // Cache K0 once (avoids re-copying the occupied orbitals on every compute_V0x
   // exchange apply — see ResponseGroundState::K0_alpha). K0_beta stays null (CS).
   t.K0_alpha = common_ops::make_ground_exchange(world, t.amo, lo);
+  debug_gs_fock_check(world, t, "closed");
   return t;
 }
 
@@ -131,11 +191,13 @@ build_es_problem_full(madness::World &world, GroundState &gs, int n_roots,
 
 /// Assemble the ESSolverGuess output (vector<ResponseStateX<ClosedShell>>)
 /// into the solver's per-root State. Trial-function shape is selected by
-/// `mode`; see ESGuessMode docs in ESSolverGuess.hpp.
+/// `mode`; see ESGuessMode docs in ESSolverGuess.hpp. `virtual_ao_basis` is
+/// the Gaussian AO basis projected by the VirtualAO mode (ignored otherwise).
 inline ESSolver<TDA, ClosedShell>::State
 build_initial_guess_tda_closed_shell(
     madness::World &world, GroundState &gs, long n_roots,
-    ESGuessMode mode = ESGuessMode::SolidHarmonics) {
+    ESGuessMode mode = ESGuessMode::SolidHarmonics,
+    const std::string &virtual_ao_basis = "aug-cc-pvdz") {
   std::vector<ResponseStateX<ClosedShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
@@ -145,15 +207,34 @@ build_initial_guess_tda_closed_shell(
       guess = create_solid_harmonics_guess(world, gs, n_roots);
       break;
     case ESGuessMode::VirtualAO:
-      guess = create_virtual_ao_guess(world, gs, n_roots);
+      guess = create_virtual_ao_guess(world, gs, n_roots, virtual_ao_basis);
       break;
   }
   // Top-up: a guess may produce fewer than n_roots trials (e.g. VirtualAO with
   // a small basis returns empty/short). Pad with solid-harmonic trials so the
-  // bundle is full; the warmup/solver sorts the mixed set out.
+  // bundle is full; the warmup/solver sorts the mixed set out. This is LOUD on
+  // purpose: solid-harmonic trials are purely angular (l>=1 x occupied), so a
+  // padded trial may not span the symmetry sector the primary guess was chosen
+  // to reach (on atoms the totally-symmetric / radially-excited sector), and a
+  // silently degraded bundle converges to the wrong states with no diagnostic.
   if (static_cast<long>(guess.size()) < n_roots) {
-    auto extra = create_solid_harmonics_guess(
-        world, gs, n_roots - static_cast<long>(guess.size()));
+    const long produced = static_cast<long>(guess.size());
+    const long padded   = n_roots - produced;
+    if (world.rank() == 0) {
+      madness::print(
+          "\n[ES GUESS] WARNING: primary guess '", to_string(mode),
+          "' produced", produced, "of", n_roots,
+          "requested trial states — padding the remaining", padded,
+          "with solid-harmonic trials.");
+      madness::print(
+          "[ES GUESS] WARNING: solid-harmonic pad trials are purely angular "
+          "(l>=1) and may NOT span the symmetry sectors the primary guess "
+          "targets (e.g. totally-symmetric / radially-excited states on "
+          "atoms); the padded roots can converge to different states than "
+          "intended. For virtual_ao, consider a larger AO basis "
+          "(--es-guess-basis / response.excited.guess_basis).\n");
+    }
+    auto extra = create_solid_harmonics_guess(world, gs, padded);
     for (auto &e : extra) guess.push_back(std::move(e));
   }
   MADNESS_CHECK(static_cast<long>(guess.size()) >= n_roots);
@@ -183,10 +264,15 @@ build_initial_guess_tda_closed_shell(
 }
 
 /// OpenShell TDA — both α and β response components populated.
+/// `virtual_ao_basis` is accepted for signature parity with the closed-shell
+/// adapter but unused: VirtualAO has no open-shell variant and falls back to
+/// solid harmonics (loudly) below.
 inline ESSolver<TDA, OpenShell>::State
 build_initial_guess_tda_open_shell(
     madness::World &world, GroundState &gs, long n_roots,
-    ESGuessMode mode = ESGuessMode::SolidHarmonics) {
+    ESGuessMode mode = ESGuessMode::SolidHarmonics,
+    const std::string &virtual_ao_basis = "aug-cc-pvdz") {
+  (void)virtual_ao_basis;
   std::vector<ResponseStateX<OpenShell>> guess;
   switch (mode) {
     case ESGuessMode::Random:
@@ -323,7 +409,9 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
                             double c_xc = 1.0, double lo = 1.0e-10,
                             PrintLevel print_level = PrintLevel::Normal,
                             ESGuessMode guess_mode =
-                                ESGuessMode::SolidHarmonics) {
+                                ESGuessMode::SolidHarmonics,
+                            const std::string &virtual_ao_basis =
+                                "aug-cc-pvdz") {
   MADNESS_CHECK(n_roots_warmup >= n_roots_final);
   MADNESS_CHECK(warmup_iters >= 0);
 
@@ -331,10 +419,12 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
     // No-op fast path — caller wants neither oversample nor warmup.
     if constexpr (std::is_same_v<Shell, ClosedShell>)
       return build_initial_guess_tda_closed_shell(world, gs, n_roots_final,
-                                                   guess_mode);
+                                                   guess_mode,
+                                                   virtual_ao_basis);
     else
       return build_initial_guess_tda_open_shell(world, gs, n_roots_final,
-                                                 guess_mode);
+                                                 guess_mode,
+                                                 virtual_ao_basis);
   }
 
   // Force-disable KAIN during warmup — iterate_trial-style pure BSH
@@ -345,10 +435,17 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   warmup_policy.tda_warmup_iters  = 0;
 
   if (world.rank() == 0 && print_level >= PrintLevel::Normal) {
-    print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
-          "  n_roots_final =", n_roots_final,
-          "  warmup_iters =", warmup_iters,
-          "  guess =", to_string(guess_mode));
+    if (guess_mode == ESGuessMode::VirtualAO)
+      print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
+            "  n_roots_final =", n_roots_final,
+            "  warmup_iters =", warmup_iters,
+            "  guess =", to_string(guess_mode),
+            "  basis =", virtual_ao_basis);
+    else
+      print("\n=== TDA warmup ===  n_roots_warmup =", n_roots_warmup,
+            "  n_roots_final =", n_roots_final,
+            "  warmup_iters =", warmup_iters,
+            "  guess =", to_string(guess_mode));
   }
 
   // Build the oversampled problem and the warm-up solver. Use a
@@ -361,10 +458,12 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   typename ESSolver<TDA, Shell>::State state;
   if constexpr (std::is_same_v<Shell, ClosedShell>)
     state = build_initial_guess_tda_closed_shell(world, gs, n_roots_warmup,
-                                                  guess_mode);
+                                                  guess_mode,
+                                                  virtual_ao_basis);
   else
     state = build_initial_guess_tda_open_shell(world, gs, n_roots_warmup,
-                                                guess_mode);
+                                                guess_mode,
+                                                virtual_ao_basis);
 
   for (int i = 0; i < warmup_iters; ++i) {
     state = warmup_solver.step(std::move(state));
@@ -385,6 +484,51 @@ run_oversampled_tda_warmup(madness::World &world, GroundState &gs,
   }
 
   return slice_state_lowest<Shell>(state, n_roots_final);
+}
+
+/// TDA warmup FROM a given state (no guess build): `warmup_iters` KAIN-free
+/// BSH power iterations of the TDA problem, then sort by omega. Used to bring
+/// an external seed (DALTON EXCITLAB X block, projected + gauge-rotated) to the
+/// quality the Full solver expects at its first iteration. A seed entering the
+/// Full solver directly (residual ~0.1) drove every root to the -eps_core
+/// ghost within 3 iterations on h2o, lih and c2h4 (2026-09-10), with or
+/// without the DALTON y block; the cold path never does that because it hands
+/// the Full solver TDA-converged roots. Same solver settings as
+/// run_oversampled_tda_warmup (kain off, tda_warmup_iters zeroed).
+template <typename Shell>
+typename ESSolver<TDA, Shell>::State
+run_tda_warmup_from_state(madness::World &world, GroundState &gs,
+                          typename ESSolver<TDA, Shell>::State state,
+                          int warmup_iters, ConvergencePolicy base_policy,
+                          double c_xc = 1.0, double lo = 1.0e-10,
+                          PrintLevel print_level = PrintLevel::Normal) {
+  MADNESS_CHECK(warmup_iters >= 0);
+  const long n_roots = static_cast<long>(state.roots.size());
+  ConvergencePolicy warmup_policy = base_policy;
+  warmup_policy.kain             = false;
+  warmup_policy.tda_warmup_iters = 0;
+  if (world.rank() == 0 && print_level >= PrintLevel::Normal)
+    print("\n=== TDA warmup from seed ===  n_roots =", n_roots,
+          "  warmup_iters =", warmup_iters);
+  auto problem = build_es_problem_tda<Shell>(world, gs, n_roots, c_xc, lo);
+  ESSolver<TDA, Shell> warmup_solver(world, std::move(problem), warmup_policy,
+                                     print_level);
+  state.iter = 0;
+  for (int i = 0; i < warmup_iters; ++i) {
+    state = warmup_solver.step(std::move(state));
+    if (state.diverged) {
+      if (world.rank() == 0)
+        print("[WARMUP] aborted at iter", state.iter,
+              "— seed warmup diverged; falling back to last-good state");
+      break;
+    }
+  }
+  warmup_solver.sort_state_by_omega(state);
+  if (world.rank() == 0 && print_level >= PrintLevel::Normal) {
+    print("[WARMUP] final omegas after seed warmup (sorted ascending):");
+    print(state.omega);
+  }
+  return state;
 }
 
 } // namespace molresponse_v3

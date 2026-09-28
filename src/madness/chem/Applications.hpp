@@ -6,6 +6,7 @@
 #include <madness/chem/Results.h>
 #include <madness/chem/molopt.h>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -254,6 +255,17 @@ public:
     calc()->work_dir = workdir;
   }
 
+  /// Optional pre-run hook, invoked collectively INSIDE the SCF work directory
+  /// (cwd = the task dir, before the engine constructs its restart plan) and
+  /// only when the engine is about to run (Restart/Redo). The app layer uses it
+  /// to lay down a ground-state seed archive (e.g. madqc: `dalton.dir` ->
+  /// <prefix>.restartdata projected from the DALTON molden), which `restart
+  /// auto` then picks up like any other archive. chem/ stays ignorant of where
+  /// the seed comes from.
+  using PreRunHook = std::function<void(World &, const Params &,
+                                        const std::filesystem::path &)>;
+  void set_pre_run_hook(PreRunHook h) { pre_run_hook_ = std::move(h); }
+
   // print parameters
   /// Print the *effective* parameters of this step (user-defined, derived and
   /// default values, as annotated by QCCalculationParametersBase::print), not
@@ -376,6 +388,11 @@ public:
         print("Next action is ", static_cast<int>(action),
               " (0=Ok,1=ReloadOnly,2=Restart,3=Redo)");
 
+      if (pre_run_hook_ && (action == madness::NextAction::Restart ||
+                            action == madness::NextAction::Redo)) {
+        pre_run_hook_(world_, params_, pm.dir());
+        world_.gop.fence();
+      }
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
         // Both actions mean the same thing here -- run the engine. Restart vs
@@ -554,6 +571,12 @@ private:
     nlohmann::json h;
     h["xc"] = cp.xc();
     h["localize"] = cp.localize_method();
+    // an added/removed/re-parameterized dispersion correction shifts the total
+    // energy without touching the orbitals, so a checkpoint written without it
+    // would otherwise be reused and its energy reported as this run's answer
+    h["dispersion"] = cp.dispersion();
+    h["dispersion_functional"] = cp.dispersion_functional();
+    h["dispersion_atm"] = cp.dispersion_atm();
     if constexpr (!std::is_same_v<Calc, SCF>) {
       // Same spelling SCF::restart_ncf uses, so the checkpoint and the
       // restartdata header agree on what "the same ncf" means.
@@ -579,6 +602,8 @@ private:
   }
 
   World &world_;
+
+  PreRunHook pre_run_hook_;
   Library lib_; // owns shared_ptr<Engine>
   SCFResultsTuple scf_results;
 };
@@ -1057,7 +1082,6 @@ struct moldft_lib {
 
     SCFResultsTuple results;
     auto &scf_res = std::get<0>(results);
-    auto &opt_res = std::get<3>(results);
     auto &prop_res = std::get<1>(results);
     auto &conv_res = std::get<2>(results);
 
@@ -1090,6 +1114,7 @@ struct moldft_lib {
     }
     // vama
     scf->set_protocol<3>(world, scf->param.protocol()[0]);
+    scf->dispersion.print_citation(world);
     double energy = 0.0;
     // An SCF task computes an energy at one geometry. Geometry optimization is
     // its own workflow task now -- `madqc --optimize --wf=scf`,
@@ -1105,11 +1130,13 @@ struct moldft_lib {
     if (world.rank() == 0 && scf->param.print_level() > 0)
       E.output_calc_info_schema();
 
+    // total density: 2*rho_alpha when restricted, rho_alpha + rho_beta otherwise
+    // (no beta term when nbeta == 0, e.g. a fully spin-polarized reference)
     functionT rho = scf->make_density(world, scf->aocc, scf->amo);
-    functionT brho = rho;
-    if (scf->param.nbeta() != 0 && !scf->param.spin_restricted())
-      brho = scf->make_density(world, scf->bocc, scf->bmo);
-    rho.gaxpy(1.0, brho, 1.0);
+    if (scf->param.spin_restricted())
+      rho.scale(2.0);
+    else if (scf->param.have_beta())
+      rho.gaxpy(1.0, scf->make_density(world, scf->bocc, scf->bmo), 1.0);
 
     // optionally compute gradient, dipole, etc.
     Tensor<double> grad;
@@ -1121,7 +1148,7 @@ struct moldft_lib {
 
     tensorT dip;
     if (scf->param.dipole())
-      dip = scf->dipole(world, scf->make_density(world, scf->aocc, scf->amo));
+      dip = scf->dipole(world, rho);
 
     scf->do_plots(world);
 
@@ -1136,6 +1163,19 @@ struct moldft_lib {
 
     scf_res.aeps = scf->aeps;
     scf_res.beps = scf->beps;
+    scf_res.scf_dispersion_correction_energy =
+        scf->dispersion.energy(world, scf->molecule);
+    scf_res.uses_dftd3 = scf->dispersion.active();
+#ifdef MADNESS_HAS_PCM
+    scf_res.uses_pcm = (scf->pcm_param.solvent() != "none");
+#else
+    scf_res.uses_pcm = false;
+#endif
+#ifdef MADNESS_HAS_LIBXC
+    scf_res.uses_libxc = scf->xc.uses_libxc_backend();
+#else
+    scf_res.uses_libxc = false;
+#endif
     scf_res.properties = prop_res;
 
     return results;
@@ -1155,6 +1195,11 @@ private:
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
+        // The `pcm` group has to make the same round trip as `dft`: the SCF is
+        // rebuilt from this regenerated mad.in, so anything omitted here is
+        // silently lost. Written unconditionally -- an empty `pcm/end` block is
+        // harmless, and PCMParameters is inert unless dft's pcm_data is set.
+        in["pcm"] = params.get<PCMParameters>().to_json_if_precedence("defined");
         // `prefix` must be carried explicitly. It is the one parameter that is
         // DERIVED from information the engine cannot recompute -- the name of
         // the original input file (ParameterManager.hpp) -- and this round trip
@@ -1165,7 +1210,7 @@ private:
         // computes is re-derived identically by the SCF ctor.
         in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
-        write_json_to_input_file(in, {"dft"}, ofs);
+        write_json_to_input_file(in, {"dft", "pcm"}, ofs);
         mol.print_defined_only(ofs);
       }
     }
@@ -1235,6 +1280,8 @@ struct nemo_lib {
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
+    sr.scf_dispersion_correction_energy = nm->get_calc()->dispersion.energy(
+        world, nm->get_calc()->molecule);
     // The geometry this reference was solved at. Without it, results_["molecule"]
     // (and therefore the checkpoint and ctx.molecule) reports an empty molecule,
     // and checkpoint_geometry_matches compares 0 atoms against N and rejects
@@ -1253,7 +1300,8 @@ private:
   void initialize_(World &world, const Params &params) {
     nemo_ = std::make_shared<Nemo>(
         world, params.get<CalculationParameters>(),
-        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>());
+        params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>(),
+        params.get<PCMParameters>());
   }
 
   std::shared_ptr<Calc> nemo_;

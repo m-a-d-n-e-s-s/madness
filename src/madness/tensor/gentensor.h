@@ -180,13 +180,13 @@ namespace madness {
 		GenTensor() : Tensor<T>() {}
 
 		GenTensor(const Tensor<T>& t1) : Tensor<T>(t1) {}
-		GenTensor(const Tensor<T>& t1, const TensorArgs& targs) : Tensor<T>(t1) {}
-		GenTensor(const Tensor<T>& t1, double eps, const TensorType tt) : Tensor<T>(t1) {}
-		GenTensor(const TensorType tt): Tensor<T>() {}
-		GenTensor(std::vector<long> v, const TensorType& tt) : Tensor<T>(v) {}
-		GenTensor(std::vector<long> v, const TensorArgs& targs) : Tensor<T>(v) {}
-		GenTensor(const SRConf<T>& sr1) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
-		GenTensor(long nd, const long d[], const TensorType& tt) : Tensor<T>(nd,d){};
+		GenTensor(const Tensor<T>& t1, const TensorArgs&) : Tensor<T>(t1) {}
+		GenTensor(const Tensor<T>& t1, double, const TensorType) : Tensor<T>(t1) {}
+		GenTensor(const TensorType): Tensor<T>() {}
+		GenTensor(std::vector<long> v, const TensorType&) : Tensor<T>(v) {}
+		GenTensor(std::vector<long> v, const TensorArgs&) : Tensor<T>(v) {}
+		GenTensor(const SRConf<T>&) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
+		GenTensor(long nd, const long d[], const TensorType&) : Tensor<T>(nd,d){};
 
         /// Type conversion makes a deep copy
         template <class Q> operator GenTensor<Q>() const { // type conv => deep copy
@@ -195,7 +195,7 @@ namespace madness {
             return result;
         }
 
-        GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
+        GenTensor convert(const TensorArgs&) const {return copy(*this);}
         Tensor<T> reconstruct_tensor() const {return *this;}
         const Tensor<T>& full_tensor() const {return *this;}
         Tensor<T>& full_tensor() {return *this;}
@@ -214,7 +214,7 @@ namespace madness {
 		size_t real_size() const {return this->size();}
 		size_t nCoeff() const {return this->size();}
 
-        void reduce_rank(const double& eps) {return;};
+        void reduce_rank(const double&) {return;};
         void normalize() {return;}
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
@@ -232,10 +232,10 @@ namespace madness {
 
 
 
-		void add_SVD(const GenTensor<T>& rhs, const double& eps) {*this+=rhs;}
+		void add_SVD(const GenTensor<T>& rhs, const double&) {*this+=rhs;}
 
 		SRConf<T> config() const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
-        SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+        SRConf<T> get_configs(const int&, const int&) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
 
 		/// return the additional safety for rank reduction
 		static double fac_reduce() {return -1.0;};
@@ -243,7 +243,7 @@ namespace madness {
 	};
 
     template <class T>
-	GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
+	GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double, bool =false) {
     	typedef typename std::list<GenTensor<T> >::iterator iterT;
     	GenTensor<T> result=copy(addends.front());
     	for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
@@ -257,7 +257,7 @@ namespace madness {
     /// \ingroup tensor
     template <class T>
     GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right,
-            const TensorArgs final_tensor_args) {
+            const TensorArgs) {
         return madness::outer(static_cast<Tensor<T> >(left),static_cast<Tensor<T> >(right));
     }
 
@@ -266,7 +266,7 @@ namespace madness {
      /// \ingroup tensor
      template <class T>
      GenTensor<T> outer(const Tensor<T>& left, const Tensor<T>& right,
-             const TensorArgs final_tensor_args) {
+             const TensorArgs) {
          return madness::outer(left,right);
      }
 
@@ -281,7 +281,7 @@ namespace madness {
 
      /// change representation to targ.tt
      template<typename T>
-     void change_tensor_type(GenTensor<T>& t, const TensorArgs& targs) {
+     void change_tensor_type(GenTensor<T>&, const TensorArgs& targs) {
      	MADNESS_ASSERT(targs.tt==TT_FULL);
      }
 

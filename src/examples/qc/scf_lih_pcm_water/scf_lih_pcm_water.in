@@ -1,0 +1,44 @@
+# Hartree-Fock on LiH in water -- the polarizable continuum model (PCM).
+#
+# `pcm_data` in the dft group is the on/off switch AND names the solvent. That
+# line alone is a complete PCM specification; the `pcm` group below only refines
+# it, and every key in it has a default. See `madqc --print_parameters=pcm` for
+# the full list, including which solvents are available.
+#
+# LiH rather than a noble-gas atom on purpose: the continuum only responds to a
+# charge distribution that has something to polarize. LiH's ~5.9 D dipole shifts
+# the energy by -0.031 Eh (-20 kcal/mol) relative to vacuum, so this deck fails
+# loudly if PCM silently stops working. The same deck on helium moves the energy
+# by 1e-7 Eh, which no sane tolerance would catch.
+#
+# Needs a build configured with -DENABLE_PCM=ON. Without it the run aborts with
+# "no PCMSolver configured and available in MADNESS" rather than quietly
+# returning the vacuum answer.
+#
+# Run:   ./run.sh          (or: madqc scf_lih_pcm_water.in)
+
+dft
+    xc        hf
+    pcm_data  water      # switch PCM on, and pick the solvent
+    # one protocol rung rather than the default ladder: PCM rebuilds the cavity
+    # and solves for the surface charges at every rung, so the ladder costs more
+    # here than it does in vacuum. 12 s vs 34 s, same energy to 1e-4.
+    protocol  [1.e-4]
+    maxiter   10
+    econv     1e-4
+    dconv     1e-3
+end
+
+pcm
+    # `solvent` is inherited from pcm_data above and so is not repeated here;
+    # setting it in this group would override it.
+    solver_type  iefpcm    # iefpcm | cpcm
+    area         0.3       # average area of a tessera [Angstrom^2]
+end
+
+molecule
+    units   atomic
+    eprec   1e-6
+    Li  0.0  0.0  0.0
+    H   0.0  0.0  3.014
+end

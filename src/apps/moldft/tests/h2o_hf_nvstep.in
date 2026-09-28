@@ -1,0 +1,24 @@
+# Two virtuals via the step-down schedule: converge 4 (nvalpha + nv_extra) for
+# up to nv_its iterations, drop to 3, then to 2 with the full maxiter.
+#
+# Final energy -76.0674442, the same as a plain nvalpha 2 run. Water's
+# virtuals are unbound (positive eigenvalues, box continuum), so their
+# residual plateaus near 5e-3 with or without the schedule.
+
+dft
+  xc hf
+  protocol [1e-4,1e-6]
+  maxiter 40
+  nvalpha 2
+  nv_extra 2
+  nv_step 1
+  nv_its 5
+end
+
+geometry
+  eprec 1e-7
+  units angstrom
+  O  0.000000  0.000000  0.117300
+  H  0.000000  0.757200 -0.469200
+  H  0.000000 -0.757200 -0.469200
+end

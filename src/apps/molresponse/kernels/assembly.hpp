@@ -46,6 +46,21 @@ inline State assemble_lambda(madness::World &world,
   return L;
 }
 
+/// Λ without the kinetic term: V0x − E0x_full + γ. The subspace matrix adds the
+/// kinetic block in gradient form (rs::kinetic_gram) instead of contracting a
+/// Laplacian-applied vector — see kinetic_gram for why.
+template <typename State>
+inline State assemble_lambda(madness::World &world,
+                             const State &V0x,
+                             const State &E0x_full,
+                             const State &gamma) {
+  State L = V0x.copy(world);
+  L.axpy(world, -1.0, E0x_full);
+  L.axpy(world,  1.0, gamma);
+  L.truncate_all(world, madness::FunctionDefaults<3>::get_thresh());
+  return L;
+}
+
 /// θ = V0x − E0x + γ
 ///
 /// The BSH right-hand side used by both FDSolver (every step) and

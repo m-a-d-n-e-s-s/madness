@@ -77,7 +77,7 @@ void help(const std::string &wf) {
         "workflow's reference (scf|nemo)");
   print("\nAvailable workflows: " + workflow_builders::runnable_workflow_list());
   print("Parameter groups (for --print_parameters): dft, nemo, response, cc2, "
-        "cis, oep, optimization, geometry");
+        "cis, oep, pcm, optimization, geometry");
   print("");
   if (wf == "scf") {
     print("madqc --wf=scf");
@@ -134,8 +134,8 @@ void print_parameters(World &world, const commandlineparser &parser,
   if (group.empty()) {
     print("please specify a data group to print parameters for");
     print("\n  --print_parameters=<group>  : print all parameters and exit");
-    print("\nAvailable data groups: dft, nemo, response, cc2, cis, oep, "
-          "geometry");
+    print("\nAvailable data groups: dft, nemo, response, cc2, cis, oep, pcm, "
+          "optimization, geometry");
   } else if (group == "dft" || group == "scf") {
     print("Available parameters for data group: dft");
     pm.get<CalculationParameters>().print();
@@ -157,19 +157,25 @@ void print_parameters(World &world, const commandlineparser &parser,
   } else if (group == "optimization") {
     print("Available parameters for data group: optimization");
     pm.get<OptimizationParameters>().print(OptimizationParameters::tag, "end");
+  } else if (group == "pcm") {
+    print("Available parameters for data group: pcm");
+    pm.get<PCMParameters>().print();
   } else if (group == "geometry") {
     Molecule::GeometryParameters geometryparam;
     geometryparam.print("geometry", "end");
   } else {
     std::string msg = "Unknown data group: " + group +
                       "\nAvailable data group are: dft, nemo, response, cc2, "
-                      "cis, oep, optimization, geometry\n";
+                      "cis, oep, pcm, optimization, geometry\n";
     print(msg);
   }
 }
 
 int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
+  // exit code: a run that died in the main loop must not report success --
+  // CI and driver scripts have no other way to tell the difference
+  int rc = 0;
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
@@ -275,6 +281,20 @@ int main(int argc, char **argv) {
         pm.get<CalculationParameters>().set_derived_value("save", true);
         auto reference =
             std::make_shared<SCFApplication<moldft_lib>>(world, pm);
+        // Seeding showcase (2026-09-09): with `dalton.dir` in the deck, the
+        // ground state is seeded from the DALTON molden before the SCF plans
+        // its restart (see molresponse_v3::seed_gs_from_dalton_dir).
+        // io.dalton.dir (run-wide) wins; response.dalton.dir is the alias.
+        if (const std::string ddir =
+                !pm.get<IOParameters>().dalton_dir().empty()
+                    ? pm.get<IOParameters>().dalton_dir()
+                    : pm.get<ResponseParameters>().dalton_dir();
+            !ddir.empty()) {
+          reference->set_pre_run_hook(
+              [ddir](World &w, const Params &p, const std::filesystem::path &d) {
+                molresponse_v3::seed_gs_from_dalton_dir(w, p, d, ddir);
+              });
+        }
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
             std::make_unique<ResponseApplication<molresponse_v3_lib>>(
@@ -316,7 +336,11 @@ int main(int argc, char **argv) {
       // machine-readable <prefix>.calc_info.json remains the source of truth.
       if (world.rank() == 0) {
         qcapp::write_results_summary(std::cout, wf.results());
-        std::ofstream report(prefix + ".out");
+        // APPEND, never truncate: with the usual `#SBATCH --output=<prefix>.out`
+        // this file IS the job's stdout, and opening it for writing wiped the
+        // whole run log at the end of every successful run (closeout attempt
+        // 12, 2026-09-10: a 97-minute LiH log reduced to the summary).
+        std::ofstream report(prefix + ".out", std::ios::app);
         qcapp::write_results_summary(report, wf.results());
         print("Wrote results summary :", prefix + ".out");
 
@@ -325,12 +349,14 @@ int main(int argc, char **argv) {
         qcapp::write_viz_manifest(prefix, wf.results());
       }
     } catch (const MadnessException &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a MADNESS exception in the main loop");
         print(e.what(), e.filename, e.msg, e.line);
         print_header2("ending program run");
       }
     } catch (const json::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught a JSON exception in the main loop");
         print(e.what());
@@ -339,6 +365,7 @@ int main(int argc, char **argv) {
     }
 
     catch (std::exception &e) {
+      rc = 1;
       if (world.rank() == 0) {
         print_header2("caught an exception in the main loop");
         print(e.what());
@@ -353,5 +380,5 @@ int main(int argc, char **argv) {
   } // world is dead -- ready to finalize
   finalize();
 
-  return 0;
+  return rc;
 }

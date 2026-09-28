@@ -166,6 +166,10 @@ namespace madness {
     inline void cpu_relax() {
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
+#elif defined(__aarch64__) || defined(__arm__)
+        /* YIELD is the architectural spin-wait hint; a bare NOP tells the core
+         * nothing and wastes issue slots in a contended spin loop. */
+        asm volatile("yield" : : : "memory");
 #elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
         asm volatile ("nop\n");
 #else

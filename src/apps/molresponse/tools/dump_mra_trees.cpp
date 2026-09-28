@@ -37,6 +37,7 @@
 #include "../kernels/static.hpp"       // Kernels<Static,ClosedShell>::compute_density
 #include "../kernels/full.hpp"         // Kernels<Full,ClosedShell>::compute_density
 #include "../kernels/tda.hpp"          // Kernels<TDA,ClosedShell>::compute_density (ES tdens)
+#include "../kernels/full.hpp"         // Kernels<Full,ClosedShell>::compute_density (RPA ES tdens)
 #include "../solvers/fd_save_load.hpp" // try_load_fd_state<Type,Shell>
 #include "../solvers/es_save_load.hpp" // load_es_roots<TDA,ClosedShell> (ES bundle)
 
@@ -764,10 +765,77 @@ void dump_fd_states(World& world, double L, const std::string& calc_dir,
     print("DUMP_MRA_FD  calc_dir=", calc_dir, "  points_dumped=", npoints);
 }
 
-// Walk response_metadata.json excited_states and dump every converged CLOSED-SHELL
-// TDA excited-state's response orbitals (x_i) + transition density into `out_dir`,
-// alongside the ground + FD dumps. Mirrors dump_fd_states: the ES loader
-// (load_es_roots) and all export writers already exist. Collective.
+// Dump one ES bundle (TDA: x_i; Full/RPA: x_i and y_i) plus the transition
+// density into `out_dir`. Shared body for both closed-shell types. Collective.
+template <typename Type>
+int dump_es_bundle(World& world, const std::string& bundle_dir, const std::string& key,
+                   const std::string& out_dir, int max_orbitals,
+                   const vecfuncT& gs_amo, const Molecule& mol, bool cube,
+                   int cube_npoints, double cube_pad, bool htg, bool amr,
+                   int amr_m, bool coeffs) {
+  using Solver = ESSolver<Type, ClosedShell>;
+  typename Solver::State state;
+  try {
+    state = load_es_roots<Type, ClosedShell>(world, bundle_dir);
+  } catch (const std::exception& e) {
+    if (world.rank() == 0) print("  [ES] skip", key, "--", e.what());
+    return 0;
+  }
+  // GS orbitals reprojected to the ES k for the transition density (same
+  // discipline as dump_fd_point's rho1: reproject a LOCAL copy).
+  const int    kfd = FunctionDefaults<3>::get_k();
+  const double tfd = FunctionDefaults<3>::get_thresh();
+  vecfuncT amo_k;
+  amo_k.reserve(gs_amo.size());
+  for (const auto& o : gs_amo)
+    amo_k.push_back(o.k() == kfd ? o : project(o, kfd, tfd, false));
+  world.gop.fence();
+  ResponseGroundState rgs;
+  rgs.amo = amo_k;
+
+  auto dump_one = [&](const real_function_3d& f, const std::string& stem,
+                      const std::string& what) {
+    dump_function_trees(world, f, stem, htg);
+    if (cube) write_cube_file(world, f, mol, stem + ".cube", cube_npoints, cube_pad);
+    if (amr) write_amr_from_function(world, f, stem + ".vthb", amr_m);
+    if (coeffs) write_coeffs_hdf5(world, f, stem + ".mad.h5");
+    const double nrm = f.norm2();  // collective
+    if (world.rank() == 0) print("  dumped", what, " norm2=", nrm);
+  };
+
+  int nroots = 0;
+  const int nr = static_cast<int>(state.roots.size());
+  for (int f = 0; f < nr; ++f) {
+    const auto& root = state.roots[f];
+    // Name to pymra.web's field contract: es_<state>__<protocol>_<comp>
+    // (web.py _RE_ES); comps _x<i>, _y<i> (Full only), _tdens.
+    const std::string label = "es_" + std::to_string(f) + "__" + key;
+    const std::size_t no =
+        (max_orbitals >= 0)
+            ? std::min<std::size_t>(root.x_alpha.size(),
+                                    static_cast<std::size_t>(max_orbitals))
+            : root.x_alpha.size();
+    for (std::size_t i = 0; i < no; ++i)
+      dump_one(root.x_alpha[i], out_dir + "/" + label + "_x" + std::to_string(i),
+               label + " x" + std::to_string(i));
+    if constexpr (std::is_same_v<Type, Full>) {
+      for (std::size_t i = 0; i < no && i < root.y_alpha.size(); ++i)
+        dump_one(root.y_alpha[i], out_dir + "/" + label + "_y" + std::to_string(i),
+                 label + " y" + std::to_string(i));
+    }
+    // Transition density through the single-source-of-truth Kernels density
+    // (TDA: 2 sum phi_i x_i; Full: 2 sum phi_i (x_i + y_i)).
+    real_function_3d tdens =
+        Kernels<Type, ClosedShell>::compute_density(world, rgs, root);
+    dump_one(tdens, out_dir + "/" + label + "_tdens", label + " tdens");
+    ++nroots;
+  }
+  return nroots;
+}
+
+// Walk response_metadata.json excited_states and dump every CLOSED-SHELL
+// excited-state bundle (TDA or Full/RPA, chosen from the bundle's recorded type)
+// into `out_dir`, alongside the ground + FD dumps. Collective.
 void dump_es_roots(World& world, double L, const std::string& calc_dir,
                    const std::string& out_dir, int max_orbitals,
                    const vecfuncT& gs_amo, const Molecule& mol, bool cube,
@@ -794,64 +862,15 @@ void dump_es_roots(World& world, double L, const std::string& calc_dir,
     const int    k      = protocols[key].value("k", 0);
     if (thresh <= 0.0 || k <= 0) continue;
     set_response_protocol(world, L, thresh, k);
-
-    ESSolver<TDA, ClosedShell>::State state;
-    try {
-      state = load_es_roots<TDA, ClosedShell>(world, calc_dir + "/es__" + key);
-    } catch (const std::exception& e) {
-      if (world.rank() == 0) print("  [ES] skip", key, "--", e.what());
-      continue;
-    }
-
-    // GS orbitals reprojected to the ES k for the transition density (same
-    // discipline as dump_fd_point's rho1: reproject a LOCAL copy).
-    const int    kfd = FunctionDefaults<3>::get_k();
-    const double tfd = FunctionDefaults<3>::get_thresh();
-    vecfuncT amo_k;
-    amo_k.reserve(gs_amo.size());
-    for (const auto& o : gs_amo)
-      amo_k.push_back(o.k() == kfd ? o : project(o, kfd, tfd, false));
-    world.gop.fence();
-    ResponseGroundState rgs;
-    rgs.amo = amo_k;
-
-    const int nr = static_cast<int>(state.roots.size());
-    for (int f = 0; f < nr; ++f) {
-      const auto& root = state.roots[f];
-      // Name to pymra.web's field contract: es_<state>__<protocol>_<comp>
-      // (web.py _RE_ES). Comp suffixes _x<i>/_tdens are appended below, matching
-      // the FD path's fd_<pert>_<dir>__<protocol>__f<omega>_<comp> convention.
-      const std::string label = "es_" + std::to_string(f) + "__" + key;
-      const std::size_t no =
-          (max_orbitals >= 0)
-              ? std::min<std::size_t>(root.x_alpha.size(),
-                                      static_cast<std::size_t>(max_orbitals))
-              : root.x_alpha.size();
-      for (std::size_t i = 0; i < no; ++i) {
-        const std::string stem = out_dir + "/" + label + "_x" + std::to_string(i);
-        dump_function_trees(world, root.x_alpha[i], stem, htg);
-        if (cube)
-          write_cube_file(world, root.x_alpha[i], mol, stem + ".cube",
-                          cube_npoints, cube_pad);
-        if (amr) write_amr_from_function(world, root.x_alpha[i], stem + ".vthb", amr_m);
-        if (coeffs) write_coeffs_hdf5(world, root.x_alpha[i], stem + ".mad.h5");
-        const double nrm = root.x_alpha[i].norm2();  // collective
-        if (world.rank() == 0) print("  dumped", label, "x", i, " norm2=", nrm);
-      }
-      // Transition density (TDA, closed-shell): the single-source-of-truth
-      // Kernels density of the root against the ground state.
-      real_function_3d tdens =
-          Kernels<TDA, ClosedShell>::compute_density(world, rgs, root);
-      const std::string tstem = out_dir + "/" + label + "_tdens";
-      dump_function_trees(world, tdens, tstem, htg);
-      if (cube)
-        write_cube_file(world, tdens, mol, tstem + ".cube", cube_npoints, cube_pad);
-      if (amr) write_amr_from_function(world, tdens, tstem + ".vthb", amr_m);
-      if (coeffs) write_coeffs_hdf5(world, tdens, tstem + ".mad.h5");
-      const double tn = tdens.norm2();  // collective
-      if (world.rank() == 0) print("  dumped", label, "tdens  norm2=", tn);
-      ++nroots;
-    }
+    const std::string bundle_dir = calc_dir + "/es__" + key;
+    const std::string type = blk.value("type", std::string("tda"));
+    if (world.rank() == 0) print("  [ES] bundle", bundle_dir, " type=", type);
+    if (type == "full")
+      nroots += dump_es_bundle<Full>(world, bundle_dir, key, out_dir, max_orbitals, gs_amo,
+                                     mol, cube, cube_npoints, cube_pad, htg, amr, amr_m, coeffs);
+    else
+      nroots += dump_es_bundle<TDA>(world, bundle_dir, key, out_dir, max_orbitals, gs_amo,
+                                    mol, cube, cube_npoints, cube_pad, htg, amr, amr_m, coeffs);
   }
   if (world.rank() == 0)
     print("DUMP_MRA_ES  calc_dir=", calc_dir, "  roots_dumped=", nroots);
@@ -871,7 +890,7 @@ int main(int argc, char** argv) {
         print("Usage: dump_mra_trees --archive=<prefix>.restartdata "
               "[--out=DIR] [--maxlevel=N] [--k=N] [--thresh=X] "
               "[--max-orbitals=N] [--cube] [--cube-npoints=N] [--cube-pad=X] "
-              "[--htg] [--amr] [--amr-m=N] [--coeffs] [--fd] [--fd-calc-dir=DIR]");
+              "[--htg] [--amr] [--amr-m=N] [--coeffs] [--fd] [--fd-calc-dir=DIR] [--es]");
         print("  Loads ground-state orbitals at their native (k, thresh) and");
         print("  dumps per-orbital MRA octree JSON (reconstructed + compressed),");
         print("  geometry.vtk, and (with --cube) per-orbital .cube isosurfaces.");
@@ -888,6 +907,9 @@ int main(int argc, char** argv) {
         print("  With --fd, also dumps the converged closed-shell FD response");
         print("  orbitals from --fd-calc-dir (default: the archive's directory)");
         print("  into the same out dir -> one combined ground+response analysis.");
+        print("  With --es, also dumps every excited-state bundle in --fd-calc-dir");
+        print("  (TDA or Full/RPA, from response_metadata.json): x_i (+ y_i for");
+        print("  Full) per root and the transition density, stems es_<root>__<key>_*.");
       }
       finalize();
       return 1;

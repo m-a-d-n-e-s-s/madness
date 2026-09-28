@@ -33,9 +33,24 @@ one level up — at the granularity of whole response solves.
 
 ## Subworlds and the ground state
 
-Subworlds are created **node-aligned**: `MPI_Comm_split_type(MPI_COMM_TYPE_SHARED)`
-puts every rank on a physical node into the same subworld, so a subworld is a
-node (or a sub-node group). Two MADNESS realities shape this:
+Two pools exist (`solvers/node_subworlds.hpp`):
+
+- **Per-node pool** (deck `subworlds P`, small systems): the universe is grouped
+  by host (hostname-based, PMIx-safe), each host is cut into P contiguous rank
+  blocks, and the pool is right-sized per wave to
+  `clamp(ceil(items/nodes), 1, min(P, ranks_per_node))` so no subworld sits idle
+  in the universe collective. A subworld never spans a node here.
+- **Universe pool** (deck `subworld_ranks R`, large systems, 2026-09-10): the
+  universe is cut into `G = clamp(min(items, ranks/R), 1, ranks)` contiguous
+  blocks in host-ordered rank enumeration; blocks are whole nodes whenever
+  `ranks/G` is a multiple of `ranks_per_node` and may span nodes. Use it when one
+  SCF of the system needs several nodes (300 MOs ≈ 6–8 nodes × 8 ranks ⇒ R=48–64):
+  each response state then has the same footprint as the ground-state solve. R
+  is a minimum — with fewer items than `ranks/R` the blocks grow. `R>0` takes
+  precedence over `subworlds`. The fan-out banner prints `nodes_per_subworld`.
+
+In both pools a subworld is a node, a sub-node group, or a block of whole nodes.
+Two MADNESS realities shape this:
 
 - **There is no shared-memory Function storage.** A subworld cannot point at
   another World's coefficient data; MADNESS has intra-node *communicators* but not
@@ -55,8 +70,8 @@ replicating it per task.
 |---|---|
 | MacroTask exchange (within-solve two-electron fan-out) | ✅ in use |
 | node-aligned subworld creation (`Split_type` SHARED) | ✅ |
-| Cloud-shared ground state into subworlds | ✅ |
-| FD state-parallel (perturbation × frequency across subworlds) | 🚧 landing incrementally |
+| Ground state into subworlds (archive reload per subworld; Cloud copy-in is future work) | ✅ |
+| FD state-parallel (perturbation × frequency across subworlds) | ✅ Stable (`--fd-subworlds=P`) |
 | ES root-parallel across subworlds | 🚧 design complete, incremental |
 
 Single-World runs (one rank set, threaded) are always available and are the

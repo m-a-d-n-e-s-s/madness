@@ -128,7 +128,7 @@ int run_correctness_cell(World& world,
                          double thresh,
                          double L,
                          const std::vector<Vector<double, NDIM>>& user_pts) {
-    test_output t(label);
+    test_output t(label, world.rank() == 0);
 
     typedef Function<double, NDIM> funcT;
     typedef std::shared_ptr<FunctionFunctorInterface<double, NDIM>> functorT;
@@ -151,6 +151,9 @@ int run_correctness_cell(World& world,
     // accumulations in the inner loop, so FP reassociation adds a bit more.
     double ktol = 1.0 + k * 0.01;
 
+    bool all_values_ok = true;
+    bool all_ranks_ok = true;
+
     for (const auto& xu : user_pts) {
         double ref = f.eval(xu).get();
         world.gop.fence();
@@ -160,16 +163,24 @@ int run_correctness_cell(World& world,
         // Verify value agreement when local.
         if (lo.first) {
             double err = ref - lo.second;
-            t.checkpoint(std::abs(err) <= eval_tol(ref, ktol),
-                         "eval_local_only value ≈ eval for " + label);
+            if (std::abs(err) > eval_tol(ref, ktol))
+                all_values_ok = false;
         }
 
         // Exactly one rank should own an in-domain point.
         int total = lo.first ? 1 : 0;
         world.gop.sum(total);
         world.gop.fence();
-        t.checkpoint(total == 1, "exactly one rank owns point in " + label);
+        if (total != 1)
+            all_ranks_ok = false;
     }
+
+    int val_ok_int = all_values_ok ? 1 : 0;
+    world.gop.sum(val_ok_int);
+    all_values_ok = (val_ok_int == world.size());
+
+    t.checkpoint(all_values_ok, "eval_local_only value ≈ eval");
+    t.checkpoint(all_ranks_ok, "exactly one rank owns point");
 
     world.gop.fence();
     return t.end();
@@ -326,8 +337,8 @@ double eval_cube_sep_3d(int k, const Tensor<double>& c, double px[][MAXK]) {
 
 } // namespace
 
-int test_contraction_micro() {
-    test_output t("eval_cube: separated contraction agrees with nested-loop reference");
+int test_contraction_micro(World& world) {
+    test_output t("eval_cube: separated contraction agrees with nested-loop reference", world.rank() == 0);
 
     std::mt19937_64 rng(0xC0FFEE42);
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
@@ -335,7 +346,14 @@ int test_contraction_micro() {
     static const int ks[] = {2, 5, 7, 8};
     constexpr int NREPS = 8;
 
+    // Tolerance setting: With relaxed math / FMA enabled (-ffp-contract=fast, -fassociative-math),
+    // eval_cube_sep_3d is vectorized into FMA dot products with single intermediate rounding,
+    // whereas eval_cube_ref_3d evaluates a flat scalar triple sum over up to k^3 = 512 terms.
+    // Due to differing rounding order and cancellation among random [-1, 1] terms, roundoff
+    // divergence naturally reaches ~sqrt(512)*eps_mach (~5e-15). A floor of 1e-14 (and 1e-12 relative)
+    // accommodates this while still verifying ~13-14 digits of agreement.
     for (int k : ks) {
+        bool ok_1d = true, ok_2d = true, ok_3d = true;
         for (int rep = 0; rep < NREPS; ++rep) {
             // 1D
             {
@@ -351,8 +369,8 @@ int test_contraction_micro() {
                 for (int p = 0; p < k; ++p) sep += cp[p] * px[0][p];
 
                 double err = std::abs(sep - ref);
-                t.checkpoint(err <= std::max(std::abs(ref) * 1e-13, 1e-15),
-                             "1D k=" + std::to_string(k));
+                double tol = std::max(std::abs(ref) * 1e-12, 1e-14);
+                if (err > tol) ok_1d = false;
             }
             // 2D
             {
@@ -367,8 +385,8 @@ int test_contraction_micro() {
                 double ref = eval_cube_ref_2d(k, c, px);
                 double sep = eval_cube_sep_2d(k, c, px);
                 double err = std::abs(sep - ref);
-                t.checkpoint(err <= std::max(std::abs(ref) * 1e-13, 1e-15),
-                             "2D k=" + std::to_string(k));
+                double tol = std::max(std::abs(ref) * 1e-12, 1e-14);
+                if (err > tol) ok_2d = false;
             }
             // 3D
             {
@@ -384,10 +402,13 @@ int test_contraction_micro() {
                 double ref = eval_cube_ref_3d(k, c, px);
                 double sep = eval_cube_sep_3d(k, c, px);
                 double err = std::abs(sep - ref);
-                t.checkpoint(err <= std::max(std::abs(ref) * 1e-13, 1e-15),
-                             "3D k=" + std::to_string(k));
+                double tol = std::max(std::abs(ref) * 1e-12, 1e-14);
+                if (err > tol) ok_3d = false;
             }
         }
+        t.checkpoint(ok_1d, "1D k=" + std::to_string(k));
+        t.checkpoint(ok_2d, "2D k=" + std::to_string(k));
+        t.checkpoint(ok_3d, "3D k=" + std::to_string(k));
     }
     return t.end();
 }
@@ -399,10 +420,11 @@ int test_contraction_micro() {
 // Function build needed, so the full NDIM range including 6 is fast.
 // ---------------------------------------------------------------------------
 
-int test_scaling_factor() {
-    test_output t("eval_cube scaling: exp2 agrees with pow over all (NDIM,n)");
+int test_scaling_factor(World& world) {
+    test_output t("eval_cube scaling: exp2 agrees with pow over all (NDIM,n)", world.rank() == 0);
 
     for (int ndim = 1; ndim <= 6; ++ndim) {
+        bool ok = true;
         for (Level n = 0; n <= MAXLEVEL; ++n) {
             double arg = 0.5 * ndim * n;
             double via_pow  = std::pow(2.0, arg);
@@ -412,10 +434,9 @@ int test_scaling_factor() {
             double rel = (via_pow != 0.0)
                          ? std::abs(via_exp2 - via_pow) / via_pow
                          : std::abs(via_exp2 - via_pow);
-            t.checkpoint(rel <= std::numeric_limits<double>::epsilon() * 2,
-                         "NDIM=" + std::to_string(ndim)
-                         + " n=" + std::to_string(n));
+            if (rel > std::numeric_limits<double>::epsilon() * 2) ok = false;
         }
+        t.checkpoint(ok, "NDIM=" + std::to_string(ndim));
     }
     return t.end();
 }
@@ -493,7 +514,7 @@ bool golden_check_ndim(World& world, int k, double thresh, double cx,
 }
 
 int test_golden_values(World& world) {
-    test_output t("eval_local_only golden-value characterization");
+    test_output t("eval_local_only golden-value characterization", world.rank() == 0);
     const double cx = 0.3;
 
     for (const auto& g : golden_pts) {
@@ -510,17 +531,20 @@ int test_golden_values(World& world) {
         else if (g.ndim == 3)
             found = golden_check_ndim<3>(world, g.k, g.thresh, cx, g.pt, eval_ref, eval_lo);
 
-        if (found) {
-            double err = std::abs(eval_lo - eval_ref);
-            double tol = std::max(std::abs(eval_ref) * 1e-11, 1e-13);
-            t.checkpoint(err <= tol,
-                         "golden NDIM=" + std::to_string(g.ndim)
-                         + " k=" + std::to_string(g.k)
-                         + " pt=(" + std::to_string(g.pt[0]) + ")");
-        } else {
-            t.checkpoint(true, "golden (non-local rank skip)");
-        }
+        int local_found = found ? 1 : 0;
+        double local_err = found ? std::abs(eval_lo - eval_ref) : 0.0;
+        double local_tol = found ? std::max(std::abs(eval_ref) * 1e-11, 1e-13) : 0.0;
+        world.gop.sum(local_found);
+        world.gop.sum(local_err);
+        world.gop.sum(local_tol);
+
+        bool ok = (local_found == 1) && (local_err <= local_tol);
+        t.checkpoint(ok,
+                     "golden NDIM=" + std::to_string(g.ndim)
+                     + " k=" + std::to_string(g.k)
+                     + " pt=(" + std::to_string(g.pt[0]) + ")");
     }
+    world.gop.fence();
     return t.end();
 }
 
@@ -533,9 +557,9 @@ int test_golden_values(World& world) {
 namespace {
 
 template <std::size_t D>
-int fast_vs_general_ndim(int k) {
+int fast_vs_general_ndim(World& world, int k) {
     test_output t("general_fast_transform D=" + std::to_string(D)
-                  + " k=" + std::to_string(k));
+                  + " k=" + std::to_string(k), world.rank() == 0);
 
     std::mt19937_64 rng(0xBEEF0000 + D * 100 + k);
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
@@ -598,19 +622,19 @@ int fast_vs_general_ndim(int k) {
 
 } // namespace
 
-int test_general_fast_transform() {
+int test_general_fast_transform(World& world) {
     int errors = 0;
     // Odd D=1,3 exercises the D&1 parity swap (result/workspace pointer swap).
     // Even D=2,6 exercises the other branch.
-    errors += fast_vs_general_ndim<1>(5);
-    errors += fast_vs_general_ndim<1>(8);
-    errors += fast_vs_general_ndim<2>(5);
-    errors += fast_vs_general_ndim<2>(8);
-    errors += fast_vs_general_ndim<3>(5);
-    errors += fast_vs_general_ndim<3>(8);
+    errors += fast_vs_general_ndim<1>(world, 5);
+    errors += fast_vs_general_ndim<1>(world, 8);
+    errors += fast_vs_general_ndim<2>(world, 5);
+    errors += fast_vs_general_ndim<2>(world, 8);
+    errors += fast_vs_general_ndim<3>(world, 5);
+    errors += fast_vs_general_ndim<3>(world, 8);
     if (run_heavy) {
-        errors += fast_vs_general_ndim<6>(5);
-        errors += fast_vs_general_ndim<6>(8);
+        errors += fast_vs_general_ndim<6>(world, 5);
+        errors += fast_vs_general_ndim<6>(world, 8);
     }
     return errors;
 }
@@ -626,7 +650,7 @@ int test_general_fast_transform() {
 template <std::size_t NDIM>
 int run_batched_cell(World& world, const std::string& label, int k, double thresh,
                      double L, const std::vector<Vector<double, NDIM>>& user_pts) {
-    test_output t(label);
+    test_output t(label, world.rank() == 0);
     typedef std::shared_ptr<FunctionFunctorInterface<double, NDIM>> functorT;
 
     FunctionDefaults<NDIM>::set_k(k);
@@ -653,21 +677,29 @@ int run_batched_cell(World& world, const std::string& label, int k, double thres
     // Batched.
     std::vector<std::pair<bool, double>> bat = f.eval_local_only(user_pts, maxlevel);
 
-    t.checkpoint(bat.size() == user_pts.size(), "batched size matches " + label);
+    bool size_ok = (bat.size() == user_pts.size());
+    t.checkpoint(size_ok, "batched size matches " + label);
 
+    bool all_match = true;
+    bool all_single_owner = true;
     for (std::size_t i = 0; i < user_pts.size(); ++i) {
         bool same_flag = bat[i].first == ref[i].first;
         // Bit-for-bit value match when local (batched reuses the same eval_cube).
         bool same_val = (!bat[i].first) || (bat[i].second == ref[i].second);
-        t.checkpoint(same_flag && same_val,
-                     "batched == per-point for point " + std::to_string(i) + " " + label);
+        if (!(same_flag && same_val)) all_match = false;
 
         int total = bat[i].first ? 1 : 0;
         world.gop.sum(total);
         world.gop.fence();
-        t.checkpoint(total == 1,
-                     "exactly one rank owns batched point " + std::to_string(i) + " " + label);
+        if (total != 1) all_single_owner = false;
     }
+
+    int match_ok_int = all_match ? 1 : 0;
+    world.gop.sum(match_ok_int);
+    all_match = (match_ok_int == world.size());
+
+    t.checkpoint(all_match, "batched == per-point for all points");
+    t.checkpoint(all_single_owner, "exactly one rank owns point for all batched points");
 
     // Order-independence: shuffling the points must not change any result.
     // (Guards the memoized-descent fast path: a stale or wrongly-matched
@@ -685,6 +717,9 @@ int run_batched_cell(World& world, const std::string& label, int k, double thres
             ok = (bat_sh[i].first == bat[perm[i]].first) &&
                  (!bat_sh[i].first || bat_sh[i].second == bat[perm[i]].second);
         }
+        int order_ok_int = ok ? 1 : 0;
+        world.gop.sum(order_ok_int);
+        ok = (order_ok_int == world.size());
         t.checkpoint(ok, "batched results order-independent " + label);
     }
 
@@ -731,7 +766,7 @@ int test_batched_ndim(World& world) {
 // different sizes must produce the same values as the vector-returning form.
 int test_output_param_overload(World& world) {
     constexpr std::size_t NDIM = 3;
-    test_output t("output-parameter eval_local_only overload");
+    test_output t("output-parameter eval_local_only overload", world.rank() == 0);
     typedef std::shared_ptr<FunctionFunctorInterface<double, NDIM>> functorT;
     const double L = 2.0;
     FunctionDefaults<NDIM>::set_k(7);
@@ -765,7 +800,9 @@ int test_output_param_overload(World& world) {
     for (std::size_t i = 0; ok && i < ref_big.size(); ++i)
         ok = reused[i].first == ref_big[i].first &&
              (!reused[i].first || reused[i].second == ref_big[i].second);
-    t.checkpoint(ok, "fresh results buffer matches vector-returning form");
+    int ok_big_int = ok ? 1 : 0;
+    world.gop.sum(ok_big_int);
+    t.checkpoint(ok_big_int == world.size(), "fresh results buffer matches vector-returning form");
 
     f.eval_local_only(pts_small, maxlevel, reused);         // shrink, reuse capacity
     auto ref_small = f.eval_local_only(pts_small, maxlevel);
@@ -773,7 +810,9 @@ int test_output_param_overload(World& world) {
     for (std::size_t i = 0; ok && i < ref_small.size(); ++i)
         ok = reused[i].first == ref_small[i].first &&
              (!reused[i].first || reused[i].second == ref_small[i].second);
-    t.checkpoint(ok, "shrunk reused buffer matches vector-returning form");
+    int ok_small_int = ok ? 1 : 0;
+    world.gop.sum(ok_small_int);
+    t.checkpoint(ok_small_int == world.size(), "shrunk reused buffer matches vector-returning form");
 
     world.gop.fence();
     return t.end();
@@ -902,9 +941,9 @@ int main(int argc, char** argv) {
     int errors = 0;
 
     // Micro-tests: cheap, always run (full NDIM range for scaling factor).
-    errors += test_contraction_micro();
-    errors += test_scaling_factor();
-    errors += test_general_fast_transform();
+    errors += test_contraction_micro(world);
+    errors += test_scaling_factor(world);
+    errors += test_general_fast_transform(world);
 
     // Correctness matrix: NDIM=1,2,3 (light cells always; heavy cells gated).
     errors += test_correctness_ndim<1>(world);
@@ -929,6 +968,7 @@ int main(int argc, char** argv) {
     if (run_bench) run_benchmark(world);
 
     world.gop.fence();
+    world.gop.sum(errors);
     madness::finalize();
     return errors;
 }

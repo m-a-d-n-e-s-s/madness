@@ -1,0 +1,11 @@
+{
+  "description": "PBE on LiH with regularized (nemo) orbitals in the weak form of the semilocal xc potential -- the only deck with xc_weak_gga, and a two-orbital one so the per-orbital flux is exercised",
+  "checks": [
+    {"key": ["tasks", 0, "scf_total_energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-3},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 1], "tol": 1e-3},
+    {"key": ["tasks", 0, "convergence_info", "converged_for_thresh"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

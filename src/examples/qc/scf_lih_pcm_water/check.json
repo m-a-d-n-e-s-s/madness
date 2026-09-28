@@ -1,0 +1,7 @@
+{
+  "description": "Hartree-Fock on LiH in water; the polarizable continuum model",
+  "checks": [
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

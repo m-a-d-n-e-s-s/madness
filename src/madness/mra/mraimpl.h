@@ -40,6 +40,8 @@
 #include <memory>
 #include <math.h>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/worldhashmap.h>
@@ -282,6 +284,16 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::is_on_demand() const {
     	return tree_state==on_demand;
+    }
+
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::has_coefficients_on_leaves_only() const {
+        return (tree_state==redundant) or (tree_state==nonstandard_with_leaves);
+    }
+
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::has_summable_coefficients() const {
+        return is_reconstructed() or is_compressed() or has_coefficients_on_leaves_only();
     }
 
     template <typename T, std::size_t NDIM>
@@ -645,6 +657,12 @@ namespace madness {
 
 
     /// Returns the truncation threshold according to truncate_method
+
+    /// Modes 1, 2 and 3 scale the tolerance by the physical width of the box. The
+    /// width of an anisotropic cell has to be reduced to one number, and that is the
+    /// geometric mean, volume^(1/NDIM) -- not the smallest dimension, which would tie
+    /// the tolerance to the cell's aspect ratio rather than to its resolution.
+    /// Cubic cells are unaffected: there the two agree.
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::truncate_tol(double tol, const keyT& key) const {
 
@@ -658,11 +676,11 @@ namespace madness {
             return tol;
         }
         else if (truncate_mode == 1) {
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
         }
         else if (truncate_mode == 2) {
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
         }
         else if (truncate_mode == 3) {
@@ -683,7 +701,7 @@ namespace madness {
             const static double fac=1.0/std::pow(2,NDIM*0.5);
             tol*=fac;
 
-            double L = FunctionDefaults<NDIM>::get_cell_min_width();
+            double L = FunctionDefaults<NDIM>::get_cell_geometric_mean_width();
             return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
 
         } else {
@@ -1301,12 +1319,14 @@ namespace madness {
         }
     }
 
-    // For each local node sets value of norm tree, snorm and dnorm to 0.0
+    // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
+    // dnorm_tree as uncomputed.
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::zero_norm_tree() {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             it->second.set_norm_tree(0.0);
+            it->second.set_dnorm_tree(NORM_TREE_UNCOMPUTED);
             it->second.set_snorm(0.0);
             it->second.set_dnorm(0.0);
         }
@@ -1716,14 +1736,22 @@ namespace madness {
         TensorArgs targs2=targs;
         targs2.thresh*=0.1;
 
-        // need the deep copy for contiguity
-        coeffT ss=coeffT(copy(d(cdata.s0)));
-        double snorm=ss.normf();
+        // need the deep copy for contiguity; ss shares it rather than taking a
+        // second one, so this k^NDIM block is the only temporary on the path
+        const tensorT s0block = copy(d(cdata.s0));
+        coeffT ss = coeffT(s0block);
+        double snorm = ss.normf();
 
-        if (key.level()> 0 && !nonstandard1) d(cdata.s0) = 0.0;
+        // dnorm must mean ||d|| in every tree state. The stored tensor keeps its
+        // s0 block at the root and everywhere in nonstandard form, so zero s0
+        // unconditionally to measure and put it back when the stored tensor is
+        // one that keeps it.
+        const bool stored_tensor_keeps_s0 = (key.level() == 0) or nonstandard1;
+        d(cdata.s0) = 0.0;
+        const double dnorm = d.normf();
+        if (stored_tensor_keeps_s0) d(cdata.s0) = s0block;
 
         coeffT dd=coeffT(d,targs2);
-        double dnorm=dd.normf();
         double norm_tree=sqrt(norm_tree2);
         // dnorm_tree accumulates this node's d coefficients and all those below it
         double dnorm_tree=sqrt(dnorm_tree2+dnorm*dnorm);
@@ -1858,9 +1886,11 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     double FunctionImpl<T,NDIM>::norm2sq_local() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        MADNESS_CHECK_THROW(has_summable_coefficients(),
+            "norm2sq_local() needs a tree that holds its coefficients once");
         typedef Range<typename dcT::const_iterator> rangeT;
         return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end()),
-                                                                  do_norm2sq_local());
+                                                                  do_norm2sq_local(has_coefficients_on_leaves_only()));
     }
 
 
@@ -1975,8 +2005,13 @@ namespace madness {
         const double d=sizeof(T);
         const double fac=1024*1024*1024;
 
+        // This is a diagnostic and must not mutate the tree, so report the norm
+        // only in the states where norm2sq_local() is defined (cf.
+        // has_summable_coefficients()).  The tree state is replicated, so all
+        // ranks take the same branch and the global ops stay collective.
+        const bool norm_is_meaningful = has_summable_coefficients();
         double norm=0.0;
-        {
+        if (norm_is_meaningful) {
             double local = norm2sq_local();
             this->world.gop.sum(local);
             this->world.gop.fence();
@@ -1984,12 +2019,19 @@ namespace madness {
         }
 
         if (this->world.rank()==0) {
-
-            constexpr std::size_t bufsize=128;
-            char buf[bufsize];
-            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
-                   (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
-            print(std::string(buf));
+            std::ostringstream oss;
+            oss << std::setw(40) << name << " at time "
+                << std::fixed << std::setprecision(1) << wall
+                << "s: norm/tree/#coeff/size: ";
+            if (norm_is_meaningful)
+                oss << std::setw(7) << std::setprecision(5) << norm;
+            else
+                oss << std::setw(7) << "n/a";
+            oss << " " << tsize
+                << ", " << std::setw(6) << std::setprecision(3) << double(ncoeff)*1.e-6
+                << " m, " << std::setw(6) << std::setprecision(3) << double(ncoeff)/fac*d
+                << " GByte";
+            print(oss.str());
         }
     }
 
@@ -2866,27 +2908,26 @@ namespace madness {
     void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key,
                                              const RemoteReference< FutureImpl< std::pair<keyT,coeffT> > >& ref) const {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
-        if (coeffs.probe(key)) {
-            const nodeT& node = coeffs.find(key).get()->second;
-            Future< std::pair<keyT,coeffT> > result(ref);
-            if (node.has_coeff()) {
-                //madness::print("sock found it with coeff",key);
-                result.set(std::pair<keyT,coeffT>(key,node.coeff()));
+        keyT curr = key;
+        while (coeffs.is_local(curr)) {
+            if (coeffs.probe(curr)) {
+                const nodeT& node = coeffs.find(curr).get()->second;
+                Future< std::pair<keyT,coeffT> > result(ref);
+                if (node.has_coeff()) {
+                    //madness::print("sock found it with coeff",curr);
+                    result.set(std::pair<keyT,coeffT>(curr,node.coeff()));
+                }
+                else {
+                    //madness::print("sock found it without coeff",curr);
+                    result.set(std::pair<keyT,coeffT>(curr,coeffT()));
+                }
+                return;
             }
-            else {
-                //madness::print("sock found it without coeff",key);
-                result.set(std::pair<keyT,coeffT>(key,coeffT()));
-            }
+            // Key::parent() of the root is the root, so without this a tree missing its root spins here
+            MADNESS_CHECK_THROW(curr.level() > 0, "sock_it_to_me: no ancestor of the key is in the tree");
+            curr = curr.parent();
         }
-        else {
-            keyT parent = key.parent();
-            //madness::print("sock forwarding to parent",key,parent);
-            //PROFILE_BLOCK(sitome_send); // Too fine grain for routine profiling
-	    if (coeffs.is_local(parent)) 
-	      woT::send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
-	    else
-	      woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
-        }
+        woT::task(coeffs.owner(curr), &FunctionImpl<T,NDIM>::sock_it_to_me, curr, ref, TaskAttributes::hipri());
     }
 
     // like sock_it_to_me, but it replaces empty node with averaged coeffs from further down the tree
@@ -3304,6 +3345,8 @@ template <typename T, std::size_t NDIM>
     template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::trace_local() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        MADNESS_CHECK_THROW(has_summable_coefficients(),
+            "trace_local() needs a tree that holds its coefficients once");
         std::vector<long> v0(NDIM,0);
         T sum = 0.0;
         if (is_compressed()) {
@@ -3316,9 +3359,13 @@ template <typename T, std::size_t NDIM>
             }
         }
         else {
+            // on a redundant or nonstandard-with-leaves tree the internal nodes
+            // repeat what the leaves already carry, cf. norm2sq_local()
+            const bool leaves_only = has_coefficients_on_leaves_only();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
+                if (leaves_only and node.has_children()) continue;
                 if (node.has_coeff()) sum += node.coeff().full_tensor()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
@@ -3453,12 +3500,21 @@ template <typename T, std::size_t NDIM>
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
+                const double snorm = node.coeff().normf();
+
                 if (not keepleaves) node.clear_coeff();
 
-                auto snorm=(keepleaves) ? node.coeff().normf() : 0.0;
+                // norm_tree is the norm of this subtree and the value the parent
+                // filters with, so it is the leaf norm either way -- reading it
+                // after clear_coeff() would propagate a zero up to the root.
                 node.set_norm_tree(snorm);
                 node.set_dnorm_tree(0.0);
-                node.set_snorm(snorm);
+                // snorm, in contrast, describes the coefficients this node still
+                // holds: zero when they were just cleared, matching
+                // FunctionNode::recompute_snorm_and_dnorm().  The invariant
+                // "snorm > 0 implies the node has coefficients" is what
+                // recur_down_for_contraction_map() screens on.
+                node.set_snorm(keepleaves ? snorm : 0.0);
                 node.set_dnorm(0.0);
 
                 return Future<compressT>(std::make_pair(result,std::make_pair(snorm,0.0)));
@@ -3762,6 +3818,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width = FunctionDefaults<NDIM>::make_default_cell_width();
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume = 1.;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width = 1.;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_geometric_mean_width = 1.;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
     template <std::size_t NDIM> int FunctionDefaults<NDIM>::pmap_nproc{-1};
 

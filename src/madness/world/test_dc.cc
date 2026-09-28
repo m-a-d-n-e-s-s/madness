@@ -315,6 +315,68 @@ void test_florian(World& world) {
     if (world.rank() == 0) print("test_florian passed");
 }
 
+/// Coalesced redistribute + WorldDCSingleOwnerPmap: everything onto one rank, onto
+/// another with cap_boxes=1 (chunk boundaries), back to the default pmap. Ownership,
+/// content and count checked after every move. Run at np >= 2 -- one rank makes every
+/// move a no-op.
+void test_coalesced_redistribute(World& world) {
+    const int nkeys = 1000;
+    auto checksum = [&world](WorldContainer<int,double>& c) {
+        double s = 0.0;
+        for (const auto& [k, v] : c) s += v;    // local entries only
+        world.gop.sum(s);
+        return s;
+    };
+    auto global_count = [&world](WorldContainer<int,double>& c) {
+        long n = long(c.size());
+        world.gop.sum(n);
+        return n;
+    };
+
+    WorldContainer<int,double> c(world);
+    if (world.rank() == 0)
+        for (int i=0; i<nkeys; ++i) c.replace(i, 2.0*i);
+    world.gop.fence();
+    const double sum0 = checksum(c);
+    MADNESS_CHECK(global_count(c) == nkeys);
+
+    // the two-barrier protocol: fence, phase1 (build move-list; quiescent), fence,
+    // phase2 (send bulk AMs), fence
+    auto move_to = [&](const std::shared_ptr<WorldDCPmapInterface<int>>& pmap, std::size_t cap_boxes) {
+        world.gop.fence();
+        c.redistribute_coalesced_phase1(pmap);
+        world.gop.fence();
+        c.redistribute_coalesced_phase2(cap_boxes);
+        world.gop.fence();
+    };
+
+    // 1) everything onto the last rank, chunked
+    const ProcessID last = world.size()-1;
+    move_to(std::make_shared<WorldDCSingleOwnerPmap<int>>(last), 7);
+    MADNESS_CHECK(c.get_pmap()->single_owner() == last);
+    MADNESS_CHECK(long(c.size()) == (world.rank()==last ? nkeys : 0));
+    if (world.rank() == last)
+        for (int i=0; i<nkeys; i+=97) MADNESS_CHECK(c.find(i).get()->second == 2.0*i);
+    MADNESS_CHECK(global_count(c) == nkeys);
+    MADNESS_CHECK(checksum(c) == sum0);
+
+    // 2) onto rank 0 with cap_boxes=1 (one AM per box; chunk-boundary edge case)
+    move_to(std::make_shared<WorldDCSingleOwnerPmap<int>>(0), 1);
+    MADNESS_CHECK(long(c.size()) == (world.rank()==0 ? nkeys : 0));
+    MADNESS_CHECK(checksum(c) == sum0);
+
+    // 3) back to a distributed default pmap; every key must be findable at its owner
+    move_to(std::make_shared<WorldDCDefaultPmap<int>>(world), 7);
+    MADNESS_CHECK(c.get_pmap()->single_owner() == -1);
+    MADNESS_CHECK(global_count(c) == nkeys);
+    MADNESS_CHECK(checksum(c) == sum0);
+    for (int i=world.rank(); i<nkeys; i+=13*world.size())
+        MADNESS_CHECK(c.find(i).get()->second == 2.0*i);
+
+    world.gop.fence();
+    if (world.rank() == 0) print("test_coalesced_redistribute passed");
+}
+
 int main(int argc, char** argv) {
 
     try {
@@ -325,6 +387,7 @@ int main(int argc, char** argv) {
         // test1(world);
         // test_local(world);
         test_florian(world);
+        test_coalesced_redistribute(world);
     }
     catch (const SafeMPI::Exception& e) {
         error("caught an MPI exception");

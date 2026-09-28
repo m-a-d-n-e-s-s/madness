@@ -69,9 +69,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
-		initialize<long>  ("hfex_batch_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
-		initialize<bool>  ("hfex_cost_aware_assign",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
-		initialize<int>   ("hfex_local_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
+		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<std::string>("bsh_apply","auto","BSH apply backend; auto=macrotask when multinode or at tight thresh, else tile",{"auto","tile","macrotask","plain"});
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
@@ -80,10 +81,13 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int>   ("k",-1,"polynomial order");
 		initialize<double>("l",20,"user coordinates box size");
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
-		initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
+		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");
+		initialize<std::vector<double> >("aocc",std::vector<double>(),"explicit alpha occupations (0 or 1) by orbital index within the occupied span; a 0 is a hole");
+		initialize<std::vector<double> >("bocc",std::vector<double>(),"explicit beta occupations (0 or 1) by orbital index within the occupied span; a 0 is a hole");
 		initialize<int>   ("nopen",0,"number of unpaired electrons = nalpha-nbeta");
 		initialize<int>   ("maxiter",25,"maximum number of iterations");
 		initialize<int>   ("nio",1,"no. of io servers to use");
@@ -93,7 +97,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool>  ("plotdens",false,"If true print the density at convergence");
 		initialize<bool>  ("plotcoul",false,"If true plot the total coulomb potential at convergence");
 		initialize<bool>  ("plotcube",false,"If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx");
-		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","canon"});
+		initialize<std::string> ("localize","new","localization method",{"pm","boys","new","new_sys","cholesky","canon"});
 		initialize<std::string> ("pointgroup","c1","use point (sub) group symmetry if not localized",{"c1","c2","ci","cs","c2v","c2h","d2","d2h"});
 		initialize<std::string>("restart","auto","where the initial orbitals come from: auto picks "
 				"between none/iterate/read_only by what is on disk",
@@ -116,7 +120,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
 		initialize<bool> ("psp_calc",false,"pseudopotential calculation for all atoms");
 		initialize<std::string> ("pcm_data","none","do a PCM (solvent) calculation");
-		initialize<std::string> ("ac_data","none","do a calculation with asymptotic correction (see ACParameters class in chem/AC.h for details)");
+		initialize<std::string> ("dispersion","none","DFT-D3 dispersion correction",{"none","d3bj","d3zero"});
+		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
+		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
@@ -147,7 +153,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("gmaxiter",20,"RETIRED -- use optimization group `maxiter`");
 		initialize<bool> ("ginitial_hessian",false,"RETIRED -- use optimization group `initial_hessian`");
 		initialize<std::string> ("algopt","bfgs","RETIRED -- use optimization group `algopt`",{"bfgs","cg"});
-		initialize<int> ("nv_factor",1,"factor to multiply number of virtual orbitals with when automatically decreasing nvirt");
+		initialize<int> ("nv_factor",1,"RETIRED -- use `nv_extra`/`nv_step`");
+		initialize<int> ("nv_extra",0,"extra virtuals converged first and dropped stepwise down to nvalpha");
+		initialize<int> ("nv_step",0,"virtuals dropped per step-down stage (0: all extras at once)");
+		initialize<int> ("nv_its",5,"maximum iterations per intermediate step-down stage");
+		initialize<bool> ("freeze_occupied",false,"iterate only the virtuals in the mean field of restarted occupied orbitals, which stay fixed");
 		initialize<int> ("vnucextra",2,"load balance parameter for nuclear pot");
 		initialize<int> ("loadbalparts",2,"??");
 
@@ -191,7 +201,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	int nvalpha() const {return get<int>("nvalpha");}
 	int nvbeta() const {return get<int>("nvbeta");}
-	int nv_factor() const {return get<int>("nv_factor");}
+	std::vector<double> aocc() const {return get<std::vector<double> >("aocc");}
+	std::vector<double> bocc() const {return get<std::vector<double> >("bocc");}
+	int nv_extra() const {return get<int>("nv_extra");}
+	int nv_step() const {return get<int>("nv_step");}
+	int nv_its() const {return get<int>("nv_its");}
+	bool freeze_occupied() const {return get<bool>("freeze_occupied");}
 
 	int nmo_alpha() const {return get<int>("nmo_alpha");}
 	int nmo_beta() const {return get<int>("nmo_beta");}
@@ -218,13 +233,17 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	std::string deriv() const {return get<std::string>("deriv");}
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
+	bool xc_weak_gga() const {return get<bool>("xc_weak_gga");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
-	std::string ac_data() const {return get<std::string>("ac_data");}
+	std::string dispersion() const {return get<std::string>("dispersion");}
+	std::string dispersion_functional() const {return get<std::string>("dispersion_functional");}
+	bool dispersion_atm() const {return get<bool>("dispersion_atm");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
-    long hfex_batch_granularity() const {return get<long>("hfex_batch_granularity");}
-    bool hfex_cost_aware_assign() const {return get<bool>("hfex_cost_aware_assign");}
-    int hfex_local_accumulation() const {return get<int>("hfex_local_accumulation");}
+    long hfex_granularity() const {return get<long>("hfex_granularity");}
+    bool hfex_cost_aware() const {return get<bool>("hfex_cost_aware");}
+    int hfex_accumulation() const {return get<int>("hfex_accumulation");}
+	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
@@ -309,6 +328,28 @@ struct CalculationParameters : public QCCalculationParametersBase {
         set_derived_value("nmo_alpha",nalpha() + nvalpha());
         set_derived_value("nmo_beta",nbeta() + nvbeta());
 
+        if (nv_extra() < 0 or nv_step() < 0 or nv_its() < 1) error("nv_extra, nv_step >= 0 and nv_its >= 1 required");
+        if (nv_extra() > 0 and nvalpha() == 0) error("nv_extra requires nvalpha > 0");
+        if (freeze_occupied() and nvalpha() == 0 and nvbeta() == 0) error("freeze_occupied requires nvalpha or nvbeta > 0");
+
+        // Explicit occupations address the occupied span. A hole there is only
+        // index-stable with canonical orbitals: every iteration re-sorts them by
+        // eigenvalue, so the empty index stays on the same orbital.
+        bool hole = false;
+        for (const auto& [name, n] : std::vector<std::pair<std::string, int>>{{"aocc", nalpha()}, {"bocc", nbeta()}}) {
+            const auto occ = get<std::vector<double> >(name);
+            if (int(occ.size()) > n) error((name + " has more entries than occupied orbitals").c_str(), occ.size());
+            for (const double o : occ) {
+                if (o != 0.0 and o != 1.0) error((name + " entries must be 0 or 1").c_str(), o);
+                if (o == 0.0) hole = true;
+            }
+        }
+        if (not bocc().empty() and spin_restricted()) error("bocc requires spin_restricted false");
+        if (hole) {
+            set_derived_value("localize", std::string("canon"));
+            if (do_localize()) error("a hole in the explicit occupations requires localize canon");
+        }
+
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
         // --> need 50 a.u. either side of the molecule
@@ -333,10 +374,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
         // and erroring rather than being deleted, because ignore_unknown_keys is
         // true by default and a deleted key would run the deck as a plain single
         // point after one warning nobody reads.
-        for (const std::string& key : {"gopt","gtol","gtest","gval","gprec",
+        for (const char* key : {"gopt","gtol","gtest","gval","gprec",
                                        "gmaxiter","ginitial_hessian","algopt"}) {
         	if (is_user_defined(key))
-        		error(("\n\n`" + key + "` has been retired: geometry optimization is now a task of "
+        		error(("\n\n`" + std::string(key) + "` has been retired: geometry optimization is now a task of "
         		       "its own.\nUse `madqc --optimize --wf=<scf|nemo>` and the `optimization` "
         		       "parameter group\n(see `madqc --print_parameters=optimization`).\n\n").c_str());
         }
@@ -349,13 +390,16 @@ struct CalculationParameters : public QCCalculationParametersBase {
         	error("\n\n`restartao` has been retired: use `restart ao` instead\n\n");
         if (is_user_defined("no_compute"))
         	error("\n\n`no_compute` has been retired: use `restart read_only` instead\n\n");
+        if (is_user_defined("nv_factor"))
+        	error("\n\n`nv_factor` has been retired: the virtual step-down is now `nv_extra`, "
+        	      "`nv_step` and `nv_its`\n\n");
 
-        //NWChem only supports Boys localization (or canonical)
-        if (nwfile() != "none") {
-             set_derived_value("localize",std::string("boys"));
-             //Error if user requested something other than Boys
-             if(localize_method() != "boys" and localize_method() != "canon") error("NWchem initialization only supports Boys localization");
-        }
+    	// dispersion correction
+    	if (dispersion()!="none" and xc()!="hf") {
+    		set_derived_value("dispersion_functional",xc());
+    	}
+
+
 	}
 };
 

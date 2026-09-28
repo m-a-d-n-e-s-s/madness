@@ -32,17 +32,17 @@
 */
 #include <madness/misc/misc.h>
 #include <sstream>
+#include <stdexcept>
 
 namespace madness {
 
     /// message thrown when a tag cannot be found
 
-    /// MadnessException keeps the message as a bare `const char*`, so it must
-    /// have static storage duration -- passing a local std::string's c_str()
-    /// leaves what() dangling. Callers that classify the exception by its
-    /// message prefix (QCCalculationParametersBase, to tell a missing data
-    /// group from a malformed one) rely on what() being readable, and the
-    /// caller knows the tag it asked for anyway.
+    /// Callers classify the exception by its message prefix
+    /// (QCCalculationParametersBase::is_missing_datagroup_exception, to tell a
+    /// missing data group from a malformed one), so this text is load-bearing --
+    /// keep it in sync with the prefix there. The tag itself is deliberately not
+    /// interpolated: the caller knows the tag it asked for anyway.
     static constexpr const char* not_found_msg = "position_stream: failed to locate the requested tag";
 
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind) {
@@ -52,7 +52,7 @@ namespace madness {
             std::string::size_type loc = s.find(tag, 0);
             if(loc != std::string::npos) return f;
         }
-        MADNESS_EXCEPTION(not_found_msg,0);
+        throw std::runtime_error(not_found_msg);
     }
 
     /// position the input stream to tag, which must be a word (not part of a word)
@@ -83,10 +83,10 @@ namespace madness {
         }
 
         if (silent) {
-            throw MadnessException(not_found_msg,0,0,__LINE__,__FUNCTION__,__FILE__);
+            throw std::runtime_error(not_found_msg);
         } else {
             printf("position_stream: failed to locate %s\n",tag.c_str());
-            MADNESS_EXCEPTION(not_found_msg,0);
+            throw std::runtime_error(not_found_msg);
         }
         return f;
     }

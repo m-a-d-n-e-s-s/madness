@@ -459,8 +459,7 @@ namespace madness {
 
 //            }
 
-            mod_ns_cache.set(cache_key,ConvolutionData1D<Q>(R,T,true));
-            return mod_ns_cache.getptr(cache_key);
+            return mod_ns_cache.set(cache_key,ConvolutionData1D<Q>(R,T,true));
         }
 
         /// Returns a pointer to the cached make_nonstandard form of the operator
@@ -524,9 +523,7 @@ namespace madness {
                 //print("NS", n, lx, R.normf(), T.normf());
             }
 
-            ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
-
-            return ns_cache.getptr(n,lx);
+            return ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
         };
 
         Q phase(double R) const {
@@ -572,9 +569,8 @@ namespace madness {
                 }
             }
 
-            rnlp_cache.set(n, lx, r);
             //print("   SET rnlp", n, lx, r);
-            return *rnlp_cache.getptr(n,lx);
+            return *rnlp_cache.set(n, lx, r);
         }
     };
 

@@ -7,7 +7,7 @@
 #include "../../../../mpfrc++-3/mpreal.h"
 
 static const double m = 1.0;
-static const double c = 137.0359895;
+static const double c = 137.03599917697017; // from CODATA 2022
 static const double mc2 = m*c*c;
 static const double PI = 3.14159265358979323846264338328;
 

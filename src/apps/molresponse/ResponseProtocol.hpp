@@ -5,8 +5,10 @@
 #include <madness/mra/operator.h>
 #include <madness/world/world.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -134,6 +136,44 @@ inline std::vector<double> build_protocol_ramp(double target_thresh,
         ramp.back() = target_thresh;
     }
     return ramp;
+}
+
+/// Protocol-start control for SEEDED response runs (`seed.start_rung` /
+/// --seed-start-rung). Shared by the standalone driver and the madqc deck
+/// adapter so the two surfaces can never disagree.
+///
+///   mode == "coarse" (default) — no-op: the full coarse->fine ladder runs,
+///     today's behavior unchanged.
+///   mode == "fine" AND have_seed — collapse the ladder to its FINEST rung.
+///     The caller then prepares the ground state and projects the seed at
+///     that rung's (k, thresh), and the manager schedules only that rung.
+///
+/// Rationale (W6 between-pole finding, note 2026-08-17): between poles the
+/// coarse rung (1e-4/k6) hits maxiter unconverged in every arm — cold or
+/// seeded — and launders away the seed's head start; by the time the fine
+/// rung starts, both arms inherit the same half-converged coarse state. A
+/// DALTON seed is already at the physics; refining it at the coarse rung
+/// first is a detour. This matches the validated ES warm-start semantics
+/// ("a near-converged seed lets the solve start directly at the production
+/// resolution and skip the coarse warmup rung entirely" —
+/// docs/guides/excited_states.md), applied to the FD ladder.
+///
+/// mode == "fine" WITHOUT a seed is a no-op (returns false); the caller
+/// warns. A COLD fine start needs no flag — it is just a single-rung
+/// protocol request. Any other mode string throws (deck typo = loud error).
+///
+/// Returns true iff the ladder was collapsed.
+inline bool apply_seed_start_rung(std::vector<double>& protocol,
+                                  const std::string& mode,
+                                  bool have_seed) {
+    if (mode.empty() || mode == "coarse") return false;
+    if (mode != "fine")
+        throw std::invalid_argument(
+            "seed start rung must be 'coarse' or 'fine', got '" + mode + "'");
+    if (!have_seed || protocol.size() <= 1) return false;
+    const double fine = *std::min_element(protocol.begin(), protocol.end());
+    protocol.assign(1, fine);
+    return true;
 }
 
 /// Parse a comma-separated protocol list, e.g. "1e-4,1e-6,1e-8".

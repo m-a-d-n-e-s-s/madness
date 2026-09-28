@@ -1,0 +1,12 @@
+{
+  "description": "PBE on LiH with the D3(BJ) dispersion correction; energy and single-point gradient",
+  "checks": [
+    {"key": ["tasks", 0, "scf", "scf_dispersion_correction_energy"], "tol": 1e-12},
+    {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
+    {"key": ["tasks", 0, "properties", "gradient", "vals", 2], "tol": 1e-4},
+    {"key": ["tasks", 0, "properties", "gradient", "vals", 5], "tol": 1e-4},
+    {"key": ["tasks", 0, "scf_eigenvalues_a", "vals", 0], "tol": 1e-3},
+    {"key": ["tasks", 0, "convergence_info", "converged_for_thresh"], "tol": 0},
+    {"key": ["tasks", 0, "model"], "tol": 0}
+  ]
+}

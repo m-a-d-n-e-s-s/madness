@@ -16,13 +16,10 @@ int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
-XCfunctional::XCfunctional() : hf_coeff(0.0) {
-    rhotol=1e-7; rhomin=1e-12; // default values
-}
-
 void XCfunctional::initialize(const std::string& input_line, bool polarized,
         World& world, bool verbose) {
-    rhotol=1e-7; rhomin=1e-12; // default values
+
+    reset_screening_defaults();
 
     spin_polarized = polarized;
 
@@ -61,6 +58,14 @@ bool XCfunctional::is_gga() const {
 }
 
 bool XCfunctional::is_meta() const {
+    return false;
+}
+
+bool XCfunctional::needs_sigma() const {
+    return false;
+}
+
+bool XCfunctional::needs_tau() const {
     return false;
 }
 
@@ -176,6 +181,7 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(const std::vector<
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                         madness::Tensor<double>& rho,
                         madness::Tensor<double>& sigma,
+                        madness::Tensor<double>& tau,
                         madness::Tensor<double>& rho_pt,
                         madness::Tensor<double>& sigma_pt,
                         std::vector<madness::Tensor<double> >& drho,

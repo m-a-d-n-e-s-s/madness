@@ -17,6 +17,8 @@ private:
     const madness::Molecule& molecule;
     const madness::AtomicBasisSet& aobasis;
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     MolecularGuessDensityFunctor(const madness::Molecule& molecule, const madness::AtomicBasisSet& aobasis)
             : molecule(molecule), aobasis(aobasis) {}
 
@@ -33,6 +35,8 @@ private:
     const madness::AtomicBasisFunction aofunc;
 
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     AtomicBasisFunctor(const madness::AtomicBasisFunction& aofunc)
             : aofunc(aofunc)
     {}
@@ -53,6 +57,8 @@ private:
     const int iatom;
 
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     AtomicAttractionFunctor(const madness::Molecule& molecule, int iatom)
             : molecule(molecule), iatom(iatom) {}
 
@@ -76,6 +82,8 @@ private:
     const int axis;
 
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     MolecularDerivativeFunctor(const madness::Molecule& molecule, int atom, int axis)
             : molecule(molecule), atom(atom), axis(axis)
     {}
@@ -96,6 +104,8 @@ private:
     const int iaxis, jaxis;
 
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     MolecularSecondDerivativeFunctor(const madness::Molecule& molecule, int atom,
                                      int iaxis, int jaxis)
             : molecule(molecule), atom(atom),iaxis(iaxis), jaxis(jaxis)
@@ -119,6 +129,8 @@ private:
     const int axis;
     std::vector<madness::coord_3d> specialpt;
 public:
+    using madness::FunctionFunctorInterface<double,3>::operator();
+
     CorePotentialDerivativeFunctor(const madness::Molecule& molecule, int atom, int axis)
             : molecule(molecule), atom(atom), axis(axis) {}
 
