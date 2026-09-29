@@ -42,7 +42,7 @@ jobs:
           - name: long
             args: -L "^long$" -LE qctest
           - name: qctest
-            args: -L qctest -LE "short|medium|verylong"
+            args: -L qctest -LE "short|medium|ultralong"
     env:
       CTEST_OUTPUT_ON_FAILURE: 1
       OMP_NUM_THREADS: 1
