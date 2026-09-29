@@ -45,6 +45,12 @@ RUN set -eux; \
     arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     if [ "$arch" = "amd64" ]; then \
       apt-get install -y --no-install-recommends libmkl-dev; \
+      find /usr/lib -name "libmkl_*.a" -delete; \
+      find /usr/lib -name "*mkl_*ilp64*.so*" -delete; \
+      find /usr/lib -name "*mkl_*thread*.so*" -delete; \
+      find /usr/lib -name "*mkl_blacs*.so*" -delete; \
+      find /usr/lib -name "*mkl_scalapack*.so*" -delete; \
+      find /usr/lib -name "*mkl_cdft*.so*" -delete; \
     elif [ "$arch" = "arm64" ]; then \
       . /etc/os-release; \
       curl -sL "https://developer.arm.com/packages/arm-toolchains/ubuntu/pool/arm-toolchains-repository_2-2~${VERSION_CODENAME}_all.deb" -o /tmp/arm-repo.deb; \
@@ -52,6 +58,13 @@ RUN set -eux; \
       rm -f /tmp/arm-repo.deb; \
       apt-get update; \
       apt-get install -y --no-install-recommends arm-performance-libraries; \
+      rm -rf /opt/arm/arm-performance-libraries/lib/*ilp64* \
+             /opt/arm/arm-performance-libraries/lib/*_mp* \
+             /opt/arm/arm-performance-libraries/lib/*int64* \
+             /opt/arm/arm-performance-libraries/examples_* \
+             /opt/arm/arm-performance-libraries/lib/*.a; \
+      echo "/opt/arm/arm-performance-libraries/lib" > /etc/ld.so.conf.d/armpl.conf; \
+      ldconfig; \
     else \
       apt-get install -y --no-install-recommends libopenblas-serial-dev liblapacke-dev; \
     fi; \
@@ -128,6 +141,9 @@ RUN set -eux; \
       strip /usr/local/bin/* || true; \
       strip -g /usr/local/lib/*.a || true; \
     fi; \
+    for comp in chem linalg misc mra muparser tensor tinyxml world; do \
+      ln -sfn libmadness.a /usr/local/lib/libMAD${comp}.a; \
+    done; \
     rm -rf /tmp/build
 
 # ==============================================================================
@@ -160,6 +176,12 @@ RUN set -eux; \
     arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     if [ "$arch" = "amd64" ]; then \
       apt-get install -y --no-install-recommends libmkl-dev; \
+      find /usr/lib -name "libmkl_*.a" -delete; \
+      find /usr/lib -name "*mkl_*ilp64*.so*" -delete; \
+      find /usr/lib -name "*mkl_*thread*.so*" -delete; \
+      find /usr/lib -name "*mkl_blacs*.so*" -delete; \
+      find /usr/lib -name "*mkl_scalapack*.so*" -delete; \
+      find /usr/lib -name "*mkl_cdft*.so*" -delete; \
     elif [ "$arch" = "arm64" ]; then \
       . /etc/os-release; \
       curl -sL "https://developer.arm.com/packages/arm-toolchains/ubuntu/pool/arm-toolchains-repository_2-2~${VERSION_CODENAME}_all.deb" -o /tmp/arm-repo.deb; \
@@ -167,6 +189,11 @@ RUN set -eux; \
       rm -f /tmp/arm-repo.deb; \
       apt-get update; \
       apt-get install -y --no-install-recommends arm-performance-libraries; \
+      rm -rf /opt/arm/arm-performance-libraries/lib/*ilp64* \
+             /opt/arm/arm-performance-libraries/lib/*_mp* \
+             /opt/arm/arm-performance-libraries/lib/*int64* \
+             /opt/arm/arm-performance-libraries/examples_* \
+             /opt/arm/arm-performance-libraries/lib/*.a; \
       echo "/opt/arm/arm-performance-libraries/lib" > /etc/ld.so.conf.d/armpl.conf; \
       ldconfig; \
     else \
