@@ -12,7 +12,7 @@
 # Usage
 #   add_qctest(scf_h2o_hf madqc "qctest;short")
 #
-# _labels must contain `qctest` plus a cost tier (short|medium|long|verylong).
+# _labels must contain `qctest` plus a cost tier (short|medium|long|verylong|ultralong).
 # short/medium cases are picked up by check-short-madness for free, since that
 # target is `ctest -L "short|medium"`.
 #
@@ -50,11 +50,13 @@ macro(add_qctest _case _binary _labels)
       SKIP_RETURN_CODE 77)
 
   # Cost tier -> timeout. Tiers are budgets on measured wall time (short < 10 s,
-  # medium < 30 s, long < 2 min, verylong beyond); the timeout is a hang detector,
+  # medium < 30 s, long < 2 min, verylong < 15 min; ultralong beyond); the timeout is a hang detector,
   # so it sits roughly an order of magnitude above the tier ceiling to absorb slow
   # or loaded machines without turning a slow run into a spurious failure.
   # Anything not tagged gets the ctest default.
-  if ("${_labels}" MATCHES "verylong")
+  if ("${_labels}" MATCHES "ultralong")
+    set_tests_properties(madness/test/qc/${_case}/run PROPERTIES TIMEOUT 18000)
+  elseif ("${_labels}" MATCHES "verylong")
     set_tests_properties(madness/test/qc/${_case}/run PROPERTIES TIMEOUT 7200)
   elseif ("${_labels}" MATCHES "long")
     set_tests_properties(madness/test/qc/${_case}/run PROPERTIES TIMEOUT 1200)
