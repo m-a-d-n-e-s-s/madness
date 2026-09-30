@@ -352,6 +352,18 @@ namespace madness {
             return snorm;
         }
 
+        /// Multiply the stored norms by a, for coefficients scaled by some q with |q| = a
+
+        /// The tree state survives scaling, and mul_sparse screens on these norms
+        /// without recomputing them. Norms that were never computed stay marked as such.
+        /// A negative norm_tree is a marker left by broaden and refine_op, not a norm.
+        void scale_norms(const double a) {
+            if (_norm_tree >= 0.0 && _norm_tree < NORM_TREE_UNCOMPUTED) _norm_tree *= a;
+            if (_dnorm_tree < NORM_TREE_UNCOMPUTED) _dnorm_tree *= a;
+            if (snorm >= 0.0) snorm *= a;
+            if (dnorm >= 0.0) dnorm *= a;
+        }
+
         void recompute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) {
             snorm = 0.0;
             dnorm = 0.0;
@@ -7464,12 +7476,14 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const fnodeT& node = it->second;
 
-                if (node.has_coeff()) {
-                    coeffs.replace(key,nodeT(node.coeff()*q,node.has_children()));
-                }
-                else {
-                    coeffs.replace(key,nodeT(coeffT(),node.has_children()));
-                }
+                coeffT c = node.has_coeff() ? coeffT(node.coeff()*q) : coeffT();
+
+                // the result inherits f's tree state, so it has to inherit the norms that
+                // state promises too
+                nodeT scaled(c, node.get_norm_tree(), node.get_dnorm_tree(),
+                             node.get_snorm(), node.get_dnorm(), node.has_children());
+                scaled.scale_norms(std::abs(q));
+                coeffs.replace(key,scaled);
             }
             if (fence)
                 world.gop.fence();
