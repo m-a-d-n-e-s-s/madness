@@ -297,39 +297,52 @@ void SCF::copy_data(World& world, const SCF& other) {
 
 void SCF::save_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
-    auto archivename=param.prefix()+".restartdata";
-    archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, archivename.c_str(), param.get<int>("nio"));
+    const std::string archivename=param.prefix()+".restartdata";
+    const std::string tmpname=archivename+".tmp";
 
-    // The header layout lives in RestartMetadata (chem/Restart.h) -- do not
-    // open-code it here. Adding a field there is enough; this call and
-    // load_mos() below both follow.
-    RestartMetadata meta;
-    meta.current_energy = current_energy;
-    meta.spin_restricted = param.spin_restricted();
-    meta.L = param.L();
-    meta.k = FunctionDefaults<3>::get_k();
-    meta.molecule = molecule;
-    meta.xc = param.xc();
-    meta.localize = param.localize_method();
-    meta.converged_for_thresh = converged_for_thresh;
-    meta.converged_for_dconv = converged_for_dconv;
-    meta.representation = restart_representation;
-    meta.ncf = restart_ncf;
-    meta.eprec = molecule.parameters.eprec();
-    meta.madness_version = MADNESS_PACKAGE_VERSION;
-    meta.write(ar);
+    // every write is a new archive: anything derived from the previous orbitals
+    // (results files, response states, fock.json) must stop matching it
+    archive_id = new_archive_id(world);
 
-    ar & (unsigned int) (amo.size());
-    ar & aeps & aocc & aset;
-    for (unsigned int i = 0; i < amo.size(); ++i) ar & amo[i];
-    if (!param.spin_restricted()) {
-        ar & (unsigned int) (bmo.size());
-        ar & beps & bocc & bset;
-        for (unsigned int i = 0; i < bmo.size(); ++i) ar & bmo[i];
+    {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, tmpname.c_str(), param.get<int>("nio"));
+
+        // The header layout lives in RestartMetadata (chem/Restart.h) -- do not
+        // open-code it here. Adding a field there is enough; this call and
+        // load_mos() below both follow.
+        RestartMetadata meta;
+        meta.current_energy = current_energy;
+        meta.spin_restricted = param.spin_restricted();
+        meta.L = param.L();
+        meta.k = FunctionDefaults<3>::get_k();
+        meta.molecule = molecule;
+        meta.set_hamiltonian_key(hamiltonian_key());
+        meta.localize = param.localize_method();
+        meta.converged_for_thresh = converged_for_thresh;
+        meta.converged_for_dconv = converged_for_dconv;
+        meta.representation = restart_representation;
+        meta.madness_version = MADNESS_PACKAGE_VERSION;
+        meta.archive_id = archive_id;
+        meta.origin = (restart_representation == Representation::mo) ? "scf" : "nemo";
+        meta.nalpha = param.nalpha();
+        meta.nbeta = param.nbeta();
+        meta.nmo_beta = param.spin_restricted() ? int(amo.size()) : int(bmo.size());
+        meta.write(ar);
+
+        ar & (unsigned int) (amo.size());
+        ar & aeps & aocc & aset;
+        for (unsigned int i = 0; i < amo.size(); ++i) ar & amo[i];
+        if (!param.spin_restricted()) {
+            ar & (unsigned int) (bmo.size());
+            ar & beps & bocc & bset;
+            for (unsigned int i = 0; i < bmo.size(); ++i) ar & bmo[i];
+        }
     }
+    commit_parallel_archive(world, tmpname, archivename);
 
     // Do not make a restartaodata file if nwchem orbitals used,
-    // as no aoamo/aobmo overlap matrix can be computed
+    // as no aoamo/aobmo overlap matrix can be computed. A file left over from an
+    // earlier run then carries an older archive_id, and the planner ignores it.
     if (param.nwfile() == "none") {
         tensorT Saoamo = matrix_inner(world, ao, amo);
         // no beta orbitals (nbeta == 0): matrix_inner refuses an empty vector, and load_mos expects ao.size() x 0
@@ -337,9 +350,19 @@ void SCF::save_mos(World& world) {
                        : bmo.empty()             ? tensorT(long(ao.size()), 0l)
                                                  : matrix_inner(world, ao, bmo);
         if (world.rank() == 0) {
-            archive::BinaryFstreamOutputArchive arao(param.prefix()+".restartaodata");
-            arao << Saoamo << aeps << aocc << aset;
-            if (!param.spin_restricted()) arao << Saobmo << beps << bocc << bset;
+            const std::string aoname = param.prefix()+".restartaodata";
+            {
+                archive::BinaryFstreamOutputArchive arao((aoname+".tmp").c_str());
+                RestartAOHeader header;
+                header.archive_id = archive_id;
+                header.molecule = molecule;
+                header.write(arao);
+                arao << Saoamo << aeps << aocc << aset;
+                if (!param.spin_restricted()) arao << Saobmo << beps << bocc << bset;
+            }
+            std::error_code ec;
+            std::filesystem::rename(aoname+".tmp", aoname, ec);
+            if (ec) print("WARNING: could not write", aoname, "--", ec.message());
         }
     }
 }
@@ -361,6 +384,7 @@ void SCF::load_mos(World& world, const bool allow_fewer) {
     // come back as "unknown"/1e10 rather than as a claim the archive never made.
     RestartMetadata meta;
     meta.read(ar);
+    archive_id = meta.archive_id;
 
     // NOTE: xc and localize are deliberately NOT copied back into param. The old
     // code appeared to do so with `ar & param.xc()`, but those getters return by
@@ -805,7 +829,11 @@ bool SCF::restart_aos(World& world) {
     bool OK = true;
     if (world.rank() == 0) {
         try {
-            archive::BinaryFstreamInputArchive arao(param.prefix()+".restartaodata");
+            const std::string aoname = param.prefix()+".restartaodata";
+            archive::BinaryFstreamInputArchive arao(aoname.c_str());
+            // the restart planner has already checked the header against the
+            // request; here it only has to be stepped over
+            if (RestartAOHeader::present(aoname)) RestartAOHeader().read(arao);
             arao >> Saoamo >> aeps >> aocc >> aset;
             if (Saoamo.dim(0) != int(ao.size()) || Saoamo.dim(1) != param.nmo_alpha()) {
                 print(" AO alpha restart data size mismatch --- starting from atomic guess instead", Saoamo.dim(0),

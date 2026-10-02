@@ -2,27 +2,27 @@
 """End-to-end restart / checkpoint-robustness test for the madqc SCF driver.
 
 Three ways a rerun in a directory that already holds results can go wrong, all
-decided in SCFApplication::run (chem/Applications.hpp) BEFORE the engine is
-built -- so none of them is reachable from a single-shot test:
+decided in SCFApplication::run (chem/Applications.hpp) from what is on disk --
+so none of them is reachable from a single-shot test:
 
   * restart honored -- a coarse converged run leaves an orbital archive and a
-    checkpoint; a rerun at a FINER protocol must reload those MOs
-    (valid() -> Restart) rather than start over from an atomic guess.
+    results file; a rerun at a FINER protocol must reload those MOs rather than
+    start over from an atomic guess.
 
-  * a changed Hamiltonian must NOT be answered out of the checkpoint. valid()
-    weighs thresholds, requested properties and the archive, every one of which
-    a changed `xc` leaves intact, so the cached results pass all of it. Without
-    the guard, `xc=lda` in a directory holding a converged `xc=hf` run reported
+  * a changed Hamiltonian must NOT be answered out of the results file. Without
+    the check, `xc=lda` in a directory holding a converged `xc=hf` run reported
     the HF energy as the LDA answer and never constructed an SCF. This is the
     one case where being wrong is silent, which is why the assertion here is on
     the energy and not just on an exit code.
 
-  * a truncated/corrupt checkpoint must degrade to Redo, not throw past the
-    recovery catch and brick the restart.
+  * a truncated/corrupt results file must degrade to a recompute, not throw
+    and brick the restart.
+
+test_madqc_restart_bookkeeping.py covers the cases of issue #822.
 
 NB on paths -- getting these wrong is why this test sat disabled and unrun:
-madqc executes each task in <prefix>/task_<n>/<engine>/, so the checkpoint
-SCFApplication reads back is <prefix>/task_0/moldft/moldft.calc_info.json and
+madqc executes each task in <prefix>/task_<n>/<engine>/, so the results file
+SCFApplication reads back is <prefix>/task_0/moldft/moldft.results.json and
 the orbital archive is <prefix>/task_0/moldft/<prefix>.restartdata.00000.
 The <prefix>.calc_info.json sitting in the cwd is the aggregated report, which
 nothing ever reads back -- truncating that one tests nothing.
@@ -64,10 +64,10 @@ def find_one(*parts):
 
 
 def energy_from(ckpt):
-    """The SCF energy recorded in a task checkpoint, or None."""
+    """The SCF energy recorded in a task results file, or None."""
     try:
         with open(ckpt) as fh:
-            return json.load(fh)["properties"]["energy"]
+            return json.load(fh)["results"]["properties"]["energy"]
     except Exception as e:                      # noqa: BLE001
         print("could not read an energy from", ckpt, ":", e)
         return None
@@ -101,14 +101,14 @@ if __name__ == "__main__":
     ok &= check(archive is not None, "run 1 wrote an orbital archive")
     print("   archive:", archive)
 
-    ckpt = find_one(prefix, "**", "moldft.calc_info.json")
-    ok &= check(ckpt is not None, "run 1 wrote a task checkpoint")
-    print("   checkpoint:", ckpt)
+    ckpt = find_one(prefix, "**", "moldft.results.json")
+    ok &= check(ckpt is not None, "run 1 wrote a task results file")
+    print("   results file:", ckpt)
     if not ok:
         print("final success: ", False)
         sys.exit(1)
 
-    # --- Run 2: finer protocol -> valid() returns Restart -------------------
+    # --- Run 2: finer protocol -> iterate from the archive -------------------
     rc, out = run(binary + mol + fine)
     ok &= check(rc == 0, "run 2 (finer) exits cleanly")
     ok &= check("from restartdata" in out,
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     rc, out = run(binary + mol + fine_lda)
     ok &= check(rc == 0, "run 3 (xc=lda) exits cleanly")
     ok &= check("different Hamiltonian" in out,
-                "run 3 refused the checkpoint written for another functional")
+                "run 3 refused the results written for another functional")
     e_lda = energy_from(ckpt)
     ok &= check(e_lda is not None, "run 3 recorded an energy")
     print("   lda energy:", e_lda)
@@ -133,7 +133,7 @@ if __name__ == "__main__":
                     "run 3 returned the LDA energy, not the cached HF one "
                     "(delta %.3e Ha)" % abs(e_lda - e_hf))
 
-    # --- Run 4: corrupt checkpoint must degrade to Redo, not crash ----------
+    # --- Run 4: a corrupt results file must degrade to a recompute ----------
     with open(ckpt, "r+") as fh:
         data = fh.read()
         fh.seek(0)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         fh.truncate()
     print("truncated", ckpt, "to simulate a process killed mid-write")
     rc, _ = run(binary + mol + fine_lda)
-    ok &= check(rc == 0, "run 4 recovered from a corrupt checkpoint")
+    ok &= check(rc == 0, "run 4 recovered from a corrupt results file")
 
     print("final success: ", bool(ok))
     sys.exit(0 if ok else 1)

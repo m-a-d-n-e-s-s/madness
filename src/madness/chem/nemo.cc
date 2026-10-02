@@ -241,7 +241,7 @@ double Nemo::value(const Tensor<double> &x) {
   RestartPlan plan = make_restart_plan(
       world, restart_mode_from_string(get_calc_param().restart()), get_calc_param(),
       calc->molecule, calc->restart_representation,
-      RestartCapabilities::restartdata_only(), calc->restart_ncf);
+      RestartCapabilities::restartdata_only(), calc->hamiltonian_key());
 
   // Set the basis of the rung we are about to work at BEFORE reading, so
   // load_mos reprojects straight into it.

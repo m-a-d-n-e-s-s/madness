@@ -35,10 +35,16 @@
 #ifndef MADNESS_CHEM_RESTART_H__INCLUDED
 #define MADNESS_CHEM_RESTART_H__INCLUDED
 
+#include <madness/chem/HamiltonianKey.h>
 #include <madness/chem/molecule.h>
 #include <madness/mra/mra.h>
 
+#include <cstdint>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
+#include <random>
 #include <optional>
 #include <string>
 
@@ -70,6 +76,44 @@ inline std::string to_string(const Representation r) {
     }
 }
 
+/// identity of one restartdata archive: a random 64-bit number, new on every write
+///
+/// Everything that is derived from a set of orbitals -- madqc's results file, the
+/// optimizer's results, response states, the Fock matrices in `<prefix>.fock.json`,
+/// the AO projections next to the archive -- records the id it was computed from,
+/// and is reused only while the archive on disk still carries that id. 0 means
+/// "none recorded": a v4/v5 archive, or a file written before the id existed.
+using ArchiveId = std::uint64_t;
+
+/// draw a fresh, nonzero archive id on rank 0 and broadcast it (collective)
+inline ArchiveId new_archive_id(World& world) {
+    ArchiveId id = 0;
+    if (world.rank() == 0) {
+        std::random_device rd;
+        while (id == 0) id = (ArchiveId(rd()) << 32) ^ ArchiveId(rd());
+    }
+    world.gop.broadcast(id, 0);
+    return id;
+}
+
+/// an archive id as 16 hex digits, the spelling used in json files
+inline std::string archive_id_to_string(const ArchiveId id) {
+    char buf[17];
+    std::snprintf(buf, sizeof buf, "%016llx", static_cast<unsigned long long>(id));
+    return buf;
+}
+
+/// parse archive_id_to_string's spelling; anything unparsable reads as 0 (none)
+inline ArchiveId archive_id_from_string(const std::string& s) {
+    try {
+        std::size_t pos = 0;
+        const unsigned long long v = std::stoull(s, &pos, 16);
+        return (pos == s.size()) ? ArchiveId(v) : 0;
+    } catch (...) {
+        return 0;
+    }
+}
+
 /// map a stored int back to a Representation, tolerating values we do not know
 inline Representation representation_from_int(const int i) {
     switch (i) {
@@ -94,8 +138,8 @@ inline Representation representation_from_int(const int i) {
 ///
 /// ## Versioning
 ///
-/// Version 5 appends to version 4 rather than reordering it, so the v4 layout is
-/// a strict prefix of v5. read() therefore dispatches on the stored version and
+/// Each version appends to the previous one rather than reordering it, so the v4
+/// layout is a strict prefix of v5, and v5 of v6. read() therefore dispatches on the stored version and
 /// reads the tail only when it is there; v4 archives written by any earlier
 /// MADNESS remain loadable, and the fields they lack take the defaults below.
 /// write() always emits the current version.
@@ -104,7 +148,7 @@ inline Representation representation_from_int(const int i) {
 /// that means "unknown" so a v4 archive stays meaningful. Do NOT reorder.
 struct RestartMetadata {
 
-    static constexpr unsigned int CURRENT_VERSION = 5;
+    static constexpr unsigned int CURRENT_VERSION = 6;
 
     /// version of the archive this was read from, or CURRENT_VERSION for a fresh one
     unsigned int version = CURRENT_VERSION;
@@ -141,6 +185,26 @@ struct RestartMetadata {
     /// MADNESS version that wrote the archive, for provenance in bug reports
     std::string madness_version;
 
+    // --- appended in version 6 --------------------------------------------
+
+    /// this archive's identity; 0 for an archive written before v6. See ArchiveId.
+    ArchiveId archive_id = 0;
+
+    /// who wrote the orbitals: "scf", "nemo", "dalton-seed", "mo-tool"; empty if unknown
+    std::string origin;
+
+    /// electrons per spin and beta orbitals stored, -1 when not recorded. The
+    /// alpha orbital count sits right after the header (RestartSummary).
+    int nalpha = -1;
+    int nbeta = -1;
+    int nmo_beta = -1;
+
+    /// the HamiltonianKey fields v5 did not record; unrecorded values as there
+    std::vector<double> field;
+    std::string core_type;
+    int psp_calc = -1;
+    std::string pcm;
+
     // NB: no truncate_mode, k-per-function, thresh-per-function or tree_state
     // here. FunctionImpl::store/load already serialize those with every orbital
     // (mra/funcimpl.h), so the loaded functions carry them -- which is how
@@ -159,17 +223,20 @@ struct RestartMetadata {
         // on Representation about never renumbering.
         const int rep = static_cast<int>(representation);
         ar & converged_for_dconv & rep & ncf & eprec & madness_version;
+        // version 6 tail
+        ar & archive_id & origin & nalpha & nbeta & nmo_beta;
+        ar & field & core_type & psp_calc & pcm;
     }
 
     /// read the header from the current archive position
     ///
-    /// Accepts version 4 and 5. Throws on anything else, since the field order
+    /// Accepts versions 4 to 6. Throws on anything else, since the field order
     /// would be unknown and the archive position left wrong for the orbitals.
     template <typename Archive>
     void read(Archive& ar) {
         ar & version;
-        MADNESS_CHECK_THROW(version == 4 or version == 5,
-                "unsupported restartdata version: only 4 and 5 can be read");
+        MADNESS_CHECK_THROW(version >= 4 and version <= 6,
+                "unsupported restartdata version: only 4 to 6 can be read");
 
         ar & current_energy & spin_restricted;
         ar & L & k & molecule & xc & localize & converged_for_thresh;
@@ -179,7 +246,35 @@ struct RestartMetadata {
             ar & converged_for_dconv & rep & ncf & eprec & madness_version;
             representation = representation_from_int(rep);
         }
-        // else: the v5 members keep their defaults, which all read as "unknown"
+        if (version >= 6) {
+            ar & archive_id & origin & nalpha & nbeta & nmo_beta;
+            ar & field & core_type & psp_calc & pcm;
+        }
+        // members a version does not have keep their defaults, which read as "unknown"
+    }
+
+    /// the Hamiltonian these orbitals solve, as far as this header records it
+    HamiltonianKey hamiltonian_key() const {
+        HamiltonianKey k;
+        k.xc = xc;
+        k.eprec = eprec;
+        k.ncf = ncf;
+        k.field = field;
+        k.core_type = core_type;
+        k.psp_calc = psp_calc;
+        k.pcm = pcm;
+        return k;
+    }
+
+    /// record \p key; xc, eprec and ncf go to the fields v4/v5 already had
+    void set_hamiltonian_key(const HamiltonianKey& key) {
+        xc = key.xc;
+        eprec = key.eprec;
+        ncf = key.ncf;
+        field = key.field;
+        core_type = key.core_type;
+        psp_calc = key.psp_calc;
+        pcm = key.pcm;
     }
 
     /// true if these orbitals are at least as converged as the request
@@ -205,6 +300,7 @@ struct RestartMetadata {
            << "  converged to thresh " << converged_for_thresh
            << " dconv " << converged_for_dconv
            << "  energy " << current_energy;
+        if (archive_id != 0) ss << "  id " << archive_id_to_string(archive_id);
         return ss.str();
     }
 };
@@ -299,6 +395,107 @@ inline bool restartdata_exists(const std::string& filename) {
     return std::filesystem::exists(filename + ".00000");
 }
 
+/// the header of a `<prefix>.restartaodata` file
+///
+/// The AO projections <AO|psi> are written next to the restartdata by the same
+/// SCF::save_mos, and are what a restart at a displaced geometry starts from. The
+/// header ties them to that archive (the same archive_id) and to the atoms they
+/// are indexed by. Files written before it have no header and start directly with
+/// the alpha overlap Tensor; present() tells the two apart without a failing read.
+struct RestartAOHeader {
+    static constexpr std::uint64_t MAGIC = 0x4f41545241444d4dULL;   // arbitrary; never a Tensor
+    static constexpr unsigned int CURRENT_VERSION = 1;
+
+    unsigned int version = CURRENT_VERSION;
+    ArchiveId archive_id = 0;
+    Molecule molecule;
+
+    template <typename Archive>
+    void write(Archive& ar) const {
+        const std::uint64_t magic = MAGIC;
+        const unsigned int v = CURRENT_VERSION;
+        ar & magic & v & archive_id & molecule;
+    }
+
+    template <typename Archive>
+    void read(Archive& ar) {
+        std::uint64_t magic = 0;
+        ar & magic;
+        MADNESS_CHECK_THROW(magic == MAGIC, "restartaodata: not a restartaodata header");
+        ar & version;
+        MADNESS_CHECK_THROW(version == 1, "restartaodata: unsupported header version");
+        ar & archive_id & molecule;
+    }
+
+    /// in-memory serialization, for broadcasting a peeked header
+    template <typename Archive>
+    void serialize(Archive& ar) { ar & version & archive_id & molecule; }
+
+    /// true if \p filename starts with this header rather than with a bare Tensor
+    ///
+    /// A BinaryFstream archive is its cookie ("archive" + NUL) followed by the
+    /// items, each preceded by a one-byte type tag; the header's first item is a
+    /// uint64_t, the legacy layout's a Tensor.
+    static bool present(const std::string& filename) {
+        std::ifstream f(filename, std::ios::binary);
+        char b[9];
+        if (not f.read(b, sizeof b)) return false;
+        return static_cast<unsigned char>(b[8]) ==
+               archive::archive_typeinfo<std::uint64_t>::cookie;
+    }
+
+    /// the header of \p filename, or nullopt if it has none or cannot be read
+    static std::optional<RestartAOHeader> peek(const std::string& filename) {
+        if (not present(filename)) return std::nullopt;
+        try {
+            archive::BinaryFstreamInputArchive ar(filename.c_str());
+            RestartAOHeader h;
+            h.read(ar);
+            return h;
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+};
+
+/// make the parallel archive written as \p tmp the one called \p name (collective)
+///
+/// A parallel archive is one file per I/O rank, `<name>.00000` onwards, and the
+/// header lives in part 0. Writing under a temporary name and renaming afterwards
+/// means a crash or a full disk mid-write leaves the previous archive intact
+/// instead of a header that claims orbitals which were never finished. The rename
+/// of part 0 is the commit point: with more than one part the old part 0 is
+/// removed first, so an interruption between the renames leaves no archive
+/// (a recompute) rather than a mixture of two. Parts a previous, wider write left
+/// behind are removed too. Every rank throws if the commit failed.
+inline void commit_parallel_archive(World& world, const std::string& tmp,
+                                    const std::string& name) {
+    world.gop.fence();   // every I/O rank has closed its part
+    int ok = 1;
+    if (world.rank() == 0) {
+        auto part = [](const std::string& base, const int p) {
+            char buf[16];
+            std::snprintf(buf, sizeof buf, ".%5.5d", p);
+            return base + buf;
+        };
+        std::error_code ec;
+        int nparts = 0;
+        while (std::filesystem::exists(part(tmp, nparts))) ++nparts;
+        if (nparts == 0) ok = 0;
+        if (ok and nparts > 1) std::filesystem::remove(part(name, 0), ec);
+        for (int p = nparts - 1; ok and p >= 0; --p) {
+            std::filesystem::rename(part(tmp, p), part(name, p), ec);
+            if (ec) ok = 0;
+        }
+        for (int p = nparts; ok and std::filesystem::exists(part(name, p)); ++p)
+            std::filesystem::remove(part(name, p), ec);
+    }
+    world.gop.broadcast(ok, 0);
+    // print before throwing: MadnessException keeps the char* it is handed
+    if (ok != 1 and world.rank() == 0) print("ERROR: could not commit the archive", name);
+    MADNESS_CHECK_THROW(ok == 1, "could not commit a restart archive");
+}
+
 /// print everything a restartdata archive can say about itself, and nothing more
 ///
 /// This is what answers "why did/didn't my restart fire?" without starting a
@@ -325,7 +522,7 @@ inline bool print_restartdata_info(World& world, const std::string& prefix) {
         if (world.rank() == 0) {
             print(archive + ".00000", "exists but could not be read.");
             print("It is truncated, or was written by a newer MADNESS than this one");
-            print("(this build reads restartdata versions 4 and", RestartMetadata::CURRENT_VERSION, ").");
+            print("(this build reads restartdata versions 4 to", RestartMetadata::CURRENT_VERSION, ").");
         }
         return false;
     }
@@ -342,6 +539,8 @@ inline bool print_restartdata_info(World& world, const std::string& prefix) {
     print("");
     print("restart data in", archive + ".00000");
     print("  format version      ", m.version);
+    print("  archive id          ", m.archive_id ? archive_id_to_string(m.archive_id) : "not recorded");
+    if (not m.origin.empty()) print("  written by          ", m.origin);
     print("  written by MADNESS  ", m.madness_version.empty() ? "not recorded" : m.madness_version);
     print("  representation      ", madness::to_string(m.representation),
           m.representation == Representation::mo    ? "(moldft orbitals psi)" :
@@ -365,6 +564,7 @@ inline bool print_restartdata_info(World& world, const std::string& prefix) {
     print("  converged to dconv  ", or_unset(m.converged_for_dconv));
     print("  xc / localize       ", m.xc, "/", m.localize);
     print("  alpha orbitals      ", summary.value().nmo_alpha);
+    if (m.nalpha >= 0) print("  electrons a / b     ", m.nalpha, "/", m.nbeta);
     if (summary.value().aeps.size() > 0)
         print("  alpha eigenvalues   ", summary.value().aeps);
     if (summary.value().aocc.size() > 0)

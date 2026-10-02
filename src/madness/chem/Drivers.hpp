@@ -16,6 +16,7 @@
 
 #include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
 #include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
+#include <madness/world/timers.h>
 
 namespace qcapp {
 
@@ -60,12 +61,19 @@ class SinglePointDriver : public Driver {
                madness::StepContext& ctx) override {
     // Create workdir for this application
     std::filesystem::create_directories(workdir);
-
     // Read upstream artifacts (no-op unless the app overrides), run, then
     // publish this step's artifacts for downstream steps.
     app_->consume_context(ctx);
+    const double t0 = madness::wall_time();
     app_->run(workdir);
     result_ = app_->results();
+    // Task-entry envelope. CC2 returns an ARRAY of task entries;
+    // only object-shaped summaries get the per-task stamp here.
+    if (result_.is_object()) {
+      result_["provenance"]["wall_s"] = madness::wall_time() - t0;
+      if (!result_.contains("type"))
+        result_["type"] = result_.value("model", std::string("unknown"));
+    }
     app_->publish_to_context(ctx);
   }
 
@@ -222,9 +230,13 @@ private:
  * GeometryTarget), and owning sub-runs is a Driver's job. The same seam serves
  * roadmap changes 3 and 4.
  *
- * Not restartable as a step: the optimizer keeps no checkpoint of its own (hessian
- * and step history), so an interrupted optimization restarts from the input
- * geometry. The SCF underneath still restarts per geometry as usual.
+ * A finished optimization is recorded in `optimize.results.json`, next to the
+ * archive, with the archive_id the final geometry's orbitals were saved under. A
+ * rerun from the same starting geometry with the same optimizer settings whose
+ * archive still carries that id -- and which the restart planner accepts at the
+ * final geometry without iterating -- is finished, and only the final energy and
+ * gradient are re-evaluated. An interrupted optimization still restarts from the
+ * input geometry: the hessian and step history are not persisted.
  */
 template <typename Library> class OptimizeDriver : public Driver {
 public:
@@ -370,11 +382,29 @@ public:
                           (world_.rank() == 0) ? molopt_print : 0,
                           op.get_algopt());
 
+      std::shared_ptr<madness::SCF> scf;
+      if constexpr (std::is_same_v<Calc, madness::SCF>)
+        scf = engine;
+      else
+        scf = engine->get_calc();
+      const madness::Molecule start = scf->molecule;
+      const nlohmann::json key = {
+          {"results_schema", 1},
+          {"optimizer",
+           {{"maxiter", op.get_maxiter()}, {"maxstep", op.get_maxstep()},
+            {"etol", op.get_etol()}, {"gtol", op.get_gtol()}, {"xtol", op.get_xtol()},
+            {"value_precision", op.get_value_precision()},
+            {"gradient_precision", op.get_gradient_precision()},
+            {"algopt", op.get_algopt()}}}};
+      const std::string results_file = "optimize.results.json";
+
       madness::OptimizationResults opt_res;
-      if constexpr (std::is_same_v<Calc, madness::SCF>) {
-        opt_res = opt.optimize_app(engine->molecule, target);
-      } else {
-        opt_res = opt.optimize_app(engine->molecule(), target);
+      if (not finished_before(results_file, key, *scf, start, opt_res)) {
+        if constexpr (std::is_same_v<Calc, madness::SCF>) {
+          opt_res = opt.optimize_app(engine->molecule, target);
+        } else {
+          opt_res = opt.optimize_app(engine->molecule(), target);
+        }
       }
 
       // Leave the engine AT the optimized geometry and pick up the final energy and
@@ -394,6 +424,33 @@ public:
       summary_["properties"] = prop_res.to_json();
       summary_["metadata"] = {{"mpi_size", world_.size()},
                               {"method", Library::label()}};
+
+      // the archive now holds the final geometry's orbitals, saved by the last
+      // SCF or read back without iterating
+      archive_id_ = scf->archive_id;
+      if (world_.rank() == 0) {
+        const nlohmann::json out = {
+            {"schema", 1},
+            {"archive_id", madness::archive_id_to_string(archive_id_)},
+            {"key", key},
+            // raw coordinates in the engine's frame: Molecule::from_json
+            // re-orients, which would move the geometry off the archive's
+            {"start_coords", coords_of(start)},
+            {"final_coords", coords_of(opt_res.final_geometry)},
+            {"optimization_results", opt_res.to_json()},
+            {"properties", prop_res.to_json()}};
+        const std::string tmp = results_file + ".tmp";
+        bool ok = true;
+        {
+          std::ofstream ofs(tmp);
+          ofs << out.dump(4);
+          ok = static_cast<bool>(ofs);
+        }
+        std::error_code ec;
+        if (ok) std::filesystem::rename(tmp, results_file, ec);
+        if (not ok or ec)
+          madness::print("ERROR: failed to write", results_file);
+      }
 
       if (world_.rank() == 0) {
         const std::string geomfile =
@@ -416,6 +473,7 @@ public:
     try {
       const auto &cp = params_.get<CalculationParameters>();
       ctx.archives["restartdata"] = pm.dir() / (cp.prefix() + ".restartdata");
+      ctx.archive_ids["restartdata"] = archive_id_;
     } catch (...) {
       // best effort, as in SCFApplication
     }
@@ -424,6 +482,84 @@ public:
   nlohmann::json summary() const override { return summary_; }
 
 private:
+  /// true, with \p opt_res filled in, if the stored optimization answers this one
+  ///
+  /// Same starting geometry, same optimizer settings, and an archive on disk that
+  /// is still the one the optimization finished with (its archive_id) and that
+  /// the restart planner accepts at the final geometry without iterating -- which
+  /// covers the Hamiltonian, the convergence and the `restart` mode.
+  bool finished_before(const std::string &filename, const nlohmann::json &key,
+                       const madness::SCF &scf, const madness::Molecule &start,
+                       madness::OptimizationResults &opt_res) const {
+    std::string text;
+    if (world_.rank() == 0 and std::filesystem::exists(filename)) {
+      try {
+        text = nlohmann::json::parse(std::ifstream(filename)).dump();
+      } catch (...) {
+        madness::print("WARNING: could not parse", filename, "-- ignoring it");
+      }
+    }
+    world_.gop.broadcast_serializable(text, 0);
+    if (text.empty()) return false;
+
+    std::string why;
+    madness::OptimizationResults stored;
+    try {
+      const nlohmann::json j = nlohmann::json::parse(text);
+      const madness::Molecule stored_start = with_coords(start, j.at("start_coords"));
+      stored.from_json(j.at("optimization_results"));
+      stored.final_geometry = with_coords(start, j.at("final_coords"));
+      const madness::ArchiveId id =
+          madness::archive_id_from_string(j.value("archive_id", std::string()));
+      if (j.value("key", nlohmann::json()) != key)
+        why = "the optimizer settings changed";
+      else if (madness::compare_geometry(stored_start, start) != madness::GeometryMatch::same)
+        why = "it started from a different geometry";
+      else if (id == 0)
+        why = "it records no archive";
+      else {
+        const madness::RestartPlan plan = madness::make_restart_plan(
+            world_, madness::restart_mode_from_string(scf.param.restart()), scf.param,
+            stored.final_geometry, scf.restart_representation,
+            madness::RestartCapabilities::restartdata_only(), scf.hamiltonian_key());
+        if (plan.source != madness::RestartSource::restartdata or plan.iterate)
+          why = "the orbitals on disk do not answer it (" + plan.why + ")";
+        else if (plan.archive_id != id)
+          why = "the archive was rewritten since";
+      }
+    } catch (...) {
+      why = "it could not be read";
+    }
+    if (world_.rank() == 0)
+      madness::print(why.empty() ? "optimization already finished, see" : "optimizing:",
+                     filename, why.empty() ? "" : ("does not apply, " + why));
+    if (not why.empty()) return false;
+    opt_res = stored;
+    return true;
+  }
+
+  static nlohmann::json coords_of(const madness::Molecule &m) {
+    std::vector<std::vector<double>> c;
+    for (std::size_t i = 0; i < m.natom(); ++i) {
+      const madness::Atom &a = m.get_atom(i);
+      c.push_back({a.x, a.y, a.z});
+    }
+    return c;
+  }
+
+  /// \p m with the coordinates \p c; throws if the atom count differs
+  static madness::Molecule with_coords(madness::Molecule m, const nlohmann::json &c) {
+    const auto xyz = c.get<std::vector<std::vector<double>>>();
+    MADNESS_CHECK_THROW(xyz.size() == m.natom(), "coordinates for a different molecule");
+    madness::Tensor<double> t(long(m.natom()), 3l);
+    for (std::size_t i = 0; i < xyz.size(); ++i)
+      for (int k = 0; k < 3; ++k) t(long(i), long(k)) = xyz[i].at(k);
+    m.set_all_coords(t);
+    return m;
+  }
+
+  madness::ArchiveId archive_id_ = 0;
+
   World &world_;
   Params params_;
   Library lib_;

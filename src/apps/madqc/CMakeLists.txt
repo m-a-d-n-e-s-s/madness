@@ -65,6 +65,9 @@ endif()
     # it looked for the archive and the checkpoint in the cwd rather than in
     # <prefix>/task_0/moldft/. Both fixed; enabled here.
     add_scripted_tests(test_moldft_restart_e2e.py madqc "long;applications")
+    # issue #822: a rerun in the same directory must answer the new request
+    add_scripted_tests(test_madqc_restart_bookkeeping.py madqc "long;applications")
+    add_scripted_tests(test_madqc_optimize_results.py madqc "verylong;applications")
     # RE-ENABLED (R-1 close-out, 2026-07-10 vbc gate 2083856): rescoped to
     # molresponse_v3 — alpha xyz + static beta + SINGLE-COMPONENT raman
     # (atom 0, z) via requested_properties; reference regenerated from a v3 run

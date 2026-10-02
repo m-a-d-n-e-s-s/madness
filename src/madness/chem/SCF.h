@@ -194,6 +194,16 @@ public:
         void add_data(std::map<std::string, double> values);
 
         void add_gradient(const Tensor<double> &grad);
+
+        /// number of SCF iterations recorded (add_data is called once per iteration)
+        int iterations() const { return iter; }
+        /// the most recent value of every energy component; empty before the first iteration
+        std::map<std::string, double> last() const {
+            std::map<std::string, double> out;
+            for (const auto &[key, series] : e_data)
+                if (!series.empty()) out[key] = series.back();
+            return out;
+        }
     };
 
 
@@ -260,6 +270,16 @@ public:
 
     /// nuclear correlation factor behind restart_representation, e.g. "slater:2.0"
     std::string restart_ncf;
+
+    /// id of the restartdata archive these orbitals were last saved to or loaded
+    /// from; 0 if neither happened or the archive predates ids (see ArchiveId)
+    ArchiveId archive_id = 0;
+
+    /// the Hamiltonian these orbitals solve: written into the restartdata header
+    /// and compared against it by the restart planner
+    HamiltonianKey hamiltonian_key() const {
+        return make_hamiltonian_key(param, molecule, pcm_param, restart_ncf);
+    }
 
     /// set while an optimizer drives this SCF, to keep the raw derivative table
     /// out of the log next to MolOpt's projected one -- see SCF::derivatives
@@ -647,7 +667,7 @@ public:
         // is no drift to detect.
         RestartPlan plan = make_restart_plan(world, restart_mode_from_string(calc.param.restart()),
                 calc.param, calc.molecule, calc.restart_representation,
-                RestartCapabilities::all(), calc.restart_ncf);
+                RestartCapabilities::all(), calc.hamiltonian_key());
 
         // set the target basis BEFORE reading, so load_mos reprojects straight
         // into the rung we are about to iterate at rather than into whatever k

@@ -291,6 +291,8 @@ public:
 		meta.k = FunctionDefaults<NDIM>::get_k();
 		meta.eprec = molecule.parameters.eprec();
 		meta.madness_version = MADNESS_PACKAGE_VERSION;
+		meta.archive_id = new_archive_id(world);
+		meta.origin = "mo-tool";
 		meta.write(ar);
 
 		amo.save_mos(ar,molecule);
