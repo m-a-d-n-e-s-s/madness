@@ -16,6 +16,7 @@
 
 #include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
 #include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
+#include <madness/world/timers.h>
 
 namespace qcapp {
 
@@ -60,12 +61,19 @@ class SinglePointDriver : public Driver {
                madness::StepContext& ctx) override {
     // Create workdir for this application
     std::filesystem::create_directories(workdir);
-
     // Read upstream artifacts (no-op unless the app overrides), run, then
     // publish this step's artifacts for downstream steps.
     app_->consume_context(ctx);
+    const double t0 = madness::wall_time();
     app_->run(workdir);
     result_ = app_->results();
+    // Task-entry envelope. CC2 returns an ARRAY of task entries;
+    // only object-shaped summaries get the per-task stamp here.
+    if (result_.is_object()) {
+      result_["provenance"]["wall_s"] = madness::wall_time() - t0;
+      if (!result_.contains("type"))
+        result_["type"] = result_.value("model", std::string("unknown"));
+    }
     app_->publish_to_context(ctx);
   }
 

@@ -578,6 +578,22 @@ double Nemo::solve(const SCFProtocol &proto) {
     energies = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
     energy = energies[0];
 
+    // The same per-iteration log SCF::solve keeps, so the task record reports
+    // both engines alike. energies = {E, T, T+V_nuc (regularized), J, E_xc,
+    // -K, E_pcm, E_nrep}: the regularized one-electron energy is <psi|T+V|psi>
+    // with psi = R F, and T is the analytic <psi|T|psi>, so V_nuc is their
+    // difference. The dispersion energy is in E but not in the vector.
+    calc->e_data.add_data({{"e_kinetic", energies[1]},
+                           {"e_nuclear", energies[2] - energies[1]},
+                           {"e_local", 0.0},
+                           {"e_coulomb", energies[3]},
+                           {"e_xc", energies[4] + energies[5]},
+                           {"e_pcm", energies[6]},
+                           {"e_nrep", energies[7]},
+                           {"e_disp", energy - energies[2] - energies[3] - energies[4] -
+                                          energies[5] - energies[6] - energies[7]},
+                           {"e_tot", energy}});
+
     // compute the fock matrix
     timer t_fock(world, get_calc_param().print_level() > 2);
     vecfuncT Vnemo = Unemo + Jnemo - Knemo;
