@@ -1,0 +1,9 @@
+<map id="madness::SCFResults" name="madness::SCFResults">
+<area shape="rect" id="Node000001" title=" " alt="" coords="104,79,267,104"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1OEPResults.html" title=" " alt="" coords="5,152,168,177"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="160,114,104,154,101,150,157,110"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1ZnemoResults.html" title=" " alt="" coords="193,152,375,177"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="214,110,269,150,266,154,210,114"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ResultsBase.html" title=" " alt="" coords="101,5,270,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="188,44,188,79,183,79,183,44"/>
+</map>

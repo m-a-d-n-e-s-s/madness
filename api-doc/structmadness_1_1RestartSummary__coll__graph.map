@@ -1,0 +1,22 @@
+<map id="madness::RestartSummary" name="madness::RestartSummary">
+<area shape="rect" id="Node000001" title=" " alt="" coords="443,445,642,471"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1RestartMetadata.html" title=" " alt="" coords="319,357,518,383"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="448,388,527,443,524,447,445,393"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="344,255,492,280"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="421,294,421,357,416,357,416,294"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="210,115,445,141"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="345,151,413,253,408,256,341,154"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="76,5,134,31"/>
+<area shape="poly" id="edge10_Node000002_Node000005" title=" " alt="" coords="85,43,54,80,23,129,13,155,8,181,11,206,22,229,50,261,83,288,120,310,160,327,242,351,319,362,318,368,241,356,158,332,118,315,80,292,46,265,18,232,6,207,3,180,8,153,19,126,49,77,81,39"/>
+<area shape="poly" id="edge7_Node000003_Node000005" title=" " alt="" coords="103,44,101,95,107,122,119,146,141,171,167,192,225,223,287,244,344,256,343,261,286,249,223,228,164,196,137,175,115,150,102,124,96,95,98,44"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="142,34,305,113,303,118,140,39"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="654,115,860,141"/>
+<area shape="poly" id="edge11_Node000001_Node000006" title=" " alt="" coords="754,155,743,192,726,232,683,300,634,362,556,447,552,443,630,359,679,297,721,229,738,191,749,154"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="729,150,600,233,546,250,493,260,492,255,545,245,597,228,726,146"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="696,5,858,31"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="775,45,762,115,757,114,770,44"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="468,108,630,148"/>
+<area shape="poly" id="edge8_Node000003_Node000008" title=" " alt="" coords="528,161,463,233,435,256,432,252,459,229,524,157"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="384,5,671,31"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="535,43,548,107,543,108,530,44"/>
+</map>

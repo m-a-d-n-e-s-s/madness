@@ -1,0 +1,7 @@
+<map id="madness::WorldTaskQueue" name="madness::WorldTaskQueue">
+<area shape="rect" id="Node000001" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="99,79,296,104"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="5,5,208,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="134,37,184,76,181,81,131,41"/>
+<area shape="rect" id="Node000003" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="232,5,347,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="266,41,214,81,211,76,262,37"/>
+</map>

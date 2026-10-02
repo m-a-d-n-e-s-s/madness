@@ -1,0 +1,33 @@
+<map id="thread_specific.h" name="thread_specific.h">
+<area shape="rect" id="Node000001" title="Reclaimable thread&#45;specific storage (a thread_local you can free)." alt="" coords="589,5,721,31"/>
+<area shape="rect" id="Node000002" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="85,79,269,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="590,32,283,81,282,76,589,27"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="293,86,377,111"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="596,33,499,54,391,81,381,84,379,79,389,76,498,49,595,28"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="402,86,469,111"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="621,33,483,81,477,83,475,78,481,76,619,28"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="493,86,556,111"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="637,33,557,81,554,76,635,29"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="581,86,647,111"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="652,32,629,75,624,73,647,30"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="671,86,722,111"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="664,30,687,73,682,75,659,32"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="746,86,823,111"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="676,29,755,76,753,81,673,33"/>
+<area shape="rect" id="Node000014" title=" " alt="" coords="847,86,911,111"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="694,28,836,76,842,78,840,83,834,81,692,33"/>
+<area shape="rect" id="Node000015" title=" " alt="" coords="935,86,999,111"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="722,28,818,48,924,76,931,78,929,83,923,81,817,53,721,33"/>
+<area shape="rect" id="Node000016" title=" " alt="" coords="1024,86,1084,111"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="722,23,857,41,935,56,1012,76,1019,78,1017,83,1011,81,934,62,856,47,721,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,71,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="145,121,72,162,69,157,142,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="95,167,159,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="167,120,144,156,140,154,162,117"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="184,167,271,192"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="191,117,215,154,210,156,187,120"/>
+<area shape="rect" id="Node000006" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="295,167,498,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="230,116,352,159,350,164,228,121"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="329,240,465,265"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="399,192,399,226,394,226,394,192"/>
+</map>

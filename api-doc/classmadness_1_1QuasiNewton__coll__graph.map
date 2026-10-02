@@ -1,0 +1,11 @@
+<map id="madness::QuasiNewton" name="madness::QuasiNewton">
+<area shape="rect" id="Node000001" title="Optimization via quasi&#45;Newton (BFGS or SR1 update)" alt="" coords="181,168,357,193"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers." alt="" coords="5,80,216,105"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="145,110,249,165,247,170,143,114"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="240,80,299,105"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="272,119,272,167,267,167,267,119"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="323,80,528,105"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="394,114,292,170,289,165,391,110"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="344,5,507,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="428,45,428,80,423,80,423,45"/>
+</map>

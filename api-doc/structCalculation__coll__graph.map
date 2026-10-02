@@ -1,0 +1,25 @@
+<map id="Calculation" name="Calculation">
+<area shape="rect" id="Node000001" title=" " alt="" coords="780,173,875,199"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1CalculationParameters.html" title=" " alt="" coords="443,5,679,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="690,32,725,46,758,67,782,92,801,121,824,172,819,174,797,124,778,95,754,71,723,51,688,37"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,5,292,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="305,15,443,15,443,21,305,21"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,55,678,80"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="692,81,726,91,757,106,778,121,795,139,820,172,816,175,791,142,774,125,755,111,724,96,691,86"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="119,55,178,80"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="192,65,443,65,443,70,192,70"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="458,143,663,168"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="677,166,780,178,780,183,677,171"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,143,230,168"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="244,153,458,153,458,158,244,158"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="505,203,616,228"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="629,218,691,218,755,211,800,196,802,201,757,217,691,224,629,224"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="483,292,638,317"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="652,308,705,301,731,294,755,282,777,264,796,241,819,198,823,200,800,244,781,268,757,287,732,299,706,307,652,313"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1Function.html" title=" " alt="" coords="483,342,638,382"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="651,359,705,347,731,337,754,323,782,294,801,259,814,225,821,198,826,199,819,226,806,261,786,297,758,327,733,342,707,352,652,364"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="52,313,245,353"/>
+<area shape="poly" id="edge10_Node000010_Node000011" title=" " alt="" coords="259,337,419,349,483,353,483,359,418,354,259,343"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="119,377,178,403"/>
+<area shape="poly" id="edge11_Node000010_Node000012" title=" " alt="" coords="191,384,483,365,483,370,192,390"/>
+</map>

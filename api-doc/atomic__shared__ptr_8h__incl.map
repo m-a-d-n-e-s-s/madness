@@ -1,0 +1,11 @@
+<map id="atomic_shared_ptr.h" name="atomic_shared_ptr.h">
+<area shape="rect" id="Node000001" title="Defines atomic_shared_ptr — a std::shared_ptr&#45;compatible wrapper backed by atomic storage." alt="" coords="57,5,212,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,72,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,33,67,72,64,68,118,29"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="96,79,173,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="137,31,137,65,132,65,132,31"/>
+<area shape="rect" id="Node000004" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="197,79,400,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="162,28,261,71,258,76,160,33"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="231,152,367,177"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="301,104,301,138,296,138,296,104"/>
+</map>

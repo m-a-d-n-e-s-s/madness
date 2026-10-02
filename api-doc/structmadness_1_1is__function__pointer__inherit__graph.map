@@ -1,0 +1,5 @@
+<map id="madness::is_function_pointer&lt; T, Enabler &gt;" name="madness::is_function_pointer&lt; T, Enabler &gt;">
+<area shape="rect" id="Node000001" title="is true type if T is a pointer to a free function" alt="" coords="5,79,176,119"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="31,5,150,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,44,93,79,88,79,88,44"/>
+</map>

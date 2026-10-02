@@ -1,0 +1,19 @@
+<map id="madness::RestartMetadata" name="madness::RestartMetadata">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1101,65,1300,90"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="840,122,988,147"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="991,117,1136,87,1137,93,992,122"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,122,677,147"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="691,132,840,132,840,137,691,137"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="119,61,178,86"/>
+<area shape="poly" id="edge9_Node000001_Node000004" title=" " alt="" coords="191,67,316,59,419,59,677,60,1101,71,1101,77,677,65,419,64,316,64,192,72"/>
+<area shape="poly" id="edge6_Node000002_Node000004" title=" " alt="" coords="192,71,455,81,634,93,816,112,859,119,858,125,816,117,634,98,455,86,192,77"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="192,86,250,104,316,119,380,127,443,131,442,136,379,132,316,124,249,109,190,91"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,171,663,197"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="676,170,816,152,855,145,856,150,816,157,677,176"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,171,230,197"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="244,181,457,181,457,187,244,187"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,221,641,261"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="654,228,734,212,815,188,858,167,893,145,896,150,861,172,817,193,735,217,655,233"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,229,292,254"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="306,239,479,239,479,244,306,244"/>
+</map>

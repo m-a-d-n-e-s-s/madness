@@ -1,0 +1,5 @@
+<map id="madness::molecular_grid&lt; NDIM &gt;" name="madness::molecular_grid&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title="given a molecule, return a suitable grid" alt="" coords="5,79,160,119"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1gridbase.html" title=" " alt="" coords="10,5,155,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="85,44,85,79,80,79,80,44"/>
+</map>
