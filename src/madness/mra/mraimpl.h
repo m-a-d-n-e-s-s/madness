@@ -3260,6 +3260,7 @@ namespace madness {
             }
             void operator()(const Key<NDIM>& key, FunctionNode<T,NDIM>& node) const {
                 node.coeff().scale(q);
+                node.scale_norms(std::abs(q));
             }
             template <typename Archive> void serialize(Archive& ar) {
                 ar & q;
