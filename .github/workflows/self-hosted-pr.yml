@@ -62,7 +62,7 @@ jobs:
             -DMADNESS_TASK_BACKEND=TBB \
             -DENABLE_GENTENSOR=${{ matrix.gentensor }} \
             -DMADNESS_TARGET_ARCH=native \
-            -DMADNESS_RELAXED_MATH=fast
+            -DMADNESS_RELAXED_MATH=relaxed
 
       - name: Build
         run: cmake --build build-pr
