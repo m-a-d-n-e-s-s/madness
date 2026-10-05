@@ -13,35 +13,10 @@
       "key": [
         "tasks",
         1,
-        "precision",
+        "metadata",
+        "protocols",
+        "1e-06_k8",
         "k"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "precision",
-        "protocol_key"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "convergence",
-        "status"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "convergence",
-        "n_unconverged"
       ],
       "tol": 0
     },

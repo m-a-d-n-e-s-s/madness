@@ -6,7 +6,7 @@
   Task 0 : SCF  (model = scf)
   ----------------------------------------------------------------------
     Molecule         : F
-    Total energy     :      -99.416140083 Ha       -2705.2510 eV
+    Total energy     :      -99.416140087 Ha       -2705.2510 eV
     Orbital eps (a)  : -26.4058 -1.6732 -0.7316 -0.7316 -0.8453  (Ha)
     Orbital eps (b)  : -26.3582 -1.4776 -0.6799 -0.6799  (Ha)
     Converged        :  thresh = 0.0001  dconv = 0.0001

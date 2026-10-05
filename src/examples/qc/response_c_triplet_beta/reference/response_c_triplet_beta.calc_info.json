@@ -1,34 +1,17 @@
 {
     "io": {
         "backend": "native",
-        "hdf5_compiled": true
+        "hdf5_compiled": false
     },
-    "provenance": {
-        "hostname": "dg013",
-        "madness": {
-            "build_time": "20:30:32",
-            "git_commit": "80e89f8290ee3343488034f6ee60177b0dc6fd3b",
-            "version": "0.10.1"
-        },
-        "nproc": 1,
-        "threads": 6,
-        "workflow": "response"
-    },
-    "schema_name": "madqc_calc_info",
-    "schema_version": 1,
     "tasks": [
         {
             "convergence": {
                 "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 0.0001,
-                "iterations": 6,
-                "status": "converged"
+                "converged_for_thresh": 0.0001
             },
             "convergence_info": {
                 "converged_for_dconv": 0.0001,
-                "converged_for_thresh": 0.0001,
-                "iterations": 6,
-                "status": "converged"
+                "converged_for_thresh": 0.0001
             },
             "hamiltonian": {
                 "dispersion": "none",
@@ -95,32 +78,23 @@
                 "max_step": 0.0,
                 "nsteps": 0
             },
-            "precision": {
-                "L": 30.0,
-                "dconv": 0.0001,
-                "econv": 0.0001,
-                "k": 6,
-                "ncoeff": 702864,
-                "protocol": [
-                    0.0001
-                ],
-                "thresh": 0.0001
-            },
             "properties": {
                 "dipole": {
                     "ndim": -1,
                     "size": 0
                 },
-                "energy": -37.69362651222252,
+                "energy": -37.69362652747463,
                 "gradient": {
                     "ndim": -1,
                     "size": 0
                 }
             },
-            "provenance": {
-                "wall_s": 14.901744842529297
-            },
             "scf": {
+                "citations": {
+                    "dftd3": false,
+                    "libxc": false,
+                    "pcm": false
+                },
                 "is_opt": false,
                 "model": "scf",
                 "molecule": {
@@ -151,30 +125,17 @@
                         "C"
                     ]
                 },
-                "nuclear_repulsion_energy": 0.0,
-                "precision": {
-                    "L": 30.0,
-                    "dconv": 0.0001,
-                    "econv": 0.0001,
-                    "k": 6,
-                    "ncoeff": 702864,
-                    "protocol": [
-                        0.0001
-                    ],
-                    "thresh": 0.0001
-                },
                 "properties": {
                     "dipole": {
                         "ndim": -1,
                         "size": 0
                     },
-                    "energy": -37.69362651222252,
+                    "energy": -37.69362652747463,
                     "gradient": {
                         "ndim": -1,
                         "size": 0
                     }
                 },
-                "scf_coulomb_energy": 17.833116228056493,
                 "scf_dispersion_correction_energy": 0.0,
                 "scf_eigenvalues_a": {
                     "dims": [
@@ -183,10 +144,10 @@
                     "ndim": 1,
                     "size": 4,
                     "vals": [
-                        -11.34531120252508,
-                        -0.8294696903029877,
-                        -0.43910447274198305,
-                        -0.4391044718958643
+                        -11.345311171597748,
+                        -0.8294696896151839,
+                        -0.4391044589280162,
+                        -0.4391045021539588
                     ]
                 },
                 "scf_eigenvalues_b": {
@@ -196,22 +157,15 @@
                     "ndim": 1,
                     "size": 2,
                     "vals": [
-                        -11.298744816645861,
-                        -0.5853046247257723
+                        -11.298744787534956,
+                        -0.5853046222786102
                     ]
                 },
                 "scf_fock_a": {
                     "ndim": -1,
                     "size": 0
                 },
-                "scf_iterations": 6,
-                "scf_kinetic_energy": 37.690605295048464,
-                "scf_nuclear_attraction_energy": -88.14083686597593,
-                "scf_one_electron_energy": -50.450231570927464,
-                "scf_pcm_energy": 0.0,
-                "scf_total_energy": -37.69362651222252,
-                "scf_two_electron_energy": 12.756605058704944,
-                "xc": "hf"
+                "scf_total_energy": 0.0
             },
             "scf_eigenvalues_a": {
                 "dims": [
@@ -220,10 +174,10 @@
                 "ndim": 1,
                 "size": 4,
                 "vals": [
-                    -11.34531120252508,
-                    -0.8294696903029877,
-                    -0.43910447274198305,
-                    -0.4391044718958643
+                    -11.345311171597748,
+                    -0.8294696896151839,
+                    -0.4391044589280162,
+                    -0.4391045021539588
                 ]
             },
             "scf_eigenvalues_b": {
@@ -233,25 +187,17 @@
                 "ndim": 1,
                 "size": 2,
                 "vals": [
-                    -11.298744816645861,
-                    -0.5853046247257723
+                    -11.298744787534956,
+                    -0.5853046222786102
                 ]
             },
             "scf_fock_a": {
                 "ndim": -1,
                 "size": 0
             },
-            "scf_total_energy": -37.69362651222252,
-            "type": "scf"
+            "scf_total_energy": 0.0
         },
         {
-            "convergence": {
-                "iterations": 24,
-                "n_states": 3,
-                "n_unconverged": 0,
-                "status": "unconverged",
-                "stop_reason": "complete_with_stalled_and_dropped_beta"
-            },
             "metadata": {
                 "engine": "molresponse_v3",
                 "excited_states": {},
@@ -262,17 +208,17 @@
                                 "accepted": false,
                                 "archive": "dipole_z__1e-04_k6__f0.00000",
                                 "backend": "native",
-                                "bsh_residual": 0.00010969809123519998,
+                                "bsh_residual": 0.00031561252426961085,
                                 "converged": true,
                                 "diverged": false,
                                 "freq": 0.0,
-                                "iter": 14,
+                                "iter": 16,
                                 "metrics": {
-                                    "bytes": 4948992,
-                                    "coeffs": 618624,
-                                    "iters": 14,
-                                    "rss_gb": 0.7123146057128906,
-                                    "wall_s": 39.72170686721802
+                                    "bytes": 5612544,
+                                    "coeffs": 701568,
+                                    "iters": 16,
+                                    "rss_gb": 0.7382888793945313,
+                                    "wall_s": 53.17723798751831
                                 },
                                 "seed": "zero",
                                 "shell": "open_shell",
@@ -284,17 +230,17 @@
                                 "accepted": false,
                                 "archive": "dipole_z__1e-04_k6__f0.05000",
                                 "backend": "native",
-                                "bsh_residual": 0.0004965409889623645,
+                                "bsh_residual": 0.0004940645204932115,
                                 "converged": true,
                                 "diverged": false,
                                 "freq": 0.05,
-                                "iter": 22,
+                                "iter": 21,
                                 "metrics": {
-                                    "bytes": 10229760,
-                                    "coeffs": 1278720,
-                                    "iters": 22,
-                                    "rss_gb": 0.8289222717285156,
-                                    "wall_s": 120.01596307754517
+                                    "bytes": 11169792,
+                                    "coeffs": 1396224,
+                                    "iters": 21,
+                                    "rss_gb": 0.8964576721191406,
+                                    "wall_s": 138.58329391479492
                                 },
                                 "seed": "zero",
                                 "shell": "open_shell",
@@ -306,17 +252,17 @@
                                 "accepted": false,
                                 "archive": "dipole_z__1e-04_k6__f0.10000",
                                 "backend": "native",
-                                "bsh_residual": 0.0003865508216943025,
+                                "bsh_residual": 0.0004938722121124087,
                                 "converged": true,
                                 "diverged": false,
                                 "freq": 0.1,
-                                "iter": 24,
+                                "iter": 23,
                                 "metrics": {
-                                    "bytes": 10340352,
-                                    "coeffs": 1292544,
-                                    "iters": 24,
-                                    "rss_gb": 0.8471794128417969,
-                                    "wall_s": 128.67074704170227
+                                    "bytes": 11280384,
+                                    "coeffs": 1410048,
+                                    "iters": 23,
+                                    "rss_gb": 0.8774871826171875,
+                                    "wall_s": 151.54598307609558
                                 },
                                 "seed": "zero",
                                 "shell": "open_shell",
@@ -330,12 +276,12 @@
                 "ground_state": {
                     "archive": "../../task_0/moldft/response_c_triplet_beta.restartdata",
                     "bytes": 5969516,
-                    "fnv1a64": "18b3bcf42397c200",
+                    "fnv1a64": "17c55ca2e04ef34f",
                     "nparts": 1
                 },
                 "io": {
                     "backend": "native",
-                    "hdf5_compiled": true
+                    "hdf5_compiled": false
                 },
                 "properties": {},
                 "protocols": {
@@ -343,29 +289,6 @@
                         "index": -1,
                         "k": 6,
                         "thresh": 0.0001
-                    }
-                },
-                "run_info": {
-                    "hostname": "dg013",
-                    "madness": {
-                        "git_commit": "80e89f8290ee3343488034f6ee60177b0dc6fd3b",
-                        "version": "0.10.1"
-                    },
-                    "nproc": 1,
-                    "threads": 6,
-                    "timing": {
-                        "assemble": {
-                            "cpu_s": 1.1883676052093506e-05,
-                            "wall_s": 1.1920928955078125e-05
-                        },
-                        "plan_build": {
-                            "cpu_s": 2.0951498299837112e-05,
-                            "wall_s": 2.002716064453125e-05
-                        },
-                        "solve": {
-                            "cpu_s": 288.552003311459,
-                            "wall_s": 288.51861906051636
-                        }
                     }
                 },
                 "run_summary": {
@@ -380,8 +303,7 @@
                             "reason": "stalled (quarantined by the no-progress guard)",
                             "top_protocol_key": "1e-04_k6"
                         }
-                    ],
-                    "stop_reason": "complete_with_stalled_and_dropped_beta"
+                    ]
                 },
                 "schema_version": 1,
                 "v3_diagnostics": {
@@ -481,36 +403,24 @@
                 },
                 "v3_timing": {
                     "assemble": {
-                        "cpu_s": 1.1883676052093506e-05,
-                        "wall_s": 1.1920928955078125e-05
+                        "cpu_s": 1.267995685338974e-05,
+                        "wall_s": 1.3113021850585938e-05
                     },
                     "plan_build": {
-                        "cpu_s": 2.0951498299837112e-05,
-                        "wall_s": 2.002716064453125e-05
+                        "cpu_s": 1.9679777324199677e-05,
+                        "wall_s": 1.6927719116210938e-05
                     },
                     "solve": {
-                        "cpu_s": 288.552003311459,
-                        "wall_s": 288.51861906051636
+                        "cpu_s": 343.4670131057501,
+                        "wall_s": 343.46701288223267
                     }
                 },
                 "vbc_states": {}
-            },
-            "precision": {
-                "dconv": 0.0001,
-                "k": 6,
-                "protocol": [
-                    0.0001
-                ],
-                "protocol_key": "1e-04_k6",
-                "thresh": 0.0001
             },
             "properties": {
                 "raman_spectra": null,
                 "response_properties": {},
                 "vibrational_analysis": null
-            },
-            "provenance": {
-                "wall_s": 289.0319650173187
             },
             "type": "response"
         }

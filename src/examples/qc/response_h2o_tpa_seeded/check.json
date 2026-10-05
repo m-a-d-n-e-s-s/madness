@@ -25,7 +25,9 @@
       "key": [
         "tasks",
         1,
-        "precision",
+        "metadata",
+        "protocols",
+        "1e-04_k6",
         "k"
       ],
       "tol": 0
@@ -34,44 +36,8 @@
       "key": [
         "tasks",
         1,
-        "precision",
-        "protocol_key"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "convergence",
-        "status"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "convergence",
-        "n_unconverged"
-      ],
-      "tol": 0
-    },
-    {
-      "key": [
-        "tasks",
-        1,
-        "convergence",
-        "iterations"
-      ],
-      "max": 21
-    },
-    {
-      "key": [
-        "tasks",
-        1,
         "metadata",
-        "run_summary",
+        "v3_diagnostics",
         "stop_reason"
       ],
       "tol": 0
@@ -268,6 +234,84 @@
         "seed_overlap"
       ],
       "min": 0.99
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_x",
+        "1e-04_k6",
+        "f0.16125",
+        "iter"
+      ],
+      "max": 21
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_x",
+        "1e-04_k6",
+        "f0.19169",
+        "iter"
+      ],
+      "max": 21
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_y",
+        "1e-04_k6",
+        "f0.16125",
+        "iter"
+      ],
+      "max": 21
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_y",
+        "1e-04_k6",
+        "f0.19169",
+        "iter"
+      ],
+      "max": 21
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_z",
+        "1e-04_k6",
+        "f0.16125",
+        "iter"
+      ],
+      "max": 21
+    },
+    {
+      "key": [
+        "tasks",
+        1,
+        "metadata",
+        "fd_states",
+        "dipole_z",
+        "1e-04_k6",
+        "f0.19169",
+        "iter"
+      ],
+      "max": 21
     }
   ]
 }

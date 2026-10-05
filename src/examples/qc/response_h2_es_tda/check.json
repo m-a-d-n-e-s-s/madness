@@ -3,16 +3,14 @@
   "checks": [
     {"key": ["tasks", 0, "properties", "energy"], "tol": 1e-5},
     {"key": ["tasks", 1, "type"], "tol": 0},
-    {"key": ["tasks", 1, "precision", "k"], "tol": 0},
-    {"key": ["tasks", 1, "precision", "protocol_key"], "tol": 0},
-    {"key": ["tasks", 1, "convergence", "status"], "tol": 0},
-    {"key": ["tasks", 1, "convergence", "n_unconverged"], "tol": 0},
-    {"key": ["tasks", 1, "convergence", "iterations"], "max": 11},
-    {"key": ["tasks", 1, "metadata", "run_summary", "stop_reason"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "protocols", "1e-04_k6", "k"], "tol": 0},
+    {"key": ["tasks", 1, "metadata", "v3_diagnostics", "stop_reason"], "tol": 0},
     {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "n_roots"], "tol": 0},
     {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "converged"], "tol": 0},
-    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 0, "omega"], "tol": 1e-3},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "roots", 0, "omega"], "tol": 0.001},
     {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "converged"], "tol": 0},
-    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 1e-3}
+    {"key": ["tasks", 1, "properties", "response_properties", "alpha", "1e-04_k6", 0, "alpha", 0, 0], "tol": 0.001},
+    {"key": ["tasks", 1, "metadata", "fd_states", "dipole_z", "1e-04_k6", "f0.00000", "iter"], "max": 11},
+    {"key": ["tasks", 1, "metadata", "excited_states", "1e-04_k6", "iter"], "max": 11}
   ]
 }
