@@ -32,7 +32,10 @@ void expect(bool cond, const char *label) {
 
 using Track = std::vector<double>;
 
-Track flat(double v, int n) { return Track(static_cast<size_t>(n), v); }
+Track flat(double v, int n) {
+  // NOLINTNEXTLINE(modernize-return-braced-init-list): braces would make a two-element list
+  return Track(static_cast<size_t>(n), v);
+}
 
 // v0, v0*f, v0*f^2, ...
 Track geometric(double v0, double f, int n) {

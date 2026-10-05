@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
       // same relative path finds nothing. Resolve it once, against the launch
       // directory, before any stage changes directory.
       auto absolute_dalton_dir = [](auto &params) {
-        const std::string d = params.template get<std::string>("dalton.dir");
+        const auto d = params.template get<std::string>("dalton.dir");
         if (!d.empty() && std::filesystem::path(d).is_relative())
           params.template set_user_defined_value<std::string>(
               "dalton.dir",
