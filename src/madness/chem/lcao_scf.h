@@ -60,8 +60,10 @@ public:
     static constexpr char const* tag = "lcao";
 
     LCAOParameters() {
-        initialize<double>("kernel_eps", 1.e-8, "relative precision of the Gaussian fit of 1/r");
-        initialize<double>("kernel_lo", 1.e-6, "smallest distance at which the fit of 1/r is accurate");
+        initialize<double>("kernel_eps", 1.e-4, "relative precision of the Gaussian fit of 1/r: guess grade, "
+                           "far below the basis-set error (the v1 reference numbers used 1e-8)");
+        initialize<double>("kernel_lo", 1.e-4, "smallest distance at which the fit of 1/r is accurate: guess "
+                           "grade (the v1 reference numbers used 1e-6)");
         initialize<double>("kernel_hi", 50.0, "largest distance at which the fit of 1/r is accurate");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
