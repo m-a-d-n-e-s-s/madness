@@ -576,6 +576,15 @@ public:
       return ag[atn].get_aeps();
     }
 
+    /// Returns the atomic guess density matrix (alpha + beta) for atom iat; empty if the basis file has none
+    const Tensor<double>& get_dmat(const Molecule& molecule, size_t iat) const {
+      MADNESS_ASSERT(iat<molecule.natom());
+      const Atom& atom = molecule.get_atom(iat);
+      const int atn = atom.atomic_number;
+      MADNESS_ASSERT(is_supported(atn));
+      return ag[atn].get_dmat();
+    }
+
     /// Returns the number of the atom the ibf'th basis function is on
     int basisfn_to_atom(const Molecule& molecule, size_t ibf) const {
         size_t n = 0;
