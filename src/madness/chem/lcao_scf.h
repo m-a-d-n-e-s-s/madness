@@ -30,10 +30,10 @@
 */
 
 /// \file lcao_scf.h
-/// \brief closed-shell Hartree-Fock in a Gaussian basis, with integrals from separated kernels
+/// \brief Hartree-Fock in a Gaussian basis, with integrals from separated kernels
 
 /// Meant as a cheap source of initial orbitals for the MRA calculation, not as
-/// an optimized LCAO code: plain Roothaan-Hall iterations, all integrals in
+/// an optimized LCAO code: closed-shell RHF or UHF with DIIS, all integrals in
 /// memory, replicated on every rank.
 
 #ifndef MADNESS_CHEM_LCAO_SCF_H__INCLUDED
@@ -129,8 +129,11 @@ class TwoElectronBuilder {
 public:
     virtual ~TwoElectronBuilder() = default;
 
-    /// J_{mu nu} = sum_{ls} (mu nu|l s) P_{ls} and K_{mu nu} = sum_{ls} (mu l|nu s) P_{ls}
-    virtual void jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const = 0;
+    /// J of the total density and K of each spin density,
+    ///   J_{mu nu} = sum_{ls} (mu nu|l s) (Pa+Pb)_{ls},   Ks_{mu nu} = sum_{ls} (mu l|nu s) Ps_{ls}
+    /// An empty Pb stands for a closed shell, Pb = Pa; Kb is then left empty.
+    virtual void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
+                    Tensor<double>& Kb) const = 0;
 };
 
 /// J and K from the two-electron integrals held in memory, once per permutational orbit
@@ -139,14 +142,18 @@ public:
 class InCoreERI : public TwoElectronBuilder {
 public:
     InCoreERI(World& world, std::shared_ptr<const PackedERI> eri) : world_(world), eri_(std::move(eri)) {}
-    void jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const override;
+    void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
+            Tensor<double>& Kb) const override;
 
 private:
     World& world_;
     std::shared_ptr<const PackedERI> eri_;
 };
 
-/// closed-shell restricted Hartree-Fock in a Gaussian basis
+/// Hartree-Fock in a Gaussian basis: RHF for a closed shell, UHF otherwise
+
+/// Spin densities are Ps = Cs_occ Cs_occ^T, one electron per spin orbital; a
+/// closed shell keeps Pb = Pa, and its total density is 2 C_occ C_occ^T.
 class LCAOSCF {
 public:
     /// the energy and its parts, labelled as moldft prints them
@@ -159,8 +166,9 @@ public:
         double total = 0.0;
     };
 
-    /// @param[in] nocc  number of doubly occupied orbitals
-    LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nocc,
+    /// @param[in] nalpha  number of alpha electrons
+    /// @param[in] nbeta   number of beta electrons; nalpha == nbeta gives closed-shell RHF
+    LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nalpha, int nbeta,
             const LCAOParameters& param);
 
     /// compute the integrals and iterate to self-consistency
@@ -171,18 +179,26 @@ public:
     int iterations() const { return iterations_; }
     long nbf() const { return S_.dim(0); }
 
+    /// true for closed-shell RHF, false for UHF
+    bool restricted() const { return nalpha_ == nbeta_; }
+    int nalpha() const { return nalpha_; }
+    int nbeta() const { return nbeta_; }
+
     const std::vector<Shell>& shells() const { return shells_; }
     const Tensor<double>& overlap() const { return S_; }
     const Tensor<double>& kinetic() const { return T_; }
     const Tensor<double>& nuclear_attraction() const { return V_; }
     const PackedERI& eri() const { return *eri_; }
 
-    /// MO coefficients, one column per orbital, in ascending orbital energy
-    const Tensor<double>& coefficients() const { return C_; }
-    const Tensor<double>& orbital_energies() const { return eps_; }
+    /// MO coefficients of spin 0 (alpha) or 1 (beta), one column per orbital, in ascending orbital energy
+    const Tensor<double>& coefficients(const int spin = 0) const { return spin == 0 ? Ca_ : Cb_; }
+    const Tensor<double>& orbital_energies(const int spin = 0) const { return spin == 0 ? epsa_ : epsb_; }
 
-    /// total density matrix P = 2 C_occ C_occ^T
-    const Tensor<double>& density() const { return P_; }
+    /// total density matrix Pa + Pb
+    Tensor<double> density() const { return Pa_ + Pb_; }
+
+    /// <S^2> of the determinant: 0 for RHF, S(S+1) plus the spin contamination for UHF
+    double s2() const { return s2_; }
 
     const Energies& energies() const { return energies_; }
 
@@ -190,15 +206,16 @@ private:
     World& world_;
     Molecule molecule_;
     AtomicBasisSet aobasis_;
-    int nocc_;
+    int nalpha_, nbeta_;
     LCAOParameters param_;
 
     std::vector<Shell> shells_;
     Tensor<double> S_, T_, V_, H_, X_;
     std::shared_ptr<const PackedERI> eri_;
-    Tensor<double> C_, eps_, P_;
+    Tensor<double> Ca_, Cb_, epsa_, epsb_, Pa_, Pb_;
     std::unique_ptr<TwoElectronBuilder> twoe_;
     Energies energies_;
+    double s2_ = 0.0;
     bool converged_ = false;
     int iterations_ = 0;
 
@@ -211,8 +228,12 @@ private:
     /// empty if the basis file carries none
     Tensor<double> sad_density() const;
 
-    /// diagonalize F in the orthogonalized basis; sets C_ and eps_ and returns the new density
-    Tensor<double> diagonalize(const Tensor<double>& F);
+    /// diagonalize F in the orthogonalized basis; sets C and eps and returns the density
+    /// of the nocc lowest orbitals, C_occ C_occ^T
+    Tensor<double> diagonalize(const Tensor<double>& F, int nocc, Tensor<double>& C, Tensor<double>& eps) const;
+
+    /// the commutator F P S - S P F in the orthogonal basis, which vanishes at self-consistency
+    Tensor<double> commutator_error(const Tensor<double>& F, const Tensor<double>& P) const;
 };
 
 /// MRA functions sum_mu C(mu,i) chi_mu(r) for the first nmo columns of C, at the current FunctionDefaults

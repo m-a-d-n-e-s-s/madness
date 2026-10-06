@@ -30,11 +30,11 @@
 */
 
 /// \file madlcao.cc
-/// \brief driver for closed-shell Hartree-Fock in a Gaussian basis with separated-kernel integrals
+/// \brief driver for Hartree-Fock (RHF or UHF) in a Gaussian basis with separated-kernel integrals
 
-/// Reads the same input as moldft (geometry, `dft` group), so the molecule and
-/// its orientation are identical; the basis set is the `aobasis` of the `dft`
-/// group. LCAO-specific settings live in the `lcao` group.
+/// Reads the same input as moldft (geometry, `dft` group), so the molecule, its
+/// orientation and the spin (nopen) are identical; the basis set is the
+/// `aobasis` of the `dft` group. LCAO-specific settings live in the `lcao` group.
 ///
 ///   madlcao --geometry=water --dft="aobasis 6-31g" [--lcao="guess core; check_mra true"]
 
@@ -177,22 +177,42 @@ void write_seed(World& world, const Molecule& molecule, const AtomicBasisSet& ao
     FunctionDefaults<3>::set_truncate_mode(1);
 
     const double t0 = wall_time();
-    const long nocc = param.nalpha();
-    std::vector<real_function_3d> mo = lcao::project_orbitals(world, molecule, aobasis, scf.coefficients(), nocc);
-    const Tensor<double> S = matrix_inner(world, mo, mo, true);
+    // the occupied orbitals of both spins in one projection, so the basis functions are
+    // projected once; then each spin is Loewdin-orthonormalized on its own. maxdev is the
+    // largest deviation of the projections from orthonormality.
+    const bool unrestricted = not scf.restricted();
+    const long na = scf.nalpha(), nb = unrestricted ? scf.nbeta() : 0;
+    Tensor<double> C(scf.nbf(), na + nb);
+    C(_, Slice(0, na - 1)) = scf.coefficients(0)(_, Slice(0, na - 1));
+    if (nb > 0) C(_, Slice(na, na + nb - 1)) = scf.coefficients(1)(_, Slice(0, nb - 1));
+    const std::vector<real_function_3d> all = lcao::project_orbitals(world, molecule, aobasis, C, na + nb);
     double maxdev = 0.0;
-    for (long i = 0; i < nocc; ++i)
-        for (long j = 0; j < nocc; ++j) maxdev = std::max(maxdev, std::abs(S(i, j) - (i == j ? 1.0 : 0.0)));
-    mo = orthonormalize_symmetric(mo, S);
+    const auto orthonormalize = [&](const std::vector<real_function_3d>& mo) {
+        const Tensor<double> S = matrix_inner(world, mo, mo, true);
+        for (long i = 0; i < long(mo.size()); ++i)
+            for (long j = 0; j < long(mo.size()); ++j) maxdev = std::max(maxdev, std::abs(S(i, j) - (i == j ? 1.0 : 0.0)));
+        return orthonormalize_symmetric(mo, S);
+    };
+    const std::vector<real_function_3d> amo = orthonormalize({all.begin(), all.begin() + na});
+    const std::vector<real_function_3d> bmo =
+        nb > 0 ? orthonormalize({all.begin() + na, all.end()}) : std::vector<real_function_3d>();
 
-    const Tensor<double> eps = copy(scf.orbital_energies()(Slice(0, nocc - 1)));
-    Tensor<double> occ(nocc);
-    occ.fill(1.0);                              // one electron per spin orbital; moldft doubles for closed shells
-    const std::vector<int> set(nocc, 0);
+    // moldft's format (SCF::save_mos): per spin the number of orbitals, their energies,
+    // occupations (one electron per spin orbital) and localization sets, then the functions
+    const auto write_block = [&](auto& ar, const int spin, const std::vector<real_function_3d>& mo) {
+        const long nocc = mo.size();
+        const Tensor<double> eps = copy(scf.orbital_energies(spin)(Slice(0, nocc - 1)));
+        Tensor<double> occ(nocc);
+        occ.fill(1.0);
+        const std::vector<int> set(nocc, 0);
+        ar & static_cast<unsigned int>(nocc);
+        ar & eps & occ & set;
+        for (const real_function_3d& f : mo) ar & f;
+    };
 
     RestartMetadata meta;
     meta.current_energy = scf.energies().total;
-    meta.spin_restricted = true;
+    meta.spin_restricted = not unrestricted;
     meta.L = param.L();
     meta.k = k;
     meta.molecule = molecule;
@@ -209,15 +229,14 @@ void write_seed(World& world, const Molecule& molecule, const AtomicBasisSet& ao
         archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(),
                                                                                 param.get<int>("nio"));
         meta.write(ar);
-        ar & static_cast<unsigned int>(mo.size());
-        ar & eps & occ & set;
-        for (const real_function_3d& f : mo) ar & f;
+        write_block(ar, 0, amo);
+        if (not bmo.empty()) write_block(ar, 1, bmo);
     }
     world.gop.fence();
 
     if (world.rank() == 0) {
-        printf("\nseed: wrote %ld occupied orbitals to %s (rung %d: thresh %.0e, k %d, %.1fs)\n",
-               nocc, name.c_str(), rung, thresh, k, wall_time() - t0);
+        printf("\nseed: wrote %zu alpha and %zu beta occupied orbitals to %s (rung %d: thresh %.0e, k %d, %.1fs)\n",
+               amo.size(), unrestricted ? bmo.size() : amo.size(), name.c_str(), rung, thresh, k, wall_time() - t0);
         printf("      max |S_ij - delta_ij| of the projections before Loewdin: %.2e\n", maxdev);
     }
 }
@@ -234,7 +253,7 @@ int main(int argc, char** argv) {
 
         if (parser.key_exists("help")) {
             if (world.rank() == 0) {
-                print("madlcao: closed-shell Hartree-Fock in a Gaussian basis, with all integrals from");
+                print("madlcao: Hartree-Fock (RHF or UHF) in a Gaussian basis, with all integrals from");
                 print("MADNESS's Gaussian fit of 1/r (prototype v1)\n");
                 print("usage: madlcao --geometry=water --dft=\"aobasis 6-31g\" [--lcao=\"guess core\"]\n");
                 print("the basis set is the aobasis keyword of the dft group; the lcao group holds:");
@@ -246,19 +265,18 @@ int main(int argc, char** argv) {
                 CalculationParameters param(world, parser);
                 param.set_derived_values(molecule);
                 const LCAOParameters lparam(world, parser);
-                MADNESS_CHECK_THROW(param.nalpha() == param.nbeta(), "madlcao v1: closed-shell RHF only");
 
                 AtomicBasisSet aobasis;
                 aobasis.read_file(param.aobasis());
                 if (world.rank() == 0) {
-                    print("\n madlcao: closed-shell Hartree-Fock in a Gaussian basis (separated-kernel integrals)\n");
+                    print("\n madlcao: Hartree-Fock (RHF or UHF) in a Gaussian basis (separated-kernel integrals)\n");
                     molecule.print();
                     lparam.print("lcao", "end");
                     print("\nbasis set", param.aobasis(), "with", aobasis.nbf(molecule), "functions,",
-                          param.nalpha(), "doubly occupied orbitals\n");
+                          param.nalpha(), "alpha and", param.nbeta(), "beta electrons\n");
                 }
 
-                lcao::LCAOSCF scf(world, molecule, aobasis, param.nalpha(), lparam);
+                lcao::LCAOSCF scf(world, molecule, aobasis, param.nalpha(), param.nbeta(), lparam);
                 const double t0 = wall_time();
                 const double energy = scf.solve();
                 if (world.rank() == 0) printf("final energy=%16.8f  (%.2fs)\n", energy, wall_time() - t0);
