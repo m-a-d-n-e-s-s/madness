@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace madness {
 namespace lcao {
@@ -171,9 +172,6 @@ void scatter_quartet(Tensor<double>& G, const Shell& sa, const Shell& sb, const 
     }
 }
 
-/// Gauss-Hermite nodes per axis that the two-electron 1D factors can need (GaussHermiteRule's default)
-constexpr int maxnode = 16;
-
 /// exp(-a|r-A|^2) exp(-b|r-B|^2) = K exp(-p|r-P|^2), for one pair of primitives of two shells
 struct PrimitivePair {
     double p = 0.0, K = 0.0;
@@ -205,20 +203,15 @@ std::vector<PrimitivePair> primitive_pairs(const Shell& sa, const Shell& sb) {
 struct QuartetLayout {
     int la, lb, lc, ld;
     std::array<double,3> A, B, C, D;
-    int n;                      ///< Gauss-Hermite nodes per axis
-    const double* y;            ///< the nodes
-    double ww[maxnode * maxnode];   ///< products of the weights, w[k1] w[k2] at k1*n+k2
     int ntab;                   ///< size of one 1D table
+    int nscratch;               ///< size of the scratch space of moments_1d
     std::vector<std::array<int,3>> index;   ///< per component quartet, its position in the x, y and z tables
 
-    QuartetLayout(const Shell& sa, const Shell& sb, const Shell& sc, const Shell& sd, const GaussHermiteRule& gh)
+    QuartetLayout(const Shell& sa, const Shell& sb, const Shell& sc, const Shell& sd)
         : la(sa.l), lb(sb.l), lc(sc.l), ld(sd.l), A(sa.center), B(sb.center), C(sc.center), D(sd.center),
-          n((sa.l + sb.l + sc.l + sd.l) / 2 + 1), y(gh.nodes(n).data()),
           ntab((sa.l + 1) * (sb.l + 1) * (sc.l + 1) * (sd.l + 1)) {
-        MADNESS_CHECK_THROW(n <= maxnode, "QuartetLayout: angular momentum too high");
-        const std::vector<double>& w = gh.weights(n);
-        for (int k1 = 0; k1 < n; ++k1)
-            for (int k2 = 0; k2 < n; ++k2) ww[k1 * n + k2] = w[k1] * w[k2];
+        const int nn = la + lb + 1, nm = lc + ld + 1;
+        nscratch = nn * nm + (ld + 1) * nm + nn * (lc + 1) * (ld + 1) + (lb + 1) * nn;
         const auto ca = cartesian_components(la), cb = cartesian_components(lb);
         const auto cc = cartesian_components(lc), cd = cartesian_components(ld);
         for (const auto& i : ca)
@@ -234,74 +227,107 @@ struct QuartetLayout {
     int nblock() const { return int(index.size()); }
 };
 
+/// one axis of the two-electron 1D factor of a primitive quartet, for one kernel term:
+///   g[((i*(lb+1)+j)*(lc+1)+k)*(ld+1)+l] = pi E[(x1-A)^i (x1-B)^j (x2-C)^k (x2-D)^l]
+/// for (x1,x2) Gaussian with mean (A + c00, C + c00p), variances b10 and b01 and
+/// covariance b00, which is what coulomb_1d's quadrature sums are.
+///
+/// With X1 = x1-A and X2 = x2-C the moments follow from Stein's identity, the
+/// vertical recurrence of Rys quadrature:
+///   E[X1^{n+1} X2^m] = c00  E[X1^n X2^m] + n b10 E[X1^{n-1} X2^m] + m b00 E[X1^n X2^{m-1}]
+///   E[X1^n X2^{m+1}] = c00p E[X1^n X2^m] + m b01 E[X1^n X2^{m-1}] + n b00 E[X1^{n-1} X2^m]
+/// and the powers of x1-B and x2-D from x1-B = X1 + (A-B), x2-D = X2 + (C-D), the
+/// horizontal recurrence. Exact, like the quadrature it replaces.
+void moments_1d(const QuartetLayout& L, const double c00, const double c00p, const double b10, const double b01,
+                const double b00, const double AB, const double CD, double* g, double* scratch) {
+    const int la = L.la, lb = L.lb, lc = L.lc, ld = L.ld;
+    const int nn = la + lb + 1, nm = lc + ld + 1;
+    const int nkl = (lc + 1) * (ld + 1);
+    // M[n*nm+m] = pi E[X1^n X2^m], K[n*nkl+k*(ld+1)+l] = pi E[X1^n X2^k (x2-D)^l]. Without a
+    // horizontal step K has the layout of g (lb = 0) and M that of K (ld = 0), so they share
+    // storage and the common quartets need no copies.
+    double* h = scratch + nn * nm;          // ket recurrence, one n at a time: h[l*nm+m]
+    double* K = (lb == 0) ? g : h + (ld + 1) * nm;
+    double* M = (ld == 0) ? K : scratch;
+    double* e = h + (ld + 1) * nm + nn * nkl;   // bra recurrence, one (k,l) at a time: e[j*nn+i]
+
+    M[0] = constants::pi;
+    for (int n = 1; n < nn; ++n) {
+        M[n * nm] = c00 * M[(n - 1) * nm];
+        if (n > 1) M[n * nm] += (n - 1) * b10 * M[(n - 2) * nm];
+    }
+    for (int n = 0; n < nn; ++n) {
+        for (int m = 1; m < nm; ++m) {
+            double v = c00p * M[n * nm + m - 1];
+            if (m > 1) v += (m - 1) * b01 * M[n * nm + m - 2];
+            if (n > 0) v += n * b00 * M[(n - 1) * nm + m - 1];
+            M[n * nm + m] = v;
+        }
+    }
+
+    // ket: powers of x2-D
+    if (ld > 0) {
+        for (int n = 0; n < nn; ++n) {
+            for (int m = 0; m < nm; ++m) h[m] = M[n * nm + m];
+            for (int l = 1; l <= ld; ++l)
+                for (int m = 0; m < nm - l; ++m) h[l * nm + m] = h[(l - 1) * nm + m + 1] + CD * h[(l - 1) * nm + m];
+            for (int k = 0; k <= lc; ++k)
+                for (int l = 0; l <= ld; ++l) K[n * nkl + k * (ld + 1) + l] = h[l * nm + k];
+        }
+    }
+
+    // bra: powers of x1-B
+    if (lb > 0) {
+        for (int kl = 0; kl < nkl; ++kl) {
+            for (int i = 0; i < nn; ++i) e[i] = K[i * nkl + kl];
+            for (int j = 1; j <= lb; ++j)
+                for (int i = 0; i < nn - j; ++i) e[j * nn + i] = e[(j - 1) * nn + i + 1] + AB * e[(j - 1) * nn + i];
+            for (int i = 0; i <= la; ++i)
+                for (int j = 0; j <= lb; ++j) g[(i * (lb + 1) + j) * nkl + kl] = e[j * nn + i];
+        }
+    }
+}
+
 /// the x, y and z factors of one primitive quartet for one kernel term exp(-t r12^2)
 ///
-/// The quadrature of coulomb_1d, but p, q and t are the same on all three axes, so
-/// det M, omega, the Cholesky factor and the node offsets are computed once. The
-/// tables g[x] get the quadrature sums only; the prefactor they share,
-/// K_ab K_cd exp(-omega |P-Q|^2) det^{-3/2}, is returned.
+/// p, q and t are the same on all three axes, so det M, omega and the covariance
+/// of (x1,x2) are computed once; each axis then takes moments_1d. The tables g[x]
+/// hold coulomb_1d's quadrature sums without the prefactor they share,
+/// K_ab K_cd exp(-omega |P-Q|^2) det^{-3/2}, which is returned.
 double coulomb_xyz(const QuartetLayout& L, const PrimitivePair& ab, const PrimitivePair& cd, const double t,
-                   double* const g[3]) {
+                   double* const g[3], double* scratch) {
     const double p = ab.p, q = cd.p;
     const double det = p * q + t * (p + q);
     const double rdet = 1.0 / det;
-    const double sdet = std::sqrt(det);
-    const double l11 = std::sqrt(p + t);
-    const double il11 = 1.0 / l11;
-    const double il22 = l11 / sdet;                 // 1/l22, with l22 = sqrt(det/(p+t))
-    const double c12 = t * il11 * il11 * il22;      // t / ((p+t) l22)
     const double omega = p * q * t * rdet;
     double r2 = 0.0;
     for (int x = 0; x < 3; ++x) r2 += (ab.P[x] - cd.P[x]) * (ab.P[x] - cd.P[x]);
-    const double pref = ab.K * cd.K * std::exp(-omega * r2) * rdet / sdet;
+    const double pref = ab.K * cd.K * std::exp(-omega * r2) * rdet / std::sqrt(det);
 
-    // offsets of the nodes from the mean, the same on every axis
-    const int n = L.n;
-    double o1[maxnode * maxnode], o2[maxnode];
-    for (int k2 = 0; k2 < n; ++k2) o2[k2] = L.y[k2] * il22;
-    for (int k1 = 0; k1 < n; ++k1)
-        for (int k2 = 0; k2 < n; ++k2) o1[k1 * n + k2] = L.y[k1] * il11 + c12 * L.y[k2];
-
-    const int nb = L.lb + 1, nd = L.ld + 1;
-    const int nbra = (L.la + 1) * nb, nket = (L.lc + 1) * nd;
-    double pa[maxpow], pb[maxpow], pc[maxpow], pd[maxpow], u[maxpow * maxpow], v[maxpow * maxpow];
+    // the covariance of (x1,x2) is M^{-1}/2, M = [[p+t, -t], [-t, q+t]]
+    const double b10 = 0.5 * (q + t) * rdet, b01 = 0.5 * (p + t) * rdet, b00 = 0.5 * t * rdet;
     for (int x = 0; x < 3; ++x) {
         const double mu1 = ((q + t) * p * ab.P[x] + t * q * cd.P[x]) * rdet;
         const double mu2 = (t * p * ab.P[x] + (p + t) * q * cd.P[x]) * rdet;
-        const double xa = mu1 - L.A[x], xb = mu1 - L.B[x], xc = mu2 - L.C[x], xd = mu2 - L.D[x];
-        double* gx = g[x];
-        std::fill(gx, gx + nbra * nket, 0.0);
-        for (int k1 = 0; k1 < n; ++k1) {
-            for (int k2 = 0; k2 < n; ++k2) {
-                const double d1 = o1[k1 * n + k2], d2 = o2[k2];
-                const double wk = L.ww[k1 * n + k2];
-                powers(xa + d1, L.la, pa);
-                powers(xb + d1, L.lb, pb);
-                powers(xc + d2, L.lc, pc);
-                powers(xd + d2, L.ld, pd);
-                for (int i = 0; i <= L.la; ++i)
-                    for (int j = 0; j <= L.lb; ++j) u[i * nb + j] = wk * pa[i] * pb[j];
-                for (int k = 0; k <= L.lc; ++k)
-                    for (int l = 0; l <= L.ld; ++l) v[k * nd + l] = pc[k] * pd[l];
-                for (int ij = 0; ij < nbra; ++ij)
-                    for (int kl = 0; kl < nket; ++kl) gx[ij * nket + kl] += u[ij] * v[kl];
-            }
-        }
+        moments_1d(L, mu1 - L.A[x], mu2 - L.C[x], b10, b01, b00, L.A[x] - L.B[x], L.C[x] - L.D[x], g[x],
+                   scratch);
     }
     return pref;
 }
 
 /// an (ss|ss) primitive quartet summed over the kernel terms
 ///
-/// With one Gauss-Hermite node per axis (y = 0, w = sqrt(pi)) the quadrature of
-/// coulomb_1d reduces to the closed form
+/// With l = 0 throughout, every axis contributes only its zeroth moment, pi, so
+/// the sum over terms is the closed form
 ///   K_ab K_cd pi^3 sum_m w_m exp(-omega_m |P-Q|^2) det_m^{-3/2}.
-double coulomb_ssss(const PrimitivePair& ab, const PrimitivePair& cd, const GaussianKernel& kernel) {
+double coulomb_ssss(const PrimitivePair& ab, const PrimitivePair& cd, const GaussianKernel& kernel,
+                     const double tmax) {
     const double pq = ab.p * cd.p, s = ab.p + cd.p;
     double r2 = 0.0;
     for (int x = 0; x < 3; ++x) r2 += (ab.P[x] - cd.P[x]) * (ab.P[x] - cd.P[x]);
     double sum = 0.0;
     for (std::size_t m = 0; m < kernel.size(); ++m) {
+        if (kernel.t[m] > tmax) continue;
         const double det = pq + kernel.t[m] * s;
         sum += kernel.w[m] * std::exp(-pq * kernel.t[m] / det * r2) / (det * std::sqrt(det));
     }
@@ -333,17 +359,25 @@ inline std::size_t pair_index(const std::size_t a, const std::size_t b) {
 }
 
 /// acc[n] = sum_m w_m (ab|exp(-t_m r12^2)|cd) for every component quartet n of one primitive quartet
+///
+/// With screen > 0 the short-range terms t_m > rho/(2 screen) are dropped, rho = pq/(p+q).
+/// For t >> rho a term contributes about h rho/t of an (ss|ss) integral (h the
+/// logarithmic spacing of the fit), so the dropped tail is about screen of it.
 void primitive_quartet(const QuartetLayout& L, const PrimitivePair& ab, const PrimitivePair& cd,
-                       const GaussianKernel& kernel, std::vector<double> (&g)[3], double* acc) {
+                       const GaussianKernel& kernel, const double screen, std::vector<double> (&g)[3],
+                       double* scratch, double* acc) {
+    const double tmax = (screen > 0.0) ? 0.5 * ab.p * cd.p / ((ab.p + cd.p) * screen)
+                                       : std::numeric_limits<double>::infinity();
     if (L.la + L.lb + L.lc + L.ld == 0) {
-        acc[0] = coulomb_ssss(ab, cd, kernel);
+        acc[0] = coulomb_ssss(ab, cd, kernel, tmax);
         return;
     }
     const int nblock = L.nblock();
     std::fill(acc, acc + nblock, 0.0);
     double* const gp[3] = {g[0].data(), g[1].data(), g[2].data()};
     for (std::size_t m = 0; m < kernel.size(); ++m) {
-        const double f = kernel.w[m] * coulomb_xyz(L, ab, cd, kernel.t[m], gp);
+        if (kernel.t[m] > tmax) continue;
+        const double f = kernel.w[m] * coulomb_xyz(L, ab, cd, kernel.t[m], gp, scratch);
         for (int n = 0; n < nblock; ++n) {
             const std::array<int,3>& i = L.index[n];
             acc[n] += f * gp[0][i[0]] * gp[1][i[1]] * gp[2][i[2]];
@@ -361,7 +395,7 @@ void primitive_quartet(const QuartetLayout& L, const PrimitivePair& ab, const Pr
 void group_quartet(const std::vector<Shell>& shells, const std::vector<int>& G1, const std::vector<int>& G2,
                    const std::vector<int>& G3, const std::vector<int>& G4, const bool same12, const bool same34,
                    const bool samebraket, const std::vector<PrimitivePair>& bra, const std::vector<PrimitivePair>& ket,
-                   const GaussianKernel& kernel, const GaussHermiteRule& gh, Tensor<double>& G) {
+                   const GaussianKernel& kernel, const double screen, Tensor<double>& G) {
     std::vector<std::array<int,4>> members;
     for (const int s1 : G1)
         for (const int s2 : G2) {
@@ -375,13 +409,13 @@ void group_quartet(const std::vector<Shell>& shells, const std::vector<int>& G1,
         }
     if (members.empty()) return;
 
-    const QuartetLayout L(shells[G1[0]], shells[G2[0]], shells[G3[0]], shells[G4[0]], gh);
+    const QuartetLayout L(shells[G1[0]], shells[G2[0]], shells[G3[0]], shells[G4[0]]);
     const int nblock = L.nblock();
-    std::vector<double> g[3], acc(nblock), blocks(members.size() * nblock, 0.0);
+    std::vector<double> g[3], scratch(L.nscratch), acc(nblock), blocks(members.size() * nblock, 0.0);
     for (auto& v : g) v.resize(L.ntab);
     for (const PrimitivePair& pab : bra) {
         for (const PrimitivePair& pcd : ket) {
-            primitive_quartet(L, pab, pcd, kernel, g, acc.data());
+            primitive_quartet(L, pab, pcd, kernel, screen, g, scratch.data(), acc.data());
             for (std::size_t q = 0; q < members.size(); ++q) {
                 const std::array<int,4>& s = members[q];
                 const double coef = shells[s[0]].coeff[pab.ia] * shells[s[1]].coeff[pab.ib]
@@ -403,7 +437,7 @@ struct GroupQuartetData {
     std::vector<std::vector<int>> groups;
     std::vector<std::vector<PrimitivePair>> pairs;      ///< per group pair, numbered by pair_index
     const GaussianKernel& kernel;
-    const GaussHermiteRule& gh;
+    double screen;                                      ///< see primitive_quartet
 };
 
 /// a task on the thread pool: all group quartets with bra group pair (a b)
@@ -424,8 +458,8 @@ public:
                 const std::size_t cd = pair_index(c, d);
                 if (cd > ab) continue;     // (ab|cd) = (cd|ab)
                 group_quartet(data_.shells, data_.groups[a_], data_.groups[b_], data_.groups[c], data_.groups[d],
-                              a_ == b_, c == d, ab == cd, data_.pairs[ab], data_.pairs[cd], data_.kernel, data_.gh,
-                              G_);
+                              a_ == b_, c == d, ab == cd, data_.pairs[ab], data_.pairs[cd], data_.kernel,
+                              data_.screen, G_);
             }
         }
     }
@@ -652,14 +686,9 @@ Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(const Molecule& mo
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::eri(World& world) const {
+Tensor<double> SeparatedGaussianIntegrals::eri(World& world, const double screen) const {
     Tensor<double> G(nbf_, nbf_, nbf_, nbf_);
-    int lmax = 0;
-    for (const Shell& s : shells_) lmax = std::max(lmax, s.l);
-    // checked here, so that QuartetLayout cannot throw inside a task
-    MADNESS_CHECK_THROW(2 * lmax + 1 <= std::min(maxnode, gh_.nmax()), "eri: angular momentum too high");
-
-    GroupQuartetData data{shells_, shell_groups(shells_), {}, coulomb_, gh_};
+    GroupQuartetData data{shells_, shell_groups(shells_), {}, coulomb_, screen};
     const std::size_t ng = data.groups.size();
     data.pairs.resize(ng * (ng + 1) / 2);
     for (std::size_t a = 0; a < ng; ++a)

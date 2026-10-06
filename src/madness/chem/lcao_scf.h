@@ -65,6 +65,9 @@ public:
         initialize<double>("kernel_lo", 1.e-4, "smallest distance at which the fit of 1/r is accurate: guess "
                            "grade (the v1 reference numbers used 1e-6)");
         initialize<double>("kernel_hi", 50.0, "largest distance at which the fit of 1/r is accurate");
+        initialize<double>("kernel_screen", 1.e-6, "per primitive quartet, drop the short-range kernel terms "
+                           "whose estimated share of the two-electron integral is below this: guess grade "
+                           "(0: keep all, as the v1 reference numbers did)");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
         initialize<int>("maxiter", 100, "maximum number of SCF iterations");
@@ -93,6 +96,7 @@ public:
     double kernel_eps() const { return get<double>("kernel_eps"); }
     double kernel_lo() const { return get<double>("kernel_lo"); }
     double kernel_hi() const { return get<double>("kernel_hi"); }
+    double kernel_screen() const { return get<double>("kernel_screen"); }
     std::string guess() const { return get<std::string>("guess"); }
     int maxiter() const { return get<int>("maxiter"); }
     double econv() const { return get<double>("econv"); }
