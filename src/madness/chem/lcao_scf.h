@@ -60,16 +60,16 @@ public:
     static constexpr char const* tag = "lcao";
 
     LCAOParameters() {
-        initialize<double>("kernel_eps", 1.e-4, "relative precision of the Gaussian fit of 1/r: guess grade, "
-                           "far below the basis-set error (the v1 reference numbers used 1e-8)");
+        initialize<double>("kernel_eps", 1.e-3, "relative precision of the Gaussian fit of 1/r: guess grade, "
+                           "invisible to the MRA iterations (the v1 reference numbers used 1e-8)");
         initialize<double>("kernel_lo", 1.e-4, "smallest distance at which the fit of 1/r is accurate: guess "
                            "grade (the v1 reference numbers used 1e-6)");
         initialize<double>("kernel_hi", 50.0, "largest distance at which the fit of 1/r is accurate");
-        initialize<double>("kernel_screen", 1.e-6, "per primitive quartet, drop the short-range kernel terms "
+        initialize<double>("kernel_screen", 1.e-5, "per primitive quartet, drop the short-range kernel terms "
                            "whose estimated share of the two-electron integral is below this: guess grade "
                            "(0: keep all, as the v1 reference numbers did)");
-        initialize<double>("schwarz", 0.0, "skip the two-electron integrals of shell-group quartets whose "
-                           "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this (0: compute all)");
+        initialize<double>("schwarz", 1.e-6, "skip the two-electron integrals of shell-group quartets whose "
+                           "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this: guess grade (0: compute all)");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
         initialize<int>("maxiter", 100, "maximum number of SCF iterations");
