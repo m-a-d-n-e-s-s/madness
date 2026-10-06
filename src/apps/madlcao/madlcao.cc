@@ -33,10 +33,10 @@
 /// \brief driver for Hartree-Fock (RHF or UHF) in a Gaussian basis with separated-kernel integrals
 
 /// Reads the same input as moldft (geometry, `dft` group), so the molecule, its
-/// orientation and the spin (nopen) are identical; the basis set is the
-/// `aobasis` of the `dft` group. LCAO-specific settings live in the `lcao` group.
+/// orientation and the spin (nopen) are identical. The basis set and the other
+/// LCAO settings live in the `lcao` group, as for moldft's `guess lcao`.
 ///
-///   madlcao --geometry=water --dft="aobasis 6-31g" [--lcao="guess core; check_mra true"]
+///   madlcao --geometry=water --lcao="basis 6-31g; guess core; check_mra true"
 
 #include <madness/madness_config.h>
 #include <madness/chem/CalculationParameters.h>
@@ -255,8 +255,8 @@ int main(int argc, char** argv) {
             if (world.rank() == 0) {
                 print("madlcao: Hartree-Fock (RHF or UHF) in a Gaussian basis, with all integrals from");
                 print("MADNESS's Gaussian fit of 1/r (prototype v1)\n");
-                print("usage: madlcao --geometry=water --dft=\"aobasis 6-31g\" [--lcao=\"guess core\"]\n");
-                print("the basis set is the aobasis keyword of the dft group; the lcao group holds:");
+                print("usage: madlcao --geometry=water --lcao=\"basis 6-31g; guess core\"\n");
+                print("the lcao group holds:");
                 LCAOParameters().print("lcao", "end");
             }
         } else {
@@ -267,12 +267,12 @@ int main(int argc, char** argv) {
                 const LCAOParameters lparam(world, parser);
 
                 AtomicBasisSet aobasis;
-                aobasis.read_file(param.aobasis());
+                aobasis.read_file(lparam.basis());
                 if (world.rank() == 0) {
                     print("\n madlcao: Hartree-Fock (RHF or UHF) in a Gaussian basis (separated-kernel integrals)\n");
                     molecule.print();
                     lparam.print("lcao", "end");
-                    print("\nbasis set", param.aobasis(), "with", aobasis.nbf(molecule), "functions,",
+                    print("\nbasis set", lparam.basis(), "with", aobasis.nbf(molecule), "functions,",
                           param.nalpha(), "alpha and", param.nbeta(), "beta electrons\n");
                 }
 

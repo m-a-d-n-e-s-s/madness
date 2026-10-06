@@ -60,6 +60,7 @@
 #include <madness/tensor/distributed_matrix.h>
 #include<madness/chem/pcm.h>
 #include<madness/chem/dispersion.h>
+#include<madness/chem/lcao_scf.h>
 #include<madness/chem/QCPropertyInterface.h>
 
 #include <madness/tensor/tensor_json.hpp>
@@ -206,6 +207,8 @@ public:
     CalculationParameters param;
     /// the `pcm` data group; inert unless param.pcm_data() is set
     PCMParameters pcm_param;
+    /// the `lcao` data group; inert unless param.guess() is "lcao"
+    LCAOParameters lcao_param;
     XCfunctional xc;
     PCM pcm;
 
@@ -268,7 +271,7 @@ public:
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
         : SCF(world, CalculationParameters(world, parser), Molecule(world, parser),
-              PCMParameters(world, parser)) {
+              PCMParameters(world, parser), LCAOParameters(world, parser)) {
             work_dir = std::filesystem::current_path();
         }
 
@@ -276,9 +279,11 @@ public:
 
     /// \p pcm_param defaults to the bare `pcm` group; the solvent is still picked up
     /// from \p param.pcm_data() by PCMParameters::set_derived_values, so a caller that
-    /// does not parse a deck keeps working.
+    /// does not parse a deck keeps working. \p lcao_param likewise defaults to the
+    /// bare `lcao` group.
     SCF(World& world, const CalculationParameters& param, const Molecule& molecule,
-        const PCMParameters& pcm_param = PCMParameters());
+        const PCMParameters& pcm_param = PCMParameters(),
+        const LCAOParameters& lcao_param = LCAOParameters());
 
     void copy_data(World& world, const SCF& other);
 
@@ -426,7 +431,16 @@ public:
     ///                      turns out not to load
     void get_initial_orbitals(World& world, RestartPlan& plan);
 
+    /// the initial orbitals, from the atomic guess or, for `guess lcao`, from initial_guess_lcao
     void initial_guess(World& world);
+
+    /// the initial orbitals from Hartree-Fock in a Gaussian basis (lcao::LCAOSCF)
+
+    /// The LCAO calculation runs on rank 0 alone, so its integrals occupy one
+    /// rank's memory; all ranks then project the orbitals at the current
+    /// FunctionDefaults. Each spin's occupied orbitals are Loewdin-orthonormalized;
+    /// requested virtuals come from the LCAO virtuals.
+    void initial_guess_lcao(World& world);
 
     /// diagonalize the atomic-guess Fock matrix in the AO basis
     /// @param[out]	c	eigenvectors, one column per orbital

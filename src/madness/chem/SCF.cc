@@ -234,8 +234,8 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
 }
 
 SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule,
-         const PCMParameters& pcm_param1)
-    : molecule(molecule), param(param1), pcm_param(pcm_param1) {
+         const PCMParameters& pcm_param1, const LCAOParameters& lcao_param1)
+    : molecule(molecule), param(param1), pcm_param(pcm_param1), lcao_param(lcao_param1) {
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
@@ -266,9 +266,11 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
 
     // Ensure we have enough basis functions to guess the requested
     // number of states ... a minimal basis for a closed-shell atom
-    // might not have any functions for virtuals.
+    // might not have any functions for virtuals. The LCAO guess checks
+    // its own basis set.
     int nbf = aobasis.nbf(molecule);
-    if ((this->param.nmo_alpha()>nbf) or (this->param.nmo_beta()>nbf)) error("too few basis functions?", nbf);
+    if (param.guess() != "lcao" and ((this->param.nmo_alpha()>nbf) or (this->param.nmo_beta()>nbf)))
+        error("too few basis functions?", nbf);
 
     FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
     //set_protocol < 3 > (world, param.econv());
@@ -498,6 +500,13 @@ void SCF::get_initial_orbitals(World& world, RestartPlan& plan) {
     }
 
     auto from_initial_guess=[&](World& world) {
+        if (param.guess()=="lcao") {
+            // like a restart, it needs neither the AOs nor the nuclear potential;
+            // MolecularEnergy::value makes the potential for every rung it runs
+            if (world.rank()==0) print("starting from the LCAO initial guess");
+            initial_guess(world);
+            return;
+        }
         if (world.rank()==0) print("starting from the atomic initial guess");
         reset_aobasis(param.aobasis());
         ao = project_ao_basis(world, aobasis);
@@ -1312,6 +1321,10 @@ void SCF::initial_guess_ao_eigenvectors(World& world, tensorT& c, tensorT& e) {
 
 void SCF::initial_guess(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
+    if (param.guess() == "lcao") {
+        initial_guess_lcao(world);
+        return;
+    }
     tensorT c, e;
     initial_guess_ao_eigenvectors(world, c, e);
 
@@ -1353,6 +1366,90 @@ void SCF::initial_guess(World& world) {
 
     }
     END_TIMER(world, "guess orbital grouping");
+}
+
+void SCF::initial_guess_lcao(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
+    const int nalpha = param.nalpha(), nbeta = param.nbeta();
+    const long nmoa = param.nmo_alpha();
+    const long nmob = param.have_beta() ? param.nmo_beta() : 0;
+
+    // The LCAO calculation on rank 0. A failure there must reach the other ranks,
+    // which would otherwise wait in the broadcasts below forever.
+    AtomicBasisSet basis;
+    tensorT ca, cb, ea, eb;
+    int ok = 1;
+    if (world.rank() == 0) {
+        try {
+            basis.read_file(lcao_param.basis());
+            print("\nLCAO initial guess: Hartree-Fock in the", lcao_param.basis(), "basis with",
+                  basis.nbf(molecule), "functions\n");
+            lcao_param.print("lcao", "end");
+            lcao::LCAOSCF scf(world, molecule, basis, nalpha, nbeta, lcao_param);
+            scf.solve();
+            if (not scf.converged()) print("WARNING: the LCAO SCF did not converge; the guess uses its last orbitals");
+            ca = scf.coefficients(0);
+            ea = scf.orbital_energies(0);
+            MADNESS_CHECK_THROW(ca.dim(1) >= nmoa, "the LCAO basis has fewer alpha orbitals than requested");
+            if (nmob > 0) {
+                cb = scf.coefficients(1);
+                eb = scf.orbital_energies(1);
+                MADNESS_CHECK_THROW(cb.dim(1) >= nmob, "the LCAO basis has fewer beta orbitals than requested");
+            }
+        } catch (const MadnessException& e) {
+            print("LCAO initial guess failed:");
+            print(e);
+            ok = 0;
+        } catch (const std::exception& e) {
+            print("LCAO initial guess failed:", e.what());
+            ok = 0;
+        }
+    }
+    world.gop.broadcast(ok, 0);
+    MADNESS_CHECK_THROW(ok, "the LCAO initial guess failed on rank 0 (see the message above)");
+    world.gop.broadcast_serializable(basis, 0);
+    world.gop.broadcast_serializable(ca, 0);
+    world.gop.broadcast_serializable(ea, 0);
+    if (nmob > 0) {
+        world.gop.broadcast_serializable(cb, 0);
+        world.gop.broadcast_serializable(eb, 0);
+    }
+    END_TIMER(world, "lcao guess scf");
+
+    START_TIMER(world);
+    // both spins in one projection, so each basis function is projected once
+    tensorT c(ca.dim(0), nmoa + nmob);
+    c(_, Slice(0, nmoa - 1)) = ca(_, Slice(0, nmoa - 1));
+    if (nmob > 0) c(_, Slice(nmoa, nmoa + nmob - 1)) = cb(_, Slice(0, nmob - 1));
+    const vecfuncT mos = lcao::project_orbitals(world, molecule, basis, c, nmoa + nmob);
+
+    // the occupied orbitals of each spin Loewdin-orthonormalized, as in the madlcao seed;
+    // virtuals orthogonalized against them, as pad_virtuals_from_guess does
+    const auto orbitals = [&](const long first, const long nocc, const long nmo) {
+        vecfuncT mo = orthonormalize_symmetric(vecfuncT(mos.begin() + first, mos.begin() + first + nocc));
+        if (nmo > nocc) {
+            mo.insert(mo.end(), mos.begin() + first + nocc, mos.begin() + first + nmo);
+            orthonormalize(world, mo, int(nocc));
+        }
+        return mo;
+    };
+    const auto occupations = [](const long nocc, const long nmo) {
+        tensorT occ(nmo);
+        for (long i = 0; i < nocc; ++i) occ[i] = 1.0;
+        return occ;
+    };
+    amo = orbitals(0, nalpha, nmoa);
+    aeps = copy(ea(Slice(0, nmoa - 1)));
+    aocc = occupations(nalpha, nmoa);
+    aset = group_orbital_sets(world, aeps, aocc, nmoa);
+    if (nmob > 0) {
+        bmo = orbitals(nmoa, nbeta, nmob);
+        beps = copy(eb(Slice(0, nmob - 1)));
+        bocc = occupations(nbeta, nmob);
+        bset = group_orbital_sets(world, beps, bocc, nmob);
+    }
+    END_TIMER(world, "lcao guess orbitals");
 }
 
 bool SCF::pad_virtuals_from_guess(World& world) {

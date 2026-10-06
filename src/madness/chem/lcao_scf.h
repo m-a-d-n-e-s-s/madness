@@ -34,7 +34,8 @@
 
 /// Meant as a cheap source of initial orbitals for the MRA calculation, not as
 /// an optimized LCAO code: closed-shell RHF or UHF with DIIS, all integrals in
-/// memory, replicated on every rank.
+/// the memory of the rank that runs it (moldft's `guess lcao` runs it on rank 0
+/// alone; madlcao on every rank).
 
 #ifndef MADNESS_CHEM_LCAO_SCF_H__INCLUDED
 #define MADNESS_CHEM_LCAO_SCF_H__INCLUDED
@@ -53,13 +54,16 @@ namespace madness {
 
 /// parameters of the LCAO Hartree-Fock calculation, input group `lcao`
 
-/// The basis set is not among them: it is the `aobasis` of the `dft` group,
-/// the basis MADNESS already uses for its initial guess.
+/// Read by madlcao, and by moldft for `guess lcao` (dft group). The basis set
+/// is its own key, not the `aobasis` of the `dft` group, which stays the basis
+/// of the atomic guess.
 class LCAOParameters : public QCCalculationParametersBase {
 public:
     static constexpr char const* tag = "lcao";
 
     LCAOParameters() {
+        initialize<std::string>("basis", "6-31gss", "Gaussian basis set, a basis file of the MADNESS data "
+                                "directory (6-31gss, aug-cc-pvdz, 6-31g, ...)");
         initialize<double>("kernel_eps", 1.e-3, "relative precision of the Gaussian fit of 1/r: guess grade, "
                            "invisible to the MRA iterations (the v1 reference numbers used 1e-8)");
         initialize<double>("kernel_lo", 1.e-4, "smallest distance at which the fit of 1/r is accurate: guess "
@@ -99,6 +103,7 @@ public:
 
     std::string get_tag() const override { return std::string(tag); }
 
+    std::string basis() const { return get<std::string>("basis"); }
     double kernel_eps() const { return get<double>("kernel_eps"); }
     double kernel_lo() const { return get<double>("kernel_lo"); }
     double kernel_hi() const { return get<double>("kernel_hi"); }

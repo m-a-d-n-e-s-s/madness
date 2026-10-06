@@ -95,6 +95,8 @@ int main(int argc, char **argv) {
 
             } else if (parser.key_exists("print_parameters")) {
                 SCF::print_parameters();
+                print("\n\nthe LCAO initial guess (guess lcao) takes its settings from the lcao block:");
+                LCAOParameters().print("lcao", "end");
 
             } else if (parser.key_exists("restart_info")) {
                 // Report what a restart archive holds and stop. Answers "why

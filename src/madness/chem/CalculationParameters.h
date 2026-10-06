@@ -115,6 +115,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 //		initialize<Tensor<double> > ("plot_cell",Tensor<double>(),"lo hi in each dimension for plotting (default is all space)");
 		initialize<std::vector<double> > ("plot_cell",std::vector<double>(),"lo hi in each dimension for plotting (default is all space)");
 		initialize<std::string> ("aobasis","6-31g","AO basis used for initial guess (6-31gss, 6-31g, 3-21g, sto-6g, sto-3g)");
+		initialize<std::string> ("guess","atomic","initial orbitals when they are not read from a restart: atomic "
+				"(the atomic guess in aobasis) or lcao (Hartree-Fock in a Gaussian basis, parameter group lcao; "
+				"an open shell may converge to a different state than from the atomic guess)",{"atomic","lcao"});
 		initialize<bool> ("derivatives",false,"if true calculate nuclear derivatives");
 		initialize<bool> ("dipole",false,"if true calculate dipole moment");
 		initialize<bool> ("conv_only_dens",false,"if true remove bsh_residual from convergence criteria (deprecated)");
@@ -248,6 +251,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
+	std::string guess() const {return get<std::string>("guess");}
 
 	std::vector<double> protocol() const {return get<std::vector<double> >("protocol");}
 	bool save() const {return get<bool>("save");}
@@ -331,6 +335,14 @@ struct CalculationParameters : public QCCalculationParametersBase {
         if (nv_extra() < 0 or nv_step() < 0 or nv_its() < 1) error("nv_extra, nv_step >= 0 and nv_its >= 1 required");
         if (nv_extra() > 0 and nvalpha() == 0) error("nv_extra requires nvalpha > 0");
         if (freeze_occupied() and nvalpha() == 0 and nvbeta() == 0) error("freeze_occupied requires nvalpha or nvbeta > 0");
+
+        // the LCAO guess is all-electron with point nuclei, and nwfile brings orbitals of its own
+        if (guess() == "lcao") {
+            bool pseudo = false;
+            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) pseudo = pseudo or molecule.get_pseudo_atom(iatom);
+            if (pseudo or n_core > 0) error("guess lcao requires an all-electron calculation (no pseudopotentials or core potentials)");
+            if (nwfile() != "none") error("guess lcao and nwfile exclude each other");
+        }
 
         // Explicit occupations address the occupied span. A hole there is only
         // index-stable with canonical orbitals: every iteration re-sorts them by
