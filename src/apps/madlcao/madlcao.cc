@@ -119,6 +119,19 @@ void check_against_mra(World& world, const Molecule& molecule, const AtomicBasis
     }
 }
 
+/// compare the two-electron integrals with the unoptimized reference implementation (v1's loop)
+void check_eri(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lparam) {
+    const lcao::GaussianKernel kernel =
+        lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
+    const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
+    const double t0 = wall_time();
+    const Tensor<double> G = ints.eri_reference();
+    if (world.rank() == 0) {
+        printf("\ntwo-electron integrals against the reference implementation (%.2fs)\n", wall_time() - t0);
+        printf("   max |diff| %.2e   (max |(ij|kl)| %.2e)\n", (G - scf.eri()).absmax(), G.absmax());
+    }
+}
+
 /// the polynomial order moldft uses for a threshold, unless k is given (SCF::set_protocol)
 int k_for_thresh(const double thresh) {
     if (thresh >= 0.9e-2) return 4;
@@ -243,6 +256,7 @@ int main(int argc, char** argv) {
                 if (world.rank() == 0) printf("final energy=%16.8f  (%.2fs)\n", energy, wall_time() - t0);
                 if (not scf.converged()) status = 1;
 
+                if (lparam.check_eri()) check_eri(world, scf, lparam);
                 if (lparam.check_mra()) check_against_mra(world, molecule, aobasis, scf, param.L());
                 if (lparam.seed()) write_seed(world, molecule, aobasis, scf, param, lparam);
 

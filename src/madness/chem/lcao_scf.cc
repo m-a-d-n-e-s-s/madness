@@ -98,7 +98,7 @@ void LCAOSCF::compute_integrals() {
     T_ = ints.kinetic();
     V_ = ints.nuclear_attraction(molecule_);
     const double t1 = wall_time();
-    eri_ = ints.eri();
+    eri_ = ints.eri(world_);
     const double t2 = wall_time();
     H_ = T_ + V_;
     twoe_ = std::make_unique<InCoreERI>(eri_);

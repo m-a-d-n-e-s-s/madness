@@ -50,6 +50,9 @@
 #include <vector>
 
 namespace madness {
+
+class World;
+
 namespace lcao {
 
 /// one contracted Cartesian Gaussian shell on a center, as AtomicBasisSet defines it
@@ -124,7 +127,13 @@ public:
     Tensor<double> nuclear_attraction(const Molecule& molecule) const;
 
     /// all two-electron integrals (mu nu|lambda sigma), chemists' notation, as a full nbf^4 tensor
-    Tensor<double> eri() const;
+
+    /// Computed as tasks on the thread pool of this process; every rank computes all of them.
+    Tensor<double> eri(World& world) const;
+
+    /// eri() as v1 computed it: every primitive quartet, kernel term and axis on its own.
+    /// Slow; kept as the reference that eri() is checked against (lcao group: check_eri).
+    Tensor<double> eri_reference() const;
 
 private:
     std::vector<Shell> shells_;

@@ -74,6 +74,8 @@ public:
                         "2: also the kernel accuracy");
         initialize<bool>("check_mra", false, "madlcao: compare S, T, V and (ii|jj) with MRA quadrature "
                          "of the same basis functions");
+        initialize<bool>("check_eri", false, "madlcao: compare the two-electron integrals with the "
+                         "unoptimized reference implementation");
         initialize<bool>("seed", false, "madlcao: write the occupied orbitals as <prefix>.restartdata, "
                          "for moldft to start from");
         initialize<int>("seed_rung", 0, "madlcao: rung of the dft group's protocol at which moldft starts "
@@ -97,6 +99,7 @@ public:
     double lindep() const { return get<double>("lindep"); }
     int print_level() const { return get<int>("print_level"); }
     bool check_mra() const { return get<bool>("check_mra"); }
+    bool check_eri() const { return get<bool>("check_eri"); }
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }
 };
