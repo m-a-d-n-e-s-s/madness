@@ -33,6 +33,8 @@
 /// \brief closed-shell Hartree-Fock in a Gaussian basis, with integrals from separated kernels
 
 #include <madness/chem/lcao_scf.h>
+#include <madness/chem/molecular_functors.h>
+#include <madness/mra/vmra.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/world/print.h>
 
@@ -223,60 +225,21 @@ double LCAOSCF::solve() {
 }
 
 
-namespace {
-
-/// one LCAO orbital sum_mu c_mu chi_mu(r), evaluated pointwise for the MRA projection
-
-/// Holds the molecule and the basis through shared pointers: the function
-/// keeps its functor after construction, so references to the caller's
-/// objects could dangle.
-class LCAOOrbitalFunctor : public FunctionFunctorInterface<double,3> {
-public:
-    static constexpr std::size_t maxbf = 4096;
-
-    LCAOOrbitalFunctor(std::shared_ptr<const Molecule> molecule, std::shared_ptr<const AtomicBasisSet> aobasis,
-                       std::vector<double> c)
-        : molecule_(std::move(molecule)), aobasis_(std::move(aobasis)), c_(std::move(c)),
-          centers_(molecule_->get_all_coords_vec()) {
-        MADNESS_CHECK_THROW(c_.size() <= maxbf, "LCAOOrbitalFunctor: too many basis functions");
-    }
-
-    double operator()(const coord_3d& r) const override {
-        std::array<double, maxbf> bf;
-        aobasis_->eval(*molecule_, r[0], r[1], r[2], bf.data());
-        double v = 0.0;
-        for (std::size_t mu = 0; mu < c_.size(); ++mu) v += c_[mu] * bf[mu];
-        return v;
-    }
-
-    std::vector<coord_3d> special_points() const override { return centers_; }
-
-private:
-    std::shared_ptr<const Molecule> molecule_;
-    std::shared_ptr<const AtomicBasisSet> aobasis_;
-    std::vector<double> c_;
-    std::vector<coord_3d> centers_;
-};
-
-} // namespace
-
-
 std::vector<Function<double,3>> project_orbitals(World& world, const Molecule& molecule,
                                                   const AtomicBasisSet& aobasis, const Tensor<double>& C,
                                                   const long nmo) {
-    MADNESS_CHECK_THROW(C.ndim() == 2 and C.dim(0) == aobasis.nbf(molecule) and C.dim(1) >= nmo,
+    const int nbf = aobasis.nbf(molecule);
+    MADNESS_CHECK_THROW(C.ndim() == 2 and C.dim(0) == nbf and C.dim(1) >= nmo,
                         "project_orbitals: coefficients do not match the basis");
-    const auto mol = std::make_shared<const Molecule>(molecule);
-    const auto basis = std::make_shared<const AtomicBasisSet>(aobasis);
-    std::vector<Function<double,3>> mo(nmo);
-    for (long i = 0; i < nmo; ++i) {
-        std::vector<double> c(C.dim(0));
-        for (long mu = 0; mu < C.dim(0); ++mu) c[mu] = C(mu, i);
+    // the basis functions as AtomicBasisSet defines them, not normalized: C refers to these
+    std::vector<Function<double,3>> ao(nbf);
+    for (int mu = 0; mu < nbf; ++mu) {
         const std::shared_ptr<FunctionFunctorInterface<double,3>> f =
-            std::make_shared<LCAOOrbitalFunctor>(mol, basis, std::move(c));
-        mo[i] = FunctionFactory<double,3>(world).functor(f).truncate_on_project().nofence();
+            std::make_shared<madchem::AtomicBasisFunctor>(aobasis.get_atomic_basis_function(molecule, mu));
+        ao[mu] = FunctionFactory<double,3>(world).functor(f).truncate_on_project().nofence();
     }
     world.gop.fence();
+    std::vector<Function<double,3>> mo = transform(world, ao, copy(C(_, Slice(0, nmo - 1))));
     truncate(world, mo);
     return mo;
 }

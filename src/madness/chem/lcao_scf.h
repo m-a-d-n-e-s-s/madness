@@ -205,9 +205,9 @@ private:
 
 /// MRA functions sum_mu C(mu,i) chi_mu(r) for the first nmo columns of C, at the current FunctionDefaults
 
-/// Each orbital is projected as a whole, from a pointwise functor over all
-/// basis functions. The projections are not orthonormalized: independent
-/// projections are orthonormal only to about the projection threshold.
+/// Each basis function is projected once, and the orbitals are their linear
+/// combinations (transform). The result is not orthonormalized: projections
+/// are orthonormal only to about the projection threshold.
 std::vector<Function<double,3>> project_orbitals(World& world, const Molecule& molecule,
                                                   const AtomicBasisSet& aobasis, const Tensor<double>& C,
                                                   long nmo);
