@@ -126,9 +126,17 @@ void check_eri(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lpa
     const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
     const double t0 = wall_time();
     const Tensor<double> G = ints.eri_reference();
+    const lcao::PackedERI& P = scf.eri();
+    double maxdiff = 0.0;
+    for (long i = 0; i < P.nbf(); ++i)
+        for (long j = 0; j <= i; ++j)
+            for (long k = 0; k <= i; ++k)
+                for (long l = 0; l <= k; ++l)
+                    if (lcao::PackedERI::pair(k, l) <= lcao::PackedERI::pair(i, j))
+                        maxdiff = std::max(maxdiff, std::abs(G(i, j, k, l) - P(i, j, k, l)));
     if (world.rank() == 0) {
         printf("\ntwo-electron integrals against the reference implementation (%.2fs)\n", wall_time() - t0);
-        printf("   max |diff| %.2e   (max |(ij|kl)| %.2e)\n", (G - scf.eri()).absmax(), G.absmax());
+        printf("   max |diff| %.2e   (max |(ij|kl)| %.2e)\n", maxdiff, G.absmax());
     }
 }
 

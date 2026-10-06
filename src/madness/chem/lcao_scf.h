@@ -68,6 +68,8 @@ public:
         initialize<double>("kernel_screen", 1.e-6, "per primitive quartet, drop the short-range kernel terms "
                            "whose estimated share of the two-electron integral is below this: guess grade "
                            "(0: keep all, as the v1 reference numbers did)");
+        initialize<double>("schwarz", 0.0, "skip the two-electron integrals of shell-group quartets whose "
+                           "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this (0: compute all)");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
         initialize<int>("maxiter", 100, "maximum number of SCF iterations");
@@ -97,6 +99,7 @@ public:
     double kernel_lo() const { return get<double>("kernel_lo"); }
     double kernel_hi() const { return get<double>("kernel_hi"); }
     double kernel_screen() const { return get<double>("kernel_screen"); }
+    double schwarz() const { return get<double>("schwarz"); }
     std::string guess() const { return get<std::string>("guess"); }
     int maxiter() const { return get<int>("maxiter"); }
     double econv() const { return get<double>("econv"); }
@@ -125,14 +128,14 @@ public:
     virtual void jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const = 0;
 };
 
-/// J and K from the full tensor of two-electron integrals, held in memory
+/// J and K from the two-electron integrals held in memory, once per permutational orbit
 class InCoreERI : public TwoElectronBuilder {
 public:
-    explicit InCoreERI(const Tensor<double>& eri) : eri_(eri) {}
+    explicit InCoreERI(std::shared_ptr<const PackedERI> eri) : eri_(std::move(eri)) {}
     void jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const override;
 
 private:
-    Tensor<double> eri_;
+    std::shared_ptr<const PackedERI> eri_;
 };
 
 /// closed-shell restricted Hartree-Fock in a Gaussian basis
@@ -164,7 +167,7 @@ public:
     const Tensor<double>& overlap() const { return S_; }
     const Tensor<double>& kinetic() const { return T_; }
     const Tensor<double>& nuclear_attraction() const { return V_; }
-    const Tensor<double>& eri() const { return eri_; }
+    const PackedERI& eri() const { return *eri_; }
 
     /// MO coefficients, one column per orbital, in ascending orbital energy
     const Tensor<double>& coefficients() const { return C_; }
@@ -183,7 +186,8 @@ private:
     LCAOParameters param_;
 
     std::vector<Shell> shells_;
-    Tensor<double> S_, T_, V_, H_, eri_, X_;
+    Tensor<double> S_, T_, V_, H_, X_;
+    std::shared_ptr<const PackedERI> eri_;
     Tensor<double> C_, eps_, P_;
     std::unique_ptr<TwoElectronBuilder> twoe_;
     Energies energies_;

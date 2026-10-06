@@ -39,6 +39,7 @@
 #include <madness/world/MADworld.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 
@@ -148,6 +149,17 @@ void symmetrize_block(Tensor<double>& m, const Shell& sa, const Shell& sb) {
 }
 
 /// write the block of shell quartet (ab|cd) into G, with the 8-fold permutational symmetry
+void scatter_quartet(PackedERI& G, const Shell& sa, const Shell& sb, const Shell& sc, const Shell& sd,
+                     const double* block) {
+    const int na = sa.ncart(), nb = sb.ncart(), nc = sc.ncart(), nd = sd.ncart();
+    for (int i = 0, n = 0; i < na; ++i)
+        for (int j = 0; j < nb; ++j)
+            for (int k = 0; k < nc; ++k)
+                for (int l = 0; l < nd; ++l, ++n)
+                    G(sa.offset + i, sb.offset + j, sc.offset + k, sd.offset + l) = block[n];
+}
+
+/// the same for the full nbf^4 tensor of eri_reference
 void scatter_quartet(Tensor<double>& G, const Shell& sa, const Shell& sb, const Shell& sc, const Shell& sd,
                      const double* block) {
     const int na = sa.ncart(), nb = sb.ncart(), nc = sc.ncart(), nd = sd.ncart();
@@ -395,7 +407,7 @@ void primitive_quartet(const QuartetLayout& L, const PrimitivePair& ab, const Pr
 void group_quartet(const std::vector<Shell>& shells, const std::vector<int>& G1, const std::vector<int>& G2,
                    const std::vector<int>& G3, const std::vector<int>& G4, const bool same12, const bool same34,
                    const bool samebraket, const std::vector<PrimitivePair>& bra, const std::vector<PrimitivePair>& ket,
-                   const GaussianKernel& kernel, const double screen, Tensor<double>& G) {
+                   const GaussianKernel& kernel, const double screen, PackedERI& G) {
     std::vector<std::array<int,4>> members;
     for (const int s1 : G1)
         for (const int s2 : G2) {
@@ -438,36 +450,57 @@ struct GroupQuartetData {
     std::vector<std::vector<PrimitivePair>> pairs;      ///< per group pair, numbered by pair_index
     const GaussianKernel& kernel;
     double screen;                                      ///< see primitive_quartet
+    double schwarz;                                     ///< skip (ab|cd) if q[ab] q[cd] < schwarz
+    std::vector<double> q;                              ///< per group pair, sqrt of the largest |(mu nu|mu nu)|
+    std::atomic<long> computed{0}, skipped{0};
+
+    /// compute the group quartet (ab|cd), (a b) >= (c d)
+    void compute(const std::size_t a, const std::size_t b, const std::size_t c, const std::size_t d,
+                 PackedERI& G) {
+        const std::size_t ab = pair_index(a, b), cd = pair_index(c, d);
+        group_quartet(shells, groups[a], groups[b], groups[c], groups[d], a == b, c == d, ab == cd, pairs[ab],
+                      pairs[cd], kernel, screen, G);
+        ++computed;
+    }
 };
 
-/// a task on the thread pool: all group quartets with bra group pair (a b)
+/// a task on the thread pool: the group quartets with bra group pair (a b)
 ///
-/// The group quartets of different tasks write disjoint elements of G, so the
-/// tasks need no locks, and every element is computed in the order of the serial
-/// loop.
-class BraPairTask : public TaskInterface {
+/// With diagonal, only (ab|ab), whose integrals give the Schwarz factors;
+/// otherwise all (ab|cd) with (c d) < (a b) that pass the Schwarz test. Group
+/// quartets of different tasks write disjoint elements of G, so the tasks need
+/// no locks, and every element is computed in the order of the serial loop.
+class GroupQuartetTask : public TaskInterface {
 public:
-    BraPairTask(const GroupQuartetData& data, const std::size_t a, const std::size_t b, Tensor<double>& G)
-        : data_(data), a_(a), b_(b), G_(G) {}
+    GroupQuartetTask(GroupQuartetData& data, const std::size_t a, const std::size_t b, const bool diagonal,
+                     PackedERI& G)
+        : data_(data), a_(a), b_(b), diagonal_(diagonal), G_(G) {}
 
     using TaskInterface::run;
     void run(World&) override {
+        if (diagonal_) {
+            data_.compute(a_, b_, a_, b_, G_);
+            return;
+        }
         const std::size_t ab = pair_index(a_, b_);
         for (std::size_t c = 0; c <= a_; ++c) {
             for (std::size_t d = 0; d <= c; ++d) {
                 const std::size_t cd = pair_index(c, d);
-                if (cd > ab) continue;     // (ab|cd) = (cd|ab)
-                group_quartet(data_.shells, data_.groups[a_], data_.groups[b_], data_.groups[c], data_.groups[d],
-                              a_ == b_, c == d, ab == cd, data_.pairs[ab], data_.pairs[cd], data_.kernel,
-                              data_.screen, G_);
+                if (cd >= ab) continue;     // (ab|cd) = (cd|ab); the diagonal is done
+                if (data_.q[ab] * data_.q[cd] < data_.schwarz) {
+                    ++data_.skipped;
+                    continue;
+                }
+                data_.compute(a_, b_, c, d, G_);
             }
         }
     }
 
 private:
-    const GroupQuartetData& data_;
+    GroupQuartetData& data_;
     const std::size_t a_, b_;
-    Tensor<double>& G_;
+    const bool diagonal_;
+    PackedERI& G_;
 };
 
 } // namespace
@@ -557,6 +590,12 @@ double GaussianKernel::max_relative_coulomb_error(const double lo, const double 
         err = std::max(err, std::abs((*this)(r) * r - 1.0));
     }
     return err;
+}
+
+
+PackedERI::PackedERI(const long nbf) : nbf_(nbf) {
+    const std::size_t npair = pair(nbf - 1, nbf - 1) + 1;
+    data_.assign(npair * (npair + 1) / 2, 0.0);
 }
 
 
@@ -686,19 +725,43 @@ Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(const Molecule& mo
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::eri(World& world, const double screen) const {
-    Tensor<double> G(nbf_, nbf_, nbf_, nbf_);
-    GroupQuartetData data{shells_, shell_groups(shells_), {}, coulomb_, screen};
+PackedERI SeparatedGaussianIntegrals::eri(World& world, const double screen, const double schwarz,
+                                          ERIStats* stats) const {
+    PackedERI G(nbf_);
+    GroupQuartetData data{shells_, shell_groups(shells_), {}, coulomb_, screen, schwarz, {}};
     const std::size_t ng = data.groups.size();
     data.pairs.resize(ng * (ng + 1) / 2);
     for (std::size_t a = 0; a < ng; ++a)
         for (std::size_t b = 0; b <= a; ++b)
             data.pairs[pair_index(a, b)] = primitive_pairs(shells_[data.groups[a][0]], shells_[data.groups[b][0]]);
 
-    // the last bra pairs have the most ket pairs: submit them first, so that no large task comes last
+    // first the diagonal group quartets (ab|ab), for the Schwarz factors
     for (std::size_t a = ng; a-- > 0;)
-        for (std::size_t b = a + 1; b-- > 0;) world.taskq.add(new BraPairTask(data, a, b, G));
+        for (std::size_t b = a + 1; b-- > 0;) world.taskq.add(new GroupQuartetTask(data, a, b, true, G));
     world.taskq.fence();
+    data.q.assign(data.pairs.size(), 0.0);
+    for (std::size_t a = 0; a < ng; ++a) {
+        for (std::size_t b = 0; b <= a; ++b) {
+            double qmax = 0.0;
+            for (const int s1 : data.groups[a])
+                for (const int s2 : data.groups[b])
+                    for (int i = 0; i < shells_[s1].ncart(); ++i)
+                        for (int j = 0; j < shells_[s2].ncart(); ++j) {
+                            const long mu = shells_[s1].offset + i, nu = shells_[s2].offset + j;
+                            qmax = std::max(qmax, std::abs(G(mu, nu, mu, nu)));
+                        }
+            data.q[pair_index(a, b)] = std::sqrt(qmax);
+        }
+    }
+
+    // then the rest; the last bra pairs have the most ket pairs, so submit them first
+    for (std::size_t a = ng; a-- > 0;)
+        for (std::size_t b = a + 1; b-- > 0;) world.taskq.add(new GroupQuartetTask(data, a, b, false, G));
+    world.taskq.fence();
+    if (stats) {
+        stats->computed = data.computed;
+        stats->skipped = data.skipped;
+    }
     return G;
 }
 

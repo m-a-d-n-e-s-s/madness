@@ -113,6 +113,50 @@ struct GaussianKernel {
     double max_relative_coulomb_error(double lo, double hi, int npt = 2000) const;
 };
 
+/// two-electron integrals (ij|kl), stored once per permutational orbit
+
+/// (ij|kl) = (ji|kl) = (ij|lk) = (kl|ij) = ..., so only i >= j, k >= l and
+/// ij >= kl are stored, with pairs numbered ij = i(i+1)/2 + j: about nbf^4/8
+/// values instead of nbf^4. The accessors take the four indices in any order
+/// of the orbit.
+class PackedERI {
+public:
+    PackedERI() = default;
+    explicit PackedERI(long nbf);
+
+    long nbf() const { return nbf_; }
+    std::size_t size() const { return data_.size(); }
+
+    /// number of the pair (i,j), for either order
+    static std::size_t pair(const long i, const long j) {
+        return (i >= j) ? std::size_t(i) * (i + 1) / 2 + j : std::size_t(j) * (j + 1) / 2 + i;
+    }
+
+    /// position of (ij|kl)
+    static std::size_t index(const long i, const long j, const long k, const long l) {
+        const std::size_t p = pair(i, j), q = pair(k, l);
+        return (p >= q) ? p * (p + 1) / 2 + q : q * (q + 1) / 2 + p;
+    }
+
+    double operator()(const long i, const long j, const long k, const long l) const {
+        return data_[index(i, j, k, l)];
+    }
+    double& operator()(const long i, const long j, const long k, const long l) { return data_[index(i, j, k, l)]; }
+
+    /// the stored values in order of position: pairs ij ascending, and kl = 0..ij within each
+    const double* data() const { return data_.data(); }
+
+private:
+    long nbf_ = 0;
+    std::vector<double> data_;
+};
+
+/// how many group quartets SeparatedGaussianIntegrals::eri computed and how many Schwarz screening skipped
+struct ERIStats {
+    long computed = 0;
+    long skipped = 0;
+};
+
 /// one- and two-electron integrals over the shells, with point nuclei and a Gaussian-sum Coulomb kernel
 class SeparatedGaussianIntegrals {
 public:
@@ -126,12 +170,17 @@ public:
     /// attraction to point nuclei with charges Atom::q
     Tensor<double> nuclear_attraction(const Molecule& molecule) const;
 
-    /// all two-electron integrals (mu nu|lambda sigma), chemists' notation, as a full nbf^4 tensor
+    /// all two-electron integrals (mu nu|lambda sigma), chemists' notation, once per permutational orbit
 
     /// Computed as tasks on the thread pool of this process; every rank computes all of them.
-    /// @param[in] screen  per primitive quartet, drop the short-range kernel terms whose estimated
-    ///                    share of the integral is below this (0: keep all terms)
-    Tensor<double> eri(World& world, double screen = 0.0) const;
+    /// Shells that differ only in their contraction coefficients form groups, and the
+    /// group quartets are the unit of work and of screening.
+    /// @param[in] screen   per primitive quartet, drop the short-range kernel terms whose estimated
+    ///                     share of the integral is below this (0: keep all terms)
+    /// @param[in] schwarz  skip the group quartets whose Schwarz bound sqrt((ab|ab)(cd|cd)) is below
+    ///                     this; their integrals stay zero (0: compute all)
+    /// @param[out] stats   if given, how many group quartets were computed and skipped
+    PackedERI eri(World& world, double screen = 0.0, double schwarz = 0.0, ERIStats* stats = nullptr) const;
 
     /// eri() as v1 computed it: every primitive quartet, kernel term and axis on its own.
     /// Slow; kept as the reference that eri() is checked against (lcao group: check_eri).

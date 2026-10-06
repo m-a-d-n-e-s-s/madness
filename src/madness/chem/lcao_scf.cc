@@ -45,31 +45,58 @@ namespace madness {
 namespace lcao {
 
 void InCoreERI::jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const {
+    // Each stored (ij|kl) stands for up to 8 index orders. Every order adds g P to one
+    // element of J and one of K; the factor f removes the orders that coincide (i = j,
+    // k = l, ij = kl). Half of the orders are transposes of the other half, so J' and K'
+    // collect one half and J = J' + J'^T, K = K' + K'^T.
     const long n = P.dim(0);
-    MADNESS_CHECK_THROW(eri_.ndim() == 4 and eri_.dim(0) == n and eri_.iscontiguous(),
-                        "InCoreERI: integrals and density matrix do not match");
-    const Tensor<double> Pc = copy(P);      // contiguous, for the raw-pointer loops below
-    const double* g = eri_.ptr();
-    const double* p = Pc.ptr();
-    J = Tensor<double>(n, n);
-    K = Tensor<double>(n, n);
-    for (long mu = 0; mu < n; ++mu) {
-        for (long nu = 0; nu < n; ++nu) {
-            // J: (mu nu|l s) is contiguous in (l s)
-            const double* gmn = g + (mu * n + nu) * n * n;
-            double j = 0.0;
-            for (long ls = 0; ls < n * n; ++ls) j += gmn[ls] * p[ls];
-            // K: (mu l|nu s) P_{ls}
-            double k = 0.0;
-            for (long l = 0; l < n; ++l) {
-                const double* gml = g + ((mu * n + l) * n + nu) * n;
-                const double* pl = p + l * n;
-                for (long s = 0; s < n; ++s) k += gml[s] * pl[s];
-            }
-            J(mu, nu) = j;
-            K(mu, nu) = k;
+    MADNESS_CHECK_THROW(eri_->nbf() == n, "InCoreERI: integrals and density matrix do not match");
+    const long npair = n * (n + 1) / 2;
+    std::vector<long> pi(npair), pj(npair);
+    for (long i = 0, ij = 0; i < n; ++i)
+        for (long j = 0; j <= i; ++j, ++ij) {
+            pi[ij] = i;
+            pj[ij] = j;
         }
+    const Tensor<double> Pc = copy(P);      // contiguous, for the raw-pointer loops below
+    const double* p = Pc.ptr();
+    std::vector<double> ppair(npair), jpair(npair, 0.0);
+    for (long ij = 0; ij < npair; ++ij) ppair[ij] = p[pi[ij] * n + pj[ij]];
+    Tensor<double> Kh(n, n);
+    double* kh = Kh.ptr();
+
+    const double* g = eri_->data();
+    for (long ij = 0; ij < npair; ++ij) {
+        const long i = pi[ij], j = pj[ij];
+        const double fij = (i == j) ? 0.5 : 1.0;
+        const double* pr_i = p + i * n;
+        const double* pr_j = p + j * n;
+        double* kr_i = kh + i * n;
+        double* kr_j = kh + j * n;
+        double jij = 0.0;
+        for (long kl = 0; kl <= ij; ++kl) {
+            const long k = pi[kl], l = pj[kl];
+            const double f = fij * ((k == l) ? 0.5 : 1.0) * ((kl == ij) ? 0.5 : 1.0);
+            const double v = f * g[kl];
+            jij += v * ppair[kl];
+            jpair[kl] += v * ppair[ij];
+            kr_i[k] += v * pr_j[l];
+            kr_j[k] += v * pr_i[l];
+            kr_i[l] += v * pr_j[k];
+            kr_j[l] += v * pr_i[k];
+        }
+        jpair[ij] += jij;
+        g += ij + 1;
     }
+
+    // J' holds J'_ij for i >= j, already times 2 for (ij|kl) and (ij|lk); K' is full
+    J = Tensor<double>(n, n);
+    for (long ij = 0; ij < npair; ++ij) {
+        const long i = pi[ij], j = pj[ij];
+        J(i, j) += 2.0 * jpair[ij];
+        J(j, i) += 2.0 * jpair[ij];
+    }
+    K = Kh + transpose(Kh);
 }
 
 
@@ -100,11 +127,16 @@ void LCAOSCF::compute_integrals() {
     T_ = ints.kinetic();
     V_ = ints.nuclear_attraction(molecule_);
     const double t1 = wall_time();
-    eri_ = ints.eri(world_, param_.kernel_screen());
+    ERIStats stats;
+    eri_ = std::make_shared<const PackedERI>(ints.eri(world_, param_.kernel_screen(), param_.schwarz(), &stats));
     const double t2 = wall_time();
     H_ = T_ + V_;
     twoe_ = std::make_unique<InCoreERI>(eri_);
-    if (printme) printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);
+    if (printme) {
+        printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);
+        printf("    %ld shell-group quartets, %ld of them skipped by the Schwarz test, %.2f GB stored\n",
+               stats.computed + stats.skipped, stats.skipped, 8.0e-9 * double(eri_->size()));
+    }
 }
 
 
