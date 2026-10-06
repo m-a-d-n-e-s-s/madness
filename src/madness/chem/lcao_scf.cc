@@ -40,33 +40,18 @@
 
 #include <cmath>
 #include <cstdio>
+#include <deque>
 
 namespace madness {
 namespace lcao {
 
-void InCoreERI::jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const {
-    // Each stored (ij|kl) stands for up to 8 index orders. Every order adds g P to one
-    // element of J and one of K; the factor f removes the orders that coincide (i = j,
-    // k = l, ij = kl). Half of the orders are transposes of the other half, so J' and K'
-    // collect one half and J = J' + J'^T, K = K' + K'^T.
-    const long n = P.dim(0);
-    MADNESS_CHECK_THROW(eri_->nbf() == n, "InCoreERI: integrals and density matrix do not match");
-    const long npair = n * (n + 1) / 2;
-    std::vector<long> pi(npair), pj(npair);
-    for (long i = 0, ij = 0; i < n; ++i)
-        for (long j = 0; j <= i; ++j, ++ij) {
-            pi[ij] = i;
-            pj[ij] = j;
-        }
-    const Tensor<double> Pc = copy(P);      // contiguous, for the raw-pointer loops below
-    const double* p = Pc.ptr();
-    std::vector<double> ppair(npair), jpair(npair, 0.0);
-    for (long ij = 0; ij < npair; ++ij) ppair[ij] = p[pi[ij] * n + pj[ij]];
-    Tensor<double> Kh(n, n);
-    double* kh = Kh.ptr();
+namespace {
 
-    const double* g = eri_->data();
-    for (long ij = 0; ij < npair; ++ij) {
+/// J' and K' of InCoreERI::jk from the stored integrals of the pairs ij in [begin, end)
+void jk_pairs(const double* g, const long* pi, const long* pj, const double* p, const double* ppair, const long n,
+              const long begin, const long end, double* jpair, double* kh) {
+    g += begin * (begin + 1) / 2;           // pair ij holds ij+1 values
+    for (long ij = begin; ij < end; ++ij) {
         const long i = pi[ij], j = pj[ij];
         const double fij = (i == j) ? 0.5 : 1.0;
         const double* pr_i = p + i * n;
@@ -88,6 +73,67 @@ void InCoreERI::jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K
         jpair[ij] += jij;
         g += ij + 1;
     }
+}
+
+/// one range of pairs of InCoreERI::jk as a task, with its own accumulators
+class JKTask : public TaskInterface {
+public:
+    JKTask(const double* g, const long* pi, const long* pj, const double* p, const double* ppair, const long n,
+           const long begin, const long end, double* jpair, double* kh)
+        : g_(g), pi_(pi), pj_(pj), p_(p), ppair_(ppair), n_(n), begin_(begin), end_(end), jpair_(jpair), kh_(kh) {}
+
+    using TaskInterface::run;
+    void run(World&) override { jk_pairs(g_, pi_, pj_, p_, ppair_, n_, begin_, end_, jpair_, kh_); }
+
+private:
+    const double *g_;
+    const long *pi_, *pj_;
+    const double *p_, *ppair_;
+    const long n_, begin_, end_;
+    double *jpair_, *kh_;
+};
+
+} // namespace
+
+
+void InCoreERI::jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const {
+    // Each stored (ij|kl) stands for up to 8 index orders. Every order adds g P to one
+    // element of J and one of K; the factor f removes the orders that coincide (i = j,
+    // k = l, ij = kl). Half of the orders are transposes of the other half, so J' and K'
+    // collect one half and J = J' + J'^T, K = K' + K'^T.
+    const long n = P.dim(0);
+    MADNESS_CHECK_THROW(eri_->nbf() == n, "InCoreERI: integrals and density matrix do not match");
+    const long npair = n * (n + 1) / 2;
+    std::vector<long> pi(npair), pj(npair);
+    for (long i = 0, ij = 0; i < n; ++i)
+        for (long j = 0; j <= i; ++j, ++ij) {
+            pi[ij] = i;
+            pj[ij] = j;
+        }
+    const Tensor<double> Pc = copy(P);      // contiguous, for the raw-pointer loops below
+    const double* p = Pc.ptr();
+    std::vector<double> ppair(npair);
+    for (long ij = 0; ij < npair; ++ij) ppair[ij] = p[pi[ij] * n + pj[ij]];
+
+    // chunks of equal work (pair ij holds ij+1 values), each with its own J' and K',
+    // summed in a fixed order so that the result does not depend on the scheduling
+    const long nchunk = std::min(16L, npair);
+    std::vector<std::vector<double>> jparts(nchunk, std::vector<double>(npair, 0.0));
+    std::vector<Tensor<double>> kparts(nchunk);
+    for (long c = 0; c < nchunk; ++c) {
+        const long begin = long(npair * std::sqrt(double(c) / nchunk));
+        const long end = (c + 1 == nchunk) ? npair : long(npair * std::sqrt(double(c + 1) / nchunk));
+        kparts[c] = Tensor<double>(n, n);
+        world_.taskq.add(new JKTask(eri_->data(), pi.data(), pj.data(), p, ppair.data(), n, begin, end,
+                                    jparts[c].data(), kparts[c].ptr()));
+    }
+    world_.taskq.fence();
+    std::vector<double> jpair(npair, 0.0);
+    Tensor<double> Kh(n, n);
+    for (long c = 0; c < nchunk; ++c) {
+        for (long ij = 0; ij < npair; ++ij) jpair[ij] += jparts[c][ij];
+        Kh += kparts[c];
+    }
 
     // J' holds J'_ij for i >= j, already times 2 for (ij|kl) and (ij|lk); K' is full
     J = Tensor<double>(n, n);
@@ -98,6 +144,58 @@ void InCoreERI::jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K
     }
     K = Kh + transpose(Kh);
 }
+
+
+namespace {
+
+/// Pulay's DIIS: the combination sum_i c_i F_i of the stored Fock matrices with sum_i c_i = 1
+/// that minimizes |sum_i c_i e_i|, e_i the commutator error of F_i
+///
+/// F and e join the subspace, which keeps the last maxsub of them. If the DIIS equations
+/// are singular, the oldest entries are dropped until they are not.
+Tensor<double> diis_extrapolate(const Tensor<double>& F, const Tensor<double>& e, const std::size_t maxsub,
+                                std::deque<Tensor<double>>& fs, std::deque<Tensor<double>>& es) {
+    fs.push_back(F);
+    es.push_back(e);
+    while (fs.size() > maxsub) {
+        fs.pop_front();
+        es.pop_front();
+    }
+    while (fs.size() > 1) {
+        const long m = fs.size();
+        Tensor<double> B(m + 1, m + 1), rhs(m + 1);
+        double scale = 0.0;
+        for (long i = 0; i < m; ++i) {
+            for (long j = 0; j <= i; ++j) B(i, j) = B(j, i) = es[i].trace(es[j]);
+            scale = std::max(scale, B(i, i));
+        }
+        for (long i = 0; i < m; ++i) {
+            for (long j = 0; j < m; ++j) B(i, j) /= scale;
+            B(i, m) = B(m, i) = -1.0;
+        }
+        rhs(m) = -1.0;
+        Tensor<double> c;
+        bool ok = scale > 0.0;
+        if (ok) {
+            try {
+                gesv(B, rhs, c);
+            } catch (...) {
+                ok = false;
+            }
+        }
+        for (long i = 0; ok and i < m; ++i) ok = std::isfinite(c(i));
+        if (ok) {
+            Tensor<double> Fx(F.dim(0), F.dim(1));
+            for (long i = 0; i < m; ++i) Fx.gaxpy(1.0, fs[i], c(i));
+            return Fx;
+        }
+        fs.pop_front();
+        es.pop_front();
+    }
+    return copy(F);
+}
+
+} // namespace
 
 
 LCAOSCF::LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, const int nocc,
@@ -131,7 +229,7 @@ void LCAOSCF::compute_integrals() {
     eri_ = std::make_shared<const PackedERI>(ints.eri(world_, param_.kernel_screen(), param_.schwarz(), &stats));
     const double t2 = wall_time();
     H_ = T_ + V_;
-    twoe_ = std::make_unique<InCoreERI>(eri_);
+    twoe_ = std::make_unique<InCoreERI>(world_, eri_);
     if (printme) {
         printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);
         printf("    %ld shell-group quartets, %ld of them skipped by the Schwarz test, %.2f GB stored\n",
@@ -209,17 +307,23 @@ double LCAOSCF::solve() {
     const double damping = param_.damping();
     const long n = S_.dim(0);
     Tensor<double> J, K;
+    std::deque<Tensor<double>> diis_f, diis_e;
     double eold = 0.0;
     converged_ = false;
-    if (printme) printf("\n iter          energy            dE        rms(dP)\n");
+    if (printme) printf("\n iter          energy            dE        rms(dP)    max|FPS-SPF|\n");
     for (int iter = 0; iter < param_.maxiter(); ++iter) {
         twoe_->jk(P, J, K);
-        const Tensor<double> F = H_ + J - 0.5 * K;
+        Tensor<double> F = H_ + J - 0.5 * K;
         const double etot = 0.5 * P.trace(H_ + F) + enuc;
+        // the commutator FPS - SPF vanishes at self-consistency; in the orthogonal basis
+        // its size does not depend on the scaling of the basis functions
+        const Tensor<double> FPS = inner(F, inner(P, S_));
+        const Tensor<double> err = inner(transpose(X_), inner(FPS - transpose(FPS), X_));
+        if (param_.diis() > 0) F = diis_extrapolate(F, err, param_.diis(), diis_f, diis_e);
         const Tensor<double> Pnew = diagonalize(F);
         const double drms = (Pnew - P).normf() / double(n);
         const double de = etot - eold;
-        if (printme) printf("%5d  %18.10f  %12.4e  %12.4e\n", iter, etot, de, drms);
+        if (printme) printf("%5d  %18.10f  %12.4e  %12.4e  %12.4e\n", iter, etot, de, drms, err.absmax());
         P = (damping > 0.0) ? (1.0 - damping) * Pnew + damping * P : Pnew;
         eold = etot;
         iterations_ = iter + 1;

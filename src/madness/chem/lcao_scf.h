@@ -73,9 +73,13 @@ public:
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
         initialize<int>("maxiter", 100, "maximum number of SCF iterations");
-        initialize<double>("econv", 1.e-10, "energy convergence");
-        initialize<double>("dconv", 1.e-8, "convergence of the density matrix (rms change per element)");
+        initialize<double>("econv", 1.e-6, "energy convergence: guess grade, invisible to the MRA iterations "
+                           "(the v1 reference numbers used 1e-10)");
+        initialize<double>("dconv", 1.e-4, "convergence of the density matrix (rms change per element): guess "
+                           "grade (the v1 reference numbers used 1e-8)");
         initialize<double>("damping", 0.0, "fraction of the previous density mixed into the new one");
+        initialize<int>("diis", 8, "DIIS subspace: Pulay extrapolation of the Fock matrix from this many "
+                        "iterations (0: plain Roothaan-Hall)");
         initialize<double>("lindep", 1.e-7, "drop overlap eigenvalues below this (canonical orthogonalization)");
         initialize<int>("print_level", 1, "0: final energy; 1: iterations and energy components; "
                         "2: also the kernel accuracy");
@@ -105,6 +109,7 @@ public:
     double econv() const { return get<double>("econv"); }
     double dconv() const { return get<double>("dconv"); }
     double damping() const { return get<double>("damping"); }
+    int diis() const { return get<int>("diis"); }
     double lindep() const { return get<double>("lindep"); }
     int print_level() const { return get<int>("print_level"); }
     bool check_mra() const { return get<bool>("check_mra"); }
@@ -129,12 +134,15 @@ public:
 };
 
 /// J and K from the two-electron integrals held in memory, once per permutational orbit
+
+/// The pass over the integrals is split into tasks on the thread pool of this process.
 class InCoreERI : public TwoElectronBuilder {
 public:
-    explicit InCoreERI(std::shared_ptr<const PackedERI> eri) : eri_(std::move(eri)) {}
+    InCoreERI(World& world, std::shared_ptr<const PackedERI> eri) : world_(world), eri_(std::move(eri)) {}
     void jk(const Tensor<double>& P, Tensor<double>& J, Tensor<double>& K) const override;
 
 private:
+    World& world_;
     std::shared_ptr<const PackedERI> eri_;
 };
 
