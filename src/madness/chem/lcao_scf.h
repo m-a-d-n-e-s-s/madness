@@ -68,7 +68,8 @@ public:
                            "invisible to the MRA iterations (the v1 reference numbers used 1e-8)");
         initialize<double>("kernel_lo", 1.e-4, "smallest distance at which the fit of 1/r is accurate: guess "
                            "grade (the v1 reference numbers used 1e-6)");
-        initialize<double>("kernel_hi", 50.0, "largest distance at which the fit of 1/r is accurate");
+        initialize<double>("kernel_hi", 50.0, "largest distance at which the fit of 1/r is accurate; raised "
+                           "to the largest interatomic distance + 10 bohr if that is longer");
         initialize<double>("kernel_screen", 1.e-5, "per primitive quartet, drop the short-range kernel terms "
                            "whose estimated share of the two-electron integral is below this: guess grade "
                            "(0: keep all, as the v1 reference numbers did)");
@@ -206,6 +207,9 @@ public:
     int nbeta() const { return nbeta_; }
 
     const std::vector<Shell>& shells() const { return shells_; }
+
+    /// the fit of 1/r the integrals use: kernel_hi raised to cover the molecule (set by solve)
+    const GaussianKernel& kernel() const { return kernel_; }
     const Tensor<double>& overlap() const { return S_; }
     const Tensor<double>& kinetic() const { return T_; }
     const Tensor<double>& nuclear_attraction() const { return V_; }
@@ -240,6 +244,7 @@ private:
     bool collective_ = false;       ///< every rank of world_ takes part
 
     std::vector<Shell> shells_;
+    GaussianKernel kernel_;
     Tensor<double> S_, T_, V_, H_, X_;
     std::shared_ptr<const PackedERI> eri_;
     Tensor<double> Ca_, Cb_, epsa_, epsb_, Pa_, Pb_;

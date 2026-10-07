@@ -123,9 +123,8 @@ void check_against_mra(World& world, const Molecule& molecule, const AtomicBasis
 }
 
 /// the screened nuclear attraction of the SCF against every kernel term, nucleus and primitive pair computed
-void check_onee(World& world, const Molecule& molecule, const lcao::LCAOSCF& scf, const LCAOParameters& lparam) {
-    const lcao::GaussianKernel kernel =
-        lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
+void check_onee(World& world, const Molecule& molecule, const lcao::LCAOSCF& scf) {
+    const lcao::GaussianKernel& kernel = scf.kernel();     // the SCF's, with the range it used
     const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
     const double t0 = wall_time();
     const Tensor<double> V = ints.nuclear_attraction(world, molecule, 0.0);
@@ -136,8 +135,7 @@ void check_onee(World& world, const Molecule& molecule, const lcao::LCAOSCF& scf
 
 /// compare the two-electron integrals with the unoptimized reference implementation (v1's loop)
 void check_eri(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lparam) {
-    const lcao::GaussianKernel kernel =
-        lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
+    const lcao::GaussianKernel& kernel = scf.kernel();     // the SCF's, with the range it used
     const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
     const double t0 = wall_time();
     const Tensor<double> G = ints.eri_reference();
@@ -211,8 +209,7 @@ void check_cholesky(World& world, const lcao::LCAOSCF& scf, const LCAOParameters
         if (world.rank() == 0) print("\nCholesky decomposition: not checked (needs kernel_screen 0; schwarz 0)");
         return;
     }
-    const lcao::GaussianKernel kernel =
-        lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
+    const lcao::GaussianKernel& kernel = scf.kernel();     // the SCF's, with the range it used
     const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
     const double t0 = wall_time();
     const auto chol = std::make_shared<const lcao::CholeskyERIDecomposition>(world, ints, lparam.cholesky_tol());
@@ -414,7 +411,7 @@ int main(int argc, char** argv) {
                 if (world.rank() == 0) printf("final energy=%16.8f  (%.2fs)\n", energy, wall_time() - t0);
                 if (not scf.converged()) status = 1;
 
-                if (lparam.check_onee()) check_onee(world, molecule, scf, lparam);
+                if (lparam.check_onee()) check_onee(world, molecule, scf);
                 if (lparam.check_eri()) check_eri(world, scf, lparam);
                 if (lparam.check_cholesky()) check_cholesky(world, scf, lparam);
                 if (lparam.check_mra()) check_against_mra(world, molecule, aobasis, scf, param.L());

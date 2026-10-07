@@ -261,13 +261,29 @@ LCAOSCF::LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& a
 void LCAOSCF::compute_integrals() {
     const bool printme = world_.rank() == 0 and param_.print_level() > 0;
     const double t0 = wall_time();
-    const GaussianKernel kernel = GaussianKernel::coulomb(param_.kernel_lo(), param_.kernel_hi(), param_.kernel_eps());
+    // the fit of 1/r must cover the molecule (12_parallel_cholesky_plan.md, section 3.5): beyond kernel_hi
+    // the attraction to far nuclei and the repulsion of far electrons vanish, while the nuclear repulsion
+    // stays exact. So the range is at least the largest interatomic distance plus 10 bohr.
+    double extent = 0.0;
+    for (std::size_t i = 0; i < molecule_.natom(); ++i)
+        for (std::size_t j = 0; j < i; ++j) {
+            const Atom& a = molecule_.get_atom(i);
+            const Atom& b = molecule_.get_atom(j);
+            extent = std::max(extent, std::sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) +
+                                                (a.z - b.z) * (a.z - b.z)));
+        }
+    const double hi = std::max(param_.kernel_hi(), extent + 10.0);
+    kernel_ = GaussianKernel::coulomb(param_.kernel_lo(), hi, param_.kernel_eps());
+    const GaussianKernel& kernel = kernel_;
     if (printme) {
         printf("Coulomb kernel: %zu Gaussians for [%.1e, %.1e] bohr at relative precision %.1e\n",
-               kernel.size(), param_.kernel_lo(), param_.kernel_hi(), param_.kernel_eps());
+               kernel.size(), param_.kernel_lo(), hi, param_.kernel_eps());
+        if (hi > param_.kernel_hi())
+            printf("    kernel_hi %.1f raised to cover the molecule: largest interatomic distance %.1f bohr + 10\n",
+                   param_.kernel_hi(), extent);
         if (param_.print_level() > 1)
             printf("    max |sum_m w_m exp(-t_m r^2) r - 1| on [lo, hi]: %.2e\n",
-                   kernel.max_relative_coulomb_error(param_.kernel_lo(), param_.kernel_hi()));
+                   kernel.max_relative_coulomb_error(param_.kernel_lo(), hi));
     }
     const SeparatedGaussianIntegrals ints(shells_, kernel);
     S_ = ints.overlap(world_);
