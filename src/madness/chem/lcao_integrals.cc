@@ -397,13 +397,40 @@ void primitive_quartet(const QuartetLayout& L, const PrimitivePair& ab, const Pr
     }
 }
 
+/// the integral blocks of some shell quartets (s1 s2|s3 s4) of one group quartet, one block after the other
+///
+/// bra and ket are the primitive pairs of the two group pairs. Each primitive quartet is
+/// computed once and contracted into every member; a block holds the component quartets
+/// (i j|k l) at ((i nb + j) nc + k) nd + l.
+std::vector<double> quartet_blocks(const std::vector<Shell>& shells, const std::vector<std::array<int,4>>& members,
+                                   const std::vector<PrimitivePair>& bra, const std::vector<PrimitivePair>& ket,
+                                   const GaussianKernel& kernel, const double screen) {
+    const std::array<int,4>& f = members.front();
+    const QuartetLayout L(shells[f[0]], shells[f[1]], shells[f[2]], shells[f[3]]);
+    const int nblock = L.nblock();
+    std::vector<double> g[3], scratch(L.nscratch), acc(nblock), blocks(members.size() * nblock, 0.0);
+    for (auto& v : g) v.resize(L.ntab);
+    for (const PrimitivePair& pab : bra) {
+        for (const PrimitivePair& pcd : ket) {
+            primitive_quartet(L, pab, pcd, kernel, screen, g, scratch.data(), acc.data());
+            for (std::size_t q = 0; q < members.size(); ++q) {
+                const std::array<int,4>& s = members[q];
+                const double coef = shells[s[0]].coeff[pab.ia] * shells[s[1]].coeff[pab.ib]
+                                  * shells[s[2]].coeff[pcd.ia] * shells[s[3]].coeff[pcd.ib];
+                double* block = blocks.data() + q * nblock;
+                for (int n = 0; n < nblock; ++n) block[n] += coef * acc[n];
+            }
+        }
+    }
+    return blocks;
+}
+
 /// all shell quartets of one group quartet (G1 G2|G3 G4), written into G
 ///
-/// Each primitive quartet is computed once and contracted into every shell
-/// quartet of the groups. The shell quartets are restricted so that each one is
-/// computed exactly once over all canonical group quartets, as in the canonical
-/// loop over shells: s1 >= s2 within one group, s3 >= s4 within one group, and
-/// bra >= ket when the bra and ket groups are the same.
+/// The shell quartets are restricted so that each one is computed exactly once
+/// over all canonical group quartets, as in the canonical loop over shells:
+/// s1 >= s2 within one group, s3 >= s4 within one group, and bra >= ket when the
+/// bra and ket groups are the same.
 void group_quartet(const std::vector<Shell>& shells, const std::vector<int>& G1, const std::vector<int>& G2,
                    const std::vector<int>& G3, const std::vector<int>& G4, const bool same12, const bool same34,
                    const bool samebraket, const std::vector<PrimitivePair>& bra, const std::vector<PrimitivePair>& ket,
@@ -421,33 +448,66 @@ void group_quartet(const std::vector<Shell>& shells, const std::vector<int>& G1,
         }
     if (members.empty()) return;
 
-    const QuartetLayout L(shells[G1[0]], shells[G2[0]], shells[G3[0]], shells[G4[0]]);
-    const int nblock = L.nblock();
-    std::vector<double> g[3], scratch(L.nscratch), acc(nblock), blocks(members.size() * nblock, 0.0);
-    for (auto& v : g) v.resize(L.ntab);
-    for (const PrimitivePair& pab : bra) {
-        for (const PrimitivePair& pcd : ket) {
-            primitive_quartet(L, pab, pcd, kernel, screen, g, scratch.data(), acc.data());
-            for (std::size_t q = 0; q < members.size(); ++q) {
-                const std::array<int,4>& s = members[q];
-                const double coef = shells[s[0]].coeff[pab.ia] * shells[s[1]].coeff[pab.ib]
-                                  * shells[s[2]].coeff[pcd.ia] * shells[s[3]].coeff[pcd.ib];
-                double* block = blocks.data() + q * nblock;
-                for (int n = 0; n < nblock; ++n) block[n] += coef * acc[n];
-            }
-        }
-    }
+    const std::vector<double> blocks = quartet_blocks(shells, members, bra, ket, kernel, screen);
+    const std::size_t nblock = blocks.size() / members.size();
     for (std::size_t q = 0; q < members.size(); ++q) {
         const std::array<int,4>& s = members[q];
         scatter_quartet(G, shells[s[0]], shells[s[1]], shells[s[2]], shells[s[3]], blocks.data() + q * nblock);
     }
 }
 
-/// what the tasks of SeparatedGaussianIntegrals::eri share: shell groups, their primitive pairs, the kernel
+/// a pair of shells of a group pair, and the row of its first function pair within the group pair
+struct ShellPair {
+    int s1, s2;
+    std::size_t first;
+};
+
+/// the function pair (i, j) of a shell pair, numbered within the shell pair: i >= j for a shell with itself
+inline std::size_t component_pair(const int i, const int j, const int nj, const bool same) {
+    return same ? std::size_t(i) * (i + 1) / 2 + j : std::size_t(i) * nj + j;
+}
+
+} // namespace
+
+
+/// what all two-electron integrals of a basis share: the shell groups, and per group pair
+/// (a >= b, numbered pair_index(a, b)) the two groups, their primitive pairs and their shell pairs
+struct ShellGroupData {
+    std::vector<std::vector<int>> groups;
+    std::vector<std::array<std::size_t,2>> group_pairs;         ///< (a, b)
+    std::vector<std::vector<PrimitivePair>> pairs;              ///< primitive pairs of group a with group b
+    std::vector<std::vector<ShellPair>> shell_pairs;            ///< s1 of a, s2 of b, s1 >= s2 if a = b; in row order
+
+    explicit ShellGroupData(const std::vector<Shell>& shells) : groups(shell_groups(shells)) {
+        const std::size_t ng = groups.size(), ngp = ng * (ng + 1) / 2;
+        group_pairs.resize(ngp);
+        pairs.resize(ngp);
+        shell_pairs.resize(ngp);
+        for (std::size_t a = 0; a < ng; ++a) {
+            for (std::size_t b = 0; b <= a; ++b) {
+                const std::size_t ab = pair_index(a, b);
+                group_pairs[ab] = {a, b};
+                pairs[ab] = primitive_pairs(shells[groups[a][0]], shells[groups[b][0]]);
+                std::size_t first = 0;
+                for (const int s1 : groups[a])
+                    for (const int s2 : groups[b]) {
+                        if (a == b and s1 < s2) continue;
+                        shell_pairs[ab].push_back({s1, s2, first});
+                        const std::size_t n1 = shells[s1].ncart(), n2 = shells[s2].ncart();
+                        first += (s1 == s2) ? n1 * (n1 + 1) / 2 : n1 * n2;
+                    }
+            }
+        }
+    }
+};
+
+
+namespace {
+
+/// what the tasks of SeparatedGaussianIntegrals::eri share: shells, their groups, the kernel
 struct GroupQuartetData {
     const std::vector<Shell>& shells;
-    std::vector<std::vector<int>> groups;
-    std::vector<std::vector<PrimitivePair>> pairs;      ///< per group pair, numbered by pair_index
+    const ShellGroupData& sg;
     const GaussianKernel& kernel;
     double screen;                                      ///< see primitive_quartet
     double schwarz;                                     ///< skip (ab|cd) if q[ab] q[cd] < schwarz
@@ -458,8 +518,8 @@ struct GroupQuartetData {
     void compute(const std::size_t a, const std::size_t b, const std::size_t c, const std::size_t d,
                  PackedERI& G) {
         const std::size_t ab = pair_index(a, b), cd = pair_index(c, d);
-        group_quartet(shells, groups[a], groups[b], groups[c], groups[d], a == b, c == d, ab == cd, pairs[ab],
-                      pairs[cd], kernel, screen, G);
+        group_quartet(shells, sg.groups[a], sg.groups[b], sg.groups[c], sg.groups[d], a == b, c == d, ab == cd,
+                      sg.pairs[ab], sg.pairs[cd], kernel, screen, G);
         ++computed;
     }
 };
@@ -501,6 +561,118 @@ private:
     const std::size_t a_, b_;
     const bool diagonal_;
     PackedERI& G_;
+};
+
+/// boundaries of at most nchunk ranges of consecutive items with about equal total cost
+std::vector<std::size_t> equal_cost_chunks(const std::vector<double>& cost, std::size_t nchunk) {
+    const std::size_t n = cost.size();
+    nchunk = std::max<std::size_t>(1, std::min(nchunk, n));
+    double total = 0.0;
+    for (const double c : cost) total += c;
+    std::vector<std::size_t> bounds{0};
+    double sum = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        sum += cost[i];
+        if (bounds.size() < nchunk and sum >= total * double(bounds.size()) / double(nchunk)) bounds.push_back(i + 1);
+    }
+    if (bounds.back() != n) bounds.push_back(n);
+    return bounds;
+}
+
+/// the number of tasks a call of pair_diagonal or eri_columns splits into, for load balance
+std::size_t task_count() { return 8 * (ThreadPool::size() + 1); }
+
+/// a task on the thread pool: D(row) = (mu nu|mu nu) for the rows of the group pairs [begin, end)
+class DiagonalTask : public TaskInterface {
+public:
+    DiagonalTask(const std::vector<Shell>& shells, const ShellGroupData& sg, const GaussianKernel& kernel,
+                 const FunctionPairs& fp, const std::size_t begin, const std::size_t end, double* D)
+        : shells_(shells), sg_(sg), kernel_(kernel), fp_(fp), begin_(begin), end_(end), D_(D) {}
+
+    using TaskInterface::run;
+    void run(World&) override {
+        for (std::size_t ab = begin_; ab < end_; ++ab) {
+            const std::vector<ShellPair>& sps = sg_.shell_pairs[ab];
+            std::vector<std::array<int,4>> members;
+            for (const ShellPair& sp : sps) members.push_back({sp.s1, sp.s2, sp.s1, sp.s2});
+            const std::vector<double> blocks = quartet_blocks(shells_, members, sg_.pairs[ab], sg_.pairs[ab],
+                                                              kernel_, 0.0);
+            const std::size_t nblock = blocks.size() / members.size();
+            for (std::size_t q = 0; q < sps.size(); ++q) {
+                const int na = shells_[sps[q].s1].ncart(), nb = shells_[sps[q].s2].ncart();
+                const bool same = sps[q].s1 == sps[q].s2;
+                const double* block = blocks.data() + q * nblock;
+                double* d = D_ + fp_.first[ab] + sps[q].first;
+                for (int i = 0; i < na; ++i)
+                    for (int j = 0; j < (same ? i + 1 : nb); ++j)
+                        d[component_pair(i, j, nb, same)] = block[((i * nb + j) * na + i) * nb + j];
+            }
+        }
+    }
+
+private:
+    const std::vector<Shell>& shells_;
+    const ShellGroupData& sg_;
+    const GaussianKernel& kernel_;
+    const FunctionPairs& fp_;
+    const std::size_t begin_, end_;
+    double* D_;
+};
+
+/// a task on the thread pool: the columns of ket group pair g for the bra group pairs bra[begin, end)
+///
+/// W(j, r) is written at W[j ldw + r], r counted from rowstart[k] for bra[k]. Every
+/// pair of bra and ket shell pairs is computed, without the canonical restriction of
+/// eri(); the duplicates i < j (s1 = s2) and k < l (s3 = s4) are not written.
+class ColumnTask : public TaskInterface {
+public:
+    ColumnTask(const std::vector<Shell>& shells, const ShellGroupData& sg, const GaussianKernel& kernel,
+               const std::vector<std::size_t>& bra, const std::vector<std::size_t>& rowstart, const std::size_t begin,
+               const std::size_t end, const std::size_t g, double* W, const std::size_t ldw)
+        : shells_(shells), sg_(sg), kernel_(kernel), bra_(bra), rowstart_(rowstart), begin_(begin), end_(end), g_(g),
+          W_(W), ldw_(ldw) {}
+
+    using TaskInterface::run;
+    void run(World&) override {
+        const std::vector<ShellPair>& kets = sg_.shell_pairs[g_];
+        for (std::size_t k = begin_; k < end_; ++k) {
+            const std::size_t ab = bra_[k];
+            const std::vector<ShellPair>& bras = sg_.shell_pairs[ab];
+            std::vector<std::array<int,4>> members;
+            for (const ShellPair& b : bras)
+                for (const ShellPair& c : kets) members.push_back({b.s1, b.s2, c.s1, c.s2});
+            const std::vector<double> blocks = quartet_blocks(shells_, members, sg_.pairs[ab], sg_.pairs[g_],
+                                                              kernel_, 0.0);
+            const std::size_t nblock = blocks.size() / members.size();
+            for (std::size_t q = 0; q < members.size(); ++q) {
+                const ShellPair& b = bras[q / kets.size()];
+                const ShellPair& c = kets[q % kets.size()];
+                const int na = shells_[b.s1].ncart(), nb = shells_[b.s2].ncart();
+                const int nc = shells_[c.s1].ncart(), nd = shells_[c.s2].ncart();
+                const bool same12 = b.s1 == b.s2, same34 = c.s1 == c.s2;
+                const double* block = blocks.data() + q * nblock;
+                for (int i = 0; i < na; ++i) {
+                    for (int j = 0; j < (same12 ? i + 1 : nb); ++j) {
+                        const std::size_t r = rowstart_[k] + b.first + component_pair(i, j, nb, same12);
+                        for (int kk = 0; kk < nc; ++kk)
+                            for (int l = 0; l < (same34 ? kk + 1 : nd); ++l)
+                                W_[(c.first + component_pair(kk, l, nd, same34)) * ldw_ + r] =
+                                    block[((i * nb + j) * nc + kk) * nd + l];
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    const std::vector<Shell>& shells_;
+    const ShellGroupData& sg_;
+    const GaussianKernel& kernel_;
+    const std::vector<std::size_t>& bra_;
+    const std::vector<std::size_t>& rowstart_;
+    const std::size_t begin_, end_, g_;
+    double* W_;
+    const std::size_t ldw_;
 };
 
 } // namespace
@@ -601,7 +773,7 @@ PackedERI::PackedERI(const long nbf) : nbf_(nbf) {
 
 SeparatedGaussianIntegrals::SeparatedGaussianIntegrals(const std::vector<Shell>& shells,
                                                        const GaussianKernel& coulomb)
-    : shells_(shells), coulomb_(coulomb), gh_(16) {
+    : shells_(shells), coulomb_(coulomb), gh_(16), groups_(std::make_shared<const ShellGroupData>(shells_)) {
     for (const Shell& s : shells_) nbf_ = std::max(nbf_, long(s.offset + s.ncart()));
 }
 
@@ -728,23 +900,20 @@ Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(const Molecule& mo
 PackedERI SeparatedGaussianIntegrals::eri(World& world, const double screen, const double schwarz,
                                           ERIStats* stats) const {
     PackedERI G(nbf_);
-    GroupQuartetData data{shells_, shell_groups(shells_), {}, coulomb_, screen, schwarz, {}};
-    const std::size_t ng = data.groups.size();
-    data.pairs.resize(ng * (ng + 1) / 2);
-    for (std::size_t a = 0; a < ng; ++a)
-        for (std::size_t b = 0; b <= a; ++b)
-            data.pairs[pair_index(a, b)] = primitive_pairs(shells_[data.groups[a][0]], shells_[data.groups[b][0]]);
+    const ShellGroupData& sg = *groups_;
+    GroupQuartetData data{shells_, sg, coulomb_, screen, schwarz, {}};
+    const std::size_t ng = sg.groups.size();
 
     // first the diagonal group quartets (ab|ab), for the Schwarz factors
     for (std::size_t a = ng; a-- > 0;)
         for (std::size_t b = a + 1; b-- > 0;) world.taskq.add(new GroupQuartetTask(data, a, b, true, G));
     world.taskq.fence();
-    data.q.assign(data.pairs.size(), 0.0);
+    data.q.assign(sg.pairs.size(), 0.0);
     for (std::size_t a = 0; a < ng; ++a) {
         for (std::size_t b = 0; b <= a; ++b) {
             double qmax = 0.0;
-            for (const int s1 : data.groups[a])
-                for (const int s2 : data.groups[b])
+            for (const int s1 : sg.groups[a])
+                for (const int s2 : sg.groups[b])
                     for (int i = 0; i < shells_[s1].ncart(); ++i)
                         for (int j = 0; j < shells_[s2].ncart(); ++j) {
                             const long mu = shells_[s1].offset + i, nu = shells_[s2].offset + j;
@@ -763,6 +932,73 @@ PackedERI SeparatedGaussianIntegrals::eri(World& world, const double screen, con
         stats->skipped = data.skipped;
     }
     return G;
+}
+
+
+FunctionPairs SeparatedGaussianIntegrals::function_pairs() const {
+    const ShellGroupData& sg = *groups_;
+    const std::size_t ngp = sg.group_pairs.size();
+    const std::size_t npair = std::size_t(nbf_) * (nbf_ + 1) / 2;
+    FunctionPairs fp;
+    fp.first.resize(ngp);
+    fp.count.resize(ngp);
+    fp.functions.reserve(npair);
+    fp.group_pair.reserve(npair);
+    for (std::size_t ab = 0; ab < ngp; ++ab) {
+        fp.first[ab] = fp.functions.size();
+        for (const ShellPair& sp : sg.shell_pairs[ab]) {
+            const Shell& s1 = shells_[sp.s1];
+            const Shell& s2 = shells_[sp.s2];
+            for (int i = 0; i < s1.ncart(); ++i)
+                for (int j = 0; j < ((sp.s1 == sp.s2) ? i + 1 : s2.ncart()); ++j) {
+                    fp.functions.push_back({s1.offset + i, s2.offset + j});
+                    fp.group_pair.push_back(ab);
+                }
+        }
+        fp.count[ab] = fp.functions.size() - fp.first[ab];
+    }
+    MADNESS_CHECK_THROW(fp.size() == npair, "function_pairs: the pairs do not cover the basis");
+    return fp;
+}
+
+
+Tensor<double> SeparatedGaussianIntegrals::pair_diagonal(World& world, const FunctionPairs& fp) const {
+    const ShellGroupData& sg = *groups_;
+    MADNESS_CHECK_THROW(fp.ngroup_pairs() == sg.group_pairs.size() and fp.size() == std::size_t(nbf_) * (nbf_ + 1) / 2,
+                        "pair_diagonal: the function pairs belong to another basis");
+    std::vector<double> cost(fp.ngroup_pairs());
+    for (std::size_t ab = 0; ab < cost.size(); ++ab)
+        cost[ab] = double(sg.pairs[ab].size()) * double(sg.pairs[ab].size()) * double(fp.count[ab]);
+    Tensor<double> D(long(fp.size()));
+    const std::vector<std::size_t> chunk = equal_cost_chunks(cost, task_count());
+    for (std::size_t c = 0; c + 1 < chunk.size(); ++c)
+        world.taskq.add(new DiagonalTask(shells_, sg, coulomb_, fp, chunk[c], chunk[c + 1], D.ptr()));
+    world.taskq.fence();
+    return D;
+}
+
+
+Tensor<double> SeparatedGaussianIntegrals::eri_columns(World& world, const FunctionPairs& fp, const std::size_t g,
+                                                       const std::vector<std::size_t>& bra_group_pairs) const {
+    const ShellGroupData& sg = *groups_;
+    MADNESS_CHECK_THROW(fp.ngroup_pairs() == sg.group_pairs.size() and fp.size() == std::size_t(nbf_) * (nbf_ + 1) / 2,
+                        "eri_columns: the function pairs belong to another basis");
+    MADNESS_CHECK_THROW(g < fp.ngroup_pairs(), "eri_columns: no such ket group pair");
+    const std::vector<std::size_t>& bra = bra_group_pairs;
+    std::vector<std::size_t> rowstart(bra.size() + 1, 0);
+    std::vector<double> cost(bra.size());
+    for (std::size_t k = 0; k < bra.size(); ++k) {
+        MADNESS_CHECK_THROW(bra[k] < fp.ngroup_pairs(), "eri_columns: no such bra group pair");
+        rowstart[k + 1] = rowstart[k] + fp.count[bra[k]];
+        cost[k] = double(sg.pairs[bra[k]].size()) * double(fp.count[bra[k]]);
+    }
+    Tensor<double> W(long(fp.count[g]), long(rowstart.back()));
+    const std::vector<std::size_t> chunk = equal_cost_chunks(cost, task_count());
+    for (std::size_t c = 0; c + 1 < chunk.size(); ++c)
+        world.taskq.add(new ColumnTask(shells_, sg, coulomb_, bra, rowstart, chunk[c], chunk[c + 1], g, W.ptr(),
+                                       rowstart.back()));
+    world.taskq.fence();
+    return W;
 }
 
 

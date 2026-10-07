@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <numeric>
 
 using namespace madness;
 
@@ -137,6 +138,53 @@ void check_eri(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lpa
     if (world.rank() == 0) {
         printf("\ntwo-electron integrals against the reference implementation (%.2fs)\n", wall_time() - t0);
         printf("   max |diff| %.2e   (max |(ij|kl)| %.2e)\n", maxdiff, G.absmax());
+    }
+
+    // The column engine of the Cholesky decomposition against the stored integrals. It keeps
+    // every kernel term and skips nothing, so the stored integrals must be unscreened too.
+    if (lparam.kernel_screen() != 0.0 or lparam.schwarz() != 0.0) {
+        if (world.rank() == 0) print("\ncolumn engine: not checked (needs kernel_screen 0; schwarz 0)");
+        return;
+    }
+    const double t1 = wall_time();
+    const lcao::FunctionPairs fp = ints.function_pairs();
+    const long n = P.nbf();
+    std::vector<int> seen(n * n, 0);
+    for (const auto& f : fp.functions) ++seen[std::max(f[0], f[1]) * n + std::min(f[0], f[1])];
+    bool once = true;
+    for (long i = 0; i < n; ++i)
+        for (long j = 0; j <= i; ++j) once = once and seen[i * n + j] == 1;
+
+    const Tensor<double> D = ints.pair_diagonal(world, fp);
+    double ddiff = 0.0;
+    for (std::size_t r = 0; r < fp.size(); ++r) {
+        const auto& f = fp.functions[r];
+        ddiff = std::max(ddiff, std::abs(D(long(r)) - P(f[0], f[1], f[0], f[1])));
+    }
+
+    // eri() computed (ab|cd) with the larger group pair as the bra, so the columns of a
+    // smaller ket group pair must agree bitwise; the others only to rounding
+    std::vector<std::size_t> all(fp.ngroup_pairs());
+    std::iota(all.begin(), all.end(), 0);
+    double cdiff = 0.0, cdiff_same = 0.0;
+    for (std::size_t g = 0; g < fp.ngroup_pairs(); ++g) {
+        const Tensor<double> W = ints.eri_columns(world, fp, g, all);
+        for (std::size_t j = 0; j < fp.count[g]; ++j) {
+            const auto& c = fp.functions[fp.first[g] + j];
+            for (std::size_t r = 0; r < fp.size(); ++r) {
+                const auto& f = fp.functions[r];
+                const double d = std::abs(W(long(j), long(r)) - P(f[0], f[1], c[0], c[1]));
+                cdiff = std::max(cdiff, d);
+                if (fp.group_pair[r] > g) cdiff_same = std::max(cdiff_same, d);
+            }
+        }
+    }
+    if (world.rank() == 0) {
+        printf("\ncolumn engine against the stored integrals (%.2fs)\n", wall_time() - t1);
+        printf("   function pairs %zu in %zu group pairs, each unordered pair once: %s\n", fp.size(),
+               fp.ngroup_pairs(), once ? "yes" : "NO");
+        printf("   diagonal: largest |diff| %.2e   columns: largest |diff| %.2e (bra group pair > ket, as eri() "
+               "computed them: %.2e)\n", ddiff, cdiff, cdiff_same);
     }
 }
 

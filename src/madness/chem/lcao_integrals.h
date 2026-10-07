@@ -47,6 +47,7 @@
 #include <madness/chem/molecularbasis.h>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 namespace madness {
@@ -157,6 +158,27 @@ struct ERIStats {
     long skipped = 0;
 };
 
+/// the function pairs {mu, nu} of a basis, each unordered pair once, grouped by pairs of shell groups
+///
+/// They number the rows (and columns) of the two-electron integral matrix
+/// V_(mu nu),(lambda sigma) = (mu nu|lambda sigma), which the Cholesky decomposition factors.
+/// Shells with the same center, l and exponents form a group. Group pair (a, b), a >= b,
+/// numbered a(a+1)/2+b, holds the shells s1 of group a and s2 of group b (s1 >= s2 if
+/// a = b) and their components i, j (i >= j if s1 = s2). The rows of a group pair are
+/// consecutive; a group pair is the unit of integral work and of the row distribution.
+struct FunctionPairs {
+    std::vector<std::size_t> first;             ///< per group pair, its first row
+    std::vector<std::size_t> count;             ///< per group pair, its number of rows
+    std::vector<std::array<int,2>> functions;   ///< per row, the basis functions (mu, nu)
+    std::vector<std::size_t> group_pair;        ///< per row, its group pair
+
+    std::size_t size() const { return functions.size(); }
+    std::size_t ngroup_pairs() const { return first.size(); }
+};
+
+/// the shell groups of a basis with their primitive and shell pairs (defined in lcao_integrals.cc)
+struct ShellGroupData;
+
 /// one- and two-electron integrals over the shells, with point nuclei and a Gaussian-sum Coulomb kernel
 class SeparatedGaussianIntegrals {
 public:
@@ -186,11 +208,30 @@ public:
     /// Slow; kept as the reference that eri() is checked against (lcao group: check_eri).
     Tensor<double> eri_reference() const;
 
+    /// the function pairs, the rows of pair_diagonal and eri_columns
+    FunctionPairs function_pairs() const;
+
+    /// D(row) = (mu nu|mu nu) for every function pair, as tasks on the thread pool of this process
+    ///
+    /// Only the diagonal shell quartets (s1 s2|s1 s2) are computed. All kernel terms are
+    /// kept: kernel screening would break the positive semidefiniteness of V that the
+    /// Cholesky decomposition needs.
+    Tensor<double> pair_diagonal(World& world, const FunctionPairs& pairs) const;
+
+    /// columns of V: W(j, r) = (r|c_j) for the rows r of the given bra group pairs, in that order,
+    /// and the function pairs c_j of the ket group pair g
+    ///
+    /// Each column is contiguous. Computed as tasks on the thread pool of this process; as for
+    /// pair_diagonal, all kernel terms are kept, and nothing is skipped by Schwarz screening.
+    Tensor<double> eri_columns(World& world, const FunctionPairs& pairs, std::size_t g,
+                               const std::vector<std::size_t>& bra_group_pairs) const;
+
 private:
     std::vector<Shell> shells_;
     GaussianKernel coulomb_;
     GaussHermiteRule gh_;
     long nbf_ = 0;
+    std::shared_ptr<const ShellGroupData> groups_;
 };
 
 } // namespace lcao
