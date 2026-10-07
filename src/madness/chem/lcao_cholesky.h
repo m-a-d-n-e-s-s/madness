@@ -62,12 +62,22 @@ namespace lcao {
 /// - All kernel terms are kept and nothing is Schwarz-skipped, so V stays positive
 ///   semidefinite. Residual diagonals that rounding makes negative are set to 0.
 ///
-/// Runs on one rank, as tasks on its thread pool, with sequential BLAS inside each task. The
-/// blocks of rows do not depend on the number of threads, and the pivot choice breaks ties by
-/// the lowest row, so the result does not depend on the scheduling.
+/// Tasks on the thread pool of each rank, with sequential BLAS inside each task. The blocks of
+/// rows are consecutive group pairs, cut where they reach 4096 kept rows, independent of the
+/// numbers of threads and ranks, and the pivot choice breaks ties by the lowest row.
+///
+/// With collective, every rank of world takes part (all must construct it, in the same order):
+/// - The blocks of rows go to the ranks in contiguous ranges; each rank computes the integral
+///   columns, updates and vectors of its rows, so no integral data moves.
+/// - Each batch takes two reductions (the pivot) and two broadcasts from the owner of the
+///   pivot's group pair: the candidates with their D and rows of L, then their block of V after
+///   the update. Every rank then makes the same decisions from the same numbers, so the vectors
+///   do not depend on the number of ranks (hash()).
+/// - Afterwards the vectors are redistributed in chunks of consecutive vectors, each complete
+///   over the kept rows: chunk c is held by rank c % nproc. CholeskyERI works on the chunks.
 class CholeskyERIDecomposition {
 public:
-    /// what the decomposition did, and its wall times in seconds
+    /// what the decomposition did, and its wall times in seconds (of this rank)
     struct Stats {
         std::size_t npairs = 0;     ///< function pairs
         std::size_t nkept = 0;      ///< rows kept after pair screening
@@ -76,14 +86,20 @@ public:
         double t_diagonal = 0.0;    ///< pair_diagonal
         double t_integrals = 0.0;   ///< eri_columns, and gathering the candidates' columns
         double t_updates = 0.0;     ///< subtracting the previous vectors, making the new ones
+        double t_redistribute = 0.0;    ///< collective: moving the vectors into chunks
     };
 
-    /// @param[in] tol   largest residual diagonal left, which bounds every element of |V - L L^T|
-    /// @param[in] span  candidates of a batch need D > span D_max (and > tol)
-    CholeskyERIDecomposition(World& world, const SeparatedGaussianIntegrals& ints, double tol, double span = 1.e-2);
+    /// @param[in] tol         largest residual diagonal left, which bounds every element of |V - L L^T|
+    /// @param[in] span        candidates of a batch need D > span D_max (and > tol)
+    /// @param[in] collective  every rank of world takes part and holds a share; otherwise this rank does it all
+    CholeskyERIDecomposition(World& world, const SeparatedGaussianIntegrals& ints, double tol, double span = 1.e-2,
+                             bool collective = false);
 
     double tol() const { return tol_; }
     double span() const { return span_; }
+
+    /// true if the vectors are spread over the ranks of world (collective, and more than one rank)
+    bool distributed() const { return distributed_; }
 
     /// the function pairs, all of them: the row numbering of V
     const FunctionPairs& pairs() const { return pairs_; }
@@ -95,17 +111,36 @@ public:
     /// the number of vectors, M
     long nvec() const { return nvec_; }
 
-    /// the vectors one after the other, nkept() values each: L_k(rows()[i]) at [k nkept() + i]
-    const double* vectors() const { return L_.data(); }
+    /// the vectors come in nchunk() chunks of consecutive vectors, [first, last) of chunk c
+    long nchunk() const { return nchunk_; }
+    std::pair<long,long> chunk(const long c) const { return {nvec_ * c / nchunk_, nvec_ * (c + 1) / nchunk_}; }
+
+    /// true if this rank holds chunk c
+    bool holds(const long c) const { return not distributed_ or c % nproc_ == rank_; }
+
+    /// the vectors of a held chunk one after the other, nkept() values each
+    const double* chunk_vectors(const long c) const;
+
+    /// all vectors one after the other, nkept() values each: L_k(rows()[i]) at [k nkept() + i];
+    /// only if not distributed
+    const double* vectors() const;
+
+    /// an exact hash of all vectors: the XOR of their bit patterns, each rotated by its position;
+    /// the same on any number of ranks for the same vectors (collective if distributed)
+    unsigned long hash(World& world) const;
 
     const Stats& stats() const { return stats_; }
 
 private:
     double tol_, span_;
+    bool distributed_ = false;
+    int nproc_ = 1, rank_ = 0;
     FunctionPairs pairs_;
     std::vector<std::size_t> rows_;
-    std::vector<double> L_;
+    std::vector<double> L_;                     ///< not distributed: all vectors
+    std::vector<std::vector<double>> chunks_;   ///< distributed: the held chunks
     long nvec_ = 0;
+    long nchunk_ = 1;
     Stats stats_;
 };
 
@@ -116,9 +151,9 @@ private:
 /// - K = sum_k L_k P L_k, the vectors as symmetric N x N matrices. It is computed as
 ///   sum_k X_k X_k^T, X_k = L_k Y, from P = Y+ Y+^T - Y- Y-^T, the eigenpairs of P (the
 ///   negative part is empty for a density matrix, which is positive semidefinite).
-/// - Tasks on the thread pool of this process: J over fixed blocks of rows, K over 16 fixed
-///   chunks of vectors with several vectors per dgemm. Each has its own partial sums, added in
-///   a fixed order, so the result does not depend on the scheduling.
+/// - One task per held chunk of vectors (several vectors per dgemm for K). The partial sums of
+///   all chunks are gathered and added in chunk order on every rank, so J and K do not depend on
+///   the scheduling or on the number of ranks. Collective if the decomposition is distributed.
 class CholeskyERI : public TwoElectronBuilder {
 public:
     /// @param[in] nbf  the number of basis functions, which the density matrices must match

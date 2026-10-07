@@ -184,10 +184,13 @@ public:
         double total = 0.0;
     };
 
-    /// @param[in] nalpha  number of alpha electrons
-    /// @param[in] nbeta   number of beta electrons; nalpha == nbeta gives closed-shell RHF
+    /// @param[in] nalpha      number of alpha electrons
+    /// @param[in] nbeta       number of beta electrons; nalpha == nbeta gives closed-shell RHF
+    /// @param[in] collective  every rank of world constructs it and calls solve(): with eri cholesky the
+    ///                        integrals are spread over the ranks, rank 0 runs DIIS and the
+    ///                        diagonalization and broadcasts the orbitals. Otherwise this rank does all.
     LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nalpha, int nbeta,
-            const LCAOParameters& param);
+            const LCAOParameters& param, bool collective = false);
 
     /// compute the integrals and iterate to self-consistency
     /// @return the total energy
@@ -234,6 +237,7 @@ private:
     AtomicBasisSet aobasis_;
     int nalpha_, nbeta_;
     LCAOParameters param_;
+    bool collective_ = false;       ///< every rank of world_ takes part
 
     std::vector<Shell> shells_;
     Tensor<double> S_, T_, V_, H_, X_;
@@ -255,7 +259,8 @@ private:
     Tensor<double> sad_density() const;
 
     /// diagonalize F in the orthogonalized basis; sets C and eps and returns the density
-    /// of the nocc lowest orbitals, C_occ C_occ^T
+    /// of the nocc lowest orbitals, C_occ C_occ^T. If collective, rank 0 diagonalizes and
+    /// broadcasts C and eps, so every rank has the same orbitals.
     Tensor<double> diagonalize(const Tensor<double>& F, int nocc, Tensor<double>& C, Tensor<double>& eps) const;
 
     /// the commutator F P S - S P F in the orthogonal basis, which vanishes at self-consistency

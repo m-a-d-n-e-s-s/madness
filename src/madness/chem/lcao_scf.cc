@@ -246,8 +246,9 @@ void unstack(const Tensor<double>& ab, const long n, Tensor<double>& a, Tensor<d
 
 
 LCAOSCF::LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, const int nalpha,
-                 const int nbeta, const LCAOParameters& param)
-    : world_(world), molecule_(molecule), aobasis_(aobasis), nalpha_(nalpha), nbeta_(nbeta), param_(param) {
+                 const int nbeta, const LCAOParameters& param, const bool collective)
+    : world_(world), molecule_(molecule), aobasis_(aobasis), nalpha_(nalpha), nbeta_(nbeta), param_(param),
+      collective_(collective) {
     for (std::size_t i = 0; i < molecule_.natom(); ++i)
         MADNESS_CHECK_THROW(not molecule_.get_atom(i).pseudo_atom, "LCAOSCF: pseudo-atoms are not supported");
     MADNESS_CHECK_THROW(molecule_.n_core_orb_all() == 0, "LCAOSCF: core potentials are not supported");
@@ -275,17 +276,21 @@ void LCAOSCF::compute_integrals() {
     H_ = T_ + V_;
     const double t1 = wall_time();
     if (param_.eri() == "cholesky") {
-        const auto chol = std::make_shared<const CholeskyERIDecomposition>(world_, ints, param_.cholesky_tol());
+        const auto chol =
+            std::make_shared<const CholeskyERIDecomposition>(world_, ints, param_.cholesky_tol(), 1.e-2, collective_);
         const double t2 = wall_time();
         twoe_ = std::make_unique<CholeskyERI>(world_, chol, S_.dim(0));
+        const unsigned long hash = chol->hash(world_);
         if (printme) {
             const CholeskyERIDecomposition::Stats& s = chol->stats();
             printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);
             printf("    Cholesky decomposition at cholesky_tol %.0e (all kernel terms, no Schwarz skips): %zu of %zu "
-                   "function pairs kept, %ld vectors = %.2f N, %.2f GB\n", chol->tol(), s.nkept, s.npairs,
+                   "function pairs kept, %ld vectors = %.2f N, %.2f GB in all\n", chol->tol(), s.nkept, s.npairs,
                    chol->nvec(), double(chol->nvec()) / double(S_.dim(0)), 8.0e-9 * double(chol->nvec()) * s.nkept);
             printf("    %zu integral columns in %zu batches; diagonal %.2fs, integrals %.2fs, updates %.2fs\n",
                    s.ncolumns, s.nbatches, s.t_diagonal, s.t_integrals, s.t_updates);
+            printf("    %s, vectors hash %016lx\n", chol->distributed() ? "distributed over the ranks" : "on one rank",
+                   hash);
         }
         return;
     }
@@ -339,11 +344,17 @@ Tensor<double> LCAOSCF::sad_density() const {
 
 Tensor<double> LCAOSCF::diagonalize(const Tensor<double>& F, const int nocc, Tensor<double>& C,
                                     Tensor<double>& eps) const {
-    Tensor<double> Fp = inner(transpose(X_), inner(F, X_));
-    Fp = 0.5 * (Fp + transpose(Fp));
-    Tensor<double> Cp;
-    syev(Fp, Cp, eps);
-    C = inner(X_, Cp);
+    if (not collective_ or world_.rank() == 0) {
+        Tensor<double> Fp = inner(transpose(X_), inner(F, X_));
+        Fp = 0.5 * (Fp + transpose(Fp));
+        Tensor<double> Cp;
+        syev(Fp, Cp, eps);
+        C = inner(X_, Cp);
+    }
+    if (collective_ and world_.size() > 1) {
+        world_.gop.broadcast_serializable(C, 0);
+        world_.gop.broadcast_serializable(eps, 0);
+    }
     if (nocc == 0) return Tensor<double>(F.dim(0), F.dim(1));
     const Tensor<double> Cocc = copy(C(_, Slice(0, nocc - 1)));
     return inner(Cocc, transpose(Cocc));
@@ -389,7 +400,8 @@ double LCAOSCF::solve() {
     const long n = S_.dim(0);
     const Tensor<double> none;              // an empty Pb: closed shell
     Tensor<double> J, Ka, Kb;
-    std::deque<Tensor<double>> diis_f, diis_e;
+    std::deque<Tensor<double>> diis_f, diis_e;   // with collective, on rank 0 only
+    const bool root = not collective_ or world_.rank() == 0;
     double eold = 0.0;
     converged_ = false;
     if (printme) printf("\n iter          energy            dE        rms(dP)    max|FPS-SPF|\n");
@@ -399,7 +411,9 @@ double LCAOSCF::solve() {
         Tensor<double> Fb = open ? H_ + J - Kb : Fa;
         const double etot = 0.5 * (Pa + Pb).trace(H_) + 0.5 * Pa.trace(Fa) + 0.5 * Pb.trace(Fb) + enuc;
         double errmax = 0.0;
-        if (open) {
+        if (not root) {
+            // rank 0 extrapolates and diagonalizes, and broadcasts the orbitals
+        } else if (open) {
             // one DIIS over both spins: shared coefficients for Fa and Fb
             const Tensor<double> ea = commutator_error(Fa, Pa), eb = commutator_error(Fb, Pb);
             errmax = std::max(ea.absmax(), eb.absmax());
@@ -426,7 +440,9 @@ double LCAOSCF::solve() {
         Pb = (damping > 0.0) ? (1.0 - damping) * Pb_new + damping * Pb : Pb_new;
         eold = etot;
         iterations_ = iter + 1;
-        if (iter > 0 and std::abs(de) < param_.econv() and drms < param_.dconv()) {
+        int stop = (iter > 0 and std::abs(de) < param_.econv() and drms < param_.dconv()) ? 1 : 0;
+        if (collective_ and world_.size() > 1) world_.gop.broadcast(stop, 0);
+        if (stop) {
             converged_ = true;
             break;
         }

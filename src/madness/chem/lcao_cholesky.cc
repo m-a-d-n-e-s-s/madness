@@ -39,6 +39,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <limits>
 
 namespace madness {
 namespace lcao {
@@ -73,124 +75,233 @@ void for_each_block(World& world, const std::size_t nblock, const F& f) {
 
 
 CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const SeparatedGaussianIntegrals& ints,
-                                                   const double tol, const double span)
-    : tol_(tol), span_(span), pairs_(ints.function_pairs()) {
+                                                   const double tol, const double span, const bool collective)
+    : tol_(tol), span_(span), distributed_(collective and world.size() > 1),
+      nproc_(distributed_ ? world.size() : 1), rank_(distributed_ ? world.rank() : 0), pairs_(ints.function_pairs()) {
     MADNESS_CHECK_THROW(tol > 0.0 and span > 0.0 and span < 1.0,
                         "CholeskyERIDecomposition: need tol > 0 and 0 < span < 1");
     const FunctionPairs& fp = pairs_;
     stats_.npairs = fp.size();
 
+    // the diagonal on every rank (cheap), so the pair screening and the blocks are the same everywhere
     double t0 = wall_time();
     const Tensor<double> D0 = ints.pair_diagonal(world, fp);
     stats_.t_diagonal = wall_time() - t0;
-
-    // pair screening against the largest diagonal
     double d0max = 0.0;
     for (long r = 0; r < D0.size(); ++r) d0max = std::max(d0max, D0(r));
     for (std::size_t r = 0; r < fp.size(); ++r)
         if (D0(long(r)) >= tol * tol / d0max) rows_.push_back(r);
     const std::size_t nk = rows_.size();
     stats_.nkept = nk;
-    if (nk == 0) return;
-    std::vector<double> D(nk);
-    for (std::size_t i = 0; i < nk; ++i) D[i] = D0(long(rows_[i]));
+    nchunk_ = std::max(32L, long(nproc_));
 
-    // eri_columns computes whole group pairs: the bra group pairs are those with kept rows,
-    // and kept row i is element wpos[i] of a computed column
-    std::vector<std::size_t> bra, wpos(nk);
-    std::vector<long> kept(fp.size(), -1);     // per row, its index among the kept rows
-    for (std::size_t i = 0, start = 0; i < nk; ++i) {
-        const std::size_t g = fp.group_pair[rows_[i]];
+    // blocks of rows: consecutive group pairs, cut where a block reaches block_rows kept rows;
+    // block b holds the kept rows [bfirst[b], bfirst[b+1]); a rank holds a contiguous range of blocks
+    std::vector<std::size_t> bfirst{0};
+    for (std::size_t i = 0; i < nk; ++i) {
+        const bool newpair = i > 0 and fp.group_pair[rows_[i]] != fp.group_pair[rows_[i - 1]];
+        if (newpair and i - bfirst.back() >= block_rows) bfirst.push_back(i);
+    }
+    bfirst.push_back(nk);
+    const std::size_t nblock = bfirst.size() - 1;
+    std::vector<int> bowner(nblock);
+    for (std::size_t b = 0; b < nblock; ++b) bowner[b] = int(std::min<std::size_t>(nproc_ - 1, bfirst[b] * nproc_ / std::max<std::size_t>(nk, 1)));
+    std::size_t b0 = 0, b1 = 0;     // this rank's blocks
+    while (b0 < nblock and bowner[b0] < rank_) ++b0;
+    for (b1 = b0; b1 < nblock and bowner[b1] == rank_; ++b1) {}
+    const std::size_t r0 = bfirst[b0], r1 = bfirst[b1], nloc = r1 - r0;   // this rank's kept rows
+
+    // per row, its index among the kept rows; per kept row, its block
+    std::vector<long> kept(fp.size(), -1);
+    for (std::size_t i = 0; i < nk; ++i) kept[rows_[i]] = long(i);
+    std::vector<std::size_t> kblock(nk);
+    for (std::size_t b = 0; b < nblock; ++b)
+        for (std::size_t i = bfirst[b]; i < bfirst[b + 1]; ++i) kblock[i] = b;
+
+    // eri_columns computes whole group pairs: the bra group pairs are those of this rank's rows,
+    // and local row i is element wpos[i] of a computed column
+    std::vector<std::size_t> bra, wpos(nloc);
+    for (std::size_t i = 0, start = 0; i < nloc; ++i) {
+        const std::size_t g = fp.group_pair[rows_[r0 + i]];
         if (bra.empty() or bra.back() != g) {
             if (not bra.empty()) start += fp.count[bra.back()];
             bra.push_back(g);
         }
-        wpos[i] = start + (rows_[i] - fp.first[g]);
-        kept[rows_[i]] = long(i);
+        wpos[i] = start + (rows_[r0 + i] - fp.first[g]);
     }
-    const std::size_t nblock = (nk + block_rows - 1) / block_rows;
+    std::vector<double> D(nloc);
+    for (std::size_t i = 0; i < nloc; ++i) D[i] = D0(long(rows_[r0 + i]));
 
-    std::vector<double> V, Lc, f;
-    while (true) {
-        // the largest residual diagonal; ties go to the lowest row
-        std::size_t p = 0;
-        for (std::size_t i = 1; i < nk; ++i)
-            if (D[i] > D[p]) p = i;
-        const double dmax = D[p];
+    // this rank's vectors on its rows (L_ is them while the decomposition runs)
+    const auto local_blocks = [&](const auto& f) {
+        for_each_block(world, b1 - b0, [&](const std::size_t b) { f(bfirst[b0 + b] - r0, bfirst[b0 + b + 1] - r0); });
+    };
+    std::vector<double> V, Lc, f, vcc, dc;
+    std::vector<long> cand;
+    while (nk > 0) {
+        // the largest residual diagonal over all ranks; ties go to the lowest kept row
+        long p = -1;
+        for (std::size_t i = 0; i < nloc; ++i)
+            if (p < 0 or D[i] > D[p]) p = long(i);
+        double dmax = (p >= 0) ? D[p] : -1.0;
+        const double dmax_local = dmax;
+        if (distributed_) world.gop.max(dmax);
         if (dmax <= tol_) break;
+        long pivot = (p >= 0 and dmax_local == dmax) ? long(r0) + p : std::numeric_limits<long>::max();
+        if (distributed_) world.gop.min(pivot);
 
-        // the candidates: kept rows of the pivot's group pair with D > max(tol, span dmax), ascending
-        const std::size_t g = fp.group_pair[rows_[p]];
+        // the owner of the pivot's group pair finds the candidates, kept rows with D > max(tol, span dmax)
+        const std::size_t g = fp.group_pair[rows_[pivot]];
+        const int owner = bowner[kblock[pivot]];
         const double dmin = std::max(tol_, span_ * dmax);
-        std::vector<std::size_t> cand;
-        for (std::size_t r = fp.first[g]; r < fp.first[g] + fp.count[g]; ++r)
-            if (kept[r] >= 0 and D[kept[r]] > dmin) cand.push_back(std::size_t(kept[r]));
+        cand.clear();
+        dc.clear();
+        if (owner == rank_) {
+            for (std::size_t r = fp.first[g]; r < fp.first[g] + fp.count[g]; ++r)
+                if (kept[r] >= 0 and D[kept[r] - r0] > dmin) {
+                    cand.push_back(kept[r]);
+                    dc.push_back(D[kept[r] - r0]);
+                }
+        }
+        if (distributed_) {
+            world.gop.broadcast_serializable(cand, owner);
+            world.gop.broadcast_serializable(dc, owner);
+        }
         const std::size_t nc = cand.size();
+        if (nvec_ > 0) {
+            Lc.assign(nc * nvec_, 0.0);
+            if (owner == rank_)
+                for (std::size_t q = 0; q < nc; ++q)
+                    for (long k = 0; k < nvec_; ++k) Lc[q * nvec_ + k] = L_[k * nloc + (cand[q] - r0)];
+            if (distributed_) world.gop.broadcast(Lc.data(), Lc.size(), owner);
+        }
 
-        // their integral columns on the kept rows: V[q nk + i] = (row i|candidate q)
+        // the candidates' integral columns on this rank's rows: V[q nloc + i] = (local row i|candidate q)
         t0 = wall_time();
-        const Tensor<double> W = ints.eri_columns(world, fp, g, bra);
-        const std::size_t ldw = W.dim(1);
-        V.assign(nc * nk, 0.0);
-        for (std::size_t q = 0; q < nc; ++q) {
-            const double* w = W.ptr() + (rows_[cand[q]] - fp.first[g]) * ldw;
-            double* v = V.data() + q * nk;
-            for (std::size_t i = 0; i < nk; ++i) v[i] = w[wpos[i]];
+        V.assign(nc * nloc, 0.0);
+        if (nloc > 0) {
+            const Tensor<double> W = ints.eri_columns(world, fp, g, bra);
+            const std::size_t ldw = W.dim(1);
+            for (std::size_t q = 0; q < nc; ++q) {
+                const double* w = W.ptr() + (rows_[cand[q]] - fp.first[g]) * ldw;
+                double* v = V.data() + q * nloc;
+                for (std::size_t i = 0; i < nloc; ++i) v[i] = w[wpos[i]];
+            }
         }
         stats_.ncolumns += fp.count[g];
         ++stats_.nbatches;
         stats_.t_integrals += wall_time() - t0;
 
-        // minus the previous vectors, V -= Lc^T L with Lc[q nvec + k] = L_k(candidate q): one dgemm per block
+        // minus the previous vectors, V -= Lc^T L: one dgemm per block of rows
         t0 = wall_time();
-        if (nvec_ > 0) {
-            Lc.resize(nc * nvec_);
-            for (std::size_t q = 0; q < nc; ++q)
-                for (long k = 0; k < nvec_; ++k) Lc[q * nvec_ + k] = L_[k * nk + cand[q]];
-            for_each_block(world, nblock, [&](const std::size_t b) {
-                const std::size_t i0 = b * block_rows, n = std::min(nk, i0 + block_rows) - i0;
-                cblas::gemm(cblas::NoTrans, cblas::NoTrans, long(n), long(nc), nvec_, -1.0, L_.data() + i0, long(nk),
-                            Lc.data(), nvec_, 1.0, V.data() + i0, long(nk));
+        if (nvec_ > 0)
+            local_blocks([&](const std::size_t i0, const std::size_t i1) {
+                cblas::gemm(cblas::NoTrans, cblas::NoTrans, long(i1 - i0), long(nc), nvec_, -1.0, L_.data() + i0,
+                            long(nloc), Lc.data(), nvec_, 1.0, V.data() + i0, long(nloc));
             });
-        }
 
-        // the candidates in descending residual diagonal, re-checked after each new vector
+        // the candidates' block of V, from the owner: every rank decides the pivots of the batch from it
+        vcc.assign(nc * nc, 0.0);
+        if (owner == rank_)
+            for (std::size_t q = 0; q < nc; ++q)
+                for (std::size_t q2 = 0; q2 < nc; ++q2) vcc[q * nc + q2] = V[q * nloc + (cand[q2] - r0)];
+        if (distributed_) world.gop.broadcast(vcc.data(), vcc.size(), owner);
+
+        // the candidates in descending residual diagonal, re-checked after each new vector. vcc and
+        // dc are updated exactly as the owner's rows of V and D are, so they stay bitwise equal.
         std::vector<char> done(nc, 0);
         f.resize(nc);
         while (true) {
             std::size_t qp = nc;
             double dq = dmin;
             for (std::size_t q = 0; q < nc; ++q)
-                if (not done[q] and D[cand[q]] > dq) {
-                    dq = D[cand[q]];
+                if (not done[q] and dc[q] > dq) {
+                    dq = dc[q];
                     qp = q;
                 }
             if (qp == nc) break;
             done[qp] = 1;
 
-            // L_new = V[qp]/sqrt(D), f[q] its value on the remaining candidates
+            // L_new = V[qp]/sqrt(D); f[q] its value on the remaining candidates
             const double s = 1.0 / std::sqrt(dq);
-            const double* v = V.data() + qp * nk;
-            for (std::size_t q = 0; q < nc; ++q) f[q] = done[q] ? 0.0 : v[cand[q]] * s;
-            L_.resize((nvec_ + 1) * nk);
-            double* l = L_.data() + nvec_ * nk;
-            for_each_block(world, nblock, [&](const std::size_t b) {
-                const std::size_t i0 = b * block_rows, i1 = std::min(nk, i0 + block_rows);
+            for (std::size_t q = 0; q < nc; ++q) f[q] = done[q] ? 0.0 : vcc[qp * nc + q] * s;
+            L_.resize((nvec_ + 1) * nloc);
+            double* l = L_.data() + nvec_ * nloc;
+            const double* v = V.data() + qp * nloc;
+            local_blocks([&](const std::size_t i0, const std::size_t i1) {
                 for (std::size_t i = i0; i < i1; ++i) {
                     l[i] = v[i] * s;
                     D[i] = std::max(D[i] - l[i] * l[i], 0.0);
                 }
                 for (std::size_t q = 0; q < nc; ++q) {
                     if (done[q]) continue;
-                    double* vq = V.data() + q * nk;
+                    double* vq = V.data() + q * nloc;
                     for (std::size_t i = i0; i < i1; ++i) vq[i] -= f[q] * l[i];
                 }
             });
-            D[cand[qp]] = 0.0;
+            if (owner == rank_) D[cand[qp] - r0] = 0.0;
+            for (std::size_t q = 0; q < nc; ++q) {
+                if (done[q]) continue;
+                dc[q] = std::max(dc[q] - f[q] * f[q], 0.0);
+                for (std::size_t q2 = 0; q2 < nc; ++q2) {
+                    const double lq2 = vcc[qp * nc + q2] * s;
+                    vcc[q * nc + q2] -= f[q] * lq2;
+                }
+            }
+            dc[qp] = 0.0;
             ++nvec_;
         }
         stats_.t_updates += wall_time() - t0;
     }
+
+    // the vectors in chunks of consecutive vectors, complete over the kept rows: per chunk, every
+    // rank adds its rows into a zero buffer, the sum is exact (one contribution per element)
+    if (distributed_) {
+        t0 = wall_time();
+        chunks_.resize(nchunk_);
+        for (long c = 0; c < nchunk_; ++c) {
+            const auto [k0, k1] = chunk(c);
+            std::vector<double> buf((k1 - k0) * nk, 0.0);
+            for (long k = k0; k < k1; ++k)
+                std::copy(L_.data() + k * nloc, L_.data() + (k + 1) * nloc, buf.data() + (k - k0) * nk + r0);
+            if (not buf.empty()) world.gop.sum(buf.data(), buf.size());
+            if (holds(c)) chunks_[c] = std::move(buf);
+        }
+        std::vector<double>().swap(L_);
+        stats_.t_redistribute = wall_time() - t0;
+    }
+}
+
+
+const double* CholeskyERIDecomposition::chunk_vectors(const long c) const {
+    MADNESS_CHECK_THROW(c >= 0 and c < nchunk_ and holds(c), "CholeskyERIDecomposition: chunk not held by this rank");
+    return distributed_ ? chunks_[c].data() : L_.data() + chunk(c).first * long(nkept());
+}
+
+
+const double* CholeskyERIDecomposition::vectors() const {
+    MADNESS_CHECK_THROW(not distributed_, "CholeskyERIDecomposition: the vectors are distributed over the ranks");
+    return L_.data();
+}
+
+
+unsigned long CholeskyERIDecomposition::hash(World& world) const {
+    const std::size_t nk = nkept();
+    unsigned long h = 0;
+    for (long c = 0; c < nchunk_; ++c) {
+        if (not holds(c)) continue;
+        const auto [k0, k1] = chunk(c);
+        const double* l = chunk_vectors(c);
+        for (long k = k0; k < k1; ++k)
+            for (std::size_t i = 0; i < nk; ++i) {
+                unsigned long x = 0;
+                if (l[(k - k0) * nk + i] != 0.0) std::memcpy(&x, l + (k - k0) * nk + i, sizeof(x));   // -0 as +0
+                const unsigned r = unsigned((std::size_t(k) * 31 + i * 17) % 64);
+                h ^= (r == 0) ? x : ((x << r) | (x >> (64 - r)));
+            }
+    }
+    if (distributed_) world.gop.bit_xor(&h, 1);
+    return h;
 }
 
 
@@ -248,35 +359,39 @@ void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<
     MADNESS_CHECK_THROW(Pa.ndim() == 2 and Pa.dim(0) == n and Pa.dim(1) == n and
                         (not open or (Pb.dim(0) == n and Pb.dim(1) == n)),
                         "CholeskyERI: integrals and density matrix do not match");
-    const long m = chol_->nvec();
-    const std::size_t nk = chol_->nkept();
-    const double* L = chol_->vectors();
-    const std::size_t nblock = (nk + block_rows - 1) / block_rows;
+    const CholeskyERIDecomposition& chol = *chol_;
+    const long m = chol.nvec(), nchunk = chol.nchunk();
+    const std::size_t nk = chol.nkept();
+    const bool dist = chol.distributed();
+    std::vector<long> mine;     // the non-empty chunks this rank holds
+    for (long c = 0; c < nchunk; ++c)
+        if (chol.holds(c) and chol.chunk(c).second > chol.chunk(c).first) mine.push_back(c);
 
-    // J: gamma = sum over the kept rows of L P~, P~ the total density with both orders of
-    // mu != nu; then J~ = L^T gamma. Partial sums of gamma per block of rows, added in block order.
+    // J: gamma = L^T P~ per chunk, P~ the total density with both orders of mu != nu. gamma of all
+    // vectors and the partial J~ = L gamma of every chunk are gathered (one contribution per element,
+    // so the sums are exact) and J~ is added in chunk order on every rank.
     const Tensor<double> pt = open ? Pa + Pb : 2.0 * Pa;
-    std::vector<double> ptk(nk), jt(nk, 0.0), gamma(std::max(m, 1L), 0.0);
+    std::vector<double> ptk(nk), gamma(std::max(m, 1L), 0.0), jpart(nchunk * nk, 0.0), jt(nk, 0.0);
     for (std::size_t i = 0; i < nk; ++i) ptk[i] = (mu_[i] == nu_[i] ? 1.0 : 2.0) * pt(mu_[i], nu_[i]);
-    if (m > 0) {
-        std::vector<double> gpart(nblock * m, 0.0);
-        for_each_block(world_, nblock, [&](const std::size_t b) {
-            const std::size_t i0 = b * block_rows, nb = std::min(nk, i0 + block_rows) - i0;
-            cblas::gemv(cblas::Trans, long(nb), m, 1.0, L + i0, long(nk), ptk.data() + i0, 1, 0.0,
-                        gpart.data() + b * m, 1);
-        });
-        for (std::size_t b = 0; b < nblock; ++b)
-            for (long k = 0; k < m; ++k) gamma[k] += gpart[b * m + k];
-        for_each_block(world_, nblock, [&](const std::size_t b) {
-            const std::size_t i0 = b * block_rows, nb = std::min(nk, i0 + block_rows) - i0;
-            cblas::gemv(cblas::NoTrans, long(nb), m, 1.0, L + i0, long(nk), gamma.data(), 1, 0.0, jt.data() + i0, 1);
-        });
-    }
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const auto [k0, k1] = chol.chunk(mine[t]);
+        cblas::gemv(cblas::Trans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), ptk.data(), 1, 0.0,
+                    gamma.data() + k0, 1);
+    });
+    if (dist and m > 0) world_.gop.sum(gamma.data(), m);
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const auto [k0, k1] = chol.chunk(mine[t]);
+        cblas::gemv(cblas::NoTrans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), gamma.data() + k0,
+                    1, 0.0, jpart.data() + mine[t] * nk, 1);
+    });
+    if (dist and not jpart.empty()) world_.gop.sum(jpart.data(), jpart.size());
+    for (long c = 0; c < nchunk; ++c)
+        for (std::size_t i = 0; i < nk; ++i) jt[i] += jpart[c * nk + i];
     J = Tensor<double>(n, n);
     for (std::size_t i = 0; i < nk; ++i) J(mu_[i], nu_[i]) = J(nu_[i], mu_[i]) = jt[i];
 
     // K per spin from the factors of its density: chunk c sums X_k X_k^T over its vectors, several
-    // vectors per dgemm; the chunks do not depend on the number of threads and are added in order
+    // vectors per dgemm; the partials of all chunks are gathered and added in chunk order
     std::vector<DensityFactor> factors;
     factor_density(Pa, 0, factors);
     if (open) factor_density(Pb, 1, factors);
@@ -284,34 +399,36 @@ void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<
     long rmax = 1;
     for (const DensityFactor& f : factors) rmax = std::max(rmax, f.r);
     const long nstack = std::max(1L, 512 / rmax);
-    const long nchunk = std::min(16L, m);
-    std::vector<std::vector<double>> kpart(nchunk * nspin);
-    for_each_block(world_, std::size_t(nchunk), [&](const std::size_t c) {
-        const long k0 = m * long(c) / nchunk, k1 = m * long(c + 1) / nchunk;
-        for (int s = 0; s < nspin; ++s) kpart[c * nspin + s].assign(n * n, 0.0);
-        std::vector<double> Lk(n * n, 0.0);     // the vector as a matrix; screened pairs stay 0
+    const std::size_t nn = std::size_t(n) * n;
+    std::vector<double> kpart(std::size_t(nchunk) * nspin * nn, 0.0);
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const long c = mine[t];
+        const auto [k0, k1] = chol.chunk(c);
+        const double* L = chol.chunk_vectors(c);
+        std::vector<double> Lk(nn, 0.0);    // the vector as a matrix; screened pairs stay 0
         std::vector<std::vector<double>> X(factors.size());
-        for (std::size_t t = 0; t < factors.size(); ++t) X[t].resize(n * factors[t].r * nstack);
+        for (std::size_t f = 0; f < factors.size(); ++f) X[f].resize(n * factors[f].r * nstack);
         for (long k = k0; k < k1; k += nstack) {
             const long kn = std::min(nstack, k1 - k);
             for (long kk = 0; kk < kn; ++kk) {
-                const double* l = L + (k + kk) * nk;
+                const double* l = L + (k - k0 + kk) * nk;
                 for (std::size_t i = 0; i < nk; ++i) Lk[mu_[i] * n + nu_[i]] = Lk[nu_[i] * n + mu_[i]] = l[i];
-                for (std::size_t t = 0; t < factors.size(); ++t)
-                    cblas::gemm(cblas::NoTrans, cblas::NoTrans, n, factors[t].r, n, 1.0, Lk.data(), n,
-                                factors[t].Y.data(), n, 0.0, X[t].data() + kk * n * factors[t].r, n);
+                for (std::size_t f = 0; f < factors.size(); ++f)
+                    cblas::gemm(cblas::NoTrans, cblas::NoTrans, n, factors[f].r, n, 1.0, Lk.data(), n,
+                                factors[f].Y.data(), n, 0.0, X[f].data() + kk * n * factors[f].r, n);
             }
-            for (std::size_t t = 0; t < factors.size(); ++t)
-                cblas::gemm(cblas::NoTrans, cblas::Trans, n, n, kn * factors[t].r, factors[t].sign, X[t].data(), n,
-                            X[t].data(), n, 1.0, kpart[c * nspin + factors[t].spin].data(), n);
+            for (std::size_t f = 0; f < factors.size(); ++f)
+                cblas::gemm(cblas::NoTrans, cblas::Trans, n, n, kn * factors[f].r, factors[f].sign, X[f].data(), n,
+                            X[f].data(), n, 1.0, kpart.data() + (std::size_t(c) * nspin + factors[f].spin) * nn, n);
         }
     });
+    if (dist and not kpart.empty()) world_.gop.sum(kpart.data(), kpart.size());
     const auto sum_chunks = [&](const int s) {
         Tensor<double> K(n, n);
         double* k = K.ptr();
         for (long c = 0; c < nchunk; ++c) {
-            const double* kp = kpart[c * nspin + s].data();
-            for (long i = 0; i < n * n; ++i) k[i] += kp[i];
+            const double* kp = kpart.data() + (std::size_t(c) * nspin + s) * nn;
+            for (std::size_t i = 0; i < nn; ++i) k[i] += kp[i];
         }
         return Tensor<double>(0.5 * (K + transpose(K)));
     };

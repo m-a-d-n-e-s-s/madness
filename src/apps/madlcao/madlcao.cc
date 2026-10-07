@@ -405,7 +405,10 @@ int main(int argc, char** argv) {
                           param.nalpha(), "alpha and", param.nbeta(), "beta electrons\n");
                 }
 
-                lcao::LCAOSCF scf(world, molecule, aobasis, param.nalpha(), param.nbeta(), lparam);
+                // with eri cholesky every rank takes part and holds a share of the integrals; with eri incore
+                // every rank computes everything on its own, as before
+                lcao::LCAOSCF scf(world, molecule, aobasis, param.nalpha(), param.nbeta(), lparam,
+                                  lparam.eri() == "cholesky");
                 const double t0 = wall_time();
                 const double energy = scf.solve();
                 if (world.rank() == 0) printf("final energy=%16.8f  (%.2fs)\n", energy, wall_time() - t0);
