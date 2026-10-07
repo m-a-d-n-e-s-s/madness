@@ -36,7 +36,9 @@
 #define MADNESS_CHEM_LCAO_CHOLESKY_H__INCLUDED
 
 #include <madness/chem/lcao_integrals.h>
+#include <madness/chem/lcao_scf.h>
 
+#include <memory>
 #include <vector>
 
 namespace madness {
@@ -105,6 +107,33 @@ private:
     std::vector<double> L_;
     long nvec_ = 0;
     Stats stats_;
+};
+
+/// J and K from the Cholesky vectors of the two-electron integrals, (mu nu|l s) ~ sum_k L_k(mu nu) L_k(l s)
+///
+/// - J_{mu nu} = sum_k L_k(mu nu) gamma_k, with gamma_k = sum_{l s} L_k(l s) P_{l s} over all
+///   index orders.
+/// - K = sum_k L_k P L_k, the vectors as symmetric N x N matrices. It is computed as
+///   sum_k X_k X_k^T, X_k = L_k Y, from P = Y+ Y+^T - Y- Y-^T, the eigenpairs of P (the
+///   negative part is empty for a density matrix, which is positive semidefinite).
+/// - Tasks on the thread pool of this process: J over fixed blocks of rows, K over 16 fixed
+///   chunks of vectors with several vectors per dgemm. Each has its own partial sums, added in
+///   a fixed order, so the result does not depend on the scheduling.
+class CholeskyERI : public TwoElectronBuilder {
+public:
+    /// @param[in] nbf  the number of basis functions, which the density matrices must match
+    CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, long nbf);
+
+    void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
+            Tensor<double>& Kb) const override;
+
+    const CholeskyERIDecomposition& decomposition() const { return *chol_; }
+
+private:
+    World& world_;
+    std::shared_ptr<const CholeskyERIDecomposition> chol_;
+    long nbf_;
+    std::vector<int> mu_, nu_;      ///< per kept row, its two basis functions
 };
 
 } // namespace lcao

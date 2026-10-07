@@ -33,6 +33,7 @@
 /// \brief closed-shell Hartree-Fock in a Gaussian basis, with integrals from separated kernels
 
 #include <madness/chem/lcao_scf.h>
+#include <madness/chem/lcao_cholesky.h>
 #include <madness/chem/molecular_functors.h>
 #include <madness/mra/vmra.h>
 #include <madness/tensor/tensor_lapack.h>
@@ -271,11 +272,26 @@ void LCAOSCF::compute_integrals() {
     S_ = ints.overlap();
     T_ = ints.kinetic();
     V_ = ints.nuclear_attraction(molecule_);
+    H_ = T_ + V_;
     const double t1 = wall_time();
+    if (param_.eri() == "cholesky") {
+        const auto chol = std::make_shared<const CholeskyERIDecomposition>(world_, ints, param_.cholesky_tol());
+        const double t2 = wall_time();
+        twoe_ = std::make_unique<CholeskyERI>(world_, chol, S_.dim(0));
+        if (printme) {
+            const CholeskyERIDecomposition::Stats& s = chol->stats();
+            printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);
+            printf("    Cholesky decomposition at cholesky_tol %.0e (all kernel terms, no Schwarz skips): %zu of %zu "
+                   "function pairs kept, %ld vectors = %.2f N, %.2f GB\n", chol->tol(), s.nkept, s.npairs,
+                   chol->nvec(), double(chol->nvec()) / double(S_.dim(0)), 8.0e-9 * double(chol->nvec()) * s.nkept);
+            printf("    %zu integral columns in %zu batches; diagonal %.2fs, integrals %.2fs, updates %.2fs\n",
+                   s.ncolumns, s.nbatches, s.t_diagonal, s.t_integrals, s.t_updates);
+        }
+        return;
+    }
     ERIStats stats;
     eri_ = std::make_shared<const PackedERI>(ints.eri(world_, param_.kernel_screen(), param_.schwarz(), &stats));
     const double t2 = wall_time();
-    H_ = T_ + V_;
     twoe_ = std::make_unique<InCoreERI>(world_, eri_);
     if (printme) {
         printf("integrals: one-electron %.2fs, two-electron %.2fs\n", t1 - t0, t2 - t1);

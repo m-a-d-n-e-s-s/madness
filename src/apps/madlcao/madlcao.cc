@@ -203,18 +203,18 @@ void check_cholesky(World& world, const lcao::LCAOSCF& scf, const LCAOParameters
         lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
     const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
     const double t0 = wall_time();
-    const lcao::CholeskyERIDecomposition chol(world, ints, lparam.cholesky_tol());
+    const auto chol = std::make_shared<const lcao::CholeskyERIDecomposition>(world, ints, lparam.cholesky_tol());
     const double t1 = wall_time();
 
     // L L^T on the kept rows, one dgemm; the screened rows have no vector components
-    const lcao::FunctionPairs& fp = chol.pairs();
-    const long nk = long(chol.nkept()), m = chol.nvec();
+    const lcao::FunctionPairs& fp = chol->pairs();
+    const long nk = long(chol->nkept()), m = chol->nvec();
     Tensor<double> LLT(std::max(nk, 1L), std::max(nk, 1L));
     if (m > 0)
-        cblas::gemm(cblas::NoTrans, cblas::Trans, nk, nk, m, 1.0, chol.vectors(), nk, chol.vectors(), nk, 0.0,
+        cblas::gemm(cblas::NoTrans, cblas::Trans, nk, nk, m, 1.0, chol->vectors(), nk, chol->vectors(), nk, 0.0,
                     LLT.ptr(), nk);
     std::vector<long> kept(fp.size(), -1);
-    for (std::size_t i = 0; i < chol.rows().size(); ++i) kept[chol.rows()[i]] = long(i);
+    for (std::size_t i = 0; i < chol->rows().size(); ++i) kept[chol->rows()[i]] = long(i);
     const lcao::PackedERI& P = scf.eri();
     double maxerr = 0.0;
     for (std::size_t r = 0; r < fp.size(); ++r) {
@@ -225,15 +225,31 @@ void check_cholesky(World& world, const lcao::LCAOSCF& scf, const LCAOParameters
             maxerr = std::max(maxerr, std::abs(P(a[0], a[1], b[0], b[1]) - llt));
         }
     }
+
+    // J and K of the converged densities from the vectors against those from the stored integrals
+    const lcao::InCoreERI incore(world, std::shared_ptr<const lcao::PackedERI>(&P, [](const lcao::PackedERI*) {}));
+    const lcao::CholeskyERI fromvectors(world, chol, P.nbf());
+    const bool open = not scf.restricted();
+    const Tensor<double> Pa = scf.density(0);
+    const Tensor<double> Pb = open ? scf.density(1) : Tensor<double>();
+    Tensor<double> J0, Ka0, Kb0, J1, Ka1, Kb1;
+    incore.jk(Pa, Pb, J0, Ka0, Kb0);
+    const double t2 = wall_time();
+    fromvectors.jk(Pa, Pb, J1, Ka1, Kb1);
+    const double t3 = wall_time();
+
     if (world.rank() == 0) {
-        const lcao::CholeskyERIDecomposition::Stats& s = chol.stats();
+        const lcao::CholeskyERIDecomposition::Stats& s = chol->stats();
         printf("\nCholesky decomposition of the two-electron integrals (cholesky_tol %.0e, span %.0e, %.2fs)\n",
-               chol.tol(), chol.span(), t1 - t0);
+               chol->tol(), chol->span(), t1 - t0);
         printf("   %zu of %zu function pairs kept, %ld vectors = %.2f N, %zu integral columns in %zu batches\n",
                s.nkept, s.npairs, m, double(m) / double(P.nbf()), s.ncolumns, s.nbatches);
         printf("   time: diagonal %.2fs, integrals %.2fs, updates %.2fs\n", s.t_diagonal, s.t_integrals, s.t_updates);
         printf("   largest |V - L L^T| %.2e: %s\n", maxerr,
-               maxerr <= chol.tol() ? "within cholesky_tol" : "EXCEEDS cholesky_tol");
+               maxerr <= chol->tol() ? "within cholesky_tol" : "EXCEEDS cholesky_tol");
+        printf("   J and K of the converged density, vectors against stored integrals (%.3fs): largest |dJ| %.2e, "
+               "|dKa| %.2e, |dKb| %.2e\n", t3 - t2, (J1 - J0).absmax(), (Ka1 - Ka0).absmax(),
+               open ? (Kb1 - Kb0).absmax() : 0.0);
     }
 }
 
@@ -362,6 +378,10 @@ int main(int argc, char** argv) {
                 CalculationParameters param(world, parser);
                 param.set_derived_values(molecule);
                 const LCAOParameters lparam(world, parser);
+                MADNESS_CHECK_THROW(lparam.eri() == "incore" or
+                                    not (lparam.check_eri() or lparam.check_mra() or lparam.check_cholesky()),
+                                    "check_eri, check_mra and check_cholesky compare with the stored integrals: "
+                                    "they need eri incore");
 
                 AtomicBasisSet aobasis;
                 aobasis.read_file(lparam.basis());

@@ -33,9 +33,9 @@
 /// \brief Hartree-Fock in a Gaussian basis, with integrals from separated kernels
 
 /// Meant as a cheap source of initial orbitals for the MRA calculation, not as
-/// an optimized LCAO code: closed-shell RHF or UHF with DIIS, all integrals in
-/// the memory of the rank that runs it (moldft's `guess lcao` runs it on rank 0
-/// alone; madlcao on every rank).
+/// an optimized LCAO code: closed-shell RHF or UHF with DIIS, the two-electron
+/// integrals in memory or as Cholesky vectors (key eri), all on the rank that
+/// runs it (moldft's `guess lcao` runs it on rank 0 alone; madlcao on every rank).
 
 #ifndef MADNESS_CHEM_LCAO_SCF_H__INCLUDED
 #define MADNESS_CHEM_LCAO_SCF_H__INCLUDED
@@ -74,6 +74,9 @@ public:
                            "(0: keep all, as the v1 reference numbers did)");
         initialize<double>("schwarz", 1.e-6, "skip the two-electron integrals of shell-group quartets whose "
                            "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this: guess grade (0: compute all)");
+        initialize<std::string>("eri", "incore", "two-electron integrals: stored in memory, or Cholesky-"
+                                "decomposed at cholesky_tol (always without kernel screening and Schwarz skips)",
+                                {"incore", "cholesky"});
         initialize<double>("cholesky_tol", 1.e-6, "Cholesky decomposition of the two-electron integrals: the "
                            "largest residual (mu nu|mu nu) left, which bounds the error of every integral");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
@@ -113,6 +116,7 @@ public:
     double kernel_hi() const { return get<double>("kernel_hi"); }
     double kernel_screen() const { return get<double>("kernel_screen"); }
     double schwarz() const { return get<double>("schwarz"); }
+    std::string eri() const { return get<std::string>("eri"); }
     double cholesky_tol() const { return get<double>("cholesky_tol"); }
     std::string guess() const { return get<std::string>("guess"); }
     int maxiter() const { return get<int>("maxiter"); }
@@ -199,7 +203,12 @@ public:
     const Tensor<double>& overlap() const { return S_; }
     const Tensor<double>& kinetic() const { return T_; }
     const Tensor<double>& nuclear_attraction() const { return V_; }
-    const PackedERI& eri() const { return *eri_; }
+
+    /// the two-electron integrals in memory; only with eri incore
+    const PackedERI& eri() const {
+        MADNESS_CHECK_THROW(eri_, "LCAOSCF: the two-electron integrals are not in memory (eri cholesky)");
+        return *eri_;
+    }
 
     /// MO coefficients of spin 0 (alpha) or 1 (beta), one column per orbital, in ascending orbital energy
     const Tensor<double>& coefficients(const int spin = 0) const { return spin == 0 ? Ca_ : Cb_; }
@@ -207,6 +216,9 @@ public:
 
     /// total density matrix Pa + Pb
     Tensor<double> density() const { return Pa_ + Pb_; }
+
+    /// density matrix of spin 0 (alpha) or 1 (beta); for a closed shell both are C_occ C_occ^T
+    const Tensor<double>& density(const int spin) const { return spin == 0 ? Pa_ : Pb_; }
 
     /// <S^2> of the determinant: 0 for RHF, S(S+1) plus the spin contamination for UHF
     double s2() const { return s2_; }

@@ -34,6 +34,7 @@
 
 #include <madness/chem/lcao_cholesky.h>
 #include <madness/tensor/cblas.h>
+#include <madness/tensor/tensor_lapack.h>
 #include <madness/world/MADworld.h>
 
 #include <algorithm>
@@ -190,6 +191,132 @@ CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const Separated
         }
         stats_.t_updates += wall_time() - t0;
     }
+}
+
+
+CholeskyERI::CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, const long nbf)
+    : world_(world), chol_(std::move(chol)), nbf_(nbf) {
+    const FunctionPairs& fp = chol_->pairs();
+    MADNESS_CHECK_THROW(fp.size() == std::size_t(nbf) * (nbf + 1) / 2,
+                        "CholeskyERI: the decomposition belongs to another basis");
+    mu_.reserve(chol_->nkept());
+    nu_.reserve(chol_->nkept());
+    for (const std::size_t r : chol_->rows()) {
+        mu_.push_back(fp.functions[r][0]);
+        nu_.push_back(fp.functions[r][1]);
+    }
+}
+
+
+namespace {
+
+/// one term of a density matrix written as P = sum_t sign_t Y_t Y_t^T, Y_t n x r, column-major
+struct DensityFactor {
+    std::vector<double> Y;
+    long r = 0;
+    double sign = 1.0;
+    int spin = 0;
+};
+
+/// P = Y+ Y+^T - Y- Y-^T from the eigenpairs of the symmetric P; eigenvalues within 1e-13 max|e| of 0 are dropped
+void factor_density(const Tensor<double>& P, const int spin, std::vector<DensityFactor>& factors) {
+    const long n = P.dim(0);
+    Tensor<double> U, e;
+    syev(P, U, e);
+    const double cut = 1.e-13 * e.absmax();
+    for (const double sign : {1.0, -1.0}) {
+        DensityFactor f;
+        f.sign = sign;
+        f.spin = spin;
+        for (long j = 0; j < e.size(); ++j) {
+            if (sign * e(j) <= cut) continue;
+            const double s = std::sqrt(sign * e(j));
+            for (long mu = 0; mu < n; ++mu) f.Y.push_back(U(mu, j) * s);
+            ++f.r;
+        }
+        if (f.r > 0) factors.push_back(std::move(f));
+    }
+}
+
+} // namespace
+
+
+void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
+                     Tensor<double>& Kb) const {
+    const long n = nbf_;
+    const bool open = Pb.size() > 0;
+    MADNESS_CHECK_THROW(Pa.ndim() == 2 and Pa.dim(0) == n and Pa.dim(1) == n and
+                        (not open or (Pb.dim(0) == n and Pb.dim(1) == n)),
+                        "CholeskyERI: integrals and density matrix do not match");
+    const long m = chol_->nvec();
+    const std::size_t nk = chol_->nkept();
+    const double* L = chol_->vectors();
+    const std::size_t nblock = (nk + block_rows - 1) / block_rows;
+
+    // J: gamma = sum over the kept rows of L P~, P~ the total density with both orders of
+    // mu != nu; then J~ = L^T gamma. Partial sums of gamma per block of rows, added in block order.
+    const Tensor<double> pt = open ? Pa + Pb : 2.0 * Pa;
+    std::vector<double> ptk(nk), jt(nk, 0.0), gamma(std::max(m, 1L), 0.0);
+    for (std::size_t i = 0; i < nk; ++i) ptk[i] = (mu_[i] == nu_[i] ? 1.0 : 2.0) * pt(mu_[i], nu_[i]);
+    if (m > 0) {
+        std::vector<double> gpart(nblock * m, 0.0);
+        for_each_block(world_, nblock, [&](const std::size_t b) {
+            const std::size_t i0 = b * block_rows, nb = std::min(nk, i0 + block_rows) - i0;
+            cblas::gemv(cblas::Trans, long(nb), m, 1.0, L + i0, long(nk), ptk.data() + i0, 1, 0.0,
+                        gpart.data() + b * m, 1);
+        });
+        for (std::size_t b = 0; b < nblock; ++b)
+            for (long k = 0; k < m; ++k) gamma[k] += gpart[b * m + k];
+        for_each_block(world_, nblock, [&](const std::size_t b) {
+            const std::size_t i0 = b * block_rows, nb = std::min(nk, i0 + block_rows) - i0;
+            cblas::gemv(cblas::NoTrans, long(nb), m, 1.0, L + i0, long(nk), gamma.data(), 1, 0.0, jt.data() + i0, 1);
+        });
+    }
+    J = Tensor<double>(n, n);
+    for (std::size_t i = 0; i < nk; ++i) J(mu_[i], nu_[i]) = J(nu_[i], mu_[i]) = jt[i];
+
+    // K per spin from the factors of its density: chunk c sums X_k X_k^T over its vectors, several
+    // vectors per dgemm; the chunks do not depend on the number of threads and are added in order
+    std::vector<DensityFactor> factors;
+    factor_density(Pa, 0, factors);
+    if (open) factor_density(Pb, 1, factors);
+    const int nspin = open ? 2 : 1;
+    long rmax = 1;
+    for (const DensityFactor& f : factors) rmax = std::max(rmax, f.r);
+    const long nstack = std::max(1L, 512 / rmax);
+    const long nchunk = std::min(16L, m);
+    std::vector<std::vector<double>> kpart(nchunk * nspin);
+    for_each_block(world_, std::size_t(nchunk), [&](const std::size_t c) {
+        const long k0 = m * long(c) / nchunk, k1 = m * long(c + 1) / nchunk;
+        for (int s = 0; s < nspin; ++s) kpart[c * nspin + s].assign(n * n, 0.0);
+        std::vector<double> Lk(n * n, 0.0);     // the vector as a matrix; screened pairs stay 0
+        std::vector<std::vector<double>> X(factors.size());
+        for (std::size_t t = 0; t < factors.size(); ++t) X[t].resize(n * factors[t].r * nstack);
+        for (long k = k0; k < k1; k += nstack) {
+            const long kn = std::min(nstack, k1 - k);
+            for (long kk = 0; kk < kn; ++kk) {
+                const double* l = L + (k + kk) * nk;
+                for (std::size_t i = 0; i < nk; ++i) Lk[mu_[i] * n + nu_[i]] = Lk[nu_[i] * n + mu_[i]] = l[i];
+                for (std::size_t t = 0; t < factors.size(); ++t)
+                    cblas::gemm(cblas::NoTrans, cblas::NoTrans, n, factors[t].r, n, 1.0, Lk.data(), n,
+                                factors[t].Y.data(), n, 0.0, X[t].data() + kk * n * factors[t].r, n);
+            }
+            for (std::size_t t = 0; t < factors.size(); ++t)
+                cblas::gemm(cblas::NoTrans, cblas::Trans, n, n, kn * factors[t].r, factors[t].sign, X[t].data(), n,
+                            X[t].data(), n, 1.0, kpart[c * nspin + factors[t].spin].data(), n);
+        }
+    });
+    const auto sum_chunks = [&](const int s) {
+        Tensor<double> K(n, n);
+        double* k = K.ptr();
+        for (long c = 0; c < nchunk; ++c) {
+            const double* kp = kpart[c * nspin + s].data();
+            for (long i = 0; i < n * n; ++i) k[i] += kp[i];
+        }
+        return Tensor<double>(0.5 * (K + transpose(K)));
+    };
+    Ka = sum_chunks(0);
+    Kb = open ? sum_chunks(1) : Tensor<double>();
 }
 
 } // namespace lcao
