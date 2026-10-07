@@ -675,6 +675,62 @@ private:
     const std::size_t ldw_;
 };
 
+/// the block of shells a and b of the attraction to point nuclei, and its transpose
+void nuclear_attraction_block(const Shell& sa, const Shell& sb, const Molecule& molecule,
+                              const GaussianKernel& kernel, const GaussHermiteRule& gh, Tensor<double>& V) {
+    const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
+    const int nj = sb.l + 1;
+    std::vector<double> g[3];
+    for (auto& v : g) v.resize((sa.l + 1) * nj);
+    for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
+        for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
+            const double cc = sa.coeff[ia] * sb.coeff[ib];
+            for (std::size_t iat = 0; iat < molecule.natom(); ++iat) {
+                const Atom& atom = molecule.get_atom(iat);
+                const double C[3] = {atom.x, atom.y, atom.z};
+                for (std::size_t m = 0; m < kernel.size(); ++m) {
+                    for (int d = 0; d < 3; ++d)
+                        gaussian_1d(sa.l, sb.l, sa.expnt[ia], sa.center[d], sb.expnt[ib], sb.center[d],
+                                    kernel.t[m], C[d], gh, g[d].data());
+                    const double f = -atom.q * kernel.w[m] * cc;
+                    for (std::size_t i = 0; i < ca.size(); ++i)
+                        for (std::size_t j = 0; j < cb.size(); ++j)
+                            V(sa.offset + i, sb.offset + j) += f * g[0][ca[i][0] * nj + cb[j][0]]
+                                                                 * g[1][ca[i][1] * nj + cb[j][1]]
+                                                                 * g[2][ca[i][2] * nj + cb[j][2]];
+                }
+            }
+        }
+    }
+    symmetrize_block(V, sa, sb);
+}
+
+/// a task on the thread pool: the nuclear attraction blocks of the shells a in [begin, end) with every b <= a
+///
+/// Every block belongs to one task and is summed in the order of the serial loop, so V does not
+/// depend on the scheduling.
+class NuclearAttractionTask : public TaskInterface {
+public:
+    NuclearAttractionTask(const std::vector<Shell>& shells, const Molecule& molecule, const GaussianKernel& kernel,
+                          const GaussHermiteRule& gh, const std::size_t begin, const std::size_t end, Tensor<double>& V)
+        : shells_(shells), molecule_(molecule), kernel_(kernel), gh_(gh), begin_(begin), end_(end), V_(V) {}
+
+    using TaskInterface::run;
+    void run(World&) override {
+        for (std::size_t a = begin_; a < end_; ++a)
+            for (std::size_t b = 0; b <= a; ++b)
+                nuclear_attraction_block(shells_[a], shells_[b], molecule_, kernel_, gh_, V_);
+    }
+
+private:
+    const std::vector<Shell>& shells_;
+    const Molecule& molecule_;
+    const GaussianKernel& kernel_;
+    const GaussHermiteRule& gh_;
+    const std::size_t begin_, end_;
+    Tensor<double>& V_;
+};
+
 } // namespace
 
 
@@ -860,39 +916,19 @@ Tensor<double> SeparatedGaussianIntegrals::kinetic() const {
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(const Molecule& molecule) const {
+Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(World& world, const Molecule& molecule) const {
     Tensor<double> V(nbf_, nbf_);
+    // shell a pairs with every b <= a: its cost grows with the primitives of shells 0..a
+    std::vector<double> cost(shells_.size());
+    double nprim = 0.0;
     for (std::size_t a = 0; a < shells_.size(); ++a) {
-        for (std::size_t b = 0; b <= a; ++b) {
-            const Shell& sa = shells_[a];
-            const Shell& sb = shells_[b];
-            const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
-            const int nj = sb.l + 1;
-            std::vector<double> g[3];
-            for (auto& v : g) v.resize((sa.l + 1) * nj);
-            for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
-                for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
-                    const double cc = sa.coeff[ia] * sb.coeff[ib];
-                    for (std::size_t iat = 0; iat < molecule.natom(); ++iat) {
-                        const Atom& atom = molecule.get_atom(iat);
-                        const double C[3] = {atom.x, atom.y, atom.z};
-                        for (std::size_t m = 0; m < coulomb_.size(); ++m) {
-                            for (int d = 0; d < 3; ++d)
-                                gaussian_1d(sa.l, sb.l, sa.expnt[ia], sa.center[d], sb.expnt[ib], sb.center[d],
-                                            coulomb_.t[m], C[d], gh_, g[d].data());
-                            const double f = -atom.q * coulomb_.w[m] * cc;
-                            for (std::size_t i = 0; i < ca.size(); ++i)
-                                for (std::size_t j = 0; j < cb.size(); ++j)
-                                    V(sa.offset + i, sb.offset + j) += f * g[0][ca[i][0] * nj + cb[j][0]]
-                                                                         * g[1][ca[i][1] * nj + cb[j][1]]
-                                                                         * g[2][ca[i][2] * nj + cb[j][2]];
-                        }
-                    }
-                }
-            }
-            symmetrize_block(V, sa, sb);
-        }
+        nprim += double(shells_[a].expnt.size());
+        cost[a] = double(shells_[a].expnt.size()) * nprim;
     }
+    const std::vector<std::size_t> chunk = equal_cost_chunks(cost, task_count());
+    for (std::size_t c = 0; c + 1 < chunk.size(); ++c)
+        world.taskq.add(new NuclearAttractionTask(shells_, molecule, coulomb_, gh_, chunk[c], chunk[c + 1], V));
+    world.taskq.fence();
     return V;
 }
 

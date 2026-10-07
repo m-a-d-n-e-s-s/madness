@@ -189,8 +189,8 @@ public:
     Tensor<double> overlap() const;
     Tensor<double> kinetic() const;
 
-    /// attraction to point nuclei with charges Atom::q
-    Tensor<double> nuclear_attraction(const Molecule& molecule) const;
+    /// attraction to point nuclei with charges Atom::q, as tasks on the thread pool of this process
+    Tensor<double> nuclear_attraction(World& world, const Molecule& molecule) const;
 
     /// all two-electron integrals (mu nu|lambda sigma), chemists' notation, once per permutational orbit
 
