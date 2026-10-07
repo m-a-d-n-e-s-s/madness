@@ -20,6 +20,11 @@ permissions:
 jobs:
   build:
     name: ${{ matrix.suite.name }} (GENTENSOR=${{ matrix.gentensor }})
+    # The self-hosted runner is registered only with the upstream repo; in a
+    # fork this job would sit queued waiting for a runner that never comes.
+    # PRs from forks *into* upstream still run, since they execute in
+    # upstream's context.
+    if: github.repository == 'm-a-d-n-e-s-s/madness'
     runs-on: [self-hosted, madness]
     timeout-minutes: 180
     strategy:
