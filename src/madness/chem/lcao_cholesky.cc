@@ -47,8 +47,12 @@ namespace lcao {
 
 namespace {
 
-/// rows per block of the updates: the unit of the task split, independent of the number of threads
+/// kept rows per block of rows, the unit of the rank split: consecutive group pairs, cut where they reach this
 constexpr std::size_t block_rows = 4096;
+
+/// rows per task of the updates: each block is cut into pieces of at most this many rows,
+/// independent of the numbers of threads and ranks
+constexpr std::size_t task_rows = 512;
 
 /// a task on the thread pool: f(b) for one block b
 template <typename F>
@@ -132,9 +136,13 @@ CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const Separated
     std::vector<double> D(nloc);
     for (std::size_t i = 0; i < nloc; ++i) D[i] = D0(long(rows_[r0 + i]));
 
-    // this rank's vectors on its rows (L_ is them while the decomposition runs)
+    // the updates run as tasks over pieces of this rank's blocks, [tfirst[t], tfirst[t+1]) in local rows
+    std::vector<std::size_t> tfirst;
+    for (std::size_t b = b0; b < b1; ++b)
+        for (std::size_t i = bfirst[b]; i < bfirst[b + 1]; i += task_rows) tfirst.push_back(i - r0);
+    tfirst.push_back(nloc);
     const auto local_blocks = [&](const auto& f) {
-        for_each_block(world, b1 - b0, [&](const std::size_t b) { f(bfirst[b0 + b] - r0, bfirst[b0 + b + 1] - r0); });
+        for_each_block(world, tfirst.size() - 1, [&](const std::size_t t) { f(tfirst[t], tfirst[t + 1]); });
     };
     std::vector<double> V, Lc, f, vcc, dc;
     std::vector<long> cand;
