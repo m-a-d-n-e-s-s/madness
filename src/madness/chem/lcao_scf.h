@@ -194,7 +194,7 @@ public:
             const LCAOParameters& param, bool collective = false);
 
     /// compute the integrals and iterate to self-consistency
-    /// @return the total energy
+    /// @return the total energy of the densities of the last J/K build (the last line of the iteration table)
     double solve();
 
     bool converged() const { return converged_; }
@@ -233,6 +233,8 @@ public:
     /// <S^2> of the determinant: 0 for RHF, S(S+1) plus the spin contamination for UHF
     double s2() const { return s2_; }
 
+    /// the energy and its parts for the densities of the last J/K build; the final densities (density())
+    /// come from the last diagonalization and differ from them by the last step (rms below dconv)
     const Energies& energies() const { return energies_; }
 
 private:

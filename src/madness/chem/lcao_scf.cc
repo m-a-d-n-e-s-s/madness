@@ -416,6 +416,7 @@ double LCAOSCF::solve() {
     const long n = S_.dim(0);
     const Tensor<double> none;              // an empty Pb: closed shell
     Tensor<double> J, Ka, Kb;
+    Tensor<double> Pa_jk, Pb_jk;            // the densities of the last J/K build
     std::deque<Tensor<double>> diis_f, diis_e;   // with collective, on rank 0 only
     const bool root = not collective_ or world_.rank() == 0;
     double eold = 0.0;
@@ -426,6 +427,8 @@ double LCAOSCF::solve() {
         const double tj0 = wall_time();
         twoe_->jk(Pa, open ? Pb : none, J, Ka, Kb);
         tjk += wall_time() - tj0;
+        Pa_jk = Pa;
+        Pb_jk = Pb;
         const double td0 = wall_time();
         Tensor<double> Fa = H_ + J - Ka;
         Tensor<double> Fb = open ? H_ + J - Kb : Fa;
@@ -471,14 +474,19 @@ double LCAOSCF::solve() {
     Pa_ = Pa;
     Pb_ = Pb;
 
-    // the energy and its parts for the final densities
-    twoe_->jk(Pa_, open ? Pb_ : none, J, Ka, Kb);
+    // the energy and its parts for the densities of the last J/K build, the last line of the
+    // iteration table: no build for the final densities, which differ from them by the last step
+    if (Pa_jk.size() == 0) {    // maxiter 0: no build yet
+        Pa_jk = Pa_;
+        Pb_jk = Pb_;
+        twoe_->jk(Pa_jk, open ? Pb_jk : none, J, Ka, Kb);
+    }
     if (not open) Kb = Ka;
-    const Tensor<double> P = Pa_ + Pb_;
+    const Tensor<double> P = Pa_jk + Pb_jk;
     energies_.kinetic = P.trace(T_);
     energies_.nuclear_attraction = P.trace(V_);
     energies_.coulomb = 0.5 * P.trace(J);
-    energies_.exchange = -0.5 * (Pa_.trace(Ka) + Pb_.trace(Kb));
+    energies_.exchange = -0.5 * (Pa_jk.trace(Ka) + Pb_jk.trace(Kb));
     energies_.nuclear_repulsion = enuc;
     energies_.total = energies_.kinetic + energies_.nuclear_attraction + energies_.coulomb
                     + energies_.exchange + energies_.nuclear_repulsion;
@@ -489,7 +497,7 @@ double LCAOSCF::solve() {
 
     if (printme) {
         printf("\n%s after %d iterations, %.6f electrons\n", converged_ ? "converged" : "NOT CONVERGED",
-               iterations_, P.trace(S_));
+               iterations_, density().trace(S_));
         printf("SCF time: J/K %.2fs in %d builds (%.3fs each), DIIS and diagonalization %.2fs\n", tjk, iterations_,
                tjk / std::max(iterations_, 1), tdiag);
         if (open) printf("<S^2> = %.6f (pure spin state: %.6f)\n", s2_, sz * (sz + 1.0));
