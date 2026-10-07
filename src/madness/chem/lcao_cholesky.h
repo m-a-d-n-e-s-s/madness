@@ -132,12 +132,41 @@ public:
     const Stats& stats() const { return stats_; }
 
 private:
+    /// uninitialized doubles in one malloc'd block that grows and shrinks with realloc
+    ///
+    /// The vectors grow one at a time. In a std::vector the old and the new copy coexist at each
+    /// doubling of the capacity, up to twice the vectors at once. realloc instead remaps a large
+    /// block (glibc: mremap) without copying it, and shrinking gives the freed pages back at once.
+    class ReallocArray {
+    public:
+        ReallocArray() = default;
+        ReallocArray(const ReallocArray&) = delete;
+        ReallocArray& operator=(const ReallocArray&) = delete;
+        ~ReallocArray();
+
+        double* data() { return data_; }
+        const double* data() const { return data_; }
+        const double& operator[](const std::size_t i) const { return data_[i]; }
+
+        /// at least n elements, the first ones kept; the capacity at least doubles when it grows
+        void grow(std::size_t n);
+
+        /// keep the first n elements and give back the memory of the rest
+        void shrink(std::size_t n);
+
+    private:
+        void reallocate(std::size_t capacity);
+
+        double* data_ = nullptr;
+        std::size_t size_ = 0, capacity_ = 0;
+    };
+
     double tol_, span_;
     bool distributed_ = false;
     int nproc_ = 1, rank_ = 0;
     FunctionPairs pairs_;
     std::vector<std::size_t> rows_;
-    std::vector<double> L_;                     ///< not distributed: all vectors
+    ReallocArray L_;                            ///< all vectors; distributed: this rank's rows until the redistribution
     std::vector<std::vector<double>> chunks_;   ///< distributed: the held chunks
     long nvec_ = 0;
     long nchunk_ = 1;

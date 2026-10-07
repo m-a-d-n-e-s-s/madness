@@ -39,8 +39,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <new>
 
 namespace madness {
 namespace lcao {
@@ -76,6 +78,35 @@ void for_each_block(World& world, const std::size_t nblock, const F& f) {
 }
 
 } // namespace
+
+
+CholeskyERIDecomposition::ReallocArray::~ReallocArray() { std::free(data_); }
+
+
+void CholeskyERIDecomposition::ReallocArray::reallocate(const std::size_t capacity) {
+    if (capacity == 0) {
+        std::free(data_);
+        data_ = nullptr;
+    } else {
+        void* p = std::realloc(data_, capacity * sizeof(double));
+        if (p == nullptr) throw std::bad_alloc();
+        data_ = static_cast<double*>(p);
+    }
+    capacity_ = capacity;
+}
+
+
+void CholeskyERIDecomposition::ReallocArray::grow(const std::size_t n) {
+    if (n > capacity_) reallocate(std::max(n, 2 * capacity_));
+    size_ = std::max(size_, n);
+}
+
+
+void CholeskyERIDecomposition::ReallocArray::shrink(const std::size_t n) {
+    if (n >= size_) return;
+    reallocate(n);
+    size_ = n;
+}
 
 
 CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const SeparatedGaussianIntegrals& ints,
@@ -233,7 +264,7 @@ CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const Separated
             // L_new = V[qp]/sqrt(D); f[q] its value on the remaining candidates
             const double s = 1.0 / std::sqrt(dq);
             for (std::size_t q = 0; q < nc; ++q) f[q] = done[q] ? 0.0 : vcc[qp * nc + q] * s;
-            L_.resize((nvec_ + 1) * nloc);
+            L_.grow((nvec_ + 1) * nloc);
             double* l = L_.data() + nvec_ * nloc;
             const double* v = V.data() + qp * nloc;
             local_blocks([&](const std::size_t i0, const std::size_t i1) {
@@ -263,19 +294,21 @@ CholeskyERIDecomposition::CholeskyERIDecomposition(World& world, const Separated
     }
 
     // the vectors in chunks of consecutive vectors, complete over the kept rows: per chunk, every
-    // rank adds its rows into a zero buffer, the sum is exact (one contribution per element)
+    // rank adds its rows into a zero buffer, the sum is exact (one contribution per element).
+    // The last chunk goes first, so that L gives back the rows of each chunk as soon as it is
+    // gathered: a rank holds about its share of the vectors throughout, not its rows and its chunks.
     if (distributed_) {
         t0 = wall_time();
         chunks_.resize(nchunk_);
-        for (long c = 0; c < nchunk_; ++c) {
+        for (long c = nchunk_ - 1; c >= 0; --c) {
             const auto [k0, k1] = chunk(c);
             std::vector<double> buf((k1 - k0) * nk, 0.0);
             for (long k = k0; k < k1; ++k)
                 std::copy(L_.data() + k * nloc, L_.data() + (k + 1) * nloc, buf.data() + (k - k0) * nk + r0);
+            L_.shrink(k0 * nloc);
             if (not buf.empty()) world.gop.sum(buf.data(), buf.size());
             if (holds(c)) chunks_[c] = std::move(buf);
         }
-        std::vector<double>().swap(L_);
         stats_.t_redistribute = wall_time() - t0;
     }
 }
