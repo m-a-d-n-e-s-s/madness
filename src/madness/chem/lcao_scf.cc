@@ -269,8 +269,8 @@ void LCAOSCF::compute_integrals() {
                    kernel.max_relative_coulomb_error(param_.kernel_lo(), param_.kernel_hi()));
     }
     const SeparatedGaussianIntegrals ints(shells_, kernel);
-    S_ = ints.overlap();
-    T_ = ints.kinetic();
+    S_ = ints.overlap(world_);
+    T_ = ints.kinetic(world_);
     V_ = ints.nuclear_attraction(world_, molecule_);
     H_ = T_ + V_;
     const double t1 = wall_time();

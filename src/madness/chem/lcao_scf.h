@@ -96,6 +96,8 @@ public:
                          "of the same basis functions");
         initialize<bool>("check_eri", false, "madlcao: compare the two-electron integrals with the "
                          "unoptimized reference implementation");
+        initialize<bool>("check_onee", false, "madlcao: compare the screened nuclear attraction with every "
+                         "term computed");
         initialize<bool>("check_cholesky", false, "madlcao: decompose the two-electron integrals at cholesky_tol "
                          "and compare L L^T with the stored integrals (needs kernel_screen 0; schwarz 0)");
         initialize<bool>("seed", false, "madlcao: write the occupied orbitals as <prefix>.restartdata, "
@@ -128,6 +130,7 @@ public:
     int print_level() const { return get<int>("print_level"); }
     bool check_mra() const { return get<bool>("check_mra"); }
     bool check_eri() const { return get<bool>("check_eri"); }
+    bool check_onee() const { return get<bool>("check_onee"); }
     bool check_cholesky() const { return get<bool>("check_cholesky"); }
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }

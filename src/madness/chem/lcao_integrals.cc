@@ -675,23 +675,190 @@ private:
     const std::size_t ldw_;
 };
 
+/// a task on the thread pool: f(a, b) for the shells a in [begin, end) with every b <= a
+template <typename F>
+class ShellPairTask : public TaskInterface {
+public:
+    ShellPairTask(const F& f, const std::size_t begin, const std::size_t end) : f_(f), begin_(begin), end_(end) {}
+
+    using TaskInterface::run;
+    void run(World&) override {
+        for (std::size_t a = begin_; a < end_; ++a)
+            for (std::size_t b = 0; b <= a; ++b) f_(a, b);
+    }
+
+private:
+    const F& f_;
+    const std::size_t begin_, end_;
+};
+
+/// f(a, b) for every pair of shells b <= a, as tasks over chunks of shells of equal estimated cost
+///
+/// Shell a pairs with every b <= a, so its cost grows with the primitives of shells 0..a. Each
+/// pair is done by one task, so a block that f writes for its pair alone does not depend on the
+/// scheduling.
+template <typename F>
+void for_each_shell_pair(World& world, const std::vector<Shell>& shells, const F& f) {
+    std::vector<double> cost(shells.size());
+    double nprim = 0.0;
+    for (std::size_t a = 0; a < shells.size(); ++a) {
+        nprim += double(shells[a].expnt.size());
+        cost[a] = double(shells[a].expnt.size()) * nprim;
+    }
+    const std::vector<std::size_t> chunk = equal_cost_chunks(cost, task_count());
+    for (std::size_t c = 0; c + 1 < chunk.size(); ++c) world.taskq.add(new ShellPairTask<F>(f, chunk[c], chunk[c + 1]));
+    world.taskq.fence();
+}
+
+/// the overlap block of shells a and b, and its transpose
+void overlap_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh, Tensor<double>& S) {
+    const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
+    const int nj = sb.l + 1;
+    std::vector<double> s[3];
+    for (auto& v : s) v.resize((sa.l + 1) * nj);
+    for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
+        for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
+            const double cc = sa.coeff[ia] * sb.coeff[ib];
+            for (int d = 0; d < 3; ++d)
+                gaussian_1d(sa.l, sb.l, sa.expnt[ia], sa.center[d], sb.expnt[ib], sb.center[d], 0.0, 0.0, gh,
+                            s[d].data());
+            for (std::size_t i = 0; i < ca.size(); ++i)
+                for (std::size_t j = 0; j < cb.size(); ++j)
+                    S(sa.offset + i, sb.offset + j) += cc * s[0][ca[i][0] * nj + cb[j][0]]
+                                                          * s[1][ca[i][1] * nj + cb[j][1]]
+                                                          * s[2][ca[i][2] * nj + cb[j][2]];
+        }
+    }
+    symmetrize_block(S, sa, sb);
+}
+
+/// the kinetic-energy block of shells a and b, and its transpose
+void kinetic_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh, Tensor<double>& T) {
+    const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
+    const int ns = sb.l + 3;            // overlaps up to j = lb+2, for the second derivative
+    const int nj = sb.l + 1;
+    std::vector<double> s[3], k[3];
+    for (int d = 0; d < 3; ++d) {
+        s[d].resize((sa.l + 1) * ns);
+        k[d].resize((sa.l + 1) * nj);
+    }
+    for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
+        for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
+            const double cc = sa.coeff[ia] * sb.coeff[ib];
+            const double beta = sb.expnt[ib];
+            for (int d = 0; d < 3; ++d) {
+                gaussian_1d(sa.l, sb.l + 2, sa.expnt[ia], sa.center[d], beta, sb.center[d], 0.0, 0.0, gh,
+                            s[d].data());
+                // -1/2 d^2/dx^2 (x-B)^j exp(-beta(x-B)^2), expressed through the overlaps
+                for (int i = 0; i <= sa.l; ++i) {
+                    for (int j = 0; j <= sb.l; ++j) {
+                        const double* si = s[d].data() + i * ns;
+                        double v = -2.0 * beta * (2 * j + 1) * si[j] + 4.0 * beta * beta * si[j + 2];
+                        if (j >= 2) v += j * (j - 1) * si[j - 2];
+                        k[d][i * nj + j] = -0.5 * v;
+                    }
+                }
+            }
+            for (std::size_t i = 0; i < ca.size(); ++i) {
+                for (std::size_t j = 0; j < cb.size(); ++j) {
+                    const int ix = ca[i][0] * ns + cb[j][0], iy = ca[i][1] * ns + cb[j][1], iz = ca[i][2] * ns + cb[j][2];
+                    const int kx = ca[i][0] * nj + cb[j][0], ky = ca[i][1] * nj + cb[j][1], kz = ca[i][2] * nj + cb[j][2];
+                    const double t = k[0][kx] * s[1][iy] * s[2][iz]
+                                   + s[0][ix] * k[1][ky] * s[2][iz]
+                                   + s[0][ix] * s[1][iy] * k[2][kz];
+                    T(sa.offset + i, sb.offset + j) += cc * t;
+                }
+            }
+        }
+    }
+    symmetrize_block(T, sa, sb);
+}
+
+/// what the screening of the nuclear attraction needs of the molecule
+struct AttractionScreen {
+    double qmax = 0.0;                          ///< the largest |charge|
+    std::array<double,3> center{0.0, 0.0, 0.0}; ///< any point, and the radius around it that holds every atom
+    double radius = 0.0;
+
+    explicit AttractionScreen(const Molecule& molecule) {
+        const std::size_t n = molecule.natom();
+        for (std::size_t i = 0; i < n; ++i) {
+            const Atom& at = molecule.get_atom(i);
+            qmax = std::max(qmax, std::abs(at.q));
+            center[0] += at.x / n;
+            center[1] += at.y / n;
+            center[2] += at.z / n;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            const Atom& at = molecule.get_atom(i);
+            radius = std::max(radius, std::sqrt((at.x - center[0]) * (at.x - center[0]) +
+                                                (at.y - center[1]) * (at.y - center[1]) +
+                                                (at.z - center[2]) * (at.z - center[2])));
+        }
+    }
+};
+
+inline double distance(const std::array<double,3>& a, const double* b) {
+    return std::sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+}
+
 /// the block of shells a and b of the attraction to point nuclei, and its transpose
+///
+/// Kernel term m of nucleus C adds to every element of the block at most
+///   |c_a c_b q w_m| K_ab exp(-p t_m R^2/(p+t_m)) (pi/(p+t_m))^{3/2} (1+dA)^la (1+dB)^lb,
+/// with K_ab exp(-p|r-P|^2) the product of the primitives, R = |P-C|, and dA bounding |x-A| over
+/// the quadrature nodes of each axis (the nodes lie within 5/sqrt(p+t) of a center on the segment
+/// from P to C). The factors other than the exponential are bounded by B over all terms, so the
+/// terms with p t R^2/(p+t) > ln(B/cutoff) are skipped (they are short range: t above a cutoff),
+/// and a nucleus or a primitive pair whose B is below the cutoff is skipped whole. cutoff 0 skips nothing.
 void nuclear_attraction_block(const Shell& sa, const Shell& sb, const Molecule& molecule,
-                              const GaussianKernel& kernel, const GaussHermiteRule& gh, Tensor<double>& V) {
+                              const GaussianKernel& kernel, const GaussHermiteRule& gh, const AttractionScreen& screen,
+                              const double cutoff, Tensor<double>& V) {
     const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
     const int nj = sb.l + 1;
     std::vector<double> g[3];
     for (auto& v : g) v.resize((sa.l + 1) * nj);
+    const auto power = [](const double x, const int l) {
+        double y = 1.0;
+        for (int i = 0; i < l; ++i) y *= x;
+        return y;
+    };
     for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
         for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
             const double cc = sa.coeff[ia] * sb.coeff[ib];
+            const double a = sa.expnt[ia], b = sb.expnt[ib], p = a + b;
+            std::array<double,3> P;
+            double ab2 = 0.0;
+            for (int d = 0; d < 3; ++d) {
+                P[d] = (a * sa.center[d] + b * sb.center[d]) / p;
+                ab2 += (sa.center[d] - sb.center[d]) * (sa.center[d] - sb.center[d]);
+            }
+            double wmax = 0.0;
+            for (std::size_t m = 0; m < kernel.size(); ++m)
+                wmax = std::max(wmax, std::abs(kernel.w[m]) * std::pow(constants::pi / (p + kernel.t[m]), 1.5));
+            const double pref = std::abs(cc) * std::exp(-a * b / p * ab2) * wmax;
+            const double dA0 = distance(P, sa.center.data()), dB0 = distance(P, sb.center.data());
+            const double node = 5.0 / std::sqrt(p);
+            const double spread = distance(P, screen.center.data()) + screen.radius;
+            if (pref * screen.qmax * power(1.0 + dA0 + spread + node, sa.l) * power(1.0 + dB0 + spread + node, sb.l)
+                < cutoff) continue;
             for (std::size_t iat = 0; iat < molecule.natom(); ++iat) {
                 const Atom& atom = molecule.get_atom(iat);
                 const double C[3] = {atom.x, atom.y, atom.z};
+                const double bound = pref * std::abs(atom.q) *
+                                     power(1.0 + std::max(dA0, distance(sa.center, C)) + node, sa.l) *
+                                     power(1.0 + std::max(dB0, distance(sb.center, C)) + node, sb.l);
+                if (bound < cutoff) continue;
+                // p t R^2/(p+t) > E for t > tcut, if p R^2 > E
+                const double E = (cutoff > 0.0) ? std::log(bound / cutoff) : std::numeric_limits<double>::infinity();
+                const double pR2 = p * (P[0] - C[0]) * (P[0] - C[0]) + p * (P[1] - C[1]) * (P[1] - C[1]) +
+                                   p * (P[2] - C[2]) * (P[2] - C[2]);
+                const double tcut = (cutoff > 0.0 and pR2 > E) ? E * p / (pR2 - E)
+                                                                : std::numeric_limits<double>::infinity();
                 for (std::size_t m = 0; m < kernel.size(); ++m) {
+                    if (kernel.t[m] > tcut) continue;
                     for (int d = 0; d < 3; ++d)
-                        gaussian_1d(sa.l, sb.l, sa.expnt[ia], sa.center[d], sb.expnt[ib], sb.center[d],
-                                    kernel.t[m], C[d], gh, g[d].data());
+                        gaussian_1d(sa.l, sb.l, a, sa.center[d], b, sb.center[d], kernel.t[m], C[d], gh, g[d].data());
                     const double f = -atom.q * kernel.w[m] * cc;
                     for (std::size_t i = 0; i < ca.size(); ++i)
                         for (std::size_t j = 0; j < cb.size(); ++j)
@@ -704,32 +871,6 @@ void nuclear_attraction_block(const Shell& sa, const Shell& sb, const Molecule& 
     }
     symmetrize_block(V, sa, sb);
 }
-
-/// a task on the thread pool: the nuclear attraction blocks of the shells a in [begin, end) with every b <= a
-///
-/// Every block belongs to one task and is summed in the order of the serial loop, so V does not
-/// depend on the scheduling.
-class NuclearAttractionTask : public TaskInterface {
-public:
-    NuclearAttractionTask(const std::vector<Shell>& shells, const Molecule& molecule, const GaussianKernel& kernel,
-                          const GaussHermiteRule& gh, const std::size_t begin, const std::size_t end, Tensor<double>& V)
-        : shells_(shells), molecule_(molecule), kernel_(kernel), gh_(gh), begin_(begin), end_(end), V_(V) {}
-
-    using TaskInterface::run;
-    void run(World&) override {
-        for (std::size_t a = begin_; a < end_; ++a)
-            for (std::size_t b = 0; b <= a; ++b)
-                nuclear_attraction_block(shells_[a], shells_[b], molecule_, kernel_, gh_, V_);
-    }
-
-private:
-    const std::vector<Shell>& shells_;
-    const Molecule& molecule_;
-    const GaussianKernel& kernel_;
-    const GaussHermiteRule& gh_;
-    const std::size_t begin_, end_;
-    Tensor<double>& V_;
-};
 
 } // namespace
 
@@ -834,101 +975,31 @@ SeparatedGaussianIntegrals::SeparatedGaussianIntegrals(const std::vector<Shell>&
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::overlap() const {
+Tensor<double> SeparatedGaussianIntegrals::overlap(World& world) const {
     Tensor<double> S(nbf_, nbf_);
-    for (std::size_t a = 0; a < shells_.size(); ++a) {
-        for (std::size_t b = 0; b <= a; ++b) {
-            const Shell& sa = shells_[a];
-            const Shell& sb = shells_[b];
-            const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
-            const int nj = sb.l + 1;
-            std::vector<double> s[3];
-            for (auto& v : s) v.resize((sa.l + 1) * nj);
-            for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
-                for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
-                    const double cc = sa.coeff[ia] * sb.coeff[ib];
-                    for (int d = 0; d < 3; ++d)
-                        gaussian_1d(sa.l, sb.l, sa.expnt[ia], sa.center[d], sb.expnt[ib], sb.center[d],
-                                    0.0, 0.0, gh_, s[d].data());
-                    for (std::size_t i = 0; i < ca.size(); ++i)
-                        for (std::size_t j = 0; j < cb.size(); ++j)
-                            S(sa.offset + i, sb.offset + j) += cc * s[0][ca[i][0] * nj + cb[j][0]]
-                                                                  * s[1][ca[i][1] * nj + cb[j][1]]
-                                                                  * s[2][ca[i][2] * nj + cb[j][2]];
-                }
-            }
-            symmetrize_block(S, sa, sb);
-        }
-    }
+    for_each_shell_pair(world, shells_, [&](const std::size_t a, const std::size_t b) {
+        overlap_block(shells_[a], shells_[b], gh_, S);
+    });
     return S;
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::kinetic() const {
+Tensor<double> SeparatedGaussianIntegrals::kinetic(World& world) const {
     Tensor<double> T(nbf_, nbf_);
-    for (std::size_t a = 0; a < shells_.size(); ++a) {
-        for (std::size_t b = 0; b <= a; ++b) {
-            const Shell& sa = shells_[a];
-            const Shell& sb = shells_[b];
-            const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
-            const int ns = sb.l + 3;            // overlaps up to j = lb+2, for the second derivative
-            const int nj = sb.l + 1;
-            std::vector<double> s[3], k[3];
-            for (int d = 0; d < 3; ++d) {
-                s[d].resize((sa.l + 1) * ns);
-                k[d].resize((sa.l + 1) * nj);
-            }
-            for (std::size_t ia = 0; ia < sa.expnt.size(); ++ia) {
-                for (std::size_t ib = 0; ib < sb.expnt.size(); ++ib) {
-                    const double cc = sa.coeff[ia] * sb.coeff[ib];
-                    const double beta = sb.expnt[ib];
-                    for (int d = 0; d < 3; ++d) {
-                        gaussian_1d(sa.l, sb.l + 2, sa.expnt[ia], sa.center[d], beta, sb.center[d],
-                                    0.0, 0.0, gh_, s[d].data());
-                        // -1/2 d^2/dx^2 (x-B)^j exp(-beta(x-B)^2), expressed through the overlaps
-                        for (int i = 0; i <= sa.l; ++i) {
-                            for (int j = 0; j <= sb.l; ++j) {
-                                const double* si = s[d].data() + i * ns;
-                                double v = -2.0 * beta * (2 * j + 1) * si[j] + 4.0 * beta * beta * si[j + 2];
-                                if (j >= 2) v += j * (j - 1) * si[j - 2];
-                                k[d][i * nj + j] = -0.5 * v;
-                            }
-                        }
-                    }
-                    for (std::size_t i = 0; i < ca.size(); ++i) {
-                        for (std::size_t j = 0; j < cb.size(); ++j) {
-                            const int ix = ca[i][0] * ns + cb[j][0], iy = ca[i][1] * ns + cb[j][1],
-                                      iz = ca[i][2] * ns + cb[j][2];
-                            const int kx = ca[i][0] * nj + cb[j][0], ky = ca[i][1] * nj + cb[j][1],
-                                      kz = ca[i][2] * nj + cb[j][2];
-                            const double t = k[0][kx] * s[1][iy] * s[2][iz]
-                                           + s[0][ix] * k[1][ky] * s[2][iz]
-                                           + s[0][ix] * s[1][iy] * k[2][kz];
-                            T(sa.offset + i, sb.offset + j) += cc * t;
-                        }
-                    }
-                }
-            }
-            symmetrize_block(T, sa, sb);
-        }
-    }
+    for_each_shell_pair(world, shells_, [&](const std::size_t a, const std::size_t b) {
+        kinetic_block(shells_[a], shells_[b], gh_, T);
+    });
     return T;
 }
 
 
-Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(World& world, const Molecule& molecule) const {
+Tensor<double> SeparatedGaussianIntegrals::nuclear_attraction(World& world, const Molecule& molecule,
+                                                              const double cutoff) const {
     Tensor<double> V(nbf_, nbf_);
-    // shell a pairs with every b <= a: its cost grows with the primitives of shells 0..a
-    std::vector<double> cost(shells_.size());
-    double nprim = 0.0;
-    for (std::size_t a = 0; a < shells_.size(); ++a) {
-        nprim += double(shells_[a].expnt.size());
-        cost[a] = double(shells_[a].expnt.size()) * nprim;
-    }
-    const std::vector<std::size_t> chunk = equal_cost_chunks(cost, task_count());
-    for (std::size_t c = 0; c + 1 < chunk.size(); ++c)
-        world.taskq.add(new NuclearAttractionTask(shells_, molecule, coulomb_, gh_, chunk[c], chunk[c + 1], V));
-    world.taskq.fence();
+    const AttractionScreen screen(molecule);
+    for_each_shell_pair(world, shells_, [&](const std::size_t a, const std::size_t b) {
+        nuclear_attraction_block(shells_[a], shells_[b], molecule, coulomb_, gh_, screen, cutoff, V);
+    });
     return V;
 }
 

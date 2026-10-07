@@ -186,11 +186,16 @@ public:
 
     long nbf() const { return nbf_; }
 
-    Tensor<double> overlap() const;
-    Tensor<double> kinetic() const;
+    /// overlap and kinetic energy, as tasks on the thread pool of this process
+    Tensor<double> overlap(World& world) const;
+    Tensor<double> kinetic(World& world) const;
 
     /// attraction to point nuclei with charges Atom::q, as tasks on the thread pool of this process
-    Tensor<double> nuclear_attraction(World& world, const Molecule& molecule) const;
+    ///
+    /// Kernel terms, nuclei and primitive pairs whose contribution to every element is bounded
+    /// by cutoff are skipped (short-range terms of distant nuclei, distant primitive pairs);
+    /// cutoff 0 computes every term.
+    Tensor<double> nuclear_attraction(World& world, const Molecule& molecule, double cutoff = 1.e-15) const;
 
     /// all two-electron integrals (mu nu|lambda sigma), chemists' notation, once per permutational orbit
 
