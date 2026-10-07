@@ -419,10 +419,14 @@ double LCAOSCF::solve() {
     std::deque<Tensor<double>> diis_f, diis_e;   // with collective, on rank 0 only
     const bool root = not collective_ or world_.rank() == 0;
     double eold = 0.0;
+    double tjk = 0.0, tdiag = 0.0;     // wall times of the J/K builds and of DIIS + diagonalization
     converged_ = false;
     if (printme) printf("\n iter          energy            dE        rms(dP)    max|FPS-SPF|\n");
     for (int iter = 0; iter < param_.maxiter(); ++iter) {
+        const double tj0 = wall_time();
         twoe_->jk(Pa, open ? Pb : none, J, Ka, Kb);
+        tjk += wall_time() - tj0;
+        const double td0 = wall_time();
         Tensor<double> Fa = H_ + J - Ka;
         Tensor<double> Fb = open ? H_ + J - Kb : Fa;
         const double etot = 0.5 * (Pa + Pb).trace(H_) + 0.5 * Pa.trace(Fa) + 0.5 * Pb.trace(Fb) + enuc;
@@ -449,6 +453,7 @@ double LCAOSCF::solve() {
             Cb_ = Ca_;
             epsb_ = epsa_;
         }
+        tdiag += wall_time() - td0;
         const double drms = ((Pa_new - Pa).normf() + (Pb_new - Pb).normf()) / double(n);
         const double de = etot - eold;
         if (printme) printf("%5d  %18.10f  %12.4e  %12.4e  %12.4e\n", iter, etot, de, drms, errmax);
@@ -485,6 +490,8 @@ double LCAOSCF::solve() {
     if (printme) {
         printf("\n%s after %d iterations, %.6f electrons\n", converged_ ? "converged" : "NOT CONVERGED",
                iterations_, P.trace(S_));
+        printf("SCF time: J/K %.2fs in %d builds (%.3fs each), DIIS and diagonalization %.2fs\n", tjk, iterations_,
+               tjk / std::max(iterations_, 1), tdiag);
         if (open) printf("<S^2> = %.6f (pure spin state: %.6f)\n", s2_, sz * (sz + 1.0));
         printf("\n              kinetic %16.8f\n", energies_.kinetic);
         printf("   nuclear attraction %16.8f\n", energies_.nuclear_attraction);
