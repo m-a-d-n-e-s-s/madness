@@ -573,13 +573,13 @@ double Nemo::solve(const SCFProtocol &proto) {
                             fock_xc);
     const bool weak_xc = (not xcflux.empty());
 
-    // compute the energy
-    std::vector<double> oldenergies = energies;
-    energies = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
-    energy = energies[0];
-
-    // compute the fock matrix
+    // compute the fock matrix. Its kinetic block is built first and once: the
+    // energy below takes the kinetic term from its trace instead of
+    // differentiating the orbitals again.
     timer t_fock(world, get_calc_param().print_level() > 2);
+    Kinetic<double, 3> T(world);
+    const tensorT kinetic = T(R2nemo, nemo);
+    t_fock.tag("kinetic energy matrix");
     vecfuncT Vnemo = Unemo + Jnemo - Knemo;
     if (do_pcm())
       Vnemo += pcmnemo;
@@ -595,9 +595,13 @@ double Nemo::solve(const SCFProtocol &proto) {
       if (weak_xc) fock += fock_xc;
       else         fock += matrix_inner(world, R2nemo, xcnemo, false);
     }
-    Kinetic<double, 3> T(world);
-    fock += T(R2nemo, nemo);
+    fock += kinetic;
     t_fock.end("compute fock matrix");
+
+    // compute the energy
+    std::vector<double> oldenergies = energies;
+    energies = compute_energy_regularized(nemo, R2nemo, Jnemo, Knemo, Unemo, kinetic);
+    energy = energies[0];
 
     // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
     if (not localized) {
@@ -716,33 +720,31 @@ double Nemo::solve(const SCFProtocol &proto) {
 /// given nemos, compute the HF energy using the regularized expressions for T
 /// and V
 std::vector<double>
-Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
-                                 const vecfuncT &Knemo,
-                                 const vecfuncT &Unemo) const {
+Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &R2nemo,
+                                 const vecfuncT &Jnemo, const vecfuncT &Knemo,
+                                 const vecfuncT &Unemo,
+                                 const tensorT &kinetic) const {
   timer t(world, get_calc_param().print_level() > 2);
-
-  vecfuncT R2nemo = R_square * nemo;
-  truncate(world, R2nemo);
 
   const tensorT U = inner(world, R2nemo, Unemo);
   const double pe = 2.0 * U.sum(); // closed shell
 
-  //    real_function_3d dens=dot(world,nemo,nemo)*R_square;
-  //    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
-
-  // compute \sum_i <F_i | R^2 T | F_i>
+  // \sum_i <F_i | R^2 T | F_i>, closed shell: twice the trace of the kinetic
+  // block <R^2 F_i | T | F_j> the Fock matrix is built from
+  MADNESS_CHECK_THROW(kinetic.ndim() == 2 and
+                          kinetic.dim(0) == long(nemo.size()) and
+                          kinetic.dim(1) == long(nemo.size()),
+                      "kinetic matrix does not match the orbitals");
   double ke = 0.0;
-  for (int axis = 0; axis < 3; axis++) {
-    real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    const vecfuncT dnemo = apply(world, D, nemo);
-    const vecfuncT dr2nemo = apply(world, D, R2nemo);
-    ke += 0.5 * (inner(world, dnemo, dr2nemo)).sum();
-  }
+  for (long i = 0; i < kinetic.dim(0); ++i)
+    ke += kinetic(i, i);
   ke *= 2.0; // closed shell
 
-  double ke0 = compute_kinetic_energy(nemo);
-  //    double ke1=compute_kinetic_energy1(nemo);
-  //    double ke2=compute_kinetic_energy2(nemo);
+  // the physical kinetic energy 1/2 \sum_i ||grad(R F_i)||^2 (closed shell)
+  // exceeds the regularized one by <rho_nemo R^2 | U1.U1>, U1 = -grad(R)/R;
+  // printed as a diagnostic and returned as energies[1]
+  const real_function_3d dens = dot(world, nemo, nemo) * R_square;
+  const double ke0 = ke + inner(dens, U1dotU1);
 
   const double J = inner(world, R2nemo, Jnemo).sum();
   double K = inner(world, R2nemo, Knemo).sum();

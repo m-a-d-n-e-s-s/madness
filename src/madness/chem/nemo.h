@@ -175,18 +175,21 @@ public:
         if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
         if (not ncf) need=true;
         if ((not R_square.is_initialized()) or (R_square.thresh()>thresh)) need=true;
+        if ((not U1dotU1.is_initialized()) or (U1dotU1.thresh()>thresh)) need=true;
         // k must be checked independently of thresh: re-entering a protocol at
         // the same threshold but a different k (a restart, or a user-pinned k)
         // would otherwise reuse R and R_square at the old k and silently mix
         // polynomial orders in every product with the nemos.
         if (R.is_initialized() and R.k()!=k) need=true;
         if (R_square.is_initialized() and R_square.k()!=k) need=true;
+        if (U1dotU1.is_initialized() and U1dotU1.k()!=k) need=true;
         return need;
     };
 
     virtual void invalidate_factors_and_potentials() {
         R.clear();
         R_square.clear();
+        U1dotU1.clear();
         ncf.reset();
     };
 
@@ -205,6 +208,11 @@ public:
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = ncf->square();
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
+	    // from its functor, not from the squared U1 components: their smoothed unit
+	    // vector vanishes at the nuclei (see assemble_nemo_ddens in xcfunctional_libxc.cc)
+	    U1dotU1 = real_factory_3d(world)
+	            .functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
+	    U1dotU1.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
 	/// compute the nuclear gradients
@@ -226,9 +234,7 @@ public:
 		//auto worldid=world.id();
 		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
-	    real_function_3d U1dotU1=real_factory_3d(world)
-	    		.functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
-	    double ke1=inner(dens,U1dotU1);
+	    double ke1=inner(dens,U1dotU1);   // cached beside R and R_square
 
 	    double ke2=0.0;
 	    double ke3=0.0;
@@ -353,6 +359,9 @@ public:
 
     /// the square of the nuclear correlation factor
     real_function_3d R_square;
+
+    /// U1.U1 = |grad R|^2 / R^2, by which the physical kinetic energy exceeds the regularized one
+    real_function_3d U1dotU1;
 
 
 };
@@ -697,8 +706,13 @@ protected:
 	double solve(const SCFProtocol& proto);
 
     /// given nemos, compute the HF energy using the regularized expressions for T and V
-    std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
-            const vecfuncT& Knemo, const vecfuncT& Unemo) const;
+
+    /// @param[in]  R2nemo   R^2 * nemo, the bra of every expectation value
+    /// @param[in]  kinetic  <R^2 F_i | -1/2 nabla^2 | F_j>, the kinetic block of the Fock matrix;
+    ///                      the regularized kinetic energy is twice its trace
+    std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& R2nemo,
+            const vecfuncT& Jnemo, const vecfuncT& Knemo, const vecfuncT& Unemo,
+            const Tensor<double>& kinetic) const;
 
 	/// compute the reconstructed orbitals, and all potentials applied on nemo
 
