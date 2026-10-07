@@ -74,6 +74,8 @@ public:
                            "(0: keep all, as the v1 reference numbers did)");
         initialize<double>("schwarz", 1.e-6, "skip the two-electron integrals of shell-group quartets whose "
                            "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this: guess grade (0: compute all)");
+        initialize<double>("cholesky_tol", 1.e-6, "Cholesky decomposition of the two-electron integrals: the "
+                           "largest residual (mu nu|mu nu) left, which bounds the error of every integral");
         initialize<std::string>("guess", "sad", "starting density: atomic densities from the basis file, "
                                 "or the core hamiltonian", {"sad", "core"});
         initialize<int>("maxiter", 100, "maximum number of SCF iterations");
@@ -91,6 +93,8 @@ public:
                          "of the same basis functions");
         initialize<bool>("check_eri", false, "madlcao: compare the two-electron integrals with the "
                          "unoptimized reference implementation");
+        initialize<bool>("check_cholesky", false, "madlcao: decompose the two-electron integrals at cholesky_tol "
+                         "and compare L L^T with the stored integrals (needs kernel_screen 0; schwarz 0)");
         initialize<bool>("seed", false, "madlcao: write the occupied orbitals as <prefix>.restartdata, "
                          "for moldft to start from");
         initialize<int>("seed_rung", 0, "madlcao: rung of the dft group's protocol at which moldft starts "
@@ -109,6 +113,7 @@ public:
     double kernel_hi() const { return get<double>("kernel_hi"); }
     double kernel_screen() const { return get<double>("kernel_screen"); }
     double schwarz() const { return get<double>("schwarz"); }
+    double cholesky_tol() const { return get<double>("cholesky_tol"); }
     std::string guess() const { return get<std::string>("guess"); }
     int maxiter() const { return get<int>("maxiter"); }
     double econv() const { return get<double>("econv"); }
@@ -119,6 +124,7 @@ public:
     int print_level() const { return get<int>("print_level"); }
     bool check_mra() const { return get<bool>("check_mra"); }
     bool check_eri() const { return get<bool>("check_eri"); }
+    bool check_cholesky() const { return get<bool>("check_cholesky"); }
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }
 };

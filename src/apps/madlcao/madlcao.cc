@@ -41,12 +41,14 @@
 #include <madness/madness_config.h>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/Restart.h>
+#include <madness/chem/lcao_cholesky.h>
 #include <madness/chem/lcao_scf.h>
 #include <madness/chem/molecular_functors.h>
 #include <madness/chem/potentialmanager.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/vmra.h>
+#include <madness/tensor/cblas.h>
 #include <madness/world/parallel_archive.h>
 
 #include <algorithm>
@@ -185,6 +187,53 @@ void check_eri(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lpa
                fp.ngroup_pairs(), once ? "yes" : "NO");
         printf("   diagonal: largest |diff| %.2e   columns: largest |diff| %.2e (bra group pair > ket, as eri() "
                "computed them: %.2e)\n", ddiff, cdiff, cdiff_same);
+    }
+}
+
+/// the Cholesky decomposition of the two-electron integrals at cholesky_tol against the stored integrals
+///
+/// The bound |V - L L^T| <= cholesky_tol holds for V without kernel screening and Schwarz
+/// skips, which the decomposition does not use, so the stored integrals must be unscreened too.
+void check_cholesky(World& world, const lcao::LCAOSCF& scf, const LCAOParameters& lparam) {
+    if (lparam.kernel_screen() != 0.0 or lparam.schwarz() != 0.0) {
+        if (world.rank() == 0) print("\nCholesky decomposition: not checked (needs kernel_screen 0; schwarz 0)");
+        return;
+    }
+    const lcao::GaussianKernel kernel =
+        lcao::GaussianKernel::coulomb(lparam.kernel_lo(), lparam.kernel_hi(), lparam.kernel_eps());
+    const lcao::SeparatedGaussianIntegrals ints(scf.shells(), kernel);
+    const double t0 = wall_time();
+    const lcao::CholeskyERIDecomposition chol(world, ints, lparam.cholesky_tol());
+    const double t1 = wall_time();
+
+    // L L^T on the kept rows, one dgemm; the screened rows have no vector components
+    const lcao::FunctionPairs& fp = chol.pairs();
+    const long nk = long(chol.nkept()), m = chol.nvec();
+    Tensor<double> LLT(std::max(nk, 1L), std::max(nk, 1L));
+    if (m > 0)
+        cblas::gemm(cblas::NoTrans, cblas::Trans, nk, nk, m, 1.0, chol.vectors(), nk, chol.vectors(), nk, 0.0,
+                    LLT.ptr(), nk);
+    std::vector<long> kept(fp.size(), -1);
+    for (std::size_t i = 0; i < chol.rows().size(); ++i) kept[chol.rows()[i]] = long(i);
+    const lcao::PackedERI& P = scf.eri();
+    double maxerr = 0.0;
+    for (std::size_t r = 0; r < fp.size(); ++r) {
+        const auto& a = fp.functions[r];
+        for (std::size_t c = 0; c <= r; ++c) {
+            const auto& b = fp.functions[c];
+            const double llt = (kept[r] >= 0 and kept[c] >= 0) ? LLT(kept[r], kept[c]) : 0.0;
+            maxerr = std::max(maxerr, std::abs(P(a[0], a[1], b[0], b[1]) - llt));
+        }
+    }
+    if (world.rank() == 0) {
+        const lcao::CholeskyERIDecomposition::Stats& s = chol.stats();
+        printf("\nCholesky decomposition of the two-electron integrals (cholesky_tol %.0e, span %.0e, %.2fs)\n",
+               chol.tol(), chol.span(), t1 - t0);
+        printf("   %zu of %zu function pairs kept, %ld vectors = %.2f N, %zu integral columns in %zu batches\n",
+               s.nkept, s.npairs, m, double(m) / double(P.nbf()), s.ncolumns, s.nbatches);
+        printf("   time: diagonal %.2fs, integrals %.2fs, updates %.2fs\n", s.t_diagonal, s.t_integrals, s.t_updates);
+        printf("   largest |V - L L^T| %.2e: %s\n", maxerr,
+               maxerr <= chol.tol() ? "within cholesky_tol" : "EXCEEDS cholesky_tol");
     }
 }
 
@@ -331,6 +380,7 @@ int main(int argc, char** argv) {
                 if (not scf.converged()) status = 1;
 
                 if (lparam.check_eri()) check_eri(world, scf, lparam);
+                if (lparam.check_cholesky()) check_cholesky(world, scf, lparam);
                 if (lparam.check_mra()) check_against_mra(world, molecule, aobasis, scf, param.L());
                 if (lparam.seed()) write_seed(world, molecule, aobasis, scf, param, lparam);
 

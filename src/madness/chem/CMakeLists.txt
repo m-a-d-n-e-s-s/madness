@@ -27,6 +27,7 @@ set(MADCHEM_HEADERS
     gth_pseudopotential.h
     GuessFactory.h
     IntegratorXX.h
+    lcao_cholesky.h
     lcao_integrals.h
     lcao_scf.h
     localizer.h
@@ -96,6 +97,7 @@ set(MADCHEM_SOURCES
     gaussian.cc
     gth_pseudopotential.cc
     GuessFactory.cc
+    lcao_cholesky.cc
     lcao_integrals.cc
     lcao_scf.cc
     lda.cc
