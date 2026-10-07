@@ -66,7 +66,7 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # tensor representation, so these decks need ENABLE_GENTENSOR.
   if (ENABLE_GENTENSOR)
     add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
-    add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
+    add_qctest(lrcc2_he_excited  madqc "qctest;ultralong;applications")  # 6744 s (1h52m)
   endif()
   add_qctest(oep_be_oaep       madqc "qctest;medium;applications")    #  28 s
   # localization invariance: same energy from all three `localize` settings
