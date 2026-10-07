@@ -560,27 +560,27 @@ public:
 
         using FunctionFunctorInterface<double,3>::operator();
         double operator()(const coord_3d& xyz) const override {
-			std::vector<double> Sr_div_S(ncf->molecule.natom());
-			std::vector<coord_3d> unitvec(ncf->molecule.natom());
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
-				const Atom& atom=ncf->molecule.get_atom(i);
-				const coord_3d vr1A=xyz-atom.get_coords();
-				const double r=vr1A.normf();
-				Sr_div_S[i]=ncf->Sr_div_S(r,atom.q);
-				unitvec[i]=ncf->smoothed_unitvec(vr1A);
-			}
-
-			double result=0.0;
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
-				for (size_t j=0; j<ncf->molecule.natom(); ++j) {
-					double tmp=Sr_div_S[i]*Sr_div_S[j];
-					if (i!=j) tmp*=inner(unitvec[i],unitvec[j]);
-					result+=tmp;
-				}
-			}
-
-
-            return result;
+            // sum_{AB} d_A d_B n_A.n_B with the diagonal taken as d_A^2, i.e. with the
+            // exact unit vector rather than the smoothed one that vanishes at nucleus A:
+            //   = |sum_A d_A n_A|^2 + sum_A d_A^2 (1 - n_A.n_A)
+            // one pass over the atoms instead of one over the atom pairs
+            coord_3d u{0.0,0.0,0.0};
+            double diag=0.0;
+            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+                const Atom& atom=ncf->molecule.get_atom(i);
+                const coord_3d vr1A=xyz-atom.get_coords();
+                const double d=ncf->Sr_div_S(vr1A.normf(),atom.q);
+                const coord_3d n=ncf->smoothed_unitvec(vr1A);
+                double nn=0.0;
+                for (int axis=0; axis<3; ++axis) {
+                    u[axis]+=d*n[axis];
+                    nn+=n[axis]*n[axis];
+                }
+                diag+=d*d*(1.0-nn);
+            }
+            double uu=0.0;
+            for (int axis=0; axis<3; ++axis) uu+=u[axis]*u[axis];
+            return uu+diag;
         }
         std::vector<coord_3d> special_points() const override {
             return ncf->molecule.get_all_coords_vec();
@@ -616,25 +616,22 @@ public:
 
 		using FunctionFunctorInterface<double,3>::operator();
 		double operator()(const coord_3d& xyz) const override {
-			std::vector<coord_3d> all_terms(ncf->molecule.natom());
+			// -sum_{A>B} t_A.t_B with t_A = (S'_A/S_A) n_A, as -1/2 (|sum_A t_A|^2 - sum_A t_A.t_A):
+			// one pass over the atoms instead of one over the atom pairs
+			coord_3d sum{0.0,0.0,0.0};
+			double diag=0.0;
 			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
-				const double r=vr1A.normf();
-//				all_terms[i]=ncf->Sp(vr1A,atom.q)*(1.0/ncf->S(r,atom.q));
-				all_terms[i]=ncf->Sr_div_S(r,atom.q)*ncf->smoothed_unitvec(vr1A);
-			}
-
-			double result=0.0;
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
-				for (size_t j=0; j<i; ++j) {
-					result+=all_terms[i][0]*all_terms[j][0]
-					       +all_terms[i][1]*all_terms[j][1]
-					       +all_terms[i][2]*all_terms[j][2];
+				const coord_3d t=ncf->Sr_div_S(vr1A.normf(),atom.q)*ncf->smoothed_unitvec(vr1A);
+				for (int axis=0; axis<3; ++axis) {
+					sum[axis]+=t[axis];
+					diag+=t[axis]*t[axis];
 				}
 			}
-
-			return -1.0*result;
+			double sum2=0.0;
+			for (int axis=0; axis<3; ++axis) sum2+=sum[axis]*sum[axis];
+			return -0.5*(sum2-diag);
 		}
 		std::vector<coord_3d> special_points() const override {
 			return ncf->molecule.get_all_coords_vec();
