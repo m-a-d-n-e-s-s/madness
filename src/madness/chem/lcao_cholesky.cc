@@ -313,11 +313,21 @@ unsigned long CholeskyERIDecomposition::hash(World& world) const {
 }
 
 
-CholeskyERI::CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, const long nbf)
-    : world_(world), chol_(std::move(chol)), nbf_(nbf) {
+CholeskyERI::CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, const Tensor<double>& S,
+                         const double lindep)
+    : world_(world), chol_(std::move(chol)), nbf_(S.dim(0)) {
     const FunctionPairs& fp = chol_->pairs();
-    MADNESS_CHECK_THROW(fp.size() == std::size_t(nbf) * (nbf + 1) / 2,
+    MADNESS_CHECK_THROW(fp.size() == std::size_t(nbf_) * (nbf_ + 1) / 2,
                         "CholeskyERI: the decomposition belongs to another basis");
+    // canonical orthogonalization, as LCAOSCF does: O = U s^{-1/2} over the overlap eigenvalues above lindep
+    Tensor<double> U, s;
+    syev(S, U, s);
+    long first = 0;
+    while (first < s.size() and s(first) < lindep) ++first;
+    O_ = Tensor<double>(nbf_, s.size() - first);
+    for (long j = first; j < s.size(); ++j)
+        for (long i = 0; i < nbf_; ++i) O_(i, j - first) = U(i, j) / std::sqrt(s(j));
+    SO_ = inner(S, O_);
     mu_.reserve(chol_->nkept());
     nu_.reserve(chol_->nkept());
     for (const std::size_t r : chol_->rows()) {
@@ -337,20 +347,26 @@ struct DensityFactor {
     int spin = 0;
 };
 
-/// P = Y+ Y+^T - Y- Y-^T from the eigenpairs of the symmetric P; eigenvalues within 1e-13 max|e| of 0 are dropped
-void factor_density(const Tensor<double>& P, const int spin, std::vector<DensityFactor>& factors) {
+/// occupations below this are dropped from the factors of a density (see CholeskyERI)
+constexpr double occupation_cutoff = 1.e-3;
+
+/// P = Y+ Y+^T - Y- Y-^T from the occupations of P, the eigenpairs of Q = O^T S P S O, over |n| > occupation_cutoff
+void factor_density(const Tensor<double>& P, const Tensor<double>& O, const Tensor<double>& SO, const int spin,
+                    std::vector<DensityFactor>& factors) {
     const long n = P.dim(0);
-    Tensor<double> U, e;
-    syev(P, U, e);
-    const double cut = 1.e-13 * e.absmax();
+    Tensor<double> Q = inner(transpose(SO), inner(P, SO));
+    Q = 0.5 * (Q + transpose(Q));
+    Tensor<double> V, occ;
+    syev(Q, V, occ);
+    const Tensor<double> OV = inner(O, V);
     for (const double sign : {1.0, -1.0}) {
         DensityFactor f;
         f.sign = sign;
         f.spin = spin;
-        for (long j = 0; j < e.size(); ++j) {
-            if (sign * e(j) <= cut) continue;
-            const double s = std::sqrt(sign * e(j));
-            for (long mu = 0; mu < n; ++mu) f.Y.push_back(U(mu, j) * s);
+        for (long j = 0; j < occ.size(); ++j) {
+            if (sign * occ(j) <= occupation_cutoff) continue;
+            const double s = std::sqrt(sign * occ(j));
+            for (long mu = 0; mu < n; ++mu) f.Y.push_back(OV(mu, j) * s);
             ++f.r;
         }
         if (f.r > 0) factors.push_back(std::move(f));
@@ -401,8 +417,8 @@ void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<
     // K per spin from the factors of its density: chunk c sums X_k X_k^T over its vectors, several
     // vectors per dgemm; the partials of all chunks are gathered and added in chunk order
     std::vector<DensityFactor> factors;
-    factor_density(Pa, 0, factors);
-    if (open) factor_density(Pb, 1, factors);
+    factor_density(Pa, O_, SO_, 0, factors);
+    if (open) factor_density(Pb, O_, SO_, 1, factors);
     const int nspin = open ? 2 : 1;
     long rmax = 1;
     for (const DensityFactor& f : factors) rmax = std::max(rmax, f.r);

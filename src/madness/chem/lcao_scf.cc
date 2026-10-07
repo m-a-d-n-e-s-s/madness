@@ -295,7 +295,7 @@ void LCAOSCF::compute_integrals() {
         const auto chol =
             std::make_shared<const CholeskyERIDecomposition>(world_, ints, param_.cholesky_tol(), 1.e-2, collective_);
         const double t2 = wall_time();
-        twoe_ = std::make_unique<CholeskyERI>(world_, chol, S_.dim(0));
+        twoe_ = std::make_unique<CholeskyERI>(world_, chol, S_, param_.lindep());
         const unsigned long hash = chol->hash(world_);
         if (printme) {
             const CholeskyERIDecomposition::Stats& s = chol->stats();

@@ -149,15 +149,21 @@ private:
 /// - J_{mu nu} = sum_k L_k(mu nu) gamma_k, with gamma_k = sum_{l s} L_k(l s) P_{l s} over all
 ///   index orders.
 /// - K = sum_k L_k P L_k, the vectors as symmetric N x N matrices. It is computed as
-///   sum_k X_k X_k^T, X_k = L_k Y, from P = Y+ Y+^T - Y- Y-^T, the eigenpairs of P (the
-///   negative part is empty for a density matrix, which is positive semidefinite).
+///   sum_k X_k X_k^T, X_k = L_k Y, from P = Y Y^T. Y comes from the occupations of P, the
+///   eigenpairs of Q = O^T S P S O in an orthonormal basis O (canonical orthogonalization):
+///   Y = O V sqrt(n) over |n| > 1e-3, negative ones subtracted. A density from orbitals has
+///   occupations 0 and 1, so this is exact for it; the SAD start, whose atomic blocks the basis
+///   files give to 5 decimals, loses only its rounding noise (occupations ~1e-5, which would
+///   otherwise raise the rank of Y to N).
 /// - One task per held chunk of vectors (several vectors per dgemm for K). The partial sums of
 ///   all chunks are gathered and added in chunk order on every rank, so J and K do not depend on
 ///   the scheduling or on the number of ranks. Collective if the decomposition is distributed.
 class CholeskyERI : public TwoElectronBuilder {
 public:
-    /// @param[in] nbf  the number of basis functions, which the density matrices must match
-    CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, long nbf);
+    /// @param[in] S       the overlap matrix; its size is the number of basis functions
+    /// @param[in] lindep  overlap eigenvalues below this are dropped from the orthonormal basis
+    CholeskyERI(World& world, std::shared_ptr<const CholeskyERIDecomposition> chol, const Tensor<double>& S,
+                double lindep);
 
     void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
             Tensor<double>& Kb) const override;
@@ -169,6 +175,7 @@ private:
     std::shared_ptr<const CholeskyERIDecomposition> chol_;
     long nbf_;
     std::vector<int> mu_, nu_;      ///< per kept row, its two basis functions
+    Tensor<double> O_, SO_;          ///< the orthonormal basis (columns) and S times it
 };
 
 } // namespace lcao

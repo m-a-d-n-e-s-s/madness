@@ -237,7 +237,7 @@ void check_cholesky(World& world, const lcao::LCAOSCF& scf, const LCAOParameters
 
     // J and K of the converged densities from the vectors against those from the stored integrals
     const lcao::InCoreERI incore(world, std::shared_ptr<const lcao::PackedERI>(&P, [](const lcao::PackedERI*) {}));
-    const lcao::CholeskyERI fromvectors(world, chol, P.nbf());
+    const lcao::CholeskyERI fromvectors(world, chol, scf.overlap(), lparam.lindep());
     const bool open = not scf.restricted();
     const Tensor<double> Pa = scf.density(0);
     const Tensor<double> Pb = open ? scf.density(1) : Tensor<double>();
