@@ -450,7 +450,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT &nemo,
 
   // compute potentials the Fock matrix: J - K + Vnuc. This caller does not
   // implement the weak-form split, so it uses the form that never opts in.
-  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
+  compute_nemo_potentials(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
   //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
   vecfuncT JKUpsi = Unemo + Jnemo - Knemo;
@@ -569,8 +569,8 @@ double Nemo::solve(const SCFProtocol &proto) {
     // compute potentials the Fock matrix: J - K + Vnuc
     std::vector<vecfuncT> xcflux;
     tensorT fock_xc;
-    compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo, xcflux,
-                            fock_xc);
+    compute_nemo_potentials(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+                            xcflux, fock_xc);
     const bool weak_xc = (not xcflux.empty());
 
     // compute the fock matrix. Its kinetic block is built first and once: the
@@ -807,7 +807,7 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &R2nemo,
 /// @param[out]	Knemo	exchange operator applied on the nemos
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
+void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2nemo, vecfuncT &Jnemo,
                                         vecfuncT &Knemo, vecfuncT &xcnemo,
                                         vecfuncT &pcmnemo, vecfuncT &Unemo,
                                         std::vector<vecfuncT> &xcflux,
@@ -841,7 +841,8 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
       // bra_i * vf_j symmetric in (i,j), which is all the triangle needs. The algorithm comes from
       // the input instead of being fixed here, so `hfexalg multiworld` reaches nemo's SCF; the
       // parameter defaults to the row algorithm this site hard-coded, so the default is unchanged.
-      Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
+      // The bra is the caller's R^2 nemo, the same vector the Fock matrix is built with.
+      Exchange<double, 3> K = Exchange<double, 3>(world, this, R2nemo, ispin)
                                   .set_symmetric(true)
                                   .set_taskq(taskq)
                                   .set_printlevel(get_calc_param().print_level());

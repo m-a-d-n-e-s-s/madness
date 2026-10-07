@@ -171,6 +171,9 @@ public:
     /// ctor with a nemo calculation
     Exchange(World& world, const Nemo *nemo, const int ispin);
 
+    /// ctor with a nemo calculation whose bra R^2 F is already at hand; neither bra nor ket is copied
+    Exchange(World& world, const Nemo *nemo, const std::vector<Function<double,NDIM>>& R2mo, const int ispin);
+
     std::string info() const {return "K";}
 
     bool is_symmetric() const;

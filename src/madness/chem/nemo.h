@@ -719,6 +719,7 @@ protected:
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
+	/// @param[in]	R2nemo	R^2 * nemo, the bra of the exchange operator
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
@@ -733,10 +734,10 @@ protected:
 	///                     is missing from xcnemo is exactly the term that has no
 	///                     multiplicative representation. Assigned in the weak
 	///                     form only and left untouched otherwise.
-	void compute_nemo_potentials(const vecfuncT& nemo,
+	void compute_nemo_potentials(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const {
-		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+		compute_nemo_potentials_impl(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
 				xcflux, fock_xc, true);
 	}
 
@@ -747,12 +748,12 @@ protected:
 	/// xcnemo always carries the complete multiplicative xc potential and the
 	/// xc block of the Fock matrix can be read off it as before. Silently
 	/// discarding xcflux instead would drop the semilocal term.
-	void compute_nemo_potentials(const vecfuncT& nemo,
+	void compute_nemo_potentials(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const {
 		std::vector<vecfuncT> xcflux;
 		tensorT fock_xc;
-		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+		compute_nemo_potentials_impl(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
 				xcflux, fock_xc, false);
 	}
 
@@ -760,7 +761,7 @@ protected:
 
 	/// @param[in]	allow_weak	opt in to the weak form; it is then used iff
 	///							the `xc_weak_gga` parameter asks for it
-	void compute_nemo_potentials_impl(const vecfuncT& nemo,
+	void compute_nemo_potentials_impl(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc,
 			const bool allow_weak) const;
