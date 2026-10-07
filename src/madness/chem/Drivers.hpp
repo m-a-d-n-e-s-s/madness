@@ -370,6 +370,38 @@ public:
                           (world_.rank() == 0) ? molopt_print : 0,
                           op.get_algopt());
 
+      // An initial hessian from a file instead of MolOpt's 0.5 x identity, e.g.
+      // one from a cheap Gaussian-basis calculation. The file refers to the atoms
+      // in input order and to the input frame, so the molecule must not be
+      // reoriented. Rank 0 reads it; a bad file is reported on every rank.
+      if (op.get_hessian_file() != "none") {
+        const auto &mol = params_.get<madness::Molecule>();
+        MADNESS_CHECK_THROW(mol.parameters.no_orient(),
+                            "optimization: hessian_file refers to the input frame "
+                            "and needs no_orient true in the molecule group");
+        const long n = 3 * mol.natom();
+        madness::Tensor<double> h(n, n);
+        int ok = 1;
+        if (world_.rank() == 0) {
+          std::ifstream f(op.get_hessian_file());
+          for (long i = 0; ok and i < n; ++i)
+            for (long j = 0; ok and j < n; ++j)
+              if (not(f >> h(i, j))) ok = 0;
+          double extra;
+          if (ok and (f >> extra)) ok = 0;
+          if (not ok)
+            madness::print("optimization: hessian_file", op.get_hessian_file(),
+                           "is not a list of exactly", n * n, "numbers");
+        }
+        world_.gop.broadcast(ok, 0);
+        MADNESS_CHECK_THROW(ok, "optimization: cannot read hessian_file");
+        world_.gop.broadcast_serializable(h, 0);
+        opt.set_hessian(0.5 * (h + madness::transpose(h)));
+        if (world_.rank() == 0)
+          madness::print("optimization: initial hessian from",
+                         op.get_hessian_file());
+      }
+
       madness::OptimizationResults opt_res;
       if constexpr (std::is_same_v<Calc, madness::SCF>) {
         opt_res = opt.optimize_app(engine->molecule, target);

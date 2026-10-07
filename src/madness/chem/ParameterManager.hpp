@@ -32,6 +32,11 @@ struct OptimizationParameters : public QCCalculationParametersBase {
                             {"bfgs", "sr1"});
     initialize<double>("maxstep", 0.1,
                        "maximum step in any cartesian coordinate (a.u.)");
+    initialize<std::string>(
+        "hessian_file", "none",
+        "initial cartesian hessian instead of 0.5 x identity: a text file of "
+        "3N x 3N numbers in atomic units, atoms in input order and frame "
+        "(needs no_orient true)");
     // Convergence thresholds and assumed precisions. The defaults below are
     // only fallbacks: OptimizeDriver derives all five from the wavefunction
     // threshold (protocol().back()) with set_derived_value, which beats a default
@@ -58,6 +63,9 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     return get<std::string>("algopt");
   }
   [[nodiscard]] double get_maxstep() const { return get<double>("maxstep"); }
+  [[nodiscard]] std::string get_hessian_file() const {
+    return get<std::string>("hessian_file");
+  }
   [[nodiscard]] double get_etol() const { return get<double>("etol"); }
   [[nodiscard]] double get_gtol() const { return get<double>("gtol"); }
   [[nodiscard]] double get_xtol() const { return get<double>("xtol"); }
