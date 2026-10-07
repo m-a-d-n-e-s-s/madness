@@ -1375,8 +1375,10 @@ void SCF::initial_guess_lcao(World& world) {
     const long nmoa = param.nmo_alpha();
     const long nmob = param.have_beta() ? param.nmo_beta() : 0;
 
-    // The LCAO calculation on rank 0. A failure there must reach the other ranks,
-    // which would otherwise wait in the broadcasts below forever.
+    // The basis file is read on rank 0 alone, and so is the whole LCAO calculation with the
+    // in-core integrals; with eri cholesky every rank takes part in it. A failure on rank 0 must
+    // reach the other ranks, which would otherwise wait in the broadcasts below forever.
+    const bool collective = lcao_param.eri() == "cholesky";
     AtomicBasisSet basis;
     tensorT ca, cb, ea, eb;
     int ok = 1;
@@ -1386,7 +1388,23 @@ void SCF::initial_guess_lcao(World& world) {
             print("\nLCAO initial guess: Hartree-Fock in the", lcao_param.basis(), "basis with",
                   basis.nbf(molecule), "functions\n");
             lcao_param.print("lcao", "end");
-            lcao::LCAOSCF scf(world, molecule, basis, nalpha, nbeta, lcao_param);
+        } catch (const MadnessException& e) {
+            print("LCAO initial guess failed:");
+            print(e);
+            ok = 0;
+        } catch (const std::exception& e) {
+            print("LCAO initial guess failed:", e.what());
+            ok = 0;
+        }
+    }
+    if (collective) {
+        world.gop.broadcast(ok, 0);
+        MADNESS_CHECK_THROW(ok, "the LCAO initial guess failed on rank 0 (see the message above)");
+        world.gop.broadcast_serializable(basis, 0);
+    }
+    if (ok and (collective or world.rank() == 0)) {
+        try {
+            lcao::LCAOSCF scf(world, molecule, basis, nalpha, nbeta, lcao_param, collective);
             scf.solve();
             if (not scf.converged()) print("WARNING: the LCAO SCF did not converge; the guess uses its last orbitals");
             ca = scf.coefficients(0);
