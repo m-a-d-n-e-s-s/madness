@@ -76,6 +76,9 @@
 #include<madness/chem/molecule.h>
 #include<madness/chem/potentialmanager.h>
 #include<madness/chem/atomutil.h>
+#include <algorithm>
+#include <limits>
+#include <numeric>
 
 namespace madness {
 
@@ -92,7 +95,9 @@ public:
 	/// @param[in]	mol molecule with the sites of the nuclei
 	NuclearCorrelationFactor(World& world, const Molecule& mol)
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
-		, eprec(mol.get_eprec()), molecule(mol) {}
+		, eprec(mol.get_eprec()), molecule(mol), all_atoms_(mol.natom()) {
+		std::iota(all_atoms_.begin(),all_atoms_.end(),0);
+	}
 
 	/// virtual destructor
 	virtual ~NuclearCorrelationFactor() {};
@@ -221,6 +226,7 @@ private:
 
 	/// the molecule
 	const Molecule& molecule;
+	std::vector<size_t> all_atoms_;
 
 protected:
 	/// the three components of the U1 potential
@@ -266,6 +272,44 @@ public:
 	///    \rho = |\vec r - \vec R_A |
 	/// \f]
 	virtual double Sr_div_S(const double& r, const double& Z) const = 0;
+
+	/// distance from nucleus A beyond which its contributions to the functors are negligible
+
+	/// A factor that returns a finite radius guarantees that beyond it S_A - 1 and S'_A/S_A are
+	/// below ~1e-14 relative to their magnitude at the nucleus, and that S''_A/S_A equals the
+	/// Coulomb tail -Z_A/r to the same accuracy. Infinite (the default) keeps every atom in
+	/// every term.
+	virtual double screening_radius(const double /*Z*/) const {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	/// indices of all atoms
+	const std::vector<size_t>& all_atoms() const {return all_atoms_;}
+
+	/// atoms whose screening sphere meets the bounding sphere of a set of points
+
+	/// The projection hands a functor all quadrature points of one box at once; an atom
+	/// screened out here is beyond its screening radius at every one of them.
+	std::vector<size_t> atoms_near(const double* x, const double* y, const double* z, const int npts) const {
+		coord_3d lo{x[0],y[0],z[0]}, hi{x[0],y[0],z[0]};
+		for (int p=1; p<npts; ++p) {
+			lo[0]=std::min(lo[0],x[p]); hi[0]=std::max(hi[0],x[p]);
+			lo[1]=std::min(lo[1],y[p]); hi[1]=std::max(hi[1],y[p]);
+			lo[2]=std::min(lo[2],z[p]); hi[2]=std::max(hi[2],z[p]);
+		}
+		coord_3d center, half;
+		for (int d=0; d<3; ++d) {
+			center[d]=0.5*(lo[d]+hi[d]);
+			half[d]=0.5*(hi[d]-lo[d]);
+		}
+		const double radius=half.normf();
+		std::vector<size_t> near;
+		for (size_t i=0; i<molecule.natom(); ++i) {
+			const Atom& atom=molecule.get_atom(i);
+			if ((center-atom.get_coords()).normf()-radius < screening_radius(atom.q)) near.push_back(i);
+		}
+		return near;
+	}
 
 	/// second derivative of the NCF with respect to the relative distance rho
     /// \f[
@@ -457,8 +501,20 @@ public:
         using FunctionFunctorInterface<double,3>::operator();
 
 		double operator()(const coord_3d& xyz) const override {
+			return eval(xyz,ncf->all_atoms());
+		}
+		bool supports_vectorized() const override {return true;}
+		void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+			const std::vector<size_t> near=ncf->atoms_near(xv[0],xv[1],xv[2],npts);
+			for (int p=0; p<npts; ++p) {
+				const coord_3d xyz{xv[0][p],xv[1][p],xv[2][p]};
+				fv[p]=eval(xyz,near);
+			}
+		}
+		/// an atom beyond its screening radius contributes the factor 1
+		double eval(const coord_3d& xyz, const std::vector<size_t>& atoms) const {
 			double result=1.0;
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+			for (const size_t i : atoms) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -493,8 +549,19 @@ public:
         using FunctionFunctorInterface<double,3>::operator();
 
 		double operator()(const coord_3d& xyz) const override {
+			return eval(xyz,ncf->all_atoms());
+		}
+		bool supports_vectorized() const override {return true;}
+		void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+			const std::vector<size_t> near=ncf->atoms_near(xv[0],xv[1],xv[2],npts);
+			for (int p=0; p<npts; ++p) {
+				const coord_3d xyz{xv[0][p],xv[1][p],xv[2][p]};
+				fv[p]=eval(xyz,near);
+			}
+		}
+		double eval(const coord_3d& xyz, const std::vector<size_t>& atoms) const {
 			double result=0.0;
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+			for (const size_t i : atoms) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
@@ -560,13 +627,24 @@ public:
 
         using FunctionFunctorInterface<double,3>::operator();
         double operator()(const coord_3d& xyz) const override {
+            return eval(xyz,ncf->all_atoms());
+        }
+        bool supports_vectorized() const override {return true;}
+        void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+            const std::vector<size_t> near=ncf->atoms_near(xv[0],xv[1],xv[2],npts);
+            for (int p=0; p<npts; ++p) {
+                const coord_3d xyz{xv[0][p],xv[1][p],xv[2][p]};
+                fv[p]=eval(xyz,near);
+            }
+        }
+        double eval(const coord_3d& xyz, const std::vector<size_t>& atoms) const {
             // sum_{AB} d_A d_B n_A.n_B with the diagonal taken as d_A^2, i.e. with the
             // exact unit vector rather than the smoothed one that vanishes at nucleus A:
             //   = |sum_A d_A n_A|^2 + sum_A d_A^2 (1 - n_A.n_A)
             // one pass over the atoms instead of one over the atom pairs
             coord_3d u{0.0,0.0,0.0};
             double diag=0.0;
-            for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+            for (const size_t i : atoms) {
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double d=ncf->Sr_div_S(vr1A.normf(),atom.q);
@@ -595,12 +673,30 @@ public:
 
         using FunctionFunctorInterface<double,3>::operator();
 		double operator()(const coord_3d& xyz) const override {
+			return eval(xyz,ncf->all_atoms());
+		}
+		bool supports_vectorized() const override {return true;}
+		void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+			const std::vector<size_t> near=ncf->atoms_near(xv[0],xv[1],xv[2],npts);
+			for (int p=0; p<npts; ++p) {
+				const coord_3d xyz{xv[0][p],xv[1][p],xv[2][p]};
+				fv[p]=eval(xyz,near);
+			}
+		}
+		/// the atoms in `near` (ascending) exactly, the others through the Coulomb tail of S''/S
+		double eval(const coord_3d& xyz, const std::vector<size_t>& near) const {
 			double result=0.0;
+			size_t k=0;
 			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const double r=vr1A.normf();
-				result+=ncf->Spp_div_S(r,atom.q);
+				if (k<near.size() and near[k]==i) {
+					++k;
+					result+=ncf->Spp_div_S(r,atom.q);
+				} else {
+					result-=atom.q/r;
+				}
 			}
 			return result;
 		}
@@ -616,11 +712,22 @@ public:
 
 		using FunctionFunctorInterface<double,3>::operator();
 		double operator()(const coord_3d& xyz) const override {
+			return eval(xyz,ncf->all_atoms());
+		}
+		bool supports_vectorized() const override {return true;}
+		void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+			const std::vector<size_t> near=ncf->atoms_near(xv[0],xv[1],xv[2],npts);
+			for (int p=0; p<npts; ++p) {
+				const coord_3d xyz{xv[0][p],xv[1][p],xv[2][p]};
+				fv[p]=eval(xyz,near);
+			}
+		}
+		double eval(const coord_3d& xyz, const std::vector<size_t>& atoms) const {
 			// -sum_{A>B} t_A.t_B with t_A = (S'_A/S_A) n_A, as -1/2 (|sum_A t_A|^2 - sum_A t_A.t_A):
 			// one pass over the atoms instead of one over the atom pairs
 			coord_3d sum{0.0,0.0,0.0};
 			double diag=0.0;
-			for (size_t i=0; i<ncf->molecule.natom(); ++i) {
+			for (const size_t i : atoms) {
 				const Atom& atom=ncf->molecule.get_atom(i);
 				const coord_3d vr1A=xyz-atom.get_coords();
 				const coord_3d t=ncf->Sr_div_S(vr1A.normf(),atom.q)*ncf->smoothed_unitvec(vr1A);
@@ -1386,6 +1493,12 @@ private:
 
 	double a_param() const {return a_;}
     double eprec_param() const {return eprec_;}
+
+    /// every per-atom term of this factor decays as exp(-a Z r); 1e-14 relative to (a Z)^2
+    double screening_radius(const double Z) const override {
+        const double a=a_param();
+        return std::log(a*Z*a*Z/((a-1.0)*1.e-14))/(a*Z);
+    }
 
 	/// first derivative of the correlation factor wrt (r-R_A)
 
