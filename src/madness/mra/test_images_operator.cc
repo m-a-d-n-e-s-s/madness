@@ -85,7 +85,9 @@ int check_identity(World& world, const std::array<bool,3>& periodic, const Latti
 /// on near the lattice images, and in a 100x100x18 cell the empty shells along the short axis
 /// ended the sweep before the wrapped displacement carrying the nearest-image interaction.
 /// Term 42 of the fit lost 4% of its images potential, the total 2.5e-3, independent of the
-/// threshold. SeparatedConvolution::screen_by_shell_decay() opts the images operator out.
+/// threshold. The images operator's displacements are therefore ordered by the distance to the
+/// nearest lattice image other than the home cell (Key::real_distsq_images), which is what its
+/// kernel decays with, and the shell-wise stop then holds as for any decaying kernel.
 double g_z0 = 7.2;
 double near_face_f(const coord_3d& r) {
     const double a = 100.0, z = r[2] - g_z0;
@@ -122,30 +124,6 @@ int check_near_face(World& world, double z0 = 7.2, const char* what = "source 1.
     return errors;
 }
 
-/// The norm-ordered visit (get_disp_active, used by the images operator) must reproduce the
-/// shell-stopped one for an ordinary decaying kernel: same result, only slower. Free-space
-/// Coulomb potential of the near-face density in the 100x100x18 cell, both ways.
-int check_norm_ordered_visit(World& world) {
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    std::array<LatticeRange,3> lr_home{LatticeRange(0), LatticeRange(0), LatticeRange(0)};
-    OperatorInfo info(0.0, 1.e-4, thresh, OT_G12, false);
-    real_convolution_3d shells(world, info, lr_home), ordered(world, info, lr_home);
-    ordered.set_screen_by_shell_decay(false);
-
-    const std::vector<coord_3d> sp{coord_3d{0.0, 0.0, g_z0}};
-    real_function_3d f = real_factory_3d(world).f(near_face_f).special_points(sp).special_level(8);
-    f.truncate();
-    double t0 = wall_time(); real_function_3d v1 = shells(f);  const double t_shells = wall_time() - t0;
-    t0 = wall_time();        real_function_3d v2 = ordered(f); const double t_ordered = wall_time() - t0;
-    const double err = (v1 - v2).norm2();
-    int errors = 0;
-    if (world.rank() == 0)
-        print("  free-space Coulomb, shell-stopped vs norm-ordered visit: |difference| =", err,
-              " |V| =", v1.norm2(), "  times", t_shells, "s vs", t_ordered, "s");
-    if (err > 10.0 * thresh) { print("FAIL: the norm-ordered visit differs from the shell-stopped one"); ++errors; }
-    return errors;
-}
-
 }   // namespace
 
 int main(int argc, char** argv) {
@@ -169,7 +147,6 @@ int main(int argc, char** argv) {
     // not smooth there and the short-range blocks at wrapped displacements must be applied at
     // every level near that face
     errors += check_near_face(world, -9.0, "source on the periodic face   ");
-    errors += check_norm_ordered_visit(world);
 
     if (world.rank() == 0) {
         if (errors == 0) print("\ntest_images_operator passed\n");

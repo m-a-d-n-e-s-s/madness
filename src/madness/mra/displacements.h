@@ -80,6 +80,7 @@ namespace madness {
         inline static std::vector< Key<NDIM> > disp = {}; ///< standard displacements to be used with standard kernels (range-unrestricted, no lattice sum)
         inline static array_of_bools<NDIM> periodic_axes{false};  ///< along which axes lattice summation is performed?
         inline static std::array<std::vector< Key<NDIM>>, 64 > disp_periodic{};  ///< displacements to be used with lattice-summed kernels
+        inline static std::array<std::vector< Key<NDIM>>, 64 > disp_periodic_images{};  ///< disp_periodic ordered by distance to the nearest non-home image, for rest-of-crystal kernels
         inline static Tensor<double> widths{NDIM}; ///< cell width, used to order displacements from least to most real space distance
 
     public:
@@ -135,6 +136,18 @@ namespace madness {
             entries.reserve(d.size());
             for (const auto& k : d) {
                 entries.push_back({k, k.real_distsq_bc(paxes, w), k.distsq_bc(paxes)});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
+        }
+
+        static void sort_displacements_images(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq_images(paxes, w), k.distsq_images(paxes)});
             }
             std::sort(entries.begin(), entries.end());
             for (std::size_t i = 0; i < d.size(); ++i) {
@@ -237,6 +250,8 @@ namespace madness {
             }
 
             sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
+            disp_periodic_images[n] = disp_periodic[n];
+            sort_displacements_images(disp_periodic_images[n], periodic_axes, widths);
 //             print("KEYS AT LEVEL", n);
 //             print(disp_periodic[n]);
 
@@ -299,6 +314,21 @@ namespace madness {
             MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// the displacements of get_disp(n, kernel_lattice_sum_axes) ordered by the distance to the nearest
+        /// lattice image other than the home cell (Key::real_distsq_images), for kernels that sum only those
+        /// images (OperatorInfo::images_only)
+        const std::vector< Key<NDIM> >& get_disp_images(Level n,
+                                                        const array_of_bools<NDIM>& kernel_lattice_sum_axes) {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+            MADNESS_ASSERT(kernel_lattice_sum_axes.any());
+            get_disp(n, kernel_lattice_sum_axes);  // checks the axes
+            return disp_periodic_images[n];
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
+
         /// return the standard displacements appropriate for operators w/o lattice summation
         const std::vector< Key<NDIM> >& get_disp() {
           MADNESS_PRAGMA_CLANG(diagnostic push)
@@ -348,6 +378,7 @@ namespace madness {
           for (size_t n = 0; n < 64; ++n) {
             if (!disp_periodic[n].empty()) {
               sort_displacements_periodic(disp_periodic[n], periodic_axes, widths);
+              sort_displacements_images(disp_periodic_images[n], periodic_axes, widths);
             }
           }
         }
