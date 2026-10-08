@@ -273,6 +273,15 @@ nlohmann::json AtomicPopulations::to_json() const {
     } else {
         j["spilling_alpha"] = alpha.spilling;
         j["spilling_beta"] = (nbeta > 0) ? beta.spilling : 0.0;
+        // each orbital's completeness c_i, in the order of the orbitals given (for canonical
+        // orbitals the last is the HOMO, the usual worst case for diffuse anions)
+        const auto list = [](const Tensor<double>& c) {
+            std::vector<double> v;
+            for (long i = 0; i < c.size(); ++i) v.push_back(c(i));
+            return v;
+        };
+        j["completeness_alpha"] = list(alpha.completeness);
+        j["completeness_beta"] = (nbeta > 0) ? list(beta.completeness) : std::vector<double>();
     }
     return j;
 }
