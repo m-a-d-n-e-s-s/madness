@@ -362,7 +362,8 @@ vecfuncT Nemo::localize(const vecfuncT &nemo, const double dconv,
                         const bool randomize) const {
 
   Localizer localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
-  localizer.set_metric(ncf->function())
+  // R is the cached projection; ncf->function() would project it again every iteration
+  localizer.set_metric(R)
       .set_method(calc->param.localize_method());
 
   MolecularOrbitals<double, 3> mo(nemo, calc->aeps, {}, calc->aocc, calc->aset);
