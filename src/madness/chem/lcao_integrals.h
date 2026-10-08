@@ -80,6 +80,9 @@ std::vector<std::array<int,3>> cartesian_components(int l);
 /// the shells of a molecule, with the basis functions in AtomicBasisSet order
 std::vector<Shell> make_shells(const Molecule& molecule, const AtomicBasisSet& aobasis);
 
+/// overlap <chi_a|chi_b> between the functions of two shell lists, e.g. two basis sets on one molecule
+Tensor<double> overlap(const std::vector<Shell>& a, const std::vector<Shell>& b);
+
 /// Gauss-Hermite rules: int exp(-y^2) f(y) dy = sum_k w_k f(y_k), exact for polynomials of degree 2n-1
 class GaussHermiteRule {
 public:

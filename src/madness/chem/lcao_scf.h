@@ -45,7 +45,9 @@
 #include <madness/mra/QCCalculationParametersBase.h>
 #include <madness/mra/commandlineparser.h>
 #include <madness/world/MADworld.h>
+#include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -105,6 +107,9 @@ public:
                          "for moldft to start from");
         initialize<int>("seed_rung", 0, "madlcao: rung of the dft group's protocol at which moldft starts "
                         "from the seed; the orbitals are projected at that rung's thresh and k");
+        initialize<std::vector<std::string>>("population", {"none"}, "madlcao: atomic charges of the LCAO "
+                        "orbitals: none, mulliken, lowdin, iao; the basis sets are the dft keys population_basis "
+                        "and population_minbasis (moldft's guess lcao uses the dft key population)");
     }
 
     LCAOParameters(World& world, const commandlineparser& parser) : LCAOParameters() {
@@ -135,6 +140,11 @@ public:
     bool check_cholesky() const { return get<bool>("check_cholesky"); }
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }
+    std::vector<std::string> population() const {
+        std::vector<std::string> p = get<std::vector<std::string>>("population");
+        for (auto& s : p) s.erase(std::remove(s.begin(), s.end(), '"'), s.end());
+        return p;
+    }
 };
 
 namespace lcao {
@@ -282,6 +292,22 @@ private:
 std::vector<Function<double,3>> project_orbitals(World& world, const Molecule& molecule,
                                                   const AtomicBasisSet& aobasis, const Tensor<double>& C,
                                                   long nmo);
+
+/// atomic charges and spin populations of LCAO orbitals by the schemes of population.h
+
+/// The scheme definitions of SCF::population_analysis for MRA orbitals, with analytic overlaps:
+/// S over the population basis and X = S(population basis, aobasis) C. The occupied orbitals
+/// are taken orthonormal in aobasis's overlap. Runs on the calling rank alone.
+/// @param[in] Ca, Cb       occupied orbital coefficients of each spin (columns); Cb empty without beta electrons
+/// @param[in] schemes      mulliken, lowdin, iao
+/// @param[in] basis_proj   basis set for mulliken and lowdin
+/// @param[in] basis_min    minimal basis set for iao
+/// @param[in] print_level  0: no output; otherwise the tables of AtomicPopulations::print
+/// @return  the JSON layout of SCF::population_analysis
+nlohmann::json population_analysis(const Molecule& molecule, const AtomicBasisSet& aobasis, const Tensor<double>& Ca,
+                                   const Tensor<double>& Cb, const std::vector<std::string>& schemes,
+                                   const std::string& basis_proj, const std::string& basis_min,
+                                   double total_charge, int print_level);
 
 } // namespace lcao
 } // namespace madness

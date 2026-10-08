@@ -417,6 +417,20 @@ int main(int argc, char** argv) {
                 if (lparam.check_mra()) check_against_mra(world, molecule, aobasis, scf, param.L());
                 if (lparam.seed()) write_seed(world, molecule, aobasis, scf, param, lparam);
 
+                // atomic charges of the LCAO orbitals by the schemes of the lcao key population, with the
+                // basis sets of the dft keys population_basis and population_minbasis; every rank computes
+                // them (cheap), rank 0 prints
+                const std::vector<std::string> pop = lparam.population();
+                if (not pop.empty() and pop.front() != "none") {
+                    const long na = param.nalpha(), nb = param.nbeta();
+                    const Tensor<double> oa = copy(scf.coefficients(0)(_, Slice(0, na - 1)));
+                    const Tensor<double> ob = (nb > 0) ? copy(scf.coefficients(1)(_, Slice(0, nb - 1)))
+                                                       : Tensor<double>();
+                    lcao::population_analysis(molecule, aobasis, oa, ob, pop, param.population_basis(),
+                                              param.population_minbasis(), param.charge(),
+                                              world.rank() == 0 ? 1 : 0);
+                }
+
             } catch (const madness::MadnessException& e) {
                 print(e);
                 status = 1;

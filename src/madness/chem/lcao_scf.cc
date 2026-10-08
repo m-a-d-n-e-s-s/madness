@@ -33,6 +33,7 @@
 /// \brief closed-shell Hartree-Fock in a Gaussian basis, with integrals from separated kernels
 
 #include <madness/chem/lcao_scf.h>
+#include <madness/chem/population.h>
 #include <madness/chem/lcao_cholesky.h>
 #include <madness/chem/molecular_functors.h>
 #include <madness/mra/vmra.h>
@@ -540,6 +541,69 @@ std::vector<Function<double,3>> project_orbitals(World& world, const Molecule& m
     std::vector<Function<double,3>> mo = transform(world, ao, copy(C(_, Slice(0, nmo - 1))));
     truncate(world, mo);
     return mo;
+}
+
+nlohmann::json population_analysis(const Molecule& molecule, const AtomicBasisSet& aobasis, const Tensor<double>& Ca,
+                                   const Tensor<double>& Cb, const std::vector<std::string>& schemes,
+                                   const std::string& basis_proj, const std::string& basis_min,
+                                   const double total_charge, const int print_level) {
+    const long natom = molecule.natom();
+    const long na = (Ca.size() > 0) ? Ca.dim(1) : 0, nb = (Cb.size() > 0) ? Cb.dim(1) : 0;
+    const std::vector<Shell> shells = make_shells(molecule, aobasis);
+    Tensor<double> S_ao = overlap(shells, shells);
+    S_ao = 0.5 * (S_ao + transpose(S_ao));
+    // the occupied orbitals orthonormal in this basis (converged LCAO orbitals already are, to rounding)
+    const auto orthonormal = [&S_ao](const Tensor<double>& C) {
+        if (C.size() == 0) return Tensor<double>();
+        Tensor<double> s = inner(transpose(C), inner(S_ao, C));
+        s = 0.5 * (s + transpose(s));
+        return inner(C, population::matrix_power(s, -0.5));
+    };
+    const Tensor<double> Coa = orthonormal(Ca), Cob = orthonormal(Cb);
+
+    std::vector<std::string> symbols;
+    std::vector<double> Z;
+    for (long a = 0; a < natom; ++a) {
+        symbols.push_back(get_atomic_data(molecule.get_atom(a).atomic_number).symbol);
+        Z.push_back(molecule.get_atom(a).q);
+    }
+    nlohmann::json result;
+    result["atoms"] = symbols;
+    result["basis_orbitals"] = aobasis.get_name();
+
+    for (const std::string& scheme : schemes) {
+        if (scheme == "none") continue;
+        const std::string name = (scheme == "iao") ? basis_min : basis_proj;
+        AtomicBasisSet pbasis;
+        pbasis.read_file(name);
+        for (long a = 0; a < natom; ++a)
+            MADNESS_CHECK_THROW(pbasis.is_supported(molecule.get_atom(a).atomic_number),
+                                "population: the basis set lacks an element of the molecule");
+        const std::vector<Shell> pshells = make_shells(molecule, pbasis);
+        Tensor<double> S = overlap(pshells, pshells);
+        S = 0.5 * (S + transpose(S));
+        const Tensor<double> S_pa = overlap(pshells, shells);
+        std::vector<int> atom_of_bf(S.dim(0));
+        for (const Shell& sh : pshells)
+            for (int c = 0; c < sh.ncart(); ++c) atom_of_bf[sh.offset + c] = sh.atom;
+
+        const auto spin = [&](const Tensor<double>& C) {
+            population::SpinPopulation p;
+            if (C.size() == 0) {
+                p.electrons = Tensor<double>(natom);
+                return p;
+            }
+            Tensor<double> occ(C.dim(1));
+            occ.fill(1.0);
+            return population::spin_population(scheme, S, inner(S_pa, C), occ, atom_of_bf, natom);
+        };
+        const population::SpinPopulation pa = spin(Coa), pb = spin(Cob);
+        const population::AtomicPopulations r =
+            population::atomic_populations(scheme, name, S.dim(0), symbols, Z, na, nb, pa, pb);
+        if (print_level > 0) r.print(total_charge, print_level);
+        result["schemes"][scheme] = r.to_json();
+    }
+    return result;
 }
 
 } // namespace lcao

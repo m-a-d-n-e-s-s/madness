@@ -1408,6 +1408,21 @@ void SCF::initial_guess_lcao(World& world) {
             lcao::LCAOSCF scf(world, molecule, basis, nalpha, nbeta, lcao_param, collective);
             scf.solve();
             if (not scf.converged()) print("WARNING: the LCAO SCF did not converge; the guess uses its last orbitals");
+            // with the population key, the seed's charges by the same schemes, from analytic overlaps,
+            // to set against the MRA charges at the end of the run; a diagnostic, so never fatal
+            const std::vector<std::string> pop = param.population();
+            if (world.rank() == 0 and not pop.empty() and pop.front() != "none" and param.print_level() > 0) {
+                try {
+                    print("\nLCAO initial guess: population analysis of the seed (analytic overlaps)");
+                    const tensorT oa = copy(scf.coefficients(0)(_, Slice(0, nalpha - 1)));
+                    const tensorT ob = (nbeta > 0) ? copy(scf.coefficients(1)(_, Slice(0, nbeta - 1))) : tensorT();
+                    const nlohmann::json j = lcao::population_analysis(molecule, basis, oa, ob, pop,
+                            param.population_basis(), param.population_minbasis(), param.charge(), param.print_level());
+                    update_schema(param.prefix() + ".scf_info", {{"population_lcao", j}});
+                } catch (const std::exception& e) {
+                    print("LCAO population analysis failed:", e.what());
+                }
+            }
             ca = scf.coefficients(0);
             ea = scf.orbital_energies(0);
             MADNESS_CHECK_THROW(ca.dim(1) >= nmoa, "the LCAO basis has fewer alpha orbitals than requested");

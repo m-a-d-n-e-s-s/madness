@@ -710,8 +710,8 @@ void for_each_shell_pair(World& world, const std::vector<Shell>& shells, const F
     world.taskq.fence();
 }
 
-/// the overlap block of shells a and b, and its transpose
-void overlap_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh, Tensor<double>& S) {
+/// the overlap block of shells a and b (rows of a, columns of b), added to S
+void add_overlap_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh, Tensor<double>& S) {
     const auto ca = cartesian_components(sa.l), cb = cartesian_components(sb.l);
     const int nj = sb.l + 1;
     std::vector<double> s[3];
@@ -729,6 +729,11 @@ void overlap_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh,
                                                           * s[2][ca[i][2] * nj + cb[j][2]];
         }
     }
+}
+
+/// the overlap block of shells a and b, and its transpose
+void overlap_block(const Shell& sa, const Shell& sb, const GaussHermiteRule& gh, Tensor<double>& S) {
+    add_overlap_block(sa, sb, gh, S);
     symmetrize_block(S, sa, sb);
 }
 
@@ -972,6 +977,18 @@ SeparatedGaussianIntegrals::SeparatedGaussianIntegrals(const std::vector<Shell>&
                                                        const GaussianKernel& coulomb)
     : shells_(shells), coulomb_(coulomb), gh_(16), groups_(std::make_shared<const ShellGroupData>(shells_)) {
     for (const Shell& s : shells_) nbf_ = std::max(nbf_, long(s.offset + s.ncart()));
+}
+
+
+Tensor<double> overlap(const std::vector<Shell>& a, const std::vector<Shell>& b) {
+    long na = 0, nb = 0;
+    for (const Shell& s : a) na = std::max(na, long(s.offset + s.ncart()));
+    for (const Shell& s : b) nb = std::max(nb, long(s.offset + s.ncart()));
+    Tensor<double> S(na, nb);
+    const GaussHermiteRule gh(16);
+    for (const Shell& sa : a)
+        for (const Shell& sb : b) add_overlap_block(sa, sb, gh, S);
+    return S;
 }
 
 
