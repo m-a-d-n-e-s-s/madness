@@ -150,6 +150,11 @@ int main(int argc, char **argv) {
                     E.output_calc_info_schema();
                 }
 
+                // atomic charges by the schemes of the population key, also under restart
+                // read_only, whose orbitals come straight from the archive
+                const nlohmann::json pop = calc.population_analysis(world);
+                if (world.rank() == 0 and not pop.empty())
+                    update_schema(calc.param.prefix() + ".scf_info", {{"population", pop}});
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;

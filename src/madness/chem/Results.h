@@ -368,6 +368,8 @@ public:
   std::optional<Tensor<double>> gradient;
   std::optional<VibrationalResults> vibrations;
   std::optional<RamanResults> raman;
+  /// atomic charges and spin populations by scheme (SCF::population_analysis)
+  std::optional<nlohmann::json> populations;
 
   PropertyResults() = default;
 
@@ -389,6 +391,8 @@ public:
     set_if_exists(j, "gradient", gradient, tensor_out<double>);
     if (vibrations && vibrations->has_data())
       j["vibrations"] = vibrations->to_json();
+    if (populations)
+      j["populations"] = *populations;
     return j;
   } // from json PropertyResults
 
@@ -406,13 +410,15 @@ public:
       if (vib.has_data())
         vibrations = std::move(vib);
     }
+    if (j.contains("populations"))
+      populations = j.at("populations");
   }
 };
 
 // If you keep PropertyResults from earlier, give it:
 inline bool has_data(const PropertyResults &p) {
   return p.energy != 0.0 || p.dipole || p.gradient ||
-         (p.vibrations && p.vibrations->has_data());
+         (p.vibrations && p.vibrations->has_data()) || p.populations;
 }
 
 class SCFResults : public ResultsBase {

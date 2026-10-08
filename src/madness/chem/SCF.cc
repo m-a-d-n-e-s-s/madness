@@ -42,6 +42,7 @@
 #include <madness.h>
 #include <madness/chem/SCF.h>
 #include <madness/chem/Restart.h>
+#include <madness/chem/population.h>
 #include <madchem.h>
 
 #if defined(__has_include)
@@ -1881,6 +1882,76 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
     END_TIMER(world, "dipole");
 
     return mu;
+}
+
+nlohmann::json SCF::population_analysis(World& world) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    const std::vector<std::string> requested = param.population();
+    if (requested.empty() or requested.front() == "none") return {};
+    START_TIMER(world);
+    const long natom = molecule.natom();
+    const long na = param.nalpha(), nb = param.nbeta();
+    const bool restricted = param.spin_restricted();
+
+    // the occupied orbitals of each spin (a restricted calculation keeps one set); the
+    // schemes want them orthonormal, so X = <chi|phi> is taken times <phi|phi>^-1/2
+    const vecfuncT phia(amo.begin(), amo.begin() + na);
+    const vecfuncT phib = restricted ? vecfuncT(amo.begin(), amo.begin() + nb)
+                                     : vecfuncT(bmo.begin(), bmo.begin() + nb);
+    const auto orthonormalizer = [&world](const vecfuncT& phi) {
+        if (phi.empty()) return tensorT();
+        tensorT s = matrix_inner(world, phi, phi, true);
+        s = 0.5 * (s + transpose(s));
+        return population::matrix_power(s, -0.5);
+    };
+    const bool same = restricted and nb == na;      // beta orbitals are the alpha ones
+    const tensorT Ua = orthonormalizer(phia), Ub = same ? Ua : orthonormalizer(phib);
+
+    std::vector<std::string> symbols;
+    std::vector<double> Z;
+    for (long a = 0; a < natom; ++a) {
+        symbols.push_back(get_atomic_data(molecule.get_atom(a).atomic_number).symbol);
+        Z.push_back(molecule.get_atom(a).q);
+    }
+    nlohmann::json result;
+    result["atoms"] = symbols;
+    result["thresh"] = FunctionDefaults<3>::get_thresh();
+    result["k"] = FunctionDefaults<3>::get_k();
+
+    for (const std::string& scheme : requested) {
+        const std::string basisname = (scheme == "iao") ? param.population_minbasis() : param.population_basis();
+        AtomicBasisSet basis;
+        basis.read_file(basisname);
+        bool supported = true;
+        for (long a = 0; a < natom; ++a) supported = supported and basis.is_supported(molecule.get_atom(a).atomic_number);
+        if (not supported and world.rank() == 0) print("population: basis set", basisname, "lacks an element of the molecule");
+        MADNESS_CHECK_THROW(supported, "population: the basis set lacks an element of the molecule");
+        const vecfuncT chi = project_ao_basis_only(world, basis, molecule);
+        tensorT S = matrix_inner(world, chi, chi, true);
+        S = 0.5 * (S + transpose(S));
+        std::vector<int> atom_of_bf(chi.size());
+        for (size_t mu = 0; mu < chi.size(); ++mu) atom_of_bf[mu] = basis.basisfn_to_atom(molecule, mu);
+
+        const auto spin = [&](const vecfuncT& phi, const tensorT& U) {
+            if (phi.empty()) {          // no electrons of this spin (e.g. H)
+                population::SpinPopulation none;
+                none.electrons = tensorT(natom);
+                return none;
+            }
+            tensorT occ(long(phi.size()));
+            occ.fill(1.0);
+            const tensorT X = inner(matrix_inner(world, chi, phi), U);
+            return population::spin_population(scheme, S, X, occ, atom_of_bf, natom);
+        };
+        const population::SpinPopulation pa = spin(phia, Ua);
+        const population::SpinPopulation pb = same ? pa : spin(phib, Ub);
+        const population::AtomicPopulations r = population::atomic_populations(
+                scheme, basisname, long(chi.size()), symbols, Z, na, nb, pa, pb);
+        if (world.rank() == 0 and param.print_level() > 0) r.print(param.charge(), param.print_level());
+        result["schemes"][scheme] = r.to_json();
+    }
+    END_TIMER(world, "population analysis");
+    return result;
 }
 
 void SCF::vector_stats(const std::vector<double>& v, double& rms,

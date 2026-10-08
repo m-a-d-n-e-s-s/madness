@@ -1150,6 +1150,11 @@ struct moldft_lib {
     if (scf->param.dipole())
       dip = scf->dipole(world, rho);
 
+    // atomic charges by the schemes of the population key (none: empty)
+    const nlohmann::json pop = scf->population_analysis(world);
+    if (not pop.empty())
+      prop_res.populations = pop;
+
     scf->do_plots(world);
 
     // report what the SCF actually achieved, not what was requested -- taking

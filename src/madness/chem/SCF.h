@@ -511,6 +511,14 @@ public:
     /// @return     the x,y,z components of the el. + nucl. dipole moment
     tensorT dipole(World& world, const functionT& rho) const;
 
+    /// atomic charges, and spin populations for open shells, of the occupied orbitals
+
+    /// Runs the schemes of the `population` key (population.h) on the current orbitals:
+    /// projects the population basis sets at the current FunctionDefaults, forms the
+    /// overlaps, and prints a table per scheme on rank 0. Call it after the final rung.
+    /// @return  the results on every rank; empty when `population` is none
+    nlohmann::json population_analysis(World& world) const;
+
     void vector_stats(const std::vector<double>& v, double& rms,
                       double& maxabsval) const;
 

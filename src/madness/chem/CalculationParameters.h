@@ -128,6 +128,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
+		initialize<std::vector<std::string> > ("population",{"none"},"atomic charges (and spin populations) of the final "
+				"orbitals, printed at the end: none, mulliken, lowdin, iao; several allowed, e.g. [iao,mulliken]");
+		initialize<std::string> ("population_basis","6-31g","basis set for the mulliken and lowdin populations "
+				"(default: the value of aobasis)");
+		initialize<std::string> ("population_minbasis","sto-3g","minimal basis set for the iao populations");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
 		// Next list inferred parameters
@@ -230,6 +235,15 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool do_symmetry() const {return (pointgroup()!="c1");}
 	double charge() const {return get<double>("charge");}
 	int print_level() const {return get<int>("print_level");}
+	std::vector<std::string> population() const {
+		// the entries keep the double quotes of a regenerated input file (madqc's mad.in
+		// writes ["iao","lowdin"]), which the vector reader does not strip
+		std::vector<std::string> p = get<std::vector<std::string> >("population");
+		for (auto& s : p) s.erase(std::remove(s.begin(), s.end(), '"'), s.end());
+		return p;
+	}
+	std::string population_basis() const {return get<std::string>("population_basis");}
+	std::string population_minbasis() const {return get<std::string>("population_minbasis");}
 
 	int maxiter() const {return get<int>("maxiter");}
 	double orbitalshift() const {return get<double>("orbitalshift");}
@@ -405,6 +419,23 @@ struct CalculationParameters : public QCCalculationParametersBase {
         if (is_user_defined("nv_factor"))
         	error("\n\n`nv_factor` has been retired: the virtual step-down is now `nv_extra`, "
         	      "`nv_step` and `nv_its`\n\n");
+
+        // population analysis: known schemes, `none` alone, and all-electron only (the
+        // projected basis functions describe all electrons of an atom)
+        {
+            const std::vector<std::string> pop = population();
+            bool any = false, none = false;
+            for (const auto& s : pop) {
+                MADNESS_CHECK_THROW(s == "none" or s == "mulliken" or s == "lowdin" or s == "iao",
+                                    "population: the schemes are none, mulliken, lowdin and iao");
+                any = any or s != "none";
+                none = none or s == "none";
+            }
+            MADNESS_CHECK_THROW(not (any and none), "population: none cannot be combined with a scheme");
+            MADNESS_CHECK_THROW(not any or (get<bool>("pure_ae") and not get<bool>("psp_calc") and n_core == 0),
+                                "population: needs an all-electron calculation (no pseudopotentials or core potentials)");
+            set_derived_value("population_basis", aobasis());
+        }
 
     	// dispersion correction
     	if (dispersion()!="none" and xc()!="hf") {
