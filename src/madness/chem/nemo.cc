@@ -551,6 +551,8 @@ double Nemo::solve(const SCFProtocol &proto) {
   real_function_3d density = real_factory_3d(world); // for testing convergence
 
   auto solver = nonlinear_vector_solver<double, 3>(world, size_to_long(nemo.size()));
+  // maxsub 0 or 1 disables the subspace (the solver's own test is maxsub == 1)
+  solver.set_maxsub(std::max(1, get_calc_param().maxsub()));
 
   // iterate the residual equations
   for (int iter = 0; iter < get_calc_param().maxiter(); ++iter) {
