@@ -62,10 +62,17 @@ namespace madness {
         auto find_c = [](char& c) { return ((c == ',') or (c == '[') or (c == ']')); };
         std::replace_if(line.begin(), line.end(), find_c, ' '); // 0 2 0 4 0 6 0 8 0
 
-        // stream the values into the container
+        // stream the values into the container; a string element may be in double quotes,
+        // as a string value may: a regenerated input file (madqc's mad.in) writes a list
+        // as JSON, ["iao","lowdin"], and the quotes are not part of the elements
         std::stringstream sline(line);
         T tmp;
         while (sline >> word) {
+            if constexpr (std::is_same_v<T, std::string>) {
+                if (word.size() >= 2 and word.front() == '"' and word.back() == '"')
+                    word = word.substr(1, word.size() - 2);
+                if (word.empty()) continue;
+            }
             std::stringstream sword(word);
             sword >> tmp;
             check_for_inf(word, tmp);

@@ -25,6 +25,7 @@ public:
 		initialize<std::string>("xc","hf","free-form string value, blanks and all");
 		initialize<std::vector<double> >("proto",std::vector<double>{1,2});
 		initialize<std::pair<std::string,double> >("ncf",{"slater",2.0});
+		initialize<std::vector<std::string> >("criteria",{"bsh_residual","total_energy"});
 	}
 
 	std::string get_tag() const override {
@@ -44,6 +45,7 @@ public:
 	std::string local() const {return get<std::string>("local");}
 	std::string xc() const {return get<std::string>("xc");}
 	std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
+	std::vector<std::string> criteria() const {return get<std::vector<std::string> >("criteria");}
 	int maxiter() const {return get<int>("maxiter");}
 
 
@@ -520,6 +522,29 @@ bool test_group_header(World& world) {
 	return true;
 }
 
+/// list elements may be double-quoted, as string values may: a regenerated input file
+/// (madqc's mad.in) writes a list as JSON, and the quotes used to stay in the elements,
+/// so exact matches on them (the converge_* accessors, the population schemes) failed
+bool test_quoted_list(World& world) {
+	print("entering test_quoted_list");
+	const std::vector<std::string> expected={"density","bsh_residual"};
+	const std::vector<std::string> variants={
+		"criteria [density, bsh_residual]",
+		"criteria [\"density\",\"bsh_residual\"]",		// as madqc's mad.in writes it
+		"criteria [\"density\", \"bsh_residual\"]   # quoted, with a blank",
+		"criteria=[density,\"bsh_residual\"]"
+	};
+	for (const auto& variant : variants) {
+		inputfile ifile("input1","mp3\n"+variant+"\nend");
+		Parameters param;
+		commandlineparser parser;
+		parser.set_keyval("input","input1");
+		param.read_and_set_derived_values(world,parser,"mp3");
+		test_same(param.criteria(),expected);
+	}
+	return true;
+}
+
 
 
 int main(int argc, char** argv) {
@@ -548,6 +573,7 @@ int main(int argc, char** argv) {
 		test_empty_lines(world);
 		test_derived(world);
 		test_group_header(world);
+		test_quoted_list(world);
 
 
 	} catch (std::exception& e) {
