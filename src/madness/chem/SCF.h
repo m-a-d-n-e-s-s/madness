@@ -209,6 +209,15 @@ public:
     PCMParameters pcm_param;
     /// the `lcao` data group; inert unless param.guess() is "lcao"
     LCAOParameters lcao_param;
+
+    /// the LCAO seed of this run (guess lcao), for the state check at its end: the basis, the occupied
+    /// coefficients of each spin (every rank), and on rank 0 the seed's IAO spin populations per atom
+    struct LCAOSeed {
+        AtomicBasisSet basis;
+        tensorT ca, cb;
+        std::vector<double> spin;
+        bool valid = false;
+    } lcao_seed;
     XCfunctional xc;
     PCM pcm;
 
@@ -521,6 +530,16 @@ public:
     /// A failing scheme only warns: its entry in the result holds the error.
     /// @return  the results on every rank; empty when `population` is none
     nlohmann::json population_analysis(World& world) const;
+
+    /// the same with the given schemes and print level (the state check uses iao, silently)
+    nlohmann::json population_analysis(World& world, const std::vector<std::string>& schemes, int print_level) const;
+
+    /// with guess lcao and the lcao key state_check (default: with scan), whether the run kept the seed's state:
+    /// |det <seed_occ|final_occ>| per spin (the seed projected at the current FunctionDefaults and
+    /// Loewdin-orthonormalized) and the IAO spin populations of seed and final orbitals. Kept: overlap > 0.9 for
+    /// each spin and no atom's spin population moved by more than 0.1. Prints on rank 0.
+    /// @return the result on every rank; empty when there is nothing to check
+    nlohmann::json state_check(World& world) const;
 
     void vector_stats(const std::vector<double>& v, double& rms,
                       double& maxabsval) const;

@@ -137,6 +137,9 @@ public:
         initialize<double>("stability_tol", 1.e-4, "scan: an eigenvalue below -stability_tol (Eh) is an instability");
         initialize<bool>("check_stability", false, "madlcao: the orbital Hessian of the final state against finite "
                          "differences of the energy along a fixed rotation");
+        initialize<bool>("state_check", false, "moldft with guess lcao, at the end of the run: the overlap of the "
+                         "seed's occupied space with the final orbitals per spin, and the IAO spin populations of "
+                         "both; 'kept' or 'changed'. Default: on with scan, off without");
     }
 
     LCAOParameters(World& world, const commandlineparser& parser) : LCAOParameters() {
@@ -180,6 +183,8 @@ public:
     int stability_roots() const { return get<int>("stability_roots"); }
     double stability_tol() const { return get<double>("stability_tol"); }
     bool check_stability() const { return get<bool>("check_stability"); }
+    /// the state check runs if the key says so, and by default with the scan
+    bool state_check() const { return is_user_defined("state_check") ? get<bool>("state_check") : scan(); }
 };
 
 namespace lcao {

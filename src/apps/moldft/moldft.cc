@@ -155,6 +155,10 @@ int main(int argc, char **argv) {
                 const nlohmann::json pop = calc.population_analysis(world);
                 if (world.rank() == 0 and not pop.empty())
                     update_schema(calc.param.prefix() + ".scf_info", {{"population", pop}});
+                // whether the run kept the state of its LCAO seed (guess lcao; lcao key state_check)
+                const nlohmann::json sc = calc.state_check(world);
+                if (world.rank() == 0 and not sc.empty())
+                    update_schema(calc.param.prefix() + ".scf_info", {{"state_check", sc}});
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;

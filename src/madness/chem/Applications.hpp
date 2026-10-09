@@ -1154,6 +1154,10 @@ struct moldft_lib {
     const nlohmann::json pop = scf->population_analysis(world);
     if (not pop.empty())
       prop_res.populations = pop;
+    // whether the run kept the state of its LCAO seed (guess lcao; lcao key state_check)
+    const nlohmann::json sc = scf->state_check(world);
+    if (world.rank() == 0 and not sc.empty())
+      update_schema(scf->param.prefix() + ".scf_info", {{"state_check", sc}});
 
     scf->do_plots(world);
 

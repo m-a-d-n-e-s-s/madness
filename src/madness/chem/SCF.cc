@@ -41,6 +41,7 @@
 #include <madness/world/ranks_and_hosts.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
+#include <madness/chem/lcao_scan.h>
 #include <madness/chem/Restart.h>
 #include <madness/chem/population.h>
 #include <madchem.h>
@@ -1403,10 +1404,26 @@ void SCF::initial_guess_lcao(World& world) {
         MADNESS_CHECK_THROW(ok, "the LCAO initial guess failed on rank 0 (see the message above)");
         world.gop.broadcast_serializable(basis, 0);
     }
+    std::vector<double> seed_spin;      // rank 0: the seed's IAO spin populations, for the state check
     if (ok and (collective or world.rank() == 0)) {
         try {
-            lcao::LCAOSCF scf(world, molecule, basis, nalpha, nbeta, lcao_param, collective);
-            scf.solve();
+            // with scan true the state scan (lcao_scan.h): it lists the states it finds and leaves the one chosen
+            // by the key state in its SCF, which everything below reads
+            std::unique_ptr<lcao::LCAOStateScan> scan;
+            std::unique_ptr<lcao::LCAOSCF> single;
+            if (lcao_param.scan()) {
+                scan = std::make_unique<lcao::LCAOStateScan>(world, molecule, basis, nalpha, nbeta,
+                        not param.spin_restricted(), lcao_param, param.population_minbasis(), param.charge(),
+                        collective);
+                scan->run();
+                scan->print();
+                if (world.rank() == 0) update_schema(param.prefix() + ".scf_info", {{"lcao_scan", scan->to_json()}});
+            } else {
+                single = std::make_unique<lcao::LCAOSCF>(world, molecule, basis, nalpha, nbeta, lcao_param,
+                                                         collective);
+                single->solve();
+            }
+            const lcao::LCAOSCF& scf = scan ? scan->scf() : *single;
             if (not scf.converged()) print("WARNING: the LCAO SCF did not converge; the guess uses its last orbitals");
             // with the population key, the seed's charges by the same schemes, from analytic overlaps,
             // to set against the MRA charges at the end of the run; a diagnostic, so never fatal
@@ -1421,6 +1438,25 @@ void SCF::initial_guess_lcao(World& world) {
                     update_schema(param.prefix() + ".scf_info", {{"population_lcao", j}});
                 } catch (const std::exception& e) {
                     print("LCAO population analysis failed:", e.what());
+                }
+            }
+            // the seed's IAO spin populations (alpha minus beta electrons per atom), for the state check
+            if (world.rank() == 0 and lcao_param.state_check()) {
+                try {
+                    nlohmann::json p;
+                    if (scan) {
+                        p = scan->states()[scan->seed()].populations;
+                    } else {
+                        const tensorT oa = copy(scf.coefficients(0)(_, Slice(0, nalpha - 1)));
+                        const tensorT ob = (nbeta > 0) ? copy(scf.coefficients(1)(_, Slice(0, nbeta - 1))) : tensorT();
+                        p = lcao::population_analysis(molecule, basis, oa, ob, {"iao"}, param.population_basis(),
+                                                      param.population_minbasis(), param.charge(), 0);
+                    }
+                    const std::vector<double> sa = p["schemes"]["iao"]["electrons_alpha"].get<std::vector<double>>();
+                    const std::vector<double> sb = p["schemes"]["iao"]["electrons_beta"].get<std::vector<double>>();
+                    for (std::size_t a = 0; a < sa.size(); ++a) seed_spin.push_back(sa[a] - sb[a]);
+                } catch (const std::exception& e) {
+                    print("state check: no IAO populations of the seed:", e.what());
                 }
             }
             ca = scf.coefficients(0);
@@ -1448,6 +1484,13 @@ void SCF::initial_guess_lcao(World& world) {
     if (nmob > 0) {
         world.gop.broadcast_serializable(cb, 0);
         world.gop.broadcast_serializable(eb, 0);
+    }
+    if (lcao_param.state_check()) {
+        lcao_seed.basis = basis;
+        lcao_seed.ca = copy(ca(_, Slice(0, nalpha - 1)));
+        lcao_seed.cb = (nmob > 0 and nbeta > 0) ? copy(cb(_, Slice(0, nbeta - 1))) : tensorT();
+        lcao_seed.spin = seed_spin;
+        lcao_seed.valid = true;
     }
     END_TIMER(world, "lcao guess scf");
 
@@ -1900,9 +1943,13 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
 }
 
 nlohmann::json SCF::population_analysis(World& world) const {
+    return population_analysis(world, param.population(), param.print_level());
+}
+
+nlohmann::json SCF::population_analysis(World& world, const std::vector<std::string>& schemes,
+                                        const int print_level) const {
     PROFILE_MEMBER_FUNC(SCF);
-    const std::vector<std::string> requested = param.population();
-    if (requested.empty() or requested.front() == "none") return {};
+    if (schemes.empty() or schemes.front() == "none") return {};
     START_TIMER(world);
     const long natom = molecule.natom();
     const bool restricted = param.spin_restricted();
@@ -1957,7 +2004,7 @@ nlohmann::json SCF::population_analysis(World& world) const {
         };
         const tensorT Ua = orthonormalizer(phia), Ub = restricted ? Ua : orthonormalizer(phib);
 
-        for (const std::string& scheme : requested) {
+        for (const std::string& scheme : schemes) {
             try {
                 const std::string basisname = (scheme == "iao") ? param.population_minbasis()
                                                                 : param.population_basis();
@@ -1988,7 +2035,7 @@ nlohmann::json SCF::population_analysis(World& world) const {
                 const population::SpinPopulation pb = restricted ? pa : spin(phib, occb, Ub);
                 const population::AtomicPopulations r = population::atomic_populations(
                         scheme, basisname, long(chi.size()), symbols, Z, std::lround(na), std::lround(nb), pa, pb);
-                if (world.rank() == 0 and param.print_level() > 0) r.print(total_charge, param.print_level());
+                if (world.rank() == 0 and print_level > 0) r.print(total_charge, print_level);
                 result["schemes"][scheme] = r.to_json();
             } catch (const std::exception& e) {
                 result["schemes"][scheme] = warn(scheme, e);
@@ -1999,6 +2046,69 @@ nlohmann::json SCF::population_analysis(World& world) const {
     }
     END_TIMER(world, "population analysis");
     return result;
+}
+
+nlohmann::json SCF::state_check(World& world) const {
+    if (not lcao_seed.valid) return {};
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
+    nlohmann::json j;
+    try {
+        const long na = param.nalpha(), nb = param.nbeta();
+        const bool beta = param.have_beta() and nb > 0;
+        // |det <seed_occ|final_occ>| of one spin, the seed projected at the current FunctionDefaults and
+        // Loewdin-orthonormalized; any rotation among the occupied orbitals leaves it unchanged
+        const auto overlap = [&](const tensorT& c, const vecfuncT& mo, const long nocc) {
+            const vecfuncT seed =
+                orthonormalize_symmetric(lcao::project_orbitals(world, molecule, lcao_seed.basis, c, nocc));
+            const tensorT M = matrix_inner(world, seed, vecfuncT(mo.begin(), mo.begin() + nocc));
+            tensorT U, s, VT;
+            svd(M, U, s, VT);
+            double d = 1.0;
+            for (long i = 0; i < s.size(); ++i) d *= s(i);
+            return d;
+        };
+        const double oa = overlap(lcao_seed.ca, amo, na);
+        const double ob = beta ? overlap(lcao_seed.cb, bmo, nb) : oa;
+        const nlohmann::json pop = population_analysis(world, {"iao"}, 0);
+        j["overlap"] = {oa, ob};
+        if (world.rank() == 0) {
+            std::vector<double> spin;
+            if (pop.contains("schemes") and pop["schemes"].contains("iao") and
+                pop["schemes"]["iao"].contains("electrons_alpha")) {
+                const std::vector<double> sa = pop["schemes"]["iao"]["electrons_alpha"].get<std::vector<double>>();
+                const std::vector<double> sb = pop["schemes"]["iao"]["electrons_beta"].get<std::vector<double>>();
+                for (std::size_t a = 0; a < sa.size(); ++a) spin.push_back(sa[a] - sb[a]);
+            }
+            double dmax = 0.0;
+            long amax = -1;
+            const bool compared = not spin.empty() and spin.size() == lcao_seed.spin.size();
+            if (compared)
+                for (std::size_t a = 0; a < spin.size(); ++a)
+                    if (std::abs(spin[a] - lcao_seed.spin[a]) > dmax) {
+                        dmax = std::abs(spin[a] - lcao_seed.spin[a]);
+                        amax = long(a);
+                    }
+            const bool kept = oa > 0.9 and ob > 0.9 and (not compared or dmax < 0.1);
+            j["spin_seed"] = lcao_seed.spin;
+            j["spin_final"] = spin;
+            j["max_spin_change"] = dmax;
+            j["kept"] = kept;
+            printf("\nstate check against the LCAO seed: %s  |det <seed|final>| alpha %.4f, beta %.4f; ", kept ? "kept" : "CHANGED",
+                   oa, ob);
+            if (compared and amax >= 0)
+                printf("largest IAO spin population change %.3f (atom %ld)\n", dmax, amax);
+            else if (compared)
+                printf("IAO spin populations unchanged\n");
+            else
+                printf("no IAO spin populations to compare\n");
+        }
+    } catch (const std::exception& e) {
+        if (world.rank() == 0) print("WARNING: the state check failed:", e.what());
+        j = nlohmann::json{{"error", std::string(e.what())}};
+    }
+    END_TIMER(world, "state check");
+    return j;
 }
 
 void SCF::vector_stats(const std::vector<double>& v, double& rms,
