@@ -998,6 +998,9 @@ namespace madness {
               }
               lattice_summed_ = ops[0].lattice_summed();
             }
+            // build the displacement lists this operator applies with now, on the constructing thread,
+            // rather than in the first apply task to request them
+            if (lattice_summed_.any()) get_disp(0);
           }
         }
 
@@ -1116,6 +1119,12 @@ namespace madness {
             for (std::size_t d = 0; d < NDIM; ++d) if (lattice_range[d]) per.push_back(d);
             MADNESS_CHECK_THROW(!per.empty(),
                                 "images_only: the operator has no lattice-summed axis, so there are no images to sum");
+            // FunctionImpl::do_apply places the displacements to the boundary of a finite kernel range around
+            // the source and screens them against the reach of the standard displacements measured with
+            // Key::real_distsq_bc; neither holds for a kernel whose range is centered on the images
+            for (std::size_t d = 0; d < NDIM; ++d)
+                MADNESS_CHECK_THROW(range[d].infinite(),
+                                    "images_only: a range-restricted kernel is not supported");
             const int npat = (1 << per.size()) - 1;
             const int ndropped = dropped_coeff.size() ? int(dropped_coeff.dim(0)) : 0;
 
@@ -1204,12 +1213,32 @@ namespace madness {
         	}
         }
 
-        /// the displacements in the order do_apply visits them: of increasing distance, which for the
-        /// rest-of-crystal kernel (OperatorInfo::images_only) is the distance to the nearest lattice image other
-        /// than the home cell (Key::real_distsq_images), since that is what the kernel decays with
+        /// the displacements in the order FunctionImpl::do_apply visits them: of increasing distance in the metric
+        /// the kernel decays with, see displacement_real_distsq(); the first is the one with the largest block
         const std::vector< Key<NDIM> >& get_disp(Level n) const {
             return info.images_only ? Displacements<NDIM>().get_disp_images(n, lattice_summed())
                                     : Displacements<NDIM>().get_disp(n, lattice_summed());
+        }
+
+        /// the real-space distance (squared, in the units of Key::real_distsq) between the source and a displaced
+        /// target, in the metric the kernel decays with
+
+        /// FunctionImpl::do_apply groups get_disp() into shells of this distance and stops at the first shell
+        /// that contributes nothing. For a kernel that decays away from the source that is the distance modulo
+        /// the lattice (Key::real_distsq_bc). The rest-of-crystal kernel (OperatorInfo::images_only) vanishes
+        /// near the source and decays away from the nearest lattice image other than the home cell, so its
+        /// distance is to that image (Key::real_distsq_images). get_disp() is ordered by the same metric.
+        double displacement_real_distsq(const Key<NDIM>& displacement) const {
+            const auto& widths = FunctionDefaults<NDIM>::get_cell_width();
+            return info.images_only ? displacement.real_distsq_images(lattice_summed(), widths)
+                                    : displacement.real_distsq_bc(lattice_summed(), widths);
+        }
+
+        /// like displacement_real_distsq() but in boxes (Key::distsq_bc / Key::distsq_images); do_apply
+        /// subdivides the shell of touching boxes (real distance 0) by it
+        std::uint64_t displacement_distsq(const Key<NDIM>& displacement) const {
+            return info.images_only ? displacement.distsq_images(lattice_summed())
+                                    : displacement.distsq_bc(lattice_summed());
         }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction

@@ -285,8 +285,10 @@ namespace madness {
           for (std::size_t d = 0; d < NDIM; ++d) {
             Translation la = translation()[d];
             if (is_periodic[d]) {
-              if (la > twonm1) { la -= twon; wrapped = true; }
-              else if (la < -twonm1) { la += twon; wrapped = true; }
+              // reduce to the nearest image; one step suffices for |l| < 2^n, which is all Displacements
+              // produces, the loop makes the function correct for any l
+              if (la > twonm1) { do la -= twon; while (la > twonm1); wrapped = true; }
+              else if (la < -twonm1) { do la += twon; while (la < -twonm1); wrapped = true; }
               else {
                 const T s = axis_distsq(d, la > 0 ? la - twon : la + twon) - axis_distsq(d, la);
                 if (!step || s < *step) step = s;
@@ -295,7 +297,7 @@ namespace madness {
             dsq += axis_distsq(d, la);
           }
           if (!wrapped) {
-            MADNESS_ASSERT(step);  // else no axis is periodic
+            MADNESS_CHECK_THROW(step.has_value(), "Key::distsq_images: no axis is periodic, so there are no images");
             dsq += *step;
           }
           return dsq;

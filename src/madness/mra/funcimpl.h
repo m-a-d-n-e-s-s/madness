@@ -613,7 +613,7 @@ namespace madness {
 
             const double thresh=f->truncate_tol(f->get_thresh(),key);
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const opkeyT& d = *disp.begin();         // use the zero-displacement for screening
+            const opkeyT& d = *disp.begin();         // the displacement with the largest block: zero for a decaying kernel, to the nearest image for the rest-of-crystal kernel
             const double opnorm = op->norm(key.level(), d, source);
             const double norm=opnorm*cnorm;
             return norm<thresh;
@@ -687,7 +687,7 @@ namespace madness {
 
             // now check if the norm of this and the norm of the operator are significant
             const std::vector<Key<NDIM> >& disp = op->get_disp(key.level());
-            const Key<NDIM>& d = *disp.begin();         // use the zero-displacement for screening
+            const Key<NDIM>& d = *disp.begin();         // the displacement with the largest block: zero for a decaying kernel, to the nearest image for the rest-of-crystal kernel
             const double opnorm = op->norm(key.level(), d, key);
             const double final_norm=opnorm*sfnorm*sgnorm;
             if (final_norm < thresh) return true;
@@ -5090,21 +5090,14 @@ template<size_t NDIM>
                   : array_of_bools<NDIM>{false}.or_back(
                         op->func_domain_is_periodic());
 
+          // the metric the kernel decays with, which also orders op->get_disp() (see SeparatedConvolution::displacement_real_distsq)
           const auto default_real_distance_squared = [&](const auto &displacement)
               -> double {
-            return displacement.real_distsq_bc(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
+            return op->displacement_real_distsq(displacement);
           };
           const auto default_lattice_distance_squared = [&](const auto &displacement)
               -> std::uint64_t {
-            return displacement.distsq_bc(op->lattice_summed());
-          };
-          const auto images_real_distance_squared = [&](const auto &displacement)
-              -> double {
-            return displacement.real_distsq_images(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
-          };
-          const auto images_lattice_distance_squared = [&](const auto &displacement)
-              -> std::uint64_t {
-            return displacement.distsq_images(op->lattice_summed());
+            return op->displacement_distsq(displacement);
           };
           const auto default_skip_predicate = [&](const auto &displacement)
               -> bool {
@@ -5167,7 +5160,8 @@ template<size_t NDIM>
               // Screen out shells. We assume shells are grouped into shells so that the operator decays with shell index.
               // Shells are indexed by least distance from box to the central box.
               // Cells touching so much as a corner of the central box are further grouped by their lattice distance.
-              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc);
+              // the rest-of-crystal kernel decays away from the nearest image instead (Key::distsq_images); the operator supplies the metric
               const auto real_distsq = real_distance_squared(displacement);
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
@@ -5214,12 +5208,7 @@ template<size_t NDIM>
           // list of displacements sorted in order of increasing distance
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
-          // N.B. the rest-of-crystal kernel (op->info.images_only) decays with the distance to the nearest lattice
-          // image other than the home cell, so its displacements are ordered and grouped into shells by that distance
-          const std::vector<opkeyT> &disp = op->get_disp(key.level());
-          const auto max_distsq_reached = op->info.images_only
-              ? for_each(disp, images_real_distance_squared, images_lattice_distance_squared, default_skip_predicate)
-              : for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
+          const auto max_distsq_reached = for_each(op->get_disp(key.level()), default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
           // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
@@ -5244,7 +5233,9 @@ template<size_t NDIM>
             using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
             std::optional<typename SurfaceRange::Validator> validator;
             if (max_distsq_reached) {
-              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
+              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes.
+              // The validator measures the reach with Key::real_distsq_bc, which is the operator's metric here:
+              // the only operator with another metric (OperatorInfo::images_only) rejects a finite range
               const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
               std::array<double, opdim> widths;
               for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);

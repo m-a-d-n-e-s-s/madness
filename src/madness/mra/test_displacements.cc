@@ -2,6 +2,8 @@
 #include <madness/mra/displacements.h>
 #include <madness/world/test_utilities.h>
 
+#include <limits>
+
 using namespace madness;
 
 namespace {
@@ -617,6 +619,164 @@ int test_standard_displacements_order(World& world) {
   return t.end();
 }
 
+/// The lists for a set of lattice-summed axes must be ordered by the metric of those axes, whether or not the
+/// default boundary conditions are periodic along more of them: a list sorted for a superset would place a
+/// displacement wrapped along an axis the kernel does not sum next to the source, where for that kernel it is
+/// a cell away. The rest-of-crystal lists (get_disp_images) must be the same displacements ordered by the
+/// distance to the nearest image other than the home cell.
+int test_images_and_subset_displacements_order(World& world) {
+  test_output t("Displacements: lists of every axis set ordered by their own metric, rest-of-crystal lists by image distance", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 3;
+  const Level n = 4;
+  const Translation twon = Translation(1) << n;
+  const int bmax = Displacements<NDIM>::bmax_default();
+  const auto is_sorted_by = [&](const std::vector<Key<NDIM>>& disps, auto distsq) {
+    for (std::size_t i = 1; i < disps.size(); ++i)
+      if (distsq(disps[i]) < distsq(disps[i - 1])) return false;
+    return true;
+  };
+  const auto wraps_along = [&](const Key<NDIM>& k, std::size_t d) { return std::abs(k.translation()[d]) > bmax; };
+
+  const auto check = [&](const array_of_bools<NDIM>& axes, const std::string& what) {
+    const auto& width = FunctionDefaults<NDIM>::get_cell_width();
+    Displacements<NDIM> displacements;
+    const auto& summed = displacements.get_disp(n, axes);
+    const auto& images = displacements.get_disp_images(n, axes);
+    t.checkpoint(!summed.empty() && summed.size() == images.size() &&
+                     std::is_permutation(summed.begin(), summed.end(), images.begin()),
+                 what + ": the rest-of-crystal list is a reordering of the lattice-summed list");
+    t.checkpoint(is_sorted_by(summed, [&](const Key<NDIM>& k) { return k.real_distsq_bc(axes, width); }),
+                 what + ": lattice-summed list ordered by the distance modulo the lattice of these axes");
+    t.checkpoint(is_sorted_by(images, [&](const Key<NDIM>& k) { return k.real_distsq_images(axes, width); }),
+                 what + ": rest-of-crystal list ordered by the distance to the nearest non-home image of these axes");
+    // a displacement wraps (|l| > bmax) only along a lattice-summed axis
+    bool wrap_ok = true, any_wrap = false;
+    for (const auto& k : summed)
+      for (std::size_t d = 0; d < NDIM; ++d)
+        if (wraps_along(k, d)) { any_wrap = true; if (!axes[d]) wrap_ok = false; }
+    t.checkpoint(wrap_ok && any_wrap, what + ": displacements wrap along the lattice-summed axes only");
+    // the first rest-of-crystal displacement is adjacent to an image: wrapped along a summed axis, a cell from the source
+    const Key<NDIM>& first = images.front();
+    t.checkpoint(first.distsq_images(axes) == 1 && first.real_distsq_images(axes, width) == 0.0 &&
+                     std::count_if(first.translation().begin(), first.translation().end(),
+                                   [&](Translation l) { return std::abs(l) == twon - 1; }) == 1,
+                 what + ": the first rest-of-crystal displacement is one box from the nearest image");
+    // ... and the home displacement is a cell away from its nearest image, along the narrowest summed axis,
+    // so it follows every displacement adjacent to an image
+    const Key<NDIM> home(n, Vector<Translation, NDIM>(0));
+    double home_distsq = std::numeric_limits<double>::max();
+    for (std::size_t d = 0; d < NDIM; ++d)
+      if (axes[d]) home_distsq = std::min(home_distsq, std::pow(width(static_cast<long>(d)) * static_cast<double>(twon - 1), 2));
+    const auto home_it = std::find(images.begin(), images.end(), home);
+    const auto last_adjacent = std::find_if(images.rbegin(), images.rend(),
+                                            [&](const Key<NDIM>& k) { return k.real_distsq_images(axes, width) == 0.0; });
+    t.checkpoint(home.real_distsq_images(axes, width) == home_distsq && home_it != images.end() &&
+                     last_adjacent != images.rend() && (last_adjacent.base() - 1) < home_it,
+                 what + ": the home displacement is a cell from its image and follows every image-adjacent displacement");
+  };
+
+  check(array_of_bools<NDIM>{true}, "summed along every axis");
+  check(array_of_bools<NDIM>(false, false, true), "summed along z only");
+  check(array_of_bools<NDIM>(true, true, false), "summed along x and y");
+
+  // the cell changes after the lists exist: every list, in both orders, follows
+  const Tensor<double> cell0 = copy(FunctionDefaults<NDIM>::get_cell());
+  Tensor<double> cell(NDIM, 2);
+  cell(0, 0) = 0.; cell(0, 1) = 1.;
+  cell(1, 0) = 0.; cell(1, 1) = 10.;
+  cell(2, 0) = 0.; cell(2, 1) = 2.5;
+  FunctionDefaults<NDIM>::set_cell(cell);
+  check(array_of_bools<NDIM>{true}, "anisotropic cell, summed along every axis");
+  check(array_of_bools<NDIM>(false, false, true), "anisotropic cell, summed along z only");
+  FunctionDefaults<NDIM>::set_cell(cell0);
+
+  return t.end();
+}
+
+/// Key::distsq_images / real_distsq_images take the nearest image on every axis unless that is the home cell,
+/// in which case one axis, the cheapest, moves to its next image. Check that shortcut against the minimum over
+/// the lattice vectors R != 0 taken directly, for every axis set and an anisotropic cell.
+int test_images_distance(World& world) {
+  test_output t("Key::distsq_images: minimum over the lattice images other than the home cell", world.rank() == 0);
+
+  constexpr std::size_t NDIM = 3;
+  Tensor<double> width(3L);
+  width(0L) = 1.0; width(1L) = 10.0; width(2L) = 2.5;
+
+  // min over R != 0 (R_d = 0 along nonperiodic axes) of sum_d axis_distsq(d, l_d + R_d 2^n), R_d in [-3, 3]
+  const auto brute_force = [&](const Key<NDIM>& k, const array_of_bools<NDIM>& per, auto axis_distsq) {
+    const Translation twon = Translation(1) << k.level();
+    std::optional<double> best;
+    for (int rx = -3; rx <= 3; ++rx)
+      for (int ry = -3; ry <= 3; ++ry)
+        for (int rz = -3; rz <= 3; ++rz) {
+          const int R[3] = {rx, ry, rz};
+          bool allowed = true, nonzero = false;
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            if (R[d] != 0 && !per[d]) allowed = false;
+            if (R[d] != 0) nonzero = true;
+          }
+          if (!allowed || !nonzero) continue;
+          double s = 0;
+          for (std::size_t d = 0; d < NDIM; ++d) s += axis_distsq(d, k.translation()[d] + R[d] * twon);
+          if (!best || s < *best) best = s;
+        }
+    return *best;
+  };
+  const auto box_axis = [](std::size_t, Translation l) { return double(l * l); };
+  const auto real_axis = [&](std::size_t d, Translation l) {
+    const double a = width(static_cast<long>(d)) * static_cast<double>(std::max<Translation>(std::abs(l) - 1, 0));
+    return a * a;
+  };
+
+  std::size_t nchecked = 0, nbad = 0;
+  // |l| up to 2^n + 2 exercises translations beyond the ones Displacements produces (|l| < 2^n)
+  for (Level n = 0; n <= 4; ++n) {
+    const Translation lmax = (Translation(1) << n) + 2;
+    for (int mask = 1; mask < 8; ++mask) {
+      array_of_bools<NDIM> per{false};
+      for (std::size_t d = 0; d < NDIM; ++d) per[d] = (mask >> d) & 1;
+      for (Translation x = -lmax; x <= lmax; ++x)
+        for (Translation y = -lmax; y <= lmax; ++y)
+          for (Translation z = -lmax; z <= lmax; ++z) {
+            const Key<NDIM> k(n, Vector<Translation, NDIM>{x, y, z});
+            ++nchecked;
+            const double box = double(k.distsq_images(per)), box_bf = brute_force(k, per, box_axis);
+            const double real = k.real_distsq_images(per, width), real_bf = brute_force(k, per, real_axis);
+            if (box != box_bf || std::abs(real - real_bf) > 1e-12 * std::max(1.0, real_bf)) {
+              if (++nbad <= 5 && world.rank() == 0)
+                print("  mismatch: level", n, "axes", per, "l =", k.translation(), " boxes", box, "vs", box_bf, " real", real, "vs", real_bf);
+            }
+          }
+    }
+  }
+  t.checkpoint(nchecked > 0 && nbad == 0, "matches the direct minimum for levels 0..4, every axis set, |l| <= 2^n + 2");
+
+  // a few by hand, level 4 summed along z in a cell of width 2.5 along z: the image of the source is 16 boxes away
+  {
+    const array_of_bools<NDIM> per(false, false, true);
+    const auto key = [](Translation x, Translation y, Translation z) { return Key<NDIM>(4, Vector<Translation, NDIM>{x, y, z}); };
+    t.checkpoint(key(0, 0, 0).distsq_images(per) == 256 && key(0, 0, 0).real_distsq_images(per, width) == 2.5 * 15 * 2.5 * 15,
+                 "the home displacement is a cell away from the nearest image");
+    t.checkpoint(key(0, 0, 15).distsq_images(per) == 1 && key(0, 0, 15).real_distsq_images(per, width) == 0.0,
+                 "l = 2^n - 1 is one box from the image");
+    t.checkpoint(key(0, 0, 8).distsq_images(per) == 64 && key(0, 0, -8).distsq_images(per) == 64,
+                 "l = 2^(n-1) is as far from the image as from the source");
+    t.checkpoint(key(3, 0, 0).distsq_images(per) == 9 + 256,
+                 "an unsummed axis adds its own distance");
+  }
+  // without a periodic axis there is no image
+  {
+    bool threw = false;
+    try { Key<NDIM>(4, Vector<Translation, NDIM>(0)).distsq_images(array_of_bools<NDIM>{false}); }
+    catch (const MadnessException&) { threw = true; }
+    t.checkpoint(threw, "no periodic axis => throws");
+  }
+
+  return t.end();
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -636,6 +796,8 @@ int main(int argc, char** argv) {
   errors += test_faces_outside_domain(world);
   errors += test_validator_bmax(world);
   errors += test_standard_displacements_order(world);
+  errors += test_images_and_subset_displacements_order(world);
+  errors += test_images_distance(world);
 
   world.gop.fence();
   madness::finalize();
