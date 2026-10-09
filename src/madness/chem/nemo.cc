@@ -310,16 +310,21 @@ double Nemo::value(const Tensor<double> &x) {
     }
   }
 
-  // save the converged orbitals and nemos
-  for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-    save(calc->amo[imo], "nemo" + stringify(imo));
+  // the per-orbital nemo files and the densities follow the deck's `save`, like the
+  // SCF archive: one file per orbital through rank 0 takes minutes on a parallel
+  // file system at a few hundred orbitals, and save_mos already holds the nemos
+  if (get_calc_param().save()) {
+    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo)
+      save(calc->amo[imo], "nemo" + stringify(imo));
   }
 
   // compute the dipole moment
   const real_function_3d rhonemo = 2.0 * make_density(calc->aocc, calc->amo);
   const real_function_3d rho = (R_square * rhonemo);
-  save(rho, "rho");
-  save(rhonemo, "rhonemo");
+  if (get_calc_param().save()) {
+    save(rho, "rho");
+    save(rhonemo, "rhonemo");
+  }
   Tensor<double> dipole = calc->dipole(world, rho);
 
   if (world.rank() == 0)
