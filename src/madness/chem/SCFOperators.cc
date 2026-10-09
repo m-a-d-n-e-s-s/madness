@@ -54,12 +54,17 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
     DistributedMatrix<T> r = column_distributed_matrix<T>(world, n, n);
     reconstruct(world, v);
 
+    // many trees differentiated together: pre-stage the remote neighbors and spawn the
+    // per-node tasks from the pool (the same tasks, served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, v);
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dv(NDIM);
     for (std::size_t i = 0; i < NDIM; ++i) {
         dv[i] = apply(world, *(gradop[i]), v, false);
     }
     world.gop.fence();
+    clear_halo(v);
     for (std::size_t i = 0; i < NDIM; ++i) {
         compress(world, dv[i], false);
     }
@@ -82,6 +87,12 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
     reconstruct(world, vket);
     const auto bra_equiv_ket = &vbra == &vket;
 
+    // many trees differentiated together: pre-stage the remote neighbors and spawn the
+    // per-node tasks from the pool (the same tasks, served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, vbra, false);
+    if (not bra_equiv_ket) stage_halo(world, gradop, vket, false);
+    world.gop.fence();
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dvbra(NDIM), dvket(NDIM);
     for (std::size_t i = 0; i < NDIM; ++i) {
@@ -89,6 +100,8 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
         dvket[i] = apply(world, *(gradop[i]), vket, false);
     }
     world.gop.fence();
+    clear_halo(vbra);
+    if (not bra_equiv_ket) clear_halo(vket);
     for (std::size_t i = 0; i < NDIM; ++i) {
         compress(world, dvbra[i], false);
         compress(world, dvket[i], false);
@@ -275,6 +288,10 @@ std::vector<Function<T, NDIM> > Nuclear<T, NDIM>::operator()(const std::vector<F
             gradient_operator<T, NDIM>(world);
     reconstruct(world, vket);
     vecfuncT vresult = zero_functions_compressed<T, NDIM>(world, vket.size());
+    // the three derivative applies below share one staged halo per ket and spawn
+    // their per-node tasks from the pool (the same tasks, neighbors served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, vket);
 
     // U1 and U2 are refined at every nucleus while each ket is local, so the dense
     // product descends into the union of both trees and its cost grows with
@@ -289,6 +306,7 @@ std::vector<Function<T, NDIM> > Nuclear<T, NDIM>::operator()(const std::vector<F
         truncate(world, dv);
         vresult += truncate(mul_sparse(world, ncf->U1(i % 3), dv, vtol));
     }
+    clear_halo(vket);
 
     return truncate(vresult + mul_sparse(world, ncf->U2(), vket, vtol));
 }
