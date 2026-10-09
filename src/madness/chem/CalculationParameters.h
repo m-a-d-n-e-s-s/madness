@@ -235,13 +235,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool do_symmetry() const {return (pointgroup()!="c1");}
 	double charge() const {return get<double>("charge");}
 	int print_level() const {return get<int>("print_level");}
-	std::vector<std::string> population() const {
-		// the entries keep the double quotes of a regenerated input file (madqc's mad.in
-		// writes ["iao","lowdin"]), which the vector reader does not strip
-		std::vector<std::string> p = get<std::vector<std::string> >("population");
-		for (auto& s : p) s.erase(std::remove(s.begin(), s.end(), '"'), s.end());
-		return p;
-	}
+	std::vector<std::string> population() const {return get<std::vector<std::string> >("population");}
 	std::string population_basis() const {return get<std::string>("population_basis");}
 	std::string population_minbasis() const {return get<std::string>("population_minbasis");}
 

@@ -516,6 +516,9 @@ public:
     /// Runs the schemes of the `population` key (population.h) on the current orbitals:
     /// projects the population basis sets at the current FunctionDefaults, forms the
     /// overlaps, and prints a table per scheme on rank 0. Call it after the final rung.
+    /// The orbitals of each spin are those with a nonzero occupation in aocc/bocc, so
+    /// explicit holes count, and the total charge is the nuclear charge minus their sum.
+    /// A failing scheme only warns: its entry in the result holds the error.
     /// @return  the results on every rank; empty when `population` is none
     nlohmann::json population_analysis(World& world) const;
 

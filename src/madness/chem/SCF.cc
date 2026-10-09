@@ -1905,22 +1905,7 @@ nlohmann::json SCF::population_analysis(World& world) const {
     if (requested.empty() or requested.front() == "none") return {};
     START_TIMER(world);
     const long natom = molecule.natom();
-    const long na = param.nalpha(), nb = param.nbeta();
     const bool restricted = param.spin_restricted();
-
-    // the occupied orbitals of each spin (a restricted calculation keeps one set); the
-    // schemes want them orthonormal, so X = <chi|phi> is taken times <phi|phi>^-1/2
-    const vecfuncT phia(amo.begin(), amo.begin() + na);
-    const vecfuncT phib = restricted ? vecfuncT(amo.begin(), amo.begin() + nb)
-                                     : vecfuncT(bmo.begin(), bmo.begin() + nb);
-    const auto orthonormalizer = [&world](const vecfuncT& phi) {
-        if (phi.empty()) return tensorT();
-        tensorT s = matrix_inner(world, phi, phi, true);
-        s = 0.5 * (s + transpose(s));
-        return population::matrix_power(s, -0.5);
-    };
-    const bool same = restricted and nb == na;      // beta orbitals are the alpha ones
-    const tensorT Ua = orthonormalizer(phia), Ub = same ? Ua : orthonormalizer(phib);
 
     std::vector<std::string> symbols;
     std::vector<double> Z;
@@ -1933,37 +1918,84 @@ nlohmann::json SCF::population_analysis(World& world) const {
     result["thresh"] = FunctionDefaults<3>::get_thresh();
     result["k"] = FunctionDefaults<3>::get_k();
 
-    for (const std::string& scheme : requested) {
-        const std::string basisname = (scheme == "iao") ? param.population_minbasis() : param.population_basis();
-        AtomicBasisSet basis;
-        basis.read_file(basisname);
-        bool supported = true;
-        for (long a = 0; a < natom; ++a) supported = supported and basis.is_supported(molecule.get_atom(a).atomic_number);
-        if (not supported and world.rank() == 0) print("population: basis set", basisname, "lacks an element of the molecule");
-        MADNESS_CHECK_THROW(supported, "population: the basis set lacks an element of the molecule");
-        const vecfuncT chi = project_ao_basis_only(world, basis, molecule);
-        tensorT S = matrix_inner(world, chi, chi, true);
-        S = 0.5 * (S + transpose(S));
-        std::vector<int> atom_of_bf(chi.size());
-        for (size_t mu = 0; mu < chi.size(); ++mu) atom_of_bf[mu] = basis.basisfn_to_atom(molecule, mu);
-
-        const auto spin = [&](const vecfuncT& phi, const tensorT& U) {
-            if (phi.empty()) {          // no electrons of this spin (e.g. H)
-                population::SpinPopulation none;
-                none.electrons = tensorT(natom);
-                return none;
+    // A diagnostic after the SCF: a failure is reported, in the output and the JSON, and the
+    // run goes on to the gradient, the dipole and scf_info.
+    const auto warn = [&world](const std::string& what, const std::exception& e) {
+        if (world.rank() == 0) print("WARNING: population analysis", what, "failed:", e.what());
+        return nlohmann::json{{"error", std::string(e.what())}};
+    };
+    try {
+        // the occupied orbitals of each spin with the SCF's occupations, which carry the
+        // explicit holes of aocc/bocc (also when read from an archive); a restricted
+        // calculation builds its beta density from the alpha orbitals and occupations. The
+        // schemes want the orbitals orthonormal, so X = <chi|phi> is taken times <phi|phi>^-1/2
+        const auto occupied = [](const vecfuncT& mo, const tensorT& occ) {
+            vecfuncT phi;
+            std::vector<double> n;
+            for (long i = 0; i < std::min(long(mo.size()), occ.size()); ++i) {
+                if (occ[i] == 0.0) continue;
+                phi.push_back(mo[i]);
+                n.push_back(occ[i]);
             }
-            tensorT occ(long(phi.size()));
-            occ.fill(1.0);
-            const tensorT X = inner(matrix_inner(world, chi, phi), U);
-            return population::spin_population(scheme, S, X, occ, atom_of_bf, natom);
+            tensorT t(long(n.size()));
+            for (size_t i = 0; i < n.size(); ++i) t[i] = n[i];
+            return std::make_pair(phi, t);
         };
-        const population::SpinPopulation pa = spin(phia, Ua);
-        const population::SpinPopulation pb = same ? pa : spin(phib, Ub);
-        const population::AtomicPopulations r = population::atomic_populations(
-                scheme, basisname, long(chi.size()), symbols, Z, na, nb, pa, pb);
-        if (world.rank() == 0 and param.print_level() > 0) r.print(param.charge(), param.print_level());
-        result["schemes"][scheme] = r.to_json();
+        const auto [phia, occa] = occupied(amo, aocc);
+        const auto [phib, occb] = restricted ? std::make_pair(phia, occa) : occupied(bmo, bocc);
+        const double na = occa.size() ? occa.sum() : 0.0, nb = occb.size() ? occb.sum() : 0.0;
+        double total_charge = -(na + nb);
+        for (const double z : Z) total_charge += z;
+        result["electrons"] = {na, nb};
+        result["total_charge"] = total_charge;
+
+        const auto orthonormalizer = [&world](const vecfuncT& phi) {
+            if (phi.empty()) return tensorT();
+            tensorT s = matrix_inner(world, phi, phi, true);
+            s = 0.5 * (s + transpose(s));
+            return population::matrix_power(s, -0.5);
+        };
+        const tensorT Ua = orthonormalizer(phia), Ub = restricted ? Ua : orthonormalizer(phib);
+
+        for (const std::string& scheme : requested) {
+            try {
+                const std::string basisname = (scheme == "iao") ? param.population_minbasis()
+                                                                : param.population_basis();
+                AtomicBasisSet basis;
+                basis.read_file(basisname);
+                bool supported = true;
+                for (long a = 0; a < natom; ++a)
+                    supported = supported and basis.is_supported(molecule.get_atom(a).atomic_number);
+                if (not supported and world.rank() == 0)
+                    print("population: basis set", basisname, "lacks an element of the molecule");
+                MADNESS_CHECK_THROW(supported, "population: the basis set lacks an element of the molecule");
+                const vecfuncT chi = project_ao_basis_only(world, basis, molecule);
+                tensorT S = matrix_inner(world, chi, chi, true);
+                S = 0.5 * (S + transpose(S));
+                std::vector<int> atom_of_bf(chi.size());
+                for (size_t mu = 0; mu < chi.size(); ++mu) atom_of_bf[mu] = basis.basisfn_to_atom(molecule, mu);
+
+                const auto spin = [&](const vecfuncT& phi, const tensorT& occ, const tensorT& U) {
+                    if (phi.empty()) {          // no electrons of this spin (e.g. H)
+                        population::SpinPopulation none;
+                        none.electrons = tensorT(natom);
+                        return none;
+                    }
+                    const tensorT X = inner(matrix_inner(world, chi, phi), U);
+                    return population::spin_population(scheme, S, X, occ, atom_of_bf, natom);
+                };
+                const population::SpinPopulation pa = spin(phia, occa, Ua);
+                const population::SpinPopulation pb = restricted ? pa : spin(phib, occb, Ub);
+                const population::AtomicPopulations r = population::atomic_populations(
+                        scheme, basisname, long(chi.size()), symbols, Z, std::lround(na), std::lround(nb), pa, pb);
+                if (world.rank() == 0 and param.print_level() > 0) r.print(total_charge, param.print_level());
+                result["schemes"][scheme] = r.to_json();
+            } catch (const std::exception& e) {
+                result["schemes"][scheme] = warn(scheme, e);
+            }
+        }
+    } catch (const std::exception& e) {
+        result["error"] = warn("setup", e)["error"];
     }
     END_TIMER(world, "population analysis");
     return result;
