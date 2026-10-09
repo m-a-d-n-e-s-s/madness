@@ -33,6 +33,7 @@
 /// \brief the LCAO state scan (33_state_scan_interface.md)
 
 #include <madness/chem/lcao_scan.h>
+#include <madness/constants.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/world/print.h>
 
@@ -87,11 +88,95 @@ LCAOStateScan::LCAOStateScan(World& world, const Molecule& molecule, const Atomi
       unrestricted_(unrestricted), param_(param), minbasis_(minbasis), charge_(charge),
       scf_(world, molecule, aobasis, nalpha, nbeta, param, collective) {
     scf_.set_unrestricted(unrestricted);
-    for (const std::string& s : param_.scan_starts())
-        MADNESS_CHECK_THROW(s == "sad" or s == "core" or s == "swaps", "scan_starts: the starts are sad, core and swaps");
+    for (const std::string& s : param_.scan_starts()) {
+        MADNESS_CHECK_THROW(s == "sad" or s == "core" or s == "swaps" or s == "bs" or s == "flip",
+                            "scan_starts: the starts are sad, core, swaps, bs and flip");
+        MADNESS_CHECK_THROW(s != "bs" or (nalpha_ == nbeta_ and unrestricted_),
+                            "scan_starts bs: needs nalpha == nbeta (nopen 0) and spin_restricted false");
+        MADNESS_CHECK_THROW(s != "flip" or (unrestricted_ and nbeta_ > 0 and not param_.flip_atoms().empty()),
+                            "scan_starts flip: needs spin_restricted false, beta electrons and flip_atoms");
+    }
+    for (const int a : param_.flip_atoms())
+        MADNESS_CHECK_THROW(a >= 0 and std::size_t(a) < molecule_.natom(), "flip_atoms: an atom index out of range");
     MADNESS_CHECK_THROW(param_.state() == "lowest" or is_index(param_.state()),
                         "state: lowest, or the index of a state in the scan's listing");
     MADNESS_CHECK_THROW(param_.scan_max_states() > 0, "scan_max_states must be positive");
+}
+
+
+void LCAOStateScan::flip_start() {
+    const bool printme = world_.rank() == 0 and param_.print_level() > 0;
+    const std::vector<int> atoms = param_.flip_atoms();
+    std::string label = "flip of atoms";
+    for (const int a : atoms) label += " " + std::to_string(a);
+    // the high-spin state, with the same integrals
+    scf_.set_occupations(nalpha_ + 1, nbeta_ - 1);
+    Tensor<double> Pa, Pb;
+    scf_.start_densities("sad", Pa, Pb);
+    SCFOptions opt = SCFOptions::from(param_);
+    opt.econv = param_.scan_econv();
+    opt.dconv = param_.scan_dconv();
+    opt.print_level = 0;
+    opt.level_shift = std::max(retry_shift, opt.level_shift);
+    opt.maxiter = std::max(retry_maxiter, opt.maxiter);
+    scf_.iterate(Pa, Pb, opt);
+    const LCAOSCF::Result hs = scf_.result();
+    scf_.set_occupations(nalpha_, nbeta_);
+    if (printme)
+        printf("  high-spin state (%d alpha / %d beta) for %s: %s, E %18.10f  <S^2> %9.6f\n", nalpha_ + 1,
+               nbeta_ - 1, label.c_str(), hs.converged ? "converged" : "NOT CONVERGED", hs.energies.total, hs.s2);
+
+    // the fragment's share of an orbital: its Mulliken population on the basis functions of flip_atoms
+    const Tensor<double>& S = scf_.overlap();
+    std::vector<bool> on(S.dim(0), false);
+    for (const Shell& sh : scf_.shells())
+        if (std::find(atoms.begin(), atoms.end(), sh.atom) != atoms.end())
+            for (int c = 0; c < sh.ncart(); ++c) on[sh.offset + c] = true;
+    const auto share = [&](const Tensor<double>& psi) {
+        const Tensor<double> Spsi = inner(S, psi);
+        double p = 0.0;
+        for (long mu = 0; mu < psi.size(); ++mu)
+            if (on[mu]) p += psi(mu) * Spsi(mu);
+        return p;
+    };
+    // the two highest alpha orbitals of the high-spin state, rotated to separate their shares (a fine grid)
+    const long n1 = nalpha_ - 1, n2 = nalpha_;
+    const Tensor<double> phi1 = copy(hs.Ca(_, n1)), phi2 = copy(hs.Ca(_, n2));
+    double best = -1.0, theta = 0.0;
+    for (int k = 0; k < 720; ++k) {
+        const double th = constants::pi * k / 720.0;
+        const double d = share(std::cos(th) * phi1 + std::sin(th) * phi2) -
+                         share(-std::sin(th) * phi1 + std::cos(th) * phi2);
+        if (std::abs(d) > best) {
+            best = std::abs(d);
+            theta = th;
+        }
+    }
+    Tensor<double> psi1 = std::cos(theta) * phi1 + std::sin(theta) * phi2;
+    Tensor<double> psi2 = -std::sin(theta) * phi1 + std::cos(theta) * phi2;
+    if (share(psi2) > share(psi1)) std::swap(psi1, psi2);      // psi1: the one on flip_atoms
+    if (printme)
+        printf("  flip: the two highest alpha orbitals have %.3f and %.3f of their population on the atoms\n",
+               share(psi1), share(psi2));
+    // alpha: the high-spin alpha orbitals without psi1; beta: the high-spin beta orbitals and psi1, orthonormalized
+    const long n = S.dim(0);
+    Tensor<double> Ca(n, nalpha_), Cb(n, nbeta_);
+    for (long i = 0; i < nalpha_ - 1; ++i) Ca(_, i) = hs.Ca(_, i);
+    Ca(_, nalpha_ - 1) = psi2;
+    for (long i = 0; i < nbeta_ - 1; ++i) Cb(_, i) = hs.Cb(_, i);
+    Cb(_, nbeta_ - 1) = psi1;
+    const auto orthonormal = [&S](const Tensor<double>& C) {
+        Tensor<double> s = inner(transpose(C), inner(S, C));
+        Tensor<double> U, e;
+        syev(0.5 * (s + transpose(s)), U, e);
+        Tensor<double> Ui = copy(U);
+        for (long j = 0; j < e.size(); ++j)
+            for (long i = 0; i < Ui.dim(0); ++i) Ui(i, j) /= std::sqrt(e(j));
+        return Tensor<double>(inner(C, inner(Ui, transpose(U))));
+    };
+    Ca = orthonormal(Ca);
+    Cb = orthonormal(Cb);
+    run_start(label, inner(Ca, transpose(Ca)), inner(Cb, transpose(Cb)), true, Ca, Cb);
 }
 
 
@@ -220,10 +305,12 @@ void LCAOStateScan::run() {
     const auto wanted = [&starts](const std::string& s) {
         return std::find(starts.begin(), starts.end(), s) != starts.end();
     };
-    if (printme)
-        printf("\nLCAO state scan: %s, %d alpha / %d beta electrons; starts:%s%s%s\n",
-               scf_.restricted() ? "RHF" : "UHF", nalpha_, nbeta_, wanted("sad") ? " sad" : "",
-               wanted("core") ? " core" : "", wanted("swaps") ? " swaps" : "");
+    if (printme) {
+        printf("\nLCAO state scan: %s, %d alpha / %d beta electrons; starts:", scf_.restricted() ? "RHF" : "UHF",
+               nalpha_, nbeta_);
+        for (const std::string& s : starts) printf(" %s", s.c_str());
+        printf("\n");
+    }
 
     for (const std::string s : {"sad", "core"}) {
         if (not wanted(s)) continue;
@@ -262,6 +349,30 @@ void LCAOStateScan::run() {
             }
         }
     }
+    // broken symmetry: the alpha/beta HOMO-LUMO mix of the states of the primary starts (alpha +45 degrees,
+    // beta -45 degrees), reconverged; nalpha == nbeta, UHF
+    if (wanted("bs")) {
+        const std::size_t nprimary = std::min(states_.size(), std::size_t(2));
+        for (std::size_t k = 0; k < nprimary; ++k) {
+            const LCAOSCF::Result base = states_[k].result;
+            if (base.Ca.dim(1) <= nalpha_) continue;
+            const double c = std::sqrt(0.5);
+            const auto mixed = [&](const Tensor<double>& C, const long nocc, const double sign) {
+                Tensor<double> Co = occupied(C, nocc);
+                Co(_, nocc - 1) = c * C(_, nocc - 1) + sign * c * C(_, nocc);
+                return Co;
+            };
+            const Tensor<double> Coa = mixed(base.Ca, nalpha_, 1.0), Cob = mixed(base.Cb, nbeta_, -1.0);
+            run_start("bs of #" + std::to_string(states_[k].id), inner(Coa, transpose(Coa)),
+                      inner(Cob, transpose(Cob)), false);
+        }
+    }
+
+    // a defined broken-symmetry state: the high-spin state (nalpha+1, nbeta-1), its two highest alpha orbitals
+    // rotated so that one lies on flip_atoms as much as possible (Mulliken population of its basis functions),
+    // that one moved to beta, then reconverged with the occupation held by maximum overlap
+    if (wanted("flip")) flip_start();
+
     MADNESS_CHECK_THROW(not states_.empty(), "LCAO state scan: no start converged");
 
     // stability: every state, also those that following finds (states_ grows); an unstable one is followed

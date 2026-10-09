@@ -123,6 +123,9 @@ private:
     /// rotate state k along its lowest mode of the followed block, line search on the energy, reconverge
     void follow(std::size_t k);
 
+    /// the start flip: the defined broken-symmetry state of flip_atoms
+    void flip_start();
+
     /// the first earlier state of the listing with the same energy and <S^2> as state i (a degenerate
     /// partner with another occupied space, e.g. pi_x against pi_y), or -1
     long degenerate_partner(std::size_t i) const;

@@ -119,7 +119,11 @@ public:
                          "distinct states listed by energy; guess lcao seeds moldft from the one chosen by state");
         initialize<std::vector<std::string>>("scan_starts", {"sad", "core", "swaps"}, "starts of the scan: sad, "
                         "core, swaps (per spin HOMO->LUMO, HOMO-1->LUMO, HOMO->LUMO+1 of every state from sad and "
-                        "core, kept by maximum overlap)");
+                        "core, kept by maximum overlap), bs (alpha/beta HOMO-LUMO mix, nalpha == nbeta with "
+                        "spin_restricted false), flip (the broken-symmetry state of flip_atoms)");
+        initialize<std::vector<int>>("flip_atoms", {}, "scan start flip: converge the high-spin state (nalpha+1, "
+                        "nbeta-1), separate its two highest alpha orbitals onto these atoms (0-based, deck order) and "
+                        "the rest, and put the one on these atoms into beta (needs spin_restricted false)");
         initialize<double>("scan_econv", 1.e-9, "energy convergence of the scan's states (classification grade)");
         initialize<double>("scan_dconv", 1.e-6, "density convergence of the scan's states (classification grade)");
         initialize<int>("scan_max_states", 10, "the scan lists at most this many distinct states");
@@ -167,6 +171,7 @@ public:
     std::vector<std::string> population() const { return get<std::vector<std::string>>("population"); }
     bool scan() const { return get<bool>("scan"); }
     std::vector<std::string> scan_starts() const { return get<std::vector<std::string>>("scan_starts"); }
+    std::vector<int> flip_atoms() const { return get<std::vector<int>>("flip_atoms"); }
     double scan_econv() const { return get<double>("scan_econv"); }
     double scan_dconv() const { return get<double>("scan_dconv"); }
     int scan_max_states() const { return get<int>("scan_max_states"); }
@@ -292,6 +297,15 @@ public:
 
     /// UHF also for nalpha == nbeta (the route to broken-symmetry states); call before iterate
     void set_unrestricted(const bool u) { unrestricted_ = u; }
+
+    /// other electron numbers per spin for the following iterate calls (the integrals do not depend on them),
+    /// e.g. the high-spin state of a broken-symmetry start
+    void set_occupations(const int nalpha, const int nbeta) {
+        MADNESS_CHECK_THROW(nalpha > 0 and nbeta >= 0 and nalpha >= nbeta, "LCAOSCF: need 0 <= nbeta <= nalpha, nalpha > 0");
+        MADNESS_CHECK_THROW(not setup_ or nalpha <= X_.dim(1), "LCAOSCF: more electrons than orbitals");
+        nalpha_ = nalpha;
+        nbeta_ = nbeta;
+    }
 
     /// the outcome of the last iterate (or solve): orbitals, densities, energies; to keep and to restore
     struct Result {
