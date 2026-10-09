@@ -69,7 +69,8 @@ struct OperatorInfo {
     bool debug=false;
     std::optional<bool> truncate_lowexp_gaussians;  // if given, overrides the default for whether to truncate low-exponent gaussians
     /// if true, a lattice-summed operator excludes the home cell (L = 0): the rest-of-crystal
-    /// operator, see SeparatedConvolution::initialize_images_only
+    /// operator, see SeparatedConvolution::initialize_images_only. Consumed when the operator is
+    /// constructed (SeparatedConvolution::images_only()); changing it on a built operator has no effect.
     bool images_only = false;
 
     template <std::size_t NDIM>

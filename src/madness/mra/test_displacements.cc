@@ -662,6 +662,23 @@ int test_images_and_subset_displacements_order(World& world) {
                      std::count_if(first.translation().begin(), first.translation().end(),
                                    [&](Translation l) { return std::abs(l) == twon - 1; }) == 1,
                  what + ": the first rest-of-crystal displacement is one box from the nearest image");
+    // ... along the narrowest summed axis: every image-adjacent displacement is at least distance 0 from its
+    // image, so the tie is broken by the distance between the box centers, which is the axis width
+    std::size_t narrowest = NDIM;
+    for (std::size_t d = 0; d < NDIM; ++d)
+      if (axes[d] && (narrowest == NDIM || width(static_cast<long>(d)) < width(static_cast<long>(narrowest)))) narrowest = d;
+    t.checkpoint(wraps_along(first, narrowest), what + ": ... along the narrowest summed axis");
+    // the image-adjacent displacements (real distance 0, one box) lead the list, ordered by center distance
+    std::size_t nadjacent = 0;
+    bool centers_ordered = true;
+    for (std::size_t i = 0; i < images.size(); ++i) {
+      if (images[i].real_distsq_images(axes, width) != 0.0 || images[i].distsq_images(axes) != 1) break;
+      ++nadjacent;
+      if (i > 0 && images[i].real_distsq_images_centers(axes, width) < images[i - 1].real_distsq_images_centers(axes, width))
+        centers_ordered = false;
+    }
+    t.checkpoint(nadjacent == 2 * static_cast<std::size_t>(std::count(axes.begin(), axes.end(), true)) && centers_ordered,
+                 what + ": the image-adjacent displacements lead the list, ordered by the distance between box centers");
     // ... and the home displacement is a cell away from its nearest image, along the narrowest summed axis,
     // so it follows every displacement adjacent to an image
     const Key<NDIM> home(n, Vector<Translation, NDIM>(0));
@@ -689,6 +706,11 @@ int test_images_and_subset_displacements_order(World& world) {
   FunctionDefaults<NDIM>::set_cell(cell);
   check(array_of_bools<NDIM>{true}, "anisotropic cell, summed along every axis");
   check(array_of_bools<NDIM>(false, false, true), "anisotropic cell, summed along z only");
+  // the narrowest summed axis is not x, so the lexicographic tie-break would put the wrong displacement first
+  cell(0, 1) = 10.; cell(1, 1) = 1.;
+  FunctionDefaults<NDIM>::set_cell(cell);
+  check(array_of_bools<NDIM>{true}, "anisotropic cell, narrowest along y, summed along every axis");
+  check(array_of_bools<NDIM>(true, true, false), "anisotropic cell, narrowest along y, summed along x and y");
   FunctionDefaults<NDIM>::set_cell(cell0);
 
   return t.end();

@@ -269,6 +269,18 @@ namespace madness {
           });
         }
 
+        /// like real_distsq_images() but between the centers of the boxes
+
+        /// real_distsq_images() is the least distance between points of the two boxes, which is zero for every
+        /// displacement one box from an image whatever the axis. The center distance is the axis width there, so
+        /// it tells those displacements apart (Displacements::sort_displacements_images breaks ties with it).
+        double real_distsq_images_centers(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
+          return distsq_images_impl(is_periodic, [&](std::size_t d, Translation la) -> double {
+            const double real_width = widths(static_cast<long>(d)) * static_cast<double>(la);
+            return real_width * real_width;
+          });
+        }
+
       private:
         /// min over R != 0 of sum_d axis_distsq(d, l_d + R_d 2^n), R_d = 0 along nonperiodic axes. The sum is
         /// separable, so the minimum takes the nearest image on every axis (as distsq_bc() does) unless that is

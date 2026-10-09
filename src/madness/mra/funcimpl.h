@@ -612,9 +612,7 @@ namespace madness {
             const opkeyT source=op->get_source_key(key);
 
             const double thresh=f->truncate_tol(f->get_thresh(),key);
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const opkeyT& d = *disp.begin();         // the displacement with the largest block: zero for a decaying kernel, to the nearest image for the rest-of-crystal kernel
-            const double opnorm = op->norm(key.level(), d, source);
+            const double opnorm = op->norm_bound(key.level(), source);   // the operator's largest block at this level
             const double norm=opnorm*cnorm;
             return norm<thresh;
 
@@ -686,9 +684,7 @@ namespace madness {
             if (error < thresh) return true;
 
             // now check if the norm of this and the norm of the operator are significant
-            const std::vector<Key<NDIM> >& disp = op->get_disp(key.level());
-            const Key<NDIM>& d = *disp.begin();         // the displacement with the largest block: zero for a decaying kernel, to the nearest image for the rest-of-crystal kernel
-            const double opnorm = op->norm(key.level(), d, key);
+            const double opnorm = op->norm_bound(key.level(), key);   // the operator's largest block at this level
             const double final_norm=opnorm*sfnorm*sgnorm;
             if (final_norm < thresh) return true;
 
@@ -5297,6 +5293,11 @@ template<size_t NDIM>
         double do_apply_directed_screening(const opT* op, const keyT& key, const coeffT& coeff,
                                            const bool& do_kernel) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+            // this path screens by decay away from the source: the home displacement is "the kernel", displacements
+            // farther out than a negligible one are skipped, and the sweep stops beyond shell 12 of Key::distsq_bc.
+            // The rest-of-crystal kernel vanishes near the source, so it is applied through do_apply only
+            MADNESS_CHECK_THROW(!op->images_only(),
+                                "apply: the rest-of-crystal operator (OperatorInfo::images_only) is supported only where FunctionImpl::do_apply is used (operator and function of the same dimension, NDIM <= 3)");
             // insert timer here
             typedef typename opT::keyT opkeyT;
 

@@ -168,6 +168,7 @@ namespace madness {
                                 ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
         array_of_bools<NDIM> func_domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
+        bool images_only_ = false;  ///< OperatorInfo::images_only as consumed at construction; what the 1D factors were built with
         std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
 
       public:
@@ -1072,6 +1073,7 @@ namespace madness {
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
             info.images_only = info1.images_only;
+            images_only_ = info1.images_only;
             auto [coeff, expnt, dropped_coeff, dropped_expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
@@ -1106,6 +1108,12 @@ namespace madness {
         /// exactly (lattice sum as MADNESS computes it) - (home cell with the full
         /// kernel). Measured on a 1D-periodic H10 chain, L = 18 bohr: without this,
         /// the 15 dropped terms shift the periodic energy correction by 3e-5 Ha.
+        ///
+        /// The identity is term by term only if the home operator is built from the
+        /// same fit. make_coeff_for_operator extends the fit range when either the
+        /// operator or the default boundary conditions are periodic, so build the home
+        /// operator under the same default boundary conditions as this one (as
+        /// test_images_operator does); otherwise the identity holds to the fit accuracy.
         void initialize_images_only(const Tensor<Q>& coeff, const Tensor<double>& expnt,
                                     const Tensor<double>& dropped_coeff, const Tensor<double>& dropped_expnt,
                                     const std::array<LatticeRange, NDIM>& lattice_range,
@@ -1214,11 +1222,14 @@ namespace madness {
         }
 
         /// the displacements in the order FunctionImpl::do_apply visits them: of increasing distance in the metric
-        /// the kernel decays with, see displacement_real_distsq(); the first is the one with the largest block
+        /// the kernel decays with, see displacement_real_distsq()
         const std::vector< Key<NDIM> >& get_disp(Level n) const {
-            return info.images_only ? Displacements<NDIM>().get_disp_images(n, lattice_summed())
-                                    : Displacements<NDIM>().get_disp(n, lattice_summed());
+            return images_only_ ? Displacements<NDIM>().get_disp_images(n, lattice_summed())
+                                : Displacements<NDIM>().get_disp(n, lattice_summed());
         }
+
+        /// @return true if this is the rest-of-crystal operator (OperatorInfo::images_only at construction)
+        bool images_only() const { return images_only_; }
 
         /// the real-space distance (squared, in the units of Key::real_distsq) between the source and a displaced
         /// target, in the metric the kernel decays with
@@ -1230,15 +1241,15 @@ namespace madness {
         /// distance is to that image (Key::real_distsq_images). get_disp() is ordered by the same metric.
         double displacement_real_distsq(const Key<NDIM>& displacement) const {
             const auto& widths = FunctionDefaults<NDIM>::get_cell_width();
-            return info.images_only ? displacement.real_distsq_images(lattice_summed(), widths)
-                                    : displacement.real_distsq_bc(lattice_summed(), widths);
+            return images_only_ ? displacement.real_distsq_images(lattice_summed(), widths)
+                                : displacement.real_distsq_bc(lattice_summed(), widths);
         }
 
         /// like displacement_real_distsq() but in boxes (Key::distsq_bc / Key::distsq_images); do_apply
         /// subdivides the shell of touching boxes (real distance 0) by it
         std::uint64_t displacement_distsq(const Key<NDIM>& displacement) const {
-            return info.images_only ? displacement.distsq_images(lattice_summed())
-                                    : displacement.distsq_bc(lattice_summed());
+            return images_only_ ? displacement.distsq_images(lattice_summed())
+                                : displacement.distsq_bc(lattice_summed());
         }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
@@ -1255,6 +1266,26 @@ namespace madness {
             // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
 //            return 1.0;
             return getop(n, d, source_key)->norm;
+        }
+
+        /// the largest of norm(n, d, source_key) over the displacements d: a bound on what any one displacement
+        /// can contribute from a source node at level n
+
+        /// FunctionImpl screens a source node against this before visiting any displacement. For a kernel that
+        /// decays away from the source it is the block at the zero displacement. The rest-of-crystal kernel
+        /// (OperatorInfo::images_only) is largest one box from an image, and on which axis depends on the cell:
+        /// the axis-adjacent blocks all touch their image, and the narrower the axis the smaller the separations
+        /// its block integrates over. So take the max over the image-adjacent displacements, which lead get_disp(n)
+        /// (real distance 0, one box; see Displacements::sort_displacements_images).
+        double norm_bound(Level n, const Key<NDIM>& source_key) const {
+            const auto& disp = get_disp(n);
+            if (!images_only_) return norm(n, disp.front(), source_key);   // the zero displacement
+            double result = 0.0;
+            for (const auto& d : disp) {
+                if (displacement_real_distsq(d) != 0.0 || displacement_distsq(d) != 1) break;
+                result = std::max(result, norm(n, d, source_key));
+            }
+            return result;
         }
 
         /// return that part of a hi-dim key that serves as the base for displacements of this operator
@@ -1814,6 +1845,11 @@ namespace madness {
             MADNESS_CHECK(can_combine(left,right));
             MADNESS_CHECK(left.get_world().id()==right.get_world().id());
             MADNESS_CHECK(left.lattice_summed() == right.lattice_summed());
+            // combine_OT takes info from one side or the other depending on the types, so the flag of a
+            // rest-of-crystal operand would survive or vanish by accident; and the product of a kernel
+            // restricted to the images with another kernel is not what any of the combined types mean
+            MADNESS_CHECK_THROW(!left.images_only() && !right.images_only(),
+                                "SeparatedConvolution::combine: a rest-of-crystal operator (OperatorInfo::images_only) cannot be combined");
             std::array<LatticeRange, NDIM> lattice_summed;
             for (std::size_t i = 0; i < NDIM; ++i) {
               if (left.lattice_summed()[i]) lattice_summed[i].set_infinite();

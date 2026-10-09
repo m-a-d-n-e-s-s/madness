@@ -95,6 +95,9 @@ namespace madness {
         /// Sorting the lists with the metric of the axes they are requested for is what makes the shell-wise screening
         /// of FunctionImpl::do_apply sound: a list sorted for a superset of the kernel's axes would place a displacement
         /// wrapped along an axis the kernel does not sum next to the source, where for that kernel it is a cell away.
+        /// A set holds every level's list in each order it was asked for (for NDIM = 3 up to (4 bmax + 1)^3 keys per
+        /// level, some ten MB per order), so a process that uses operators summed along several different axis sets
+        /// pays that per set; before, one set served them all.
         inline static std::array<std::atomic<PeriodicLists*>, (std::size_t(1) << NDIM)> periodic_lists{};
         inline static std::vector<std::unique_ptr<PeriodicLists>> periodic_lists_owner{};  ///< owns what periodic_lists points to
         inline static Mutex periodic_lists_mutex{};  ///< serializes building the lists and set_width()
@@ -129,15 +132,18 @@ namespace madness {
         // ordered by that rounding rather than by the tie-breakers. That is harmless, since any shell is still
         // contiguous (distinct shells are far apart compared to rounding), and consumers group displacements
         // into shells with same_displacement_shell; only the zero shell, whose distance is exact, is ordered
-        // within by distsq, and consumers rely on that.
+        // within by distsq, and consumers rely on that. center_distsq orders within equal (real_distsq, distsq)
+        // and never crosses a shell; it is zero unless the sorter sets it.
         struct DispEntry {
             Key<NDIM> key;
-            double real_distsq;
-            uint64_t distsq;
+            double real_distsq = 0;
+            uint64_t distsq = 0;
+            double center_distsq = 0;
 
             bool operator<(const DispEntry& other) const {
                 if (real_distsq != other.real_distsq) return real_distsq < other.real_distsq;
                 if (distsq != other.distsq) return distsq < other.distsq;
+                if (center_distsq != other.center_distsq) return center_distsq < other.center_distsq;
                 return key.translation() < other.key.translation();
             }
         };
@@ -166,11 +172,15 @@ namespace madness {
             }
         }
 
+        /// orders by the distance to the nearest non-home image: least distance between the boxes, then boxes,
+        /// then the distance between the box centers. The last breaks the tie among the displacements one box
+        /// from an image, which are all at least distance 0: the narrowest summed axis comes first, and its block
+        /// is the operator's largest (SeparatedConvolution::norm_bound visits the leading image-adjacent run).
         static void sort_displacements_images(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
             std::vector<DispEntry> entries;
             entries.reserve(d.size());
             for (const auto& k : d) {
-                entries.push_back({k, k.real_distsq_images(paxes, w), k.distsq_images(paxes)});
+                entries.push_back({k, k.real_distsq_images(paxes, w), k.distsq_images(paxes), k.real_distsq_images_centers(paxes, w)});
             }
             std::sort(entries.begin(), entries.end());
             for (std::size_t i = 0; i < d.size(); ++i) {
@@ -346,7 +356,7 @@ namespace madness {
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
             if (kernel_lattice_sum_axes.any()) {
-                MADNESS_ASSERT(n >= 0 && n < nlevels);
+                MADNESS_CHECK(n >= 0 && n < nlevels);
                 return periodic(kernel_lattice_sum_axes).by_distance[n];
             }
             else {
@@ -364,7 +374,7 @@ namespace madness {
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            MADNESS_ASSERT(n >= 0 && n < nlevels);
+            MADNESS_CHECK(n >= 0 && n < nlevels);
             PeriodicLists& lists = periodic(kernel_lattice_sum_axes);
             if (!lists.images_built.load(std::memory_order_acquire)) {
                 ScopedMutex<Mutex> lock(&periodic_lists_mutex);

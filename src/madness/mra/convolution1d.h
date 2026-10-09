@@ -301,6 +301,9 @@ namespace madness {
             }
             return true;
         }
+        /// the images to loop over: R = first_image()..last_image(), each subject to includes_image()
+        int first_image() const { return images == LatticeImages::home_only ? 0 : -maxR; }
+        int last_image() const { return images == LatticeImages::home_only ? 0 : maxR; }
         bool range_restricted() const { return range.finite(); }
 
         virtual ~Convolution1D() {};
@@ -358,7 +361,7 @@ namespace madness {
           // handle lattice summation, if needed
           if (lattice_summed()) {
             const Translation twon = Translation(1) << n;
-            for (int R = -maxR; R <= maxR; ++R) {
+            for (int R = first_image(); R <= last_image(); ++R) {
               if (!includes_image(R)) continue;
               if (!is_small(R * twon + lx))
                 return false;
@@ -588,7 +591,7 @@ namespace madness {
                 if (lattice_summed()) {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
-                    for (int R=-maxR; R<=maxR; ++R) {
+                    for (int R=first_image(); R<=last_image(); ++R) {
                         if (!includes_image(R)) continue;
                         r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(R));
                     }
