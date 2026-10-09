@@ -257,12 +257,12 @@ namespace madness {
         /// kernel at l + R 2^n over the lattice vectors R != 0 of the periodic axes, so it decays with this
         /// distance as an ordinary lattice-summed kernel decays with distsq_bc().
         uint64_t distsq_images(const array_of_bools<NDIM>& is_periodic) const {
-          return images_distsq(is_periodic, [](std::size_t, Translation la) -> uint64_t { return la * la; });
+          return distsq_images_impl(is_periodic, [](std::size_t, Translation la) -> uint64_t { return la * la; });
         }
 
         /// like real_distsq_bc() but to the nearest lattice image other than the home cell (see distsq_images())
         double real_distsq_images(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
-          return images_distsq(is_periodic, [&](std::size_t d, Translation la) -> double {
+          return distsq_images_impl(is_periodic, [&](std::size_t d, Translation la) -> double {
             // Subtract 1 to account for the least distance between points in the boxes.
             const auto real_width = widths(d) * std::max(std::abs(la) - 1, static_cast<Translation>(0));
             return real_width * real_width;
@@ -275,7 +275,7 @@ namespace madness {
         /// R = 0 on every periodic axis; then exactly one periodic axis moves to its next-nearest image, the
         /// one that costs least.
         template <typename F>
-        auto images_distsq(const array_of_bools<NDIM>& is_periodic, F&& axis_distsq) const {
+        auto distsq_images_impl(const array_of_bools<NDIM>& is_periodic, F&& axis_distsq) const {
           using T = decltype(axis_distsq(std::size_t(0), Translation(0)));
           const Translation twon = Translation(1) << level();
           const Translation twonm1 = twon >> 1;
