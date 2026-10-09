@@ -1483,7 +1483,7 @@ public:
 		}
 	}
 
-	corrfactype type() const {return NuclearCorrelationFactor::Slater;}
+	corrfactype type() const override {return NuclearCorrelationFactor::Slater;}
 
 private:
 
@@ -1505,7 +1505,7 @@ private:
 	/// \f[
 	///     Sr_div_S = \frac{1}{S(r)}\frac{\partial S(r)}{\partial r}
 	/// \f]
-	double Sr_div_S(const double& r, const double& Z) const {
+	double Sr_div_S(const double& r, const double& Z) const override {
 	    const double& a=a_param();
 	    return -a*Z/(1.0+(a-1.0)*exp(a*r*Z));
 	}
@@ -1515,7 +1515,7 @@ private:
     /// \f[
     ///     result = \frac{1}{S(r)}\frac{\partial^2 S(r)}{\partial r^2}
     /// \f]
-    double Srr_div_S(const double& r, const double& Z) const {
+    double Srr_div_S(const double& r, const double& Z) const override {
         const double& a=a_param();
         const double aZ=a*Z;
         return aZ*aZ/(1.0+(a-1.0)*exp(r*aZ));
@@ -1526,14 +1526,14 @@ private:
     /// \f[
     ///    result = \frac{1}{S(r)}\frac{\partial^3 S(r)}{\partial r^3}
     /// \f]
-    double Srrr_div_S(const double& r, const double& Z) const {
+    double Srrr_div_S(const double& r, const double& Z) const override {
         const double& a=a_param();
         const double aZ=a*Z;
         return -aZ*aZ*aZ/(1.0+(a-1.0)*exp(r*aZ));
     }
 
     /// the nuclear correlation factor
-    double S(const double& r, const double& Z) const {
+    double S(const double& r, const double& Z) const override {
     	const double a=a_param();
     	//const double eprec=eprec_param();
     	return 1.0+1.0/(a-1.0) * exp(-a*Z*r);
@@ -1544,14 +1544,14 @@ private:
     }
 
     /// radial part first derivative of the nuclear correlation factor
-    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const override {
     	const double a=a_param();
 		const double r=vr1A.normf();
     	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*smoothed_unitvec(vr1A);
     }
 
     /// second derivative of the nuclear correlation factor
-    double Spp_div_S(const double& r, const double& Z) const {
+    double Spp_div_S(const double& r, const double& Z) const override {
     	const double a=a_param();
 
     	if (r*Z<1.e-4) {
@@ -1581,7 +1581,7 @@ private:
     ///           \left(-\frac{1}{2}\frac{S''' S - S'' S'}{S^2} + \frac{1}{\rho^2}\frac{S'}{S}
     ///           - \frac{1}{\rho} \frac{S''S - S'^2}{S^2} + \frac{Z_A}{\rho^2}\right)
     /// \f]
-    double U2X_spherical(const double& r, const double& Z, const double& rcut) const {
+    double U2X_spherical(const double& r, const double& Z, const double& rcut) const override {
         const double a=a_param();
 
         double result=0.0;

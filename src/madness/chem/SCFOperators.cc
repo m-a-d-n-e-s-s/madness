@@ -197,14 +197,18 @@ class Laplacian<double, 6>;
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
 Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world) {
-    reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), nemo->get_calc()->param.econv());
+    // the Poisson operator at the accuracy of moldft's coulop (SCF::set_protocol, 0.001 thresh):
+    // at econv the Coulomb energy error grew with the electron count
+    reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), 0.001 * FunctionDefaults<NDIM>::get_thresh());
     vcoul = compute_potential(nemo);
 }
 
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
 Coulomb<T, NDIM>::Coulomb(World &world, const SCF *calc) : world(world) {
-    reset_poisson_operator_ptr(calc->param.lo(), calc->param.econv());
+    // the Poisson operator at the accuracy of moldft's coulop (SCF::set_protocol, 0.001 thresh):
+    // at econv the Coulomb energy error grew with the electron count
+    reset_poisson_operator_ptr(calc->param.lo(), 0.001 * FunctionDefaults<NDIM>::get_thresh());
     vcoul = compute_potential(calc);
 }
 
