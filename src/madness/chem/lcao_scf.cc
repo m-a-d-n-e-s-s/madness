@@ -385,19 +385,23 @@ Tensor<double> LCAOSCF::commutator_error(const Tensor<double>& F, const Tensor<d
 }
 
 
-double LCAOSCF::solve() {
-    const bool printme = world_.rank() == 0 and param_.print_level() > 0;
-    const bool open = not restricted();
+void LCAOSCF::setup() {
+    if (setup_) return;
     compute_integrals();
     make_orthogonalizer();
+    setup_ = true;
+}
 
-    // starting spin densities: the atomic guess density split by occupation, or the core hamiltonian
-    std::string guess = param_.guess();
-    Tensor<double> Pa, Pb;
+
+std::string LCAOSCF::start_densities(const std::string& start, Tensor<double>& Pa, Tensor<double>& Pb) {
+    setup();
+    // the atomic guess density split by occupation, or the core hamiltonian
+    std::string guess = start;
     if (guess == "sad") {
         const Tensor<double> P = sad_density();
         if (P.size() == 0) {
-            if (world_.rank() == 0) print("the basis file has no atomic guess densities; using the core hamiltonian");
+            if (world_.rank() == 0 and param_.print_level() > 0)
+                print("the basis file has no atomic guess densities; using the core hamiltonian");
             guess = "core";
         } else {
             Pa = (double(nalpha_) / (nalpha_ + nbeta_)) * P;
@@ -408,16 +412,66 @@ double LCAOSCF::solve() {
         Pa = diagonalize(H_, nalpha_, Ca_, epsa_);
         Pb = diagonalize(H_, nbeta_, Cb_, epsb_);
     }
+    return guess;
+}
+
+
+double LCAOSCF::solve() {
+    const bool printme = world_.rank() == 0 and param_.print_level() > 0;
+    setup();
+    Tensor<double> Pa, Pb;
+    const std::string guess = start_densities(param_.guess(), Pa, Pb);
     if (printme)
         printf("starting density: %s, %.6f electrons (%d alpha, %d beta, %s)\n", guess.c_str(), (Pa + Pb).trace(S_),
-               nalpha_, nbeta_, open ? "UHF" : "RHF");
+               nalpha_, nbeta_, restricted() ? "RHF" : "UHF");
+    return iterate(Pa, Pb, SCFOptions::from(param_));
+}
+
+
+double LCAOSCF::iterate(Tensor<double> Pa, Tensor<double> Pb, const SCFOptions& opt, const Tensor<double>& Ca_occ,
+                        const Tensor<double>& Cb_occ) {
+    setup();
+    const bool printme = world_.rank() == 0 and opt.print_level > 0;
+    const bool open = not restricted();
+    MADNESS_CHECK_THROW(not opt.mom or (Ca_occ.size() > 0 and (not open or nbeta_ == 0 or Cb_occ.size() > 0)),
+                        "LCAOSCF: maximum overlap needs the occupied orbitals to follow");
+    // maximum overlap: occupy the nocc orbitals of C with the largest projection on the previous occupied ones;
+    // the occupied come first, each group in ascending orbital energy. The same on every rank.
+    Tensor<double> Ca_prev = opt.mom ? copy(Ca_occ) : Tensor<double>();
+    Tensor<double> Cb_prev = (opt.mom and open and nbeta_ > 0) ? copy(Cb_occ) : Tensor<double>();
+    const auto mom_occupy = [this](Tensor<double>& C, Tensor<double>& eps, const int nocc, Tensor<double>& prev) {
+        const long nmo = C.dim(1);
+        const Tensor<double> O = inner(transpose(prev), inner(S_, C));
+        std::vector<std::pair<double, long>> p(nmo);
+        for (long j = 0; j < nmo; ++j) {
+            double s = 0.0;
+            for (long i = 0; i < nocc; ++i) s += O(i, j) * O(i, j);
+            p[j] = {s, j};
+        }
+        std::stable_sort(p.begin(), p.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        std::vector<long> occ, vir;
+        for (long j = 0; j < nmo; ++j) (j < nocc ? occ : vir).push_back(p[j].second);
+        std::sort(occ.begin(), occ.end());
+        std::sort(vir.begin(), vir.end());
+        Tensor<double> C2(C.dim(0), nmo), e2(nmo);
+        long k = 0;
+        for (const std::vector<long>& group : {occ, vir})
+            for (const long j : group) {
+                C2(_, k) = C(_, j);
+                e2(k++) = eps(j);
+            }
+        C = C2;
+        eps = e2;
+        prev = copy(C(_, Slice(0, nocc - 1)));
+        return Tensor<double>(inner(prev, transpose(prev)));
+    };
 
     const double enuc = molecule_.nuclear_repulsion_energy();
-    const double damping = param_.damping();
+    const double damping = opt.damping;
     // level shift: Roothaan-Hall steps with the virtual space of each spin raised by sigma, F + sigma (S - S P S),
     // and no DIIS, until the commutator error first falls below shift_off; then DIIS without the shift. DIIS
     // during the shifted phase kept AlO, BC, CN, CP and PS oscillating (31_).
-    const double sigma = param_.level_shift(), shift_off = 1.e-3;
+    const double sigma = opt.level_shift, shift_off = 1.e-3;
     bool shift_on = sigma > 0.0, shifted = false;
     const long n = S_.dim(0);
     const Tensor<double> none;              // an empty Pb: closed shell
@@ -429,7 +483,7 @@ double LCAOSCF::solve() {
     double tjk = 0.0, tdiag = 0.0;     // wall times of the J/K builds and of DIIS + diagonalization
     converged_ = false;
     if (printme) printf("\n iter          energy            dE        rms(dP)    max|FPS-SPF|\n");
-    for (int iter = 0; iter < param_.maxiter(); ++iter) {
+    for (int iter = 0; iter < opt.maxiter; ++iter) {
         const double tj0 = wall_time();
         twoe_->jk(Pa, open ? Pb : none, J, Ka, Kb);
         tjk += wall_time() - tj0;
@@ -447,23 +501,25 @@ double LCAOSCF::solve() {
             const Tensor<double> ea = commutator_error(Fa, Pa), eb = commutator_error(Fb, Pb);
             errmax = std::max(ea.absmax(), eb.absmax());
             shift_on = shift_on and errmax > shift_off;
-            if (param_.diis() > 0 and not shift_on)
-                unstack(diis_extrapolate(stack(Fa, Fb), stack(ea, eb), param_.diis(), diis_f, diis_e), n, Fa, Fb);
+            if (opt.diis > 0 and not shift_on)
+                unstack(diis_extrapolate(stack(Fa, Fb), stack(ea, eb), opt.diis, diis_f, diis_e), n, Fa, Fb);
         } else {
             const Tensor<double> e = commutator_error(Fa, Pa + Pb);
             errmax = e.absmax();
             shift_on = shift_on and errmax > shift_off;
-            if (param_.diis() > 0 and not shift_on) Fa = diis_extrapolate(Fa, e, param_.diis(), diis_f, diis_e);
+            if (opt.diis > 0 and not shift_on) Fa = diis_extrapolate(Fa, e, opt.diis, diis_f, diis_e);
         }
         shifted = root and shift_on;
         if (shifted) {
             Fa += sigma * (S_ - inner(S_, inner(Pa, S_)));
             if (open) Fb += sigma * (S_ - inner(S_, inner(Pb, S_)));
         }
-        const Tensor<double> Pa_new = diagonalize(Fa, nalpha_, Ca_, epsa_);
+        Tensor<double> Pa_new = diagonalize(Fa, nalpha_, Ca_, epsa_);
+        if (opt.mom) Pa_new = mom_occupy(Ca_, epsa_, nalpha_, Ca_prev);
         Tensor<double> Pb_new;
         if (open) {
             Pb_new = diagonalize(Fb, nbeta_, Cb_, epsb_);
+            if (opt.mom and nbeta_ > 0) Pb_new = mom_occupy(Cb_, epsb_, nbeta_, Cb_prev);
         } else {
             Pb_new = Pa_new;
             Cb_ = Ca_;
@@ -478,7 +534,7 @@ double LCAOSCF::solve() {
         Pb = (damping > 0.0) ? (1.0 - damping) * Pb_new + damping * Pb : Pb_new;
         eold = etot;
         iterations_ = iter + 1;
-        int stop = (iter > 0 and std::abs(de) < param_.econv() and drms < param_.dconv()) ? 1 : 0;
+        int stop = (iter > 0 and std::abs(de) < opt.econv and drms < opt.dconv) ? 1 : 0;
         if (collective_ and world_.size() > 1) world_.gop.broadcast(stop, 0);
         if (stop) {
             converged_ = true;

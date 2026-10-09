@@ -115,6 +115,16 @@ public:
         initialize<std::vector<std::string>>("population", {"none"}, "madlcao: atomic charges of the LCAO "
                         "orbitals: none, mulliken, lowdin, iao; the basis sets are the dft keys population_basis "
                         "and population_minbasis (moldft's guess lcao uses the dft key population)");
+        initialize<bool>("scan", false, "state scan: several starts, each converged to scan_econv/scan_dconv, the "
+                         "distinct states listed by energy; guess lcao seeds moldft from the one chosen by state");
+        initialize<std::vector<std::string>>("scan_starts", {"sad", "core", "swaps"}, "starts of the scan: sad, "
+                        "core, swaps (per spin HOMO->LUMO, HOMO-1->LUMO, HOMO->LUMO+1 of every state from sad and "
+                        "core, kept by maximum overlap)");
+        initialize<double>("scan_econv", 1.e-9, "energy convergence of the scan's states (classification grade)");
+        initialize<double>("scan_dconv", 1.e-6, "density convergence of the scan's states (classification grade)");
+        initialize<int>("scan_max_states", 10, "the scan lists at most this many distinct states");
+        initialize<std::string>("state", "lowest", "the scan state that seeds moldft: lowest, or its index in the "
+                                "listing of a scan with the same molecule and settings (0: the lowest energy)");
     }
 
     LCAOParameters(World& world, const commandlineparser& parser) : LCAOParameters() {
@@ -147,6 +157,12 @@ public:
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }
     std::vector<std::string> population() const { return get<std::vector<std::string>>("population"); }
+    bool scan() const { return get<bool>("scan"); }
+    std::vector<std::string> scan_starts() const { return get<std::vector<std::string>>("scan_starts"); }
+    double scan_econv() const { return get<double>("scan_econv"); }
+    double scan_dconv() const { return get<double>("scan_dconv"); }
+    int scan_max_states() const { return get<int>("scan_max_states"); }
+    std::string state() const { return get<std::string>("state"); }
 };
 
 namespace lcao {
@@ -181,6 +197,31 @@ private:
     std::shared_ptr<const PackedERI> eri_;
 };
 
+/// the settings of one LCAO SCF run (LCAOSCF::iterate)
+struct SCFOptions {
+    double econv = 1.e-6;           ///< energy convergence
+    double dconv = 1.e-4;           ///< density convergence, rms change per element
+    double damping = 0.0;           ///< fraction of the previous density mixed in
+    double level_shift = 0.0;       ///< shifted Roothaan-Hall steps until max|FPS-SPF| < 1e-3, then DIIS (0: off)
+    int maxiter = 100;
+    int diis = 8;                   ///< DIIS subspace (0: Roothaan-Hall)
+    int print_level = 1;            ///< 0: silent; 1: the iteration table and the summary
+    bool mom = false;               ///< occupy by maximum overlap with the previous occupied orbitals, not aufbau
+
+    /// the settings of the lcao group, as the plain SCF (solve) uses them
+    static SCFOptions from(const LCAOParameters& p) {
+        SCFOptions o;
+        o.econv = p.econv();
+        o.dconv = p.dconv();
+        o.damping = p.damping();
+        o.level_shift = p.level_shift();
+        o.maxiter = p.maxiter();
+        o.diis = p.diis();
+        o.print_level = p.print_level();
+        return o;
+    }
+};
+
 /// Hartree-Fock in a Gaussian basis: RHF for a closed shell, UHF otherwise
 
 /// Spin densities are Ps = Cs_occ Cs_occ^T, one electron per spin orbital; a
@@ -205,16 +246,55 @@ public:
     LCAOSCF(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nalpha, int nbeta,
             const LCAOParameters& param, bool collective = false);
 
-    /// compute the integrals and iterate to self-consistency
+    /// compute the integrals and iterate to self-consistency from the start of the guess key
     /// @return the total energy of the densities of the last J/K build (the last line of the iteration table)
     double solve();
+
+    /// compute the integrals and the orthogonalizer, once (solve and iterate call it)
+    void setup();
+
+    /// the starting spin densities of a start, `sad` (the atomic guess density split by occupation; the
+    /// core hamiltonian if the basis file has none) or `core` (the core hamiltonian's orbitals)
+    /// @return the start used, sad or core
+    std::string start_densities(const std::string& start, Tensor<double>& Pa, Tensor<double>& Pb);
+
+    /// iterate to self-consistency from the spin densities Pa, Pb (Pb ignored for RHF) with the given settings;
+    /// with mom, Ca_occ/Cb_occ are the occupied orbitals the occupation follows (and Pa, Pb their densities)
+    /// @return as solve
+    double iterate(Tensor<double> Pa, Tensor<double> Pb, const SCFOptions& opt,
+                   const Tensor<double>& Ca_occ = Tensor<double>(), const Tensor<double>& Cb_occ = Tensor<double>());
+
+    /// UHF also for nalpha == nbeta (the route to broken-symmetry states); call before iterate
+    void set_unrestricted(const bool u) { unrestricted_ = u; }
+
+    /// the outcome of the last iterate (or solve): orbitals, densities, energies; to keep and to restore
+    struct Result {
+        Tensor<double> Ca, Cb, epsa, epsb, Pa, Pb;
+        Energies energies;
+        double s2 = 0.0;
+        bool converged = false;
+        int iterations = 0;
+    };
+    Result result() const {
+        return {copy(Ca_), copy(Cb_), copy(epsa_), copy(epsb_), copy(Pa_), copy(Pb_), energies_, s2_, converged_,
+                iterations_};
+    }
+    /// make r the current outcome, as if the last iterate had produced it (the state the accessors report)
+    void restore(const Result& r) {
+        Ca_ = copy(r.Ca); Cb_ = copy(r.Cb); epsa_ = copy(r.epsa); epsb_ = copy(r.epsb);
+        Pa_ = copy(r.Pa); Pb_ = copy(r.Pb);
+        energies_ = r.energies; s2_ = r.s2; converged_ = r.converged; iterations_ = r.iterations;
+    }
+
+    /// the core hamiltonian T + V
+    const Tensor<double>& core_hamiltonian() const { return H_; }
 
     bool converged() const { return converged_; }
     int iterations() const { return iterations_; }
     long nbf() const { return S_.dim(0); }
 
     /// true for closed-shell RHF, false for UHF
-    bool restricted() const { return nalpha_ == nbeta_; }
+    bool restricted() const { return nalpha_ == nbeta_ and not unrestricted_; }
     int nalpha() const { return nalpha_; }
     int nbeta() const { return nbeta_; }
 
@@ -267,6 +347,8 @@ private:
     double s2_ = 0.0;
     bool converged_ = false;
     int iterations_ = 0;
+    bool unrestricted_ = false;     ///< UHF also for nalpha == nbeta
+    bool setup_ = false;
 
     void compute_integrals();
 

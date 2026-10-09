@@ -42,6 +42,7 @@
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/Restart.h>
 #include <madness/chem/lcao_cholesky.h>
+#include <madness/chem/lcao_scan.h>
 #include <madness/chem/lcao_scf.h>
 #include <madness/chem/molecular_functors.h>
 #include <madness/chem/potentialmanager.h>
@@ -54,6 +55,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
+#include <memory>
 #include <numeric>
 
 using namespace madness;
@@ -404,10 +407,30 @@ int main(int argc, char** argv) {
 
                 // with eri cholesky every rank takes part and holds a share of the integrals; with eri incore
                 // every rank computes everything on its own, as before
-                lcao::LCAOSCF scf(world, molecule, aobasis, param.nalpha(), param.nbeta(), lparam,
-                                  lparam.eri() == "cholesky");
+                // with scan true, the state scan (lcao_scan.h): it lists the states it finds and leaves the one
+                // chosen by the key state in its SCF, which everything below then reports
+                const bool collective = lparam.eri() == "cholesky";
+                std::unique_ptr<lcao::LCAOStateScan> scan;
+                std::unique_ptr<lcao::LCAOSCF> single;
                 const double t0 = wall_time();
-                const double energy = scf.solve();
+                double energy = 0.0;
+                if (lparam.scan()) {
+                    scan = std::make_unique<lcao::LCAOStateScan>(world, molecule, aobasis, param.nalpha(),
+                            param.nbeta(), not param.spin_restricted(), lparam, param.population_minbasis(),
+                            param.charge(), collective);
+                    scan->run();
+                    scan->print();
+                    if (world.rank() == 0) {
+                        std::ofstream f(param.prefix() + ".lcao_scan.json");
+                        f << scan->to_json().dump(2) << std::endl;
+                    }
+                    energy = scan->scf().energies().total;
+                } else {
+                    single = std::make_unique<lcao::LCAOSCF>(world, molecule, aobasis, param.nalpha(), param.nbeta(),
+                                                             lparam, collective);
+                    energy = single->solve();
+                }
+                lcao::LCAOSCF& scf = scan ? scan->scf() : *single;
                 if (world.rank() == 0) printf("final energy=%16.8f  (%.2fs)\n", energy, wall_time() - t0);
                 if (not scf.converged()) status = 1;
 

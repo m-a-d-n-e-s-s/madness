@@ -29,6 +29,7 @@ set(MADCHEM_HEADERS
     IntegratorXX.h
     lcao_cholesky.h
     lcao_integrals.h
+    lcao_scan.h
     lcao_scf.h
     localizer.h
     lowrankfunction.h
@@ -100,6 +101,7 @@ set(MADCHEM_SOURCES
     GuessFactory.cc
     lcao_cholesky.cc
     lcao_integrals.cc
+    lcao_scan.cc
     lcao_scf.cc
     lda.cc
     localizer.cc
