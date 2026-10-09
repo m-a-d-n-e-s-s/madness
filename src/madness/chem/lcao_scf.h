@@ -77,8 +77,10 @@ public:
                            "(0: keep all, as the v1 reference numbers did)");
         initialize<double>("schwarz", 1.e-6, "skip the two-electron integrals of shell-group quartets whose "
                            "Schwarz bound sqrt((ab|ab)(cd|cd)) is below this: guess grade (0: compute all)");
-        initialize<std::string>("eri", "incore", "two-electron integrals: stored in memory, or Cholesky-"
-                                "decomposed at cholesky_tol (always without kernel screening and Schwarz skips)",
+        initialize<std::string>("eri", "cholesky", "two-electron integrals: Cholesky-decomposed at cholesky_tol "
+                                "(always without kernel screening and Schwarz skips, positive semidefinite), or "
+                                "stored in memory (N^4/8 doubles, on rank 0; the guess-grade kernel_screen and "
+                                "schwarz can make them indefinite, and an SCF can then collapse below the HF limit)",
                                 {"incore", "cholesky"});
         initialize<double>("cholesky_tol", 1.e-6, "Cholesky decomposition of the two-electron integrals: the "
                            "largest residual (mu nu|mu nu) left, which bounds the error of every integral");
