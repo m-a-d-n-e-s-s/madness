@@ -520,6 +520,22 @@ vecfuncT flux_bsh_term(const std::vector<vecfuncT> &flux, const tensorT &fock,
   return result;
 }
 
+/// Applies the Green's function to Vnemo (consumed) through the SCF's executors
+/// (bsh_apply: tile / macrotask / plain, auto by topology and protocol) instead of
+/// BSHApply's whole-vector apply, which keeps the nonstandard inputs and untruncated
+/// outputs of every orbital at once. Coupling, level shift and the operator energies
+/// are BSHApply's. The orbital-energy update BSHApply would form from two more R^2
+/// products is not computed: the solver takes the energies from the Fock matrix.
+vecfuncT apply_bsh_green(World &world, SCF &calc, const BSHApply<double, 3> &bsh,
+                         const vecfuncT &nemo, const tensorT &fock, vecfuncT &Vnemo) {
+  // (T - eps_i) F_i = -2 (V F_i - sum_j F_j fock_ji), eps_i = eps_in_green(fock_ii)
+  Vnemo -= bsh.add_coupling_and_levelshift(nemo, fock);
+  scale(world, Vnemo, -2.0);
+  tensorT eps(long(nemo.size()));
+  for (long i = 0; i < eps.size(); ++i) eps(i) = bsh.eps_in_green(fock(i, i));
+  return calc.apply_bsh(world, Vnemo, eps, calc.param);
+}
+
 } // namespace
 
 /// solve the HF equations
@@ -652,12 +668,16 @@ double Nemo::solve(const SCFProtocol &proto) {
     }
 
     timer t_bsh(world, get_calc_param().print_level() > 2);
+    // BSHApply supplies the coupling, level shift and operator energies; the
+    // Green's function itself goes through the SCF's executors (apply_bsh_green)
     BSHApply<double, 3> bsh_apply(world);
-    bsh_apply.metric = R_square;
-    bsh_apply.ret_value = BSHApply<double, 3>::update;
     bsh_apply.lo = get_calc()->param.lo();
     bsh_apply.levelshift = get_calc_param().orbitalshift();
-    auto [update, eps_update] = bsh_apply(nemo, fock, Vnemo);
+    // nothing past this point reads the potentials or the bra: free them so the
+    // apply window holds Vnemo and the new orbitals, not the potentials as well
+    Jnemo.clear(); Knemo.clear(); Unemo.clear(); xcnemo.clear(); pcmnemo.clear();
+    R2nemo.clear();
+    vecfuncT update = apply_bsh_green(world, *calc, bsh_apply, nemo, fock, Vnemo);
     if (weak_xc) {
       update += flux_bsh_term(xcflux, fock, bsh_apply,
                               get_calc_param().dft_deriv());
