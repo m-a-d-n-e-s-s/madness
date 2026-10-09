@@ -849,8 +849,13 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2
     timer t(world, get_calc_param().print_level() > 2);
     real_function_3d vcoul;
     int ispin = 0;
-    auto taskq =
-        std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
+    // The exchange fetches its own operand batches from their owners (owner-pinned
+    // tiles) and asks for the pointer policy when it builds its own queue; a shared
+    // queue carries the factory default instead, which copies every operand set into
+    // the cloud and replicates it to every rank per iteration. Use the exchange's
+    // policy here; the Coulomb batches get their inputs copied per task as before.
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(
+        MacroTaskQFactory(world).set_policy(MacroTaskInfo::preset("small_memory_owner"))));
     taskq->set_printlevel(get_calc_param().print_level());
     // taskq->cloud.set_debug(true);
     if (world.rank() == 0 and get_calc_param().print_level() > 4)
