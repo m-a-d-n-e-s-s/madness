@@ -197,9 +197,18 @@ public:
     void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
             Tensor<double>& Kb) const override;
 
+    /// K of a transition density in two-factor form, K[X Y^T + Y X^T] = sum_k (L_k X)(L_k Y)^T + transpose: exact,
+    /// where the occupation factors of jk() would drop the small and the negative parts
+    void jk_transition(const Tensor<double>& Xa, const Tensor<double>& Ya, const Tensor<double>& Xb,
+                       const Tensor<double>& Yb, Tensor<double>& J, Tensor<double>& Ka,
+                       Tensor<double>& Kb) const override;
+
     const CholeskyERIDecomposition& decomposition() const { return *chol_; }
 
 private:
+    /// J of the total density pt, gathered and added in chunk order (collective if distributed)
+    void coulomb(const Tensor<double>& pt, Tensor<double>& J) const;
+
     World& world_;
     std::shared_ptr<const CholeskyERIDecomposition> chol_;
     long nbf_;

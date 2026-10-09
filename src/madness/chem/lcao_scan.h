@@ -36,6 +36,7 @@
 #define MADNESS_CHEM_LCAO_SCAN_H__INCLUDED
 
 #include <madness/chem/lcao_scf.h>
+#include <madness/chem/lcao_stability.h>
 #include <nlohmann/json.hpp>
 
 #include <string>
@@ -50,6 +51,8 @@ struct LCAOState {
     std::vector<std::string> found_by;      ///< the starts that reached it
     nlohmann::json populations;             ///< IAO charges and spin populations of the occupied orbitals
     int id = 0;                             ///< discovery order (labels in found_by refer to it)
+    std::vector<StabilityRoots> stability;  ///< the lowest Hessian eigenvalues per block (with stability true)
+    bool stable = true;                     ///< no eigenvalue below -stability_tol in the block the scan can follow
 };
 
 /// the state scan of 33_state_scan_interface.md
@@ -69,8 +72,13 @@ public:
                   bool unrestricted, const LCAOParameters& param, const std::string& minbasis, double charge,
                   bool collective);
 
-    /// run the starts; afterwards the SCF holds the seed state (scf().coefficients(), ... report it)
+    /// run the starts and the stability analysis; afterwards the SCF holds the seed state (scf().coefficients(),
+    /// ... report it)
     void run();
+
+    /// the Hessian block an unstable state is followed in: RHF->RHF for RHF, UHF->UHF for UHF (RHF->UHF of an RHF
+    /// state is reported, not followed: a broken-symmetry state needs spin_restricted false)
+    StabilityBlock followed_block() const;
 
     /// the distinct states, ascending in energy (index 0 the lowest)
     const std::vector<LCAOState>& states() const { return states_; }
@@ -108,6 +116,12 @@ private:
 
     /// |det C1_occ^T S C2_occ| of the nocc first columns
     double occupied_overlap(const Tensor<double>& C1, const Tensor<double>& C2, long nocc) const;
+
+    /// the lowest Hessian eigenvalues of state s, and whether it is stable
+    void analyze(LCAOState& s) const;
+
+    /// rotate state k along its lowest mode of the followed block, line search on the energy, reconverge
+    void follow(std::size_t k);
 
     /// the first earlier state of the listing with the same energy and <S^2> as state i (a degenerate
     /// partner with another occupied space, e.g. pi_x against pi_y), or -1

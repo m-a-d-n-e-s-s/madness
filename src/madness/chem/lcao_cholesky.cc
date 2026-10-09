@@ -417,35 +417,14 @@ void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<
                         (not open or (Pb.dim(0) == n and Pb.dim(1) == n)),
                         "CholeskyERI: integrals and density matrix do not match");
     const CholeskyERIDecomposition& chol = *chol_;
-    const long m = chol.nvec(), nchunk = chol.nchunk();
+    const long nchunk = chol.nchunk();
     const std::size_t nk = chol.nkept();
     const bool dist = chol.distributed();
     std::vector<long> mine;     // the non-empty chunks this rank holds
     for (long c = 0; c < nchunk; ++c)
         if (chol.holds(c) and chol.chunk(c).second > chol.chunk(c).first) mine.push_back(c);
 
-    // J: gamma = L^T P~ per chunk, P~ the total density with both orders of mu != nu. gamma of all
-    // vectors and the partial J~ = L gamma of every chunk are gathered (one contribution per element,
-    // so the sums are exact) and J~ is added in chunk order on every rank.
-    const Tensor<double> pt = open ? Pa + Pb : 2.0 * Pa;
-    std::vector<double> ptk(nk), gamma(std::max(m, 1L), 0.0), jpart(nchunk * nk, 0.0), jt(nk, 0.0);
-    for (std::size_t i = 0; i < nk; ++i) ptk[i] = (mu_[i] == nu_[i] ? 1.0 : 2.0) * pt(mu_[i], nu_[i]);
-    for_each_block(world_, mine.size(), [&](const std::size_t t) {
-        const auto [k0, k1] = chol.chunk(mine[t]);
-        cblas::gemv(cblas::Trans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), ptk.data(), 1, 0.0,
-                    gamma.data() + k0, 1);
-    });
-    if (dist and m > 0) world_.gop.sum(gamma.data(), m);
-    for_each_block(world_, mine.size(), [&](const std::size_t t) {
-        const auto [k0, k1] = chol.chunk(mine[t]);
-        cblas::gemv(cblas::NoTrans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), gamma.data() + k0,
-                    1, 0.0, jpart.data() + mine[t] * nk, 1);
-    });
-    if (dist and not jpart.empty()) world_.gop.sum(jpart.data(), jpart.size());
-    for (long c = 0; c < nchunk; ++c)
-        for (std::size_t i = 0; i < nk; ++i) jt[i] += jpart[c * nk + i];
-    J = Tensor<double>(n, n);
-    for (std::size_t i = 0; i < nk; ++i) J(mu_[i], nu_[i]) = J(nu_[i], mu_[i]) = jt[i];
+    coulomb(open ? Pa + Pb : 2.0 * Pa, J);
 
     // K per spin from the factors of its density: chunk c sums X_k X_k^T over its vectors, several
     // vectors per dgemm; the partials of all chunks are gathered and added in chunk order
@@ -488,6 +467,122 @@ void CholeskyERI::jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<
             for (std::size_t i = 0; i < nn; ++i) k[i] += kp[i];
         }
         return Tensor<double>(0.5 * (K + transpose(K)));
+    };
+    Ka = sum_chunks(0);
+    Kb = open ? sum_chunks(1) : Tensor<double>();
+}
+
+
+void CholeskyERI::coulomb(const Tensor<double>& pt, Tensor<double>& J) const {
+    // J: gamma = L^T P~ per chunk, P~ the total density with both orders of mu != nu. gamma of all
+    // vectors and the partial J~ = L gamma of every chunk are gathered (one contribution per element,
+    // so the sums are exact) and J~ is added in chunk order on every rank.
+    const long n = nbf_;
+    const CholeskyERIDecomposition& chol = *chol_;
+    const long m = chol.nvec(), nchunk = chol.nchunk();
+    const std::size_t nk = chol.nkept();
+    const bool dist = chol.distributed();
+    std::vector<long> mine;
+    for (long c = 0; c < nchunk; ++c)
+        if (chol.holds(c) and chol.chunk(c).second > chol.chunk(c).first) mine.push_back(c);
+    std::vector<double> ptk(nk), gamma(std::max(m, 1L), 0.0), jpart(nchunk * nk, 0.0), jt(nk, 0.0);
+    for (std::size_t i = 0; i < nk; ++i) ptk[i] = (mu_[i] == nu_[i] ? 1.0 : 2.0) * pt(mu_[i], nu_[i]);
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const auto [k0, k1] = chol.chunk(mine[t]);
+        cblas::gemv(cblas::Trans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), ptk.data(), 1, 0.0,
+                    gamma.data() + k0, 1);
+    });
+    if (dist and m > 0) world_.gop.sum(gamma.data(), m);
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const auto [k0, k1] = chol.chunk(mine[t]);
+        cblas::gemv(cblas::NoTrans, long(nk), k1 - k0, 1.0, chol.chunk_vectors(mine[t]), long(nk), gamma.data() + k0,
+                    1, 0.0, jpart.data() + mine[t] * nk, 1);
+    });
+    if (dist and not jpart.empty()) world_.gop.sum(jpart.data(), jpart.size());
+    for (long c = 0; c < nchunk; ++c)
+        for (std::size_t i = 0; i < nk; ++i) jt[i] += jpart[c * nk + i];
+    J = Tensor<double>(n, n);
+    for (std::size_t i = 0; i < nk; ++i) J(mu_[i], nu_[i]) = J(nu_[i], mu_[i]) = jt[i];
+}
+
+
+void CholeskyERI::jk_transition(const Tensor<double>& Xa, const Tensor<double>& Ya, const Tensor<double>& Xb,
+                                const Tensor<double>& Yb, Tensor<double>& J, Tensor<double>& Ka,
+                                Tensor<double>& Kb) const {
+    const long n = nbf_;
+    const bool open = Xb.size() > 0;
+    MADNESS_CHECK_THROW(Xa.ndim() == 2 and Xa.dim(0) == n and Ya.dim(0) == n and Xa.dim(1) == Ya.dim(1) and
+                        (not open or (Xb.dim(0) == n and Yb.dim(0) == n and Xb.dim(1) == Yb.dim(1))),
+                        "CholeskyERI: transition factors do not match the basis");
+    const auto density = [](const Tensor<double>& X, const Tensor<double>& Y) {
+        const Tensor<double> XY = inner(X, transpose(Y));
+        return Tensor<double>(XY + transpose(XY));
+    };
+    const Tensor<double> Da = density(Xa, Ya);
+    coulomb(open ? Da + density(Xb, Yb) : 2.0 * Da, J);
+
+    // K_s = M_s + M_s^T, M_s = sum_k (L_k X_s)(L_k Y_s)^T: chunk c stacks several vectors per dgemm; the partials
+    // of all chunks are gathered and added in chunk order, as in jk()
+    const CholeskyERIDecomposition& chol = *chol_;
+    const long nchunk = chol.nchunk();
+    const std::size_t nk = chol.nkept();
+    const bool dist = chol.distributed();
+    std::vector<long> mine;
+    for (long c = 0; c < nchunk; ++c)
+        if (chol.holds(c) and chol.chunk(c).second > chol.chunk(c).first) mine.push_back(c);
+    const int nspin = open ? 2 : 1;
+    // the factors column-major (n x r), as the dgemm calls want them
+    std::vector<std::vector<double>> fx(nspin), fy(nspin);
+    std::vector<long> rank(nspin);
+    for (int s = 0; s < nspin; ++s) {
+        const Tensor<double> X = copy(transpose(s == 0 ? Xa : Xb)), Y = copy(transpose(s == 0 ? Ya : Yb));
+        rank[s] = X.dim(0);
+        fx[s].assign(X.ptr(), X.ptr() + X.size());
+        fy[s].assign(Y.ptr(), Y.ptr() + Y.size());
+    }
+    long rmax = 1;
+    for (int s = 0; s < nspin; ++s) rmax = std::max(rmax, rank[s]);
+    const long nstack = std::max(1L, 512 / rmax);
+    const std::size_t nn = std::size_t(n) * n;
+    std::vector<double> mpart(std::size_t(nchunk) * nspin * nn, 0.0);
+    for_each_block(world_, mine.size(), [&](const std::size_t t) {
+        const long c = mine[t];
+        const auto [k0, k1] = chol.chunk(c);
+        const double* L = chol.chunk_vectors(c);
+        std::vector<double> Lk(nn, 0.0);
+        std::vector<std::vector<double>> A(nspin), B(nspin);
+        for (int s = 0; s < nspin; ++s) {
+            A[s].resize(n * rank[s] * nstack);
+            B[s].resize(n * rank[s] * nstack);
+        }
+        for (long k = k0; k < k1; k += nstack) {
+            const long kn = std::min(nstack, k1 - k);
+            for (long kk = 0; kk < kn; ++kk) {
+                const double* l = L + (k - k0 + kk) * nk;
+                for (std::size_t i = 0; i < nk; ++i) Lk[mu_[i] * n + nu_[i]] = Lk[nu_[i] * n + mu_[i]] = l[i];
+                for (int s = 0; s < nspin; ++s) {
+                    if (rank[s] == 0) continue;
+                    cblas::gemm(cblas::NoTrans, cblas::NoTrans, n, rank[s], n, 1.0, Lk.data(), n, fx[s].data(), n,
+                                0.0, A[s].data() + kk * n * rank[s], n);
+                    cblas::gemm(cblas::NoTrans, cblas::NoTrans, n, rank[s], n, 1.0, Lk.data(), n, fy[s].data(), n,
+                                0.0, B[s].data() + kk * n * rank[s], n);
+                }
+            }
+            for (int s = 0; s < nspin; ++s)
+                if (rank[s] > 0)
+                    cblas::gemm(cblas::NoTrans, cblas::Trans, n, n, kn * rank[s], 1.0, A[s].data(), n, B[s].data(),
+                                n, 1.0, mpart.data() + (std::size_t(c) * nspin + s) * nn, n);
+        }
+    });
+    if (dist and not mpart.empty()) world_.gop.sum(mpart.data(), mpart.size());
+    const auto sum_chunks = [&](const int s) {
+        Tensor<double> M(n, n);
+        double* p = M.ptr();
+        for (long c = 0; c < nchunk; ++c) {
+            const double* mp = mpart.data() + (std::size_t(c) * nspin + s) * nn;
+            for (std::size_t i = 0; i < nn; ++i) p[i] += mp[i];
+        }
+        return Tensor<double>(M + transpose(M));
     };
     Ka = sum_chunks(0);
     Kb = open ? sum_chunks(1) : Tensor<double>();

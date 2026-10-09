@@ -605,6 +605,17 @@ double LCAOSCF::iterate(Tensor<double> Pa, Tensor<double> Pb, const SCFOptions& 
 }
 
 
+double LCAOSCF::energy(const Tensor<double>& Pa, const Tensor<double>& Pb) const {
+    const bool open = not restricted();
+    Tensor<double> J, Ka, Kb;
+    twoe_->jk(Pa, open ? Pb : Tensor<double>(), J, Ka, Kb);
+    const Tensor<double> Pbb = open ? Pb : Pa;
+    if (not open) Kb = Ka;
+    const Tensor<double> P = Pa + Pbb;
+    return P.trace(H_) + 0.5 * P.trace(J) - 0.5 * (Pa.trace(Ka) + Pbb.trace(Kb)) + molecule_.nuclear_repulsion_energy();
+}
+
+
 std::vector<Function<double,3>> project_orbitals(World& world, const Molecule& molecule,
                                                   const AtomicBasisSet& aobasis, const Tensor<double>& C,
                                                   const long nmo) {

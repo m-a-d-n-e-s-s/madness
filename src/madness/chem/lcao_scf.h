@@ -123,8 +123,16 @@ public:
         initialize<double>("scan_econv", 1.e-9, "energy convergence of the scan's states (classification grade)");
         initialize<double>("scan_dconv", 1.e-6, "density convergence of the scan's states (classification grade)");
         initialize<int>("scan_max_states", 10, "the scan lists at most this many distinct states");
-        initialize<std::string>("state", "lowest", "the scan state that seeds moldft: lowest, or its index in the "
-                                "listing of a scan with the same molecule and settings (0: the lowest energy)");
+        initialize<std::string>("state", "lowest", "the scan state that seeds moldft: lowest (the lowest-energy "
+                                "stable state), or its index in the listing of a scan with the same molecule and "
+                                "settings (0: the lowest energy)");
+        initialize<bool>("stability", true, "scan: the lowest eigenvalues of the real orbital Hessian of every state "
+                         "(RHF->RHF and RHF->UHF for RHF, UHF->UHF for UHF); an unstable state is followed downhill "
+                         "and what it reaches is listed too");
+        initialize<int>("stability_roots", 3, "scan: eigenvalues per Hessian block (Davidson)");
+        initialize<double>("stability_tol", 1.e-4, "scan: an eigenvalue below -stability_tol (Eh) is an instability");
+        initialize<bool>("check_stability", false, "madlcao: the orbital Hessian of the final state against finite "
+                         "differences of the energy along a fixed rotation");
     }
 
     LCAOParameters(World& world, const commandlineparser& parser) : LCAOParameters() {
@@ -163,6 +171,10 @@ public:
     double scan_dconv() const { return get<double>("scan_dconv"); }
     int scan_max_states() const { return get<int>("scan_max_states"); }
     std::string state() const { return get<std::string>("state"); }
+    bool stability() const { return get<bool>("stability"); }
+    int stability_roots() const { return get<int>("stability_roots"); }
+    double stability_tol() const { return get<double>("stability_tol"); }
+    bool check_stability() const { return get<bool>("check_stability"); }
 };
 
 namespace lcao {
@@ -181,6 +193,20 @@ public:
     /// An empty Pb stands for a closed shell, Pb = Pa; Kb is then left empty.
     virtual void jk(const Tensor<double>& Pa, const Tensor<double>& Pb, Tensor<double>& J, Tensor<double>& Ka,
                     Tensor<double>& Kb) const = 0;
+
+    /// J and K of transition densities D_s = X_s Y_s^T + Y_s X_s^T (X_s, Y_s: N x r): J = J[Da + Db], Ka = K[Da],
+    /// Kb = K[Db]. These are symmetric but indefinite, not densities of orbitals (the orbital Hessian of the
+    /// stability analysis). An empty Xb is a closed-shell perturbation, Db = Da: J = J[2 Da], Kb left empty.
+    /// The default builds Da and Db and calls jk(), exact for a builder that takes any symmetric matrix.
+    virtual void jk_transition(const Tensor<double>& Xa, const Tensor<double>& Ya, const Tensor<double>& Xb,
+                               const Tensor<double>& Yb, Tensor<double>& J, Tensor<double>& Ka,
+                               Tensor<double>& Kb) const {
+        const auto density = [](const Tensor<double>& X, const Tensor<double>& Y) {
+            const Tensor<double> XY = inner(X, transpose(Y));
+            return Tensor<double>(XY + transpose(XY));
+        };
+        jk(density(Xa, Ya), Xb.size() > 0 ? density(Xb, Yb) : Tensor<double>(), J, Ka, Kb);
+    }
 };
 
 /// J and K from the two-electron integrals held in memory, once per permutational orbit
@@ -288,6 +314,12 @@ public:
 
     /// the core hamiltonian T + V
     const Tensor<double>& core_hamiltonian() const { return H_; }
+
+    /// the two-electron part (J and K builds) of this SCF; valid after setup()
+    const TwoElectronBuilder& two_electron() const { return *twoe_; }
+
+    /// the energy of spin densities Pa, Pb (Pb ignored for RHF), one J/K build; collective like iterate
+    double energy(const Tensor<double>& Pa, const Tensor<double>& Pb) const;
 
     bool converged() const { return converged_; }
     int iterations() const { return iterations_; }

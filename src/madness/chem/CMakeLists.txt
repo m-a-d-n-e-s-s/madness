@@ -31,6 +31,7 @@ set(MADCHEM_HEADERS
     lcao_integrals.h
     lcao_scan.h
     lcao_scf.h
+    lcao_stability.h
     localizer.h
     lowrankfunction.h
     masks_and_boxes.h
@@ -103,6 +104,7 @@ set(MADCHEM_SOURCES
     lcao_integrals.cc
     lcao_scan.cc
     lcao_scf.cc
+    lcao_stability.cc
     lda.cc
     localizer.cc
     molecularbasis.cc

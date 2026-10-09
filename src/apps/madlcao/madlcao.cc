@@ -44,6 +44,7 @@
 #include <madness/chem/lcao_cholesky.h>
 #include <madness/chem/lcao_scan.h>
 #include <madness/chem/lcao_scf.h>
+#include <madness/chem/lcao_stability.h>
 #include <madness/chem/molecular_functors.h>
 #include <madness/chem/potentialmanager.h>
 #include <madness/mra/mra.h>
@@ -282,6 +283,45 @@ int k_for_thresh(const double thresh) {
 /// (RestartMetadata), so `restart auto` reads the archive like any other. It
 /// claims convergence at the previous rung, so moldft starts at seed_rung, and
 /// leaves the density convergence unknown, so moldft always iterates.
+/// check_stability: x^T (A+B) x of a fixed unit rotation x against central differences of the energy along it,
+/// at the final state (which must be converged: the gradient term cancels only in the central difference)
+void check_stability(World& world, const lcao::LCAOSCF& scf, const int nalpha, const int nbeta) {
+    const lcao::LCAOSCF::Result r = scf.result();
+    const bool rhf = scf.restricted();
+    const lcao::StabilityBlock block = rhf ? lcao::StabilityBlock::rhf_rhf : lcao::StabilityBlock::uhf_uhf;
+    const lcao::OrbitalHessian H(scf, r, nalpha, nbeta, block);
+    Tensor<double> x(H.dim());
+    for (long k = 0; k < x.size(); ++k) x(k) = std::sin(1.7 * double(k) + 0.3);
+    x.scale(1.0 / x.normf());
+    const double q = x.trace(H.product(x));
+    Tensor<double> xa, xb;
+    H.split(x, xa, xb);
+    const auto energy = [&](const double t) {
+        const Tensor<double> Ca = lcao::rotate_occupied(r.Ca, nalpha, xa, t);
+        const Tensor<double> Pa = inner(Ca, transpose(Ca));
+        Tensor<double> Pb = Pa;
+        if (not rhf) {
+            if (nbeta > 0) {
+                const Tensor<double> Cb = lcao::rotate_occupied(r.Cb, nbeta, xb, t);
+                Pb = inner(Cb, transpose(Cb));
+            } else {
+                Pb = Tensor<double>(Pa.dim(0), Pa.dim(1));
+            }
+        }
+        return scf.energy(Pa, Pb);
+    };
+    const double e0 = energy(0.0);
+    if (world.rank() == 0)
+        printf("\ncheck_stability (%s, %ld parameters): x^T (A+B) x = %.10f for a fixed unit rotation x\n",
+               lcao::to_string(block).c_str(), H.dim(), q);
+    for (const double h : {4.e-3, 2.e-3, 1.e-3}) {
+        const double d2 = (energy(h) + energy(-h) - 2.0 * e0) / (h * h);
+        if (world.rank() == 0)
+            printf("    h %.0e: (E(h) + E(-h) - 2 E(0)) / h^2 = %.10f, ratio to x^T (A+B) x %.6f\n", h, d2, d2 / q);
+    }
+}
+
+
 void write_seed(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, const lcao::LCAOSCF& scf,
                 const CalculationParameters& param, const LCAOParameters& lparam) {
     const std::vector<double> protocol = param.protocol();
@@ -438,6 +478,7 @@ int main(int argc, char** argv) {
                 if (lparam.check_eri()) check_eri(world, scf, lparam);
                 if (lparam.check_cholesky()) check_cholesky(world, scf, lparam);
                 if (lparam.check_mra()) check_against_mra(world, molecule, aobasis, scf, param.L());
+                if (lparam.check_stability()) check_stability(world, scf, param.nalpha(), param.nbeta());
                 if (lparam.seed()) write_seed(world, molecule, aobasis, scf, param, lparam);
 
                 // atomic charges of the LCAO orbitals by the schemes of the lcao key population, with the

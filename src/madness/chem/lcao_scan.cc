@@ -95,6 +95,67 @@ LCAOStateScan::LCAOStateScan(World& world, const Molecule& molecule, const Atomi
 }
 
 
+StabilityBlock LCAOStateScan::followed_block() const {
+    return scf_.restricted() ? StabilityBlock::rhf_rhf : StabilityBlock::uhf_uhf;
+}
+
+
+void LCAOStateScan::analyze(LCAOState& s) const {
+    s.stability.clear();
+    const std::vector<StabilityBlock> blocks = scf_.restricted()
+            ? std::vector<StabilityBlock>{StabilityBlock::rhf_rhf, StabilityBlock::rhf_uhf}
+            : std::vector<StabilityBlock>{StabilityBlock::uhf_uhf};
+    for (const StabilityBlock b : blocks) {
+        const OrbitalHessian H(scf_, s.result, nalpha_, nbeta_, b);
+        s.stability.push_back(lowest_roots(H, param_.stability_roots()));
+    }
+    s.stable = true;
+    for (const StabilityRoots& r : s.stability)
+        if (r.block == followed_block() and not r.eigenvalues.empty() and r.eigenvalues[0] < -param_.stability_tol())
+            s.stable = false;
+}
+
+
+void LCAOStateScan::follow(const std::size_t k) {
+    const LCAOState s = states_[k];         // a copy: run_start may grow states_
+    const StabilityRoots* root = nullptr;
+    for (const StabilityRoots& r : s.stability)
+        if (r.block == followed_block()) root = &r;
+    if (root == nullptr or root->eigenvalues.empty()) return;
+    const bool rhf = scf_.restricted();
+    const auto densities = [&](const double t, Tensor<double>& Pa, Tensor<double>& Pb) {
+        const Tensor<double> Ca = rotate_occupied(s.result.Ca, nalpha_, root->xa[0], t);
+        Pa = inner(Ca, transpose(Ca));
+        if (rhf) {
+            Pb = Pa;
+        } else if (nbeta_ > 0) {
+            const Tensor<double> Cb = rotate_occupied(s.result.Cb, nbeta_, root->xb[0], t);
+            Pb = inner(Cb, transpose(Cb));
+        } else {
+            Pb = Tensor<double>(Pa.dim(0), Pa.dim(1));
+        }
+    };
+    // the step along the mode (the eigenvector has norm 1): the lowest energy of a few, then reconverge
+    double tbest = 0.0, ebest = s.result.energies.total;
+    for (const double t : {0.1, 0.2, 0.4, 0.7, 1.0}) {
+        Tensor<double> Pa, Pb;
+        densities(t, Pa, Pb);
+        const double e = scf_.energy(Pa, Pb);
+        if (e < ebest) {
+            ebest = e;
+            tbest = t;
+        }
+    }
+    if (tbest == 0.0) tbest = 0.2;          // no lower energy on the line: reconverge from a small step anyway
+    Tensor<double> Pa, Pb;
+    densities(tbest, Pa, Pb);
+    char label[128];
+    snprintf(label, sizeof(label), "stability of #%d (%s %+.4f, step %.1f)", s.id, to_string(root->block).c_str(),
+             root->eigenvalues[0], tbest);
+    run_start(label, Pa, Pb, false);
+}
+
+
 double LCAOStateScan::occupied_overlap(const Tensor<double>& C1, const Tensor<double>& C2, const long nocc) const {
     if (nocc == 0) return 1.0;
     const Tensor<double> M = inner(transpose(occupied(C1, nocc)), inner(scf_.overlap(), occupied(C2, nocc)));
@@ -203,6 +264,26 @@ void LCAOStateScan::run() {
     }
     MADNESS_CHECK_THROW(not states_.empty(), "LCAO state scan: no start converged");
 
+    // stability: every state, also those that following finds (states_ grows); an unstable one is followed
+    if (param_.stability()) {
+        std::size_t follows = 0;
+        const std::size_t max_follows = 2 * states_.size() + 6;
+        for (std::size_t k = 0; k < states_.size(); ++k) {
+            analyze(states_[k]);
+            if (printme) {
+                printf("  stability of #%d:", states_[k].id);
+                for (const StabilityRoots& r : states_[k].stability)
+                    printf("  %s %+.5f%s", to_string(r.block).c_str(), r.eigenvalues.empty() ? NAN : r.eigenvalues[0],
+                           r.converged ? "" : " (Davidson not converged)");
+                printf("  -> %s\n", states_[k].stable ? "stable" : "unstable");
+            }
+            if (not states_[k].stable and follows < max_follows) {
+                ++follows;
+                follow(k);
+            }
+        }
+    }
+
     // the listing: ascending energy, at most scan_max_states
     std::stable_sort(states_.begin(), states_.end(), [](const LCAOState& a, const LCAOState& b) {
         return a.result.energies.total < b.result.energies.total;
@@ -223,6 +304,11 @@ void LCAOStateScan::run() {
     // the seed
     if (param_.state() == "lowest") {
         seed_ = 0;
+        while (seed_ < long(states_.size()) and not states_[seed_].stable) ++seed_;
+        if (seed_ == long(states_.size())) {
+            seed_ = 0;
+            if (printme) madness::print("WARNING: no listed state is stable; the seed is the lowest state");
+        }
     } else {
         seed_ = std::stol(param_.state());
         MADNESS_CHECK_THROW(seed_ < long(states_.size()), "state: the scan's listing has no state with this index");
@@ -255,7 +341,8 @@ void LCAOStateScan::print() const {
         for (const std::string& f : failed_) printf(" %s;", relabel(f).c_str());
         printf("\n");
     }
-    printf("\n state        energy (Eh)    dE (mEh)      <S^2>   HOMO a/b (Eh)        LUMO a/b (Eh)        found by\n");
+    printf("\n state        energy (Eh)    dE (mEh)      <S^2>   HOMO a/b (Eh)        LUMO a/b (Eh)        "
+           "lowest Hessian eigenvalue(s)        found by\n");
     const double e0 = states_.empty() ? 0.0 : states_[0].result.energies.total;
     for (std::size_t i = 0; i < states_.size(); ++i) {
         const LCAOSCF::Result& r = states_[i].result;
@@ -264,9 +351,19 @@ void LCAOStateScan::print() const {
         for (const std::string& f : states_[i].found_by) by += (by.empty() ? "" : ", ") + relabel(f);
         const long partner = degenerate_partner(i);
         if (partner >= 0) by = "degenerate with state " + std::to_string(partner) + "; " + by;
-        printf("%5zu  %18.10f  %9.3f  %9.6f   %8.4f/%8.4f    %8.4f/%8.4f    %s%s\n", i, r.energies.total,
+        std::string hess;
+        for (const StabilityRoots& sr : states_[i].stability) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%s%s %+.5f", hess.empty() ? "" : " ", to_string(sr.block).c_str(),
+                     sr.eigenvalues.empty() ? NAN : sr.eigenvalues[0]);
+            hess += buf;
+        }
+        if (hess.empty()) hess = "-";
+        else hess += states_[i].stable ? "" : " UNSTABLE";
+        printf("%5zu  %18.10f  %9.3f  %9.6f   %8.4f/%8.4f    %8.4f/%8.4f    %-34s %s%s\n", i, r.energies.total,
                (r.energies.total - e0) * 1e3, r.s2, eps(r.epsa, nalpha_ - 1), eps(r.epsb, nbeta_ - 1),
-               eps(r.epsa, nalpha_), eps(r.epsb, nbeta_), by.c_str(), long(i) == seed_ ? "   <- seed" : "");
+               eps(r.epsa, nalpha_), eps(r.epsb, nbeta_), hess.c_str(), by.c_str(),
+               long(i) == seed_ ? "   <- seed" : "");
     }
     // IAO charges, and spin populations for open shells
     printf("\n IAO (minimal basis %s): charge%s per atom\n", minbasis_.c_str(), rhf ? "" : " / spin population");
@@ -322,6 +419,8 @@ nlohmann::json LCAOStateScan::to_json() const {
     j["starts"] = param_.scan_starts();
     j["scan_econv"] = param_.scan_econv();
     j["scan_dconv"] = param_.scan_dconv();
+    j["stability"] = param_.stability();
+    j["stability_tol"] = param_.stability_tol();
     j["seed"] = seed_;
     j["failed_starts"] = failed_;
     j["states"] = nlohmann::json::array();
@@ -338,6 +437,11 @@ nlohmann::json LCAOStateScan::to_json() const {
         s["found_by"] = states_[i].found_by;
         s["discovery_id"] = states_[i].id;
         s["degenerate_with"] = degenerate_partner(i);
+        s["stable"] = states_[i].stable;
+        s["stability"] = nlohmann::json::array();
+        for (const StabilityRoots& sr : states_[i].stability)
+            s["stability"].push_back({{"block", to_string(sr.block)}, {"eigenvalues", sr.eigenvalues},
+                                      {"converged", sr.converged}, {"products", sr.products}});
         s["populations"] = states_[i].populations;
         j["states"].push_back(s);
     }
