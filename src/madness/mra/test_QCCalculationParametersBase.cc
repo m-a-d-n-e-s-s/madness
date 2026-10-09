@@ -499,6 +499,26 @@ bool test_derived(World& world) {
 	return true;
 }
 
+/// a group starts at its header, the line whose first word is the tag; the tag as a
+/// value in an earlier group (`guess lcao` before the lcao group) used to be taken for
+/// the header, and that group's remaining lines (here maxiter 3) were read instead
+bool test_group_header(World& world) {
+	print("entering test_group_header");
+	const std::vector<std::string> decks={
+		"dft\n  guess mp3\n  maxiter 3\nend\n\nmp3\n  maxiter 7\nend",
+		"mp3\n  maxiter 7\nend\n\ndft\n  guess mp3\n  maxiter 3\nend",
+		"dft\n  guess mp3   # mp3 again in a comment\n  maxiter 3\nend\n  mp3\n  maxiter 7\nend"
+	};
+	for (const auto& deck : decks) {
+		inputfile ifile("input1",deck);
+		Parameters param;
+		commandlineparser parser;
+		parser.set_keyval("input","input1");
+		param.read_and_set_derived_values(world,parser,"mp3");
+		test_same(param.maxiter(),7);
+	}
+	return true;
+}
 
 
 
@@ -527,6 +547,7 @@ int main(int argc, char** argv) {
 		test_comment_lines(world);
 		test_empty_lines(world);
 		test_derived(world);
+		test_group_header(world);
 
 
 	} catch (std::exception& e) {

@@ -42,7 +42,8 @@ namespace madness {
     unsigned long checksum_file(const char* filename);
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind=true);
     std::istream& position_stream_to_word(std::istream& f, const std::string& tag,
-                                          const char comment='#', bool rewind=true, bool silent=false);
+                                          const char comment='#', bool rewind=true, bool silent=false,
+                                          bool first_word_only=false);
     std::string lowercase(const std::string& s);
     void gprofexit(int id, int nproc);
     /// creates a unique filename, using PBS ID if available
