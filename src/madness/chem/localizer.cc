@@ -72,7 +72,10 @@ template<typename T, std::size_t NDIM>
 Tensor<T> Localizer::compute_localization_matrix(World& world, const MolecularOrbitals<T, NDIM>& mo_in,
                                                  bool randomize) const {
     // localize using the reconstructed orbitals
-    std::vector<Function<T, NDIM>> psi = metric.is_initialized() ? metric * mo_in.get_mos() : mo_in.get_mos();
+    // the metric (nemo's R) is refined at every nucleus: screen the product where the orbital vanishes
+    std::vector<Function<T, NDIM>> psi = metric.is_initialized()
+            ? mul_sparse(world, metric, mo_in.get_mos(), FunctionDefaults<NDIM>::get_thresh() * 0.1)
+            : mo_in.get_mos();
 
     DistributedMatrix<T> dUT;
     if (method == "pm") {

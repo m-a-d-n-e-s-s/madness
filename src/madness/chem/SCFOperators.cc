@@ -276,15 +276,21 @@ std::vector<Function<T, NDIM> > Nuclear<T, NDIM>::operator()(const std::vector<F
     reconstruct(world, vket);
     vecfuncT vresult = zero_functions_compressed<T, NDIM>(world, vket.size());
 
+    // U1 and U2 are refined at every nucleus while each ket is local, so the dense
+    // product descends into the union of both trees and its cost grows with
+    // natom*nmo. Screen the box pairs where the ket vanishes, at the accuracy the
+    // SCF uses for its other local-potential products (SCF::vtol).
+    const double vtol = FunctionDefaults<NDIM>::get_thresh() * 0.1;
+
     // memory-saving algorithm: outer loop over the dimensions
     // apply the derivative operator on each function for each dimension
     for (std::size_t i = 0; i < NDIM; ++i) {
         vecfuncT dv = apply(world, *(gradop[i]), vket, true);
         truncate(world, dv);
-        vresult += truncate(ncf->U1(i % 3) * dv);
+        vresult += truncate(mul_sparse(world, ncf->U1(i % 3), dv, vtol));
     }
 
-    return truncate(vresult + ncf->U2() * vket);
+    return truncate(vresult + mul_sparse(world, ncf->U2(), vket, vtol));
 }
 
 

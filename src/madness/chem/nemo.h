@@ -92,8 +92,11 @@ public:
 
         if (nemo.size()==0) return;
         World& world=nemo[0].world();
-		// compute the norm of the reconstructed orbitals, includes the factor
-		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
+		// compute the norm of the reconstructed orbitals, includes the factor; the
+		// metric spans the molecule, the nemos are local: screened like the other
+		// nemo products (SCF::vtol)
+		std::vector<Function<T,NDIM> > mos = (metric.is_initialized())
+				? mul_sparse(world, metric, nemo, FunctionDefaults<NDIM>::get_thresh()*0.1) : nemo;
 		std::vector<double> norms = norm2s(world, mos);
 
 		// scale the nemos, excludes the nuclear correlation factor
@@ -148,7 +151,8 @@ public:
 	    normalize(nemo,metric);
 	    double maxq;
 	    do {
-			std::vector<Function<T,NDIM> > Rnemo = (metric.is_initialized()) ? metric*nemo : nemo;
+			std::vector<Function<T,NDIM> > Rnemo = (metric.is_initialized())
+					? mul_sparse(world, metric, nemo, FunctionDefaults<NDIM>::get_thresh()*0.1) : nemo;
 	        Tensor<T> Q = Q2(matrix_inner(world, Rnemo, Rnemo));
 	        maxq=0.0;
 	        for (int i=0; i<Q.dim(0); ++i)

@@ -426,7 +426,9 @@ public:
         }
 
         resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
-            return truncate(vcoul * arg);
+            // vcoul spans the molecule, each ket is local: screen like SCF's V*psi
+            const double vtol = FunctionDefaults<NDIM>::get_thresh() * 0.1;
+            return truncate(mul_sparse(vcoul.world(), vcoul, arg, vtol));
         }
     };
 

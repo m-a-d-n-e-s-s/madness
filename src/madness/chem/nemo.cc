@@ -537,8 +537,11 @@ double Nemo::solve(const SCFProtocol &proto) {
     MADNESS_CHECK_THROW(nemo.front().k() == FunctionDefaults<3>::get_k(),
                         "nemos are not at the current k -- set_protocol was skipped");
 
-  // NOTE that nemos are somewhat sensitive to sparse operations (why??)
-  // Therefore set all tolerance thresholds to zero, also in the mul_sparse
+  // R_square is refined at every nucleus while the nemos are local, so the dense
+  // R^2 F product descends into the union of both trees (cost ~ natom*nmo). It is
+  // screened at the SCF's vtol like moldft's V*psi; the same screening is applied
+  // to the regularized nuclear potential, the Coulomb batches, the localizer's
+  // metric product and the normalization and orthonormalization of the nemos.
 
   // apply all potentials (J, K, Vnuc) on the nemos
   vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, Unemo;
@@ -564,7 +567,7 @@ double Nemo::solve(const SCFProtocol &proto) {
       nemo = symmetry_projector(nemo, R_square, str_irreps);
     if (world.rank() == 0 and get_calc_param().print_level() > 9)
       print("orbital irreps", str_irreps);
-    vecfuncT R2nemo = mul(world, R_square, nemo);
+    vecfuncT R2nemo = mul_sparse(world, R_square, nemo, calc->vtol);
     truncate(world, R2nemo);
     if (iter == 0)
       solver.initialize(nemo);
