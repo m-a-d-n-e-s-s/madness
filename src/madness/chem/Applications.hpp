@@ -1205,6 +1205,8 @@ private:
         // silently lost. Written unconditionally -- an empty `pcm/end` block is
         // harmless, and PCMParameters is inert unless dft's pcm_data is set.
         in["pcm"] = params.get<PCMParameters>().to_json_if_precedence("defined");
+        // The same for `lcao`: `guess lcao` reads its settings from this file.
+        in["lcao"] = params.get<LCAOParameters>().to_json_if_precedence("defined");
         // `prefix` must be carried explicitly. It is the one parameter that is
         // DERIVED from information the engine cannot recompute -- the name of
         // the original input file (ParameterManager.hpp) -- and this round trip
@@ -1215,7 +1217,7 @@ private:
         // computes is re-derived identically by the SCF ctor.
         in["dft"]["prefix"] = cp.prefix();
         std::ofstream ofs("mad.in");
-        write_json_to_input_file(in, {"dft", "pcm"}, ofs);
+        write_json_to_input_file(in, {"dft", "pcm", "lcao"}, ofs);
         mol.print_defined_only(ofs);
       }
     }
