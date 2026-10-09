@@ -159,6 +159,10 @@ int main(int argc, char **argv) {
                 const nlohmann::json sc = calc.state_check(world);
                 if (world.rank() == 0 and not sc.empty())
                     update_schema(calc.param.prefix() + ".scf_info", {{"state_check", sc}});
+                // <S^2> of an unrestricted run
+                const nlohmann::json s2 = calc.spin_squared(world);
+                if (world.rank() == 0 and not s2.empty())
+                    update_schema(calc.param.prefix() + ".scf_info", {{"spin", s2}});
 
                 functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                 functionT brho = rho;

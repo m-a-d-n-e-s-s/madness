@@ -541,6 +541,14 @@ public:
     /// @return the result on every rank; empty when there is nothing to check
     nlohmann::json state_check(World& world) const;
 
+    /// the expectation value <S^2> of the unrestricted determinant of the occupied orbitals:
+    /// Sz(Sz+1) + N_beta - sum_ij n_i n_j |<alpha_i|beta_j>|^2, with the occupations n of aocc/bocc (so holes
+    /// count) and Sz = (N_alpha - N_beta)/2 (the same as Sz^2 + (N_alpha + N_beta)/2 - sum, for either sign of Sz).
+    /// Prints on rank 0.
+    /// @return {"s2", "s2_exact" = S(S+1) with S = |Sz|, "sz"} on every rank; empty for a restricted run (an
+    ///         eigenfunction of S^2)
+    nlohmann::json spin_squared(World& world) const;
+
     void vector_stats(const std::vector<double>& v, double& rms,
                       double& maxabsval) const;
 

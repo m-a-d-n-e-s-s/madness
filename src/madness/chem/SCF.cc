@@ -2111,6 +2111,31 @@ nlohmann::json SCF::state_check(World& world) const {
     return j;
 }
 
+nlohmann::json SCF::spin_squared(World& world) const {
+    if (param.spin_restricted()) return {};
+    PROFILE_MEMBER_FUNC(SCF);
+    nlohmann::json j;
+    try {
+        const double na = aocc.sum();
+        const double nb = param.have_beta() ? bocc.sum() : 0.0;
+        const double sz = 0.5 * (na - nb);
+        double s2 = sz * (sz + 1.0) + nb;
+        if (nb > 0.0) {
+            const tensorT S = matrix_inner(world, amo, bmo);
+            for (long i = 0; i < std::min(S.dim(0), aocc.size()); ++i)
+                for (long k = 0; k < std::min(S.dim(1), bocc.size()); ++k)
+                    s2 -= aocc(i) * bocc(k) * S(i, k) * S(i, k);
+        }
+        const double s = std::abs(sz);      // the pure spin state with this Sz: S = |Sz|
+        j = {{"s2", s2}, {"s2_exact", s * (s + 1.0)}, {"sz", sz}};
+        if (world.rank() == 0) printf("\n<S^2> = %.6f  (pure spin state %.6f, Sz = %.1f)\n", s2, s * (s + 1.0), sz);
+    } catch (const std::exception& e) {
+        if (world.rank() == 0) print("WARNING: <S^2> failed:", e.what());
+        j = nlohmann::json{{"error", std::string(e.what())}};
+    }
+    return j;
+}
+
 void SCF::vector_stats(const std::vector<double>& v, double& rms,
                        double& maxabsval) const {
     PROFILE_MEMBER_FUNC(SCF);
