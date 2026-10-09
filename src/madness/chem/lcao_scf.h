@@ -92,6 +92,9 @@ public:
         initialize<double>("dconv", 1.e-4, "convergence of the density matrix (rms change per element): guess "
                            "grade (the v1 reference numbers used 1e-8)");
         initialize<double>("damping", 0.0, "fraction of the previous density mixed into the new one");
+        initialize<double>("level_shift", 0.0, "shift (Eh) of the virtual space of each spin, F + s (S - S P S): "
+                           "Roothaan-Hall steps without DIIS until max|FPS - SPF| falls below 1e-3, then DIIS "
+                           "unshifted; converges SCFs that oscillate under DIIS (0: off)");
         initialize<int>("diis", 8, "DIIS subspace: Pulay extrapolation of the Fock matrix from this many "
                         "iterations (0: plain Roothaan-Hall)");
         initialize<double>("lindep", 1.e-7, "drop overlap eigenvalues below this (canonical orthogonalization)");
@@ -133,6 +136,7 @@ public:
     double econv() const { return get<double>("econv"); }
     double dconv() const { return get<double>("dconv"); }
     double damping() const { return get<double>("damping"); }
+    double level_shift() const { return get<double>("level_shift"); }
     int diis() const { return get<int>("diis"); }
     double lindep() const { return get<double>("lindep"); }
     int print_level() const { return get<int>("print_level"); }
@@ -142,11 +146,7 @@ public:
     bool check_cholesky() const { return get<bool>("check_cholesky"); }
     bool seed() const { return get<bool>("seed"); }
     int seed_rung() const { return get<int>("seed_rung"); }
-    std::vector<std::string> population() const {
-        std::vector<std::string> p = get<std::vector<std::string>>("population");
-        for (auto& s : p) s.erase(std::remove(s.begin(), s.end(), '"'), s.end());
-        return p;
-    }
+    std::vector<std::string> population() const { return get<std::vector<std::string>>("population"); }
 };
 
 namespace lcao {

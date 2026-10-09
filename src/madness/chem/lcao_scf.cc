@@ -414,6 +414,11 @@ double LCAOSCF::solve() {
 
     const double enuc = molecule_.nuclear_repulsion_energy();
     const double damping = param_.damping();
+    // level shift: Roothaan-Hall steps with the virtual space of each spin raised by sigma, F + sigma (S - S P S),
+    // and no DIIS, until the commutator error first falls below shift_off; then DIIS without the shift. DIIS
+    // during the shifted phase kept AlO, BC, CN, CP and PS oscillating (31_).
+    const double sigma = param_.level_shift(), shift_off = 1.e-3;
+    bool shift_on = sigma > 0.0, shifted = false;
     const long n = S_.dim(0);
     const Tensor<double> none;              // an empty Pb: closed shell
     Tensor<double> J, Ka, Kb;
@@ -441,12 +446,19 @@ double LCAOSCF::solve() {
             // one DIIS over both spins: shared coefficients for Fa and Fb
             const Tensor<double> ea = commutator_error(Fa, Pa), eb = commutator_error(Fb, Pb);
             errmax = std::max(ea.absmax(), eb.absmax());
-            if (param_.diis() > 0)
+            shift_on = shift_on and errmax > shift_off;
+            if (param_.diis() > 0 and not shift_on)
                 unstack(diis_extrapolate(stack(Fa, Fb), stack(ea, eb), param_.diis(), diis_f, diis_e), n, Fa, Fb);
         } else {
             const Tensor<double> e = commutator_error(Fa, Pa + Pb);
             errmax = e.absmax();
-            if (param_.diis() > 0) Fa = diis_extrapolate(Fa, e, param_.diis(), diis_f, diis_e);
+            shift_on = shift_on and errmax > shift_off;
+            if (param_.diis() > 0 and not shift_on) Fa = diis_extrapolate(Fa, e, param_.diis(), diis_f, diis_e);
+        }
+        shifted = root and shift_on;
+        if (shifted) {
+            Fa += sigma * (S_ - inner(S_, inner(Pa, S_)));
+            if (open) Fb += sigma * (S_ - inner(S_, inner(Pb, S_)));
         }
         const Tensor<double> Pa_new = diagonalize(Fa, nalpha_, Ca_, epsa_);
         Tensor<double> Pb_new;
@@ -460,7 +472,8 @@ double LCAOSCF::solve() {
         tdiag += wall_time() - td0;
         const double drms = ((Pa_new - Pa).normf() + (Pb_new - Pb).normf()) / double(n);
         const double de = etot - eold;
-        if (printme) printf("%5d  %18.10f  %12.4e  %12.4e  %12.4e\n", iter, etot, de, drms, errmax);
+        if (printme) printf("%5d  %18.10f  %12.4e  %12.4e  %12.4e%s\n", iter, etot, de, drms, errmax,
+                            shifted ? "  shifted" : "");
         Pa = (damping > 0.0) ? (1.0 - damping) * Pa_new + damping * Pa : Pa_new;
         Pb = (damping > 0.0) ? (1.0 - damping) * Pb_new + damping * Pb : Pb_new;
         eold = etot;
@@ -474,6 +487,18 @@ double LCAOSCF::solve() {
     }
     Pa_ = Pa;
     Pb_ = Pb;
+    // a shifted last diagonalization raised the virtual orbital energies by sigma (exactly so at
+    // self-consistency): report them unshifted. Rank 0 decided the shift; every rank holds the same
+    // orbital energies (diagonalize broadcasts them) and corrects its own copy.
+    int last_shifted = shifted ? 1 : 0;
+    if (sigma > 0.0 and collective_ and world_.size() > 1) world_.gop.broadcast(last_shifted, 0);
+    if (last_shifted) {
+        for (long i = nalpha_; i < epsa_.size(); ++i) epsa_(i) -= sigma;
+        if (open)
+            for (long i = nbeta_; i < epsb_.size(); ++i) epsb_(i) -= sigma;
+        else
+            epsb_ = epsa_;
+    }
 
     // the energy and its parts for the densities of the last J/K build, the last line of the
     // iteration table: no build for the final densities, which differ from them by the last step
