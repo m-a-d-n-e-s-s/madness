@@ -256,9 +256,17 @@ namespace madness {
         /// The rest-of-crystal kernel (OperatorInfo::images_only) at displacement l sums the free-space
         /// kernel at l + R 2^n over the lattice vectors R != 0 of the periodic axes, so it decays with this
         /// distance as an ordinary lattice-summed kernel decays with distsq_bc().
+        /// @note saturates: each axis contributes at most distsq_images_axis_max(), since from level 31 on the
+        ///       offset to the next-nearest image (~2^n boxes) squared does not fit; real_distsq_images() does not
         uint64_t distsq_images(const array_of_bools<NDIM>& is_periodic) const {
-          return distsq_images_impl(is_periodic, [](std::size_t, Translation la) -> uint64_t { return la * la; });
+          return distsq_images_impl(is_periodic, [](std::size_t, Translation la) -> uint64_t {
+            const uint64_t a = std::min(la < 0 ? uint64_t(0) - uint64_t(la) : uint64_t(la), distsq_images_axis_cap);
+            return a * a;
+          });
         }
+
+        /// the largest contribution of one axis to distsq_images(); NDIM <= 6 of them sum below 2^63
+        static constexpr uint64_t distsq_images_axis_max() { return distsq_images_axis_cap * distsq_images_axis_cap; }
 
         /// like real_distsq_bc() but to the nearest lattice image other than the home cell (see distsq_images())
         double real_distsq_images(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
@@ -282,6 +290,8 @@ namespace madness {
         }
 
       private:
+        static constexpr uint64_t distsq_images_axis_cap = uint64_t(1) << 30;  ///< |l| in boxes at which distsq_images() saturates
+
         /// min over R != 0 of sum_d axis_distsq(d, l_d + R_d 2^n), R_d = 0 along nonperiodic axes. The sum is
         /// separable, so the minimum takes the nearest image on every axis (as distsq_bc() does) unless that is
         /// R = 0 on every periodic axis; then exactly one periodic axis moves to its next-nearest image, the

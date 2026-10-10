@@ -788,6 +788,43 @@ int test_images_distance(World& world) {
     t.checkpoint(key(3, 0, 0).distsq_images(per) == 9 + 256,
                  "an unsummed axis adds its own distance");
   }
+  // deep levels, where the offset to the next-nearest image (~2^n boxes) squared does not fit in 64 bits:
+  // Displacements sorts every level up to 61 with this metric. The box metric saturates per axis, the
+  // real metric (double) does not; levels <= 60 keep the brute force's l + 3 * 2^n within Translation
+  {
+    const uint64_t cap = Key<NDIM>::distsq_images_axis_max();
+    const auto sat_axis = [cap](std::size_t, Translation l) {
+      const double a = std::abs(double(l));
+      return std::min(a * a, double(cap));
+    };
+    const array_of_bools<NDIM> per(false, false, true);
+    std::size_t nbad_deep = 0;
+    bool monotone = true;
+    for (Level n : {31, 32, 40, 60}) {
+      const Translation twon = Translation(1) << n;
+      const auto key = [n](Translation x, Translation z) { return Key<NDIM>(n, Vector<Translation, NDIM>{x, 0, z}); };
+      // l_z from the source (0) to one box from its image (2^n - 1): the box metric never increases
+      uint64_t prev = std::numeric_limits<uint64_t>::max();
+      for (Translation z : {Translation(0), Translation(1), twon >> 2, twon >> 1, twon - (Translation(1) << 20), twon - 2, twon - 1}) {
+        for (Translation x : {Translation(0), Translation(3)}) {
+          const Key<NDIM> k = key(x, z);
+          const double box = double(k.distsq_images(per)), box_bf = brute_force(k, per, sat_axis);
+          const double real = k.real_distsq_images(per, width), real_bf = brute_force(k, per, real_axis);
+          if (box != box_bf || std::abs(real - real_bf) > 1e-12 * std::max(1.0, real_bf)) {
+            if (++nbad_deep <= 5 && world.rank() == 0)
+              print("  mismatch: level", n, "l =", k.translation(), " boxes", box, "vs", box_bf, " real", real, "vs", real_bf);
+          }
+        }
+        const uint64_t d = key(0, z).distsq_images(per);
+        monotone = monotone && d <= prev;
+        prev = d;
+      }
+      monotone = monotone && prev == 1;
+    }
+    t.checkpoint(nbad_deep == 0, "levels 31..60: box metric saturates per axis, real metric matches the direct minimum");
+    t.checkpoint(monotone, "levels 31..60: box metric non-increasing from the source to one box from the image");
+    t.checkpoint(Key<NDIM>(40, Vector<Translation, NDIM>(0)).distsq_images(per) == cap, "level 40: the home displacement saturates");
+  }
   // without a periodic axis there is no image
   {
     bool threw = false;

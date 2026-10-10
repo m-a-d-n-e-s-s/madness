@@ -126,6 +126,8 @@ int check_near_face(World& world, double z0 = 7.2, const char* what = "source 1.
 /// kernel that is the block one box from an image along the narrowest summed axis, not along x: the axis-adjacent
 /// blocks all touch their image, and the narrower the axis the smaller the separations the block integrates over.
 /// Measured at k = 8: the x-adjacent block is 3.6x (100x18x30) and 3.4x (100x60x18) below the largest.
+/// With an infinite `N` the operator also carries the negated home-only terms of the truncated tail, which decay
+/// away from the source, not from an image; the bound and the image-ordered shell stop must hold with them too.
 int check_anisotropic(World& world, const std::array<double,3>& L, const std::array<bool,3>& periodic, const LatticeRange& N,
                       const std::string& label) {
     Tensor<double> cell(3,2);
@@ -170,6 +172,53 @@ int check_anisotropic(World& world, const std::array<double,3>& L, const std::ar
     return errors;
 }
 
+/// full == home + images with a Bloch phase exp(i k R) folded into the lattice sum: the images
+/// operator sums the same phases over R != 0, and home (no lattice sum) carries none
+int check_bloch(World& world, double kz) {
+    FunctionDefaults<3>::set_cubic_cell(-10.0, 10.0);
+    BoundaryConditions<3> bc(BC_FREE); bc(2,0) = bc(2,1) = BC_PERIODIC;
+    FunctionDefaults<3>::set_bc(bc);
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const std::array<LatticeRange,3> lr_full{LatticeRange(0), LatticeRange(0), LatticeRange(2)};
+    const std::array<LatticeRange,3> lr_home{LatticeRange(0), LatticeRange(0), LatticeRange(0)};
+    const Vector<double,3> bloch_k{0.0, 0.0, kz};
+
+    const auto fc = [](const coord_3d& r) { return double_complex(f_func(r), 0.0) * std::exp(double_complex(0.0, 0.3 * r[2])); };
+    complex_function_3d f = complex_factory_3d(world).functor(fc);
+    f.truncate();
+    OperatorInfo info(0.0, 1.e-4, thresh, OT_G12);
+    complex_convolution_3d full(world, info, lr_full, FunctionDefaults<3>::get_k(), false, bloch_k);
+    complex_convolution_3d home(world, info, lr_home, FunctionDefaults<3>::get_k(), false, bloch_k);
+    info.images_only = true;
+    complex_convolution_3d images(world, info, lr_full, FunctionDefaults<3>::get_k(), false, bloch_k);
+
+    complex_function_3d vfull = full(f), vhome = home(f), vimg = images(f);
+    const double err = (vfull - vhome - vimg).norm2();
+    int errors = 0;
+    if (world.rank() == 0)
+        print("  periodic z, N=2, bloch k_z =", kz, ": |full - home - images| =", err, "  |images f| =", vimg.norm2());
+    if (err > 20.0 * thresh) { if (world.rank() == 0) print("FAIL: identity violated with a Bloch phase"); ++errors; }
+    if (vimg.norm2() < 1.e-3) { if (world.rank() == 0) print("FAIL: images operator is (near) zero"); ++errors; }
+    return errors;
+}
+
+/// an operator assembled from the terms of a rest-of-crystal operator through the generic constructor would be
+/// screened as a kernel that decays away from the source; construction must refuse it
+int check_terms_rejected(World& world) {
+    FunctionDefaults<3>::set_cubic_cell(-10.0, 10.0);
+    BoundaryConditions<3> bc(BC_FREE); bc(2,0) = bc(2,1) = BC_PERIODIC;
+    FunctionDefaults<3>::set_bc(bc);
+    OperatorInfo info(0.0, 1.e-4, FunctionDefaults<3>::get_thresh(), OT_G12);
+    info.images_only = true;
+    real_convolution_3d images(world, info, {LatticeRange(0), LatticeRange(0), LatticeRange(2)});
+    bool threw = false;
+    try { real_convolution_3d copy(world, images.get_ops()); }
+    catch (const MadnessException&) { threw = true; }
+    if (world.rank() == 0) print("  generic constructor from rest-of-crystal terms throws:", threw);
+    if (!threw) { if (world.rank() == 0) print("FAIL: an operator built from rest-of-crystal terms was accepted"); return 1; }
+    return 0;
+}
+
 }   // namespace
 
 int main(int argc, char** argv) {
@@ -188,6 +237,11 @@ int main(int argc, char** argv) {
     errors += check_identity(world, {true,  true,  true}, LatticeRange(true), "periodic xyz, N=inf (7 patterns + dropped tail)");
     errors += check_anisotropic(world, {100, 18, 30}, {true, true, false}, LatticeRange(2), "100x18x30, periodic xy, N=2");
     errors += check_anisotropic(world, {100, 60, 18}, {true, true, true},  LatticeRange(1), "100x60x18, periodic xyz, N=1");
+    // infinite sums: the tail is folded into its neighbours (some axes not summed) or dropped (all summed)
+    errors += check_anisotropic(world, {100, 18, 30}, {true, true, false}, LatticeRange(true), "100x18x30, periodic xy, N=inf (folded tail)");
+    errors += check_anisotropic(world, {100, 60, 18}, {true, true, true},  LatticeRange(true), "100x60x18, periodic xyz, N=inf (dropped tail)");
+    errors += check_bloch(world, 0.7);
+    errors += check_terms_rejected(world);
     FunctionDefaults<3>::set_thresh(1.e-6);
     errors += check_near_face(world);
     // a nucleus on a cell facet: the projected density is split between the two faces and the

@@ -999,6 +999,15 @@ namespace madness {
               }
               lattice_summed_ = ops[0].lattice_summed();
             }
+            // a term whose 1D factors omit lattice images is part of a rest-of-crystal operator, which only
+            // initialize_images_only builds: assembled any other way (e.g. from the terms of one) the operator
+            // would be applied with the source-ordered displacements and screening and give a wrong potential
+            for (const auto& op : ops)
+              for (std::size_t d = 0; d != NDIM; ++d) {
+                const auto op1d = op.getop(d);
+                MADNESS_CHECK_THROW(images_only_ || !op1d || op1d->images == LatticeImages::all,
+                                    "SeparatedConvolution: a term omits lattice images (LatticeImages), but the operator was not built as rest-of-crystal (OperatorInfo::images_only)");
+              }
             // build the displacement lists this operator applies with now, on the constructing thread,
             // rather than in the first apply task to request them
             if (lattice_summed_.any()) get_disp(0);
@@ -1280,11 +1289,18 @@ namespace madness {
         double norm_bound(Level n, const Key<NDIM>& source_key) const {
             const auto& disp = get_disp(n);
             if (!images_only_) return norm(n, disp.front(), source_key);   // the zero displacement
+            // image-adjacent = touching an image (real distance 0, since Key::real_distsq_images measures the least
+            // distance between points of the boxes) and one box from it along one axis (box distance 1); corner
+            // neighbours, also at real distance 0, have box distance 2 or 3 and follow them in the list
             double result = 0.0;
+            std::size_t nadjacent = 0;
             for (const auto& d : disp) {
                 if (displacement_real_distsq(d) != 0.0 || displacement_distsq(d) != 1) break;
                 result = std::max(result, norm(n, d, source_key));
+                ++nadjacent;
             }
+            // an empty run would make this 0 and screen out every source node: the images potential would vanish
+            MADNESS_CHECK_THROW(nadjacent > 0, "SeparatedConvolution::norm_bound: the rest-of-crystal displacements do not start with the image-adjacent ones (see Displacements::sort_displacements_images)");
             return result;
         }
 
