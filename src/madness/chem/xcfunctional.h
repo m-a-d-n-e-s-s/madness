@@ -77,6 +77,9 @@ public:
         enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
         enum_sigma_pta_div_rho=14,      ///< \f$ \zeta_{\alpha}.\nabla\rho_{pt} \f$
         enum_sigma_ptb_div_rho=15,      ///< \f$ \zeta_{\beta}.\nabla\rho_{pt} \f$
+        // zeta slots: grad ln(rho_s), or grad ln(rho_s/R^2) when the xc op has a
+        // nuclear correlation factor and the U1 slots below are filled -- then
+        // make_libxc_args adds the -2 U1 pointwise. See XCOperator::zeta_regularized.
         enum_zetaa_x=16,        ///< \f$ \zeta_{a,x}=\partial/{\partial x} \ln(\rho_a)  \f$
         enum_zetaa_y=17,        ///< \f$ \zeta_{a,y}=\partial/{\partial y} \ln(\rho_a)  \f$
         enum_zetaa_z=18,        ///< \f$ \zeta_{a,z}=\partial/{\partial z} \ln(\rho_a)  \f$
@@ -506,15 +509,17 @@ struct nemo_u1_functors {
     nemo_u1_functors() : cdata(madness::FunctionCommonData<double,3>::get(
                                        madness::FunctionDefaults<3>::get_k())) {}
 
-    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors
+    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors --
+    ///                optionally followed by R^2: then the density slots hold rho_reg and
+    ///                append() rebuilds rho = R^2 rho_reg (XCOperator::density_regularized)
     explicit nemo_u1_functors(const std::vector<std::shared_ptr<functorT> >& u1)
             : f(u1), cdata(madness::FunctionCommonData<double,3>::get(
                                    madness::FunctionDefaults<3>::get_k())) {
-        MADNESS_CHECK_THROW(f.empty() or f.size()==4,
-                            "nemo_u1_functors wants U1_{x,y,z} and |U1|^2, in that order");
+        MADNESS_CHECK_THROW(f.empty() or f.size()==4 or f.size()==5,
+                            "nemo_u1_functors wants U1_{x,y,z}, |U1|^2 and optionally R^2, in that order");
     }
 
-    bool active() const {return f.size()==4;}
+    bool active() const {return f.size()>=4;}
 
     /// write U1 and |U1|^2 at this box's quadrature points into t[enum_u1*]
     void append(const madness::Key<3>& key,
@@ -538,9 +543,10 @@ struct nemo_u1_functors {
         const madness::Tensor<double>& cw = madness::FunctionDefaults<3>::get_cell_width();
 
         const long dims[3] = {npt, npt, npt};
-        madness::Tensor<double> v[4];
-        double* p[4];
-        for (int q = 0; q < 4; ++q) {
+        const int nf = f.size();
+        madness::Tensor<double> v[5];
+        double* p[5];
+        for (int q = 0; q < nf; ++q) {
             v[q] = madness::Tensor<double>(3L, dims);
             p[q] = v[q].ptr();
         }
@@ -555,7 +561,7 @@ struct nemo_u1_functors {
                 c[1] = cell(1,0) + h*cw[1]*(key.translation()[1] + qx(j));
                 for (long k = 0; k < npt; ++k, ++idx) {
                     c[2] = cell(2,0) + h*cw[2]*(key.translation()[2] + qx(k));
-                    for (int q = 0; q < 4; ++q) p[q][idx] = (*f[q])(c);
+                    for (int q = 0; q < nf; ++q) p[q][idx] = (*f[q])(c);
                 }
             }
         }
@@ -563,6 +569,18 @@ struct nemo_u1_functors {
         t[XCfunctional::enum_u1_y]  = v[1];
         t[XCfunctional::enum_u1_z]  = v[2];
         t[XCfunctional::enum_u1sq]  = v[3];
+        if (nf == 5) {
+            // the density slots hold rho_reg: rho = R^2 rho_reg, here, at the points.
+            // New tensors -- t is a shallow copy of the op's input, so the Function's
+            // own coefficients must not be scaled in place.
+            t[XCfunctional::enum_nemo_R2] = v[4];
+            for (int e : {XCfunctional::enum_rhoa, XCfunctional::enum_rhob}) {
+                if (not t[e].size()) continue;
+                madness::Tensor<double> r = madness::copy(t[e]);
+                r.emul(v[4]);
+                t[e] = r;
+            }
+        }
     }
 
     std::vector<std::shared_ptr<functorT> > f;
@@ -630,9 +648,15 @@ struct xc_kernel_apply {
     const XCfunctional* xc;
     const int ispin;
     const FunctionCommonData<double,3>& cdata;
+    nemo_u1_functors u1;      ///< empty unless zeta is regularized, see make_libxc_args
 
     xc_kernel_apply(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin),
           cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())) {
+        MADNESS_ASSERT(ispin==0);   // closed shell only!
+    }
+    xc_kernel_apply(const XCfunctional& xc, int ispin, const nemo_u1_functors& u1)
+        : xc(&xc), ispin(ispin),
+          cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())), u1(u1) {
         MADNESS_ASSERT(ispin==0);   // closed shell only!
     }
 
@@ -645,8 +669,10 @@ struct xc_kernel_apply {
     std::vector<madness::Tensor<double> > operator()(const madness::Key<3> & key,
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
-        std::vector<madness::Tensor<double> > r = xc->fxc_apply(t, ispin);
-        return r;
+        if (not u1.active()) return xc->fxc_apply(t, ispin);
+        std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
+        u1.append(key, tt);
+        return xc->fxc_apply(tt, ispin);
     }
 };
 

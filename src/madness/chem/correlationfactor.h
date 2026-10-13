@@ -361,6 +361,20 @@ public:
 
 public:
 
+	/// the unit vector of U1: exact, or smoothed within eprec of the nucleus
+
+	/// The smoothing exists only so that U1 can be projected onto a tree. A caller
+	/// that evaluates U1 pointwise at quadrature points (the xc functionals, see
+	/// XCOperator::make_u1_functors) needs none of it: the exact r_hat is bounded,
+	/// and smoothed_unitvec's polynomial overshoots 1 by 10.7 % at r = eprec/sqrt(3),
+	/// which puts a spike of 22 % into sigma = |grad rho|^2 at every nucleus.
+	coord_3d unitvec(const coord_3d& xyz, const bool exact) const {
+		if (not exact) return smoothed_unitvec(xyz);
+		const double r=xyz.normf();
+		if (r==0.0) return coord_3d{0.0,0.0,0.0};
+		return (1.0/r)*xyz;
+	}
+
 	/// smoothed unit vector for the computation of the U1 potential
 
     /// note the identity for exchanging nuclear and electronic coordinates
@@ -547,10 +561,12 @@ public:
 
 		const NuclearCorrelationFactor* ncf;
 		const int axis;
+		const bool exact_unitvec;	///< see NuclearCorrelationFactor::unitvec
 
 	public:
-		U1_functor(const NuclearCorrelationFactor* ncf, const int axis)
-			: ncf(ncf), axis(axis) {}
+		U1_functor(const NuclearCorrelationFactor* ncf, const int axis,
+				const bool exact_unitvec=false)
+			: ncf(ncf), axis(axis), exact_unitvec(exact_unitvec) {}
 
 
         using FunctionFunctorInterface<double,3>::operator();
@@ -574,7 +590,7 @@ public:
 				const double r=vr1A.normf();
 				const double& Z=atom.q;
 //				result-=(ncf->Sp(vr1A,Z)[axis]/ncf->S(r,Z));
-				result-=ncf->Sr_div_S(r,Z)*ncf->smoothed_unitvec(vr1A)[axis];
+				result-=ncf->Sr_div_S(r,Z)*ncf->unitvec(vr1A,exact_unitvec)[axis];
 			}
 			return result;
 		}
@@ -628,9 +644,11 @@ public:
     class U1_dot_U1_functor : public FunctionFunctorInterface<double,3> {
 
         const NuclearCorrelationFactor* ncf;
+        const bool exact_unitvec;   ///< see NuclearCorrelationFactor::unitvec
 
     public:
-        U1_dot_U1_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
+        U1_dot_U1_functor(const NuclearCorrelationFactor* ncf, const bool exact_unitvec=false)
+            : ncf(ncf), exact_unitvec(exact_unitvec) {}
 
         using FunctionFunctorInterface<double,3>::operator();
         double operator()(const coord_3d& xyz) const override {
@@ -655,7 +673,7 @@ public:
                 const Atom& atom=ncf->molecule.get_atom(i);
                 const coord_3d vr1A=xyz-atom.get_coords();
                 const double d=ncf->Sr_div_S(vr1A.normf(),atom.q);
-                const coord_3d n=ncf->smoothed_unitvec(vr1A);
+            	const coord_3d n=ncf->unitvec(vr1A,exact_unitvec);
                 double nn=0.0;
                 for (int axis=0; axis<3; ++axis) {
                     u[axis]+=d*n[axis];

@@ -737,11 +737,13 @@ public:
     /// @param[in] arho_reg,brho_reg  the regularized densities rho_s/R^2, which let
     ///                               prep_xc_args build zeta without putting the
     ///                               nuclear cusp under a numerical derivative
+    /// @param[in] r2_pointwise_      hand rho_reg to the functional and supply R^2 at the
+    ///                               quadrature points from its functor, see density_regularized
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
                const real_function_3d& arho, const real_function_3d& brho,
                std::shared_ptr<NuclearCorrelationFactor> ncf_,
                const real_function_3d& arho_reg_, const real_function_3d& brho_reg_,
-               std::string deriv="abgv");
+               std::string deriv="abgv", const bool r2_pointwise_=false);
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
@@ -974,6 +976,26 @@ private:
     /// divergence of a vector field, honouring dft_deriv
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
 
+    /// the zeta slots of xc_args hold grad log(rho_reg) alone, without the -2 U1
+
+    /// Set by prep_xc_args when the regularized densities are supplied. U1 is then
+    /// never projected for zeta: make_u1_functors() hands the analytic functor to the
+    /// pointwise ops, and make_libxc_args adds -2 U1 at the quadrature points.
+    mutable bool zeta_regularized=false;
+
+    /// the user asked for R^2 pointwise: CalculationParameters::xc_r2_pointwise()
+    bool r2_pointwise=false;
+
+    /// the density slots of xc_args hold rho_reg = rho/R^2, not rho
+
+    /// Set by prep_xc_args when r2_pointwise is requested and the regularized densities
+    /// are supplied. R^2 carries the nuclear cusp and as a projected Function needs
+    /// depth ~19 at every nucleus; refine_to_common_level then imposes that depth on all
+    /// xc intermediates. Instead the pointwise ops get R^2 from its functor and rebuild
+    /// rho = R^2 rho_reg at the quadrature points (nemo_u1_functors::append), and the
+    /// common level stays at the depth of the regularized quantities.
+    mutable bool density_regularized=false;
+
     /// caller has opted in to the weak form, see allow_weak_form()
     bool weak_form_ok=false;
 
@@ -1009,9 +1031,11 @@ private:
     /// @return xc_args vector of intermediates as described above
     /// compute the intermediates for the XC functionals
 
-    /// If the regularized densities are supplied, zeta = grad log(rho) is built as
+    /// If the regularized densities are supplied, zeta = grad log(rho) is
     /// grad log(rho_reg) - 2 U1 -- exact, and it keeps the nuclear cusp of
-    /// rho = R^2 rho_reg out from under the numerical derivative.
+    /// rho = R^2 rho_reg out from under the numerical derivative. Only
+    /// grad log(rho_reg) is stored (zeta_regularized is set); the -2 U1 is added at
+    /// the quadrature points from the analytic functor, see make_u1_functors().
     vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
                           const real_function_3d& arho_reg = real_function_3d(),
                           const real_function_3d& brho_reg = real_function_3d()) const;

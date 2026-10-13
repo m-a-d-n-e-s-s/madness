@@ -396,6 +396,31 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
 }
 
 
+/// U1 at this box's quadrature points, if the op supplied it, else NULLs
+
+/// With a nuclear correlation factor the zeta slots hold grad log(rho_reg) only
+/// (XCOperator::zeta_regularized), and zeta = grad log(rho_reg) - 2 U1 is completed
+/// here, at the points, from the analytic functor -- U1 is never projected. On the
+/// split route (tau pieces present) zeta is not read at all, and without an ncf the
+/// U1 slots are empty and zeta is used as it stands.
+struct zeta_u1 {
+    const double* u[3] = {nullptr, nullptr, nullptr};
+    explicit zeta_u1(const std::vector<madness::Tensor<double> >& t) {
+        if (long(t.size()) <= XCfunctional::enum_u1sq) return;
+        if (not t[XCfunctional::enum_u1_x].size()) return;
+        for (int ax=0; ax<3; ++ax) u[ax] = t[XCfunctional::enum_u1_x+ax].ptr();
+    }
+    bool active() const {return u[0] != nullptr;}
+    /// the complete zeta at point i, from the stored components
+    void apply(const double* zx, const double* zy, const double* zz, const long i,
+               double& x, double& y, double& z) const {
+        x = zx[i]; y = zy[i]; z = zz[i];
+        if (not active()) return;
+        x -= 2.0*u[0][i]; y -= 2.0*u[1][i]; z -= 2.0*u[2][i];
+    }
+};
+
+
 /// assemble the arguments libxc is evaluated on, munged and floored
 
 /// MUNGING, IN ONE PLACE
@@ -513,6 +538,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             const std::vector<madness::Tensor<double> > dnemo =
                     assemble_nemo_ddens(xc_args, np, false);
 
+            const zeta_u1 zu1(xc_args);
             for (long i=0; i<np; i++) {
                 dens[i]=munge(2.0*rhoa[i]);     // full dens is twice alpha dens
                 // one mask per point, applied to BOTH the gradient and the sigma
@@ -520,16 +546,18 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 // density here
                 const double m = (2.0*rhoa[i] <= rhotol) ? 0.0 : 1.0;
                 if (dnemo.empty()) {
-                    ddensx[i]=m*dens[i]*zetaa_x[i];
-                    ddensy[i]=m*dens[i]*zetaa_y[i];
-                    ddensz[i]=m*dens[i]*zetaa_z[i];
+                    double zx, zy, zz;
+                    zu1.apply(zetaa_x, zetaa_y, zetaa_z, i, zx, zy, zz);
+                    ddensx[i]=m*dens[i]*zx;
+                    ddensy[i]=m*dens[i]*zy;
+                    ddensz[i]=m*dens[i]*zz;
                     // sigma = |grad rho|^2 contracted from the very gradient handed to
                     // libxc, not read from a separately represented chi -- see chi_of().
                     // The positivity floor must not fire where munge() has already taken
                     // the density away: grad(rho) is zero there, so (rho=0, sigma=1e-14)
                     // is a state no density can be in, and the exact bound
                     // tau >= sigma/(8 rho) becomes unsatisfiable rather than merely tight.
-                    sig[i] = m*std::max(1.e-14,dens[i]*dens[i]*chi_of(zetaa_x,zetaa_y,zetaa_z,i));
+                    sig[i] = m*std::max(1.e-14,dens[i]*dens[i]*(zx*zx + zy*zy + zz*zz));
                 } else {
                     // the pieces are per spin, and the total is twice the alpha one
                     const double gx = 2.0*dnemo[0].ptr()[i];
@@ -603,9 +631,18 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 double * MADNESS_RESTRICT dens_pt = rho_pt.ptr();
                 double * MADNESS_RESTRICT sig_pt = sigma_pt.ptr();
 
+                // regularized zeta: contract zeta.grad(rho_pt) here, with the -2 U1;
+                // prep_xc_args_response then leaves enum_sigma_pta_div_rho unset
+                const zeta_u1 zu1(xc_args);
                 for (long i=0; i<np; i++) {
                     dens_pt[i] = binary_munge(rho_pt1[i],rhoa[i],rhotol);  // no factor 2
-                    sig_pt[i] = dens[i]*sig_pt1[i];
+                    if (zu1.active()) {
+                        double zx, zy, zz;
+                        zu1.apply(zetaa_x, zetaa_y, zetaa_z, i, zx, zy, zz);
+                        sig_pt[i] = dens[i]*(zx*drho_ptx1[i] + zy*drho_pty1[i] + zz*drho_ptz1[i]);
+                    } else {
+                        sig_pt[i] = dens[i]*sig_pt1[i];
+                    }
                     ddens_ptx[i] = binary_munge(drho_ptx1[i],rhoa[i],rhotol);  // no factor 2
                     ddens_pty[i] = binary_munge(drho_pty1[i],rhoa[i],rhotol);  // no factor 2
                     ddens_ptz[i] = binary_munge(drho_ptz1[i],rhoa[i],rhotol);  // no factor 2
@@ -688,6 +725,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                     assemble_nemo_ddens(xc_args, np, true);
             const bool split = (not dna.empty()) and (not dnb.empty());
 
+            const zeta_u1 zu1(xc_args);
             for (long i=0; i<np; i++) {
 
                 double ra=munge(rhoa[i]);
@@ -701,17 +739,22 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 const double ma = (rhoa[i] <= rhotol) ? 0.0 : 1.0;
                 const double mb = (rhob[i] <= rhotol) ? 0.0 : 1.0;
 
+                // zeta as completed for this point (with -2 U1 when regularized);
+                // only read on the zeta route
+                double zax=0.0, zay=0.0, zaz=0.0, zbx=0.0, zby=0.0, zbz=0.0;
                 if (split) {
                     ddensx[2*i  ]=ma*dna[0].ptr()[i];  ddensx[2*i+1]=mb*dnb[0].ptr()[i];
                     ddensy[2*i  ]=ma*dna[1].ptr()[i];  ddensy[2*i+1]=mb*dnb[1].ptr()[i];
                     ddensz[2*i  ]=ma*dna[2].ptr()[i];  ddensz[2*i+1]=mb*dnb[2].ptr()[i];
                 } else {
-                    ddensx[2*i  ]=ma * ra * zetaa_x[i];
-                    ddensx[2*i+1]=mb * rb * zetab_x[i];
-                    ddensy[2*i  ]=ma * ra * zetaa_y[i];
-                    ddensy[2*i+1]=mb * rb * zetab_y[i];
-                    ddensz[2*i  ]=ma * ra * zetaa_z[i];
-                    ddensz[2*i+1]=mb * rb * zetab_z[i];
+                    zu1.apply(zetaa_x, zetaa_y, zetaa_z, i, zax, zay, zaz);
+                    zu1.apply(zetab_x, zetab_y, zetab_z, i, zbx, zby, zbz);
+                    ddensx[2*i  ]=ma * ra * zax;
+                    ddensx[2*i+1]=mb * rb * zbx;
+                    ddensy[2*i  ]=ma * ra * zay;
+                    ddensy[2*i+1]=mb * rb * zby;
+                    ddensz[2*i  ]=ma * ra * zaz;
+                    ddensz[2*i+1]=mb * rb * zbz;
                 }
 
                 // Contract the sigma matrix from the same zeta vectors, so that it is
@@ -731,13 +774,12 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                     sab = ddensx[2*i  ]*ddensx[2*i+1] + ddensy[2*i  ]*ddensy[2*i+1]
                         + ddensz[2*i  ]*ddensz[2*i+1];
                 } else {
-                    saa = ra * ra * chi_of(zetaa_x,zetaa_y,zetaa_z,i);
-                    sbb = rb * rb * chi_of(zetab_x,zetab_y,zetab_z,i);
+                    saa = ra * ra * (zax*zax + zay*zay + zaz*zaz);
+                    sbb = rb * rb * (zbx*zbx + zby*zby + zbz*zbz);
                     // sigma_ab = grad(rho_a).grad(rho_b) is bilinear and may
                     // legitimately be negative; only its magnitude is bounded.
                     // Do not clamp the sign.
-                    sab = ra * rb * chi_of(zetaa_x,zetaa_y,zetaa_z,
-                                           zetab_x,zetab_y,zetab_z,i);
+                    sab = ra * rb * (zax*zbx + zay*zby + zaz*zbz);
                 }
                 // the positivity floor is for libxc's benefit; raising a diagonal
                 // could break Cauchy-Schwarz on its own, so re-impose the bound after

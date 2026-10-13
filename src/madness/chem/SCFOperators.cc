@@ -400,9 +400,9 @@ XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool sp
                                 const real_function_3d &arho, const real_function_3d &brho,
                                 std::shared_ptr<NuclearCorrelationFactor> ncf_,
                                 const real_function_3d &arho_reg_, const real_function_3d &brho_reg_,
-                                std::string deriv)
+                                std::string deriv, const bool r2_pointwise_)
         : world(world), dft_deriv(deriv), nbeta(0), ispin(0),
-          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01), r2_pointwise(r2_pointwise_) {
 
     nbeta = (brho.norm2() > 0.0);
 
@@ -453,19 +453,21 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
     weak_gga = nemo->get_calc()->param.xc_weak_gga();
+    r2_pointwise = nemo->get_calc()->param.xc_r2_pointwise();
 
     ncf = nemo->ncf;
 
     nbeta = nemo->get_calc()->param.nbeta();
     const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
-    // compute the alpha and beta densities
+    // compute the alpha and beta densities; with R^2 pointwise the physical density
+    // is never formed as a Function (see density_regularized)
     real_function_3d arho, brho, brhonemo;
     real_function_3d arhonemo = nemo->make_density(nemo->get_calc()->aocc, nemo->get_calc()->amo);
-    arho = (arhonemo * nemo->R_square).truncate(extra_truncation);
+    arho = r2_pointwise ? arhonemo : (arhonemo * nemo->R_square).truncate(extra_truncation);
     if (have_beta) {
         brhonemo = nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo);
-        brho = (brhonemo * nemo->R_square).truncate(extra_truncation);
+        brho = r2_pointwise ? brhonemo : (brhonemo * nemo->R_square).truncate(extra_truncation);
     } else {
         brho = arho;
         brhonemo = arhonemo;
@@ -554,7 +556,8 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
             NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
             U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
         }
-        R_square = ncf->square();
+        // pointwise route with R^2 from its functor: no projected R^2 at all
+        if (u1_as_functions or not density_regularized) R_square = ncf->square();
     }
 
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
@@ -661,7 +664,8 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
     };
 
     if (ncf and u1mode == TauU1::pointwise) {
-        xc_args[XCfunctional::enum_nemo_R2] = R_square;
+        // with density_regularized the op fills this slot from the R^2 functor
+        if (not density_regularized) xc_args[XCfunctional::enum_nemo_R2] = R_square;
         store_pieces(pa, false);
         if (have_beta) store_pieces(pb, true);
     } else {
@@ -962,7 +966,7 @@ template<typename T, std::size_t NDIM>
 bool XCOperator<T, NDIM>::has_tau_args() const {
     if (xc_args[XCfunctional::enum_taua].is_initialized()) return true;      // moldft / mra route
     return xc_args[XCfunctional::enum_gradfa].is_initialized()               // pointwise route
-       and xc_args[XCfunctional::enum_nemo_R2].is_initialized();
+       and (xc_args[XCfunctional::enum_nemo_R2].is_initialized() or density_regularized);
 }
 
 
@@ -971,13 +975,23 @@ template<typename T, std::size_t NDIM>
 nemo_u1_functors XCOperator<T, NDIM>::make_u1_functors() const {
     typedef FunctionFunctorInterface<double, 3> functorT;
     if (not ncf) return nemo_u1_functors();
-    if (not xc_args[XCfunctional::enum_gradfa].is_initialized()) return nemo_u1_functors();
+    // needed by the pointwise tau pieces and by a regularized zeta, nothing else
+    if (not (xc_args[XCfunctional::enum_gradfa].is_initialized() or zeta_regularized
+             or density_regularized))
+        return nemo_u1_functors();
+    // evaluated only at quadrature points, never projected: the exact unit vector,
+    // not the eprec-smoothed one (whose polynomial overshoots, see
+    // NuclearCorrelationFactor::unitvec), so that U1, |U1|^2 and the step of sigma
+    // at the nucleus are all exact
     std::vector<std::shared_ptr<functorT> > f;
     for (int axis = 0; axis < 3; ++axis)
         f.push_back(std::shared_ptr<functorT>(
-                new NuclearCorrelationFactor::U1_functor(ncf.get(), axis)));
+                new NuclearCorrelationFactor::U1_functor(ncf.get(), axis, true)));
     f.push_back(std::shared_ptr<functorT>(
-            new NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get())));
+            new NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get(), true)));
+    // R^2 too, when the density slots hold rho_reg: the op rebuilds rho = R^2 rho_reg
+    if (density_regularized)
+        f.push_back(std::shared_ptr<functorT>(new NuclearCorrelationFactor::R_functor(ncf.get(), 2)));
     return nemo_u1_functors(f);
 }
 
@@ -1106,7 +1120,7 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d &de
     refine_to_common_level(world, xc_args);
 
     // compute all the contributions to the xc kernel
-    xc_kernel_apply op(*xc, ispin);
+    xc_kernel_apply op(*xc, ispin, make_u1_functors());
     const vecfuncT intermediates = multi_to_multi_op_values(op, xc_args);
 
     // lda potential and local parts of the gga potential
@@ -1139,9 +1153,13 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
     vecfuncT xcargs(XCfunctional::number_xc_args);
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
-    // assign the densities (alpha, beta)
-    xcargs[XCfunctional::enum_rhoa] = copy(arho.reconstruct());      // alpha density
-    if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(brho.reconstruct());  // beta density
+    // assign the densities (alpha, beta) -- or rho_reg, with R^2 supplied pointwise
+    density_regularized = ncf and r2_pointwise and arho_reg_in.is_initialized()
+                          and ((not have_beta) or brho_reg_in.is_initialized());
+    const real_function_3d& ra = density_regularized ? arho_reg_in : arho;
+    const real_function_3d& rb = density_regularized ? brho_reg_in : brho;
+    xcargs[XCfunctional::enum_rhoa] = copy(ra.reconstruct());      // alpha density
+    if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(rb.reconstruct());  // beta density
     world.gop.fence();
 
     // zeta_sigma = grad(ln rho_sigma), so that grad(rho_sigma) = rho_sigma zeta_sigma
@@ -1168,17 +1186,18 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
         // avoid: the kink forces refinement to the finest level and the O(thresh)
         // noise it leaves there is amplified by 2^n by the derivative. Only the
         // cusp-free rho_reg is differentiated here.
-        const bool regularized_zeta = bool(ncf);
-        vecfuncT U1;
-        if (regularized_zeta) U1 = ncf->U1vec();
-
+        //
+        // Only grad log(rho_reg) is stored. U1 is componentwise non-smooth at every
+        // nucleus (U1_x ~ x/r), so as a projected Function it needs depth ~20 and
+        // rings across the box wherever the tree is coarser; the -2 U1 is instead
+        // added at the quadrature points from the analytic functor, exactly as for
+        // tau on the pointwise route (make_u1_functors, make_libxc_args).
         auto make_zeta = [&](const real_function_3d& rho,
                              const real_function_3d& rho_reg) {
-            if (regularized_zeta and rho_reg.is_initialized()) {
+            if (ncf and rho_reg.is_initialized()) {
+                zeta_regularized = true;
                 real_function_3d logdens = unary_op(rho_reg, logme());
-                vecfuncT zeta = grad_variant(logdens);
-                for (int axis = 0; axis < 3; ++axis) zeta[axis] -= 2.0 * U1[axis];
-                return zeta;
+                return grad_variant(logdens);
             }
             real_function_3d logdens = unary_op(rho, logme());
             return grad_variant(logdens);
@@ -1231,6 +1250,15 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
         xc_args[XCfunctional::enum_ddens_ptx] = ddens_pt[0];
         xc_args[XCfunctional::enum_ddens_pty] = ddens_pt[1];
         xc_args[XCfunctional::enum_ddens_ptz] = ddens_pt[2];
+
+        // With a regularized zeta the slots lack the -2 U1, so a projected dot
+        // product would be wrong; make_libxc_args contracts sigma_pt pointwise from
+        // the corrected zeta and ddens_pt instead.
+        if (zeta_regularized) {
+            world.gop.fence();
+            truncate(world, xc_args, extra_truncation);
+            return;
+        }
 
         std::vector<real_function_3d> zeta(3);
         zeta[0] = xc_args[XCfunctional::enum_zetaa_x];
