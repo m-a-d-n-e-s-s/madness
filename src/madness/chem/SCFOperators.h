@@ -807,6 +807,20 @@ public:
     /// override CalculationParameters::xc_weak_gga(), for callers without one
     XCOperator& set_weak_gga(const bool flag) {weak_gga=flag; return *this;}
 
+    /// override CalculationParameters::xc_special_lo(), for callers without one
+    XCOperator& set_special_lo(const double lo) {special_lo=lo; return *this;}
+
+    /// the points refine_xc_args_at_nuclei() refines at; the nuclei of the molecule
+
+    /// Filled by the SCF ctors from the molecule; on the nemo route the nuclei are taken
+    /// from the correlation factor if this is empty. For callers without either.
+    XCOperator& set_special_points(const std::vector<Vector<double,3> >& p) {special_points=p; return *this;}
+
+    /// the special level the xc intermediates are refined to at the nuclei; -1: off
+    int get_special_level() const {
+        return (special_lo > 0.0) ? FunctionDefaults<3>::set_length_scale(special_lo) : -1;
+    }
+
     /// true if this operator is running in weak form, i.e. make_xc_potential()
     /// returns only de/drho and the flux is carried separately
 
@@ -995,6 +1009,20 @@ private:
     /// rho = R^2 rho_reg at the quadrature points (nemo_u1_functors::append), and the
     /// common level stays at the depth of the regularized quantities.
     mutable bool density_regularized=false;
+
+    /// minimum length scale resolved at the nuclei: CalculationParameters::xc_special_lo()
+
+    /// After refine_to_common_level the xc intermediates are refined further at every
+    /// nucleus (the box containing it and its neighbours) to the level
+    /// FunctionDefaults<3>::set_length_scale(special_lo). Meant for xc_r2_pointwise, where
+    /// nothing else forces the trees deep there. 0: off.
+    double special_lo=0.0;
+
+    /// where refine_xc_args_at_nuclei() refines, see set_special_points()
+    std::vector<Vector<double,3> > special_points;
+
+    /// refine the xc intermediates at the nuclei to get_special_level(), see special_lo
+    void refine_xc_args_at_nuclei() const;
 
     /// caller has opted in to the weak form, see allow_weak_form()
     bool weak_form_ok=false;

@@ -432,6 +432,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, int ispin, std::s
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     nbeta = calc->param.nbeta();
+    special_lo = calc->param.xc_special_lo();
+    special_points = calc->molecule.get_all_coords_vec();
     const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
     // compute the alpha and beta densities
@@ -454,6 +456,7 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
                    !nemo->get_calc()->param.spin_restricted(), world);
     weak_gga = nemo->get_calc()->param.xc_weak_gga();
     r2_pointwise = nemo->get_calc()->param.xc_r2_pointwise();
+    special_lo = nemo->get_calc()->param.xc_special_lo();
 
     ncf = nemo->ncf;
 
@@ -486,6 +489,8 @@ XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, const real_functi
           extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
+    special_lo = calc->param.xc_special_lo();
+    special_points = calc->molecule.get_all_coords_vec();
     xc_args = prep_xc_args(arho, brho);
 }
 
@@ -953,6 +958,7 @@ double XCOperator<T, NDIM>::compute_xc_energy() const {
     }
 
     refine_to_common_level(world, xc_args);
+    refine_xc_args_at_nuclei();
     real_function_3d vlda = multiop_values<double, xc_functional, 3>
             (xc_functional(*xc, make_u1_functors()), xc_args);
     truncate(world, xc_args);
@@ -967,6 +973,65 @@ bool XCOperator<T, NDIM>::has_tau_args() const {
     if (xc_args[XCfunctional::enum_taua].is_initialized()) return true;      // moldft / mra route
     return xc_args[XCfunctional::enum_gradfa].is_initialized()               // pointwise route
        and (xc_args[XCfunctional::enum_nemo_R2].is_initialized() or density_regularized);
+}
+
+
+namespace {
+/// split a leaf box below `level` if it contains, or neighbours the box containing, one of
+/// the points (simulation coordinates) -- the boxes FunctionFactory::special_points refines
+struct refine_at_points_op {
+    int level=0;
+    std::vector<Vector<double,3> > pts;
+    template <typename implT, typename keyT, typename nodeT>
+    bool operator()(const implT* f, const keyT& key, const nodeT& t) const {
+        if (key.level() >= level) return false;
+        const double two_n = std::pow(2.0, key.level());
+        for (const auto& p : pts) {
+            bool near = true;
+            for (int d = 0; d < 3; ++d) {
+                const long lp = std::min(long(p[d] * two_n), long(two_n) - 1);
+                if (std::abs(key.translation()[d] - lp) > 1) near = false;
+            }
+            if (near) return true;
+        }
+        return false;
+    }
+    template <typename Archive> void serialize(Archive& ar) {ar & level & pts;}
+};
+}
+
+template<typename T, std::size_t NDIM>
+void XCOperator<T, NDIM>::refine_xc_args_at_nuclei() const {
+    if (special_lo <= 0.0) return;
+    // the given points (the SCF ctors: the molecule), else the nuclei as the U1 functor
+    // reports them for its own special points
+    std::vector<Vector<double,3> > nuclei = special_points;
+    if (nuclei.empty() and ncf) nuclei = NuclearCorrelationFactor::U1_functor(ncf.get(), 0).special_points();
+    if (nuclei.empty()) return;
+    refine_at_points_op op;
+    op.level = get_special_level();
+    const Tensor<double>& cell = FunctionDefaults<3>::get_cell();
+    const Tensor<double>& cw = FunctionDefaults<3>::get_cell_width();
+    for (const auto& c : nuclei) {
+        Vector<double,3> s;
+        for (int d = 0; d < 3; ++d) s[d] = (c[d] - cell(d,0)) / cw[d];
+        op.pts.push_back(s);
+    }
+    // each distinct tree once (slots may share an impl), one level per pass; every
+    // argument gets the same boxes, so they stay on a common tree
+    vecfuncT uniq;
+    std::vector<const void*> seen;
+    for (const auto& f : xc_args) {
+        if (not f.is_initialized()) continue;
+        const void* p = f.get_impl().get();
+        if (std::find(seen.begin(), seen.end(), p) != seen.end()) continue;
+        seen.push_back(p);
+        uniq.push_back(f);
+    }
+    for (int pass = 0; pass < op.level; ++pass) {
+        for (const auto& f : uniq) f.refine_general(op, false);
+        world.gop.fence();
+    }
 }
 
 
@@ -1018,6 +1083,7 @@ real_function_3d XCOperator<T, NDIM>::make_xc_potential_impl() const {
     }
 
     refine_to_common_level(world, xc_args);
+    refine_xc_args_at_nuclei();
 
     // compute all the contributions to the xc kernel
     xc_potential op(*xc, ispin, make_u1_functors());
@@ -1118,6 +1184,7 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d &de
     vecfuncT ddens_pt = grad_dens_pt;
     prep_xc_args_response(dens_pt, xc_args, ddens_pt);
     refine_to_common_level(world, xc_args);
+    refine_xc_args_at_nuclei();
 
     // compute all the contributions to the xc kernel
     xc_kernel_apply op(*xc, ispin, make_u1_functors());
