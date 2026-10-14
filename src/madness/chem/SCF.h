@@ -194,6 +194,16 @@ public:
         void add_data(std::map<std::string, double> values);
 
         void add_gradient(const Tensor<double> &grad);
+
+        /// number of SCF iterations recorded (add_data is called once per iteration)
+        int iterations() const { return iter; }
+        /// the most recent value of every energy component; empty before the first iteration
+        std::map<std::string, double> last() const {
+            std::map<std::string, double> out;
+            for (const auto &[key, series] : e_data)
+                if (!series.empty()) out[key] = series.back();
+            return out;
+        }
     };
 
 
