@@ -53,6 +53,7 @@ jobs:
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
       MAD_NUM_THREADS: 30
+      MAD_WAIT_TIMEOUT: 0
 
     steps:
       - uses: actions/checkout@v6
