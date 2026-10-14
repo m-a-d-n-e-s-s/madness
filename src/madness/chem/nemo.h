@@ -214,7 +214,7 @@ public:
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
 	    // from its functor, not from the squared U1 components: their smoothed unit
 	    // vector vanishes at the nuclei (see assemble_nemo_ddens in xcfunctional_libxc.cc)
-	    U1dotU1 = real_factory_3d(world)
+	    U1dotU1 = real_factory_3d(world).special_level(NuclearCorrelationFactor::ncf_special_level)
 	            .functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
 	    U1dotU1.set_thresh(FunctionDefaults<3>::get_thresh());
 	}

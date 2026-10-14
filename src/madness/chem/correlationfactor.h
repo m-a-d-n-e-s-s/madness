@@ -102,6 +102,13 @@ public:
 	/// virtual destructor
 	virtual ~NuclearCorrelationFactor() {};
 
+	/// projection depth of the factor's functions at the nuclei
+
+	/// The functors' default (6) can miss the exp(-a Z r) features, of width 1/(aZ), at a loose threshold for
+	/// Z above ~30: on NBr3 and PBr3 the k6 rung then starts hundreds of hartree off and never converges. 15 is
+	/// what the nuclear-potential functors use (potentialmanager.h); it costs seconds per rung.
+	static constexpr int ncf_special_level=15;
+
 	/// initialize the regularized potentials U1 and U2
 	void initialize(const double vtol1) {
 
@@ -121,20 +128,20 @@ public:
 		// keep tighter threshold for orthogonalization
 		for (int axis=0; axis<3; ++axis) {
 			functorT U1f=functorT(new U1_functor(this,axis));
-			U1_function.push_back(real_factory_3d(world).thresh(vtol)
+			U1_function.push_back(real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 					.functor(U1f).truncate_on_project());
 			U1_function.back().set_thresh(FunctionDefaults<3>::get_thresh());
 		}
 
 		// U2 is the term -S"/S - Z/r
 		functorT U2f=functorT(new U2_functor(this));
-		U2_function=real_factory_3d(world).thresh(vtol)
+		U2_function=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 				.functor(U2f).truncate_on_project();
 		U2_function.set_thresh(FunctionDefaults<3>::get_thresh());
 
 		// U3 is the term SA'/SA . SB'/SB
 		functorT U3f=functorT(new U3_functor(this));
-		real_function_3d tmp=real_factory_3d(world).thresh(vtol)
+		real_function_3d tmp=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 				.functor(U3f).truncate_on_project();
 		tmp.set_thresh(FunctionDefaults<3>::get_thresh());
 		U2_function+=tmp;
@@ -164,7 +171,7 @@ public:
 	/// return the nuclear correlation factor
 	virtual real_function_3d function() const {
 		functorT Rf=functorT(new R_functor(this,1));
-		real_function_3d r=real_factory_3d(world).thresh(vtol)
+		real_function_3d r=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 				.functor(Rf).truncate_on_project();
 		return r;
 	}
@@ -172,7 +179,7 @@ public:
 	/// return the square of the nuclear correlation factor
 	virtual real_function_3d square() const {
 	    R_functor r(this,2);
-		real_function_3d R2=real_factory_3d(world).thresh(vtol)
+		real_function_3d R2=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 				.functor(r).truncate_on_project();
 		return R2;
 	}
@@ -183,7 +190,7 @@ public:
     /// @return R^2 * \frac{\partial Z_A/r_{1A}}{\partial X_A}
     virtual real_function_3d square_times_V_derivative(const int iatom, const int axis) const {
         square_times_V_derivative_functor func(this,molecule,iatom,axis);
-        real_function_3d R2=real_factory_3d(world).thresh(vtol)
+        real_function_3d R2=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
                 .functor(func).truncate_on_project();
         return R2;
     }
@@ -191,7 +198,7 @@ public:
 	/// return the inverse nuclear correlation factor
 	virtual real_function_3d inverse() const {
 	    R_functor r(this,-1);
-		real_function_3d R_inverse=real_factory_3d(world).thresh(vtol)
+		real_function_3d R_inverse=real_factory_3d(world).thresh(vtol).special_level(ncf_special_level)
 				.functor(r).truncate_on_project();
 		return R_inverse;
 	}
