@@ -287,9 +287,10 @@ static inline double chi_of(const double* sx, const double* sy, const double* sz
 /// With psi = R F the product rule gives
 /// \f[ \tau_\sigma = \tfrac12 R^2\left(\sum_i w_i|\nabla F_i|^2
 ///        - 2\,\mathbf U_1\!\cdot\!\mathbf G_\sigma + |\mathbf U_1|^2 n_\sigma\right) \f]
-/// with \f$ \mathbf G_\sigma=\sum_i w_iF_i\nabla F_i \f$. Everything but U1 is smooth and
-/// arrives as an MRA function; U1 arrives as values from its functor (nemo_u1_functors),
-/// so no product involving it is ever projected onto a tree. That is the whole point:
+/// with \f$ \mathbf G_\sigma=\sum_i w_iF_i\nabla F_i \f$. Everything but U1 and R^2 is
+/// smooth and arrives as an MRA function; U1 and R^2 arrive as values from their
+/// functors (nemo_u1_functors), so no product involving them is ever projected onto a
+/// tree. That is the whole point:
 /// the projected form rings across a box wherever the tree is coarser than U1's
 /// eprec-scale structure, and the ringing does not converge away.
 ///
@@ -317,9 +318,6 @@ static madness::Tensor<double> assemble_nemo_tau(
         for (long i=0; i<np; ++i) out[i] = 0.5*gf[i];
         return tau_s;
     }
-    if (not t[XCfunctional::enum_u1sq].size())
-        MADNESS_EXCEPTION("regularized tau pieces present but U1 was not supplied: "
-                          "the xc op must be built with nemo_u1_functors",1);
 
     const double * MADNESS_RESTRICT n  = t[e_n].ptr();
     const double * MADNESS_RESTRICT gx = t[e_gx].ptr();
@@ -376,9 +374,6 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
         }
         return d;
     }
-    if (not t[XCfunctional::enum_u1sq].size())
-        MADNESS_EXCEPTION("regularized density pieces present but U1 was not supplied: "
-                          "the xc op must be built with nemo_u1_functors",1);
 
     const double * MADNESS_RESTRICT n  = t[e_n].ptr();
     const double * MADNESS_RESTRICT r2 = t[XCfunctional::enum_nemo_R2].ptr();
@@ -398,11 +393,11 @@ static std::vector<madness::Tensor<double> > assemble_nemo_ddens(
 
 /// U1 at this box's quadrature points, if the op supplied it, else NULLs
 
-/// With a nuclear correlation factor the zeta slots hold grad log(rho_reg) only
-/// (XCOperator::zeta_regularized), and zeta = grad log(rho_reg) - 2 U1 is completed
-/// here, at the points, from the analytic functor -- U1 is never projected. On the
-/// split route (tau pieces present) zeta is not read at all, and without an ncf the
-/// U1 slots are empty and zeta is used as it stands.
+/// With a nuclear correlation factor the zeta slots hold grad log(rho_reg) only, and
+/// zeta = grad log(rho_reg) - 2 U1 is completed here, at the points, from the analytic
+/// functor -- U1 is never projected. On the split route (tau pieces present) zeta is
+/// not read at all, and without an ncf the U1 slots are empty and zeta is used as it
+/// stands.
 struct zeta_u1 {
     const double* u[3] = {nullptr, nullptr, nullptr};
     explicit zeta_u1(const std::vector<madness::Tensor<double> >& t) {
@@ -573,8 +568,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
 
             if (needs_tau()) {
-                // the regularized route assembles tau here, from smooth MRA pieces
-                // and U1 values; the moldft route hands it over ready-made
+                // the nemo route assembles tau here, from smooth MRA pieces and
+                // U1 and R^2 values; the moldft route hands it over ready-made
                 const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
                 const double * MADNESS_RESTRICT taua =
                         nemo_taua.size() ? nemo_taua.ptr() : xc_args[enum_taua].ptr();
@@ -631,7 +626,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 double * MADNESS_RESTRICT dens_pt = rho_pt.ptr();
                 double * MADNESS_RESTRICT sig_pt = sigma_pt.ptr();
 
-                // regularized zeta: contract zeta.grad(rho_pt) here, with the -2 U1;
+                // with an ncf: contract zeta.grad(rho_pt) here, with the -2 U1;
                 // prep_xc_args_response then leaves enum_sigma_pta_div_rho unset
                 const zeta_u1 zu1(xc_args);
                 for (long i=0; i<np; i++) {
@@ -739,7 +734,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
                 const double ma = (rhoa[i] <= rhotol) ? 0.0 : 1.0;
                 const double mb = (rhob[i] <= rhotol) ? 0.0 : 1.0;
 
-                // zeta as completed for this point (with -2 U1 when regularized);
+                // zeta as completed for this point (with -2 U1 with an ncf);
                 // only read on the zeta route
                 double zax=0.0, zay=0.0, zaz=0.0, zbx=0.0, zby=0.0, zbz=0.0;
                 if (split) {
@@ -794,8 +789,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
 
             if (needs_tau()) {
-                // as in the unpolarized branch: assembled here on the regularized
-                // route, handed over ready-made on the moldft one
+                // as in the unpolarized branch: assembled here on the nemo route,
+                // handed over ready-made on the moldft one
                 const madness::Tensor<double> nemo_taua = assemble_nemo_tau(xc_args, np, false);
                 const madness::Tensor<double> nemo_taub = assemble_nemo_tau(xc_args, np, true);
                 const double * MADNESS_RESTRICT taua =

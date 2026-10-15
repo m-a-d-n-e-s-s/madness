@@ -1062,8 +1062,8 @@ int test_XCOperator_matrix(World& world) {
     // divergence form coexist in one process with no global state involved.
     XCOperator<double,3> div_nn(world,"pbe",false,arho,arho);
     XCOperator<double,3> weak_nn(world,"pbe",false,arho,arho);
-    XCOperator<double,3> div_cf(world,"pbe",false,arho,arho,ncf,arho_reg,arho_reg);
-    XCOperator<double,3> weak_cf(world,"pbe",false,arho,arho,ncf,arho_reg,arho_reg);
+    XCOperator<double,3> div_cf(world,"pbe",false,ncf,arho_reg,arho_reg);
+    XCOperator<double,3> weak_cf(world,"pbe",false,ncf,arho_reg,arho_reg);
     weak_nn.allow_weak_form().set_weak_gga(true);
     weak_cf.allow_weak_form().set_weak_gga(true);
     div_nn.set_weak_gga(false);
@@ -1095,8 +1095,8 @@ int test_XCOperator_matrix(World& world) {
     //    symmetric only mathematically -- d_a(bra_i ket_j) is symmetric in i,j while
     //    neither of its two pieces is -- so this is a live check, and a flipped U1
     //    sign in the tau term would make it O(1).
-    // Tolerances are set from what this actually achieves (measured 8e-15 .. 9e-10
-    // across every check below) with a factor ~100 of headroom, not from what would
+    // Tolerances are set from what this actually achieves (measured 8e-15 .. 4e-9
+    // across the checks below, ncf weak vs divergence excepted, see there) with a factor ~100 of headroom, not from what would
     // still be physically acceptable. A loose bound here would pass a broken
     // implementation: a flipped sign is O(1) and a dropped term O(0.1).
     const double tol=1.e-7;
@@ -1120,10 +1120,15 @@ int test_XCOperator_matrix(World& world) {
         return check_err(err,tol_,"xc Fock matrices disagree: "+name);
     };
 
-    //    (a) weak vs divergence, at fixed ncf: two algorithms, ONE discretization
-    //    of the inputs. Nothing but the assembly differs, so this is tight.
+    //    (a) weak vs divergence, at fixed ncf: two algorithms on the same inputs.
+    //    Without an ncf nothing but the assembly differs, so this is tight.
     result+=check_same(M_div_nn ,M_weak_nn,tol,"no ncf     : weak vs divergence");
-    result+=check_same(M_div_cf ,M_weak_cf,tol,"ncf        : weak vs divergence");
+    //    With an ncf the inputs are not quite one discretization: R^2 enters
+    //    pointwise, so the divergence form differentiates a projected flux that
+    //    carries the nuclear cusp, while the weak form never does. Measured 8.0e-7,
+    //    the size of the weak/divergence energy differences in production (1e-7 Ha).
+    const double tol_ncf=1.e-5;
+    result+=check_same(M_div_cf ,M_weak_cf,tol_ncf,"ncf        : weak vs divergence");
 
     //    (b) ncf vs no ncf, at fixed algorithm: two DISCRETIZATIONS of the same
     //    mathematical object. With an ncf, zeta = grad(ln rho_reg) - 2 U1 from the
@@ -1132,7 +1137,7 @@ int test_XCOperator_matrix(World& world) {
     //    sides therefore do not compare like with like, and the gap below is a
     //    discretization difference rather than an error in either.
     //
-    //    The gap measured here, 2.9e-5, is ~4.5 digits and reproduces the number
+    //    The gap measured here, 2.7e-5, is ~4.5 digits and reproduces the number
     //    recorded in assemble_nemo_ddens: the two forms agree to 4-5 digits
     //    outside 1e-3 bohr and diverge inside it. Do NOT read it as the ncf path
     //    being wrong -- by the Kato-ratio evidence there it is the accurate one.

@@ -732,27 +732,16 @@ public:
 
     /// ctor for the regularized (nemo) path, without a Nemo object
 
-    /// @param[in] arho,brho          the physical densities rho_s
     /// @param[in] ncf_               the nuclear correlation factor
-    /// @param[in] arho_reg,brho_reg  the regularized densities rho_s/R^2, which let
-    ///                               prep_xc_args build zeta without putting the
-    ///                               nuclear cusp under a numerical derivative
-    /// @param[in] r2_pointwise_      hand rho_reg to the functional and supply R^2 at the
-    ///                               quadrature points from its functor, see density_regularized;
-    ///                               false projects rho = R^2 rho_reg instead (for comparisons)
+    /// @param[in] arho_reg,brho_reg  the regularized densities rho_s/R^2, see prep_xc_args
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
-               const real_function_3d& arho, const real_function_3d& brho,
                std::shared_ptr<NuclearCorrelationFactor> ncf_,
-               const real_function_3d& arho_reg_, const real_function_3d& brho_reg_,
-               std::string deriv="abgv", const bool r2_pointwise_=true);
+               const real_function_3d& arho_reg, const real_function_3d& brho_reg,
+               std::string deriv="abgv");
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
             const real_function_3d& brho, int ispin=0, std::string deriv="abgv");
-
-    /// ctor with an Nemo calculation, will initialize the necessary intermediates
-    XCOperator(World& world, const Nemo* scf, const real_function_3d& arho,
-            const real_function_3d& brho, int ispin=0);
 
     std::string info() const {return "Vxc";}
 
@@ -890,22 +879,9 @@ public:
     /// @param[in]  aocc occupation numbers of amo
     /// @param[in]  bmo  beta orbitals, ignored if the calculation is spin-restricted
     /// @param[in]  bocc occupation numbers of bmo
-    /// how the two U1 terms of tau's product rule are evaluated
-
-    /// U1 = -grad(R)/R is analytic but componentwise non-smooth at each nucleus
-    /// (U1_x ~ x/r), so carrying it as an MRA Function costs depth ~18 and every
-    /// product with it inherits that depth -- which refine_to_common_level then
-    /// imposes on every xc intermediate.
-    enum class TauU1 {
-        mra,         ///< U1 and |U1|^2 projected into Functions and multiplied
-        pointwise    ///< U1 evaluated from its functor at the orbital tree's
-                     ///< quadrature points; nothing involving it is projected
-    };
-
     void set_tau(const vecfuncT& amo, const Tensor<double>& aocc,
                  const vecfuncT& bmo=vecfuncT(),
-                 const Tensor<double>& bocc=Tensor<double>(),
-                 const TauU1 u1mode=TauU1::pointwise) const;
+                 const Tensor<double>& bocc=Tensor<double>()) const;
 
     /// the kinetic energy density of one spin channel, as set by set_tau()
 
@@ -968,7 +944,11 @@ private:
     /// specified factor, default is 0.01.
     double extra_truncation;
 
-    /// the nuclear correlation factor, if it exists, for computing derivatives for GGA
+    /// the nuclear correlation factor, if any
+
+    /// With an ncf the density and zeta slots of xc_args hold the regularized
+    /// rho_reg = rho/R^2 and grad log(rho_reg), and the xc ops rebuild rho and zeta
+    /// at the quadrature points from the analytic R^2 and U1, see make_u1_functors().
     std::shared_ptr<NuclearCorrelationFactor> ncf;
 
     /// functions that are need for the computation of the XC operator
@@ -991,34 +971,12 @@ private:
     /// divergence of a vector field, honouring dft_deriv
     real_function_3d div_dft_deriv(const vecfuncT& v) const;
 
-    /// the zeta slots of xc_args hold grad log(rho_reg) alone, without the -2 U1
-
-    /// Set by prep_xc_args when the regularized densities are supplied. U1 is then
-    /// never projected for zeta: make_u1_functors() hands the analytic functor to the
-    /// pointwise ops, and make_libxc_args adds -2 U1 at the quadrature points.
-    mutable bool zeta_regularized=false;
-
-    /// R^2 enters the functional pointwise from its functor, the density as rho_reg
-
-    /// Always on the nemo route; only the regularized ctor can switch it off.
-    bool r2_pointwise=true;
-
-    /// the density slots of xc_args hold rho_reg = rho/R^2, not rho
-
-    /// Set by prep_xc_args when r2_pointwise is requested and the regularized densities
-    /// are supplied. R^2 carries the nuclear cusp and as a projected Function needs
-    /// depth ~19 at every nucleus; refine_to_common_level then imposes that depth on all
-    /// xc intermediates. Instead the pointwise ops get R^2 from its functor and rebuild
-    /// rho = R^2 rho_reg at the quadrature points (nemo_u1_functors::append), and the
-    /// common level stays at the depth of the regularized quantities.
-    mutable bool density_regularized=false;
-
     /// minimum length scale resolved at the nuclei: CalculationParameters::xc_special_lo()
 
     /// After refine_to_common_level the xc intermediates are refined further at every
     /// nucleus (the box containing it and its neighbours) to the level
-    /// FunctionDefaults<3>::set_length_scale(special_lo). Meant for R^2 pointwise, where
-    /// nothing else forces the trees deep there. 0: off.
+    /// FunctionDefaults<3>::set_length_scale(special_lo). Meant for the nemo route,
+    /// where nothing else forces the trees deep there. 0: off.
     double special_lo=0.0;
 
     /// where refine_xc_args_at_nuclei() refines, see set_special_points()
@@ -1045,31 +1003,28 @@ private:
     /// the body of make_xc_potential(); the wrapper only stashes vlocal
     real_function_3d make_xc_potential_impl() const;
 
-    /// true once set_tau() has supplied tau, by either route
+    /// true once set_tau() has supplied tau
     bool has_tau_args() const;
 
-    /// the four analytic U1 quantities the xc ops evaluate pointwise
+    /// the analytic ncf quantities the xc ops evaluate pointwise: U1, |U1|^2 and R^2
 
-    /// Empty unless the pointwise route is in use. They are handed to the op rather
-    /// than projected into xc_args precisely because a projected product with U1 is
-    /// what rings; see nemo_u1_functors.
+    /// Empty without an ncf. They are handed to the op rather than projected into
+    /// xc_args: R^2 and U1 carry the nuclear cusp, so as Functions they need depth ~20
+    /// at every nucleus, which refine_to_common_level would impose on every xc
+    /// intermediate, and a projected product with U1 rings; see nemo_u1_functors.
     nemo_u1_functors make_u1_functors() const;
 
     /// compute the intermediates for the XC functionals
 
-    /// @param[in]  arho    density of the alpha orbitals
-    /// @param[in]  brho    density of the beta orbitals (necessary only if spin-polarized)
+    /// Without an ncf arho and brho are the densities rho_s, and zeta = grad log(rho_s).
+    /// With an ncf they are the regularized densities rho_reg = rho_s/R^2, and only
+    /// grad log(rho_reg) is stored: the xc ops rebuild rho = R^2 rho_reg and
+    /// zeta = grad log(rho_reg) - 2 U1 at the quadrature points, so the nuclear cusp is
+    /// never projected and never under a numerical derivative.
+    /// @param[in]  arho    (regularized) density of the alpha orbitals
+    /// @param[in]  brho    (regularized) density of the beta orbitals (spin-polarized only)
     /// @return xc_args vector of intermediates as described above
-    /// compute the intermediates for the XC functionals
-
-    /// If the regularized densities are supplied, zeta = grad log(rho) is
-    /// grad log(rho_reg) - 2 U1 -- exact, and it keeps the nuclear cusp of
-    /// rho = R^2 rho_reg out from under the numerical derivative. Only
-    /// grad log(rho_reg) is stored (zeta_regularized is set); the -2 U1 is added at
-    /// the quadrature points from the analytic functor, see make_u1_functors().
-    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho,
-                          const real_function_3d& arho_reg = real_function_3d(),
-                          const real_function_3d& brho_reg = real_function_3d()) const;
+    vecfuncT prep_xc_args(const real_function_3d& arho, const real_function_3d& brho) const;
 
     /// compute the intermediates for the XC functionals
 

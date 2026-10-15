@@ -65,6 +65,11 @@ public:
     /// \f[
     ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi
     /// \f]
+    ///
+    /// With a nuclear correlation factor the density and zeta slots hold the
+    /// regularized \f$ \rho_{reg}=\rho/R^2 \f$ and \f$ \nabla\ln\rho_{reg} \f$; the xc op
+    /// fills the R^2 and U1 slots from the analytic functors, and rho and zeta are
+    /// completed at the quadrature points, see nemo_u1_functors.
     enum xc_arg {
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
         enum_rhob=1,            ///< beta density \f$ \rho_\beta \f$
@@ -77,9 +82,8 @@ public:
         enum_sigtot=13,         ///< \f$ \sigma = \nabla \rho.\nabla \rho \f$
         enum_sigma_pta_div_rho=14,      ///< \f$ \zeta_{\alpha}.\nabla\rho_{pt} \f$
         enum_sigma_ptb_div_rho=15,      ///< \f$ \zeta_{\beta}.\nabla\rho_{pt} \f$
-        // zeta slots: grad ln(rho_s), or grad ln(rho_s/R^2) when the xc op has a
-        // nuclear correlation factor and the U1 slots below are filled -- then
-        // make_libxc_args adds the -2 U1 pointwise. See XCOperator::zeta_regularized.
+        // zeta slots: grad ln(rho_s), or grad ln(rho_s/R^2) with a nuclear correlation
+        // factor -- then make_libxc_args adds the -2 U1 pointwise
         enum_zetaa_x=16,        ///< \f$ \zeta_{a,x}=\partial/{\partial x} \ln(\rho_a)  \f$
         enum_zetaa_y=17,        ///< \f$ \zeta_{a,y}=\partial/{\partial y} \ln(\rho_a)  \f$
         enum_zetaa_z=18,        ///< \f$ \zeta_{a,z}=\partial/{\partial z} \ln(\rho_a)  \f$
@@ -103,18 +107,18 @@ public:
         //   |grad psi|^2 = R^2 ( |grad F|^2 - 2 F U1.grad F + |U1|^2 F^2 ).
         // The first group below is everything in that expression which is SMOOTH:
         // F is cusp-free by construction, so |grad F|^2, n and G are shallow (depth
-        // 8-9 on LiH) and belong in MRA. R^2 is smooth too.
+        // 8-9 on LiH) and belong in MRA.
         //
-        // U1 = -grad(R)/R is not. U1_x ~ x/r is non-smooth at every nucleus
-        // componentwise, its direction smoothed only over eprec, and as a Function
-        // it costs depth ~20. Carrying it in MRA is bad twice over: the depth taxes
-        // every intermediate through refine_to_common_level, and any *product* with
-        // it has to be projected onto a fixed tree, which is where the oscillations
-        // come from. So it is never a Function. The second group is filled by the
-        // op from the analytic functor at the quadrature points of the box it is
-        // already working on -- exactly as make_libxc_args contracts zeta pointwise
-        // rather than carrying chi. See nemo_u1_functors.
-        enum_nemo_R2=28,        ///< \f$ R^2 \f$, the ncf squared          [MRA, smooth]
+        // R^2 and U1 = -grad(R)/R are not. R^2 has the nuclear cusp, U1_x ~ x/r is
+        // non-smooth at every nucleus componentwise, and as Functions they cost
+        // depth ~20. Carrying them in MRA is bad twice over: the depth taxes every
+        // intermediate through refine_to_common_level, and any *product* with them
+        // has to be projected onto a fixed tree, which is where the oscillations
+        // come from. So they are never Functions. The R^2 and U1 slots are filled
+        // by the op from the analytic functors at the quadrature points of the box
+        // it is already working on -- exactly as make_libxc_args contracts zeta
+        // pointwise rather than carrying chi. See nemo_u1_functors.
+        enum_nemo_R2=28,        ///< \f$ R^2 \f$, the ncf squared  [functor, never MRA]
         enum_gradfa=29,         ///< \f$ \sum_i w_i|\nabla F_{i\alpha}|^2 \f$  [MRA, smooth]
         enum_gradfb=30,         ///< beta counterpart                        [MRA, smooth]
         enum_na=31,             ///< \f$ n_\alpha=\sum_i w_iF_{i\alpha}^2 \f$   [MRA, smooth]
@@ -484,20 +488,22 @@ public:
     }
 };
 
-/// the cuspy half of the nemo tau decomposition, supplied pointwise
+/// the cuspy half of the nemo xc arguments, supplied pointwise
 
-/// Holds the four analytic ncf quantities that must never become MRA functions --
-/// \f$ U_{1,x}, U_{1,y}, U_{1,z}, |\mathbf U_1|^2 \f$ -- and writes their values
-/// into the argument vector at the quadrature points of whatever box the caller is
-/// operating on. Empty unless a nuclear correlation factor is in play, in which case
-/// active() is true and the four enum_u1* slots are filled.
+/// Holds the five analytic ncf quantities that must never become MRA functions --
+/// \f$ U_{1,x}, U_{1,y}, U_{1,z}, |\mathbf U_1|^2, R^2 \f$ -- and writes their
+/// values into the argument vector at the quadrature points of whatever box the
+/// caller is operating on. Empty unless a nuclear correlation factor is in play, in
+/// which case active() is true, the enum_u1* and enum_nemo_R2 slots are filled, and
+/// the density slots, which hold rho_reg, are turned into rho = R^2 rho_reg. The zeta
+/// slots hold grad log(rho_reg); make_libxc_args adds the -2 U1.
 ///
-/// The point is that nothing is projected. A product of U1 with anything, formed as
-/// a Function, has to be represented on some tree; on a tree too coarse for U1's
-/// eprec-scale structure the polynomial fit rings across the whole box. Evaluating
-/// U1 here instead means its values go straight into the functional's pointwise
-/// arithmetic and only the *potential* is ever projected -- which the existing
-/// machinery already does, and already has to.
+/// The point is that nothing is projected. A product of U1 or R^2 with anything,
+/// formed as a Function, has to be represented on some tree; on a tree too coarse
+/// for their eprec-scale structure the polynomial fit rings across the whole box.
+/// Evaluating them here instead means their values go straight into the
+/// functional's pointwise arithmetic and only the *potential* is ever projected --
+/// which the existing machinery already does, and already has to.
 ///
 /// \f$ |\mathbf U_1|^2 \f$ comes from its own functor rather than from summing the
 /// squares of the three components: that functor treats its diagonal specially,
@@ -509,19 +515,18 @@ struct nemo_u1_functors {
     nemo_u1_functors() : cdata(madness::FunctionCommonData<double,3>::get(
                                        madness::FunctionDefaults<3>::get_k())) {}
 
-    /// @param[in] u1  x, y, z components of U1 followed by |U1|^2 -- four functors --
-    ///                optionally followed by R^2: then the density slots hold rho_reg and
-    ///                append() rebuilds rho = R^2 rho_reg (XCOperator::density_regularized)
+    /// @param[in] u1  x, y, z components of U1, |U1|^2 and R^2 -- five functors
     explicit nemo_u1_functors(const std::vector<std::shared_ptr<functorT> >& u1)
             : f(u1), cdata(madness::FunctionCommonData<double,3>::get(
                                    madness::FunctionDefaults<3>::get_k())) {
-        MADNESS_CHECK_THROW(f.empty() or f.size()==4 or f.size()==5,
-                            "nemo_u1_functors wants U1_{x,y,z}, |U1|^2 and optionally R^2, in that order");
+        MADNESS_CHECK_THROW(f.empty() or f.size()==nf,
+                            "nemo_u1_functors wants U1_{x,y,z}, |U1|^2 and R^2, in that order");
     }
 
-    bool active() const {return f.size()>=4;}
+    bool active() const {return f.size()==nf;}
 
-    /// write U1 and |U1|^2 at this box's quadrature points into t[enum_u1*]
+    /// write U1, |U1|^2 and R^2 at this box's quadrature points into t, and turn the
+    /// density slots from rho_reg into rho = R^2 rho_reg
     void append(const madness::Key<3>& key,
                 std::vector<madness::Tensor<double> >& t) const {
         if (not active()) return;
@@ -543,9 +548,8 @@ struct nemo_u1_functors {
         const madness::Tensor<double>& cw = madness::FunctionDefaults<3>::get_cell_width();
 
         const long dims[3] = {npt, npt, npt};
-        const int nf = f.size();
-        madness::Tensor<double> v[5];
-        double* p[5];
+        madness::Tensor<double> v[nf];
+        double* p[nf];
         for (int q = 0; q < nf; ++q) {
             v[q] = madness::Tensor<double>(3L, dims);
             p[q] = v[q].ptr();
@@ -569,20 +573,19 @@ struct nemo_u1_functors {
         t[XCfunctional::enum_u1_y]  = v[1];
         t[XCfunctional::enum_u1_z]  = v[2];
         t[XCfunctional::enum_u1sq]  = v[3];
-        if (nf == 5) {
-            // the density slots hold rho_reg: rho = R^2 rho_reg, here, at the points.
-            // New tensors -- t is a shallow copy of the op's input, so the Function's
-            // own coefficients must not be scaled in place.
-            t[XCfunctional::enum_nemo_R2] = v[4];
-            for (int e : {XCfunctional::enum_rhoa, XCfunctional::enum_rhob}) {
-                if (not t[e].size()) continue;
-                madness::Tensor<double> r = madness::copy(t[e]);
-                r.emul(v[4]);
-                t[e] = r;
-            }
+        t[XCfunctional::enum_nemo_R2] = v[4];
+        // rho = R^2 rho_reg, here, at the points. New tensors -- t is a shallow copy
+        // of the op's input, so the Function's own coefficients must not be scaled
+        // in place.
+        for (int e : {XCfunctional::enum_rhoa, XCfunctional::enum_rhob}) {
+            if (not t[e].size()) continue;
+            madness::Tensor<double> r = madness::copy(t[e]);
+            r.emul(v[4]);
+            t[e] = r;
         }
     }
 
+    static constexpr int nf = 5;     ///< U1_x, U1_y, U1_z, |U1|^2, R^2
     std::vector<std::shared_ptr<functorT> > f;
     madness::FunctionCommonData<double,3> cdata;
 };
@@ -634,8 +637,8 @@ struct xc_potential {
             const std::vector< madness::Tensor<double> >& t) const {
         MADNESS_ASSERT(xc);
         if (not u1.active()) return xc->vxc(t, ispin);
-        // U1 is cuspy, so it arrives here as values rather than as a Function --
-        // see nemo_u1_functors. Nothing involving it is ever projected.
+        // U1 and R^2 are cuspy, so they arrive here as values rather than as
+        // Functions -- see nemo_u1_functors. Nothing involving them is ever projected.
         std::vector<madness::Tensor<double> > tt(t);   // Tensor copy is shallow
         u1.append(key, tt);
         return xc->vxc(tt, ispin);
@@ -648,7 +651,7 @@ struct xc_kernel_apply {
     const XCfunctional* xc;
     const int ispin;
     const FunctionCommonData<double,3>& cdata;
-    nemo_u1_functors u1;      ///< empty unless zeta is regularized, see make_libxc_args
+    nemo_u1_functors u1;      ///< empty without a nuclear correlation factor
 
     xc_kernel_apply(const XCfunctional& xc, int ispin) : xc(&xc), ispin(ispin),
           cdata(FunctionCommonData<double,3>::get(FunctionDefaults<3>::get_k())) {

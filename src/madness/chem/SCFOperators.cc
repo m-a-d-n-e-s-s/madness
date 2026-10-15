@@ -397,20 +397,19 @@ XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool sp
 /// custom ctor for the regularized (nemo) path, without a Nemo object
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool spin_polarized,
-                                const real_function_3d &arho, const real_function_3d &brho,
                                 std::shared_ptr<NuclearCorrelationFactor> ncf_,
-                                const real_function_3d &arho_reg_, const real_function_3d &brho_reg_,
-                                std::string deriv, const bool r2_pointwise_)
+                                const real_function_3d &arho_reg, const real_function_3d &brho_reg,
+                                std::string deriv)
         : world(world), dft_deriv(deriv), nbeta(0), ispin(0),
-          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01), r2_pointwise(r2_pointwise_) {
+          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
 
-    nbeta = (brho.norm2() > 0.0);
+    nbeta = (brho_reg.norm2() > 0.0);
 
     xc = std::shared_ptr<XCfunctional>(new XCfunctional());
     xc->initialize(xc_data, spin_polarized, world);
 
     ncf = ncf_;
-    xc_args = prep_xc_args(arho, brho, arho_reg_, brho_reg_);
+    xc_args = prep_xc_args(arho_reg, brho_reg);
 }
 
 /// custom ctor with the XC functional
@@ -462,14 +461,12 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     nbeta = nemo->get_calc()->param.nbeta();
     const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
-    // compute the regularized densities rho_s/R^2; R^2 enters pointwise, so the
-    // physical density is never formed as a Function (see density_regularized),
-    // and prep_xc_args builds zeta = grad log(rho_reg) - 2 U1 without differentiating
-    // the cusp
+    // the regularized densities rho_s/R^2 -- the physical density is never formed as
+    // a Function, see prep_xc_args
     real_function_3d arhonemo = nemo->make_density(nemo->get_calc()->aocc, nemo->get_calc()->amo);
     real_function_3d brhonemo = have_beta
         ? nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo) : arhonemo;
-    xc_args = prep_xc_args(arhonemo, brhonemo, arhonemo, brhonemo);
+    xc_args = prep_xc_args(arhonemo, brhonemo);
 }
 
 
@@ -482,20 +479,6 @@ XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, const real_functi
     xc->initialize(calc->param.xc(), !calc->param.spin_restricted(), world);
     special_lo = calc->param.xc_special_lo();
     special_points = calc->molecule.get_all_coords_vec();
-    xc_args = prep_xc_args(arho, brho);
-}
-
-template<typename T, std::size_t NDIM>
-XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, const real_function_3d &arho,
-                                const real_function_3d &brho, int ispin)
-        : world(world), dft_deriv(nemo->get_calc()->param.dft_deriv()),
-          nbeta(nemo->get_calc()->param.nbeta()), ispin(ispin),
-          extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
-    xc = std::shared_ptr<XCfunctional>(new XCfunctional());
-    xc->initialize(nemo->get_calc()->param.xc(),
-                   not nemo->get_calc()->param.spin_restricted(), world);
-    ncf = nemo->ncf;
-
     xc_args = prep_xc_args(arho, brho);
 }
 
@@ -524,8 +507,7 @@ real_function_3d XCOperator<T, NDIM>::get_tau(const int spin) const {
 /// compute tau = 1/2 sum_i |grad psi_i|^2 and store it in the intermediates
 template<typename T, std::size_t NDIM>
 void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aocc,
-                                  const vecfuncT &bmo, const Tensor<double> &bocc,
-                                  const TauU1 u1mode) const {
+                                  const vecfuncT &bmo, const Tensor<double> &bocc) const {
 
     MADNESS_CHECK_THROW(is_initialized(), "set_tau called before the intermediates exist");
 
@@ -538,24 +520,9 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
     // Only the cusp-free F is differentiated numerically. Forming psi = R F and
     // differentiating that instead would put the cusp straight back under the
     // derivative operator, which is what the regularization exists to avoid.
-    // Same decomposition as OEP::compute_total_kinetic_density.
-    // Which of the three routes is taken decides what has to be projected: the
-    // pointwise route touches no U1 Function at all, and skipping the projection
-    // is half its point -- U1vec() and U1_dot_U1 are four functor projections per
-    // SCF iteration, each of them deep.
-    vecfuncT U1;
-    real_function_3d U1dot, R_square;
-    const bool u1_as_functions = bool(ncf) and (u1mode == TauU1::mra);
-    if (ncf) {
-        if (u1_as_functions) {
-            U1 = ncf->U1vec();
-            NuclearCorrelationFactor::U1_dot_U1_functor u1_dot_u1(ncf.get());
-            U1dot = real_factory_3d(world).functor(u1_dot_u1).truncate_on_project();
-        }
-        // pointwise route with R^2 from its functor: no projected R^2 at all
-        if (u1_as_functions or not density_regularized) R_square = ncf->square();
-    }
-
+    // Same decomposition as OEP::compute_total_kinetic_density, except that U1 and
+    // R^2 are never projected: only the smooth pieces are stored, and the xc ops
+    // contract them with the analytic U1 and R^2 at the quadrature points.
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
     // tau_sigma = 1/2 sum_i occ_{sigma,i} |grad psi_i|^2. The occupations are not
@@ -626,12 +593,10 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
         return p;
     };
 
-    // Where the two routes part. The pointwise route stores the *pieces* and lets
-    // make_libxc_args contract them against U1 at the quadrature points, so nothing
-    // involving U1 is ever projected and tau never exists as a Function at all --
-    // which is also why its depth stops taxing every other intermediate through
-    // refine_to_common_level. The mra route (and the moldft path, which has no ncf
-    // and no U1 to worry about) assembles tau here as before.
+    // With an ncf only the *pieces* are stored, and make_libxc_args contracts them
+    // against U1 and R^2 at the quadrature points, so tau never exists as a Function
+    // at all -- which is also why its depth does not tax every other intermediate
+    // through refine_to_common_level. Without an ncf tau is assembled here.
     const tau_pieces pa = compute_tau(amo, aocc);
     tau_pieces pb;
     if (have_beta) {
@@ -640,15 +605,9 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
         pb = compute_tau(bmo, bocc);
     }
 
+    // libxc convention: tau = 1/2 sum_i |grad psi_i|^2  (since libxc 2.0.0)
     auto assemble = [&](const tau_pieces& p) {
-        real_function_3d r = copy(p.gradf);
-        if (u1_as_functions) {
-            r += U1dot * p.n;
-            for (int axis = 0; axis < 3; ++axis) r -= 2.0 * U1[axis] * p.G[axis];
-        }
-        if (ncf) r = r * R_square;
-        // libxc convention: tau = 1/2 sum_i |grad psi_i|^2  (since libxc 2.0.0)
-        return (0.5 * r).truncate(extra_truncation);
+        return (0.5 * p.gradf).truncate(extra_truncation);
     };
 
     auto store_pieces = [&](const tau_pieces& p, const bool beta) {
@@ -659,27 +618,20 @@ void XCOperator<T, NDIM>::set_tau(const vecfuncT &amo, const Tensor<double> &aoc
         xc_args[beta ? XCfunctional::enum_Gb_z   : XCfunctional::enum_Ga_z]   = p.G[2];
     };
 
-    if (ncf and u1mode == TauU1::pointwise) {
-        // with density_regularized the op fills this slot from the R^2 functor
-        if (not density_regularized) xc_args[XCfunctional::enum_nemo_R2] = R_square;
-        store_pieces(pa, false);
-        if (have_beta) store_pieces(pb, true);
-    } else {
+    // Without an ncf, hand over the pieces as well, with no R^2: make_libxc_args
+    // then contracts grad(rho) = 2 G and tau = 1/2 gradf at the quadrature
+    // points from one and the same grad(psi). Taking zeta = grad(log rho) from a
+    // separate derivative instead leaves tau and tau_W = |grad rho|^2/(8 rho)
+    // inconsistent pointwise, and a meta-gga sees that as scatter in
+    // z = tau_W/tau around its exact value -- for a single orbital z == 1, and
+    // the TPSS energy error was 4e-5 at thresh 1e-4 against 2e-7 with a
+    // consistent pair (test_dft: test_meta_gga_one_orbital_energy).
+    if (not ncf) {
         xc_args[XCfunctional::enum_taua] = assemble(pa);
         if (have_beta) xc_args[XCfunctional::enum_taub] = assemble(pb);
-        // Without an ncf, hand over the pieces as well, with no R^2: make_libxc_args
-        // then contracts grad(rho) = 2 G and tau = 1/2 gradf at the quadrature
-        // points from one and the same grad(psi). Taking zeta = grad(log rho) from a
-        // separate derivative instead leaves tau and tau_W = |grad rho|^2/(8 rho)
-        // inconsistent pointwise, and a meta-gga sees that as scatter in
-        // z = tau_W/tau around its exact value -- for a single orbital z == 1, and
-        // the TPSS energy error was 4e-5 at thresh 1e-4 against 2e-7 with a
-        // consistent pair (test_dft: test_meta_gga_one_orbital_energy).
-        if (not ncf) {
-            store_pieces(pa, false);
-            if (have_beta) store_pieces(pb, true);
-        }
     }
+    store_pieces(pa, false);
+    if (have_beta) store_pieces(pb, true);
     world.gop.fence();
 }
 
@@ -958,12 +910,11 @@ double XCOperator<T, NDIM>::compute_xc_energy() const {
 }
 
 
-/// true once set_tau() has supplied tau, by either route
+/// true once set_tau() has supplied tau: as a Function (moldft) or as pieces (nemo)
 template<typename T, std::size_t NDIM>
 bool XCOperator<T, NDIM>::has_tau_args() const {
-    if (xc_args[XCfunctional::enum_taua].is_initialized()) return true;      // moldft / mra route
-    return xc_args[XCfunctional::enum_gradfa].is_initialized()               // pointwise route
-       and (xc_args[XCfunctional::enum_nemo_R2].is_initialized() or density_regularized);
+    return xc_args[XCfunctional::enum_taua].is_initialized()
+        or xc_args[XCfunctional::enum_gradfa].is_initialized();
 }
 
 
@@ -1026,15 +977,11 @@ void XCOperator<T, NDIM>::refine_xc_args_at_nuclei() const {
 }
 
 
-/// the four analytic U1 quantities the xc ops evaluate pointwise
+/// the analytic ncf quantities the xc ops evaluate pointwise: U1, |U1|^2 and R^2
 template<typename T, std::size_t NDIM>
 nemo_u1_functors XCOperator<T, NDIM>::make_u1_functors() const {
     typedef FunctionFunctorInterface<double, 3> functorT;
     if (not ncf) return nemo_u1_functors();
-    // needed by the pointwise tau pieces and by a regularized zeta, nothing else
-    if (not (xc_args[XCfunctional::enum_gradfa].is_initialized() or zeta_regularized
-             or density_regularized))
-        return nemo_u1_functors();
     // evaluated only at quadrature points, never projected: the exact unit vector,
     // not the eprec-smoothed one (whose polynomial overshoots, see
     // NuclearCorrelationFactor::unitvec), so that U1, |U1|^2 and the step of sigma
@@ -1045,9 +992,7 @@ nemo_u1_functors XCOperator<T, NDIM>::make_u1_functors() const {
                 new NuclearCorrelationFactor::U1_functor(ncf.get(), axis, true)));
     f.push_back(std::shared_ptr<functorT>(
             new NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get(), true)));
-    // R^2 too, when the density slots hold rho_reg: the op rebuilds rho = R^2 rho_reg
-    if (density_regularized)
-        f.push_back(std::shared_ptr<functorT>(new NuclearCorrelationFactor::R_functor(ncf.get(), 2)));
+    f.push_back(std::shared_ptr<functorT>(new NuclearCorrelationFactor::R_functor(ncf.get(), 2)));
     return nemo_u1_functors(f);
 }
 
@@ -1203,21 +1148,15 @@ real_function_3d XCOperator<T, NDIM>::apply_xc_kernel(const real_function_3d &de
 /// prepare xc args
 template<typename T, std::size_t NDIM>
 vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
-                                           const real_function_3d &brho,
-                                           const real_function_3d &arho_reg_in,
-                                           const real_function_3d &brho_reg_in) const {
+                                           const real_function_3d &brho) const {
 
     World &world = arho.world();
     vecfuncT xcargs(XCfunctional::number_xc_args);
     const bool have_beta = (xc->is_spin_polarized()) and (nbeta > 0);
 
-    // assign the densities (alpha, beta) -- or rho_reg, with R^2 supplied pointwise
-    density_regularized = ncf and r2_pointwise and arho_reg_in.is_initialized()
-                          and ((not have_beta) or brho_reg_in.is_initialized());
-    const real_function_3d& ra = density_regularized ? arho_reg_in : arho;
-    const real_function_3d& rb = density_regularized ? brho_reg_in : brho;
-    xcargs[XCfunctional::enum_rhoa] = copy(ra.reconstruct());      // alpha density
-    if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(rb.reconstruct());  // beta density
+    // the densities (alpha, beta): rho_s, or rho_reg with an ncf, see make_u1_functors
+    xcargs[XCfunctional::enum_rhoa] = copy(arho.reconstruct());      // alpha density
+    if (have_beta) xcargs[XCfunctional::enum_rhob] = copy(brho.reconstruct());  // beta density
     world.gop.fence();
 
     // zeta_sigma = grad(ln rho_sigma), so that grad(rho_sigma) = rho_sigma zeta_sigma
@@ -1243,31 +1182,22 @@ vecfuncT XCOperator<T, NDIM>::prep_xc_args(const real_function_3d &arho,
         // under the derivative operator, which is what the regularization exists to
         // avoid: the kink forces refinement to the finest level and the O(thresh)
         // noise it leaves there is amplified by 2^n by the derivative. Only the
-        // cusp-free rho_reg is differentiated here.
-        //
-        // Only grad log(rho_reg) is stored. U1 is componentwise non-smooth at every
-        // nucleus (U1_x ~ x/r), so as a projected Function it needs depth ~20 and
-        // rings across the box wherever the tree is coarser; the -2 U1 is instead
-        // added at the quadrature points from the analytic functor, exactly as for
-        // tau on the pointwise route (make_u1_functors, make_libxc_args).
-        auto make_zeta = [&](const real_function_3d& rho,
-                             const real_function_3d& rho_reg) {
-            if (ncf and rho_reg.is_initialized()) {
-                zeta_regularized = true;
-                real_function_3d logdens = unary_op(rho_reg, logme());
-                return grad_variant(logdens);
-            }
+        // cusp-free rho_reg is differentiated here, and only grad log(rho_reg) is
+        // stored: U1 is componentwise non-smooth at every nucleus (U1_x ~ x/r), so
+        // the -2 U1 is added at the quadrature points from the analytic functor
+        // (make_u1_functors, make_libxc_args).
+        auto make_zeta = [&](const real_function_3d& rho) {
             real_function_3d logdens = unary_op(rho, logme());
             return grad_variant(logdens);
         };
 
-        vecfuncT grada = make_zeta(arho, arho_reg_in);
+        vecfuncT grada = make_zeta(arho);
         xcargs[XCfunctional::enum_zetaa_x] = grada[0];
         xcargs[XCfunctional::enum_zetaa_y] = grada[1];
         xcargs[XCfunctional::enum_zetaa_z] = grada[2];
 
         if (have_beta) {
-            vecfuncT gradb = make_zeta(brho, brho_reg_in);
+            vecfuncT gradb = make_zeta(brho);
             xcargs[XCfunctional::enum_zetab_x] = gradb[0];
             xcargs[XCfunctional::enum_zetab_y] = gradb[1];
             xcargs[XCfunctional::enum_zetab_z] = gradb[2];
@@ -1309,10 +1239,10 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
         xc_args[XCfunctional::enum_ddens_pty] = ddens_pt[1];
         xc_args[XCfunctional::enum_ddens_ptz] = ddens_pt[2];
 
-        // With a regularized zeta the slots lack the -2 U1, so a projected dot
-        // product would be wrong; make_libxc_args contracts sigma_pt pointwise from
-        // the corrected zeta and ddens_pt instead.
-        if (zeta_regularized) {
+        // With an ncf the zeta slots lack the -2 U1, so a projected dot product
+        // would be wrong; make_libxc_args contracts sigma_pt pointwise from the
+        // completed zeta and ddens_pt instead.
+        if (ncf) {
             world.gop.fence();
             truncate(world, xc_args, extra_truncation);
             return;
