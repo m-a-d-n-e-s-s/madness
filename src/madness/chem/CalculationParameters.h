@@ -83,8 +83,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
 		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
 		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
-		initialize<bool>  ("xc_r2_pointwise",false,"nemo: R^2 enters the xc functional pointwise from its "
-				"functor and the density as rho/R^2, so the xc trees keep the regularized depth");
 		initialize<double>("xc_special_lo",0.0,"minimum length scale resolved by the xc intermediates at "
 				"the nuclei; refines them there to FunctionDefaults::set_length_scale(lo); 0: off");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
@@ -246,7 +244,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string deriv() const {return get<std::string>("deriv");}
 	std::string dft_deriv() const {return get<std::string>("dft_deriv");}
 	bool xc_weak_gga() const {return get<bool>("xc_weak_gga");}
-	bool xc_r2_pointwise() const {return get<bool>("xc_r2_pointwise");}
 	double xc_special_lo() const {return get<double>("xc_special_lo");}
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string dispersion() const {return get<std::string>("dispersion");}

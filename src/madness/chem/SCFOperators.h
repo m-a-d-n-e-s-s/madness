@@ -738,12 +738,13 @@ public:
     ///                               prep_xc_args build zeta without putting the
     ///                               nuclear cusp under a numerical derivative
     /// @param[in] r2_pointwise_      hand rho_reg to the functional and supply R^2 at the
-    ///                               quadrature points from its functor, see density_regularized
+    ///                               quadrature points from its functor, see density_regularized;
+    ///                               false projects rho = R^2 rho_reg instead (for comparisons)
     XCOperator(World& world, std::string xc_data, const bool spin_polarized,
                const real_function_3d& arho, const real_function_3d& brho,
                std::shared_ptr<NuclearCorrelationFactor> ncf_,
                const real_function_3d& arho_reg_, const real_function_3d& brho_reg_,
-               std::string deriv="abgv", const bool r2_pointwise_=false);
+               std::string deriv="abgv", const bool r2_pointwise_=true);
 
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, const real_function_3d& arho,
@@ -997,8 +998,10 @@ private:
     /// pointwise ops, and make_libxc_args adds -2 U1 at the quadrature points.
     mutable bool zeta_regularized=false;
 
-    /// the user asked for R^2 pointwise: CalculationParameters::xc_r2_pointwise()
-    bool r2_pointwise=false;
+    /// R^2 enters the functional pointwise from its functor, the density as rho_reg
+
+    /// Always on the nemo route; only the regularized ctor can switch it off.
+    bool r2_pointwise=true;
 
     /// the density slots of xc_args hold rho_reg = rho/R^2, not rho
 
@@ -1014,7 +1017,7 @@ private:
 
     /// After refine_to_common_level the xc intermediates are refined further at every
     /// nucleus (the box containing it and its neighbours) to the level
-    /// FunctionDefaults<3>::set_length_scale(special_lo). Meant for xc_r2_pointwise, where
+    /// FunctionDefaults<3>::set_length_scale(special_lo). Meant for R^2 pointwise, where
     /// nothing else forces the trees deep there. 0: off.
     double special_lo=0.0;
 

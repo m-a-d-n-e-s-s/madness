@@ -455,7 +455,6 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
     weak_gga = nemo->get_calc()->param.xc_weak_gga();
-    r2_pointwise = nemo->get_calc()->param.xc_r2_pointwise();
     special_lo = nemo->get_calc()->param.xc_special_lo();
 
     ncf = nemo->ncf;
@@ -463,22 +462,14 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     nbeta = nemo->get_calc()->param.nbeta();
     const bool have_beta = xc->is_spin_polarized() && nbeta != 0;
 
-    // compute the alpha and beta densities; with R^2 pointwise the physical density
-    // is never formed as a Function (see density_regularized)
-    real_function_3d arho, brho, brhonemo;
+    // compute the regularized densities rho_s/R^2; R^2 enters pointwise, so the
+    // physical density is never formed as a Function (see density_regularized),
+    // and prep_xc_args builds zeta = grad log(rho_reg) - 2 U1 without differentiating
+    // the cusp
     real_function_3d arhonemo = nemo->make_density(nemo->get_calc()->aocc, nemo->get_calc()->amo);
-    arho = r2_pointwise ? arhonemo : (arhonemo * nemo->R_square).truncate(extra_truncation);
-    if (have_beta) {
-        brhonemo = nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo);
-        brho = r2_pointwise ? brhonemo : (brhonemo * nemo->R_square).truncate(extra_truncation);
-    } else {
-        brho = arho;
-        brhonemo = arhonemo;
-    }
-
-    // hand over the regularized densities rho_s/R^2 as well, so that prep_xc_args
-    // builds zeta = grad log(rho_reg) - 2 U1 and never differentiates the cusp
-    xc_args = prep_xc_args(arho, brho, arhonemo, brhonemo);
+    real_function_3d brhonemo = have_beta
+        ? nemo->make_density(nemo->get_calc()->bocc, nemo->get_calc()->bmo) : arhonemo;
+    xc_args = prep_xc_args(arhonemo, brhonemo, arhonemo, brhonemo);
 }
 
 
