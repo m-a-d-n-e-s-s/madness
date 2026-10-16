@@ -127,6 +127,8 @@ struct RestartSources {
 
     /// <prefix>.restartaodata exists
     bool restartao_present = false;
+    /// its header; nullopt for a file written before the header existed
+    std::optional<RestartAOHeader> ao_header;
 
     /// an NWChem file was named in the input
     bool nwfile_named = false;
@@ -215,6 +217,8 @@ struct RestartPlan {
     /// rung, and its eprec, xc and nuclear correlation factor agree with this run's
     bool archive_converged = false;
     bool archive_same_hamiltonian = false;
+    /// id of the restartdata archive when source is restartdata, 0 when none recorded
+    ArchiveId archive_id = 0;
 
     /// true if orbitals have to be read from disk before anything else happens
     bool needs_load() const { return source != RestartSource::initial_guess; }
@@ -233,7 +237,7 @@ struct RestartPlan {
         int m = static_cast<int>(mode);
         int s = static_cast<int>(source);
         ar & m & s & iterate & protocol_start & stale_energy & warn & why & archive_nmo_alpha
-           & archive_converged & archive_same_hamiltonian;
+           & archive_converged & archive_same_hamiltonian & archive_id;
         mode = static_cast<RestartMode>(m);
         source = static_cast<RestartSource>(s);
     }
@@ -271,26 +275,38 @@ first_rung_tighter_than(const std::vector<double>& protocol, const double achiev
 /// @param[in] user_dconv the user's `dconv`
 /// @param[in] requested  the geometry this calculation is for
 /// @param[in] wanted     the representation the asking engine stores (mo/nemo/znemo)
-/// @param[in] eprec      the requested molecular smoothing parameter; 0 skips the
-///                       check, which is what a caller that does not know it passes
-/// @param[in] xc         the requested exchange-correlation functional; an empty
-///                       string skips the check
-/// @param[in] ncf        the requested nuclear correlation factor, e.g. "slater:2.0";
-///                       empty for an engine that has none, and skips the check
+/// @param[in] key        the Hamiltonian this run solves; a field left at its
+///                       "not recorded" value skips that check (see HamiltonianKey)
+/// @param[in] nmo_alpha  alpha orbitals requested (occupied + virtuals); 0 skips the check
+/// @param[in] localize   the requested localization method; an empty string skips
+///                       the check
 inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& disk,
                                  const RestartCapabilities& can,
                                  const std::vector<double>& protocol,
                                  const double user_dconv, const Molecule& requested,
                                  const Representation wanted,
-                                 const double eprec = 0.0,
-                                 const std::string& xc = "",
-                                 const std::string& ncf = "",
-                                 const std::size_t nmo_alpha = 0) {
+                                 const HamiltonianKey& key = {},
+                                 const std::size_t nmo_alpha = 0,
+                                 const std::string& localize = "") {
 
     MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in plan_restart");
     const std::size_t last = protocol.size() - 1;
 
-    const bool ao_available = disk.restartao_present and can.ao;
+    // AO projections with a header must belong to these atoms and, when there is
+    // a restartdata to compare with, to that very archive: save_mos writes both
+    // with one id, and a run that skips the AO file (nwfile) leaves an older one
+    // behind. A file without a header predates the check and is taken on trust.
+    auto ao_matches = [&]() {
+        if (not disk.ao_header.has_value()) return true;
+        const RestartAOHeader& h = disk.ao_header.value();
+        if (compare_geometry(h.molecule, requested) == GeometryMatch::different_composition)
+            return false;
+        if (disk.meta.has_value() and disk.meta->archive_id != 0 and h.archive_id != 0 and
+                disk.meta->archive_id != h.archive_id)
+            return false;
+        return true;
+    };
+    const bool ao_available = disk.restartao_present and can.ao and ao_matches();
     const bool nwchem_available = disk.nwfile_named and can.nwchem;
 
     // the precision this run has to reach. dconv cannot be demanded tighter
@@ -308,26 +324,12 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
 
     // does the archive solve the same Hamiltonian this run is asking about?
     //
-    // eprec, xc and the nuclear correlation factor all change the operator, not
-    // just its representation: orbitals from a different one are a perfectly good
-    // guess, but their convergence claim is about another problem, and -- unlike a
-    // k or thresh mismatch -- that cannot be repaired by reprojecting. An unset
-    // value on either side (0.0 / "") means "not recorded" -- v4 archives, the
-    // seeding tools, and engines that have no ncf -- which is not evidence of a
-    // mismatch. Returns an empty string when the Hamiltonians agree, otherwise the
-    // phrase that goes into `why`.
+    // Orbitals for a different operator are a perfectly good guess, but their
+    // convergence claim is about another problem -- and unlike a k or thresh
+    // mismatch that cannot be repaired by reprojecting. Returns an empty string
+    // when the Hamiltonians agree, otherwise the phrase that goes into `why`.
     auto hamiltonian_mismatch = [&](const RestartMetadata& meta) {
-        if (meta.eprec != 0.0 and eprec != 0.0 and
-                std::abs(meta.eprec / eprec - 1.0) > 1.e-10)
-            return "archive was written at eprec " + format_thresh(meta.eprec) +
-                   ", this run uses " + format_thresh(eprec);
-        if (not meta.xc.empty() and not xc.empty() and meta.xc != xc)
-            return "archive was written with xc '" + meta.xc + "', this run uses '" +
-                   xc + "'";
-        if (not meta.ncf.empty() and not ncf.empty() and meta.ncf != ncf)
-            return "archive was written with the nuclear correlation factor '" +
-                   meta.ncf + "', this run uses '" + ncf + "'";
-        return std::string();
+        return meta.hamiltonian_key().mismatch(key);
     };
 
     // ---- fall back to the initial guess, recording why ---------------------
@@ -342,6 +344,7 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
     // ---- use restartdata, iterating from wherever it left off --------------
     // what the archive's header says about the orbitals it holds
     auto describe_archive = [&](const RestartMetadata& meta) {
+        plan.archive_id = meta.archive_id;
         plan.archive_converged = meta.converged_for_thresh < 1.0;
         plan.archive_same_hamiltonian = hamiltonian_mismatch(meta).empty();
     };
@@ -547,6 +550,14 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         return continue_from_archive(meta, "restart auto: " + other +
                                            " -- a different Hamiltonian, so re-converging");
 
+    // A different localization is the same solution in a different orbital
+    // basis: keep the convergence claim's precision, but iterate at the final
+    // rung so the stored orbitals, eigenvalues and Fock matrix -- and anything a
+    // response calculation expresses in them -- are the ones asked for.
+    if (not meta.localize.empty() and not localize.empty() and meta.localize != localize)
+        return continue_from_archive(meta, "restart auto: archive orbitals are localized with '" +
+                                           meta.localize + "', this run asks for '" + localize +
+                                           "' -- re-localizing at the final rung");
     if (pads_virtuals)
         return continue_from_archive(meta, "restart auto: archive holds " + std::to_string(disk.nmo_alpha) +
                                            " alpha orbitals, " + std::to_string(nmo_alpha) +
@@ -589,6 +600,10 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
     world.gop.broadcast(flags, 2, 0);
     disk.restartdata_present = (flags[0] == 1);
     disk.restartao_present = (flags[1] == 1);
+    if (disk.restartao_present) {
+        if (world.rank() == 0) disk.ao_header = RestartAOHeader::peek(prefix + ".restartaodata");
+        world.gop.broadcast_serializable(disk.ao_header, 0);
+    }
 
     if (disk.restartdata_present) {
         disk.meta = peek_restartdata(world, prefix + ".restartdata");
@@ -614,21 +629,20 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
 ///    output" argument does not have to stay true for correctness.
 ///
 /// @param[in] can which sources the asking engine can read; see RestartCapabilities
-/// @param[in] ncf the nuclear correlation factor this run uses (SCF::restart_ncf);
-///                empty for an engine that has none
+/// @param[in] key the Hamiltonian this run solves (SCF::hamiltonian_key)
 inline RestartPlan make_restart_plan(World& world, const RestartMode mode,
                                      const CalculationParameters& param,
                                      const Molecule& requested,
                                      const Representation wanted,
                                      const RestartCapabilities& can,
-                                     const std::string& ncf = "") {
+                                     const HamiltonianKey& key) {
 
     const RestartSources disk =
             survey_restart_sources(world, param.prefix(), param.nwfile() != "none");
 
     RestartPlan plan = plan_restart(mode, disk, can, param.protocol(), param.dconv(),
-                                    requested, wanted, requested.parameters.eprec(),
-                                    param.xc(), ncf, std::size_t(param.nmo_alpha()));
+                                    requested, wanted, key, std::size_t(param.nmo_alpha()),
+                                    param.localize_method());
     world.gop.broadcast_serializable(plan, 0);
 
     if (world.rank() == 0 and param.print_level() > 1) {

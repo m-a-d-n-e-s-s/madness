@@ -304,6 +304,24 @@ int main(int argc, char **argv) {
                                                 optimize_geometry);
       }
 
+      // Run-level provenance: a calc_info.json must say which
+      // code, on which machine, running which workflow, produced it.
+      {
+        char host[256] = {0};
+        gethostname(host, sizeof(host) - 1);
+        wf.set_provenance("schema_name", "madqc_calc_info");
+        wf.set_provenance("schema_version", 1);
+        wf.set_provenance(
+            "provenance",
+            {{"madness", {{"version", madness::info::version()},
+                          {"git_commit", madness::info::git_commit()},
+                          {"build_time", madness::info::build_time()}}},
+             {"workflow", user_workflow},
+             {"hostname", std::string(host)},
+             {"nproc", world.size()},
+             {"threads", static_cast<int>(madness::ThreadPool::size())}});
+      }
+
       // io provenance for ALL tasks (today only response writes MRA restart
       // state, but the stamp is run-level: an HDF5 run and a native run must
       // be distinguishable from any task's calc_info).

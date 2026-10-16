@@ -169,8 +169,9 @@ inline void write_scf_section(std::ostream &os, const nlohmann::json &t) {
       os << "    Molecule         : " << formula << "\n";
   }
 
-  // Energy: moldft stores the SCF energy under properties.energy and leaves
-  // the top-level scf_total_energy at 0; prefer the former.
+  // Energy: prefer properties.energy (present for every SCF path).
+  // scf_total_energy is filled by moldft too, but checkpoints written
+  // before the SCF task record carry 0 there.
   double e = props.value("energy", t.value("scf_total_energy", 0.0));
   if (e != 0.0)
     os << "    Total energy     : " << std::fixed << std::setprecision(9)

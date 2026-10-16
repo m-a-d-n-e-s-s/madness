@@ -181,6 +181,12 @@ write_gs_seed_from_molden(madness::World &world, const std::string &molden_path,
   meta.representation       = Representation::mo;
   meta.eprec                = stamp.parameters.eprec();
   meta.madness_version      = MADNESS_PACKAGE_VERSION;
+  // one id for the seed and its preserved copy: they are the same orbitals
+  meta.archive_id           = new_archive_id(world);
+  meta.origin               = "dalton-seed";
+  meta.nalpha               = n_occ;
+  meta.nbeta                = n_occ;
+  meta.nmo_beta             = n_occ;
   auto emit = [&](auto &ar) {
     meta.write(ar);
     ar & static_cast<unsigned int>(amo.size());
