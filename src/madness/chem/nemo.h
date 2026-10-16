@@ -92,8 +92,11 @@ public:
 
         if (nemo.size()==0) return;
         World& world=nemo[0].world();
-		// compute the norm of the reconstructed orbitals, includes the factor
-		std::vector<Function<T,NDIM> > mos = (metric.is_initialized()) ? metric*nemo : nemo;
+		// compute the norm of the reconstructed orbitals, includes the factor; the
+		// metric spans the molecule, the nemos are local: screened like the other
+		// nemo products (SCF::vtol)
+		std::vector<Function<T,NDIM> > mos = (metric.is_initialized())
+				? mul_sparse(world, metric, nemo, FunctionDefaults<NDIM>::get_thresh()*0.1) : nemo;
 		std::vector<double> norms = norm2s(world, mos);
 
 		// scale the nemos, excludes the nuclear correlation factor
@@ -148,7 +151,8 @@ public:
 	    normalize(nemo,metric);
 	    double maxq;
 	    do {
-			std::vector<Function<T,NDIM> > Rnemo = (metric.is_initialized()) ? metric*nemo : nemo;
+			std::vector<Function<T,NDIM> > Rnemo = (metric.is_initialized())
+					? mul_sparse(world, metric, nemo, FunctionDefaults<NDIM>::get_thresh()*0.1) : nemo;
 	        Tensor<T> Q = Q2(matrix_inner(world, Rnemo, Rnemo));
 	        maxq=0.0;
 	        for (int i=0; i<Q.dim(0); ++i)
@@ -175,18 +179,21 @@ public:
         if ((not R.is_initialized()) or (R.thresh()>thresh)) need=true;
         if (not ncf) need=true;
         if ((not R_square.is_initialized()) or (R_square.thresh()>thresh)) need=true;
+        if ((not U1dotU1.is_initialized()) or (U1dotU1.thresh()>thresh)) need=true;
         // k must be checked independently of thresh: re-entering a protocol at
         // the same threshold but a different k (a restart, or a user-pinned k)
         // would otherwise reuse R and R_square at the old k and silently mix
         // polynomial orders in every product with the nemos.
         if (R.is_initialized() and R.k()!=k) need=true;
         if (R_square.is_initialized() and R_square.k()!=k) need=true;
+        if (U1dotU1.is_initialized() and U1dotU1.k()!=k) need=true;
         return need;
     };
 
     virtual void invalidate_factors_and_potentials() {
         R.clear();
         R_square.clear();
+        U1dotU1.clear();
         ncf.reset();
     };
 
@@ -205,6 +212,11 @@ public:
 	    R.set_thresh(FunctionDefaults<3>::get_thresh());
 	    R_square = ncf->square();
 	    R_square.set_thresh(FunctionDefaults<3>::get_thresh());
+	    // from its functor, not from the squared U1 components: their smoothed unit
+	    // vector vanishes at the nuclei (see assemble_nemo_ddens in xcfunctional_libxc.cc)
+	    U1dotU1 = real_factory_3d(world).special_level(NuclearCorrelationFactor::ncf_special_level)
+	            .functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
+	    U1dotU1.set_thresh(FunctionDefaults<3>::get_thresh());
 	}
 
 	/// compute the nuclear gradients
@@ -226,9 +238,7 @@ public:
 		//auto worldid=world.id();
 		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
-	    real_function_3d U1dotU1=real_factory_3d(world)
-	    		.functor(NuclearCorrelationFactor::U1_dot_U1_functor(ncf.get()));
-	    double ke1=inner(dens,U1dotU1);
+	    double ke1=inner(dens,U1dotU1);   // cached beside R and R_square
 
 	    double ke2=0.0;
 	    double ke3=0.0;
@@ -353,6 +363,9 @@ public:
 
     /// the square of the nuclear correlation factor
     real_function_3d R_square;
+
+    /// U1.U1 = |grad R|^2 / R^2, by which the physical kinetic energy exceeds the regularized one
+    real_function_3d U1dotU1;
 
 
 };
@@ -697,14 +710,20 @@ protected:
 	double solve(const SCFProtocol& proto);
 
     /// given nemos, compute the HF energy using the regularized expressions for T and V
-    std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& Jnemo,
-            const vecfuncT& Knemo, const vecfuncT& Unemo) const;
+
+    /// @param[in]  R2nemo   R^2 * nemo, the bra of every expectation value
+    /// @param[in]  kinetic  <R^2 F_i | -1/2 nabla^2 | F_j>, the kinetic block of the Fock matrix;
+    ///                      the regularized kinetic energy is twice its trace
+    std::vector<double> compute_energy_regularized(const vecfuncT& nemo, const vecfuncT& R2nemo,
+            const vecfuncT& Jnemo, const vecfuncT& Knemo, const vecfuncT& Unemo,
+            const Tensor<double>& kinetic) const;
 
 	/// compute the reconstructed orbitals, and all potentials applied on nemo
 
 	/// to use these potentials in the fock matrix computation they must
 	/// be multiplied by the nuclear correlation factor
 	/// @param[in]	nemo	the nemo orbitals
+	/// @param[in]	R2nemo	R^2 * nemo, the bra of the exchange operator
 	/// @param[out]	Jnemo	Coulomb operator applied on the nemos
 	/// @param[out]	Knemo	exchange operator applied on the nemos
 	/// @param[out]	pcmnemo	PCM (solvent) potential applied on the nemos
@@ -719,10 +738,10 @@ protected:
 	///                     is missing from xcnemo is exactly the term that has no
 	///                     multiplicative representation. Assigned in the weak
 	///                     form only and left untouched otherwise.
-	void compute_nemo_potentials(const vecfuncT& nemo,
+	void compute_nemo_potentials(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc) const {
-		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+		compute_nemo_potentials_impl(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
 				xcflux, fock_xc, true);
 	}
 
@@ -733,12 +752,12 @@ protected:
 	/// xcnemo always carries the complete multiplicative xc potential and the
 	/// xc block of the Fock matrix can be read off it as before. Silently
 	/// discarding xcflux instead would drop the semilocal term.
-	void compute_nemo_potentials(const vecfuncT& nemo,
+	void compute_nemo_potentials(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo) const {
 		std::vector<vecfuncT> xcflux;
 		tensorT fock_xc;
-		compute_nemo_potentials_impl(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+		compute_nemo_potentials_impl(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
 				xcflux, fock_xc, false);
 	}
 
@@ -746,7 +765,7 @@ protected:
 
 	/// @param[in]	allow_weak	opt in to the weak form; it is then used iff
 	///							the `xc_weak_gga` parameter asks for it
-	void compute_nemo_potentials_impl(const vecfuncT& nemo,
+	void compute_nemo_potentials_impl(const vecfuncT& nemo, const vecfuncT& R2nemo,
 			vecfuncT& Jnemo, vecfuncT& Knemo, vecfuncT& xcnemo, vecfuncT& pcmnemo,
 			vecfuncT& Unemo, std::vector<vecfuncT>& xcflux, tensorT& fock_xc,
 			const bool allow_weak) const;

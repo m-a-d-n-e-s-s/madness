@@ -1978,6 +1978,37 @@ vecfuncT SCF::apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
     return new_psi;
 }
 
+vecfuncT SCF::apply_bsh(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                        const CalculationParameters& param) {
+    // bsh_apply selects the backend (executors above; eps fed identically to all).
+    // auto: macrotask when multinode (rank-local apply, no inter-node convolution comm)
+    // or at tight protocol (one orbital per task bounds the working set where memory
+    // binds); tile on a single node at loose/medium (no gather, no subworld copy).
+    std::string bsh_apply_mode = param.bsh_apply();
+    const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
+    long batch = 0;   // 0 = partitioner default
+    if (bsh_apply_mode == "auto") {
+        const long n_nodes = long(ranks_per_host(world).size());   // collective
+        bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
+        // tight: one orbital per task (memory, and required by the redistribute
+        // below); loose/medium: a modest batch amortizes per-task overhead
+        if (bsh_apply_mode == "macrotask") batch = tight ? 1 : 4;
+        if (param.print_level() >= 2 and world.rank() == 0)
+            print("BSH apply [auto]:", bsh_apply_mode, "(nodes:", n_nodes,
+                  tight ? ", tight protocol)" : ")");
+    }
+    // pre-localize ONLY at tight protocol: the per-task gather serve-starves there and
+    // the redistribute + local fetch collapse it; at loose/medium the move is a net
+    // loss. Applies to auto and to explicit bsh_apply=macrotask.
+    bool redistribute = (bsh_apply_mode == "macrotask") and tight;
+    if (redistribute) batch = 1;   // one owner per task (explicit macrotask mode included)
+    if (redistribute and param.print_level() >= 2 and world.rank() == 0)
+        print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
+    if (bsh_apply_mode == "macrotask") return apply_bsh_macrotask(world, Vpsi, eps, param, batch, redistribute);
+    if (bsh_apply_mode == "plain")     return apply_bsh_plain(world, Vpsi, eps, param);
+    return apply_bsh_tiled(world, Vpsi, eps, param);
+}
+
 vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
                                const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
 
@@ -2018,34 +2049,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     scale(world, Vpsi, fac);
     END_TIMER(world, "Compute residual stuff");
 
-    // bsh_apply selects the backend (executors above; eps fed identically to all).
-    // auto: macrotask when multinode (rank-local apply, no inter-node convolution comm)
-    // or at tight protocol (one orbital per task bounds the working set where memory
-    // binds); tile on a single node at loose/medium (no gather, no subworld copy).
-    std::string bsh_apply_mode = param.bsh_apply();
-    const bool tight = FunctionDefaults<3>::get_thresh() <= BSH_TIGHT_THRESH;
-    long batch = 0;   // 0 = partitioner default
-    if (bsh_apply_mode == "auto") {
-        const long n_nodes = long(ranks_per_host(world).size());   // collective
-        bsh_apply_mode = (n_nodes >= 2 or tight) ? "macrotask" : "tile";
-        // tight: one orbital per task (memory, and required by the redistribute
-        // below); loose/medium: a modest batch amortizes per-task overhead
-        if (bsh_apply_mode == "macrotask") batch = tight ? 1 : 4;
-        if (param.print_level() >= 2 and world.rank() == 0)
-            print("BSH apply [auto]:", bsh_apply_mode, "(nodes:", n_nodes,
-                  tight ? ", tight protocol)" : ")");
-    }
-    // pre-localize ONLY at tight protocol: the per-task gather serve-starves there and
-    // the redistribute + local fetch collapse it; at loose/medium the move is a net
-    // loss. Applies to auto and to explicit bsh_apply=macrotask.
-    bool redistribute = (bsh_apply_mode == "macrotask") and tight;
-    if (redistribute) batch = 1;   // one owner per task (explicit macrotask mode included)
-    if (redistribute and param.print_level() >= 2 and world.rank() == 0)
-        print("BSH apply: redistribute operand to single-owner batches (tight protocol)");
-    vecfuncT new_psi;
-    if (bsh_apply_mode == "macrotask")  new_psi = apply_bsh_macrotask(world, Vpsi, eps, param, batch, redistribute);
-    else if (bsh_apply_mode == "plain") new_psi = apply_bsh_plain(world, Vpsi, eps, param);
-    else                                new_psi = apply_bsh_tiled(world, Vpsi, eps, param);
+    vecfuncT new_psi = apply_bsh(world, Vpsi, eps, param);
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and

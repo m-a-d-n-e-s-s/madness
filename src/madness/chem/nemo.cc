@@ -310,16 +310,21 @@ double Nemo::value(const Tensor<double> &x) {
     }
   }
 
-  // save the converged orbitals and nemos
-  for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-    save(calc->amo[imo], "nemo" + stringify(imo));
+  // the per-orbital nemo files and the densities follow the deck's `save`, like the
+  // SCF archive: one file per orbital through rank 0 takes minutes on a parallel
+  // file system at a few hundred orbitals, and save_mos already holds the nemos
+  if (get_calc_param().save()) {
+    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo)
+      save(calc->amo[imo], "nemo" + stringify(imo));
   }
 
   // compute the dipole moment
   const real_function_3d rhonemo = 2.0 * make_density(calc->aocc, calc->amo);
   const real_function_3d rho = (R_square * rhonemo);
-  save(rho, "rho");
-  save(rhonemo, "rhonemo");
+  if (get_calc_param().save()) {
+    save(rho, "rho");
+    save(rhonemo, "rhonemo");
+  }
   Tensor<double> dipole = calc->dipole(world, rho);
 
   if (world.rank() == 0)
@@ -362,7 +367,8 @@ vecfuncT Nemo::localize(const vecfuncT &nemo, const double dconv,
                         const bool randomize) const {
 
   Localizer localizer(world, get_calc()->aobasis, molecule(), get_calc()->ao);
-  localizer.set_metric(ncf->function())
+  // R is the cached projection; ncf->function() would project it again every iteration
+  localizer.set_metric(R)
       .set_method(calc->param.localize_method());
 
   MolecularOrbitals<double, 3> mo(nemo, calc->aeps, {}, calc->aocc, calc->aset);
@@ -450,7 +456,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT &nemo,
 
   // compute potentials the Fock matrix: J - K + Vnuc. This caller does not
   // implement the weak-form split, so it uses the form that never opts in.
-  compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
+  compute_nemo_potentials(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
 
   //    vecfuncT JKUpsi=add(world, sub(world, Jnemo, Knemo), Unemo);
   vecfuncT JKUpsi = Unemo + Jnemo - Knemo;
@@ -519,6 +525,22 @@ vecfuncT flux_bsh_term(const std::vector<vecfuncT> &flux, const tensorT &fock,
   return result;
 }
 
+/// Applies the Green's function to Vnemo (consumed) through the SCF's executors
+/// (bsh_apply: tile / macrotask / plain, auto by topology and protocol) instead of
+/// BSHApply's whole-vector apply, which keeps the nonstandard inputs and untruncated
+/// outputs of every orbital at once. Coupling, level shift and the operator energies
+/// are BSHApply's. The orbital-energy update BSHApply would form from two more R^2
+/// products is not computed: the solver takes the energies from the Fock matrix.
+vecfuncT apply_bsh_green(World &world, SCF &calc, const BSHApply<double, 3> &bsh,
+                         const vecfuncT &nemo, const tensorT &fock, vecfuncT &Vnemo) {
+  // (T - eps_i) F_i = -2 (V F_i - sum_j F_j fock_ji), eps_i = eps_in_green(fock_ii)
+  Vnemo -= bsh.add_coupling_and_levelshift(nemo, fock);
+  scale(world, Vnemo, -2.0);
+  tensorT eps(long(nemo.size()));
+  for (long i = 0; i < eps.size(); ++i) eps(i) = bsh.eps_in_green(fock(i, i));
+  return calc.apply_bsh(world, Vnemo, eps, calc.param);
+}
+
 } // namespace
 
 /// solve the HF equations
@@ -536,8 +558,11 @@ double Nemo::solve(const SCFProtocol &proto) {
     MADNESS_CHECK_THROW(nemo.front().k() == FunctionDefaults<3>::get_k(),
                         "nemos are not at the current k -- set_protocol was skipped");
 
-  // NOTE that nemos are somewhat sensitive to sparse operations (why??)
-  // Therefore set all tolerance thresholds to zero, also in the mul_sparse
+  // R_square is refined at every nucleus while the nemos are local, so the dense
+  // R^2 F product descends into the union of both trees (cost ~ natom*nmo). It is
+  // screened at the SCF's vtol like moldft's V*psi; the same screening is applied
+  // to the regularized nuclear potential, the Coulomb batches, the localizer's
+  // metric product and the normalization and orthonormalization of the nemos.
 
   // apply all potentials (J, K, Vnuc) on the nemos
   vecfuncT Jnemo, Knemo, xcnemo, pcmnemo, Unemo;
@@ -550,6 +575,8 @@ double Nemo::solve(const SCFProtocol &proto) {
   real_function_3d density = real_factory_3d(world); // for testing convergence
 
   auto solver = nonlinear_vector_solver<double, 3>(world, size_to_long(nemo.size()));
+  // maxsub 0 or 1 disables the subspace (the solver's own test is maxsub == 1)
+  solver.set_maxsub(std::max(1, get_calc_param().maxsub()));
 
   // iterate the residual equations
   for (int iter = 0; iter < get_calc_param().maxiter(); ++iter) {
@@ -561,7 +588,7 @@ double Nemo::solve(const SCFProtocol &proto) {
       nemo = symmetry_projector(nemo, R_square, str_irreps);
     if (world.rank() == 0 and get_calc_param().print_level() > 9)
       print("orbital irreps", str_irreps);
-    vecfuncT R2nemo = mul(world, R_square, nemo);
+    vecfuncT R2nemo = mul_sparse(world, R_square, nemo, calc->vtol);
     truncate(world, R2nemo);
     if (iter == 0)
       solver.initialize(nemo);
@@ -569,17 +596,17 @@ double Nemo::solve(const SCFProtocol &proto) {
     // compute potentials the Fock matrix: J - K + Vnuc
     std::vector<vecfuncT> xcflux;
     tensorT fock_xc;
-    compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo, xcflux,
-                            fock_xc);
+    compute_nemo_potentials(nemo, R2nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo,
+                            xcflux, fock_xc);
     const bool weak_xc = (not xcflux.empty());
 
-    // compute the energy
-    std::vector<double> oldenergies = energies;
-    energies = compute_energy_regularized(nemo, Jnemo, Knemo, Unemo);
-    energy = energies[0];
-
-    // compute the fock matrix
+    // compute the fock matrix. Its kinetic block is built first and once: the
+    // energy below takes the kinetic term from its trace instead of
+    // differentiating the orbitals again.
     timer t_fock(world, get_calc_param().print_level() > 2);
+    Kinetic<double, 3> T(world);
+    const tensorT kinetic = T(R2nemo, nemo);
+    t_fock.tag("kinetic energy matrix");
     vecfuncT Vnemo = Unemo + Jnemo - Knemo;
     if (do_pcm())
       Vnemo += pcmnemo;
@@ -595,9 +622,13 @@ double Nemo::solve(const SCFProtocol &proto) {
       if (weak_xc) fock += fock_xc;
       else         fock += matrix_inner(world, R2nemo, xcnemo, false);
     }
-    Kinetic<double, 3> T(world);
-    fock += T(R2nemo, nemo);
+    fock += kinetic;
     t_fock.end("compute fock matrix");
+
+    // compute the energy
+    std::vector<double> oldenergies = energies;
+    energies = compute_energy_regularized(nemo, R2nemo, Jnemo, Knemo, Unemo, kinetic);
+    energy = energies[0];
 
     // Diagonalize the Fock matrix to get the eigenvalues and eigenvectors
     if (not localized) {
@@ -642,12 +673,16 @@ double Nemo::solve(const SCFProtocol &proto) {
     }
 
     timer t_bsh(world, get_calc_param().print_level() > 2);
+    // BSHApply supplies the coupling, level shift and operator energies; the
+    // Green's function itself goes through the SCF's executors (apply_bsh_green)
     BSHApply<double, 3> bsh_apply(world);
-    bsh_apply.metric = R_square;
-    bsh_apply.ret_value = BSHApply<double, 3>::update;
     bsh_apply.lo = get_calc()->param.lo();
     bsh_apply.levelshift = get_calc_param().orbitalshift();
-    auto [update, eps_update] = bsh_apply(nemo, fock, Vnemo);
+    // nothing past this point reads the potentials or the bra: free them so the
+    // apply window holds Vnemo and the new orbitals, not the potentials as well
+    Jnemo.clear(); Knemo.clear(); Unemo.clear(); xcnemo.clear(); pcmnemo.clear();
+    R2nemo.clear();
+    vecfuncT update = apply_bsh_green(world, *calc, bsh_apply, nemo, fock, Vnemo);
     if (weak_xc) {
       update += flux_bsh_term(xcflux, fock, bsh_apply,
                               get_calc_param().dft_deriv());
@@ -716,33 +751,31 @@ double Nemo::solve(const SCFProtocol &proto) {
 /// given nemos, compute the HF energy using the regularized expressions for T
 /// and V
 std::vector<double>
-Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
-                                 const vecfuncT &Knemo,
-                                 const vecfuncT &Unemo) const {
+Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &R2nemo,
+                                 const vecfuncT &Jnemo, const vecfuncT &Knemo,
+                                 const vecfuncT &Unemo,
+                                 const tensorT &kinetic) const {
   timer t(world, get_calc_param().print_level() > 2);
-
-  vecfuncT R2nemo = R_square * nemo;
-  truncate(world, R2nemo);
 
   const tensorT U = inner(world, R2nemo, Unemo);
   const double pe = 2.0 * U.sum(); // closed shell
 
-  //    real_function_3d dens=dot(world,nemo,nemo)*R_square;
-  //    double pe1=2.0*inner(dens,calc->potentialmanager->vnuclear());
-
-  // compute \sum_i <F_i | R^2 T | F_i>
+  // \sum_i <F_i | R^2 T | F_i>, closed shell: twice the trace of the kinetic
+  // block <R^2 F_i | T | F_j> the Fock matrix is built from
+  MADNESS_CHECK_THROW(kinetic.ndim() == 2 and
+                          kinetic.dim(0) == long(nemo.size()) and
+                          kinetic.dim(1) == long(nemo.size()),
+                      "kinetic matrix does not match the orbitals");
   double ke = 0.0;
-  for (int axis = 0; axis < 3; axis++) {
-    real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
-    const vecfuncT dnemo = apply(world, D, nemo);
-    const vecfuncT dr2nemo = apply(world, D, R2nemo);
-    ke += 0.5 * (inner(world, dnemo, dr2nemo)).sum();
-  }
+  for (long i = 0; i < kinetic.dim(0); ++i)
+    ke += kinetic(i, i);
   ke *= 2.0; // closed shell
 
-  double ke0 = compute_kinetic_energy(nemo);
-  //    double ke1=compute_kinetic_energy1(nemo);
-  //    double ke2=compute_kinetic_energy2(nemo);
+  // the physical kinetic energy 1/2 \sum_i ||grad(R F_i)||^2 (closed shell)
+  // exceeds the regularized one by <rho_nemo R^2 | U1.U1>, U1 = -grad(R)/R;
+  // printed as a diagnostic and returned as energies[1]
+  const real_function_3d dens = dot(world, nemo, nemo) * R_square;
+  const double ke0 = ke + inner(dens, U1dotU1);
 
   const double J = inner(world, R2nemo, Jnemo).sum();
   double K = inner(world, R2nemo, Knemo).sum();
@@ -805,7 +838,7 @@ Nemo::compute_energy_regularized(const vecfuncT &nemo, const vecfuncT &Jnemo,
 /// @param[out]	Knemo	exchange operator applied on the nemos
 /// @param[out]	Vnemo	nuclear potential applied on the nemos
 /// @param[out]	Unemo	regularized nuclear potential applied on the nemos
-void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
+void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2nemo, vecfuncT &Jnemo,
                                         vecfuncT &Knemo, vecfuncT &xcnemo,
                                         vecfuncT &pcmnemo, vecfuncT &Unemo,
                                         std::vector<vecfuncT> &xcflux,
@@ -816,8 +849,13 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
     timer t(world, get_calc_param().print_level() > 2);
     real_function_3d vcoul;
     int ispin = 0;
-    auto taskq =
-        std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
+    // The exchange fetches its own operand batches from their owners (owner-pinned
+    // tiles) and asks for the pointer policy when it builds its own queue; a shared
+    // queue carries the factory default instead, which copies every operand set into
+    // the cloud and replicates it to every rank per iteration. Use the exchange's
+    // policy here; the Coulomb batches get their inputs copied per task as before.
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(
+        MacroTaskQFactory(world).set_policy(MacroTaskInfo::preset("small_memory_owner"))));
     taskq->set_printlevel(get_calc_param().print_level());
     // taskq->cloud.set_debug(true);
     if (world.rank() == 0 and get_calc_param().print_level() > 4)
@@ -839,7 +877,8 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, vecfuncT &Jnemo,
       // bra_i * vf_j symmetric in (i,j), which is all the triangle needs. The algorithm comes from
       // the input instead of being fixed here, so `hfexalg multiworld` reaches nemo's SCF; the
       // parameter defaults to the row algorithm this site hard-coded, so the default is unchanged.
-      Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
+      // The bra is the caller's R^2 nemo, the same vector the Fock matrix is built with.
+      Exchange<double, 3> K = Exchange<double, 3>(world, this, R2nemo, ispin)
                                   .set_symmetric(true)
                                   .set_taskq(taskq)
                                   .set_printlevel(get_calc_param().print_level());

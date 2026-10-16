@@ -55,6 +55,22 @@ Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const Nemo *nemo,
 }
 
 template<typename T, std::size_t NDIM>
+Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const Nemo *nemo,
+                            const std::vector<Function<double,NDIM>>& R2mo, const int ispin)
+        : ExchangeImpl(world, nemo->get_calc().get(), ispin) {
+
+    // the delegated ctor holds the occupied orbitals of this spin as the ket
+    MADNESS_CHECK_THROW(R2mo.size() == mo_ket.size(), "exchange bra does not match the occupied orbitals of this spin");
+    if constexpr (std::is_same_v<T,double>) {
+        // a shared handle: applying the operator reconstructs bra and ket in place
+        // and builds their norm trees, which changes nothing but their tree state
+        mo_bra = R2mo;
+    } else {
+        mo_bra = convert<double, T, NDIM>(world, R2mo);
+    }
+}
+
+template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         const std::vector<Function<T, NDIM> >& vket) const {
 
@@ -408,6 +424,10 @@ Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : imp
 /// ctor with a nemo calculation
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const std::vector<Function<double,NDIM>>& R2mo, const int ispin)
+        : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,R2mo,ispin)) {};
 
 /// apply the exchange operator on a vector of functions
 

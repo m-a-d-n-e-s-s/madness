@@ -512,6 +512,11 @@ public:
                              const CalculationParameters& param);
     vecfuncT apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
                              const CalculationParameters& param);
+    /// Applies the Green's function with the executor the bsh_apply parameter selects
+    /// (auto: macrotask when multinode or at tight thresh, else tile). Consumes Vpsi;
+    /// eps(i) is the orbital energy entering operator i. Shared with nemo's solver.
+    vecfuncT apply_bsh(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                       const CalculationParameters& param);
 
     tensorT make_fock_matrix(World& world, const vecfuncT& psi,
                              const vecfuncT& Vpsi, const tensorT& occ,
