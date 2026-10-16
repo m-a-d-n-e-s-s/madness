@@ -1,0 +1,61 @@
+<map id="dqueue.h" name="dqueue.h">
+<area shape="rect" id="Node000001" title="Implements DQueue." alt="" coords="559,5,641,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,86,91,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="558,24,361,40,232,57,103,81,91,84,90,79,102,76,231,52,360,35,558,19"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="115,86,186,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="559,25,400,43,299,59,199,81,190,84,189,79,198,76,298,54,399,37,558,20"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="211,86,291,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="559,29,446,50,310,81,298,84,297,79,309,76,445,45,558,24"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="345,328,481,353"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="563,33,451,70,306,125,234,157,171,190,120,224,89,256,84,268,89,278,104,290,127,301,189,317,262,328,332,333,332,339,261,333,188,322,125,306,101,295,85,282,79,268,84,253,117,219,168,186,232,152,304,120,449,65,562,28"/>
+<area shape="rect" id="Node000006" href="$thread__info_8h.html" title="Implements thread introspection for Pthreads backend." alt="" coords="869,79,1035,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="642,26,856,73,855,79,641,31"/>
+<area shape="rect" id="Node000007" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable." alt="" coords="630,86,845,111"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="622,29,707,77,704,81,619,33"/>
+<area shape="rect" id="Node000027" title=" " alt="" coords="1059,86,1130,111"/>
+<area shape="poly" id="edge30_Node000001_Node000027" title=" " alt="" coords="642,19,820,35,934,52,1049,76,1058,79,1056,84,1047,81,933,57,819,40,641,24"/>
+<area shape="rect" id="Node000028" title=" " alt="" coords="1154,86,1214,111"/>
+<area shape="poly" id="edge31_Node000001_Node000028" title=" " alt="" coords="642,17,733,20,859,28,1001,46,1073,59,1143,76,1150,78,1149,83,1142,81,1072,65,1000,51,858,34,733,25,642,22"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="1069,174,1136,199"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="812,109,928,131,1058,164,1065,166,1063,171,1057,169,927,136,811,114"/>
+<area shape="rect" id="Node000009" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="664,255,867,280"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="701,114,660,135,642,150,628,168,621,187,628,205,654,231,687,248,685,253,651,235,623,208,616,187,623,165,638,146,657,130,698,109"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="1161,174,1245,199"/>
+<area shape="poly" id="edge10_Node000007_Node000010" title=" " alt="" coords="810,109,1149,164,1160,167,1159,172,1147,169,809,114"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="1269,174,1333,199"/>
+<area shape="poly" id="edge11_Node000007_Node000011" title=" " alt="" coords="807,109,856,116,970,127,1058,132,1147,141,1258,164,1266,167,1264,172,1257,169,1146,146,1058,137,969,133,856,121,807,114"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="1357,174,1419,199"/>
+<area shape="poly" id="edge12_Node000007_Node000012" title=" " alt="" coords="805,109,856,116,994,127,1103,130,1210,137,1273,147,1346,164,1354,166,1352,172,1345,169,1272,153,1210,142,1103,135,994,133,856,121,805,114"/>
+<area shape="rect" id="Node000013" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS." alt="" coords="1443,174,1650,199"/>
+<area shape="poly" id="edge13_Node000007_Node000013" title=" " alt="" coords="805,109,856,116,1018,132,1144,140,1270,148,1431,164,1469,169,1468,175,1430,169,1269,153,1143,145,1017,137,856,121,804,114"/>
+<area shape="rect" id="Node000014" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info." alt="" coords="332,174,511,199"/>
+<area shape="poly" id="edge14_Node000007_Node000014" title=" " alt="" coords="695,114,478,173,476,168,694,109"/>
+<area shape="rect" id="Node000021" href="$atomicint_8h.html" title="Implements AtomicInt." alt="" coords="638,174,837,199"/>
+<area shape="poly" id="edge22_Node000007_Node000021" title=" " alt="" coords="740,112,740,160,735,160,735,112"/>
+<area shape="rect" id="Node000023" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="861,167,1045,207"/>
+<area shape="poly" id="edge25_Node000007_Node000023" title=" " alt="" coords="767,109,894,159,892,164,765,114"/>
+<area shape="poly" id="edge9_Node000009_Node000005" title=" " alt="" coords="709,283,484,328,483,323,708,277"/>
+<area shape="poly" id="edge21_Node000014_Node000009" title=" " alt="" coords="472,197,703,249,701,254,471,202"/>
+<area shape="rect" id="Node000015" title=" " alt="" coords="99,255,165,280"/>
+<area shape="poly" id="edge15_Node000014_Node000015" title=" " alt="" coords="380,202,179,256,178,251,379,197"/>
+<area shape="rect" id="Node000016" title=" " alt="" coords="189,255,256,280"/>
+<area shape="poly" id="edge16_Node000014_Node000016" title=" " alt="" coords="393,202,265,252,263,247,391,197"/>
+<area shape="rect" id="Node000017" title=" " alt="" coords="280,255,339,280"/>
+<area shape="poly" id="edge17_Node000014_Node000017" title=" " alt="" coords="406,202,338,249,335,245,403,197"/>
+<area shape="rect" id="Node000018" title=" " alt="" coords="363,255,427,280"/>
+<area shape="poly" id="edge18_Node000014_Node000018" title=" " alt="" coords="420,200,405,243,400,241,415,199"/>
+<area shape="rect" id="Node000019" title=" " alt="" coords="451,255,541,280"/>
+<area shape="poly" id="edge19_Node000014_Node000019" title=" " alt="" coords="434,198,478,243,474,247,430,201"/>
+<area shape="rect" id="Node000020" title=" " alt="" coords="565,255,640,280"/>
+<area shape="poly" id="edge20_Node000014_Node000020" title=" " alt="" coords="449,197,565,247,563,252,447,202"/>
+<area shape="poly" id="edge23_Node000021_Node000009" title=" " alt="" coords="744,199,759,241,754,243,739,200"/>
+<area shape="rect" id="Node000022" title=" " alt="" coords="891,255,1010,280"/>
+<area shape="poly" id="edge24_Node000021_Node000022" title=" " alt="" coords="769,197,908,248,906,253,767,202"/>
+<area shape="poly" id="edge29_Node000023_Node000009" title=" " alt="" coords="909,209,807,252,805,247,907,204"/>
+<area shape="rect" id="Node000024" title=" " alt="" coords="1034,255,1099,280"/>
+<area shape="poly" id="edge26_Node000023_Node000024" title=" " alt="" coords="982,205,1040,244,1037,249,979,209"/>
+<area shape="rect" id="Node000025" title=" " alt="" coords="1124,255,1188,280"/>
+<area shape="poly" id="edge27_Node000023_Node000025" title=" " alt="" coords="1003,204,1114,247,1112,252,1001,209"/>
+<area shape="rect" id="Node000026" title=" " alt="" coords="1213,255,1299,280"/>
+<area shape="poly" id="edge28_Node000023_Node000026" title=" " alt="" coords="1026,204,1200,249,1199,254,1025,209"/>
+</map>

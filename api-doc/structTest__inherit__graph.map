@@ -1,0 +1,6 @@
+<map id="Test" name="Test">
+<area shape="rect" id="Node000001" title=" " alt="" coords="88,93,136,119"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="5,5,219,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="106,59,108,93,103,93,100,59"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="124,59,121,93,116,93,118,59"/>
+</map>

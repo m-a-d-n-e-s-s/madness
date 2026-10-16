@@ -1,0 +1,5 @@
+<map id="madness::RMISendReq" name="madness::RMISendReq">
+<area shape="rect" id="Node000001" title="This for RMI server thread to manage lifetime of WorldAM messages that it is sending." alt="" coords="23,5,194,31"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1WorldAmInterface_1_1SendReq.html" title=" " alt="" coords="5,79,212,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="111,44,111,79,106,79,106,44"/>
+</map>
