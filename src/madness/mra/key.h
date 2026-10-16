@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <climits>  // CHAR_BIT
 #include <cstdint>
+#include <optional>
 
 namespace madness {
 
@@ -250,6 +251,81 @@ namespace madness {
           return dsq;
         }
 
+        /// like distsq_bc() but to the nearest lattice image other than the home cell
+
+        /// The rest-of-crystal kernel (OperatorInfo::images_only) at displacement l sums the free-space
+        /// kernel at l + R 2^n over the lattice vectors R != 0 of the periodic axes, so it decays with this
+        /// distance as an ordinary lattice-summed kernel decays with distsq_bc().
+        /// @note saturates: each axis contributes at most distsq_images_axis_max(), since from level 31 on the
+        ///       offset to the next-nearest image (~2^n boxes) squared does not fit; real_distsq_images() does not
+        uint64_t distsq_images(const array_of_bools<NDIM>& is_periodic) const {
+          return distsq_images_impl(is_periodic, [](std::size_t, Translation la) -> uint64_t {
+            const uint64_t a = std::min(la < 0 ? uint64_t(0) - uint64_t(la) : uint64_t(la), distsq_images_axis_cap);
+            return a * a;
+          });
+        }
+
+        /// the largest contribution of one axis to distsq_images(); NDIM <= 6 of them sum below 2^63
+        static constexpr uint64_t distsq_images_axis_max() { return distsq_images_axis_cap * distsq_images_axis_cap; }
+
+        /// like real_distsq_bc() but to the nearest lattice image other than the home cell (see distsq_images())
+        double real_distsq_images(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
+          return distsq_images_impl(is_periodic, [&](std::size_t d, Translation la) -> double {
+            // Subtract 1 to account for the least distance between points in the boxes.
+            const auto real_width = widths(d) * std::max(std::abs(la) - 1, static_cast<Translation>(0));
+            return real_width * real_width;
+          });
+        }
+
+        /// like real_distsq_images() but between the centers of the boxes
+
+        /// real_distsq_images() is the least distance between points of the two boxes, which is zero for every
+        /// displacement one box from an image whatever the axis. The center distance is the axis width there, so
+        /// it tells those displacements apart (Displacements::sort_displacements_images breaks ties with it).
+        double real_distsq_images_centers(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
+          return distsq_images_impl(is_periodic, [&](std::size_t d, Translation la) -> double {
+            const double real_width = widths(static_cast<long>(d)) * static_cast<double>(la);
+            return real_width * real_width;
+          });
+        }
+
+      private:
+        static constexpr uint64_t distsq_images_axis_cap = uint64_t(1) << 30;  ///< |l| in boxes at which distsq_images() saturates
+
+        /// min over R != 0 of sum_d axis_distsq(d, l_d + R_d 2^n), R_d = 0 along nonperiodic axes. The sum is
+        /// separable, so the minimum takes the nearest image on every axis (as distsq_bc() does) unless that is
+        /// R = 0 on every periodic axis; then exactly one periodic axis moves to its next-nearest image, the
+        /// one that costs least.
+        template <typename F>
+        auto distsq_images_impl(const array_of_bools<NDIM>& is_periodic, F&& axis_distsq) const {
+          using T = decltype(axis_distsq(std::size_t(0), Translation(0)));
+          const Translation twon = Translation(1) << level();
+          const Translation twonm1 = twon >> 1;
+          T dsq = 0;
+          bool wrapped = false;
+          std::optional<T> step;  // least cost of moving one periodic axis off R = 0
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              // reduce to the nearest image; one step suffices for |l| < 2^n, which is all Displacements
+              // produces, the loop makes the function correct for any l
+              if (la > twonm1) { do la -= twon; while (la > twonm1); wrapped = true; }
+              else if (la < -twonm1) { do la += twon; while (la < -twonm1); wrapped = true; }
+              else {
+                const T s = axis_distsq(d, la > 0 ? la - twon : la + twon) - axis_distsq(d, la);
+                if (!step || s < *step) step = s;
+              }
+            }
+            dsq += axis_distsq(d, la);
+          }
+          if (!wrapped) {
+            MADNESS_CHECK_THROW(step.has_value(), "Key::distsq_images: no axis is periodic, so there are no images");
+            dsq += *step;
+          }
+          return dsq;
+        }
+
+      public:
         /// like "periodic" distsq() but only selects the prescribed axes
         template <std::size_t NDIM2>
         std::enable_if_t<NDIM >= NDIM2, uint64_t>

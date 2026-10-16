@@ -168,6 +168,7 @@ namespace madness {
                                 ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
         array_of_bools<NDIM> func_domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
+        bool images_only_ = false;  ///< OperatorInfo::images_only as consumed at construction; what the 1D factors were built with
         std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
 
       public:
@@ -239,7 +240,14 @@ namespace madness {
             const Q* VT;
         };
 
-        static inline std::pair<Tensor<double>,Tensor<double>>
+        /// the Gaussian fit of the kernel, and the low-exponent tail that a
+        /// lattice-summed operator drops from it (empty unless something was dropped)
+        struct FitCoeffs {
+            Tensor<double> coeff, expnt;
+            Tensor<double> dropped_coeff, dropped_expnt;
+        };
+
+        static inline FitCoeffs
         make_coeff_for_operator(World& world, OperatorInfo& info,
                                 const std::array<LatticeRange, NDIM>& lattice_ranges) {
 
@@ -274,15 +282,37 @@ namespace madness {
           info.hi = hi;
           GFit<double, NDIM> fit(info);
 
+          FitCoeffs result;
           Tensor<double> coeff = fit.coeffs();
           Tensor<double> expnt = fit.exponents();
 
           if (info.truncate_lowexp_gaussians.value_or(infinite_summed_any)) {
+            // deep copies: Tensor assignment shares the buffer, and the truncation edits
+            // coefficients in place (truncate_mixed_expansion folds the tail into its
+            // neighbours rather than dropping it)
+            const Tensor<double> full_coeff = copy(coeff), full_expnt = copy(expnt);
             fit.truncate_mixed_expansion(coeff, expnt, summed_ranges, cell_width, info.lo, hi_fin, info.thresh);
             info.truncate_lowexp_gaussians = true;
+            // what the truncation removed, as Gaussians: full fit minus truncated fit. The
+            // truncation only shortens the exponent list (and may rescale kept coefficients),
+            // so the difference lives on the full fit's exponents.
+            const long nkept = coeff.dim(0), nfull = full_coeff.dim(0);
+            MADNESS_CHECK(nkept <= nfull && (nkept == 0 || (expnt(nkept - 1) == full_expnt(nkept - 1))));
+            std::vector<double> dc, de;
+            for (long i = 0; i < nfull; ++i) {
+              const double diff = full_coeff(i) - (i < nkept ? coeff(i) : 0.0);
+              if (diff != 0.0) { dc.push_back(diff); de.push_back(full_expnt(i)); }
+            }
+            if (!dc.empty()) {
+              result.dropped_coeff = Tensor<double>(long(dc.size()));
+              result.dropped_expnt = Tensor<double>(long(de.size()));
+              for (std::size_t i = 0; i < dc.size(); ++i) { result.dropped_coeff(long(i)) = dc[i]; result.dropped_expnt(long(i)) = de[i]; }
+            }
           }
 
-          return std::make_pair(coeff, expnt);
+          result.coeff = coeff;
+          result.expnt = expnt;
+          return result;
         }
 
 //        /// return the right block of the upsampled operator (modified NS only)
@@ -969,6 +999,18 @@ namespace madness {
               }
               lattice_summed_ = ops[0].lattice_summed();
             }
+            // a term whose 1D factors omit lattice images is part of a rest-of-crystal operator, which only
+            // initialize_images_only builds: assembled any other way (e.g. from the terms of one) the operator
+            // would be applied with the source-ordered displacements and screening and give a wrong potential
+            for (const auto& op : ops)
+              for (std::size_t d = 0; d != NDIM; ++d) {
+                const auto op1d = op.getop(d);
+                MADNESS_CHECK_THROW(images_only_ || !op1d || op1d->images == LatticeImages::all,
+                                    "SeparatedConvolution: a term omits lattice images (LatticeImages), but the operator was not built as rest-of-crystal (OperatorInfo::images_only)");
+              }
+            // build the displacement lists this operator applies with now, on the constructing thread,
+            // rather than in the first apply task to request them
+            if (lattice_summed_.any()) get_disp(0);
           }
         }
 
@@ -1039,12 +1081,92 @@ namespace madness {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
+            info.images_only = info1.images_only;
+            images_only_ = info1.images_only;
+            auto [coeff, expnt, dropped_coeff, dropped_expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
-            ops.resize(rank);
-            initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            if (info.images_only) {
+                initialize_images_only(coeff,expnt,dropped_coeff,dropped_expnt,lattice_ranges,range,bloch_k);
+            } else {
+                ops.resize(rank);
+                initialize(coeff,expnt,lattice_ranges,range,bloch_k);
+            }
             init_lattice_summed();
+        }
+
+        /// the rest-of-crystal operator: the lattice sum with the home cell (L = 0) removed
+
+        /// Removing one lattice vector is not "drop R = 0 on every axis": that also
+        /// drops every image with any zero component, and for a chain periodic along
+        /// z the only images at all are (0, 0, n_z). Sum instead over the 2^p - 1
+        /// nonzero bit patterns of the p lattice-summed axes; in each pattern an axis
+        /// whose bit is set sums R != 0 and one whose bit is clear takes R = 0 only.
+        /// Term by term the fit is the one the full lattice sum uses, so
+        /// full == home + images exactly, with no cancellation anywhere. Every term
+        /// keeps the same lattice_summed() pattern, so init_lattice_summed() holds and
+        /// the displacements stay on the non-periodic domain. Non-periodic axes get the
+        /// ordinary plain factor.
+        ///
+        /// An infinite lattice sum drops the low-exponent Gaussians of the fit
+        /// (make_coeff_for_operator): their lattice sum is flat over the cell, a
+        /// gauge constant. Their home-cell part is not flat, and a home operator
+        /// built from the full fit keeps it. So that home(full fit) + images still
+        /// equals the lattice sum up to that gauge constant, the dropped terms enter
+        /// here as home-only terms with negated coefficients: the operator is then
+        /// exactly (lattice sum as MADNESS computes it) - (home cell with the full
+        /// kernel). Measured on a 1D-periodic H10 chain, L = 18 bohr: without this,
+        /// the 15 dropped terms shift the periodic energy correction by 3e-5 Ha.
+        ///
+        /// The identity is term by term only if the home operator is built from the
+        /// same fit. make_coeff_for_operator extends the fit range when either the
+        /// operator or the default boundary conditions are periodic, so build the home
+        /// operator under the same default boundary conditions as this one (as
+        /// test_images_operator does); otherwise the identity holds to the fit accuracy.
+        void initialize_images_only(const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                                    const Tensor<double>& dropped_coeff, const Tensor<double>& dropped_expnt,
+                                    const std::array<LatticeRange, NDIM>& lattice_range,
+                                    const std::array<KernelRange, NDIM>& range,
+                                    const Vector<double, NDIM>& bloch_k) {
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
+            const double pi = constants::pi;
+            const int rank0 = coeff.dim(0);
+
+            std::vector<std::size_t> per;    // the lattice-summed axes
+            for (std::size_t d = 0; d < NDIM; ++d) if (lattice_range[d]) per.push_back(d);
+            MADNESS_CHECK_THROW(!per.empty(),
+                                "images_only: the operator has no lattice-summed axis, so there are no images to sum");
+            // FunctionImpl::do_apply places the displacements to the boundary of a finite kernel range around
+            // the source and screens them against the reach of the standard displacements measured with
+            // Key::real_distsq_bc; neither holds for a kernel whose range is centered on the images
+            for (std::size_t d = 0; d < NDIM; ++d)
+                MADNESS_CHECK_THROW(range[d].infinite(),
+                                    "images_only: a range-restricted kernel is not supported");
+            const int npat = (1 << per.size()) - 1;
+            const int ndropped = dropped_coeff.size() ? int(dropped_coeff.dim(0)) : 0;
+
+            ops.resize(std::size_t(rank0) * npat + ndropped);
+            rank = int(ops.size());
+            // pattern 0 (every lattice-summed axis R = 0 only) is the home cell; it is
+            // used only for the dropped terms below
+            auto set_term = [&](ConvolutionND<Q,NDIM>& term, Q c_mu, double e_mu, int pat) {
+                const Q c = std::pow(sqrt(e_mu/pi), static_cast<int>(NDIM));
+                term.setfac(c_mu/c);
+                for (std::size_t d = 0; d < NDIM; ++d) {
+                    LatticeImages images = LatticeImages::all;
+                    if (lattice_range[d]) {
+                        const int bit = int(std::find(per.begin(), per.end(), d) - per.begin());
+                        images = ((pat >> bit) & 1) ? LatticeImages::exclude_home : LatticeImages::home_only;
+                    }
+                    term.setop(d, GaussianConvolution1DCache<Q>::get(k, e_mu*width[d]*width[d], 0,
+                                        lattice_range[d], bloch_k[d], range[d], images));
+                }
+            };
+            for (int pat = 1; pat <= npat; ++pat)
+                for (int mu = 0; mu < rank0; ++mu)
+                    set_term(ops[std::size_t(pat - 1) * rank0 + mu], coeff(mu), expnt(mu), pat);
+            for (int mu = 0; mu < ndropped; ++mu)
+                set_term(ops[std::size_t(rank0) * npat + mu], -dropped_coeff(mu), dropped_expnt(mu), 0);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1108,8 +1230,35 @@ namespace madness {
         	}
         }
 
+        /// the displacements in the order FunctionImpl::do_apply visits them: of increasing distance in the metric
+        /// the kernel decays with, see displacement_real_distsq()
         const std::vector< Key<NDIM> >& get_disp(Level n) const {
-            return Displacements<NDIM>().get_disp(n, lattice_summed());
+            return images_only_ ? Displacements<NDIM>().get_disp_images(n, lattice_summed())
+                                : Displacements<NDIM>().get_disp(n, lattice_summed());
+        }
+
+        /// @return true if this is the rest-of-crystal operator (OperatorInfo::images_only at construction)
+        bool images_only() const { return images_only_; }
+
+        /// the real-space distance (squared, in the units of Key::real_distsq) between the source and a displaced
+        /// target, in the metric the kernel decays with
+
+        /// FunctionImpl::do_apply groups get_disp() into shells of this distance and stops at the first shell
+        /// that contributes nothing. For a kernel that decays away from the source that is the distance modulo
+        /// the lattice (Key::real_distsq_bc). The rest-of-crystal kernel (OperatorInfo::images_only) vanishes
+        /// near the source and decays away from the nearest lattice image other than the home cell, so its
+        /// distance is to that image (Key::real_distsq_images). get_disp() is ordered by the same metric.
+        double displacement_real_distsq(const Key<NDIM>& displacement) const {
+            const auto& widths = FunctionDefaults<NDIM>::get_cell_width();
+            return images_only_ ? displacement.real_distsq_images(lattice_summed(), widths)
+                                : displacement.real_distsq_bc(lattice_summed(), widths);
+        }
+
+        /// like displacement_real_distsq() but in boxes (Key::distsq_bc / Key::distsq_images); do_apply
+        /// subdivides the shell of touching boxes (real distance 0) by it
+        std::uint64_t displacement_distsq(const Key<NDIM>& displacement) const {
+            return images_only_ ? displacement.distsq_images(lattice_summed())
+                                : displacement.distsq_bc(lattice_summed());
         }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
@@ -1126,6 +1275,33 @@ namespace madness {
             // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
 //            return 1.0;
             return getop(n, d, source_key)->norm;
+        }
+
+        /// the largest of norm(n, d, source_key) over the displacements d: a bound on what any one displacement
+        /// can contribute from a source node at level n
+
+        /// FunctionImpl screens a source node against this before visiting any displacement. For a kernel that
+        /// decays away from the source it is the block at the zero displacement. The rest-of-crystal kernel
+        /// (OperatorInfo::images_only) is largest one box from an image, and on which axis depends on the cell:
+        /// the axis-adjacent blocks all touch their image, and the narrower the axis the smaller the separations
+        /// its block integrates over. So take the max over the image-adjacent displacements, which lead get_disp(n)
+        /// (real distance 0, one box; see Displacements::sort_displacements_images).
+        double norm_bound(Level n, const Key<NDIM>& source_key) const {
+            const auto& disp = get_disp(n);
+            if (!images_only_) return norm(n, disp.front(), source_key);   // the zero displacement
+            // image-adjacent = touching an image (real distance 0, since Key::real_distsq_images measures the least
+            // distance between points of the boxes) and one box from it along one axis (box distance 1); corner
+            // neighbours, also at real distance 0, have box distance 2 or 3 and follow them in the list
+            double result = 0.0;
+            std::size_t nadjacent = 0;
+            for (const auto& d : disp) {
+                if (displacement_real_distsq(d) != 0.0 || displacement_distsq(d) != 1) break;
+                result = std::max(result, norm(n, d, source_key));
+                ++nadjacent;
+            }
+            // an empty run would make this 0 and screen out every source node: the images potential would vanish
+            MADNESS_CHECK_THROW(nadjacent > 0, "SeparatedConvolution::norm_bound: the rest-of-crystal displacements do not start with the image-adjacent ones (see Displacements::sort_displacements_images)");
+            return result;
         }
 
         /// return that part of a hi-dim key that serves as the base for displacements of this operator
@@ -1685,6 +1861,11 @@ namespace madness {
             MADNESS_CHECK(can_combine(left,right));
             MADNESS_CHECK(left.get_world().id()==right.get_world().id());
             MADNESS_CHECK(left.lattice_summed() == right.lattice_summed());
+            // combine_OT takes info from one side or the other depending on the types, so the flag of a
+            // rest-of-crystal operand would survive or vanish by accident; and the product of a kernel
+            // restricted to the images with another kernel is not what any of the combined types mean
+            MADNESS_CHECK_THROW(!left.images_only() && !right.images_only(),
+                                "SeparatedConvolution::combine: a rest-of-crystal operator (OperatorInfo::images_only) cannot be combined");
             std::array<LatticeRange, NDIM> lattice_summed;
             for (std::size_t i = 0; i < NDIM; ++i) {
               if (left.lattice_summed()[i]) lattice_summed[i].set_infinite();
