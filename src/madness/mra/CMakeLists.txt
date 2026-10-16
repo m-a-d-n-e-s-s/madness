@@ -44,6 +44,8 @@ if(BUILD_TESTING)
       test_truncate_tol.cc test_periodic_truncation.cc test_images_operator.cc
       test_anisotropic_reach.cc test_apply_screen.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
+  # a measurement of the sup bound on model functions (minutes at k = 10), not a regression test
+  add_unittests(mra "test_supbound_quantify.cc" "MADmra;MADgtest" "unittests;long")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
