@@ -3019,6 +3019,8 @@ void SCF::solve(World& world) {
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
+        // research diagnostic of the mul_sparse screen (MAD_MUL_SCREEN_STATS): this iteration's multiplications
+        if (MulScreenStats::enabled()) MulScreenStats::report(world, "iteration " + std::to_string(iter));
         focka_json = focka;
         if (!param.spin_restricted() && param.nbeta() != 0) {
             fockb_json = fockb;

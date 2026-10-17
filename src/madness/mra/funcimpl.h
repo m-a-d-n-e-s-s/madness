@@ -53,6 +53,7 @@
 #include <madness/mra/supbound.h>
 
 #include <array>
+#include <atomic>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -152,6 +153,52 @@ namespace madness {
         }();
         return mode;
     }
+
+    /// Research diagnostic of the screened multiplication, on when MAD_MUL_SCREEN_STATS is set: per level, the boxes
+    /// where mulXXveca formed a product and the boxes it descended, one count per right function, accumulated per
+    /// process until report(), which sums them over a world and prints them on its rank 0
+    struct MulScreenStats {
+        static constexpr int NLEVEL = 64;
+        typedef std::array<std::atomic<long>, NLEVEL> countsT;
+
+        static bool enabled() {
+            static const bool on = (std::getenv("MAD_MUL_SCREEN_STATS") != nullptr);
+            return on;
+        }
+
+        static countsT& formed() {
+            static countsT n{};
+            return n;
+        }
+
+        static countsT& descended() {
+            static countsT n{};
+            return n;
+        }
+
+        static void count(const int level, const bool formed_here) {
+            (formed_here ? formed() : descended())[std::min(level, NLEVEL - 1)].fetch_add(1, std::memory_order_relaxed);
+        }
+
+        /// collective over world: the counts since the last report, summed, printed on rank 0 with `label`, then reset
+        static void report(World& world, const std::string& label) {
+            std::vector<long> n(2 * NLEVEL);
+            for (int l = 0; l < NLEVEL; ++l) {
+                n[l] = formed()[l].exchange(0);
+                n[NLEVEL + l] = descended()[l].exchange(0);
+            }
+            world.gop.sum(n.data(), n.size());
+            if (world.rank() != 0) return;
+            int lmax = 0;
+            for (int l = 0; l < NLEVEL; ++l)
+                if (n[l] + n[NLEVEL + l] > 0) lmax = l;
+            std::string line = std::string("mul_sparse screen ") + (mul_screen() == MulScreen::hoelder ? "hoelder" : "cs")
+                    + " " + label + ": level/formed/descended";
+            for (int l = 0; l <= lmax; ++l)
+                line += " " + std::to_string(l) + ":" + std::to_string(n[l]) + "/" + std::to_string(n[NLEVEL + l]);
+            std::printf("%s\n", line.c_str());
+        }
+    };
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, std::size_t NDIM>
@@ -3279,7 +3326,9 @@ template<size_t NDIM>
 
                 // the neglected terms are below threshold: multiply here (requires redundant form)
                 const double neglected = hoelder ? lsup*rdnorm + ldnorm*rsup : rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm;
-                if (neglected <= truncate_tol(tol, key)) {
+                const bool form_here = (neglected <= truncate_tol(tol, key));
+                if (MulScreenStats::enabled()) MulScreenStats::count(key.level(), form_here);
+                if (form_here) {
                     // lc/rc must keep their size for the recursion logic, so pass separate tensors
                     Tensor<R> rc_data = (rc.size() == 0) ? rit->second.coeff().full_tensor_copy() : rc;
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, left_coeffs(), std::make_pair(key,rc_data));
