@@ -116,7 +116,9 @@ int check_near_face(World& world, double z0 = 7.2, const char* what = "source 1.
     if (world.rank() == 0)
         print("  100x100x18,", what, ": |full - home - images| =", err, "  |images f| =", vimg.norm2());
     // the residual left is the displacement-reach floor shared by full and home in this cell
-    // (each ~1e-4 from the exact potential at thresh 1e-6); before the fix it was 2.5e-3
+    // (each ~1e-4 from the exact potential at thresh 1e-6). Swept in order of distance from the
+    // source, as for the full lattice sum, the shell stop ended before the wrapped displacement
+    // that carries the nearest-image interaction, and the residual was 2.5e-3
     if (err > 100.0 * thresh) { print("FAIL: identity violated near the periodic face"); ++errors; }
     return errors;
 }
