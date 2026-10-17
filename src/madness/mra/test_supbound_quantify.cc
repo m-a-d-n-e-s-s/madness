@@ -25,13 +25,16 @@
 ///       S(own f) d_g + d_f sup(g), from the mirrored split f g - s_f s_g = d_f g + s_f d_g. The last two are bounds.
 ///       The boxes where each criterion stops the descent at the development budget truncate_tol(0.01 thresh, B). For
 ///       the record, the collocation error of do_mul, C(B) = ||s_f s_g - q_B||, and the kernel's error if it formed
-///       the product on B, K(B) = ||f g - q_B||, with q_B the collocated product, are outside every estimate.
+///       the product on B, K(B) = ||f g - q_B||, with q_B the collocated product, are outside every estimate. Today's
+///       criterion and the mirrored split are also read at the budget scales 10 and 100, truncate_tol(0.01 thresh
+///       scale, B): where the screen would stop with the margins relaxed.
 ///
 /// Writes functions.csv, leaves.csv, interior.csv and union.csv into --out=DIR and summary tables to stdout. Checked
 /// (exit code 1 if one fails beyond roundoff): no value of a polynomial exceeds its S (leaves and own polynomials);
 /// both (S, S_own) estimates are at least E_rep on every box; and the kernel itself agrees with the union tree:
-/// mul_sparse at moldft's tolerance forms its products exactly at today's stops, at tol = 0 exactly at the union
-/// leaves, and the norms of their difference and of the exact product are what the quadrature gives.
+/// mul_sparse at tol = 0 forms its products exactly at the union leaves, at moldft's tolerance times each budget scale
+/// exactly at today's stops at that scale, and the norms of the screened-minus-exact products and of the exact one
+/// are what the quadrature gives.
 /// Options: --out=DIR (write the CSV files there; none without it), --k=6,8,10 (the settings to run), --quick (two
 /// functions, two placements and one pair).
 
@@ -68,6 +71,9 @@ const double HALF = 20.0;
 const int NDENSE = 24;
 /// the kernel's development budget: the callers pass 0.1 thresh, mulXXvec multiplies by MUL_SCREENING_SAFETY = 0.1
 const double BUDGET = 0.01;
+/// the budget scales (hand-off revision 4): the caller's tolerance is 0.1 thresh times these
+const int NSCALE = 3;
+const std::array<double, NSCALE> SCALES{{1.0, 10.0, 100.0}};
 /// the orbital-like model: exp(-Z r) + ORB_C exp(-r^2 / ORB_W^2)
 const double ORB_C = 0.25, ORB_W = 2.0;
 /// relative slack of the inequalities checked as theorems (roundoff)
@@ -501,6 +507,8 @@ std::vector<InteriorRow> measure_interior(World& world, const functionT& f, cons
 /// with sup_tree in both terms, with S of the right operand's own coefficients, with S of the left operand's
 const int NCRIT = 5;
 const char* crit_name[NCRIT] = {"cs", "hM", "hS", "hSown", "hSown_gf"};
+/// the criteria read at every budget scale: today's and the mirrored split (indices into UBox::est)
+const std::array<int, 2> SCALED{{0, 4}};
 
 /// a box of the union tree of f and g
 struct UBox {
@@ -513,6 +521,7 @@ struct UBox {
     double supSf = 0, supMf = 0, supSg = 0, supMg = 0;  ///< max of S, M over the leaves below; of the restriction below a leaf
     double Sf = 0, Mf = 0, Tf = 0, Sg = 0, Mg = 0, Tg = 0;  ///< S, M and the dense-grid max of the box's own polynomials
     double theta = 0;
+    std::array<double, NSCALE> theta_s{};    ///< the budget at each of SCALES (theta_s[0] == theta)
     /// squared, summed over the union leaves below: the stopping error ||f g - s_f s_g|| of the represented and of
     /// the analytic functions, the projection floor (E_ana of the union leaves), ||f g||, the collocation error
     /// ||s_f s_g - qc|| and the kernel's error ||f g - qc|| if it formed the product here (represented, analytic)
@@ -522,6 +531,8 @@ struct UBox {
     double d2q = 0;
     std::array<double, NCRIT> est{};
     std::array<char, NCRIT> stop{}, above{};
+    /// the stops of SCALED[j] at the budget scale SCALES[i], at j * NSCALE + i
+    std::array<char, 2 * NSCALE> stop_s{}, above_s{};
 };
 
 /// the max of M over the leaves below each box of f's tree (reconstructed or redundant)
@@ -650,7 +661,9 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
         b.supSg = b.in_g ? Sg(b.key) : b.Sg;
         b.supMg = b.in_g ? Mg.at(b.key) : b.Mg;
         // in the kernel's own floating-point order: the caller's 0.1 thresh, times MUL_SCREENING_SAFETY in mulXXvec
-        b.theta = fi.truncate_tol((0.1 * s.thresh) * MUL_SCREENING_SAFETY, b.key);
+        for (int i = 0; i < NSCALE; ++i)
+            b.theta_s[i] = fi.truncate_tol((0.1 * s.thresh * SCALES[i]) * MUL_SCREENING_SAFETY, b.key);
+        b.theta = b.theta_s[0];
         b.est[0] = b.ng * b.ndf + b.nf * b.ndg + b.ndf * b.ndg;     // mulXXveca today, f on the left
         b.est[1] = b.supMf * b.ndg + b.ndf * b.supMg;
         b.est[2] = b.supSf * b.ndg + b.ndf * b.supSg;
@@ -740,6 +753,13 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
             b.above[c] = (b.parent >= 0) and (U[b.parent].stop[c] or U[b.parent].above[c]);
             b.stop[c] = (not b.above[c]) and (b.est[c] <= b.theta);
         }
+        for (int j = 0; j < 2; ++j)
+            for (int i = 0; i < NSCALE; ++i) {
+                const int x = j * NSCALE + i;
+                b.above_s[x] = (b.parent >= 0) and (U[b.parent].stop_s[x] or U[b.parent].above_s[x]);
+                b.stop_s[x] = (not b.above_s[x]) and (b.est[SCALED[j]] <= b.theta_s[i]);
+            }
+        MADNESS_CHECK(b.stop_s[0] == b.stop[SCALED[0]] and b.stop_s[NSCALE] == b.stop[SCALED[1]]);
         // the theorem: the (S, S_own) estimate bounds the stopping error of the represented functions
         for (int c : {3, 4}) {
             const double e = std::sqrt(b.e2rep);
@@ -750,47 +770,56 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
     return U;
 }
 
-/// The kernel itself, against the union tree: mul_sparse at moldft's tolerance (today's criterion) must form its
-/// products exactly at the stops of "cs", mul_sparse at tol = 0 exactly at the union leaves, and the difference of the
-/// two products, and the norm of the exact one, must be what the quadrature says (all of it exact arithmetic up to
-/// roundoff: the polynomials' squares are integrated exactly)
+/// The kernel itself, against the union tree: mul_sparse at tol = 0 must form its products exactly at the union leaves,
+/// with the norm the quadrature gives, and mul_sparse at moldft's tolerance times each budget scale (today's
+/// criterion) exactly at the stops of "cs" at that scale, its difference from the tol = 0 product being what the
+/// quadrature says (all of it exact arithmetic up to roundoff: the polynomials' squares are integrated exactly)
 void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox>& U, const Setting& s, Theorems& th) {
-    functionT q = mul_sparse(f, g, 0.1 * s.thresh);
-    functionT q0 = mul_sparse(f, g, 0.0);
+    typedef std::unordered_set<keyT, Hash<keyT>> keysetT;
     auto leaves_of = [](const functionT& h) {
-        std::unordered_set<keyT, Hash<keyT>> l;
+        keysetT l;
         for (auto it = h.get_impl()->get_coeffs().begin(); it != h.get_impl()->get_coeffs().end(); ++it)
             if (not it->second.has_children()) l.insert(it->first);
         return l;
     };
-    const auto lq = leaves_of(q), l0 = leaves_of(q0);
-    std::unordered_set<keyT, Hash<keyT>> stops, uleaves;
-    double d2 = 0.0, k2 = 0.0;
-    for (const auto& b : U) {
-        if (b.stop[0]) {
-            stops.insert(b.key);
-            d2 += b.d2q;
-        }
-        if (b.leaf) {
-            uleaves.insert(b.key);
-            k2 += b.k2rep;
-        }
-    }
-    auto differ = [](const std::unordered_set<keyT, Hash<keyT>>& a, const std::unordered_set<keyT, Hash<keyT>>& b) {
+    auto differ = [](const keysetT& a, const keysetT& b) {
         long n = 0;
         for (const auto& x : a) n += (b.count(x) == 0);
         for (const auto& x : b) n += (a.count(x) == 0);
         return n;
     };
-    const long miss = differ(lq, stops), miss0 = differ(l0, uleaves);
+    functionT q0 = mul_sparse(f, g, 0.0);
+    keysetT uleaves;
+    double k2 = 0.0;
+    for (const auto& b : U)
+        if (b.leaf) {
+            uleaves.insert(b.key);
+            k2 += b.k2rep;
+        }
+    const keysetT l0 = leaves_of(q0);
+    const long miss0 = differ(l0, uleaves);
     const double n0 = q0.norm2(), nfg = std::sqrt(U[0].n2fg), kex = std::sqrt(k2);
-    const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
-    const bool ok = miss == 0 and miss0 == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0 and
-                    std::abs(n0 - nfg) <= kex * (1.0 + 1.e-6) + 1.e-13 * n0;
-    std::printf("    kernel: mul_sparse(0.1 thresh) has %zu leaves, today's criterion %zu stops, %ld differ; mul_sparse(0) "
-                "%zu leaves, union leaves %zu, %ld differ; ||q - q0|| %.6e, quadrature %.6e; ||q0|| %.10e against ||f g|| "
-                "%.10e, within the collocation error %.2e: %s\n", lq.size(), stops.size(), miss, l0.size(),
-                uleaves.size(), miss0, dk, dme, n0, nfg, kex, ok ? "agree" : "DISAGREE");
+    bool ok = miss0 == 0 and std::abs(n0 - nfg) <= kex * (1.0 + 1.e-6) + 1.e-13 * n0;
+    std::printf("    kernel: mul_sparse(0) has %zu leaves, union leaves %zu, %ld differ; ||q0|| %.10e against ||f g|| "
+                "%.10e, within the collocation error %.2e\n", l0.size(), uleaves.size(), miss0, n0, nfg, kex);
+    for (int i = 0; i < NSCALE; ++i) {
+        functionT q = mul_sparse(f, g, 0.1 * s.thresh * SCALES[i]);
+        keysetT stops;
+        double d2 = 0.0;
+        for (const auto& b : U)
+            if (b.stop_s[i]) {
+                stops.insert(b.key);
+                d2 += b.d2q;
+            }
+        const keysetT lq = leaves_of(q);
+        const long miss = differ(lq, stops);
+        const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
+        const bool oki = miss == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0;
+        std::printf("    kernel: mul_sparse(%g x 0.1 thresh) has %zu leaves, today's criterion %zu stops, %ld differ; "
+                    "||q - q0|| %.6e, quadrature %.6e\n", SCALES[i], lq.size(), stops.size(), miss, dk, dme);
+        ok = ok and oki;
+    }
+    std::printf("    kernel: %s\n", ok ? "agree" : "DISAGREE");
     if (not ok) ++th.kernel;
 }
 
@@ -910,6 +939,25 @@ void summarize_union(const std::string& name, const Setting& s, const std::vecto
                     std::sqrt(e2), std::sqrt(a2), std::sqrt(k2), std::sqrt(t2), worst,
                     minr < 1.e300 ? std::to_string(minr).c_str() : "(all exact)");
     }
+    // the budget scales: today's criterion and the mirrored split at truncate_tol(0.01 thresh scale, B)
+    std::printf("    scale  criterion  stops (off leaves)  total E_rep  total K_rep  D (screened - tol 0)  max E_rep/budget\n");
+    for (int j = 0; j < 2; ++j)
+        for (int i = 0; i < NSCALE; ++i) {
+            const int x = j * NSCALE + i;
+            double e2 = 0.0, k2 = 0.0, d2 = 0.0, worst = 0.0;
+            long n = 0, off = 0;
+            for (const auto& b : U) {
+                if (not b.stop_s[x]) continue;
+                ++n;
+                off += not b.leaf;
+                e2 += b.e2rep;
+                k2 += b.k2rep;
+                d2 += b.d2q;
+                worst = std::max(worst, std::sqrt(b.e2rep) / b.theta_s[i]);
+            }
+            std::printf("    %5g  %-9s  %6ld (%5ld)       %.3e    %.3e    %.3e             %8.3f\n", SCALES[i],
+                        crit_name[SCALED[j]], n, off, std::sqrt(e2), std::sqrt(k2), std::sqrt(d2), worst);
+        }
     // D3: at the boxes where (S, sup_tree) stops, the right operand's own polynomial against its sup_tree
     long n_s = 0, n_t = 0, m_s = 0, m_t = 0, nstop = 0;
     for (const auto& b : U) {
@@ -996,7 +1044,8 @@ int main(int argc, char** argv) {
     FILE* fu = open_csv(opt.out, "union.csv",
                         "k,thresh,pair,level,l0,l1,l2,leaf,in_f,in_g,nf,ndf,ng,ndg,supSf,supMf,supSg,supMg,Sf,Mf,Tf,"
                         "Sg,Mg,Tg,theta,E_rep,E_ana,floor,n_fg,C,K_rep,K_ana,D_q,est_cs,est_hM,est_hS,est_hSown,"
-                        "est_hSown_gf,stop_cs,stop_hM,stop_hS,stop_hSown,stop_hSown_gf");
+                        "est_hSown_gf,stop_cs,stop_hM,stop_hS,stop_hSown,stop_hSown_gf,stop_cs_s10,stop_cs_s100,"
+                        "stop_hSown_gf_s10,stop_hSown_gf_s100");
 
     std::vector<ModelSpec> models = all_models();
     std::vector<std::string> places{"corner", "centre", "offgrid"};
@@ -1079,6 +1128,7 @@ int main(int argc, char** argv) {
                     std::fprintf(fu, ",%.7e", x);
                 for (double x : b.est) std::fprintf(fu, ",%.7e", x);
                 for (char x : b.stop) std::fprintf(fu, ",%d", int(x));
+                for (int x : {1, 2, NSCALE + 1, NSCALE + 2}) std::fprintf(fu, ",%d", int(b.stop_s[x]));
                 std::fprintf(fu, "\n");
             }
         }
