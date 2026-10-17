@@ -8,9 +8,12 @@
 #include <madness/mra/vmra.h>
 #include <madness/world/test_utilities.h>
 #include <madness/world/vector_archive.h>
+#include <madness/mra/legendre.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -30,6 +33,9 @@ static const double EXACT_FLOOR = 1.e-7;
 /// header of test_screening_accuracy.
 static const double C_MAX = 100.0;   ///< err <= C_MAX*tol; measured max 34
 static const double P_MIN = 0.4;     ///< err ~ tol^p; measured p = 0.58 .. 0.75
+/// T19: ||q(tol) - q(0)|| <= C_TOL0 tol at tol 1e-10 .. 1e-14; measured max 147 (today's criterion, gauss-offset
+/// at 1e-14; the Hoelder form 22): the guard is against losing orders of magnitude, as July 2026 did
+static const double C_TOL0 = 1000.0;
 
 /// exp(-a |r-R|^2)
 class Gauss : public FunctionFunctorInterface<double, D> {
@@ -57,6 +63,9 @@ public:
         return {Vector<double,D>(0.0)};
     }
 };
+
+/// the criterion of mulXXveca under test (MAD_MUL_SCREEN, set by main for T1-T6), tagging titles and lines
+static std::string screen_tag() { return mul_screen() == MulScreen::hoelder ? " [hoelder]" : " [cs]"; }
 
 static std::string fmt_tol(double tol) {
     char buf[32];
@@ -121,21 +130,21 @@ static long interior_nodes_with_coeffs(World& world, const Function<double,D>& f
 
 /// T1: the exact path reproduces the analytic product
 int test_exact(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T1: tol=0 vs an independent projection");
+    test_output t("mul_sparse T1" + screen_tag() + ": tol=0 vs an independent projection");
     t.set_do_print(world.rank() == 0);
     for (auto& p : pairs) {
         Function<double,D> q = mul_sparse(p.f, p.g, 0.0);
         const double err = (q - p.fg).norm2();
         if (world.rank() == 0)
-            printf("  T1 %-13s err %.3e   bound %.1e\n", p.name.c_str(), err, EXACT_FLOOR);
-        t.checkpoint(err, EXACT_FLOOR, "T1 " + p.name);
+            printf("  T1%s %-13s err %.3e   bound %.1e\n", screen_tag().c_str(), p.name.c_str(), err, EXACT_FLOOR);
+        t.checkpoint(err, EXACT_FLOOR, "T1" + screen_tag() + " " + p.name);
     }
     return t.end();
 }
 
 /// T2: the result is a reconstructed tree, both scalar and vector entry points
 int test_tree_state(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T2: output tree state");
+    test_output t("mul_sparse T2" + screen_tag() + ": output tree state");
     t.set_do_print(world.rank() == 0);
     operand_pair& p = pairs.front();
 
@@ -144,11 +153,11 @@ int test_tree_state(World& world, std::vector<operand_pair>& pairs) {
         world.gop.fence();
         const long bad = interior_nodes_with_coeffs(world, q);
         t.checkpoint(get_tree_state(q) == reconstructed,
-                     "T2 scalar state is reconstructed, tol=" + fmt_tol(tol));
+                     "T2" + screen_tag() + " scalar state is reconstructed, tol=" + fmt_tol(tol));
         t.checkpoint(bad == 0L,
-                     "T2 scalar coefficients on leaves only, tol=" + fmt_tol(tol));
+                     "T2" + screen_tag() + " scalar coefficients on leaves only, tol=" + fmt_tol(tol));
         t.checkpoint(q.get_impl()->verify_tree_state_local(),
-                     "T2 scalar tree state is self-consistent, tol=" + fmt_tol(tol));
+                     "T2" + screen_tag() + " scalar tree state is self-consistent, tol=" + fmt_tol(tol));
     }
 
     // the vector entry point is a separate code path (vmulXX) and mislabeled its
@@ -162,8 +171,8 @@ int test_tree_state(World& world, std::vector<operand_pair>& pairs) {
                             and q.get_impl()->verify_tree_state_local();
         layout_ok = layout_ok and (interior_nodes_with_coeffs(world, q) == 0L);
     }
-    t.checkpoint(state_ok, "T2 vector state is reconstructed");
-    t.checkpoint(layout_ok, "T2 vector coefficients on leaves only");
+    t.checkpoint(state_ok, "T2" + screen_tag() + " vector state is reconstructed");
+    t.checkpoint(layout_ok, "T2" + screen_tag() + " vector coefficients on leaves only");
     return t.end();
 }
 
@@ -174,7 +183,7 @@ int test_tree_state(World& world, std::vector<operand_pair>& pairs) {
 /// err/tol by up to a decade. Hence a loose C_MAX plus two tighter statements --
 /// err falls monotonically with tol, and its decay exponent does not collapse.
 int test_screening_accuracy(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T3: screening error vs tol");
+    test_output t("mul_sparse T3" + screen_tag() + ": screening error vs tol");
     t.set_do_print(world.rank() == 0);
     const std::vector<double> tols = {1.e-4, 1.e-5, 1.e-6, 1.e-7, 1.e-8};
 
@@ -187,8 +196,8 @@ int test_screening_accuracy(World& world, std::vector<operand_pair>& pairs) {
             errs.push_back(err);
             bounded = bounded and (err < C_MAX * tol);
             if (world.rank() == 0)
-                printf("  T3 %-13s tol %.1e  err %.3e  C %6.2f\n",
-                       p.name.c_str(), tol, err, err / tol);
+                printf("  T3%s %-13s tol %.1e  err %.3e  C %6.2f\n",
+                       screen_tag().c_str(), p.name.c_str(), tol, err, err / tol);
         }
         // 5% slack absorbs the quantization plateaus
         bool monotone = true;
@@ -198,11 +207,11 @@ int test_screening_accuracy(World& world, std::vector<operand_pair>& pairs) {
         const double decades = std::log10(tols.front() / tols.back());
         const double pfit = std::log10(errs.front() / errs.back()) / decades;
         if (world.rank() == 0)
-            printf("  T3 %-13s decay exponent p %.2f\n", p.name.c_str(), pfit);
+            printf("  T3%s %-13s decay exponent p %.2f\n", screen_tag().c_str(), p.name.c_str(), pfit);
 
-        t.checkpoint(bounded,  "T3 " + p.name + " err < C*tol");
-        t.checkpoint(monotone, "T3 " + p.name + " err falls with tol");
-        t.checkpoint(pfit > P_MIN, "T3 " + p.name + " decay exponent");
+        t.checkpoint(bounded,  "T3" + screen_tag() + " " + p.name + " err < C*tol");
+        t.checkpoint(monotone, "T3" + screen_tag() + " " + p.name + " err falls with tol");
+        t.checkpoint(pfit > P_MIN, "T3" + screen_tag() + " " + p.name + " decay exponent");
     }
     return t.end();
 }
@@ -210,7 +219,7 @@ int test_screening_accuracy(World& world, std::vector<operand_pair>& pairs) {
 /// T4: screened and exact multiplication agree to within tol, no analytic
 /// reference needed
 int test_self_consistency(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T4: screened vs exact");
+    test_output t("mul_sparse T4" + screen_tag() + ": screened vs exact");
     t.set_do_print(world.rank() == 0);
 
     for (auto& p : pairs) {
@@ -220,9 +229,9 @@ int test_self_consistency(World& world, std::vector<operand_pair>& pairs) {
             const double err = (q - exact).norm2();
             const double C = err / tol;
             if (world.rank() == 0)
-                printf("  T4 %-13s tol %.1e  err %.3e  C %.2f\n",
-                       p.name.c_str(), tol, err, C);
-            t.checkpoint(C < C_MAX, "T4 " + p.name + " tol=" + fmt_tol(tol));
+                printf("  T4%s %-13s tol %.1e  err %.3e  C %.2f\n",
+                       screen_tag().c_str(), p.name.c_str(), tol, err, C);
+            t.checkpoint(C < C_MAX, "T4" + screen_tag() + " " + p.name + " tol=" + fmt_tol(tol));
         }
     }
     return t.end();
@@ -230,7 +239,7 @@ int test_self_consistency(World& world, std::vector<operand_pair>& pairs) {
 
 /// T5: dot_sparse routes through the screened kernel; check it against the analytic sum
 int test_dot_sparse(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T5: dot vs the analytic sum of products");
+    test_output t("mul_sparse T5" + screen_tag() + ": dot vs the analytic sum of products");
     t.set_do_print(world.rank() == 0);
 
     std::vector<Function<double,D>> a, b;
@@ -247,8 +256,8 @@ int test_dot_sparse(World& world, std::vector<operand_pair>& pairs) {
         const double err = (q - ref).norm2();
         const double bound = (tol == 0.0) ? EXACT_FLOOR : C_MAX * tol;
         if (world.rank() == 0)
-            printf("  T5 dot_sparse tol %.1e  err %.3e  bound %.1e\n", tol, err, bound);
-        t.checkpoint(err, bound, "T5 dot_sparse tol=" + fmt_tol(tol));
+            printf("  T5%s dot_sparse tol %.1e  err %.3e  bound %.1e\n", screen_tag().c_str(), tol, err, bound);
+        t.checkpoint(err, bound, "T5" + screen_tag() + " dot_sparse tol=" + fmt_tol(tol));
     }
     return t.end();
 }
@@ -256,7 +265,7 @@ int test_dot_sparse(World& world, std::vector<operand_pair>& pairs) {
 /// T6: mul_sparse leaves its operands redundant. The global norm2()/trace()
 /// entry points must stay correct across that state.
 int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
-    test_output t("mul_sparse T6: operand state and the norms read off it");
+    test_output t("mul_sparse T6" + screen_tag() + ": operand state and the norms read off it");
     t.set_do_print(world.rank() == 0);
     // this test changes the state of both operands, and the
     // pairs are shared with every test that runs after it
@@ -274,9 +283,9 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     world.gop.fence();
 
     t.checkpoint(get_tree_state(p.f) == redundant,
-                 "T6 left operand is left redundant");
+                 "T6" + screen_tag() + " left operand is left redundant");
     t.checkpoint(get_tree_state(p.g) == redundant,
-                 "T6 right operand is left redundant");
+                 "T6" + screen_tag() + " right operand is left redundant");
 
     // norm2()/trace() read the redundant tree instead of converting it, so both
     // can be measured on the same operand, and the operand a caller hands to
@@ -285,30 +294,30 @@ int test_operand_state(World& world, std::vector<operand_pair>& pairs) {
     const double trace_after   = p.f.trace();
     const double g_trace_after = p.g.trace();
     if (world.rank() == 0)
-        printf("  T6 norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
-               norm_before, norm_after, g_trace_before, g_trace_after);
+        printf("  T6%s norm2  %.10e -> %.10e\n  T6 trace  %.10e -> %.10e\n",
+               screen_tag().c_str(), norm_before, norm_after, g_trace_before, g_trace_after);
 
-    t.checkpoint(norm_after,    norm_before,    1.e-10, "T6 norm2 on a redundant function");
-    t.checkpoint(trace_after,   trace_before,   1.e-10, "T6 trace on a redundant function");
-    t.checkpoint(g_trace_after, g_trace_before, 1.e-10, "T6 trace on the other redundant operand");
+    t.checkpoint(norm_after,    norm_before,    1.e-10, "T6" + screen_tag() + " norm2 on a redundant function");
+    t.checkpoint(trace_after,   trace_before,   1.e-10, "T6" + screen_tag() + " trace on a redundant function");
+    t.checkpoint(g_trace_after, g_trace_before, 1.e-10, "T6" + screen_tag() + " trace on the other redundant operand");
     t.checkpoint(get_tree_state(p.f) == redundant and
                  get_tree_state(p.g) == redundant,
-                 "T6 norm2/trace leave the operand redundant");
+                 "T6" + screen_tag() + " norm2/trace leave the operand redundant");
 
     // the vector overload takes the same path and must agree
     t.checkpoint(get_tree_state(p.f) == redundant,
-                 "T6 norm2s operand is redundant on entry");
+                 "T6" + screen_tag() + " norm2s operand is redundant on entry");
     std::vector<Function<double,D>> v = {p.f};
     t.checkpoint(norm2s(world, v)[0], norm_before, 1.e-10,
-                 "T6 vector norm2s agrees");
+                 "T6" + screen_tag() + " vector norm2s agrees");
     t.checkpoint(get_tree_state(p.f) == redundant,
-                 "T6 norm2s leaves the operand redundant");
+                 "T6" + screen_tag() + " norm2s leaves the operand redundant");
 
     // p.f has been through reconstructed -> redundant and back; its trace must
     // still be the value measured at the top
     p.f.reconstruct();
     t.checkpoint(p.f.trace(), trace_before, 1.e-10,
-                 "T6 trace round-trips through redundant form");
+                 "T6" + screen_tag() + " trace round-trips through redundant form");
     return t.end();
 }
 
@@ -854,6 +863,253 @@ int test_archive(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// largest |value| of the polynomial with scaling coefficients c on a box at `level`, on a 24^3 grid with the faces
+/// and corners (the leaf bracket of T18; test_supbound_quantify refines it)
+static double grid_max(const Tensor<double>& c, const int level) {
+    const long k = c.dim(0);
+    Tensor<double> phi(k, 24L);
+    std::vector<double> v(k);
+    for (long j = 0; j < 24; ++j) {
+        legendre_scaling_functions(double(j) / 23.0, k, v.data());
+        for (long i = 0; i < k; ++i) phi(i, j) = v[i];
+    }
+    return transform(c, phi).absmax() * std::pow(2.0, 0.5 * D * level) / std::sqrt(FunctionDefaults<D>::get_cell_volume());
+}
+
+/// median of v (0 if empty)
+static double median(std::vector<double> v) {
+    if (v.empty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
+
+/// the leaf bracket of f, per level: M (largest value at the quadrature points), S (the sum bound) and T (largest
+/// value on the 24^3 grid), as medians of M/T and S/T; printed, not asserted
+static void print_leaf_bracket(World& world, const std::string& name, const Function<double,D>& f) {
+    const auto* impl = f.get_impl().get();
+    std::vector<double> lev, mt, st;
+    for (auto it = impl->get_coeffs().begin(); it != impl->get_coeffs().end(); ++it) {
+        if (it->second.has_children() or not it->second.has_coeff()) continue;
+        const Tensor<double> c = it->second.coeff().full_tensor_copy();
+        const int n = it->first.level();
+        const double T = std::max(grid_max(c, n), impl->coeffs2values(it->first, c).absmax());
+        if (T <= FunctionDefaults<D>::get_thresh()) continue;
+        lev.push_back(n);
+        mt.push_back(impl->coeffs2values(it->first, c).absmax() / T);
+        st.push_back(impl->coeff_sup_bound(it->first, c) / T);
+    }
+    lev = world.gop.concat0(lev);
+    mt = world.gop.concat0(mt);
+    st = world.gop.concat0(st);
+    if (world.rank() != 0) return;
+    printf("  T18 leaf bracket of %s (leaves with T > thresh): level, leaves, M/T median, S/T median\n", name.c_str());
+    for (int l = 0; l < 30; ++l) {
+        std::vector<double> m, s;
+        for (std::size_t i = 0; i < lev.size(); ++i)
+            if (int(lev[i]) == l) {
+                m.push_back(mt[i]);
+                s.push_back(st[i]);
+            }
+        if (not m.empty()) printf("    %2d %5zu  %.3f  %.3f\n", l, m.size(), median(m), median(s));
+    }
+}
+
+/// ||s_f s_g - q_B||_B: the collocation error of do_mul at B, the product of the operands' polynomials there against
+/// the product the kernel formed from them, by Gauss quadrature with 2k points per dimension (exact: the integrand is
+/// a polynomial of degree 4k - 4 per dimension)
+static double collocation_error(const Key<D>& B, const Tensor<double>& cf, const Tensor<double>& cg,
+                                const Tensor<double>& cq) {
+    const long k = cf.dim(0);
+    const int npt = 2 * k;
+    std::vector<double> x(npt), w(npt), v(k);
+    gauss_legendre(npt, 0.0, 1.0, x.data(), w.data());
+    Tensor<double> phi(k, long(npt));
+    for (int j = 0; j < npt; ++j) {
+        legendre_scaling_functions(x[j], k, v.data());
+        for (long i = 0; i < k; ++i) phi(i, j) = v[i];
+    }
+    const double scale = std::pow(2.0, 0.5 * D * B.level()) / std::sqrt(FunctionDefaults<D>::get_cell_volume());
+    Tensor<double> sfg = transform(cf, phi);
+    sfg.emul(transform(cg, phi));
+    const Tensor<double> q = transform(cq, phi);
+    double c2 = 0.0;
+    for (int a = 0; a < npt; ++a)
+        for (int b = 0; b < npt; ++b)
+            for (int e = 0; e < npt; ++e) {
+                const double d = scale * scale * sfg(a, b, e) - scale * q(a, b, e);
+                c2 += w[a] * w[b] * w[e] * d * d;
+            }
+    return std::sqrt(c2 * FunctionDefaults<D>::get_cell_volume() * std::pow(0.5, double(D) * B.level()));
+}
+
+/// T18 (the hand-off's T7): where the Hoelder screen forms the product above the union leaves, at a box B, the error it
+/// commits by stopping there is bounded by its estimate S(c_f(B)) ||d_g|| + ||d_f|| sup_tree(g)(B). Against fg, the
+/// independent projection of the analytic product, the product's error on B also holds the collocation error of
+/// do_mul at B, C(B) (outside every estimate, measured here), and the floor of the representation (EXACT_FLOOR):
+/// ||q - fg||_B <= estimate + C(B) + EXACT_FLOOR at every such box. Printed per level: the boxes, the median and the
+/// minimum of estimate / (||q - fg||_B - C(B)) where that is positive, and the median share of C(B) in the error;
+/// the operands' leaf bracket once. Boxes whose operand coefficients live on another rank are skipped (counted).
+int test_hoelder_per_box(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T18: the Hoelder estimate bounds the error where the product is formed");
+    t.set_do_print(world.rank() == 0);
+    for (auto& p : pairs) print_leaf_bracket(world, p.name + " f", p.f);
+    const MulScreen mode = mul_screen();
+    mul_screen() = MulScreen::hoelder;
+    for (auto& p : pairs) {
+        for (const double tol : {1.e-4, 1.e-6}) {
+            Function<double,D> q = mul_sparse(p.f, p.g, tol);
+            Function<double,D> q0 = mul_sparse(p.f, p.g, 0.0);
+            // the screened product's error on every box: norm_tree of the redundant difference
+            Function<double,D> d = q - p.fg;
+            d.make_redundant(true);
+            q.reconstruct();    // the subtraction compressed it: the formed products back on its leaves
+            const auto* fi = p.f.get_impl().get();
+            const auto* gi = p.g.get_impl().get();
+            // the operand's coefficients, dnorm_tree and sup_tree at B: its node's, or below its leaf the leaf's
+            // polynomial restricted to B (no detail); false if the coefficients are on another rank
+            auto at = [](const FunctionImpl<double,D>* impl, const Key<D>& B, Tensor<double>& c, double& dn, double& sup) {
+                const auto& coeffs = impl->get_coeffs();
+                for (Key<D> a = B;; a = a.parent()) {
+                    if (not coeffs.is_local(a)) return false;
+                    const auto it = coeffs.find(a).get();
+                    if (it != coeffs.end()) {
+                        if (a == B) {
+                            c = it->second.coeff().full_tensor_copy();
+                            dn = it->second.get_dnorm_tree();
+                            sup = it->second.get_sup_tree();
+                        } else {
+                            c = impl->parent_to_child(it->second.coeff(), a, B).full_tensor_copy();
+                            dn = 0.0;
+                            sup = impl->coeff_sup_bound(B, c);
+                        }
+                        return true;
+                    }
+                    if (a.level() == 0) return false;
+                }
+            };
+            // per box above the union leaves: level, estimate / error; boxes checked, beyond the floor, skipped
+            std::vector<double> lev, ratio, share;
+            long checked = 0, over = 0, skipped = 0;
+            const auto& qc = q.get_impl()->get_coeffs();
+            const auto& q0c = q0.get_impl()->get_coeffs();
+            const auto& dc = d.get_impl()->get_coeffs();
+            for (auto it = qc.begin(); it != qc.end(); ++it) {
+                const Key<D>& B = it->first;
+                if (it->second.has_children()) continue;
+                const auto u = q0c.find(B).get();
+                if (u != q0c.end() and not u->second.has_children()) continue;     // a union leaf: formed as at tol 0
+                Tensor<double> cf, cg;
+                double dnf = 0, supf = 0, dng = 0, supg = 0;
+                if (not at(fi, B, cf, dnf, supf) or not at(gi, B, cg, dng, supg)) {
+                    ++skipped;
+                    continue;
+                }
+                const double est = fi->coeff_sup_bound(B, cf) * dng + dnf * supg;
+                const auto dit = dc.find(B).get();
+                MADNESS_CHECK(dit != dc.end());
+                const double err = dit->second.get_norm_tree();
+                const double coll = collocation_error(B, cf, cg, it->second.coeff().full_tensor_copy());
+                ++checked;
+                if (err > est + coll + EXACT_FLOOR) ++over;
+                if (err > 0.0) {
+                    lev.push_back(B.level());
+                    ratio.push_back(err > coll ? est / (err - coll) : -1.0);     // -1: all of it collocation
+                    share.push_back(std::min(1.0, coll / err));
+                }
+            }
+            world.gop.sum(checked);
+            world.gop.sum(over);
+            world.gop.sum(skipped);
+            lev = world.gop.concat0(lev);
+            ratio = world.gop.concat0(ratio);
+            share = world.gop.concat0(share);
+            const std::string tag = "T18 " + p.name + " tol=" + fmt_tol(tol);
+            if (world.rank() == 0) {
+                printf("  %s: %ld boxes above the union leaves checked, %ld beyond estimate + C + EXACT_FLOOR, %ld on "
+                       "another rank; per level: boxes, those whose error is all collocation, C/error median, and over the "
+                       "rest estimate/(error - C) median and min:", tag.c_str(), checked, over, skipped);
+                for (int l = 0; l < 30; ++l) {
+                    std::vector<double> r, c;
+                    long n = 0;
+                    for (std::size_t i = 0; i < lev.size(); ++i)
+                        if (int(lev[i]) == l) {
+                            ++n;
+                            c.push_back(share[i]);
+                            if (ratio[i] >= 0.0) r.push_back(ratio[i]);
+                        }
+                    if (n == 0) continue;
+                    printf(" %d: %ld %ld %.2f", l, n, n - long(r.size()), median(c));
+                    if (not r.empty()) printf(" %.2g %.2g", median(r), *std::min_element(r.begin(), r.end()));
+                    printf(";");
+                }
+                printf("\n");
+            }
+            t.checkpoint(over == 0, tag + " the error is within the estimate, the collocation and the floor");
+        }
+    }
+    mul_screen() = mode;
+    return t.end();
+}
+
+/// T19: tol -> 0 loses nothing: under either criterion the product at a tiny tolerance is the tol = 0 product to the
+/// tolerance (July 2026 lost 3e-2 Eh in one iteration at an effective 1e-11 on a development branch, never diagnosed)
+int test_tol_to_zero(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T19: a tolerance going to zero gives the exact product");
+    t.set_do_print(world.rank() == 0);
+    const MulScreen mode = mul_screen();
+    for (const MulScreen m : {MulScreen::cs, MulScreen::hoelder}) {
+        mul_screen() = m;
+        for (auto& p : pairs) {
+            const Function<double,D> q0 = mul_sparse(p.f, p.g, 0.0);
+            for (const double tol : {1.e-10, 1.e-12, 1.e-14}) {
+                const double err = (mul_sparse(p.f, p.g, tol) - q0).norm2();
+                if (world.rank() == 0)
+                    printf("  T19%s %-13s tol %.0e  ||q(tol) - q(0)|| %.3e\n", screen_tag().c_str(), p.name.c_str(), tol, err);
+                t.checkpoint(err <= C_TOL0 * tol, "T19" + screen_tag() + " " + p.name + " tol=" + fmt_tol(tol));
+            }
+        }
+    }
+    mul_screen() = mode;
+    return t.end();
+}
+
+/// T20: the identity pair. Without MAD_MUL_SCREEN the criterion is today's; and at tol = 0 the two criteria form the
+/// same product, node for node and bit for bit (both stop only where neither operand has detail left)
+int test_identity(World& world, std::vector<operand_pair>& pairs, const MulScreen initial) {
+    test_output t("mul_sparse T20: the default criterion, and tol = 0 under both");
+    t.set_do_print(world.rank() == 0);
+    if (std::getenv("MAD_MUL_SCREEN") == nullptr)
+        t.checkpoint(initial == MulScreen::cs, "T20 without MAD_MUL_SCREEN the criterion is today's");
+    const MulScreen mode = mul_screen();
+    for (auto& p : pairs) {
+        mul_screen() = MulScreen::cs;
+        const Function<double,D> a = mul_sparse(p.f, p.g, 0.0);
+        mul_screen() = MulScreen::hoelder;
+        const Function<double,D> b = mul_sparse(p.f, p.g, 0.0);
+        long nodes = 0, differ = 0;
+        const auto& bc = b.get_impl()->get_coeffs();
+        for (auto it = a.get_impl()->get_coeffs().begin(); it != a.get_impl()->get_coeffs().end(); ++it) {
+            ++nodes;
+            const auto jt = bc.find(it->first).get();
+            if (jt == bc.end() or jt->second.has_children() != it->second.has_children()
+                or jt->second.has_coeff() != it->second.has_coeff()
+                or (it->second.has_coeff()
+                    and (jt->second.coeff().full_tensor_copy() - it->second.coeff().full_tensor_copy()).absmax() != 0.0))
+                ++differ;
+        }
+        long bnodes = bc.size();
+        world.gop.sum(nodes);
+        world.gop.sum(differ);
+        world.gop.sum(bnodes);
+        if (world.rank() == 0)
+            printf("  T20 %-13s tol=0: %ld nodes under cs, %ld under hoelder, %ld differ\n", p.name.c_str(), nodes,
+                   bnodes, differ);
+        t.checkpoint(differ == 0 and nodes == bnodes, "T20 " + p.name + " tol=0 is the same product under both criteria");
+    }
+    mul_screen() = mode;
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -865,15 +1121,21 @@ int main(int argc, char** argv) {
     FunctionDefaults<D>::set_initial_level(2);
     FunctionDefaults<D>::set_autorefine(false);
 
+    // the criterion the environment asks for (MAD_MUL_SCREEN), restored after the tests that set it
+    const MulScreen initial = mul_screen();
     int success = 0;
     {
         std::vector<operand_pair> pairs = make_pairs(world);
-        success += test_exact(world, pairs);
-        success += test_tree_state(world, pairs);
-        success += test_screening_accuracy(world, pairs);
-        success += test_self_consistency(world, pairs);
-        success += test_dot_sparse(world, pairs);
-        success += test_operand_state(world, pairs);
+        for (const MulScreen mode : {MulScreen::cs, MulScreen::hoelder}) {
+            mul_screen() = mode;
+            success += test_exact(world, pairs);
+            success += test_tree_state(world, pairs);
+            success += test_screening_accuracy(world, pairs);
+            success += test_self_consistency(world, pairs);
+            success += test_dot_sparse(world, pairs);
+            success += test_operand_state(world, pairs);
+        }
+        mul_screen() = initial;
         success += test_norm_tree_states(world, pairs);
         success += test_broaden_resets_norms(world, pairs);
         success += test_empty_vector_norms(world);
@@ -885,6 +1147,9 @@ int main(int argc, char** argv) {
         success += test_sup_tree(world, pairs);
         success += test_node_paths(world);
         success += test_archive(world, pairs);
+        success += test_hoelder_per_box(world, pairs);
+        success += test_tol_to_zero(world, pairs);
+        success += test_identity(world, pairs, initial);
     }
 
     world.gop.fence();
