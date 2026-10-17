@@ -156,9 +156,10 @@ namespace madness {
 
     /// The per-box budget of the screened multiplication, for either criterion: scale tol min(1, h_n)^hexp at a box of
     /// width h_n, tol the kernel's tolerance (the caller's times MUL_SCREENING_SAFETY); the defaults scale = hexp = 1 are
-    /// truncate_tol(tol, B) of truncate_mode 1, hexp = 0 the flat budget of truncate_mode 0. Research knobs:
-    /// MAD_MUL_SCREEN_SCALE and MAD_MUL_SCREEN_HEXP, read at the first multiplication; tests assign
-    /// mul_screen_budget() directly, between fenced multiplications.
+    /// truncate_tol(tol, B) of truncate_mode 1, hexp = 0 the flat budget of truncate_mode 0; a negative hexp lets the
+    /// budget grow with depth below one bohr (hexp = -1/2 has the depth profile of the effective budget of today's
+    /// estimate there). Research knobs: MAD_MUL_SCREEN_SCALE and MAD_MUL_SCREEN_HEXP, read at the first
+    /// multiplication; tests assign mul_screen_budget() directly, between fenced multiplications.
     struct MulScreenBudget {
         double scale = 1.0;
         double hexp = 1.0;
@@ -181,7 +182,6 @@ namespace madness {
             b.scale = read("MAD_MUL_SCREEN_SCALE", 1.0);
             b.hexp = read("MAD_MUL_SCREEN_HEXP", 1.0);
             MADNESS_CHECK_THROW(b.scale > 0.0, "MAD_MUL_SCREEN_SCALE must be positive");
-            MADNESS_CHECK_THROW(b.hexp >= 0.0, "MAD_MUL_SCREEN_HEXP must not be negative");
             return b;
         }();
         return budget;
