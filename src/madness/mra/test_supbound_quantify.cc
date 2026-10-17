@@ -32,9 +32,9 @@
 /// Writes functions.csv, leaves.csv, interior.csv and union.csv into --out=DIR and summary tables to stdout. Checked
 /// (exit code 1 if one fails beyond roundoff): no value of a polynomial exceeds its S (leaves and own polynomials);
 /// both (S, S_own) estimates are at least E_rep on every box; and the kernel itself agrees with the union tree:
-/// mul_sparse at tol = 0 forms its products exactly at the union leaves, at moldft's tolerance times each budget scale
-/// exactly at today's stops at that scale, and the norms of the screened-minus-exact products and of the exact one
-/// are what the quadrature gives.
+/// mul_sparse at tol = 0 forms its products exactly at the union leaves, and at moldft's tolerance times each budget
+/// scale, under either criterion of the switch (MAD_MUL_SCREEN), exactly at the stops predicted for that criterion and
+/// scale; the norms of the screened-minus-exact products and of the exact one are what the quadrature gives.
 /// Options: --out=DIR (write the CSV files there; none without it), --k=6,8,10 (the settings to run), --quick (two
 /// functions, two placements and one pair).
 
@@ -771,9 +771,10 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
 }
 
 /// The kernel itself, against the union tree: mul_sparse at tol = 0 must form its products exactly at the union leaves,
-/// with the norm the quadrature gives, and mul_sparse at moldft's tolerance times each budget scale (today's
-/// criterion) exactly at the stops of "cs" at that scale, its difference from the tol = 0 product being what the
-/// quadrature says (all of it exact arithmetic up to roundoff: the polynomials' squares are integrated exactly)
+/// with the norm the quadrature gives; and mul_sparse at moldft's tolerance times each budget scale, under each
+/// criterion of the switch (MulScreen: today's, and the Hoelder form (c), the mirrored split), exactly at the stops the
+/// program predicts for that criterion and scale, its difference from the tol = 0 product being what the quadrature
+/// says (all of it exact arithmetic up to roundoff: the polynomials' squares are integrated exactly)
 void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox>& U, const Setting& s, Theorems& th) {
     typedef std::unordered_set<keyT, Hash<keyT>> keysetT;
     auto leaves_of = [](const functionT& h) {
@@ -802,23 +803,29 @@ void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox
     bool ok = miss0 == 0 and std::abs(n0 - nfg) <= kex * (1.0 + 1.e-6) + 1.e-13 * n0;
     std::printf("    kernel: mul_sparse(0) has %zu leaves, union leaves %zu, %ld differ; ||q0|| %.10e against ||f g|| "
                 "%.10e, within the collocation error %.2e\n", l0.size(), uleaves.size(), miss0, n0, nfg, kex);
-    for (int i = 0; i < NSCALE; ++i) {
-        functionT q = mul_sparse(f, g, 0.1 * s.thresh * SCALES[i]);
-        keysetT stops;
-        double d2 = 0.0;
-        for (const auto& b : U)
-            if (b.stop_s[i]) {
-                stops.insert(b.key);
-                d2 += b.d2q;
-            }
-        const keysetT lq = leaves_of(q);
-        const long miss = differ(lq, stops);
-        const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
-        const bool oki = miss == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0;
-        std::printf("    kernel: mul_sparse(%g x 0.1 thresh) has %zu leaves, today's criterion %zu stops, %ld differ; "
-                    "||q - q0|| %.6e, quadrature %.6e\n", SCALES[i], lq.size(), stops.size(), miss, dk, dme);
-        ok = ok and oki;
+    const MulScreen mode = mul_screen();
+    for (int j = 0; j < 2; ++j) {
+        mul_screen() = (j == 0) ? MulScreen::cs : MulScreen::hoelder;
+        for (int i = 0; i < NSCALE; ++i) {
+            functionT q = mul_sparse(f, g, 0.1 * s.thresh * SCALES[i]);
+            keysetT stops;
+            double d2 = 0.0;
+            for (const auto& b : U)
+                if (b.stop_s[j * NSCALE + i]) {
+                    stops.insert(b.key);
+                    d2 += b.d2q;
+                }
+            const keysetT lq = leaves_of(q);
+            const long miss = differ(lq, stops);
+            const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
+            const bool oki = miss == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0;
+            std::printf("    kernel %-7s: mul_sparse(%g x 0.1 thresh) has %zu leaves, %s %zu stops, %ld differ; "
+                        "||q - q0|| %.6e, quadrature %.6e\n", j == 0 ? "cs" : "hoelder", SCALES[i], lq.size(),
+                        crit_name[SCALED[j]], stops.size(), miss, dk, dme);
+            ok = ok and oki;
+        }
     }
+    mul_screen() = mode;
     std::printf("    kernel: %s\n", ok ? "agree" : "DISAGREE");
     if (not ok) ++th.kernel;
 }
