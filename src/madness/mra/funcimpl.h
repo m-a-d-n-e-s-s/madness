@@ -124,7 +124,7 @@ namespace madness {
     };
 
 
-    /// Sentinel for norm_tree/dnorm_tree meaning "not computed". Overflows the screening
+    /// Sentinel for norm_tree/dnorm_tree/sup_tree meaning "not computed". Overflows the screening
     /// criterion, so nodes carrying it are descended rather than screened.
     static constexpr double NORM_TREE_UNCOMPUTED = 1e300;
 
@@ -147,6 +147,7 @@ namespace madness {
         coeffT _coeffs; ///< The coefficients, if any
         double _norm_tree; ///< After norm_tree will contain norm of sum coefficients summed up tree
         double _dnorm_tree=NORM_TREE_UNCOMPUTED; ///< norm of the difference coefficients summed up the tree
+        double _sup_tree=NORM_TREE_UNCOMPUTED; ///< bound on sup|f| over the box: max over the leaves below of the sum bound of their coefficients (supbound.h)
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients, also defined if there are no d coefficients
@@ -156,7 +157,8 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
         /// Default constructor makes node without coeff or children
         FunctionNode() :
-            _coeffs(), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED), _has_children(false) {
+            _coeffs(), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED), _sup_tree(NORM_TREE_UNCOMPUTED),
+            _has_children(false) {
         }
 
         /// Constructor from given coefficients with optional children
@@ -166,7 +168,8 @@ namespace madness {
         /// take ownership.
         explicit
         FunctionNode(const coeffT& coeff, bool has_children = false) :
-            _coeffs(coeff), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED), _has_children(has_children) {
+            _coeffs(coeff), _norm_tree(NORM_TREE_UNCOMPUTED), _dnorm_tree(NORM_TREE_UNCOMPUTED),
+            _sup_tree(NORM_TREE_UNCOMPUTED), _has_children(has_children) {
         }
 
         explicit
@@ -174,14 +177,17 @@ namespace madness {
             _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children) {
         }
 
+        /// sup_tree is left uncomputed unless given
         explicit
-        FunctionNode(const coeffT& coeff, double norm_tree, double dnorm_tree, double snorm, double dnorm, bool has_children) :
-	  _coeffs(coeff), _norm_tree(norm_tree), _dnorm_tree(dnorm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
+        FunctionNode(const coeffT& coeff, double norm_tree, double dnorm_tree, double snorm, double dnorm, bool has_children,
+                     double sup_tree = NORM_TREE_UNCOMPUTED) :
+	  _coeffs(coeff), _norm_tree(norm_tree), _dnorm_tree(dnorm_tree), _sup_tree(sup_tree), _has_children(has_children),
+          dnorm(dnorm), snorm(snorm) {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) :
             _coeffs(other._coeffs), _norm_tree(other._norm_tree), _dnorm_tree(other._dnorm_tree),
-            _has_children(other._has_children), dnorm(other.dnorm), snorm(other.snorm) {
+            _sup_tree(other._sup_tree), _has_children(other._has_children), dnorm(other.dnorm), snorm(other.snorm) {
         }
 
         FunctionNode<T, NDIM>&
@@ -190,6 +196,7 @@ namespace madness {
                 coeff() = copy(other.coeff());
                 _norm_tree = other._norm_tree;
                 _dnorm_tree = other._dnorm_tree;
+                _sup_tree = other._sup_tree;
                 _has_children = other._has_children;
                 dnorm=other.dnorm;
                 snorm=other.snorm;
@@ -204,7 +211,8 @@ namespace madness {
         template<typename Q>
         FunctionNode<Q, NDIM>
         convert() const {
-            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, _dnorm_tree, snorm, dnorm, _has_children);
+            return FunctionNode<Q, NDIM> (madness::convert<Q,T>(coeff()), _norm_tree, _dnorm_tree, snorm, dnorm, _has_children,
+                                          _sup_tree);
         }
 
         /// Returns true if there are coefficients in this node
@@ -324,6 +332,11 @@ namespace madness {
             _dnorm_tree = dnorm_tree;
         }
 
+        /// Sets the value of sup_tree
+        void set_sup_tree(double sup_tree) {
+            _sup_tree = sup_tree;
+        }
+
         /// Gets the value of norm_tree
         double get_norm_tree() const {
             return _norm_tree;
@@ -332,6 +345,11 @@ namespace madness {
         /// Gets the value of dnorm_tree
         double get_dnorm_tree() const {
             return _dnorm_tree;
+        }
+
+        /// Gets the value of sup_tree: a bound on sup|f| over the box (NORM_TREE_UNCOMPUTED if not computed)
+        double get_sup_tree() const {
+            return _sup_tree;
         }
 
         /// return the precomputed norm of the (virtual) d coefficients
@@ -362,6 +380,7 @@ namespace madness {
         void scale_norms(const double a) {
             if (_norm_tree >= 0.0 && _norm_tree < NORM_TREE_UNCOMPUTED) _norm_tree *= a;
             if (_dnorm_tree < NORM_TREE_UNCOMPUTED) _dnorm_tree *= a;
+            if (_sup_tree < NORM_TREE_UNCOMPUTED) _sup_tree *= a;
             if (snorm >= 0.0) snorm *= a;
             if (dnorm >= 0.0) dnorm *= a;
         }
@@ -495,7 +514,7 @@ namespace madness {
         template <typename Archive>
         void serialize(Archive& ar) {
             // changing this list changes the on-disk format: bump FUNCTION_ARCHIVE_MAGIC
-            ar & coeff() & _has_children & _norm_tree & _dnorm_tree & dnorm & snorm;
+            ar & coeff() & _has_children & _norm_tree & _dnorm_tree & _sup_tree & dnorm & snorm;
         }
 
         /// like operator<<(ostream&, const FunctionNode<T,NDIM>&) but
@@ -511,7 +530,10 @@ namespace madness {
             double nt = this->get_norm_tree();
             if (nt == NORM_TREE_UNCOMPUTED)
                 nt = 0.0;
-            s << norm << ",\"norm_tree\":" << nt << ",\"snorm\":"
+            double st = this->get_sup_tree();
+            if (st == NORM_TREE_UNCOMPUTED)
+                st = 0.0;
+            s << norm << ",\"norm_tree\":" << nt << ",\"sup_tree\":" << st << ",\"snorm\":"
               << this->get_snorm() << ",\"dnorm\":" << this->get_dnorm()
               << ",\"rank\":" << this->coeff().rank();
             if (this->coeff().is_assigned())
@@ -528,9 +550,11 @@ namespace madness {
             norm = 0.0;
         double nt = node.get_norm_tree();
         double dnt = node.get_dnorm_tree();
+        double st = node.get_sup_tree();
         if (nt == NORM_TREE_UNCOMPUTED) nt = 0.0;
         if (dnt == NORM_TREE_UNCOMPUTED) dnt = 0.0;
-        s << norm << ", norm_tree = " << nt << ", dnorm_tree = " << dnt << ", s/dnorm =" << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        if (st == NORM_TREE_UNCOMPUTED) st = 0.0;
+        s << norm << ", norm_tree = " << nt << ", dnorm_tree = " << dnt << ", sup_tree = " << st << ", s/dnorm =" << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
@@ -5221,8 +5245,27 @@ template<size_t NDIM>
 //        void compress(bool nonstandard, bool keepleaves, bool redundant, bool fence);
         void compress(const TreeState newstate, bool fence);
 
-        /// s coefficients plus the (snorm_tree, dnorm_tree) pair propagated up by compress
-        typedef std::pair<coeffT, std::pair<double,double> > compressT;
+        /// the norms compress_op and make_redundant_op propagate up the tree and store on every node
+        struct TreeNorms {
+            double norm_tree = 0.0;     ///< ||f|| on the box
+            double dnorm_tree = 0.0;    ///< ||f - P_n f|| on the box
+            double sup_tree = 0.0;      ///< a bound on sup|f| on the box (supbound.h)
+            template <typename Archive>
+            void serialize(Archive& ar) {
+                ar & norm_tree & dnorm_tree & sup_tree;
+            }
+        };
+
+        /// s coefficients plus the norms propagated up by compress
+        typedef std::pair<coeffT, TreeNorms> compressT;
+
+        /// The bound S of supbound.h on sup|f| over the box `key` from f's scaling coefficients c there. NORM_TREE_UNCOMPUTED
+        /// where it cannot be formed: low-rank coefficients, or no weights for this k and NDIM (FunctionCommonData).
+        double sup_bound(const keyT& key, const coeffT& c) const {
+            if (not c.has_data()) return 0.0;
+            if (not c.is_full_tensor() or cdata.sup_weights.size() == 0) return NORM_TREE_UNCOMPUTED;
+            return SupBoundMap<NDIM>::leaf_bound(key, c.full_tensor(), cdata.sup_weights);
+        }
 
         /// Invoked on node where key is local
         Future<compressT> compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
@@ -5297,7 +5340,7 @@ template<size_t NDIM>
 
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
 
-        /// also propagates norm_tree and dnorm_tree for all nodes
+        /// also propagates norm_tree, dnorm_tree and sup_tree for all nodes
         /// @param[in] key 	this's key
         /// @param[in] v 	sum coefficients and propagated norms of the child nodes
         /// @param[in] nonstandard  keep the sum coefficients with the wavelet coefficients
@@ -5307,7 +5350,7 @@ template<size_t NDIM>
 
         /// similar to compress_op, but insert only the sum coefficients in the tree
 
-        /// also propagates norm_tree and dnorm_tree for all nodes
+        /// also propagates norm_tree, dnorm_tree and sup_tree for all nodes
         /// @param[in] key  this's key
         /// @param[in] v    sum coefficients and propagated norms of the child nodes
         /// @return         the sum coefficients and propagated norms
@@ -8123,7 +8166,7 @@ template<size_t NDIM>
                 // the result inherits f's tree state, so it has to inherit the norms that
                 // state promises too
                 nodeT scaled(c, node.get_norm_tree(), node.get_dnorm_tree(),
-                             node.get_snorm(), node.get_dnorm(), node.has_children());
+                             node.get_snorm(), node.get_dnorm(), node.has_children(), node.get_sup_tree());
                 scaled.scale_norms(std::abs(q));
                 coeffs.replace(key,scaled);
             }

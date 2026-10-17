@@ -7,6 +7,7 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
 #include <madness/world/test_utilities.h>
+#include <madness/world/vector_archive.h>
 
 #include <cmath>
 #include <cstdio>
@@ -394,7 +395,8 @@ int test_norm_tree_states(World& world, std::vector<operand_pair>& pairs) {
 /// screening criterion reads norm_tree and dnorm_tree as a pair, so a reset
 /// that clears one and leaves the other in place is worse than no reset at
 /// all: norm_tree = 0 with a small stale dnorm_tree passes the test in
-/// mulXXveca() and multiplies at a level that is too coarse.
+/// mulXXveca() and multiplies at a level that is too coarse. sup_tree, the
+/// Hoelder screen's bound, goes with them.
 int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
     test_output t("mul_sparse T8: broaden resets norm_tree and dnorm_tree");
     t.set_do_print(world.rank() == 0);
@@ -408,26 +410,28 @@ int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
     f.make_redundant(true);
     f.reconstruct();
 
-    // counts local nodes, summed over ranks: (computed dnorm_tree, nonzero
-    // norm_tree)
+    // counts local nodes, summed over ranks: computed dnorm_tree, nonzero
+    // norm_tree, computed sup_tree
     auto count = [&world](const Function<double,D>& g) {
-        long computed = 0, nonzero = 0;
+        long computed = 0, nonzero = 0, sup = 0;
         const auto& c = g.get_impl()->get_coeffs();
         for (auto it = c.begin(); it != c.end(); ++it) {
             if (it->second.get_dnorm_tree() != NORM_TREE_UNCOMPUTED) ++computed;
             if (it->second.get_norm_tree() != 0.0) ++nonzero;
+            if (it->second.get_sup_tree() != NORM_TREE_UNCOMPUTED) ++sup;
         }
         world.gop.sum(computed);
         world.gop.sum(nonzero);
-        return std::make_pair(computed, nonzero);
+        world.gop.sum(sup);
+        return std::array<long, 3>{computed, nonzero, sup};
     };
 
     const auto before = count(f);
     if (world.rank() == 0)
         printf("  T8 before broaden: %ld nodes with a computed dnorm_tree, "
-               "%ld with a nonzero norm_tree\n", before.first, before.second);
+               "%ld with a nonzero norm_tree, %ld with a computed sup_tree\n", before[0], before[1], before[2]);
     // without this the test would pass on an empty premise
-    t.checkpoint(before.first > 0 and before.second > 0,
+    t.checkpoint(before[0] > 0 and before[1] > 0 and before[2] > 0,
                  "T8 the tree carries computed norms into broaden");
 
     f.broaden();
@@ -436,9 +440,10 @@ int test_broaden_resets_norms(World& world, std::vector<operand_pair>& pairs) {
     const auto after = count(f);
     if (world.rank() == 0)
         printf("  T8 after broaden:  %ld nodes with a computed dnorm_tree, "
-               "%ld with a nonzero norm_tree\n", after.first, after.second);
-    t.checkpoint(after.second == 0, "T8 broaden clears norm_tree");
-    t.checkpoint(after.first == 0,  "T8 broaden clears dnorm_tree");
+               "%ld with a nonzero norm_tree, %ld with a computed sup_tree\n", after[0], after[1], after[2]);
+    t.checkpoint(after[1] == 0, "T8 broaden clears norm_tree");
+    t.checkpoint(after[0] == 0, "T8 broaden clears dnorm_tree");
+    t.checkpoint(after[2] == 0, "T8 broaden clears sup_tree");
     return t.end();
 }
 
@@ -549,8 +554,9 @@ int test_compress_clears_snorm(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
-/// number of nodes of scaled whose norms are not |q| times those of orig, or
-/// whose dnorm_tree is uncomputed; orig and scaled share a tree
+/// number of nodes of scaled whose norms (sup_tree included) are not |q| times
+/// those of orig, or whose dnorm_tree or sup_tree is uncomputed; orig and scaled
+/// share a tree
 static long nodes_with_unscaled_norms(World& world, const Function<double,D>& orig,
                                       const Function<double,D>& scaled, double q) {
     auto agrees = [q](double s, double o) {
@@ -563,6 +569,8 @@ static long nodes_with_unscaled_norms(World& world, const Function<double,D>& or
         const auto& onode = oc.find(it->first).get()->second;
         const auto& snode = it->second;
         if (snode.get_dnorm_tree() >= NORM_TREE_UNCOMPUTED
+            or snode.get_sup_tree() >= NORM_TREE_UNCOMPUTED
+            or not agrees(snode.get_sup_tree(),   onode.get_sup_tree())
             or not agrees(snode.get_norm_tree(),  onode.get_norm_tree())
             or not agrees(snode.get_dnorm_tree(), onode.get_dnorm_tree())
             or not agrees(snode.get_snorm(),      onode.get_snorm())
@@ -711,6 +719,141 @@ int test_scale_preserves_broaden_marker(World& world, std::vector<operand_pair>&
     return t.end();
 }
 
+/// T15: sup_tree, the bound on sup|f| per box that the Hoelder screen reads, comes out of the passes that compute
+/// the norms (make_redundant, compress): computed on every node, and wherever a box's subtree is local equal, bit
+/// for bit, to the bound FunctionImpl::sup_bound_map() builds from the leaves
+int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T15: sup_tree from the passes against sup_bound_map");
+    t.set_do_print(world.rank() == 0);
+    for (auto& p : pairs) {
+        for (const TreeState state : {redundant, compressed}) {
+            Function<double,D> f = copy(p.f);
+            f.reconstruct();
+            const SupBoundMap<D> map = f.get_impl()->sup_bound_map();
+            f.change_tree_state(state, true);
+            // nodes, nodes without a computed sup_tree, nodes the map holds, and of those the ones that differ
+            std::array<long, 4> n{0, 0, 0, 0};
+            const auto& c = f.get_impl()->get_coeffs();
+            for (auto it = c.begin(); it != c.end(); ++it) {
+                const double st = it->second.get_sup_tree();
+                const double m = map(it->first);
+                ++n[0];
+                if (not (st < NORM_TREE_UNCOMPUTED)) ++n[1];
+                if (m == SupBoundMap<D>::unbounded()) continue;
+                ++n[2];
+                if (st != m) ++n[3];
+            }
+            world.gop.sum(n.data(), n.size());
+            const std::string tag = "T15 " + p.name + (state == redundant ? " redundant" : " compressed");
+            if (world.rank() == 0)
+                printf("  %s: %ld nodes, %ld without sup_tree, %ld held by sup_bound_map, %ld differ\n", tag.c_str(),
+                       n[0], n[1], n[2], n[3]);
+            t.checkpoint(n[0] > 0 and n[2] > 0, tag + " has nodes to compare");
+            t.checkpoint(n[1] == 0, tag + " sup_tree computed on every node");
+            t.checkpoint(n[3] == 0, tag + " sup_tree equals sup_bound_map");
+        }
+    }
+    return t.end();
+}
+
+/// T16: every way a node is made or copied keeps what it is given. The short constructors, and the explicit-norm one
+/// without a bound, leave sup_tree uncomputed; the explicit-norm one with a bound and every copy (copy constructor,
+/// assignment, convert, serialization) carry dnorm_tree and sup_tree. July's shuffle bug was a copy path that lost
+/// dnorm_tree, and the screen then stopped early on the operands it reached.
+int test_node_paths(World& world) {
+    test_output t("mul_sparse T16: node constructors and copies keep dnorm_tree and sup_tree");
+    t.set_do_print(world.rank() == 0);
+    typedef FunctionNode<double,D> nodeT;
+    const double U = NORM_TREE_UNCOMPUTED;
+    Tensor<double> tc(8L, 8L, 8L);
+    tc.fillrandom();
+    const nodeT::coeffT c(tc);
+    auto check = [&t](const auto& node, const double dnt, const double st, const std::string& what) {
+        t.checkpoint(node.get_dnorm_tree() == dnt and node.get_sup_tree() == st, "T16 " + what);
+    };
+    check(nodeT(), U, U, "default constructor: uncomputed");
+    check(nodeT(c, true), U, U, "constructor from coefficients: uncomputed");
+    check(nodeT(c, 1.0, true), U, U, "constructor with norm_tree: uncomputed");
+    check(nodeT(c, 1.0, 0.5, 0.9, 0.4, true), 0.5, U, "explicit norms without a bound: sup_tree uncomputed");
+    const nodeT full(c, 1.0, 0.5, 0.9, 0.4, true, 2.0);
+    check(full, 0.5, 2.0, "explicit norms with a bound");
+    check(nodeT(full), 0.5, 2.0, "copy constructor");
+    nodeT assigned;
+    assigned = full;
+    check(assigned, 0.5, 2.0, "assignment");
+    check(full.convert<double_complex>(), 0.5, 2.0, "convert to complex");
+    std::vector<unsigned char> buf;
+    {
+        archive::VectorOutputArchive oar(buf);
+        nodeT out(full);
+        oar & out;
+    }
+    nodeT in;
+    archive::VectorInputArchive iar(buf);
+    iar & in;
+    check(in, 0.5, 2.0, "serialization round trip");
+    return t.end();
+}
+
+/// T17: the archive carries sup_tree, and an archive written before sup_tree was part of the node format is refused
+/// by its header magic instead of being misread
+int test_archive(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T17: save/load keeps sup_tree, the previous format is refused");
+    t.set_do_print(world.rank() == 0);
+    const char* name = "test_mul_sparse_T17";
+    Function<double,D> f = copy(pairs.back().f);
+    f.make_redundant(true);
+    {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> out(world, name, 1);
+        out & f;
+    }
+    Function<double,D> g;
+    {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> in(world, name, 1);
+        in & g;
+        in.close();
+        in.remove();
+    }
+    // g has f's distribution (both the default process map): every node of g has f's sup_tree at the same box
+    long nodes = 0, differ = 0;
+    const auto& fc = f.get_impl()->get_coeffs();
+    for (auto it = g.get_impl()->get_coeffs().begin(); it != g.get_impl()->get_coeffs().end(); ++it) {
+        ++nodes;
+        if (not fc.is_local(it->first)) {
+            ++differ;
+            continue;
+        }
+        const auto fit = fc.find(it->first).get();
+        if (fit == fc.end() or fit->second.get_sup_tree() != it->second.get_sup_tree()) ++differ;
+    }
+    world.gop.sum(nodes);
+    world.gop.sum(differ);
+    if (world.rank() == 0) printf("  T17 %ld nodes loaded, %ld with a sup_tree that is not f's\n", nodes, differ);
+    t.checkpoint(get_tree_state(g) == redundant, "T17 the loaded function is redundant");
+    t.checkpoint(nodes > 0 and differ == 0, "T17 the loaded function carries f's sup_tree on every node");
+
+    // the header of the previous format, magic 7776770 (FunctionNode without _sup_tree)
+    {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> out(world, name, 1);
+        out & long(7776770) & long(TensorTypeData<double>::id) & long(D) & long(FunctionDefaults<D>::get_k())
+            & FunctionDefaults<D>::get_cell();
+    }
+    bool refused = false;
+    {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> in(world, name, 1);
+        try {
+            Function<double,D> h;
+            in & h;
+        } catch (const MadnessException&) {
+            refused = true;
+        }
+        in.close();
+        in.remove();
+    }
+    t.checkpoint(refused, "T17 an archive with the previous magic is refused");
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -739,6 +882,9 @@ int main(int argc, char** argv) {
         success += test_scaled_redundant_operand(world, pairs);
         success += test_scale_inplace_norms(world, pairs);
         success += test_scale_preserves_broaden_marker(world, pairs);
+        success += test_sup_tree(world, pairs);
+        success += test_node_paths(world);
+        success += test_archive(world, pairs);
     }
 
     world.gop.fence();

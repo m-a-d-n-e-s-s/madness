@@ -32,6 +32,7 @@
 */
 
 #include <madness/mra/funcdefaults.h>
+#include <madness/mra/supbound.h>
 
 #ifndef FUNCTIONCOMMONDATA_H_
 #define FUNCTIONCOMMONDATA_H_
@@ -80,6 +81,9 @@ namespace madness {
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw,
                              quad_phit);
+            // k^NDIM weights; none where that is too large to keep (high NDIM and large k), and sup_tree stays
+            // uncomputed there
+            if (std::pow(double(k), double(NDIM)) <= double(1 << 20)) sup_weights = SupBoundMap<NDIM>::leaf_weights(k);
         }
 
     public:
@@ -106,6 +110,7 @@ namespace madness {
         Tensor<double> h0T, h1T, g0T, g1T;  ///< The separate blocks of twoscale coefficients
         Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
         Tensor<double> hgsonly; ///< hg[0:k,:]
+        Tensor<double> sup_weights; ///< weights of the sup bound S of a box's coefficients (supbound.h); empty if k^NDIM > 2^20
 
         static const FunctionCommonData<T, NDIM>&
         get(int k) {

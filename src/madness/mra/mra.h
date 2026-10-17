@@ -134,7 +134,8 @@ namespace madness {
     /// Header magic for Function::store/load; bump whenever FunctionNode::serialize changes.
     ///   7776769  original (Mellow Mushroom Pizza tel.# in Knoxville, +1 for cell in header)
     ///   7776770  FunctionNode gained _dnorm_tree
-    static constexpr long FUNCTION_ARCHIVE_MAGIC = 7776770;
+    ///   7776771  FunctionNode gained _sup_tree
+    static constexpr long FUNCTION_ARCHIVE_MAGIC = 7776771;
 
     /// A multiresolution adaptive numerical function
     template <typename T, std::size_t NDIM>

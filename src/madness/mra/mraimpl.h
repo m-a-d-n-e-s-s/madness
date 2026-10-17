@@ -1395,13 +1395,14 @@ namespace madness {
     }
 
     // For each local node sets norm_tree, snorm and dnorm to 0.0, and marks
-    // dnorm_tree as uncomputed.
+    // dnorm_tree and sup_tree as uncomputed.
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::zero_norm_tree() {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             it->second.set_norm_tree(0.0);
             it->second.set_dnorm_tree(NORM_TREE_UNCOMPUTED);
+            it->second.set_sup_tree(NORM_TREE_UNCOMPUTED);
             it->second.set_snorm(0.0);
             it->second.set_dnorm(0.0);
         }
@@ -1422,6 +1423,7 @@ namespace madness {
                 node.coeff().normf() >= truncate_tol(thresh,key)) {
 
                 node.set_norm_tree(-1.0); // Indicates already broadened or result of broadening/refining
+                node.set_sup_tree(NORM_TREE_UNCOMPUTED);  // the subtree changes below this node
 
                 //int ndir = std::pow(3,NDIM);
                 int ndir = static_cast<int>(std::pow(static_cast<double>(3), static_cast<int>(NDIM)));
@@ -1789,12 +1791,15 @@ namespace madness {
         tensorT d(cdata.v2k);
         //            coeffT d(cdata.v2k,targs);
         int i=0;
-        double norm_tree2=0.0, dnorm_tree2=0.0;
+        double norm_tree2=0.0, dnorm_tree2=0.0, sup_tree=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
             d(child_patch(kit.key())) += v[i].get().first.full_tensor();
-            norm_tree2+=v[i].get().second.first*v[i].get().second.first;
-            dnorm_tree2+=v[i].get().second.second*v[i].get().second.second;
+            const TreeNorms& n = v[i].get().second;
+            norm_tree2+=n.norm_tree*n.norm_tree;
+            dnorm_tree2+=n.dnorm_tree*n.dnorm_tree;
+            // the sup over the union of the children's boxes is the max of theirs
+            sup_tree=std::max(sup_tree,n.sup_tree);
         }
 
         d = filter(d);
@@ -1835,18 +1840,19 @@ namespace madness {
         acc->second.set_dnorm(dnorm);
         acc->second.set_norm_tree(norm_tree);
         acc->second.set_dnorm_tree(dnorm_tree);
+        acc->second.set_sup_tree(sup_tree);
 
         acc->second.set_coeff(dd);
         cpu1=cpu_time();
         timer_compress_svd.accumulate(cpu1-cpu0);
 
         // return sum coefficients and propagated norms
-        return std::make_pair(ss,std::make_pair(norm_tree,dnorm_tree));
+        return std::make_pair(ss,TreeNorms{norm_tree,dnorm_tree,sup_tree});
     }
 
     /// similar to compress_op, but insert only the sum coefficients in the tree
 
-    /// also sets snorm, dnorm, norm_tree and dnorm_tree for all nodes
+    /// also sets snorm, dnorm, norm_tree, dnorm_tree and sup_tree for all nodes
     /// @param[in] key  this's key
     /// @param[in] v    sum coefficients and propagated norms of the child nodes
     /// @return         the sum coefficients and propagated norms
@@ -1856,11 +1862,14 @@ namespace madness {
 
         tensorT d(cdata.v2k);
         int i=0;
-        double norm_tree2=0.0, dnorm_tree2=0.0;
+        double norm_tree2=0.0, dnorm_tree2=0.0, sup_tree=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             d(child_patch(kit.key())) += v[i].get().first.full_tensor();
-            norm_tree2+=v[i].get().second.first*v[i].get().second.first;
-            dnorm_tree2+=v[i].get().second.second*v[i].get().second.second;
+            const TreeNorms& n = v[i].get().second;
+            norm_tree2+=n.norm_tree*n.norm_tree;
+            dnorm_tree2+=n.dnorm_tree*n.dnorm_tree;
+            // the sup over the union of the children's boxes is the max of theirs
+            sup_tree=std::max(sup_tree,n.sup_tree);
         }
         d = filter(d);
         double norm_tree=sqrt(norm_tree2);
@@ -1887,9 +1896,10 @@ namespace madness {
         acc->second.set_snorm(snorm);
         acc->second.set_norm_tree(norm_tree);
         acc->second.set_dnorm_tree(dnorm_tree);
+        acc->second.set_sup_tree(sup_tree);
 
         // return sum coefficients and propagated norms
-        return std::make_pair(s,std::make_pair(norm_tree,dnorm_tree));
+        return std::make_pair(s,TreeNorms{norm_tree,dnorm_tree,sup_tree});
     }
 
     /// Changes non-standard compressed form to standard compressed form
@@ -3522,7 +3532,7 @@ template <typename T, std::size_t NDIM>
 
 
     /// will insert
-    /// @return s coefficient and (norm_tree, dnorm_tree) for key
+    /// @return s coefficient and (norm_tree, dnorm_tree, sup_tree) for key
     template <typename T, std::size_t NDIM>
     Future< typename FunctionImpl<T,NDIM>::compressT > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key,
 				bool nonstandard1, bool keepleaves, bool redundant1) {
@@ -3555,14 +3565,18 @@ template <typename T, std::size_t NDIM>
                     // with only the root node existing redundant and reconstructed are the same
                     coeffT result(node.coeff());
                     double snorm=node.coeff().normf();
+                    const double sup=sup_bound(key,node.coeff());
                     node.set_dnorm(0.0);
                     node.set_snorm(snorm);
                     node.set_norm_tree(snorm);
                     node.set_dnorm_tree(0.0);
-                    return Future<compressT>(std::make_pair(result,std::make_pair(snorm,0.0)));
+                    node.set_sup_tree(sup);
+                    return Future<compressT>(std::make_pair(result,TreeNorms{snorm,0.0,sup}));
                 } else {
                     // compress
                     coeffT result(node.coeff());
+                    // from the scaling coefficients, before they become the s block of the 2k tensor
+                    const double sup=sup_bound(key,node.coeff());
                     coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
                     sdcoeff(cdata.s0)+=node.coeff();
                     node.coeff()=sdcoeff;
@@ -3571,12 +3585,15 @@ template <typename T, std::size_t NDIM>
                     node.set_snorm(snorm);
                     node.set_norm_tree(snorm);
                     node.set_dnorm_tree(0.0);
-                    return Future<compressT>(std::make_pair(result,std::make_pair(node.coeff().normf(),0.0)));
+                    node.set_sup_tree(sup);
+                    return Future<compressT>(std::make_pair(result,TreeNorms{node.coeff().normf(),0.0,sup}));
                 }
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
                 const double snorm = node.coeff().normf();
+                // the leaf's bound on sup|f|, read before the coefficients may go
+                const double sup = sup_bound(key,node.coeff());
 
                 if (not keepleaves) node.clear_coeff();
 
@@ -3585,6 +3602,7 @@ template <typename T, std::size_t NDIM>
                 // after clear_coeff() would propagate a zero up to the root.
                 node.set_norm_tree(snorm);
                 node.set_dnorm_tree(0.0);
+                node.set_sup_tree(sup);
                 // snorm, in contrast, describes the coefficients this node still
                 // holds: zero when they were just cleared, matching
                 // FunctionNode::recompute_snorm_and_dnorm().  The invariant
@@ -3593,7 +3611,7 @@ template <typename T, std::size_t NDIM>
                 node.set_snorm(keepleaves ? snorm : 0.0);
                 node.set_dnorm(0.0);
 
-                return Future<compressT>(std::make_pair(result,std::make_pair(snorm,0.0)));
+                return Future<compressT>(std::make_pair(result,TreeNorms{snorm,0.0,sup}));
             }
         }
     }
