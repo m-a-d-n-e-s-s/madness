@@ -736,10 +736,18 @@ int test_scale_preserves_broaden_marker(World& world, std::vector<operand_pair>&
 int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
     test_output t("mul_sparse T15: sup_tree from the passes against sup_bound_map");
     t.set_do_print(world.rank() == 0);
+    // for hunting the 2-rank failure: MSP_T15_REPEAT repeats the whole check, MSP_T15_FENCE adds fences (bit 1: after the
+    // copy, 2: after the reconstruct, 8: before the copy)
+    const int reps = std::getenv("MSP_T15_REPEAT") ? std::atoi(std::getenv("MSP_T15_REPEAT")) : 1;
+    const int fences = std::getenv("MSP_T15_FENCE") ? std::atoi(std::getenv("MSP_T15_FENCE")) : 0;
+    for (int rep = 0; rep < reps; ++rep)
     for (auto& p : pairs) {
         for (const TreeState state : {redundant, compressed}) {
+            if (fences & 8) world.gop.fence();
             Function<double,D> f = copy(p.f);
+            if (fences & 1) world.gop.fence();
             f.reconstruct();
+            if (fences & 2) world.gop.fence();
             const SupBoundMap<D> map = f.get_impl()->sup_bound_map();
             // what each local node looked like when the map was built, for the record of a difference below:
             // has_children, has_coeff, the sup_tree it carried, its norm_tree
@@ -747,6 +755,10 @@ int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
             for (auto it = f.get_impl()->get_coeffs().begin(); it != f.get_impl()->get_coeffs().end(); ++it)
                 before[it->first] = {double(it->second.has_children()), double(it->second.has_coeff()),
                                      it->second.get_sup_tree(), it->second.get_norm_tree()};
+            // the map and the snapshot read each rank's own nodes, while the state change below is collective: once
+            // one rank starts it, its tasks run on the other rank's nodes (compress clears the leaves' coefficients).
+            // Without this fence a rank still reading saw leaves already cleared, about one check in thirty on 2 ranks.
+            world.gop.fence();
             f.change_tree_state(state, true);
             // nodes, nodes without a computed sup_tree, nodes the map holds, and of those the ones that differ
             std::array<long, 4> n{0, 0, 0, 0};
@@ -779,6 +791,17 @@ int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
             if (world.rank() == 0)
                 printf("  %s: %ld nodes, %ld without sup_tree, %ld held by sup_bound_map, %ld differ\n", tag.c_str(),
                        n[0], n[1], n[2], n[3]);
+            if (n[3] > 0) {
+                // after the fact, so it cannot hide the failure: are the operand's and the copy's trees consistent
+                // (every node's parent present and marked as having children)?
+                world.gop.fence();
+                const bool pf = p.f.get_impl()->verify_parents_and_children();
+                const bool fc = f.get_impl()->verify_parents_and_children();
+                printf("    T15 after the failure on rank %d: operand tree %s (state %d), copy tree %s\n", world.rank(),
+                       pf ? "consistent" : "INCONSISTENT", int(p.f.get_impl()->get_tree_state()),
+                       fc ? "consistent" : "INCONSISTENT");
+                world.gop.fence();
+            }
             t.checkpoint(n[0] > 0 and n[2] > 0, tag + " has nodes to compare");
             t.checkpoint(n[1] == 0, tag + " sup_tree computed on every node");
             t.checkpoint(n[3] == 0, tag + " sup_tree equals sup_bound_map");
@@ -1145,33 +1168,54 @@ int main(int argc, char** argv) {
 
     // the criterion the environment asks for (MAD_MUL_SCREEN), restored after the tests that set it
     const MulScreen initial = mul_screen();
+    // for hunting order-dependent failures: MSP_TESTS selects tests by number ("1-6,15"; all by default), MSP_FENCE=1
+    // fences before each test
+    std::vector<char> run(21, 1);
+    if (const char* sel = std::getenv("MSP_TESTS")) {
+        std::fill(run.begin(), run.end(), 0);
+        std::string list(sel);
+        for (std::size_t q = 0; q < list.size();) {
+            const std::size_t e = std::min(list.find(',', q), list.size());
+            const std::string item = list.substr(q, e - q);
+            const std::size_t dash = item.find('-');
+            const int lo = std::stoi(item.substr(0, dash));
+            const int hi = (dash == std::string::npos) ? lo : std::stoi(item.substr(dash + 1));
+            for (int n = lo; n <= hi and n <= 20; ++n) run[n] = 1;
+            q = e + 1;
+        }
+    }
+    const bool fence_each = (std::getenv("MSP_FENCE") != nullptr);
+    auto want = [&](const int n) {
+        if (fence_each) world.gop.fence();
+        return bool(run[n]);
+    };
     int success = 0;
     {
         std::vector<operand_pair> pairs = make_pairs(world);
         for (const MulScreen mode : {MulScreen::cs, MulScreen::hoelder}) {
             mul_screen() = mode;
-            success += test_exact(world, pairs);
-            success += test_tree_state(world, pairs);
-            success += test_screening_accuracy(world, pairs);
-            success += test_self_consistency(world, pairs);
-            success += test_dot_sparse(world, pairs);
-            success += test_operand_state(world, pairs);
+            if (want(1)) success += test_exact(world, pairs);
+            if (want(2)) success += test_tree_state(world, pairs);
+            if (want(3)) success += test_screening_accuracy(world, pairs);
+            if (want(4)) success += test_self_consistency(world, pairs);
+            if (want(5)) success += test_dot_sparse(world, pairs);
+            if (want(6)) success += test_operand_state(world, pairs);
         }
         mul_screen() = initial;
-        success += test_norm_tree_states(world, pairs);
-        success += test_broaden_resets_norms(world, pairs);
-        success += test_empty_vector_norms(world);
-        success += test_norms_preserve_tree_state(world, pairs);
-        success += test_compress_clears_snorm(world, pairs);
-        success += test_scaled_redundant_operand(world, pairs);
-        success += test_scale_inplace_norms(world, pairs);
-        success += test_scale_preserves_broaden_marker(world, pairs);
-        success += test_sup_tree(world, pairs);
-        success += test_node_paths(world);
-        success += test_archive(world, pairs);
-        success += test_hoelder_per_box(world, pairs);
-        success += test_tol_to_zero(world, pairs);
-        success += test_identity(world, pairs, initial);
+        if (want(7)) success += test_norm_tree_states(world, pairs);
+        if (want(8)) success += test_broaden_resets_norms(world, pairs);
+        if (want(9)) success += test_empty_vector_norms(world);
+        if (want(10)) success += test_norms_preserve_tree_state(world, pairs);
+        if (want(11)) success += test_compress_clears_snorm(world, pairs);
+        if (want(12)) success += test_scaled_redundant_operand(world, pairs);
+        if (want(13)) success += test_scale_inplace_norms(world, pairs);
+        if (want(14)) success += test_scale_preserves_broaden_marker(world, pairs);
+        if (want(15)) success += test_sup_tree(world, pairs);
+        if (want(16)) success += test_node_paths(world);
+        if (want(17)) success += test_archive(world, pairs);
+        if (want(18)) success += test_hoelder_per_box(world, pairs);
+        if (want(19)) success += test_tol_to_zero(world, pairs);
+        if (want(20)) success += test_identity(world, pairs, initial);
     }
 
     world.gop.fence();
