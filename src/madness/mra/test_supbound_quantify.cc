@@ -23,18 +23,25 @@
 ///       the right, d = dnorm_tree, sup = sup_tree): sup_M(f) d_g + d_f sup_M(g) with M at the leaves; sup(f) d_g +
 ///       d_f sup(g) (D3 as decided); sup(f) d_g + d_f S(own g), S of g's coefficients on the box (D3's fallback); and
 ///       S(own f) d_g + d_f sup(g), from the mirrored split f g - s_f s_g = d_f g + s_f d_g. The last two are bounds.
-///       The boxes where each criterion stops the descent at the development budget truncate_tol(0.01 thresh, B). For
-///       the record, the collocation error of do_mul, C(B) = ||s_f s_g - q_B||, and the kernel's error if it formed
-///       the product on B, K(B) = ||f g - q_B||, with q_B the collocated product, are outside every estimate. Today's
-///       criterion and the mirrored split are also read at the budget scales 10 and 100, truncate_tol(0.01 thresh
-///       scale, B): where the screen would stop with the margins relaxed.
+///       The boxes where each criterion stops the descent at the development budget truncate_tol(0.01 thresh, B). The
+///       collocation error of do_mul, C(B) = ||s_f s_g - q_B||, and the kernel's error if it formed the product on B,
+///       K(B) = ||f g - q_B||, with q_B the collocated product, are outside every estimate. C_bar(B) = S(f_lo) ||g_hi||
+///       + ||f_hi|| S(g) bounds C up to the aliasing of the k-point rule: lo are the coefficients of degree below k/2
+///       in every dimension, hi the rest, and f_lo g_lo is formed exactly, so C is the collocation of f_lo g_hi + f_hi g.
+///       The products with a factor's constant part, f_0 g and f g_0, are formed exactly too, which gives C_bar0 =
+///       S(f_lo - f_0) ||g_hi|| + ||f_hi|| S(g - g_0). The budget matrix (hand-off revision 6, phase 1b): today's
+///       criterion, the mirrored split, and the mirrored split plus C_bar or C_bar0 (which stop at the union leaves at
+///       the latest), at theta = scale 0.01 thresh min(1, h_n)^q
+///       for scale = 1, 10, 100, 1000 and q = 1, 0.5, 0, the budget of MAD_MUL_SCREEN_SCALE and MAD_MUL_SCREEN_HEXP
+///       (q = 1 is truncate_tol of mode 1, q = 0 the flat budget).
 ///
-/// Writes functions.csv, leaves.csv, interior.csv and union.csv into --out=DIR and summary tables to stdout. Checked
-/// (exit code 1 if one fails beyond roundoff): no value of a polynomial exceeds its S (leaves and own polynomials);
-/// both (S, S_own) estimates are at least E_rep on every box; and the kernel itself agrees with the union tree:
-/// mul_sparse at tol = 0 forms its products exactly at the union leaves, and at moldft's tolerance times each budget
-/// scale, under either criterion of the switch (MAD_MUL_SCREEN), exactly at the stops predicted for that criterion and
-/// scale; the norms of the screened-minus-exact products and of the exact one are what the quadrature gives.
+/// Writes functions.csv, leaves.csv, interior.csv, union.csv and matrix.csv into --out=DIR and summary tables to
+/// stdout. Checked (exit code 1 if one fails beyond roundoff): no value of a polynomial exceeds its S (leaves and own
+/// polynomials); both (S, S_own) estimates are at least E_rep on every box; and the kernel itself agrees with the
+/// union tree: mul_sparse at tol = 0 forms its products exactly at the union leaves, and at moldft's tolerance under
+/// either criterion of the switch (MAD_MUL_SCREEN) at every budget of the matrix (mul_screen_budget()) exactly at the
+/// stops predicted for that criterion and budget; the norms of the screened-minus-exact products and of the exact one
+/// are what the quadrature gives.
 /// Options: --out=DIR (write the CSV files there; none without it), --k=6,8,10 (the settings to run), --quick (two
 /// functions, two placements and one pair).
 
@@ -71,9 +78,13 @@ const double HALF = 20.0;
 const int NDENSE = 24;
 /// the kernel's development budget: the callers pass 0.1 thresh, mulXXvec multiplies by MUL_SCREENING_SAFETY = 0.1
 const double BUDGET = 0.01;
-/// the budget scales (hand-off revision 4): the caller's tolerance is 0.1 thresh times these
-const int NSCALE = 3;
-const std::array<double, NSCALE> SCALES{{1.0, 10.0, 100.0}};
+/// the budget matrix (hand-off revision 6): theta = scale 0.01 thresh min(1, h_n)^q, scale the factor on the kernel's
+/// tolerance (MAD_MUL_SCREEN_SCALE), q the exponent of the box width (MAD_MUL_SCREEN_HEXP); budget (i, j) at i NHEXP + j
+const int NSCALE = 4;
+const std::array<double, NSCALE> SCALES{{1.0, 10.0, 100.0, 1000.0}};
+const int NHEXP = 3;
+const std::array<double, NHEXP> HEXPS{{1.0, 0.5, 0.0}};
+const int NBUDGET = NSCALE * NHEXP;
 /// the orbital-like model: exp(-Z r) + ORB_C exp(-r^2 / ORB_W^2)
 const double ORB_C = 0.25, ORB_W = 2.0;
 /// relative slack of the inequalities checked as theorems (roundoff)
@@ -507,8 +518,22 @@ std::vector<InteriorRow> measure_interior(World& world, const functionT& f, cons
 /// with sup_tree in both terms, with S of the right operand's own coefficients, with S of the left operand's
 const int NCRIT = 5;
 const char* crit_name[NCRIT] = {"cs", "hM", "hS", "hSown", "hSown_gf"};
-/// the criteria read at every budget scale: today's and the mirrored split (indices into UBox::est)
-const std::array<int, 2> SCALED{{0, 4}};
+/// the criteria read at every budget of the matrix: today's, the mirrored split (UBox::est 0 and 4; the kernel's cs and
+/// hoelder) and the mirrored split plus C_bar or C_bar0
+const int NMCRIT = 4;
+const char* mcrit_name[NMCRIT] = {"cs", "hc", "hc+Cbar", "hc+Cbar0"};
+const int NMATRIX = NMCRIT * NBUDGET;
+
+/// the index of criterion c at budget (scale i, exponent j) in UBox::stop_m
+int mx(const int c, const int i, const int j) { return (c * NSCALE + i) * NHEXP + j; }
+
+/// the coefficients of degree below k/2 in every dimension, the rest zero: their products are of degree below k
+Tensor<double> lo_part(const Tensor<double>& c, const int k) {
+    const long m = (k + 1) / 2 - 1;
+    Tensor<double> lo(k, k, k);
+    lo(Slice(0, m), Slice(0, m), Slice(0, m)) = c(Slice(0, m), Slice(0, m), Slice(0, m));
+    return lo;
+}
 
 /// a box of the union tree of f and g
 struct UBox {
@@ -521,7 +546,11 @@ struct UBox {
     double supSf = 0, supMf = 0, supSg = 0, supMg = 0;  ///< max of S, M over the leaves below; of the restriction below a leaf
     double Sf = 0, Mf = 0, Tf = 0, Sg = 0, Mg = 0, Tg = 0;  ///< S, M and the dense-grid max of the box's own polynomials
     double theta = 0;
-    std::array<double, NSCALE> theta_s{};    ///< the budget at each of SCALES (theta_s[0] == theta)
+    std::array<double, NBUDGET> theta_m{};   ///< the budgets of the matrix (theta_m[0] == theta)
+    /// the collocation bound: S(f_lo), ||f_hi||, ||g_hi||, C_bar = S(f_lo) ||g_hi|| + ||f_hi|| S(g), and its mirror
+    /// S(f) ||g_hi|| + ||f_hi|| S(g_lo) (from f g - f_lo g_lo = f g_hi + f_hi g_lo)
+    double Sflo = 0, nfhi = 0, nghi = 0, Cbar = 0, Cbar_m = 0;
+    double Cbar0 = 0;   ///< S(f_lo - f_0) ||g_hi|| + ||f_hi|| S(g - g_0)
     /// squared, summed over the union leaves below: the stopping error ||f g - s_f s_g|| of the represented and of
     /// the analytic functions, the projection floor (E_ana of the union leaves), ||f g||, the collocation error
     /// ||s_f s_g - qc|| and the kernel's error ||f g - qc|| if it formed the product here (represented, analytic)
@@ -531,8 +560,8 @@ struct UBox {
     double d2q = 0;
     std::array<double, NCRIT> est{};
     std::array<char, NCRIT> stop{}, above{};
-    /// the stops of SCALED[j] at the budget scale SCALES[i], at j * NSCALE + i
-    std::array<char, 2 * NSCALE> stop_s{}, above_s{};
+    /// the stops of the matrix, at mx(criterion, scale, exponent)
+    std::array<char, NMATRIX> stop_m{}, above_m{};
 };
 
 /// the max of M over the leaves below each box of f's tree (reconstructed or redundant)
@@ -660,10 +689,25 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
         b.supMf = b.in_f ? Mf.at(b.key) : b.Mf;
         b.supSg = b.in_g ? Sg(b.key) : b.Sg;
         b.supMg = b.in_g ? Mg.at(b.key) : b.Mg;
-        // in the kernel's own floating-point order: the caller's 0.1 thresh, times MUL_SCREENING_SAFETY in mulXXvec
+        // in the kernel's own floating-point order: the caller's 0.1 thresh, times MUL_SCREENING_SAFETY and the scale in
+        // mulXXvec, the box's budget in mulXXveca
         for (int i = 0; i < NSCALE; ++i)
-            b.theta_s[i] = fi.truncate_tol((0.1 * s.thresh * SCALES[i]) * MUL_SCREENING_SAFETY, b.key);
-        b.theta = b.theta_s[0];
+            for (int j = 0; j < NHEXP; ++j)
+                b.theta_m[i * NHEXP + j] =
+                        fi.mul_screen_tol((0.1 * s.thresh) * MUL_SCREENING_SAFETY * SCALES[i], b.key, HEXPS[j]);
+        b.theta = b.theta_m[0];
+        const Tensor<double> flo = lo_part(b.sf, k), glo = lo_part(b.sg, k);
+        b.Sflo = SupBoundMap<D>::leaf_bound(b.key, flo, weights);
+        b.nfhi = (b.sf - flo).normf();
+        b.nghi = (b.sg - glo).normf();
+        b.Cbar = b.Sflo * b.nghi + b.nfhi * b.Sg;
+        b.Cbar_m = b.Sf * b.nghi + b.nfhi * SupBoundMap<D>::leaf_bound(b.key, glo, weights);
+        // f_0 g and f g_0 are formed exactly as well: C is the collocation of (f_lo - f_0) g_hi + f_hi (g - g_0)
+        Tensor<double> f0(k, k, k), g0(k, k, k);
+        f0(0, 0, 0) = b.sf(0, 0, 0);
+        g0(0, 0, 0) = b.sg(0, 0, 0);
+        b.Cbar0 = SupBoundMap<D>::leaf_bound(b.key, flo - f0, weights) * b.nghi +
+                  b.nfhi * SupBoundMap<D>::leaf_bound(b.key, b.sg - g0, weights);
         b.est[0] = b.ng * b.ndf + b.nf * b.ndg + b.ndf * b.ndg;     // mulXXveca today, f on the left
         b.est[1] = b.supMf * b.ndg + b.ndf * b.supMg;
         b.est[2] = b.supSf * b.ndg + b.ndf * b.supSg;
@@ -753,13 +797,18 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
             b.above[c] = (b.parent >= 0) and (U[b.parent].stop[c] or U[b.parent].above[c]);
             b.stop[c] = (not b.above[c]) and (b.est[c] <= b.theta);
         }
-        for (int j = 0; j < 2; ++j)
-            for (int i = 0; i < NSCALE; ++i) {
-                const int x = j * NSCALE + i;
-                b.above_s[x] = (b.parent >= 0) and (U[b.parent].stop_s[x] or U[b.parent].above_s[x]);
-                b.stop_s[x] = (not b.above_s[x]) and (b.est[SCALED[j]] <= b.theta_s[i]);
-            }
-        MADNESS_CHECK(b.stop_s[0] == b.stop[SCALED[0]] and b.stop_s[NSCALE] == b.stop[SCALED[1]]);
+        // the matrix; the kernel never descends below the union leaves, where today's estimate and the mirrored split
+        // vanish, so the mirrored split plus C_bar stops there at the latest
+        for (int c = 0; c < NMCRIT; ++c) {
+            const double e = (c == 0) ? b.est[0] : (c == 1) ? b.est[4] : b.est[4] + (c == 2 ? b.Cbar : b.Cbar0);
+            for (int i = 0; i < NSCALE; ++i)
+                for (int j = 0; j < NHEXP; ++j) {
+                    const int x = mx(c, i, j);
+                    b.above_m[x] = (b.parent >= 0) and (U[b.parent].stop_m[x] or U[b.parent].above_m[x]);
+                    b.stop_m[x] = (not b.above_m[x]) and (e <= b.theta_m[i * NHEXP + j] or (c >= 2 and b.leaf));
+                }
+        }
+        MADNESS_CHECK(b.stop_m[mx(0, 0, 0)] == b.stop[0] and b.stop_m[mx(1, 0, 0)] == b.stop[4]);
         // the theorem: the (S, S_own) estimate bounds the stopping error of the represented functions
         for (int c : {3, 4}) {
             const double e = std::sqrt(b.e2rep);
@@ -770,12 +819,70 @@ std::vector<UBox> measure_union(World& world, functionT& f, functionT& g, const 
     return U;
 }
 
+/// whether the collocation error of a box is above roundoff (C_bar / C is read there)
+bool c_resolved(const UBox& b) { return std::sqrt(b.c2) > 1.e-13 * std::sqrt(b.n2fg); }
+
+/// one row of matrix.csv: a criterion of the matrix at one budget, over its stops
+struct MatrixRow {
+    int c = 0, i = 0, j = 0;
+    long stops = 0, off = 0;        ///< the stops, of them off the union leaves
+    long forced = 0;                ///< hc+Cbar(0): union leaves where it stopped with est + its bound above the budget
+    long c_over = 0, c_miss = 0;    ///< stops with C above the budget, of them with the bound within it (C_bar; C_bar0
+                                    ///< for hc+Cbar0)
+    double e = 0, kr = 0, d = 0;    ///< total E_rep, K_rep and D (screened - tol 0) over the stops
+    double max_e = 0, max_k = 0;    ///< the largest E_rep / theta and K_rep / theta at a stop
+    Dist cr;                        ///< the bound / C at the stops with C above roundoff
+    long kleaves = -1, kdiffer = -1;    ///< the kernel (cs and hc only): its leaves, and how many differ from the stops
+    double kd = -1.0;                   ///< the kernel: ||q - q0||
+};
+
+/// the matrix over the stops of each criterion and budget
+std::vector<MatrixRow> matrix_rows(const std::vector<UBox>& U) {
+    std::vector<MatrixRow> rows(NMATRIX);
+    for (int c = 0; c < NMCRIT; ++c)
+        for (int i = 0; i < NSCALE; ++i)
+            for (int j = 0; j < NHEXP; ++j) {
+                MatrixRow& r = rows[mx(c, i, j)];
+                r.c = c;
+                r.i = i;
+                r.j = j;
+                double e2 = 0.0, k2 = 0.0, d2 = 0.0;
+                std::vector<double> cr;
+                for (const auto& b : U) {
+                    if (not b.stop_m[mx(c, i, j)]) continue;
+                    const double theta = b.theta_m[i * NHEXP + j];
+                    ++r.stops;
+                    r.off += not b.leaf;
+                    const double cb = (c == 3) ? b.Cbar0 : b.Cbar;
+                    if (c >= 2 and b.est[4] + cb > theta) ++r.forced;
+                    const double cc = std::sqrt(b.c2);
+                    if (cc > theta) {
+                        ++r.c_over;
+                        if (cb <= theta) ++r.c_miss;
+                    }
+                    if (c_resolved(b)) cr.push_back(cb / cc);
+                    e2 += b.e2rep;
+                    k2 += b.k2rep;
+                    d2 += b.d2q;
+                    r.max_e = std::max(r.max_e, std::sqrt(b.e2rep) / theta);
+                    r.max_k = std::max(r.max_k, std::sqrt(b.k2rep) / theta);
+                }
+                r.e = std::sqrt(e2);
+                r.kr = std::sqrt(k2);
+                r.d = std::sqrt(d2);
+                r.cr = dist(cr);
+            }
+    return rows;
+}
+
 /// The kernel itself, against the union tree: mul_sparse at tol = 0 must form its products exactly at the union leaves,
-/// with the norm the quadrature gives; and mul_sparse at moldft's tolerance times each budget scale, under each
-/// criterion of the switch (MulScreen: today's, and the Hoelder form (c), the mirrored split), exactly at the stops the
-/// program predicts for that criterion and scale, its difference from the tol = 0 product being what the quadrature
-/// says (all of it exact arithmetic up to roundoff: the polynomials' squares are integrated exactly)
-void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox>& U, const Setting& s, Theorems& th) {
+/// with the norm the quadrature gives; and mul_sparse at moldft's tolerance, under each criterion of the switch
+/// (MulScreen: today's, and the Hoelder form (c), the mirrored split) at every budget of the matrix (MulScreenBudget),
+/// exactly at the stops the program predicts for that criterion and budget, its difference from the tol = 0 product
+/// being what the quadrature says (all of it exact arithmetic up to roundoff: the polynomials' squares are integrated
+/// exactly). The kernel's leaves and difference go into the rows of the matrix.
+void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox>& U, const Setting& s, Theorems& th,
+                  std::vector<MatrixRow>& rows) {
     typedef std::unordered_set<keyT, Hash<keyT>> keysetT;
     auto leaves_of = [](const functionT& h) {
         keysetT l;
@@ -804,28 +911,37 @@ void check_kernel(const functionT& f, const functionT& g, const std::vector<UBox
     std::printf("    kernel: mul_sparse(0) has %zu leaves, union leaves %zu, %ld differ; ||q0|| %.10e against ||f g|| "
                 "%.10e, within the collocation error %.2e\n", l0.size(), uleaves.size(), miss0, n0, nfg, kex);
     const MulScreen mode = mul_screen();
-    for (int j = 0; j < 2; ++j) {
-        mul_screen() = (j == 0) ? MulScreen::cs : MulScreen::hoelder;
-        for (int i = 0; i < NSCALE; ++i) {
-            functionT q = mul_sparse(f, g, 0.1 * s.thresh * SCALES[i]);
-            keysetT stops;
-            double d2 = 0.0;
-            for (const auto& b : U)
-                if (b.stop_s[j * NSCALE + i]) {
-                    stops.insert(b.key);
-                    d2 += b.d2q;
-                }
-            const keysetT lq = leaves_of(q);
-            const long miss = differ(lq, stops);
-            const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
-            const bool oki = miss == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0;
-            std::printf("    kernel %-7s: mul_sparse(%g x 0.1 thresh) has %zu leaves, %s %zu stops, %ld differ; "
-                        "||q - q0|| %.6e, quadrature %.6e\n", j == 0 ? "cs" : "hoelder", SCALES[i], lq.size(),
-                        crit_name[SCALED[j]], stops.size(), miss, dk, dme);
-            ok = ok and oki;
-        }
+    const MulScreenBudget budget = mul_screen_budget();
+    for (int c = 0; c < 2; ++c) {
+        mul_screen() = (c == 0) ? MulScreen::cs : MulScreen::hoelder;
+        for (int i = 0; i < NSCALE; ++i)
+            for (int j = 0; j < NHEXP; ++j) {
+                mul_screen_budget().scale = SCALES[i];
+                mul_screen_budget().hexp = HEXPS[j];
+                functionT q = mul_sparse(f, g, 0.1 * s.thresh);
+                keysetT stops;
+                double d2 = 0.0;
+                for (const auto& b : U)
+                    if (b.stop_m[mx(c, i, j)]) {
+                        stops.insert(b.key);
+                        d2 += b.d2q;
+                    }
+                const keysetT lq = leaves_of(q);
+                const long miss = differ(lq, stops);
+                const double dk = (q - q0).norm2(), dme = std::sqrt(d2);
+                const bool oki = miss == 0 and std::abs(dk - dme) <= 1.e-6 * dk + 1.e-13 * n0;
+                std::printf("    kernel %-7s scale %-4g q %-3g: %zu leaves, %s %zu stops, %ld differ; ||q - q0|| %.6e, "
+                            "quadrature %.6e\n", c == 0 ? "cs" : "hoelder", SCALES[i], HEXPS[j], lq.size(),
+                            mcrit_name[c], stops.size(), miss, dk, dme);
+                MatrixRow& r = rows[mx(c, i, j)];
+                r.kleaves = long(lq.size());
+                r.kdiffer = miss;
+                r.kd = dk;
+                ok = ok and oki;
+            }
     }
     mul_screen() = mode;
+    mul_screen_budget() = budget;
     std::printf("    kernel: %s\n", ok ? "agree" : "DISAGREE");
     if (not ok) ++th.kernel;
 }
@@ -946,25 +1062,24 @@ void summarize_union(const std::string& name, const Setting& s, const std::vecto
                     std::sqrt(e2), std::sqrt(a2), std::sqrt(k2), std::sqrt(t2), worst,
                     minr < 1.e300 ? std::to_string(minr).c_str() : "(all exact)");
     }
-    // the budget scales: today's criterion and the mirrored split at truncate_tol(0.01 thresh scale, B)
-    std::printf("    scale  criterion  stops (off leaves)  total E_rep  total K_rep  D (screened - tol 0)  max E_rep/budget\n");
-    for (int j = 0; j < 2; ++j)
-        for (int i = 0; i < NSCALE; ++i) {
-            const int x = j * NSCALE + i;
-            double e2 = 0.0, k2 = 0.0, d2 = 0.0, worst = 0.0;
-            long n = 0, off = 0;
-            for (const auto& b : U) {
-                if (not b.stop_s[x]) continue;
-                ++n;
-                off += not b.leaf;
-                e2 += b.e2rep;
-                k2 += b.k2rep;
-                d2 += b.d2q;
-                worst = std::max(worst, std::sqrt(b.e2rep) / b.theta_s[i]);
-            }
-            std::printf("    %5g  %-9s  %6ld (%5ld)       %.3e    %.3e    %.3e             %8.3f\n", SCALES[i],
-                        crit_name[SCALED[j]], n, off, std::sqrt(e2), std::sqrt(k2), std::sqrt(d2), worst);
+    // the collocation bound per level, on the boxes whose C is above roundoff
+    std::printf("    level  boxes  C_bar/C median      p90      min  mirror min  C_bar0/C median      min    max C\n");
+    for (int l = 0; l <= lmax; ++l) {
+        std::vector<double> r, rm, r0;
+        double cmax = 0.0;
+        for (const auto& b : U) {
+            if (int(b.key.level()) != l or not c_resolved(b)) continue;
+            const double cc = std::sqrt(b.c2);
+            r.push_back(b.Cbar / cc);
+            rm.push_back(b.Cbar_m / cc);
+            r0.push_back(b.Cbar0 / cc);
+            cmax = std::max(cmax, cc);
         }
+        if (r.empty()) continue;
+        const Dist d = dist(r), dm = dist(rm), d0 = dist(r0);
+        std::printf("    %5d %6ld  %13.3e %8.3e %8.3e   %8.3e  %14.3e %8.3e  %.2e\n", l, d.n, d.med, d.p90, d.min, dm.min,
+                    d0.med, d0.min, cmax);
+    }
     // D3: at the boxes where (S, sup_tree) stops, the right operand's own polynomial against its sup_tree
     long n_s = 0, n_t = 0, m_s = 0, m_t = 0, nstop = 0;
     for (const auto& b : U) {
@@ -1001,6 +1116,20 @@ void summarize_union(const std::string& name, const Setting& s, const std::vecto
         for (int c = 0; c < NCRIT; ++c) std::printf(" %5ld", stops[c]);
         std::printf("\n");
     }
+}
+
+/// the matrix of one pair: per criterion and budget, the stops and the errors over them, the collocation at the stops
+void print_matrix(const std::vector<MatrixRow>& rows) {
+    std::printf("    budget matrix, theta = scale 0.01 thresh min(1, h_n)^q: stops (off the union leaves), total E_rep, "
+                "K_rep and D, the largest E_rep/theta and K_rep/theta at a stop; the stops with C > theta (of them with "
+                "the bound <= theta), bound/C median|min at the stops (C_bar0 for hc+Cbar0, else C_bar); hc+Cbar(0): "
+                "union leaves stopped over the budget\n");
+    std::printf("    criterion scale    q    stops   (off)   E_rep      K_rep      D          maxE/th   maxK/th   "
+                "C>th (miss)   C_bar/C med|min       forced\n");
+    for (const auto& r : rows)
+        std::printf("    %-9s %5g  %3g  %7ld (%6ld)  %.3e  %.3e  %.3e  %8.3f  %8.2e  %6ld (%4ld)  %8.2e|%8.2e  %6ld\n",
+                    mcrit_name[r.c], SCALES[r.i], HEXPS[r.j], r.stops, r.off, r.e, r.kr, r.d, r.max_e, r.max_k,
+                    r.c_over, r.c_miss, r.cr.med, r.cr.min, r.forced);
 }
 
 struct Options {
@@ -1051,8 +1180,13 @@ int main(int argc, char** argv) {
     FILE* fu = open_csv(opt.out, "union.csv",
                         "k,thresh,pair,level,l0,l1,l2,leaf,in_f,in_g,nf,ndf,ng,ndg,supSf,supMf,supSg,supMg,Sf,Mf,Tf,"
                         "Sg,Mg,Tg,theta,E_rep,E_ana,floor,n_fg,C,K_rep,K_ana,D_q,est_cs,est_hM,est_hS,est_hSown,"
-                        "est_hSown_gf,stop_cs,stop_hM,stop_hS,stop_hSown,stop_hSown_gf,stop_cs_s10,stop_cs_s100,"
-                        "stop_hSown_gf_s10,stop_hSown_gf_s100");
+                        "est_hSown_gf,stop_cs,stop_hM,stop_hS,stop_hSown,stop_hSown_gf,Sflo,nfhi,nghi,Cbar,Cbar_m,"
+                        "Cbar0,stops_matrix");
+    // stops_matrix: one character per criterion of the matrix (cs, hc, hc+Cbar, hc+Cbar0), scale (1, 10, 100, 1000) and
+    // exponent q (1, 0.5, 0), in that nesting order, 1 where it stops
+    FILE* fmat = open_csv(opt.out, "matrix.csv",
+                        "k,thresh,pair,criterion,scale,q,stops,off,forced,E_rep,K_rep,D,maxE_theta,maxK_theta,C_over,"
+                        "C_miss,Cr_n,Cr_med,Cr_p90,Cr_min,kernel_leaves,kernel_differ,kernel_D");
 
     std::vector<ModelSpec> models = all_models();
     std::vector<std::string> places{"corner", "centre", "offgrid"};
@@ -1122,10 +1256,17 @@ int main(int argc, char** argv) {
             functionT g = project(world, gm);
             const std::vector<UBox> U = measure_union(world, f, g, *fm, *gm, s, th);
             summarize_union(p.name, s, U);
-            check_kernel(f, g, U, s, th);
+            std::vector<MatrixRow> rows = matrix_rows(U);
+            check_kernel(f, g, U, s, th, rows);
+            print_matrix(rows);
             std::printf("    measured in %.1f s\n", wall_time() - t0);
             std::fflush(stdout);
             if (not fu) continue;
+            for (const auto& r : rows)
+                std::fprintf(fmat, "%d,%.0e,%s,%s,%g,%g,%ld,%ld,%ld,%.7e,%.7e,%.7e,%.7e,%.7e,%ld,%ld,%ld,%.7e,%.7e,%.7e,%ld,"
+                             "%ld,%.7e\n", s.k, s.thresh, p.name.c_str(), mcrit_name[r.c], SCALES[r.i], HEXPS[r.j],
+                             r.stops, r.off, r.forced, r.e, r.kr, r.d, r.max_e, r.max_k, r.c_over, r.c_miss, r.cr.n,
+                             r.cr.med, r.cr.p90, r.cr.min, r.kleaves, r.kdiffer, r.kd);
             for (const auto& b : U) {
                 std::fprintf(fu, "%d,%.0e,%s,%s,%d,%d,%d", s.k, s.thresh, p.name.c_str(), key_cols(b.key).c_str(),
                              int(b.leaf), int(b.in_f), int(b.in_g));
@@ -1135,12 +1276,15 @@ int main(int argc, char** argv) {
                     std::fprintf(fu, ",%.7e", x);
                 for (double x : b.est) std::fprintf(fu, ",%.7e", x);
                 for (char x : b.stop) std::fprintf(fu, ",%d", int(x));
-                for (int x : {1, 2, NSCALE + 1, NSCALE + 2}) std::fprintf(fu, ",%d", int(b.stop_s[x]));
-                std::fprintf(fu, "\n");
+                for (double x : {b.Sflo, b.nfhi, b.nghi, b.Cbar, b.Cbar_m, b.Cbar0}) std::fprintf(fu, ",%.7e", x);
+                std::string sm(NMATRIX, '0');
+                for (int x = 0; x < NMATRIX; ++x)
+                    if (b.stop_m[x]) sm[x] = '1';
+                std::fprintf(fu, ",%s\n", sm.c_str());
             }
         }
     }
-    for (FILE* fp : {ffun, fleaf, fint, fu})
+    for (FILE* fp : {ffun, fleaf, fint, fu, fmat})
         if (fp) std::fclose(fp);
 
     std::printf("\ntheorems: polynomial values above S on %ld leaves (worst value/S %.12f), on %ld own polynomials "
