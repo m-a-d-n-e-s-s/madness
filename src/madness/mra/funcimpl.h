@@ -53,7 +53,9 @@
 #include <madness/mra/supbound.h>
 
 #include <array>
+#include <cstdlib>
 #include <iostream>
+#include <string>
 #include <type_traits>
 
 namespace madness {
@@ -130,8 +132,26 @@ namespace madness {
 
     /// Safety margin on the tolerance of the screened multiplication: the criterion estimates
     /// the neglected cross terms rather than bounding them. Tightening is cheap and buys
-    /// accuracy, hence the extra factor. Applied once, in mulXXvec.
+    /// accuracy, hence the extra factor. Applied once, in mulXXvec (to either criterion below).
     static constexpr double MUL_SCREENING_SAFETY = 0.1;
+
+    /// The criterion of the screened multiplication, mulXXveca, for forming the product f g_i at a box B rather than
+    /// descending: cs, today's estimate from the operands' norms, ||g|| ||d_f|| + ||f|| ||d_g|| + ||d_f|| ||d_g||; or
+    /// hoelder, a bound on the error of forming it at B, from f g - s_f s_g = s_f d_g + d_f g:
+    /// S(s_f) ||d_g|| + ||d_f|| sup_tree(g), with S(s_f) the sum bound (supbound.h) of f's own coefficients on B.
+    /// Research switch: MAD_MUL_SCREEN = cs (default) | hoelder, read at the first multiplication; tests assign
+    /// mul_screen() directly, between fenced multiplications.
+    enum class MulScreen { cs, hoelder };
+
+    inline MulScreen& mul_screen() {
+        static MulScreen mode = [] {
+            const char* e = std::getenv("MAD_MUL_SCREEN");
+            const std::string v = e ? e : "cs";
+            MADNESS_CHECK_THROW(v == "cs" or v == "hoelder", "MAD_MUL_SCREEN must be cs or hoelder");
+            return v == "hoelder" ? MulScreen::hoelder : MulScreen::cs;
+        }();
+        return mode;
+    }
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, std::size_t NDIM>
@@ -3166,13 +3186,15 @@ template<size_t NDIM>
         /// @param[in] vrcin the vector scaling function coefficients associated with the
         ///            current box in the right functions
         /// @param[out] vresultin the vector of resulting functions (impl's)
+        /// @param[in] tol the budget, truncate_tol(tol, key) per box
+        /// @param[in] hoelder screen with the Hoelder bound rather than today's estimate (MulScreen)
         template <typename L, typename R>
         void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
                        const std::vector<FunctionImpl<T,NDIM>*> vresultin,
-                       double tol) {
+                       double tol, bool hoelder) {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
@@ -3196,6 +3218,18 @@ template<size_t NDIM>
                 lnorm = lc.normf();
                 ldnorm = 0.0;       // node created to match trees; leaves carry no detail
                 l_is_leaf = true;
+            }
+
+            // hoelder: a bound on sup|s_f| over the box from f's own coefficients here, shared by every right function
+            double lsup = 0.0;
+            if (hoelder) {
+                if (lc.size()) {
+                    lsup = coeff_sup_bound(key, lc);
+                } else {
+                    const auto& c = lit->second.coeff();
+                    lsup = c.is_full_tensor() ? coeff_sup_bound(key, c.full_tensor()) : coeff_sup_bound(key, c.full_tensor_copy());
+                }
+                MADNESS_CHECK(lsup < NORM_TREE_UNCOMPUTED);
             }
 
             // Loop thru RHS functions seeing if anything can be multiplied
@@ -3222,6 +3256,7 @@ template<size_t NDIM>
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
                 double rnorm, rdnorm;
+                double rsup = 0.0;      // hoelder: a bound on sup|g| over the box
                 riterT rit = right->coeffs.find(key).get();
                 if (rc.size() == 0) {
                     MADNESS_CHECK(rit != right->coeffs.end());
@@ -3229,14 +3264,22 @@ template<size_t NDIM>
                     rnorm = rit->second.get_norm_tree();
                     rdnorm = rit->second.get_dnorm_tree();
                     MADNESS_CHECK(rdnorm < NORM_TREE_UNCOMPUTED);
+                    if (hoelder) {
+                        // set by the pass that made the tree redundant, with the norms
+                        rsup = rit->second.get_sup_tree();
+                        MADNESS_CHECK(rsup < NORM_TREE_UNCOMPUTED);
+                    }
                 }
                 else {
                     rnorm = rc.normf();
                     rdnorm = 0.0;
+                    // below g's leaf g is the polynomial of the handed-down coefficients
+                    if (hoelder) rsup = coeff_sup_bound(key, rc);
                 }
 
-                // the neglected cross terms are below threshold: multiply here (requires redundant form)
-                if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
+                // the neglected terms are below threshold: multiply here (requires redundant form)
+                const double neglected = hoelder ? lsup*rdnorm + ldnorm*rsup : rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm;
+                if (neglected <= truncate_tol(tol, key)) {
                     // lc/rc must keep their size for the recursion logic, so pass separate tensors
                     Tensor<R> rc_data = (rc.size() == 0) ? rit->second.coeff().full_tensor_copy() : rc;
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, left_coeffs(), std::make_pair(key,rc_data));
@@ -3289,7 +3332,8 @@ template<size_t NDIM>
                             vv[i] = copy(vrss[i](cp));
                     }
 
-                    woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
+                    woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol,
+                              hoelder);
                 }
             }
         }
@@ -3570,9 +3614,11 @@ template<size_t NDIM>
                       double tol,
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
+            // one criterion for the whole multiplication, whatever the switch does meanwhile
+            const bool hoelder = (mul_screen() == MulScreen::hoelder);
             if (world.rank() == coeffs.owner(cdata.key0))
                 mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult,
-                          tol*MUL_SCREENING_SAFETY);
+                          tol*MUL_SCREENING_SAFETY, hoelder);
             if (fence)
                 world.gop.fence();
         }
@@ -5265,6 +5311,14 @@ template<size_t NDIM>
             if (not c.has_data()) return 0.0;
             if (not c.is_full_tensor() or cdata.sup_weights.size() == 0) return NORM_TREE_UNCOMPUTED;
             return SupBoundMap<NDIM>::leaf_bound(key, c.full_tensor(), cdata.sup_weights);
+        }
+
+        /// The same bound from full coefficients of any type with this function's k (the screen of mulXXveca)
+        template <typename Q>
+        double coeff_sup_bound(const keyT& key, const Tensor<Q>& c) const {
+            if (c.size() == 0) return 0.0;
+            if (c.size() != cdata.sup_weights.size()) return NORM_TREE_UNCOMPUTED;
+            return SupBoundMap<NDIM>::leaf_bound(key, c, cdata.sup_weights);
         }
 
         /// Invoked on node where key is local
