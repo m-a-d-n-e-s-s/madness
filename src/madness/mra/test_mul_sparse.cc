@@ -14,6 +14,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -739,6 +741,12 @@ int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
             Function<double,D> f = copy(p.f);
             f.reconstruct();
             const SupBoundMap<D> map = f.get_impl()->sup_bound_map();
+            // what each local node looked like when the map was built, for the record of a difference below:
+            // has_children, has_coeff, the sup_tree it carried, its norm_tree
+            std::map<Key<D>, std::array<double, 4>> before;
+            for (auto it = f.get_impl()->get_coeffs().begin(); it != f.get_impl()->get_coeffs().end(); ++it)
+                before[it->first] = {double(it->second.has_children()), double(it->second.has_coeff()),
+                                     it->second.get_sup_tree(), it->second.get_norm_tree()};
             f.change_tree_state(state, true);
             // nodes, nodes without a computed sup_tree, nodes the map holds, and of those the ones that differ
             std::array<long, 4> n{0, 0, 0, 0};
@@ -750,7 +758,21 @@ int test_sup_tree(World& world, std::vector<operand_pair>& pairs) {
                 if (not (st < NORM_TREE_UNCOMPUTED)) ++n[1];
                 if (m == SupBoundMap<D>::unbounded()) continue;
                 ++n[2];
-                if (st != m) ++n[3];
+                if (st != m) {
+                    // the first few, for the record: which boxes, and by how much
+                    if (++n[3] <= 4) {
+                        std::ostringstream ks;
+                        ks << it->first;
+                        const auto b = before.find(it->first);
+                        const bool had = (b != before.end());
+                        printf("    T15 differs on rank %d: key %s %s, sup_tree %.17g, sup_bound_map %.17g; when the map "
+                               "was built: %s, children %d, coeff %d, sup_tree %.17g, norm_tree %.6g; now norm_tree "
+                               "%.6g\n", world.rank(), ks.str().c_str(), it->second.has_children() ? "interior" : "leaf",
+                               st, m, had ? "present" : "absent", had ? int(b->second[0]) : -1,
+                               had ? int(b->second[1]) : -1, had ? b->second[2] : -1.0, had ? b->second[3] : -1.0,
+                               it->second.get_norm_tree());
+                    }
+                }
             }
             world.gop.sum(n.data(), n.size());
             const std::string tag = "T15 " + p.name + (state == redundant ? " redundant" : " compressed");
