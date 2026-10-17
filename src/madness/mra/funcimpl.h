@@ -154,6 +154,39 @@ namespace madness {
         return mode;
     }
 
+    /// The per-box budget of the screened multiplication, for either criterion: scale tol min(1, h_n)^hexp at a box of
+    /// width h_n, tol the kernel's tolerance (the caller's times MUL_SCREENING_SAFETY); the defaults scale = hexp = 1 are
+    /// truncate_tol(tol, B) of truncate_mode 1, hexp = 0 the flat budget of truncate_mode 0. Research knobs:
+    /// MAD_MUL_SCREEN_SCALE and MAD_MUL_SCREEN_HEXP, read at the first multiplication; tests assign
+    /// mul_screen_budget() directly, between fenced multiplications.
+    struct MulScreenBudget {
+        double scale = 1.0;
+        double hexp = 1.0;
+
+        bool is_default() const { return scale == 1.0 and hexp == 1.0; }
+    };
+
+    inline MulScreenBudget& mul_screen_budget() {
+        static MulScreenBudget budget = [] {
+            auto read = [](const char* name, const double fallback) {
+                const char* e = std::getenv(name);
+                if (not e) return fallback;
+                char* end = nullptr;
+                const double v = std::strtod(e, &end);
+                MADNESS_CHECK_THROW(end != e and *end == '\0' and std::isfinite(v),
+                                    "MAD_MUL_SCREEN_SCALE and MAD_MUL_SCREEN_HEXP must be numbers");
+                return v;
+            };
+            MulScreenBudget b;
+            b.scale = read("MAD_MUL_SCREEN_SCALE", 1.0);
+            b.hexp = read("MAD_MUL_SCREEN_HEXP", 1.0);
+            MADNESS_CHECK_THROW(b.scale > 0.0, "MAD_MUL_SCREEN_SCALE must be positive");
+            MADNESS_CHECK_THROW(b.hexp >= 0.0, "MAD_MUL_SCREEN_HEXP must not be negative");
+            return b;
+        }();
+        return budget;
+    }
+
     /// Research diagnostic of the screened multiplication, on when MAD_MUL_SCREEN_STATS is set: per level, the boxes
     /// where mulXXveca formed a product and the boxes it descended, one count per right function, accumulated per
     /// process until report(), which sums them over a world and prints them on its rank 0
@@ -192,8 +225,14 @@ namespace madness {
             int lmax = 0;
             for (int l = 0; l < NLEVEL; ++l)
                 if (n[l] + n[NLEVEL + l] > 0) lmax = l;
-            std::string line = std::string("mul_sparse screen ") + (mul_screen() == MulScreen::hoelder ? "hoelder" : "cs")
-                    + " " + label + ": level/formed/descended";
+            std::string line = std::string("mul_sparse screen ") + (mul_screen() == MulScreen::hoelder ? "hoelder" : "cs");
+            const MulScreenBudget& b = mul_screen_budget();
+            if (not b.is_default()) {
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), " scale %g hexp %g", b.scale, b.hexp);
+                line += buf;
+            }
+            line += " " + label + ": level/formed/descended";
             for (int l = 0; l <= lmax; ++l)
                 line += " " + std::to_string(l) + ":" + std::to_string(n[l]) + "/" + std::to_string(n[NLEVEL + l]);
             std::printf("%s\n", line.c_str());
@@ -2036,6 +2075,14 @@ template<size_t NDIM>
         /// branch of the tree.
         double truncate_tol(double tol, const keyT& key) const;
 
+        /// The screened multiplication's budget at key for its tolerance tol (MulScreenBudget's scale applied):
+        /// truncate_tol(tol, key) at the default exponent hexp = 1, otherwise tol min(1, h_n)^hexp with min(1, h_n) the
+        /// box-width factor of truncate_mode 1 (which the caller asserts)
+        double mul_screen_tol(double tol, const keyT& key, double hexp) const {
+            if (hexp == 1.0) return truncate_tol(tol, key);
+            return tol*std::pow(truncate_tol(1.0, key), hexp);
+        }
+
         int get_truncate_mode() const { return truncate_mode; };
         void set_truncate_mode(int mode) { truncate_mode = mode; };
 
@@ -3233,15 +3280,16 @@ template<size_t NDIM>
         /// @param[in] vrcin the vector scaling function coefficients associated with the
         ///            current box in the right functions
         /// @param[out] vresultin the vector of resulting functions (impl's)
-        /// @param[in] tol the budget, truncate_tol(tol, key) per box
+        /// @param[in] tol the budget, mul_screen_tol(tol, key, hexp) per box
         /// @param[in] hoelder screen with the Hoelder bound rather than today's estimate (MulScreen)
+        /// @param[in] hexp the exponent of the box width in the budget (MulScreenBudget)
         template <typename L, typename R>
         void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
                        const std::vector<FunctionImpl<T,NDIM>*> vresultin,
-                       double tol, bool hoelder) {
+                       double tol, bool hoelder, double hexp) {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
@@ -3278,6 +3326,8 @@ template<size_t NDIM>
                 }
                 MADNESS_CHECK(lsup < NORM_TREE_UNCOMPUTED);
             }
+
+            const double budget = mul_screen_tol(tol, key, hexp);
 
             // Loop thru RHS functions seeing if anything can be multiplied
             std::vector<FunctionImpl<T,NDIM>*> vresult;
@@ -3326,7 +3376,7 @@ template<size_t NDIM>
 
                 // the neglected terms are below threshold: multiply here (requires redundant form)
                 const double neglected = hoelder ? lsup*rdnorm + ldnorm*rsup : rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm;
-                const bool form_here = (neglected <= truncate_tol(tol, key));
+                const bool form_here = (neglected <= budget);
                 if (MulScreenStats::enabled()) MulScreenStats::count(key.level(), form_here);
                 if (form_here) {
                     // lc/rc must keep their size for the recursion logic, so pass separate tensors
@@ -3382,7 +3432,7 @@ template<size_t NDIM>
                     }
 
                     woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol,
-                              hoelder);
+                              hoelder, hexp);
                 }
             }
         }
@@ -3663,11 +3713,14 @@ template<size_t NDIM>
                       double tol,
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
-            // one criterion for the whole multiplication, whatever the switch does meanwhile
+            // one criterion and one budget for the whole multiplication, whatever the switches do meanwhile
             const bool hoelder = (mul_screen() == MulScreen::hoelder);
+            const MulScreenBudget budget = mul_screen_budget();
+            MADNESS_CHECK_THROW(budget.hexp == 1.0 or truncate_mode == 1,
+                                "MAD_MUL_SCREEN_HEXP other than 1 needs truncate_mode 1");
             if (world.rank() == coeffs.owner(cdata.key0))
                 mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult,
-                          tol*MUL_SCREENING_SAFETY, hoelder);
+                          tol*MUL_SCREENING_SAFETY*budget.scale, hoelder, budget.hexp);
             if (fence)
                 world.gop.fence();
         }
