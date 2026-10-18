@@ -183,12 +183,17 @@ jobs:
       if: matrix.task_backend == 'Threads' && matrix.build_type == 'Release'
       working-directory: ${{github.workspace}}/build
       shell: bash
+      # Build, install into, and test with one interpreter: on macOS FindPython
+      # prefers Homebrew's python (pulled in by brew deps, possibly a newer minor
+      # version) over the `python` on PATH, and an extension built for one minor
+      # version will not import into another.
       run: |
-        pip install numpy pytest matplotlib plotly
-        cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DENABLE_PYTHON=ON
+        PYTHON=$(command -v python)
+        $PYTHON -m pip install numpy pytest matplotlib plotly
+        cmake $GITHUB_WORKSPACE $BUILD_CONFIG -DMADNESS_TASK_BACKEND=$TASK_BACKEND -DENABLE_PYTHON=ON -DPython3_EXECUTABLE=$PYTHON
         cmake --build . --target _pymadness
         cd src/pymadness
-        PYTHONPATH=. python -m pytest -xvs $GITHUB_WORKSPACE/src/pymadness/tests/
+        PYTHONPATH=. $PYTHON -m pytest -xvs $GITHUB_WORKSPACE/src/pymadness/tests/
 
     - name: Install
       if: matrix.build_type != 'Debug'
