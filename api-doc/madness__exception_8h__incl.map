@@ -1,0 +1,13 @@
+<map id="madness_exception.h" name="madness_exception.h">
+<area shape="rect" id="Node000001" title="Defines madness::MadnessException for exception handling." alt="" coords="95,5,259,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,71,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="156,33,74,75,72,70,153,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="95,79,159,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="171,33,145,69,141,66,166,29"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="184,79,271,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="187,29,213,66,209,69,183,33"/>
+<area shape="rect" id="Node000005" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="295,79,498,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="213,28,349,72,348,77,211,33"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="329,152,465,177"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="399,104,399,138,394,138,394,104"/>
+</map>

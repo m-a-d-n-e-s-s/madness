@@ -1,0 +1,5 @@
+<map id="madness::LBNodeDeux&lt; NDIM &gt;" name="madness::LBNodeDeux&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,93,179,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="16,5,168,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="95,44,95,93,89,93,89,44"/>
+</map>
