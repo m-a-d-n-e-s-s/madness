@@ -2,6 +2,8 @@
 #include <madness/mra/displacements.h>
 #include <madness/world/test_utilities.h>
 
+#include <set>
+
 #include <limits>
 
 using namespace madness;
@@ -630,13 +632,15 @@ int test_images_and_subset_displacements_order(World& world) {
   constexpr std::size_t NDIM = 3;
   const Level n = 4;
   const Translation twon = Translation(1) << n;
-  const int bmax = Displacements<NDIM>::bmax_default();
   const auto is_sorted_by = [&](const std::vector<Key<NDIM>>& disps, auto distsq) {
     for (std::size_t i = 1; i < disps.size(); ++i)
       if (distsq(disps[i]) < distsq(disps[i - 1])) return false;
     return true;
   };
-  const auto wraps_along = [&](const Key<NDIM>& k, std::size_t d) { return std::abs(k.translation()[d]) > bmax; };
+  // the reach of the near displacements along axis d at this level (Displacements::bmax_axes, clipped to 2^n-1
+  // by make_disp_periodic); a displacement beyond it is an image wrapped along a lattice-summed axis
+  const auto reach_along = [&](std::size_t d) { return std::min<Translation>(Displacements<NDIM>::bmax_current()[d], twon - 1); };
+  const auto wraps_along = [&](const Key<NDIM>& k, std::size_t d) { return std::abs(k.translation()[d]) > reach_along(d); };
 
   const auto check = [&](const array_of_bools<NDIM>& axes, const std::string& what) {
     const auto& width = FunctionDefaults<NDIM>::get_cell_width();
@@ -650,12 +654,15 @@ int test_images_and_subset_displacements_order(World& world) {
                  what + ": lattice-summed list ordered by the distance modulo the lattice of these axes");
     t.checkpoint(is_sorted_by(images, [&](const Key<NDIM>& k) { return k.real_distsq_images(axes, width); }),
                  what + ": rest-of-crystal list ordered by the distance to the nearest non-home image of these axes");
-    // a displacement wraps (|l| > bmax) only along a lattice-summed axis
-    bool wrap_ok = true, any_wrap = false;
+    // a displacement wraps (|l| beyond the reach) only along a lattice-summed axis; wrapped images exist along
+    // such an axis unless the reach already covers the cell (a short axis of a non-cubic cell)
+    bool wrap_ok = true, any_wrap = false, wraps_expected = false;
+    for (std::size_t d = 0; d < NDIM; ++d)
+      if (axes[d] && reach_along(d) < twon - 1) wraps_expected = true;
     for (const auto& k : summed)
       for (std::size_t d = 0; d < NDIM; ++d)
         if (wraps_along(k, d)) { any_wrap = true; if (!axes[d]) wrap_ok = false; }
-    t.checkpoint(wrap_ok && any_wrap, what + ": displacements wrap along the lattice-summed axes only");
+    t.checkpoint(wrap_ok && any_wrap == wraps_expected, what + ": displacements wrap along the lattice-summed axes only");
     // the first rest-of-crystal displacement is adjacent to an image: wrapped along a summed axis, a cell from the source
     const Key<NDIM>& first = images.front();
     t.checkpoint(first.distsq_images(axes) == 1 && first.real_distsq_images(axes, width) == 0.0 &&
@@ -667,7 +674,7 @@ int test_images_and_subset_displacements_order(World& world) {
     std::size_t narrowest = NDIM;
     for (std::size_t d = 0; d < NDIM; ++d)
       if (axes[d] && (narrowest == NDIM || width(static_cast<long>(d)) < width(static_cast<long>(narrowest)))) narrowest = d;
-    t.checkpoint(wraps_along(first, narrowest), what + ": ... along the narrowest summed axis");
+    t.checkpoint(std::abs(first.translation()[narrowest]) == twon - 1, what + ": ... along the narrowest summed axis");
     // the image-adjacent displacements (real distance 0, one box) lead the list, ordered by center distance
     std::size_t nadjacent = 0;
     bool centers_ordered = true;
@@ -836,6 +843,58 @@ int test_images_distance(World& world) {
   return t.end();
 }
 
+/// PR #819: the standard displacements reach farther than bmax_default along the short axes of a non-cubic
+/// cell; the validator must still filter every one of them, else a range-restricted operator applies them twice
+int test_anisotropic_range_dedup(World& world) {
+  test_output t("BoxSurfaceDisplacementValidator: filters the standard displacements of a non-cubic cell", world.rank() == 0);
+  constexpr std::size_t NDIM = 3;
+  const Tensor<double> cell0 = copy(FunctionDefaults<NDIM>::get_cell());
+  const array_of_bools<NDIM> lattice_summed{false, false, true};  // a chain along z
+  for (const double Lxy : {18., 100.}) {
+    Tensor<double> cell(NDIM, 2);
+    cell(0, 0) = 0.; cell(0, 1) = Lxy;
+    cell(1, 0) = 0.; cell(1, 1) = Lxy;
+    cell(2, 0) = 0.; cell(2, 1) = 18.;
+    FunctionDefaults<NDIM>::set_cell(cell);
+    const auto& width = FunctionDefaults<NDIM>::get_cell_width();
+    const auto bmax = Displacements<NDIM>::bmax_current();
+    const std::string what = (Lxy == 18. ? "18^3" : "100x100x18") + std::string(" reach ") + std::to_string(bmax[0]) + "," +
+                             std::to_string(bmax[1]) + "," + std::to_string(bmax[2]);
+    t.checkpoint(bmax[2] == (Lxy == 18. ? bmax[0] : 23), what + ": reach along the short axis");
+    for (Level n = 3; n <= 6; ++n) {
+      const Translation twon = Translation(1) << n;
+      const auto canonical = [&](const Key<NDIM>& k) {  // lattice-summed axis: the displacement class mod 2^n
+        auto l = k.translation();
+        l[2] = ((l[2] % twon) + twon) % twon;
+        return l;
+      };
+      const auto& standard = Displacements<NDIM>().get_disp(n, lattice_summed);
+      std::set<Vector<Translation, NDIM>> standard_set;
+      double max_distsq = 0;  // every standard displacement was processed
+      for (const auto& k : standard) {
+        standard_set.insert(canonical(k));
+        max_distsq = std::max(max_distsq, k.real_distsq_bc(lattice_summed, width));
+      }
+      for (const std::int64_t thickness : {0, 1}) {  // hard and soft range of one cell along z
+        Validator<NDIM> validator(array_of_bools<NDIM>{false}, lattice_summed,
+                                  Reach<NDIM>{max_distsq, {width(0L), width(1L), width(2L)}});
+        const Radii<NDIM> radius{std::nullopt, std::nullopt, 1}, surface_thickness{std::nullopt, std::nullopt, thickness};
+        BoxSurfaceDisplacementRange<NDIM> surface(centered_key<NDIM>(n), radius, surface_thickness, lattice_summed, validator);
+        std::size_t nkept = 0, nduplicates = 0;
+        for (const auto& d : surface) {
+          ++nkept;
+          if (standard_set.count(canonical(d))) ++nduplicates;
+        }
+        t.checkpoint(nduplicates == 0, what + " n=" + std::to_string(n) + " thickness " + std::to_string(thickness) + ": " +
+                                           std::to_string(nduplicates) + " of " + std::to_string(nkept) +
+                                           " surface displacements duplicate a standard one");
+      }
+    }
+  }
+  FunctionDefaults<NDIM>::set_cell(cell0);
+  return t.end();
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -855,6 +914,7 @@ int main(int argc, char** argv) {
   errors += test_faces_outside_domain(world);
   errors += test_validator_bmax(world);
   errors += test_standard_displacements_order(world);
+  errors += test_anisotropic_range_dedup(world);
   errors += test_images_and_subset_displacements_order(world);
   errors += test_images_distance(world);
 
