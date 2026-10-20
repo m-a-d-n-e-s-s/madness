@@ -136,7 +136,7 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
   calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d") * 0.01);
   // Chained workflows need the ground-state archive on disk: it is what lets the
   // reference step's results be reused without leaving the downstream step with
-  // an orbital-less engine (SCFApplication::run, NextAction::Ok -> reload). The
+  // an orbital-less engine (SCFApplication::run reloads it from there). The
   // response builder in madqc.cpp does the same. A deck that sets `save 0`
   // explicitly still wins -- set_derived_value yields to user-defined values.
   calc_param.set_derived_value("save", true);

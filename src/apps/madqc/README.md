@@ -294,7 +294,7 @@ Numeric arrays are stored as **tensor-json**:
 |-----|---------|
 | `model` | `"scf"` |
 | `properties.energy` | **total SCF energy (Ha)** — use this one |
-| `scf_total_energy` | 0 for `moldft`; populated by `nemo`. Prefer `properties.energy` |
+| `scf_total_energy` | SCF total energy, filled by `moldft` and `nemo`; equals `properties.energy` for `scf` |
 | `properties.dipole` | dipole vector `[x,y,z]` (a.u.), tensor-json |
 | `properties.gradient` | nuclear gradient (Ha/bohr), tensor-json |
 | `scf_eigenvalues_a` / `_b` | orbital energies (Ha), tensor-json |

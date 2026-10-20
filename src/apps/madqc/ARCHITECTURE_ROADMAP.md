@@ -99,8 +99,9 @@ Revive `OptimizeDriver` on top of `MolOpt` (the working optimizer):
 - fix `SCFTarget` to read the real result schema (`SCFTargetAdapter.hpp:32-33`
   reads `res.at("energy")` / `res.at("gradient")`; neither key exists at that
   level). The right keys are `results["properties"]["energy"]` and
-  `results["properties"]["gradient"]` — **not** `scf_total_energy`, which the
-  plain `scf` path leaves at 0.0 and only the nemo/mp2/cc2 engines fill. The
+  `results["properties"]["gradient"]` — `scf_total_energy` is filled by the
+  plain `scf` path too, but
+  `properties.energy` / `properties.gradient` remain the canonical keys. The
   gradient key is present only when `derivatives` is on.
 - enable `WorkflowKind::Optimize` dispatch + add `"optimize"` to
   `runnable_workflows` (its `std::array` size must go 7 → 8); consume the
