@@ -80,7 +80,10 @@ if (TARGET PaRSEC::parsec)
   target_link_libraries(${targetname} PUBLIC PaRSEC::parsec)
 endif ()
 if (MPI_FOUND)
-  target_compile_definitions(${targetname} PUBLIC -DMADNESS_MPI_HEADER=$<1:"${MADNESS_MPI_HEADER}">)
+  target_compile_definitions(${targetname} PUBLIC
+    -DMPICH_SKIP_MPICXX=1
+    -DOMPI_SKIP_MPICXX=1
+    -DMADNESS_MPI_HEADER=$<1:"${MADNESS_MPI_HEADER}">)
   target_link_libraries(${targetname} PUBLIC MPI::MPI_CXX)
 endif ()
 target_link_libraries(${targetname} PUBLIC Threads::Threads)

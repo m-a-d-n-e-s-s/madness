@@ -7,6 +7,9 @@ if(ENABLE_MPI)
     message(FATAL_ERROR "include external/pthread.cmake BEFORE external/mpi.cmake")
   endif()
 
+  # Disable MPI C++ bindings
+  set(MPI_CXX_SKIP_MPICXX ON CACHE BOOL "Disable MPI C++ bindings")
+
   # Try to find MPI
   find_package(MPI REQUIRED)
   cmake_minimum_required(VERSION 3.10) # FindMPI needs to provide MPI_<lang>_HEADER_DIR
