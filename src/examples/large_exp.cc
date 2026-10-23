@@ -244,6 +244,7 @@ void test1() {
         }
         alpha /= k;
         Alpha /= k;
+        alphaM /= k;
 
         // print("R0 = rp*P-1 + r0 + rm*Pp");
         // print(R0);
@@ -251,8 +252,8 @@ void test1() {
         Tensor<double> c0new = inner(R0, c0);
         Tensor<double> c0newM = inner(M0, c0);
         Tensor<double> c0new_exact = c0 * std::exp(-1.0 / (4.0 * expnt));
-        double err = (c0new - c0new_exact).normf();
-        double errM= (c0newM- c0new_exact).normf();
+        double err = (c0new - c0new_exact).normf() / c0new_exact.normf();
+        double errM= (c0newM- c0new_exact).normf() / c0new_exact.normf();
         double rate = std::log(err/errprev)/log(sigma/sigprev);
         double rateM = std::log(errM/errMprev)/log(sigma/sigprev);
         printf(" %2d   %.6f   %.6e   %.2e  %.6f  %.6f  %.2e  %.6f  %.6f   %.6f  %.6f   %.6f   %.2e\n", iscale, sigma, expnt, err, err/errprev, rate, errM, errM/errMprev, rateM, alpha, Alpha, alphaM, errM0);
@@ -406,6 +407,88 @@ void test5(World& world) {
     printf("rel_err0 = %.6e, rel_errm = %.6e, rel_errp = %.6e\n", rel_err0, rel_errm, rel_errp);
 }
 
+class NormalizedGaussian : public FunctionFunctorInterface<double,3> {
+private:
+    double expnt;
+    double coeff;
+    
+public:
+    NormalizedGaussian(double expnt)
+        : expnt(expnt)
+        , coeff(std::pow(expnt / M_PI, 1.5))
+    {}
+        
+    double operator()(const coord_3d& r) const {
+        double x = r[0]-0.1; // displace so that refine deeply near high-level dyadic divide
+        return coeff * std::exp(-expnt * (x*x + r[1]*r[1] + r[2]*r[2]));
+    }
+};
+
+void test6(World& world) {
+    print("\n Testing convolution of Gaussians to expose noise from Gibbs oscillations\n");
+    int k = 10;
+    double thresh = 1e-8;
+    double L = 10.0;
+    double lo = 1e-6;
+    
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_truncate_mode(0);
+    FunctionDefaults<3>::set_autorefine(false);
+    FunctionDefaults<3>::set_cubic_cell(-L, L);
+
+    // The reference Gaussian --- want it fairly spiky so have deep adaptive refinement
+    const double a = 16.0;
+    const double sigma_a = 1.0 / std::sqrt(2.0*a);
+    real_function_3d f = real_factory_3d(world).functor(NormalizedGaussian(a));
+    f.truncate();
+    f.reconstruct();
+    Level depth = f.max_depth();
+    double userh = (2*L) * std::pow(2.0, -depth);
+    printf("a=%.6f sigma_a=%.6f norm=%.6f depth=%d userh=%.6f  input_err=%.2e\n\n", a, sigma_a, f.norm2(), depth, userh, f.err(NormalizedGaussian(a)));
+
+    // Tensor<double> Pp, Pm;
+    // make_taylor_extension_operators(k, Pp, Pm);
+
+    printf(" userh/sigma     expnt      |G*f-exact|   |newG*f-exact|\n");
+    printf(" -----------   ----------   -----------   --------------\n");
+    for (int iscale=0; iscale<=40; iscale++) {
+        const double sigma = std::pow(2.0, -0.5*iscale);
+        const double b = 1.0 / (2 * sigma *sigma);
+        
+        Tensor<double> expnt(1), coeff(1);
+        expnt[0] = b;
+        coeff[0] = std::pow(b / M_PI, 1.5);
+
+        SeparatedConvolution<double,3> G(world, coeff, expnt, lo, thresh);
+        auto h = G(f);
+        
+        auto op = [&](const Key<3>& key, FunctionNode<double,3>& node) {
+            if (node.has_coeff()) {
+                Level n = key.level();
+                Tensor<double> M = make_T00(k, n, b*L*L*4.0);
+                node.coeff() = transform(node.coeff(),transpose(M));
+
+                // std::shared_ptr<Convolution1D<double>> op = G.get_ops()[0].getop(0); // relying on cubic cell in test code
+                // Tensor<double> r0 = op->rnlij(n, 0);
+                // Tensor<double> rm = op->rnlij(n,-1);
+                // Tensor<double> rp = op->rnlij(n, 1);
+                // Tensor<double> R0 = inner(rp, Pm) + r0 + inner(rm, Pp);
+                // node.coeff() = transform(node.coeff(),transpose(R0));
+            }
+        };
+        real_function_3d ff = copy(f);
+        ff.reconstruct();
+        ff.unaryop_node(op);
+        
+        double err2 = h.err(NormalizedGaussian(a*b/(a+b)));
+        double err2ff = ff.err(NormalizedGaussian(a*b/(a+b)));
+        printf("  %.4e   %.4e     %.2e       %.2e\n", userh/sigma, b, err2, err2ff);
+    }
+}
+
+
 // Example usage and verification
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
@@ -417,6 +500,7 @@ int main(int argc, char** argv) {
     test3();
     test4(world);
     test5(world);
+    test6(world);
 
     return 0;
 }
