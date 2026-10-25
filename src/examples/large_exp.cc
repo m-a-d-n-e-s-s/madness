@@ -66,6 +66,98 @@ void make_taylor_extension_operators(long k,
     }
 }
 
+#include <cmath>
+#include <algorithm>
+#include <vector>
+#include <madness/tensor/tensor.h>
+
+using madness::Tensor;
+
+// Computes the k x k extension operators P^{+1} (P_right) and P^{-1} (P_left)
+// that maintain the Taylor expansion of degree `max_degree` (order = max_degree + 1)
+// at the right (x = 1) and left (x = 0) boundaries of the box [0, 1].
+//
+// Parameters:
+//   k          - Number of Legendre scaling functions in the basis
+//   max_degree - Polynomial degree of the Taylor approximation:
+//                0 = constant, 1 = linear, 2 = quadratic, 3 = cubic, etc.
+//                (Clamped internally to [0, k - 1])
+//   P_right    - Output k x k tensor mapping box [0, 1] coeffs -> box [1, 2] coeffs
+//   P_left     - Output k x k tensor mapping box [0, 1] coeffs -> box [-1, 0] coeffs
+void make_taylor_extension_operatorsX(long k,
+                                      long max_degree,
+                                      Tensor<double>& P_right,
+                                      Tensor<double>& P_left)
+{
+    // Allocate and zero-initialize k x k MADNESS tensors
+    P_right = Tensor<double>(k, k);
+    P_left  = Tensor<double>(k, k);
+    P_right = 0.0;
+    P_left  = 0.0;
+
+    if (k <= 0 || max_degree < 0) return;
+
+    // The active Taylor degree cannot exceed the maximum polynomial degree (k - 1)
+    const long M = std::min(max_degree, k - 1);
+
+    // Precompute the Taylor-to-Legendre projection coefficients C(i, m):
+    // C(i, m) = int_0^1 (y^m / m!) * phi_i(y) dy
+    //         = sqrt(2i + 1) * m! / ((m - i)! * (m + i + 1)!)  for 0 <= i <= m <= M
+    std::vector<double> C((M + 1) * (M + 1), 0.0);
+    for (long i = 0; i <= M; ++i) {
+        const double si = std::sqrt(2.0 * i + 1.0);
+
+        // Base case m = i: C(i, i) = sqrt(2i + 1) * i! / (2i + 1)!
+        double c_im = si;
+        for (long n = i + 1; n <= 2 * i + 1; ++n) {
+            c_im /= static_cast<double>(n);
+        }
+        C[i * (M + 1) + i] = c_im;
+
+        // Recurrence for m > i:
+        // C(i, m) = C(i, m - 1) * m / ((m - i) * (m + i + 1))
+        for (long m = i + 1; m <= M; ++m) {
+            c_im *= static_cast<double>(m) /
+                    (static_cast<double>(m - i) * static_cast<double>(m + i + 1));
+            C[i * (M + 1) + m] = c_im;
+        }
+    }
+
+    // Reusable buffer for boundary derivatives d_m = phi_j^{(m)}(1)
+    std::vector<double> d(M + 1, 0.0);
+
+    for (long j = 0; j < k; ++j) {
+        const long max_m = std::min(M, j);
+
+        // Compute derivatives d[m] = phi_j^{(m)}(1) for 0 <= m <= min(M, j)
+        // d[0] = sqrt(2j + 1)
+        // d[m] = d[m - 1] * (j + m) * (j - m + 1) / m
+        d[0] = std::sqrt(2.0 * j + 1.0);
+        for (long m = 1; m <= max_m; ++m) {
+            double num = static_cast<double>(j + m) * static_cast<double>(j - m + 1);
+            d[m] = d[m - 1] * (num / static_cast<double>(m));
+        }
+
+        const double parity_j = (j % 2 == 0) ? 1.0 : -1.0;
+
+        // Assemble rows 0 <= i <= min(M, j)
+        // (Note: for i > j, P_right(i, j) is strictly 0 because phi_j has degree j < i)
+        for (long i = 0; i <= max_m; ++i) {
+            double p_ij = 0.0;
+            for (long m = i; m <= max_m; ++m) {
+                p_ij += C[i * (M + 1) + m] * d[m];
+            }
+
+            P_right(i, j) = p_ij;
+
+            // Parity reflection: P_left(i, j) = (-1)^(i + j) * P_right(i, j)
+            const double parity_ij = (i % 2 == 0) ? parity_j : -parity_j;
+            P_left(i, j) = parity_ij * p_ij;
+        }
+    }
+}
+
+
 // projects a function f(x) defined on [0, 1] onto the first k Legendre basis functions
 Tensor<double> project(std::function<double(double)> f, long k) {
     Tensor<double> coeffs(k), phi(k), x(k), w(k);
@@ -448,11 +540,13 @@ void test6(World& world) {
     double userh = (2*L) * std::pow(2.0, -depth);
     printf("a=%.6f sigma_a=%.6f norm=%.6f depth=%d userh=%.6f  input_err=%.2e\n\n", a, sigma_a, f.norm2(), depth, userh, f.err(NormalizedGaussian(a)));
 
-    // Tensor<double> Pp, Pm;
-    // make_taylor_extension_operators(k, Pp, Pm);
-
-    printf(" userh/sigma     expnt      |G*f-exact|   |newG*f-exact|\n");
-    printf(" -----------   ----------   -----------   --------------\n");
+    printf(" userh/sigma     expnt      |G*f-exact|   |newG*f-exact|   |newG2*f-exact|\n");
+    printf("                                                    order:");
+    for (int i=2; i<k; i+=2) {
+        printf("    %2d         ", i);
+    }
+    printf("\n");
+    printf(" -----------   ----------   -----------   --------------   ---------------\n");
     for (int iscale=0; iscale<=40; iscale++) {
         const double sigma = std::pow(2.0, -0.5*iscale);
         const double b = 1.0 / (2 * sigma *sigma);
@@ -462,29 +556,45 @@ void test6(World& world) {
         coeff[0] = std::pow(b / M_PI, 1.5);
 
         SeparatedConvolution<double,3> G(world, coeff, expnt, lo, thresh);
-        auto h = G(f);
+        real_function_3d ff = G(f);
+        double err2 = ff.err(NormalizedGaussian(a*b/(a+b)));
         
         auto op = [&](const Key<3>& key, FunctionNode<double,3>& node) {
             if (node.has_coeff()) {
                 Level n = key.level();
                 Tensor<double> M = make_T00(k, n, b*L*L*4.0);
                 node.coeff() = transform(node.coeff(),transpose(M));
-
-                // std::shared_ptr<Convolution1D<double>> op = G.get_ops()[0].getop(0); // relying on cubic cell in test code
-                // Tensor<double> r0 = op->rnlij(n, 0);
-                // Tensor<double> rm = op->rnlij(n,-1);
-                // Tensor<double> rp = op->rnlij(n, 1);
-                // Tensor<double> R0 = inner(rp, Pm) + r0 + inner(rm, Pp);
-                // node.coeff() = transform(node.coeff(),transpose(R0));
             }
         };
-        real_function_3d ff = copy(f);
-        ff.reconstruct();
+
+        int extension_order=0;
+
+        auto op2 = [&](const Key<3>& key, FunctionNode<double,3>& node) {
+            if (node.has_coeff()) {
+                Level n = key.level();
+                Tensor<double> Pp, Pm;
+                make_taylor_extension_operatorsX(k, extension_order, Pp, Pm);
+                std::shared_ptr<Convolution1D<double>> op = G.get_ops()[0].getop(0); // relying on cubic cell in test code
+                Tensor<double> r0 = op->rnlij(n, 0);
+                Tensor<double> rm = op->rnlij(n,-1);
+                Tensor<double> rp = op->rnlij(n, 1);
+                Tensor<double> R0 = inner(rp, Pm) + r0 + inner(rm, Pp);
+                node.coeff() = transform(node.coeff(),transpose(R0));
+            }
+        };
+
+        f.reconstruct();
+        ff = copy(f);
         ff.unaryop_node(op);
-        
-        double err2 = h.err(NormalizedGaussian(a*b/(a+b)));
-        double err2ff = ff.err(NormalizedGaussian(a*b/(a+b)));
-        printf("  %.4e   %.4e     %.2e       %.2e\n", userh/sigma, b, err2, err2ff);
+        double err2M = ff.err(NormalizedGaussian(a*b/(a+b)));
+        printf("  %.4e   %.4e     %.2e       %.2e", userh/sigma, b, err2, err2M);
+        for (extension_order=2; extension_order<k; extension_order+=2) {
+            ff = copy(f);
+            ff.unaryop_node(op2);
+            err2 = ff.err(NormalizedGaussian(a*b/(a+b)));
+            printf("       %.2e", err2);
+        }
+        printf("\n");
     }
 }
 
