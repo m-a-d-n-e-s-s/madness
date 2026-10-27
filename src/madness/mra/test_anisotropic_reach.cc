@@ -1,10 +1,10 @@
 /// \file test_anisotropic_reach.cc
 /// \brief the free-space Coulomb potential in a non-cubic cell against the analytic result
 
-/// In a non-cubic cell the blocks of the non-standard form reach farther, in boxes, along the short axes
-/// than the isotropic bmax_default: see Displacements::bmax_axes for the argument. This checks the
-/// per-axis reach end to end: with an isotropic bound of 4 boxes the 100x100x18 case below is off by
-/// 5.0e-5 and fails; with the (4, 4, 23) reach it is within 9.0e-6, the 18^3 case within 3.8e-6.
+/// In a non-cubic cell the blocks of the non-standard form decay more quickly with l for longer axes.
+/// If the maximum b is treated isotropically at 4 boxes the 100x100x18 case below is off by
+/// 5.0e-5 and fails; by giving shorter axes larger l, we reach out to (4, 4, 23) which is within 9.0e-6,
+/// the 18^3 case is within 3.8e-6.
 
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>

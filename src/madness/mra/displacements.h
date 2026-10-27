@@ -112,9 +112,9 @@ namespace madness {
 
     public:
         static int bmax_default() {
-            // Numbers determined by trial and error. bmax bounds |l_d| for the displacements l that
-            // FunctionImpl::do_apply visits at each level; the bound is isotropic in *real space*, see
-            // bmax_axes() for the per-axis values in a non-cubic cell.
+            // Numbers determined by trial and error. The entire idea of bmax is non-adaptive: it caps |l_d|
+            // for the displacements l that FunctionImpl::do_apply visits at each level whatever the kernel.
+            // The bound is isotropic in *real space*, see bmax_axes() for the per-axis values in a non-cubic cell.
             int bmax;
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
@@ -128,27 +128,15 @@ namespace madness {
 
         /// The bound on |l_d| for the displacements l that do_apply visits at level n, per axis
 
-        /// In the non-standard form the operator is applied at level n only through the blocks
-        /// that involve at least one level-n wavelet, (d|s), (s|d) and (d|d); the (s|s) block is
-        /// the parent level's. For a 1D factor exp(-a x^2) of a fit term on boxes of width h those
-        /// blocks scale like (a h^2)^(k/2) while a h^2 << 1 (wavelets are orthogonal to polynomials
-        /// of degree < k) and are O(1) once a h^2 >~ 1: the factor is unresolved at level n. The
-        /// (s|s) matrix element of the same factor at a displacement of l boxes is ~ exp(-a (l h)^2),
-        /// O(1) out to |l| ~ 1/(sqrt(a) h). Visiting only |l_d| <= bmax is exact for the blocks that
-        /// are negligible beyond it, and in a cube that is all of them at the bmax_default chosen
-        /// for the default k and threshold.
-        ///
-        /// In a non-cubic cell the box widths h_d differ per axis. A term with a h_x^2 ~ 1 on the
-        /// long axis x has, on a short axis z, a h_z^2 = a h_x^2 (h_z/h_x)^2 << 1: its
-        /// (d_x|s_y|s_z) block is O(1) in x and decays along z only as exp(-a (l_z h_z)^2), i.e.
-        /// out to |l_z| ~ h_x/h_z boxes, beyond the isotropic bmax. No other level contains that
-        /// block: a level-n wavelet along x is orthogonal to every coarser scaling function. So the
-        /// bound must be isotropic in real space, bmax_d = ceil(bmax_default * w_max / w_d), which
-        /// is bmax_default on every axis of a cube. Measured, free-space Coulomb potential of a
-        /// neutral chain in a 100x100x18 cell at eps 1e-6: 1.3e-4 off the analytic result with an
-        /// isotropic bound of 4 boxes, 1e-5 (the cubic value) with (4, 4, 23). The extra
-        /// displacements are only norm-checked; for a decaying kernel the shell-wise stop in
-        /// do_apply ends the loop at the same real distance as before.
+        /// The blocks of the non-standard form decay with the real-space distance l_d h_d, so a narrow
+        /// axis needs more boxes to reach the same decay as a wide one: a fit term unresolved on the long
+        /// axis (which is what makes the operator act on it at level n) is smooth across the boxes of a
+        /// short axis, where its block falls off only as exp(-a (l h)^2). Hence
+        /// bmax_d = ceil(bmax_default * w_max / w_d): bmax_default on every axis of a cube, (4, 4, 23) in
+        /// a 100x100x18 cell, where an isotropic 4 leaves the Coulomb potential of a neutral chain 1.3e-4
+        /// off the analytic result at eps 1e-6 (1e-5 with the per-axis bound). The extra displacements
+        /// are only norm-checked: for a decaying kernel the shell-wise stop in do_apply ends the loop at
+        /// the same real distance as before.
         ///
         /// Cost: the lists hold prod_d (2 bmax_d + 1) keys (up to 2x more per lattice-summed axis), the
         /// periodic ones for every level, so they grow with the aspect ratio along every *short* axis.
