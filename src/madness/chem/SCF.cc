@@ -3091,7 +3091,7 @@ void SCF::solve(World& world) {
             printf("    nuclear-repulsion %16.8f\n", enrep);
             if (dispersion.active())
                 printf("      dispersion (D3) %16.8f\n", edisp);
-            const double etot_new = e_total + ekinetic + exc + enonlocal + epcm;
+            const double etot_new = e_total + ekinetic + exc + enonlocal + epcm + edisp;
             printf("        total coulomb %16.8f\n", enrep+enuclear+ecoulomb);
             printf("    new total coulomb %16.8f\n", e_total);
             printf("       error(old-new) %16.8e\n", enrep+enuclear+ecoulomb-e_total);
