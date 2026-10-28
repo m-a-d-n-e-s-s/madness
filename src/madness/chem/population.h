@@ -47,10 +47,18 @@
 #include <madness/tensor/tensor.h>
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace madness {
+
+class World;
+class Molecule;
+struct CalculationParameters;
+template <typename T, std::size_t NDIM> class Function;
+
 namespace population {
 
 /// electrons per atom from one spin's occupied orbitals, with the scheme's diagnostics
@@ -125,6 +133,44 @@ AtomicPopulations atomic_populations(const std::string& scheme, const std::strin
                                      const std::vector<std::string>& symbols, const std::vector<double>& Z,
                                      long nalpha, long nbeta, const SpinPopulation& alpha,
                                      const SpinPopulation& beta);
+
+/// the population analysis of the population keys, for orbitals given in real space
+
+/// For each scheme of the `population` key: reads the basis set by name (population_basis
+/// for mulliken and lowdin, population_minbasis for iao), projects it at the current
+/// FunctionDefaults, forms S and X, and prints a table per scheme on rank 0 at print_level > 0.
+/// The occupied orbitals are those with a nonzero occupation, so explicit holes count, and
+/// the total charge is the nuclear charge minus their sum. The schemes assume orthonormal
+/// orbitals; after an SCF they are so only to its screening and truncation, so they are
+/// orthonormalized first (Loewdin, orthonormalize_symmetric). A failing scheme only warns:
+/// its entry in the result holds the error. moldft (SCF::population_analysis) and nemo
+/// (Nemo::population_analysis) call it after the final rung.
+class PopulationAnalysis {
+public:
+    /// the schemes and basis sets of the population keys; nothing is projected yet
+    PopulationAnalysis(World& world, const Molecule& molecule, const CalculationParameters& param);
+
+    bool requested() const;     ///< false for `population none`
+
+    /// closed shell: both spins have the orbitals mo with the occupations occ
+    /// @return  the results on every rank; empty when not requested()
+    nlohmann::json do_it(const std::vector<Function<double,3>>& mo, const Tensor<double>& occ) const;
+
+    /// open shell
+    nlohmann::json do_it(const std::vector<Function<double,3>>& amo, const Tensor<double>& aocc,
+                         const std::vector<Function<double,3>>& bmo, const Tensor<double>& bocc) const;
+
+private:
+    World& world_;
+    std::shared_ptr<const Molecule> molecule_;  ///< a copy: the results refer to this geometry
+    std::vector<std::string> schemes_;          ///< the population key
+    std::string basis_, minbasis_;              ///< population_basis, population_minbasis
+    int print_level_ = 0;
+
+    nlohmann::json run(const std::vector<Function<double,3>>& amo, const Tensor<double>& aocc,
+                       const std::vector<Function<double,3>>& bmo, const Tensor<double>& bocc,
+                       bool restricted) const;
+};
 
 } // namespace population
 } // namespace madness
