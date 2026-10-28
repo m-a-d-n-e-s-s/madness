@@ -380,6 +380,8 @@ public:
       dipole = tensor_from_json<double>(j["dipole"]);
     if (j.count("gradient") == 1)
       gradient = tensor_from_json<double>(j["gradient"]);
+    if (j.count("populations") == 1)
+      populations = j["populations"];
   }
 
   std::string key() const override { return "properties"; }

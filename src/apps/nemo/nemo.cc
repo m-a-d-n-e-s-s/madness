@@ -108,6 +108,9 @@ int main(int argc, char** argv) {
                 printf("finished at time %.1f\n", wall_time());
             }
 
+            // atomic charges by the schemes of the population key: the tables (none: nothing)
+            nemo->population_analysis();
+
             // compute the hessian
             if (nemo->get_nemo_param().hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
 
