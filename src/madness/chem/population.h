@@ -154,11 +154,11 @@ public:
 
     /// closed shell: both spins have the orbitals mo with the occupations occ
     /// @return  the results on every rank; empty when not requested()
-    nlohmann::json do_it(const std::vector<Function<double,3>>& mo, const Tensor<double>& occ) const;
+    nlohmann::json analyze(const std::vector<Function<double,3>>& mo, const Tensor<double>& occ) const;
 
     /// open shell
-    nlohmann::json do_it(const std::vector<Function<double,3>>& amo, const Tensor<double>& aocc,
-                         const std::vector<Function<double,3>>& bmo, const Tensor<double>& bocc) const;
+    nlohmann::json analyze(const std::vector<Function<double,3>>& amo, const Tensor<double>& aocc,
+                           const std::vector<Function<double,3>>& bmo, const Tensor<double>& bocc) const;
 
 private:
     World& world_;

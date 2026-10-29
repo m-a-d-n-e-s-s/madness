@@ -1772,7 +1772,7 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
 nlohmann::json SCF::population_analysis(World& world) const {
     PROFILE_MEMBER_FUNC(SCF);
     const population::PopulationAnalysis pa(world, molecule, param);
-    return param.spin_restricted() ? pa.do_it(amo, aocc) : pa.do_it(amo, aocc, bmo, bocc);
+    return param.spin_restricted() ? pa.analyze(amo, aocc) : pa.analyze(amo, aocc, bmo, bocc);
 }
 
 void SCF::vector_stats(const std::vector<double>& v, double& rms,

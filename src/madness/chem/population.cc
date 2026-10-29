@@ -303,13 +303,13 @@ bool PopulationAnalysis::requested() const {
 }
 
 
-nlohmann::json PopulationAnalysis::do_it(const vecfuncT& mo, const tensorT& occ) const {
+nlohmann::json PopulationAnalysis::analyze(const vecfuncT& mo, const tensorT& occ) const {
     return run(mo, occ, mo, occ, true);
 }
 
 
-nlohmann::json PopulationAnalysis::do_it(const vecfuncT& amo, const tensorT& aocc,
-                                         const vecfuncT& bmo, const tensorT& bocc) const {
+nlohmann::json PopulationAnalysis::analyze(const vecfuncT& amo, const tensorT& aocc,
+                                           const vecfuncT& bmo, const tensorT& bocc) const {
     return run(amo, aocc, bmo, bocc, false);
 }
 

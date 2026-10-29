@@ -374,7 +374,7 @@ nlohmann::json Nemo::population_analysis() const {
     return {};
   // the nemos are orthonormal in the metric R^2 (closed shell), so the orbitals R*nemo are
   // orthonormal in the ordinary one
-  return pa.do_it(mul(world, R, calc->amo), calc->aocc);
+  return pa.analyze(mul(world, R, calc->amo), calc->aocc);
 }
 
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys
