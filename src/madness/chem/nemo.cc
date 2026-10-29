@@ -50,6 +50,7 @@
 #include<madness/chem/pointgroupsymmetry.h>
 #include<madness/chem/BSHApply.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/population.h>
 #include <madness/mra/macrotaskq.h>
 #include <madness/mra/memory_measurement.h>
 #include <limits>
@@ -357,9 +358,23 @@ nlohmann::json Nemo::analyze() const {
   pr.dipole = dipole;
   pr.gradient = grad;
 
+  // atomic charges by the schemes of the population key (none: empty)
+  const nlohmann::json pop = population_analysis();
+  if (not pop.empty())
+    pr.populations = pop;
+
   t.end("Nemo::analyze");
 
   return pr.to_json();
+}
+
+nlohmann::json Nemo::population_analysis() const {
+  const population::PopulationAnalysis pa(world, calc->molecule, calc->param);
+  if (not pa.requested())
+    return {};
+  // the nemos are orthonormal in the metric R^2 (closed shell), so the orbitals R*nemo are
+  // orthonormal in the ordinary one
+  return pa.analyze(mul(world, R, calc->amo), calc->aocc);
 }
 
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys

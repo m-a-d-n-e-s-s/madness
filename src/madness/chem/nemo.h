@@ -475,6 +475,12 @@ public:
 	/// compute dipole moment and gradient at the current geometry
 	virtual nlohmann::json analyze() const;
 
+	/// atomic charges of the orbitals R*nemo by the schemes of the population key
+
+	/// Prints a table per scheme on rank 0 (population::PopulationAnalysis); nemo is closed shell.
+	/// @return  the results on every rank; empty when `population` is none
+	nlohmann::json population_analysis() const;
+
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);
 

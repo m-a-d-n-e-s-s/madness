@@ -42,6 +42,7 @@
 #include <madness.h>
 #include <madness/chem/SCF.h>
 #include <madness/chem/Restart.h>
+#include <madness/chem/population.h>
 #include <madchem.h>
 
 #if defined(__has_include)
@@ -1766,6 +1767,12 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
     END_TIMER(world, "dipole");
 
     return mu;
+}
+
+nlohmann::json SCF::population_analysis(World& world) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    const population::PopulationAnalysis pa(world, molecule, param);
+    return param.spin_restricted() ? pa.analyze(amo, aocc) : pa.analyze(amo, aocc, bmo, bocc);
 }
 
 void SCF::vector_stats(const std::vector<double>& v, double& rms,
