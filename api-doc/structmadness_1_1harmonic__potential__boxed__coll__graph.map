@@ -1,0 +1,5 @@
+<map id="madness::harmonic_potential_boxed" name="madness::harmonic_potential_boxed">
+<area shape="rect" id="Node000001" title="functor for the diamagnetic term in a box" alt="" coords="5,93,220,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="17,5,209,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,59,115,93,110,93,110,59"/>
+</map>

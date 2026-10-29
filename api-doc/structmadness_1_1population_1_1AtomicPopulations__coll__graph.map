@@ -1,0 +1,11 @@
+<map id="madness::population::AtomicPopulations" name="madness::population::AtomicPopulations">
+<area shape="rect" id="Node000001" title="one scheme&#39;s atomic charges and spin populations for a molecule" alt="" coords="5,300,164,340"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="14,190,73,215"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="55,228,80,299,75,301,50,229"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1population_1_1SpinPopulation.html" title="electrons per atom from one spin&#39;s occupied orbitals, with the scheme&#39;s diagnostics" alt="" coords="97,183,256,223"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="157,236,124,278,104,302,100,298,120,274,153,232"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="74,80,279,105"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="179,119,179,182,174,182,174,119"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="95,5,258,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="179,45,179,80,174,80,174,45"/>
+</map>
