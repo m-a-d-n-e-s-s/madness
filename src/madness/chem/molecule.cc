@@ -592,26 +592,21 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
                     atoms[j].x, atoms[j].y, atoms[j].z);
 }
 
+double Molecule::effective_nuclear_charge(size_t i) const {
+  // integer charges, exactly as the nuclear repulsion has always used them
+  unsigned int z = atoms[i].pseudo_atom ? static_cast<unsigned int>(atoms[i].q) : atoms[i].atomic_number;
+  if (core_pot.is_defined(z))
+    z -= core_pot.n_core_orb(z) * 2;
+  return z;
+}
+
 double Molecule::nuclear_repulsion_energy() const {
+  std::vector<double> z(atoms.size());
+  for (size_t i = 0; i < atoms.size(); ++i) z[i] = effective_nuclear_charge(i);
   double sum = 0.0;
-  unsigned int z1, z2;
   for (size_t i = 0; i < atoms.size(); ++i) {
-    if (atoms[i].pseudo_atom) {
-      z1 = atoms[i].q;
-    } else {
-      z1 = atoms[i].atomic_number;
-    }
-    if (core_pot.is_defined(z1))
-      z1 -= core_pot.n_core_orb(z1) * 2;
     for (size_t j = i + 1; j < atoms.size(); ++j) {
-      if (atoms[j].pseudo_atom) {
-        z2 = atoms[j].q;
-      } else {
-        z2 = atoms[j].atomic_number;
-      }
-      if (core_pot.is_defined(z2))
-        z2 -= core_pot.n_core_orb(z2) * 2;
-      sum += z1 * z2 / inter_atomic_distance(i, j);
+      sum += z[i] * z[j] / inter_atomic_distance(i, j);
     }
   }
   return sum;
@@ -1085,49 +1080,29 @@ double Molecule::total_nuclear_charge() const {
     return sum;
 }
 
-double Molecule::smoothed_nuclear_charge_density(double x, double y,
-                                            double z) const {
-
-  for (unsigned int i = 0; i < atoms.size(); i++) {
-    double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z);
-    static const double a = 42.0;
-    static const double apithreehalf = std::pow(a/madness::constants::pi, 1.5);
-    if (r < 1.0) {
-      double rsq = r*r;
-      return atoms[i].atomic_number * apithreehalf * exp(-a*rsq);
-    }
+double Molecule::nuclear_repulsion_correction(double a) const {
+  double zsq = 0.0;
+  for (size_t i = 0; i < atoms.size(); ++i) {
+    const double z = effective_nuclear_charge(i);
+    zsq += z * z;
   }
-  return 0.0;
+  return std::sqrt(a / (2.0 * madness::constants::pi)) * zsq;
 }
 
-double Molecule::smoothed_nuclear_charge_potential(double x, double y,
-                                            double z) const {
-
+double Molecule::smoothed_density_overlap_energy(double a) const {
+  std::vector<double> z(atoms.size());
+  for (size_t i = 0; i < atoms.size(); ++i) z[i] = effective_nuclear_charge(i);
+  const double t = std::sqrt(0.5 * a);
   double sum = 0.0;
-  for (unsigned int i = 0; i < atoms.size(); i++) {
-    double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z);
-    static const double a = 42.0;
-    static const double asqrt = std::sqrt(a);
-    if (r != 0.0) {
-      sum += atoms[i].atomic_number * erf(asqrt*r)/r;
-    } else if (r == 0.0) {
-      sum += atoms[i].atomic_number *2.0 * asqrt / std::sqrt(madness::constants::pi);
+  for (size_t i = 0; i < atoms.size(); ++i) {
+    if (z[i] == 0.0) continue;
+    for (size_t j = i + 1; j < atoms.size(); ++j) {
+      const double r = inter_atomic_distance(i, j);
+      if (t * r > 6.5) continue;   // erfc(6.5) = 4e-20
+      sum += z[i] * z[j] * std::erfc(t * r) / r;
     }
   }
   return sum;
-
-}
-
-double Molecule::nuclear_repulsion_correction() const {
-                                            
-  double correction = 0.0;                                          
-  static const double a = 42.0;
-  static const double atwopisqrt = std::sqrt(a/(2.0*madness::constants::pi));
-  for (unsigned int i = 0; i < atoms.size(); i++) {
-    correction += atoms[i].atomic_number * atoms[i].atomic_number;
-  }
-  return correction * atwopisqrt;
-
 }
 
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {

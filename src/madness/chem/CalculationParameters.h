@@ -124,6 +124,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
+		initialize<std::string> ("coulomb_energy","smoothed","total Coulomb energy from the neutral sum of the electron density and a Gaussian-smoothed nuclear charge (smoothed), or as E_nn+E_ne+E_ee (conventional, skips all smoothed-density work)",{"smoothed","conventional"});
+		initialize<double> ("smoothed_density_exponent",42.0,"Gaussian exponent a (bohr^-2) of the smoothed nuclear charge density, coulomb_energy=smoothed");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
@@ -216,6 +218,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	bool spin_restricted() const {return get<bool>("spin_restricted");}
 
 	double lo() const {return get<double>("lo");}
+	bool smoothed_coulomb() const {return get<std::string>("coulomb_energy") == "smoothed";}
+	double smoothed_density_exponent() const {return get<double>("smoothed_density_exponent");}
 	double L() const {return get<double>("l");}
 	int k() const {return get<int>("k");}
 

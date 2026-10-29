@@ -39,6 +39,7 @@
  */
 
 #include <madness/chem/corepotential.h>
+#include <madness/constants.h>
 #include <madness/chem/atomutil.h>
 #include <madness/chem/molecule.h>
 #include <madness/mra/kernelrange.h>
@@ -50,6 +51,8 @@
 #include <algorithm>
 #include <ctype.h>
 #include <cmath>
+#include <array>
+#include <unordered_map>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
 #include <madness/mra/interpolation_1d.h>
@@ -107,32 +110,109 @@ public:
     std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
 };
 
-class SmoothedMolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const Molecule& molecule;
-public:
-    SmoothedMolecularPotentialFunctor(const Molecule& molecule)
-        : molecule(molecule) {}
+/// The Gaussian-smoothed nuclear charges \f$ s_i = Z_i (a/\pi)^{3/2} e^{-a r_i^2} \f$ of the
+/// smoothed-density Coulomb energy: centres and effective charges
+/// (Molecule::effective_nuclear_charge) of the atoms that carry one.
+struct SmoothedNuclearCharges {
+    double a;
+    std::vector<coord_3d> centres;
+    std::vector<double> charges;
 
-    double operator()(const coord_3d& x) const {
-        return molecule.smoothed_nuclear_charge_potential(x[0], x[1], x[2]);
+    SmoothedNuclearCharges(const Molecule& molecule, double a) : a(a) {
+        MADNESS_CHECK_THROW(a > 0.0, "the exponent of the smoothed nuclear charge density must be positive");
+        for (size_t i = 0; i < molecule.natom(); ++i) {
+            const double z = molecule.effective_nuclear_charge(i);
+            if (z == 0.0) continue;
+            const Atom& atom = molecule.get_atom(i);
+            centres.push_back(coord_3d{atom.x, atom.y, atom.z});
+            charges.push_back(z);
+        }
     }
-
-    std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
 };
 
-class SmoothedNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
+/// Potential \f$ u(r;s) = \sum_i Z_i\,\mathrm{erf}(\sqrt{a}\,r_i)/r_i \f$ of the smoothed nuclear
+/// charge density. Like the nuclear potential, every point sums over all atoms.
+class SmoothedMolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
-    const Molecule& molecule;
+    SmoothedNuclearCharges s;
+    double sqrta;
+    double peak;    ///< the r -> 0 limit of erf(sqrt(a) r)/r, 2 sqrt(a/pi)
 public:
-    SmoothedNuclearChargeDensityFunctor(const Molecule& molecule)
-        : molecule(molecule) {}
+    using FunctionFunctorInterface<double,3>::operator();
 
-    double operator()(const coord_3d& x) const {
-        return molecule.smoothed_nuclear_charge_density(x[0], x[1], x[2]);
+    SmoothedMolecularPotentialFunctor(const Molecule& molecule, double a)
+        : s(molecule, a), sqrta(std::sqrt(a)), peak(2.0 * std::sqrt(a / madness::constants::pi)) {}
+
+    double operator()(const coord_3d& x) const override {
+        double sum = 0.0;
+        for (size_t i = 0; i < s.centres.size(); ++i) {
+            const double dx = x[0] - s.centres[i][0];
+            const double dy = x[1] - s.centres[i][1];
+            const double dz = x[2] - s.centres[i][2];
+            const double r = std::sqrt(dx * dx + dy * dy + dz * dz);
+            sum += s.charges[i] * (r > 0.0 ? std::erf(sqrta * r) / r : peak);
+        }
+        return sum;
     }
 
-    std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
+    std::vector<coord_3d> special_points() const override {return s.centres;}
+};
+
+/// The smoothed nuclear charge density \f$ s(r) = \sum_i Z_i (a/\pi)^{3/2} e^{-a r_i^2} \f$.
+/// Each Gaussian is cut off where it has decayed to 1e-18 of its peak. A cell list with that
+/// edge length restricts a point to the atoms of its own and the 26 adjacent cells, so that
+/// projecting s costs O(natom), and Gaussians that overlap in short bonds are summed.
+class SmoothedNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    using cell_index = std::array<long,3>;
+    struct cell_hash {
+        std::size_t operator()(const cell_index& c) const {
+            const std::hash<long> h;
+            return h(c[0]) ^ (h(c[1]) << 21) ^ (h(c[2]) << 42);
+        }
+    };
+
+    SmoothedNuclearCharges s;
+    double norm;    ///< (a/pi)^{3/2}
+    double rcut;    ///< exp(-a rcut^2) = 1e-18
+    std::unordered_map<cell_index, std::vector<size_t>, cell_hash> cells;
+
+    cell_index cell_of(const coord_3d& x) const {
+        return {long(std::floor(x[0] / rcut)), long(std::floor(x[1] / rcut)), long(std::floor(x[2] / rcut))};
+    }
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    SmoothedNuclearChargeDensityFunctor(const Molecule& molecule, double a)
+        : s(molecule, a), norm(std::pow(a / madness::constants::pi, 1.5)),
+          rcut(std::sqrt(18.0 * std::log(10.0) / a)) {
+        for (size_t i = 0; i < s.centres.size(); ++i) cells[cell_of(s.centres[i])].push_back(i);
+    }
+
+    double operator()(const coord_3d& x) const override {
+        const cell_index c = cell_of(x);
+        const double rcutsq = rcut * rcut;
+        double sum = 0.0;
+        for (long i = -1; i <= 1; ++i) {
+            for (long j = -1; j <= 1; ++j) {
+                for (long k = -1; k <= 1; ++k) {
+                    const auto it = cells.find(cell_index{c[0] + i, c[1] + j, c[2] + k});
+                    if (it == cells.end()) continue;
+                    for (const size_t iatom : it->second) {
+                        const double dx = x[0] - s.centres[iatom][0];
+                        const double dy = x[1] - s.centres[iatom][1];
+                        const double dz = x[2] - s.centres[iatom][2];
+                        const double rsq = dx * dx + dy * dy + dz * dz;
+                        if (rsq < rcutsq) sum += s.charges[iatom] * norm * std::exp(-s.a * rsq);
+                    }
+                }
+            }
+        }
+        return sum;
+    }
+
+    std::vector<coord_3d> special_points() const override {return s.centres;}
 };
 
 /**
@@ -587,18 +667,20 @@ public:
         }
     }
 
-    void make_smoothed_nuclear_potential(World& world) {
+    /// project u(r;s), the potential of the smoothed nuclear charge density with exponent \p a
+    void make_smoothed_nuclear_potential(World& world, double a) {
         double safety = 0.1;
         double utol = FunctionDefaults<3>::get_thresh() * safety;
-        unuc = real_factory_3d(world).functor(real_functor_3d(new SmoothedMolecularPotentialFunctor(mol))).thresh(utol).truncate_on_project();
+        unuc = real_factory_3d(world).functor(real_functor_3d(new SmoothedMolecularPotentialFunctor(mol, a))).thresh(utol).truncate_on_project();
         unuc.set_thresh(FunctionDefaults<3>::get_thresh());
         unuc.reconstruct();
     }
 
-    void make_smoothed_nuclear_charge_density(World& world) {
+    /// project the smoothed nuclear charge density s with Gaussian exponent \p a
+    void make_smoothed_nuclear_charge_density(World& world, double a) {
         double safety = 0.1;
         double utol = FunctionDefaults<3>::get_thresh() * safety;
-        sdens = real_factory_3d(world).functor(real_functor_3d(new SmoothedNuclearChargeDensityFunctor(mol))).thresh(utol).truncate_on_project();
+        sdens = real_factory_3d(world).functor(real_functor_3d(new SmoothedNuclearChargeDensityFunctor(mol, a))).thresh(utol).truncate_on_project();
         sdens.set_thresh(FunctionDefaults<3>::get_thresh());
         sdens.reconstruct();
         //if (world.rank() == 0) print("smooth density trace",sdens.trace());

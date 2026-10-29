@@ -209,6 +209,7 @@ scf_data::scf_data() : iter(0) {
     e_data.insert({"e_xc", std::vector<double>(0)});
     e_data.insert({"e_nrep", std::vector<double>(0)});
     e_data.insert({"e_tot", std::vector<double>(0)});
+    e_data.insert({"e_tot_conventional", std::vector<double>(0)});
 }
 
 
@@ -688,8 +689,11 @@ void SCF::make_nuclear_potential(World& world) {
 void SCF::make_smoothed_nuclear_potential(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    potentialmanager->make_smoothed_nuclear_potential(world);
+    const double a = param.smoothed_density_exponent();
+    potentialmanager->make_smoothed_nuclear_potential(world, a);
     potentialmanager->unuclear().print_size("unuc");
+    smoothed_self_energy = molecule.nuclear_repulsion_correction(a);
+    smoothed_overlap = molecule.smoothed_density_overlap_energy(a);
 
     // Diagnostics for the smoothed density.  These depend only on the molecule, the
     // exponent a and the current protocol level -- NOT on the electronic density -- so
@@ -706,7 +710,7 @@ void SCF::make_smoothed_nuclear_potential(World& world) {
 void SCF::make_smoothed_nuclear_charge_density(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     START_TIMER(world);
-    potentialmanager->make_smoothed_nuclear_charge_density(world);
+    potentialmanager->make_smoothed_nuclear_charge_density(world, param.smoothed_density_exponent());
     potentialmanager->smooth_density().print_size("sdens");
     END_TIMER(world, "Make sdens");
 }
@@ -2944,7 +2948,11 @@ void SCF::solve(World& world) {
 
         // Total Coulomb energy from the combined (nuclear + electronic) charge density.
         //
-        //   E = 1/2 <s+e; s+e>  +  <n-s; e>  -  sqrt(a/2pi) sum_i Z_i^2
+        //   E = 1/2 <s+e; s+e>  +  <n-s; e>  -  sqrt(a/2pi) sum_i Z_i^2  +  E_ov
+        //
+        // E_ov = sum_{i<j} Z_i Z_j erfc(sqrt(a/2) R_ij)/R_ij is the overlap of the Gaussians
+        // on different atoms; it makes the expression exact for any exponent a. All charges
+        // are Molecule::effective_nuclear_charge, the ones the nuclear repulsion uses.
         //
         // SIGN CONVENTION -- read this before touching the expressions below.
         // In the derivation all densities are SIGNED CHARGE densities, so the electronic
@@ -2965,47 +2973,54 @@ void SCF::solve(World& world) {
         // neutral, so its potential grows as O(natom^(2/3)) and `vnuc-unuc` acquires a
         // -2Z/r tail.  That reinstates exactly the cancellation this formulation exists to
         // remove, and the linear scaling is lost.  See coulomb_revisited/theory/01.
-        START_TIMER(world);
-        functionT unuc = potentialmanager->unuclear();
-        functionT sdens = potentialmanager->smooth_density();
+        double e_total = 0.0;    // the smoothed-density total Coulomb energy
+        if (param.smoothed_coulomb()) {
+            START_TIMER(world);
+            functionT unuc = potentialmanager->unuclear();
+            functionT sdens = potentialmanager->smooth_density();
 
-        // s + e, a locally charge-neutral density.  One convolution; the intermediates are
-        // released immediately because sdens is sharply peaked (width ~1/sqrt(2a)) and its
-        // tree is correspondingly deep.
-        double e_approx, e_n_corr;
-        {
-            functionT spe = sdens - rho;
-            functionT Gspe = apply(*coulop, spe);
-            // 1/2 <s+e; s+e>
-            e_approx = 0.5 * inner(spe, Gspe);
-            spe.clear(false);
-            Gspe.clear(false);
-            // <n-s; e> -- short ranged, one localized contribution per atom
-            e_n_corr = inner(vnuc+unuc, rho);
-        }
-        // -sqrt(a/2pi) sum_i Z_i^2, the Gaussian self-interaction removed from 1/2<s;s>
-        double nrep_corr = molecule.nuclear_repulsion_correction();
+            // s + e, a locally charge-neutral density.  One convolution; the intermediates are
+            // released immediately because sdens is sharply peaked (width ~1/sqrt(2a)) and its
+            // tree is correspondingly deep.
+            double e_approx, e_n_corr;
+            {
+                functionT spe = sdens - rho;
+                functionT Gspe = apply(*coulop, spe);
+                // 1/2 <s+e; s+e>
+                e_approx = 0.5 * inner(spe, Gspe);
+                spe.clear(false);
+                Gspe.clear(false);
+                // <n-s; e> -- short ranged, one localized contribution per atom
+                e_n_corr = inner(vnuc+unuc, rho);
+            }
+            // sqrt(a/2pi) sum_i Z_i^2, the Gaussian self-interaction removed from 1/2<s;s>, and
+            // E_ov, the overlap 1/2<s;s> lacks; both analytic, set once per protocol level in
+            // make_smoothed_nuclear_potential()
+            const double nrep_corr = smoothed_self_energy;
+            const double e_ov = smoothed_overlap;
 
-        double e_total = e_approx + e_n_corr - nrep_corr;
+            e_total = e_approx + e_n_corr - nrep_corr + e_ov;
 
-        // Diagnostics, computed once per protocol level in make_smoothed_nuclear_potential().
-        // <s;s> has a closed form (eq. 19+22), so comparing the projected-analytic value
-        // against the numerically convolved one is an exact, reference-free measure of the
-        // combined projection + convolution error.
-        const double strace = smoothed_strace;
-        const double s_s_projected = smoothed_ss_projected;
-        const double s_s_numeric = smoothed_ss_numeric;
-        END_TIMER(world, "E_approx");
+            // Diagnostics, computed once per protocol level in make_smoothed_nuclear_potential().
+            // <s;s> has a closed form (eq. 19+22), so comparing the projected-analytic value
+            // against the numerically convolved one is an exact, reference-free measure of the
+            // combined projection + convolution error.
+            const double strace = smoothed_strace;
+            const double s_s_projected = smoothed_ss_projected;
+            const double s_s_numeric = smoothed_ss_numeric;
+            END_TIMER(world, "E_approx");
 
-        if (world.rank() == 0 and (param.print_level() > 1)) {
-            printf("\n                 e approx %16.8f\n", e_approx);
-            printf("    el-nuc rep correction %16.8f\n", e_n_corr);
-            printf("       nuc rep correction %16.8f\n", nrep_corr);
-            printf("\n        inner(s,s) proj %16.8f\n", s_s_projected);
-            printf("         inner(s,s) numer %16.8f\n", s_s_numeric);
-            printf("       inner(s,s) p-n err %16.8e\n", s_s_projected - s_s_numeric);
-            printf("                En-n (19) %16.8f\n", 0.5 * s_s_projected - nrep_corr);
-            printf("                   strace %16.8f\n\n", strace);
+            if (world.rank() == 0 and (param.print_level() > 1)) {
+                printf("\n                 e approx %16.8f\n", e_approx);
+                printf("    el-nuc rep correction %16.8f\n", e_n_corr);
+                printf("       nuc rep correction %16.8f\n", nrep_corr);
+                printf("       overlap correction %16.8e\n", e_ov);
+                printf("\n        inner(s,s) proj %16.8f\n", s_s_projected);
+                printf("         inner(s,s) numer %16.8f\n", s_s_numeric);
+                printf("       inner(s,s) p-n err %16.8e\n", s_s_projected - s_s_numeric);
+                printf("                En-n (19) %16.8f\n", 0.5 * s_s_projected - nrep_corr + e_ov);
+                printf("                   strace %16.8f\n\n", strace);
+            }
         }
 
         START_TIMER(world);
@@ -3069,7 +3084,10 @@ void SCF::solve(World& world) {
         double enonlocal = enla + enlb;
         double exc = exca + excb;
         double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal + epcm + edisp;
-        current_energy = etot;
+        // with coulomb_energy=smoothed the smoothed-density Coulomb energy replaces
+        // enrep+enuclear+ecoulomb in the reported total; etot stays the conventional one
+        const double etot_new = e_total + ekinetic + exc + enonlocal + epcm + edisp;
+        current_energy = param.smoothed_coulomb() ? etot_new : etot;
         //esol = etot;
 
         if (world.rank() == 0 and (param.print_level() > 1)) {
@@ -3091,13 +3109,17 @@ void SCF::solve(World& world) {
             printf("    nuclear-repulsion %16.8f\n", enrep);
             if (dispersion.active())
                 printf("      dispersion (D3) %16.8f\n", edisp);
-            const double etot_new = e_total + ekinetic + exc + enonlocal + epcm + edisp;
-            printf("        total coulomb %16.8f\n", enrep+enuclear+ecoulomb);
-            printf("    new total coulomb %16.8f\n", e_total);
-            printf("       error(old-new) %16.8e\n", enrep+enuclear+ecoulomb-e_total);
-            printf("                total %16.8f\n", etot);
-            printf("            new total %16.8f\n", etot_new);
-            printf("       error(old-new) %16.8e\n\n", etot-etot_new);
+            if (param.smoothed_coulomb()) {
+                // `new total` is the reported energy; `total` is the conventional one
+                printf("        total coulomb %16.8f\n", enrep+enuclear+ecoulomb);
+                printf("    new total coulomb %16.8f\n", e_total);
+                printf("       error(old-new) %16.8e\n", enrep+enuclear+ecoulomb-e_total);
+                printf("                total %16.8f\n", etot);
+                printf("            new total %16.8f\n", etot_new);
+                printf("       error(old-new) %16.8e\n\n", etot-etot_new);
+            } else {
+                printf("                total %16.8f\n\n", etot);
+            }
         }
         e_data.add_data({{"e_kinetic", ekinetic},
                          {"e_local",   enonlocal},
@@ -3107,7 +3129,8 @@ void SCF::solve(World& world) {
                          {"e_disp",    edisp},
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
-                         {"e_tot",     etot}});
+                         {"e_tot",     current_energy},
+                         {"e_tot_conventional", etot}});
         focka_json = focka;
         if (!param.spin_restricted() && param.nbeta() != 0) {
             fockb_json = fockb;

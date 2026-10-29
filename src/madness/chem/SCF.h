@@ -229,6 +229,8 @@ public:
     double smoothed_strace = 0.0;        ///< int s = sum_i Z_i
     double smoothed_ss_projected = 0.0;  ///< <s; u(r;s)> with u projected analytically
     double smoothed_ss_numeric = 0.0;    ///< <s; G s>    with the potential convolved
+    double smoothed_self_energy = 0.0;   ///< sqrt(a/2pi) sum_i Z_i^2, analytic
+    double smoothed_overlap = 0.0;       ///< E_ov = sum_{i<j} Z_i Z_j erfc(sqrt(a/2) R_ij)/R_ij, analytic
 
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
@@ -760,8 +762,11 @@ public:
 
                 calc.set_protocol<3>(world, calc.param.protocol()[proto]);
                 calc.make_nuclear_potential(world);
-                calc.make_smoothed_nuclear_charge_density(world);
-                calc.make_smoothed_nuclear_potential(world);
+                if (calc.param.smoothed_coulomb()) {
+                    // the density first: make_smoothed_nuclear_potential() reads it
+                    calc.make_smoothed_nuclear_charge_density(world);
+                    calc.make_smoothed_nuclear_potential(world);
+                }
 
                 if (nv != nv_old) {
                     // The virtuals are canonical (ascending eigenvalue), so shrinking

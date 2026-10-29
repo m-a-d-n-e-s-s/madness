@@ -550,11 +550,22 @@ class Molecule {
   /// \sa smoothed_density()
   double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
-  double smoothed_nuclear_charge_density(double x, double y, double z) const;
+  /// charge of atom \p i as it enters the nuclear repulsion energy: \c q for a
+  /// pseudo-atom, the atomic number otherwise, less the electrons of a model core
+  /// potential. Every smoothed-density quantity uses this charge, so that the
+  /// smoothed and the conventional Coulomb energies are the same functional.
+  double effective_nuclear_charge(size_t i) const;
 
-  double smoothed_nuclear_charge_potential(double x, double y, double z) const;
+  /// self-energy of the Gaussians of the smoothed nuclear charge density,
+  /// \f$ \frac12\sum_i\langle s_i;s_i\rangle = \sqrt{a/2\pi}\sum_i Z_i^2 \f$
+  /// \param a the Gaussian exponent of the smoothed density
+  double nuclear_repulsion_correction(double a) const;
 
-  double nuclear_repulsion_correction() const;
+  /// overlap of the smoothed nuclear charges of different atoms,
+  /// \f$ \sum_{i<j} Z_iZ_j\,\mathrm{erfc}(\sqrt{a/2}\,R_{ij})/R_{ij} \f$, the part of the
+  /// nuclear repulsion that \f$ \frac12\langle s;s\rangle \f$ minus the self-energy lacks
+  /// \param a the Gaussian exponent of the smoothed density
+  double smoothed_density_overlap_energy(double a) const;
 
   double smallest_length_scale() const;
 

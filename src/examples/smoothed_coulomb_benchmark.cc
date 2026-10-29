@@ -58,6 +58,13 @@
       smoothed_coulomb_benchmark input --thresh=1e-6
       smoothed_coulomb_benchmark input --thresh=1e-4,1e-6,1e-8 --k=8
       smoothed_coulomb_benchmark input --opeps=1e-5    # sweep the operator accuracy (E11)
+      smoothed_coulomb_benchmark input --a=4           # exponent of the smoothed density
+
+  A third, "consistent" route is printed below each row: the conventional assembly with the
+  nuclear potential and the nuclear repulsion taken from the same operator as E_ee,
+  Vnuc~ = -G s + (Vnuc + u(s)) and E_nn~ = 1/2 <s;G s> - sqrt(a/2pi) sum Z^2 + E_ov.
+  Algebraically it equals the smoothed route; numerically it applies G to s and rho
+  separately instead of to s - rho.
 
   Sign convention: all densities below are POSITIVE and the pairing is
       P(f,g) = int int f(r) g(r') / |r-r'|,
@@ -180,10 +187,11 @@ struct ExactEnergies {
     double E_ne = 0.0;     ///< -P(n,rho)
     double E_ee = 0.0;     ///< 1/2 P(rho,rho)
     double nrep_corr = 0.0;///< sqrt(a/2pi) sum_i Z_i^2
+    double E_ov = 0.0;     ///< sum_{i<j} Z_i Z_j erfc(sqrt(a/2) R_ij)/R_ij, the overlap of the Gaussians
     double e_approx = 0.0; ///< 1/2 P(s-rho, s-rho)
     double e_n_corr = 0.0; ///< -P(n,rho) + P(s,rho)
     double E_conv = 0.0;   ///< E_nn + E_ne + E_ee
-    double E_smooth = 0.0; ///< e_approx + e_n_corr - nrep_corr
+    double E_smooth = 0.0; ///< e_approx + e_n_corr - nrep_corr + E_ov
 };
 
 static double distance(const coord_3d& a, const coord_3d& b) {
@@ -237,7 +245,12 @@ static ExactEnergies compute_exact(const Molecule& mol, const GaussianDensity& g
     x.nrep_corr = std::sqrt(avalue / (2.0 * PI)) * zsq;
     x.e_approx = 0.5 * (x.P_ss - 2.0 * x.P_srho + x.P_rhorho);
     x.e_n_corr = -x.P_nrho + x.P_srho;
-    x.E_smooth = x.e_approx + x.e_n_corr - x.nrep_corr;
+    for (size_t i = 0; i < na; ++i)
+        for (size_t j = i + 1; j < na; ++j) {
+            const double r = distance(R[i], R[j]);
+            x.E_ov += Z[i] * Z[j] * std::erfc(std::sqrt(0.5 * avalue) * r) / r;
+        }
+    x.E_smooth = x.e_approx + x.e_n_corr - x.nrep_corr + x.E_ov;
 
     return x;
 }
@@ -277,7 +290,7 @@ int main(int argc, char** argv) {
     double opeps = -1.0;                  // negative => use 0.001*thresh
     if (parser.key_exists("opeps")) opeps = std::atof(parser.value("opeps").c_str());
 
-    // the Gaussian exponent of the smoothed nuclear density; must match molecule.cc
+    // the Gaussian exponent of the smoothed nuclear density, both sides
     double avalue = 42.0;
     if (parser.key_exists("a")) avalue = std::atof(parser.value("a").c_str());
 
@@ -323,6 +336,7 @@ int main(int argc, char** argv) {
         printf("    1/2<s+e;s+e>         %20.12f\n", exact.e_approx);
         printf("    <n-s;e>              %20.12f\n", exact.e_n_corr);
         printf("    sqrt(a/2pi) sum Z^2  %20.12f\n", exact.nrep_corr);
+        printf("    E_ov                 %20.12e\n", exact.E_ov);
         printf("    E_smooth             %20.12f\n", exact.E_smooth);
         printf("    identity residual    %20.3e   (E_conv - E_smooth, must be ~0)\n",
                exact.E_conv - exact.E_smooth);
@@ -364,8 +378,8 @@ int main(int argc, char** argv) {
         // nuclear potential and the smoothed nuclear quantities
         PotentialManager pm(molecule, "none");
         pm.make_nuclear_potential(world);
-        pm.make_smoothed_nuclear_charge_density(world);
-        pm.make_smoothed_nuclear_potential(world);
+        pm.make_smoothed_nuclear_charge_density(world, avalue);
+        pm.make_smoothed_nuclear_potential(world, avalue);
         const real_function_3d& vnuc = pm.vnuclear();
         const real_function_3d& sdens = pm.smooth_density();
         const real_function_3d& unuc = pm.unuclear();
@@ -392,8 +406,18 @@ int main(int argc, char** argv) {
         spe.clear(false);
         Gspe.clear(false);
         const double e_n_corr_num = inner(vnuc + unuc, rho);
-        const double nrep_corr_num = molecule.nuclear_repulsion_correction();
-        const double E_smooth_num = e_approx_num + e_n_corr_num - nrep_corr_num;
+        const double nrep_corr_num = molecule.nuclear_repulsion_correction(avalue);
+        const double e_ov_num = molecule.smoothed_density_overlap_energy(avalue);
+        const double E_smooth_num = e_approx_num + e_n_corr_num - nrep_corr_num + e_ov_num;
+
+        // consistent route: the nuclear potential and the nuclear repulsion from the same
+        // operator as E_ee. G is applied to s and rho separately, the smoothed route applies
+        // it to s - rho; by linearity the two agree up to screening and truncation.
+        real_function_3d Gs = apply(coulop, sdens);
+        const double E_nn_cons = 0.5 * inner(sdens, Gs) - nrep_corr_num + e_ov_num;
+        const double E_ne_cons = inner(rho, vnuc + unuc - Gs);   // <rho, Vnuc~>, Vnuc~ = -G s + c
+        Gs.clear(false);
+        const double E_cons_num = E_nn_cons + E_ne_cons + E_ee_num;
 
         // density-independent diagnostics
         const double strace = sdens.trace();
@@ -413,6 +437,9 @@ int main(int argc, char** argv) {
                    "int(s)=%.10f  <s;s>_proj err=%.3e\n",
                    "         ", op_thresh, rho_trace, gdens.total_charge(),
                    strace, ss_proj - exact.P_ss);
+            printf("           %s consistent: d(E_nn~)=%.4e  d(E_ne~)=%.4e  d(E_cons)=%.4e\n",
+                   "         ", E_nn_cons - exact.E_nn, E_ne_cons - exact.E_ne,
+                   E_cons_num - exact.E_conv);
             fflush(stdout);
         }
         world.gop.fence();
