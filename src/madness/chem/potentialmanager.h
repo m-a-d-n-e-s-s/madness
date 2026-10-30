@@ -256,13 +256,10 @@ private:
     coord_3d field;
 
     static std::vector<double> smoothing_radii(const Molecule& molecule, const SmoothedNuclearCharges& s) {
-        for (size_t i = 0; i < molecule.natom(); ++i) {
-            const Atom& atom = molecule.get_atom(i);
-            MADNESS_CHECK_THROW(!atom.pseudo_atom && atom.q == molecule.effective_nuclear_charge(i),
-                                "the nuclear potential by convolution supports all-electron atoms only "
-                                "(no pseudo-atoms, core potentials or ghost point charges): use "
-                                "nuclear_potential projection");
-        }
+        MADNESS_CHECK_THROW(molecule.all_electron_nuclei(),
+                            "the nuclear potential by convolution supports all-electron atoms only "
+                            "(no pseudopotentials, core potentials or ghost point charges): use "
+                            "nuclear_potential projection");
         const std::vector<double> rcut_all = molecule.get_rcut();
         std::vector<double> r;
         r.reserve(s.atoms.size());

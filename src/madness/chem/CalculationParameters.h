@@ -124,8 +124,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
-		initialize<std::string> ("coulomb_energy","smoothed","total Coulomb energy from the neutral sum of the electron density and a Gaussian-smoothed nuclear charge, one more convolution per iteration (smoothed), or as E_nn+E_ne+E_ee (conventional)",{"smoothed","conventional"});
-		initialize<std::string> ("nuclear_potential","projection","nuclear potential projected point by point, O(natom^2) (projection), or as c - G s from the smoothed nuclear charge with the operator of J, O(natom), and the nuclear repulsion from the same operator (convolution; moldft, all-electron only)",{"projection","convolution"});
+		initialize<std::string> ("coulomb_energy","conventional","total Coulomb energy as E_nn+E_ne+E_ee, with E_nn from the operator of J under nuclear_potential=convolution (conventional), or from the neutral sum of the electron density and a Gaussian-smoothed nuclear charge, one more convolution per iteration (smoothed); derived as smoothed with nuclear_potential=projection",{"smoothed","conventional"});
+		initialize<std::string> ("nuclear_potential","convolution","nuclear potential as c - G s from the smoothed nuclear charge with the operator of J, O(natom), and the nuclear repulsion from the same operator (convolution; all-electron only), or projected point by point, O(natom^2) (projection; derived for pseudopotentials, core potentials and ghost point charges)",{"projection","convolution"});
 		initialize<double> ("smoothed_density_exponent",42.0,"Gaussian exponent a (bohr^-2) of the smoothed nuclear charge density, coulomb_energy=smoothed or nuclear_potential=convolution");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
@@ -404,6 +404,14 @@ struct CalculationParameters : public QCCalculationParametersBase {
     	if (dispersion()!="none" and xc()!="hf") {
     		set_derived_value("dispersion_functional",xc());
     	}
+
+        // The reported energy is protected against the operator error of G either way: by E_nn~
+        // with the nuclear potential by convolution, by the smoothed-density energy with the
+        // projected one. The convolution needs every nuclear charge in the smoothed density.
+        if (not molecule.all_electron_nuclei())
+            set_derived_value("nuclear_potential",std::string("projection"));
+        if (not nuclear_potential_convolution())
+            set_derived_value("coulomb_energy",std::string("smoothed"));
 
 
 	}

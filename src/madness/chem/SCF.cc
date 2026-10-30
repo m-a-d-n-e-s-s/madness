@@ -681,9 +681,11 @@ void SCF::make_nuclear_potential(World& world) {
     if (!molecule.parameters.pure_ae()) {
         gthpseudopotential->make_pseudo_potential(world);
     }
-    // all-GTH runs never reach the potential manager, and would get E_nn~ without Vnuc~
-    MADNESS_CHECK_THROW(!(param.nuclear_potential_convolution() && molecule.parameters.psp_calc()),
-                        "nuclear_potential=convolution supports all-electron calculations only");
+    // all-GTH runs never reach the potential manager, and would get E_nn~ without Vnuc~; the
+    // derived default is projection for these (CalculationParameters::set_derived_values)
+    MADNESS_CHECK_THROW(!(param.nuclear_potential_convolution() && !molecule.all_electron_nuclei()),
+                        "nuclear_potential=convolution supports all-electron calculations only "
+                        "(no pseudopotentials, core potentials or ghost point charges)");
     if (!molecule.parameters.psp_calc()) {
         if (param.nuclear_potential_convolution())
             make_nuclear_potential_by_convolution(world);

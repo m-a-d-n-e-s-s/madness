@@ -559,6 +559,11 @@ class Molecule {
   /// smoothed and the conventional Coulomb energies are the same functional.
   double effective_nuclear_charge(size_t i) const;
 
+  /// true if the nuclear potential is that of the effective nuclear charges alone: no
+  /// pseudopotential calculation, no pseudo-atoms, no core potentials and no charged ghost
+  /// atoms. The nuclear potential by convolution of the smoothed charge needs this.
+  bool all_electron_nuclei() const;
+
   /// self-energy of the Gaussians of the smoothed nuclear charge density,
   /// \f$ \frac12\sum_i\langle s_i;s_i\rangle = \sqrt{a/2\pi}\sum_i Z_i^2 \f$
   /// \param a the Gaussian exponent of the smoothed density

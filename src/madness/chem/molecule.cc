@@ -600,6 +600,15 @@ double Molecule::effective_nuclear_charge(size_t i) const {
   return z;
 }
 
+bool Molecule::all_electron_nuclei() const {
+  if (parameters.psp_calc()) return false;
+  // nuclear_attraction_potential() puts charge q on every atom that is not a pseudo-atom; a
+  // core potential or a ghost point charge makes that differ from the effective charge
+  for (size_t i = 0; i < atoms.size(); ++i)
+    if (atoms[i].pseudo_atom || atoms[i].q != effective_nuclear_charge(i)) return false;
+  return true;
+}
+
 double Molecule::nuclear_repulsion_energy() const {
   std::vector<double> z(atoms.size());
   for (size_t i = 0; i < atoms.size(); ++i) z[i] = effective_nuclear_charge(i);

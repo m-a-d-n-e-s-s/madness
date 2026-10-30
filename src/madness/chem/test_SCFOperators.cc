@@ -665,6 +665,7 @@ int nuclear_anchor_test(World& world) {
     CalculationParameters param;
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
+    param.set_user_defined_value("nuclear_potential",std::string("projection"));   // no coulop without a protocol
     write_test_input test_input(param);
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
@@ -738,6 +739,7 @@ int dnuclear_anchor_test(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     // param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
+    param.set_user_defined_value("nuclear_potential",std::string("projection"));   // no coulop without a protocol
     write_test_input test_input(param,"hf");
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
@@ -1014,6 +1016,7 @@ int test_XCOperator_matrix(World& world) {
     CalculationParameters param;
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-6});
     param.set_user_defined_value("k",8);
+    param.set_user_defined_value("nuclear_potential",std::string("projection"));   // no coulop without a protocol
     write_test_input test_input(param);
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
