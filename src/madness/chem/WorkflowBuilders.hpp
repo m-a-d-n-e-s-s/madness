@@ -76,6 +76,8 @@ inline void add_nemo_workflow_drivers(World &world, Params &pm,
   // not reprojected -- which NemoBase::set_protocol now handles. A deck that
   // wants a fixed k still says so explicitly, and that wins over any derived
   // value. moldft's builder above sets no k either.
+  // Before the application copies pm, so that the printed parameters are nemo's.
+  Nemo::set_derived_nuclear_potential(pm.get<CalculationParameters>());
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 }
@@ -98,6 +100,7 @@ inline void add_optimize_workflow_drivers(World &world, Params &pm,
     break;
   case WorkflowKind::Nemo:
     pm.get<CalculationParameters>().set_derived_value("k", 8);
+    Nemo::set_derived_nuclear_potential(pm.get<CalculationParameters>());
     wf.addDriver(std::make_unique<qcapp::OptimizeDriver<nemo_lib>>(world, pm));
     break;
   default:
@@ -143,6 +146,7 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
 
   calc_param.set_derived_values(molecule);
   cc_param.set_derived_values();
+  Nemo::set_derived_nuclear_potential(calc_param);
 
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   auto ref_calc = reference->calc();
@@ -155,6 +159,7 @@ inline void add_cis_workflow_drivers(World &world, Params &pm,
                                      qcapp::Workflow &wf) {
   // see add_cc2_workflow_drivers: the chain needs the ground-state archive
   pm.get<CalculationParameters>().set_derived_value("save", true);
+  Nemo::set_derived_nuclear_potential(pm.get<CalculationParameters>());
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   auto ref_calc = reference->calc();
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
@@ -174,6 +179,7 @@ inline void add_oep_workflow_drivers(World &world, Params &pm,
   cparam.set_derived_value("convergence_criteria", convergence_crit);
   // see add_cc2_workflow_drivers: the chain needs the ground-state archive
   cparam.set_derived_value("save", true);
+  Nemo::set_derived_nuclear_potential(cparam);
 
   auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
   auto ref_calc = reference->calc();

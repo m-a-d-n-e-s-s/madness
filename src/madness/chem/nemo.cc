@@ -151,6 +151,18 @@ Tensor<double> NemoBase::compute_gradient(const real_function_3d &rhonemo,
   return grad;
 }
 
+void Nemo::set_derived_nuclear_potential(CalculationParameters &param) {
+  // The nuclear potential by convolution goes with SCF::solve's E_nn~, and only SCF::solve
+  // computes the smoothed-density energy.
+  MADNESS_CHECK_THROW(!(param.is_user_defined("nuclear_potential") &&
+                        param.nuclear_potential_convolution()),
+                      "nemo supports nuclear_potential projection only");
+  MADNESS_CHECK_THROW(!(param.is_user_defined("coulomb_energy") && param.smoothed_coulomb()),
+                      "nemo supports coulomb_energy conventional only");
+  param.set_derived_value("nuclear_potential", std::string("projection"));
+  param.set_derived_value("coulomb_energy", std::string("conventional"));
+}
+
 Nemo::Nemo(World &world, const commandlineparser &parser)
     : NemoBase(world), calc(std::make_shared<SCF>(world, parser)),
       nemo_param(world, parser), coords_sum(-1.0), ac(world, calc) {
@@ -162,12 +174,7 @@ Nemo::Nemo(World &world, const commandlineparser &parser)
   calc->restart_ncf = get_nemo_param().ncf().first + ":" +
                       std::to_string(get_nemo_param().ncf().second);
 
-  // The energy below uses the exact nuclear repulsion, so nemo needs the projected nuclear
-  // potential: the one by convolution goes with SCF::solve's E_nn~.
-  MADNESS_CHECK_THROW(!(calc->param.is_user_defined("nuclear_potential") &&
-                        calc->param.nuclear_potential_convolution()),
-                      "nemo supports nuclear_potential projection only");
-  calc->param.set_derived_value("nuclear_potential", std::string("projection"));
+  set_derived_nuclear_potential(calc->param);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), calc->pcm_param, true);
@@ -193,12 +200,7 @@ Nemo::Nemo(World &world, const CalculationParameters &param,
   calc->restart_ncf = get_nemo_param().ncf().first + ":" +
                       std::to_string(get_nemo_param().ncf().second);
 
-  // The energy below uses the exact nuclear repulsion, so nemo needs the projected nuclear
-  // potential: the one by convolution goes with SCF::solve's E_nn~.
-  MADNESS_CHECK_THROW(!(calc->param.is_user_defined("nuclear_potential") &&
-                        calc->param.nuclear_potential_convolution()),
-                      "nemo supports nuclear_potential projection only");
-  calc->param.set_derived_value("nuclear_potential", std::string("projection"));
+  set_derived_nuclear_potential(calc->param);
 
   if (do_pcm())
     pcm = PCM(world, this->molecule(), calc->pcm_param, true);

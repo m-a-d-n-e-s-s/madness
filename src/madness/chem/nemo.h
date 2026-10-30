@@ -428,6 +428,12 @@ public:
 	Nemo(World& world, const CalculationParameters& param, const NemoCalculationParameters& nemo_param,
 		const Molecule& molecule, const PCMParameters& pcm_param = PCMParameters());
 
+	/// nemo's energy pairs the projected nuclear potential with the exact nuclear repulsion,
+	/// the conventional Coulomb energy: derive both in \p param, and refuse a user's
+	/// nuclear_potential convolution or coulomb_energy smoothed. The constructors call this;
+	/// a workflow calls it as well, to print the parameters nemo will run with.
+	static void set_derived_nuclear_potential(CalculationParameters& param);
+
     std::string name() const {return "nemo";}
     bool selftest() {return false;}
 
