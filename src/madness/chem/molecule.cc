@@ -1114,6 +1114,29 @@ double Molecule::smoothed_density_overlap_energy(double a) const {
   return sum;
 }
 
+double Molecule::smoothed_density_overlap_energy_derivative(double a, size_t i, int axis) const {
+  // with g(r) = erfc(t r)/r, dE_ov/dX_i = sum_{j != i} Z_i Z_j g'(R_ij) (X_i - X_j)/R_ij
+  const double zi = effective_nuclear_charge(i);
+  if (zi == 0.0) return 0.0;
+  const double t = std::sqrt(0.5 * a);
+  double sum = 0.0;
+  for (size_t j = 0; j < atoms.size(); ++j) {
+    if (j == i) continue;
+    const double zj = effective_nuclear_charge(j);
+    if (zj == 0.0) continue;
+    const double r = inter_atomic_distance(i, j);
+    if (t * r > 6.5) continue;   // as smoothed_density_overlap_energy
+    double xx;
+    if (axis == 0) xx = atoms[i].x - atoms[j].x;
+    else if (axis == 1) xx = atoms[i].y - atoms[j].y;
+    else xx = atoms[i].z - atoms[j].z;
+    const double gprime = -2.0 * t / std::sqrt(madness::constants::pi) * std::exp(-t * t * r * r) / r
+                          - std::erfc(t * r) / (r * r);
+    sum += zi * zj * gprime * xx / r;
+  }
+  return sum;
+}
+
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
     // This is very inefficient since it scales as O(ngrid*natom)
     // ... we can easily make an O(natom) version using

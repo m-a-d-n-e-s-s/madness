@@ -506,6 +506,14 @@ public:
 
     tensorT derivatives(World& world, const functionT& rho) const;
 
+    /// the nuclear attraction, repulsion and core-potential terms of derivatives(), from the
+    /// projected derivatives of the nuclear potential
+    tensorT nuclear_derivatives_by_projection(World& world, const functionT& rho) const;
+
+    /// the nuclear attraction and repulsion terms of derivatives() under
+    /// nuclear_potential=convolution: the derivative of E_nn~ + <rho; c - G~ s>, O(natom)
+    tensorT nuclear_derivatives_by_convolution(World& world, const functionT& rho) const;
+
     /// compute the total dipole moment of the molecule
 
     /// @param[in]  rho the total (alpha + beta) density

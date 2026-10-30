@@ -1733,10 +1733,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     return Vpsi;
 }
 
-tensorT SCF::derivatives(World& world, const functionT& rho) const {
-    PROFILE_MEMBER_FUNC(SCF);
-    START_TIMER(world);
-
+/// The nuclear attraction, nuclear repulsion and core-potential terms of derivatives(): the
+/// projected derivative of each atom's nuclear potential against rho. The derivatives are
+/// long-ranged, so each inner product runs over the whole tree of rho: O(natom^2).
+tensorT SCF::nuclear_derivatives_by_projection(World& world, const functionT& rho) const {
     vecfuncT dv(molecule.natom() * 3);
     vecfuncT du = zero_functions<double, 3>(world, molecule.natom() * 3);
     tensorT rc(molecule.natom() * 3);
@@ -1787,8 +1787,74 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
         }
     }
     //if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
+    r += ra + ru + rc;
+    return r;
+}
+
+/// nuclear_potential=convolution: the nuclear attraction and repulsion terms of derivatives() as
+/// the derivative of E_nn~ + <rho; c - G~ s>, the energy SCF::solve reports,
+/// \f[ \frac{dE}{dX_i} = \langle \partial s_i/\partial X_i; \tilde G(s - \rho)\rangle
+///     + \langle \rho; \partial c_i/\partial X_i\rangle + \partial E_{ov}/\partial X_i. \f]
+/// G~(s - rho) is the potential of a neutral density, so the fields of the electrons and of the
+/// other nuclei at nucleus i, which cancel, never appear separately. Every other function is local
+/// to atom i and enters an inner product over its own tree: one convolution plus O(natom), where
+/// the projected derivative costs O(natom^2). All-electron atoms only, as the potential.
+tensorT SCF::nuclear_derivatives_by_convolution(World& world, const functionT& rho) const {
+    const double a = param.smoothed_density_exponent();
+    const functionT& sdens = potentialmanager->smooth_density();
+    MADNESS_CHECK_THROW(sdens.is_initialized() && coulop,
+                        "the nuclear forces of nuclear_potential=convolution need the smoothed density "
+                        "and the Coulomb operator: make_nuclear_potential() first");
+    const size_t natom = molecule.natom();
+    const double nel = rho.trace();    // before the compress below: trace() would undo it
+
+    // f[i].inner_local(g[i]) walks the tree of f[i]: the local functions go first, so each inner
+    // product costs O(1). phi and rho are compressed once here, not by every copy below.
+    functionT phi = apply(*coulop, sdens - rho);
+    phi.compress();
+    rho.compress();
+
+    // in batches of atoms, which bounds the memory the local functions take
+    const size_t batch = 64;
+    tensorT r(long(natom) * 3);
+    for (size_t first = 0; first < natom; first += batch) {
+        const size_t last = std::min(first + batch, natom);
+        const size_t n = (last - first) * 3;
+        vecfuncT ds(n), dc(n);
+        for (size_t atom = first; atom < last; ++atom) {
+            for (int axis = 0; axis < 3; ++axis) {
+                const size_t i = (atom - first) * 3 + axis;
+                ds[i] = functionT(factoryT(world).functor(functorT(
+                        new SmoothedNuclearChargeDerivativeFunctor(molecule, a, atom, axis)))
+                        .nofence().truncate_on_project().truncate_mode(0));
+                dc[i] = functionT(factoryT(world).functor(functorT(
+                        new NuclearPotentialRemainderDerivativeFunctor(molecule, a, atom, axis)))
+                        .nofence().truncate_on_project().truncate_mode(0));
+            }
+        }
+        world.gop.fence();
+        const tensorT rb = inner(world, ds, vecfuncT(n, phi)) + inner(world, dc, vecfuncT(n, rho));
+        for (long i = 0; i < long(n); ++i) r[long(first) * 3 + i] = rb[i];
+    }
+
+    // MolecularDerivativeFunctor adds the field to every atom's derivative; kept, so that the
+    // routes differ in the Coulomb terms only
+    for (size_t atom = 0; atom < natom; ++atom) {
+        for (int axis = 0; axis < 3; ++axis) {
+            r[long(atom) * 3 + axis] += molecule.smoothed_density_overlap_energy_derivative(a, atom, axis)
+                                  + molecule.get_field()[axis] * nel;
+        }
+    }
+    return r;
+}
+
+tensorT SCF::derivatives(World& world, const functionT& rho) const {
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
     // the D3 gradient uses the same [3*atom + axis] layout, in Ha/bohr
-    r += ra + ru + rc + dispersion.gradient(world, molecule);
+    tensorT r = param.nuclear_potential_convolution() ? nuclear_derivatives_by_convolution(world, rho)
+                                                      : nuclear_derivatives_by_projection(world, rho);
+    r += dispersion.gradient(world, molecule);
     END_TIMER(world, "derivatives");
 
     // Not printed while an optimizer is driving: these are the RAW derivatives,

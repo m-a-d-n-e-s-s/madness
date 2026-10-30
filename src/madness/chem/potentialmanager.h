@@ -305,6 +305,110 @@ public:
     std::vector<coord_3d> special_points() const override {return s.centres;}
 };
 
+/// true if the box with opposite corners \p c1 and \p c2 lies outside the sphere of radius \p rcut
+/// around \p centre: the screening of the per-atom functors below. The corners may come in either
+/// order: fcube passes its first and last quadrature points, and MRA's run downwards.
+inline bool box_outside_sphere(const coord_3d& c1, const coord_3d& c2, const coord_3d& centre, double rcut) {
+    double dsq = 0.0;
+    for (int d = 0; d < 3; ++d) {
+        const double lo = std::min(c1[d], c2[d]);
+        const double hi = std::max(c1[d], c2[d]);
+        const double e = std::max({lo - centre[d], centre[d] - hi, 0.0});
+        dsq += e * e;
+    }
+    return dsq >= rcut * rcut;
+}
+
+/// The derivative \f$ \partial s_i/\partial X_i = Z_i (a/\pi)^{3/2}\, 2a\,(x - X_i)\, e^{-a r_i^2} \f$
+/// of one smoothed nuclear charge with respect to coordinate \p axis of its nucleus, cut off as s
+/// (SmoothedNuclearChargeDensityFunctor). It vanishes outside the cutoff sphere and screens those
+/// boxes, so projecting it is O(1). For the nuclear forces of nuclear_potential=convolution.
+class SmoothedNuclearChargeDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    coord_3d centre;
+    double prefactor;    ///< Z_i (a/pi)^{3/2} 2a
+    double a;
+    double rcut;
+    int axis;
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    SmoothedNuclearChargeDerivativeFunctor(const Molecule& molecule, double a, size_t atom, int axis)
+        : centre(molecule.get_atom(atom).get_coords()),
+          prefactor(molecule.effective_nuclear_charge(atom) * std::pow(a / madness::constants::pi, 1.5) * 2.0 * a),
+          a(a), rcut(std::sqrt(18.0 * std::log(10.0) / a)), axis(axis) {}
+
+    double operator()(const coord_3d& x) const override {
+        const double dx = x[0] - centre[0];
+        const double dy = x[1] - centre[1];
+        const double dz = x[2] - centre[2];
+        const double rsq = dx * dx + dy * dy + dz * dz;
+        if (rsq >= rcut * rcut) return 0.0;
+        return prefactor * (x[axis] - centre[axis]) * std::exp(-a * rsq);
+    }
+
+    bool screened(const coord_3d& c1, const coord_3d& c2) const override {
+        return box_outside_sphere(c1, c2, centre, rcut);
+    }
+
+    std::vector<coord_3d> special_points() const override {return {centre};}
+};
+
+/// The derivative of one atom's term \f$ f(r_i) \f$ of the remainder c
+/// (NuclearPotentialRemainderFunctor) with respect to coordinate \p axis of its nucleus,
+/// \f$ -f'(r_i)\,(x - X_i)/r_i \f$, with
+/// \f[ f'(r) = Z_i \left[ \frac{d}{dr}\frac{\mathrm{erf}(\sqrt{a}\,r)}{r} - u'(r/c_i)/c_i^2 \right], \f]
+/// and beyond 7 c_i, where u(x) = 1/x, \f$ f'(r) = Z_i [ 2\sqrt{a/\pi}\, e^{-a r^2}/r +
+/// \mathrm{erfc}(\sqrt{a}\,r)/r^2 ] \f$. Its u' part is that of MolecularDerivativeFunctor. Cut
+/// off and screened like SmoothedNuclearChargeDerivativeFunctor, at the cutoff of c for this atom.
+class NuclearPotentialRemainderDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    coord_3d centre;
+    double z;
+    double rsmooth;      ///< 1/c_i, Molecule::get_rcut()
+    double a;
+    double sqrta;
+    double peak;         ///< 2 sqrt(a/pi)
+    double rcut;
+    int axis;
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    NuclearPotentialRemainderDerivativeFunctor(const Molecule& molecule, double a, size_t atom, int axis)
+        : centre(molecule.get_atom(atom).get_coords()), z(molecule.effective_nuclear_charge(atom)),
+          rsmooth(molecule.get_rcut()[atom]), a(a), sqrta(std::sqrt(a)),
+          peak(2.0 * std::sqrt(a / madness::constants::pi)),
+          rcut(std::max(std::sqrt(18.0 * std::log(10.0) / a), 7.0 / rsmooth)), axis(axis) {}
+
+    double operator()(const coord_3d& x) const override {
+        const double dx = x[0] - centre[0];
+        const double dy = x[1] - centre[1];
+        const double dz = x[2] - centre[2];
+        const double rsq = dx * dx + dy * dy + dz * dz;
+        if (rsq >= rcut * rcut || rsq == 0.0) return 0.0;    // f'(0) = 0
+        const double r = std::sqrt(rsq);
+        double fprime;
+        if (r * rsmooth > 7.0) {
+            fprime = z * (peak * std::exp(-a * rsq) / r + std::erfc(sqrta * r) / rsq);
+        } else {
+            // d/dr erf(sqrt(a) r)/r, by its series where the closed form cancels
+            const double derf = (a * rsq < 1.e-4)
+                ? -2.0 / 3.0 * a * peak * r * (1.0 - 0.6 * a * rsq)
+                : (peak * std::exp(-a * rsq) * r - std::erf(sqrta * r)) / rsq;
+            fprime = z * (derf - dsmoothed_potential(r * rsmooth) * rsmooth * rsmooth);
+        }
+        return -fprime * (x[axis] - centre[axis]) / r;
+    }
+
+    bool screened(const coord_3d& c1, const coord_3d& c2) const override {
+        return box_outside_sphere(c1, c2, centre, rcut);
+    }
+
+    std::vector<coord_3d> special_points() const override {return {centre};}
+};
+
 /**
  * @class CoreOrbitalFunctor
  * @brief Functor for evaluating a core orbital of a specific atom in a molecule.

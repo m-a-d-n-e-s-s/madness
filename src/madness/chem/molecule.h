@@ -575,6 +575,10 @@ class Molecule {
   /// \param a the Gaussian exponent of the smoothed density
   double smoothed_density_overlap_energy(double a) const;
 
+  /// derivative of smoothed_density_overlap_energy with respect to coordinate \p axis of atom
+  /// \p i, for the nuclear forces of nuclear_potential=convolution (SCF::derivatives)
+  double smoothed_density_overlap_energy_derivative(double a, size_t i, int axis) const;
+
   double smallest_length_scale() const;
 
   std::string symmetrize_and_identify_point_group(const double symtol);
