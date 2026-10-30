@@ -64,7 +64,9 @@
   nuclear potential and the nuclear repulsion taken from the same operator as E_ee,
   Vnuc~ = -G s + (Vnuc + u(s)) and E_nn~ = 1/2 <s;G s> - sqrt(a/2pi) sum Z^2 + E_ov.
   Algebraically it equals the smoothed route; numerically it applies G to s and rho
-  separately instead of to s - rho.
+  separately instead of to s - rho. A last line repeats it with c = Vnuc + u(s) projected
+  directly (NuclearPotentialRemainderFunctor, O(natom)), as moldft does with
+  nuclear_potential=convolution, and compares <rho;c> with the two O(natom^2) projections.
 
   Sign convention: all densities below are POSITIVE and the pairing is
       P(f,g) = int int f(r) g(r') / |r-r'|,
@@ -416,8 +418,16 @@ int main(int argc, char** argv) {
         real_function_3d Gs = apply(coulop, sdens);
         const double E_nn_cons = 0.5 * inner(sdens, Gs) - nrep_corr_num + e_ov_num;
         const double E_ne_cons = inner(rho, vnuc + unuc - Gs);   // <rho, Vnuc~>, Vnuc~ = -G s + c
+
+        // the same with c projected directly, O(natom), as moldft builds Vnuc~ with
+        // nuclear_potential=convolution
+        pm.make_nuclear_potential_remainder(world, avalue);
+        const real_function_3d& cnuc = pm.nuclear_potential_remainder();
+        const double c_err = inner(rho, cnuc) - e_n_corr_num;    // <rho;c> - <rho;vnuc+unuc>
+        const double E_ne_cons_c = inner(rho, cnuc - Gs);
         Gs.clear(false);
         const double E_cons_num = E_nn_cons + E_ne_cons + E_ee_num;
+        const double E_cons_c_num = E_nn_cons + E_ne_cons_c + E_ee_num;
 
         // density-independent diagnostics
         const double strace = sdens.trace();
@@ -440,6 +450,8 @@ int main(int argc, char** argv) {
             printf("           %s consistent: d(E_nn~)=%.4e  d(E_ne~)=%.4e  d(E_cons)=%.4e\n",
                    "         ", E_nn_cons - exact.E_nn, E_ne_cons - exact.E_ne,
                    E_cons_num - exact.E_conv);
+            printf("           %s remainder c: <rho;c>-<rho;vnuc+unuc>=%.4e  d(E_cons,c)=%.4e\n",
+                   "         ", c_err, E_cons_c_num - exact.E_conv);
             fflush(stdout);
         }
         world.gop.fence();

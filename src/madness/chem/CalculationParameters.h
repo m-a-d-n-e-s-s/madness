@@ -124,8 +124,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("dispersion_functional","none","functional whose D3 damping parameters to use");
 		initialize<bool> ("dispersion_atm",false,"include the three-body Axilrod-Teller-Muto dispersion term");
 		initialize<bool> ("pure_ae",true,"pure all electron calculation with no pseudo-atoms");
-		initialize<std::string> ("coulomb_energy","smoothed","total Coulomb energy from the neutral sum of the electron density and a Gaussian-smoothed nuclear charge (smoothed), or as E_nn+E_ne+E_ee (conventional, skips all smoothed-density work)",{"smoothed","conventional"});
-		initialize<double> ("smoothed_density_exponent",42.0,"Gaussian exponent a (bohr^-2) of the smoothed nuclear charge density, coulomb_energy=smoothed");
+		initialize<std::string> ("coulomb_energy","smoothed","total Coulomb energy from the neutral sum of the electron density and a Gaussian-smoothed nuclear charge, one more convolution per iteration (smoothed), or as E_nn+E_ne+E_ee (conventional)",{"smoothed","conventional"});
+		initialize<std::string> ("nuclear_potential","projection","nuclear potential projected point by point, O(natom^2) (projection), or as c - G s from the smoothed nuclear charge with the operator of J, O(natom), and the nuclear repulsion from the same operator (convolution; moldft, all-electron only)",{"projection","convolution"});
+		initialize<double> ("smoothed_density_exponent",42.0,"Gaussian exponent a (bohr^-2) of the smoothed nuclear charge density, coulomb_energy=smoothed or nuclear_potential=convolution");
 		initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 		initialize<std::string>  ("molecular_structure","inputfile","where to read the molecule from: inputfile or name from the library");
 
@@ -219,6 +220,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	double lo() const {return get<double>("lo");}
 	bool smoothed_coulomb() const {return get<std::string>("coulomb_energy") == "smoothed";}
+	bool nuclear_potential_convolution() const {return get<std::string>("nuclear_potential") == "convolution";}
 	double smoothed_density_exponent() const {return get<double>("smoothed_density_exponent");}
 	double L() const {return get<double>("l");}
 	int k() const {return get<int>("k");}

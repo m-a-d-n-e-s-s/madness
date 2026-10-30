@@ -488,6 +488,9 @@ class Molecule {
 
   std::vector<double> get_rcut() const { return rcut; }
 
+  /// the external electric field, in the molecule's (possibly rotated) frame
+  const madness::Tensor<double>& get_field() const { return field; }
+
   void set_core_eprec(double value) { core_pot.set_eprec(value); }
 
   void set_core_rcut(double value) { core_pot.set_rcut(value); }

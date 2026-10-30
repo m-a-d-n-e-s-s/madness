@@ -225,9 +225,10 @@ public:
     vecfuncT amo, bmo;
 
     /// smoothed-nuclear-density diagnostics, computed once per protocol level in
-    /// make_smoothed_nuclear_potential() because they do not depend on the electron density
+    /// make_smoothed_nuclear_potential(), or in make_nuclear_potential_by_convolution(), because
+    /// they do not depend on the electron density
     double smoothed_strace = 0.0;        ///< int s = sum_i Z_i
-    double smoothed_ss_projected = 0.0;  ///< <s; u(r;s)> with u projected analytically
+    double smoothed_ss_projected = 0.0;  ///< <s; u(r;s)> with u projected analytically (not with nuclear_potential=convolution)
     double smoothed_ss_numeric = 0.0;    ///< <s; G s>    with the potential convolved
     double smoothed_self_energy = 0.0;   ///< sqrt(a/2pi) sum_i Z_i^2, analytic
     double smoothed_overlap = 0.0;       ///< E_ov = sum_{i<j} Z_i Z_j erfc(sqrt(a/2) R_ij)/R_ij, analytic
@@ -397,6 +398,8 @@ public:
     void project(World& world);
 
     void make_nuclear_potential(World& world);
+
+    void make_nuclear_potential_by_convolution(World& world);
 
     void make_smoothed_nuclear_potential(World& world);
 
@@ -762,7 +765,9 @@ public:
 
                 calc.set_protocol<3>(world, calc.param.protocol()[proto]);
                 calc.make_nuclear_potential(world);
-                if (calc.param.smoothed_coulomb()) {
+                // with nuclear_potential=convolution, make_nuclear_potential() has built s and
+                // c = Vnuc + u(r;s) already, and the smoothed energy needs no u(r;s)
+                if (calc.param.smoothed_coulomb() && !calc.param.nuclear_potential_convolution()) {
                     // the density first: make_smoothed_nuclear_potential() reads it
                     calc.make_smoothed_nuclear_charge_density(world);
                     calc.make_smoothed_nuclear_potential(world);

@@ -117,6 +117,7 @@ struct SmoothedNuclearCharges {
     double a;
     std::vector<coord_3d> centres;
     std::vector<double> charges;
+    std::vector<size_t> atoms;    ///< the index of each centre in the molecule
 
     SmoothedNuclearCharges(const Molecule& molecule, double a) : a(a) {
         MADNESS_CHECK_THROW(a > 0.0, "the exponent of the smoothed nuclear charge density must be positive");
@@ -126,6 +127,48 @@ struct SmoothedNuclearCharges {
             const Atom& atom = molecule.get_atom(i);
             centres.push_back(coord_3d{atom.x, atom.y, atom.z});
             charges.push_back(z);
+            atoms.push_back(i);
+        }
+    }
+};
+
+/// Centres sorted into cubic cells of a given edge. Every centre within one edge length of a
+/// point lies in the point's own cell or in one of the 26 adjacent cells, so summing short-ranged
+/// atomic terms costs O(1) per point, and projecting their sum costs O(natom).
+class NuclearCellList {
+private:
+    using cell_index = std::array<long,3>;
+    struct cell_hash {
+        std::size_t operator()(const cell_index& c) const {
+            const std::hash<long> h;
+            return h(c[0]) ^ (h(c[1]) << 21) ^ (h(c[2]) << 42);
+        }
+    };
+
+    double edge;
+    std::unordered_map<cell_index, std::vector<size_t>, cell_hash> cells;
+
+    cell_index cell_of(const coord_3d& x) const {
+        return {long(std::floor(x[0] / edge)), long(std::floor(x[1] / edge)), long(std::floor(x[2] / edge))};
+    }
+
+public:
+    NuclearCellList(const std::vector<coord_3d>& centres, double edge) : edge(edge) {
+        for (size_t i = 0; i < centres.size(); ++i) cells[cell_of(centres[i])].push_back(i);
+    }
+
+    /// call \p f(i) for every centre i in the cell of \p x and in the 26 adjacent cells
+    template <typename funcT>
+    void for_each_near(const coord_3d& x, funcT&& f) const {
+        const cell_index c = cell_of(x);
+        for (long i = -1; i <= 1; ++i) {
+            for (long j = -1; j <= 1; ++j) {
+                for (long k = -1; k <= 1; ++k) {
+                    const auto it = cells.find(cell_index{c[0] + i, c[1] + j, c[2] + k});
+                    if (it == cells.end()) continue;
+                    for (const size_t icentre : it->second) f(icentre);
+                }
+            }
         }
     }
 };
@@ -164,51 +207,101 @@ public:
 /// projecting s costs O(natom), and Gaussians that overlap in short bonds are summed.
 class SmoothedNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
-    using cell_index = std::array<long,3>;
-    struct cell_hash {
-        std::size_t operator()(const cell_index& c) const {
-            const std::hash<long> h;
-            return h(c[0]) ^ (h(c[1]) << 21) ^ (h(c[2]) << 42);
-        }
-    };
-
     SmoothedNuclearCharges s;
     double norm;    ///< (a/pi)^{3/2}
     double rcut;    ///< exp(-a rcut^2) = 1e-18
-    std::unordered_map<cell_index, std::vector<size_t>, cell_hash> cells;
-
-    cell_index cell_of(const coord_3d& x) const {
-        return {long(std::floor(x[0] / rcut)), long(std::floor(x[1] / rcut)), long(std::floor(x[2] / rcut))};
-    }
+    NuclearCellList near;
 
 public:
     using FunctionFunctorInterface<double,3>::operator();
 
     SmoothedNuclearChargeDensityFunctor(const Molecule& molecule, double a)
         : s(molecule, a), norm(std::pow(a / madness::constants::pi, 1.5)),
-          rcut(std::sqrt(18.0 * std::log(10.0) / a)) {
-        for (size_t i = 0; i < s.centres.size(); ++i) cells[cell_of(s.centres[i])].push_back(i);
-    }
+          rcut(std::sqrt(18.0 * std::log(10.0) / a)), near(s.centres, rcut) {}
 
     double operator()(const coord_3d& x) const override {
-        const cell_index c = cell_of(x);
         const double rcutsq = rcut * rcut;
         double sum = 0.0;
-        for (long i = -1; i <= 1; ++i) {
-            for (long j = -1; j <= 1; ++j) {
-                for (long k = -1; k <= 1; ++k) {
-                    const auto it = cells.find(cell_index{c[0] + i, c[1] + j, c[2] + k});
-                    if (it == cells.end()) continue;
-                    for (const size_t iatom : it->second) {
-                        const double dx = x[0] - s.centres[iatom][0];
-                        const double dy = x[1] - s.centres[iatom][1];
-                        const double dz = x[2] - s.centres[iatom][2];
-                        const double rsq = dx * dx + dy * dy + dz * dz;
-                        if (rsq < rcutsq) sum += s.charges[iatom] * norm * std::exp(-s.a * rsq);
-                    }
-                }
-            }
+        near.for_each_near(x, [&](const size_t iatom) {
+            const double dx = x[0] - s.centres[iatom][0];
+            const double dy = x[1] - s.centres[iatom][1];
+            const double dz = x[2] - s.centres[iatom][2];
+            const double rsq = dx * dx + dy * dy + dz * dz;
+            if (rsq < rcutsq) sum += s.charges[iatom] * norm * std::exp(-s.a * rsq);
+        });
+        return sum;
+    }
+
+    std::vector<coord_3d> special_points() const override {return s.centres;}
+};
+
+/// The local remainder c = Vnuc + u(r;s) of the nuclear potential, so that Vnuc = -G*s + c:
+/// \f[ c(r) = \sum_i Z_i \left[ \mathrm{erf}(\sqrt{a}\,r_i)/r_i - u(r_i/c_i)/c_i \right] + F\cdot r, \f]
+/// with u the smoothed 1/r and c_i the smoothing radius of Molecule::nuclear_attraction_potential,
+/// and F the external field. Beyond 7 c_i, where u(x) = 1/x exactly, a term is
+/// -Z_i erfc(sqrt(a) r_i)/r_i. It is cut off where sqrt(a) r_i > sqrt(18 ln 10), below 1e-19 Z_i,
+/// and a cell list with that edge makes projecting c O(natom).
+///
+/// All-electron atoms only. s carries the effective nuclear charges; an atom whose charge in
+/// Vnuc differs from it (pseudo-atom, core potential, ghost point charge) would leave a
+/// long-ranged term in c, so the constructor refuses it.
+class NuclearPotentialRemainderFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    SmoothedNuclearCharges s;
+    std::vector<double> rsmooth;    ///< 1/c_i of each centre, Molecule::get_rcut()
+    double sqrta;
+    double peak;    ///< the r -> 0 limit of erf(sqrt(a) r)/r, 2 sqrt(a/pi)
+    double rcut;    ///< cutoff radius of every term, and the edge of the cell list
+    NuclearCellList near;
+    coord_3d field;
+
+    static std::vector<double> smoothing_radii(const Molecule& molecule, const SmoothedNuclearCharges& s) {
+        for (size_t i = 0; i < molecule.natom(); ++i) {
+            const Atom& atom = molecule.get_atom(i);
+            MADNESS_CHECK_THROW(!atom.pseudo_atom && atom.q == molecule.effective_nuclear_charge(i),
+                                "the nuclear potential by convolution supports all-electron atoms only "
+                                "(no pseudo-atoms, core potentials or ghost point charges): use "
+                                "nuclear_potential projection");
         }
+        const std::vector<double> rcut_all = molecule.get_rcut();
+        std::vector<double> r;
+        r.reserve(s.atoms.size());
+        for (const size_t i : s.atoms) r.push_back(rcut_all[i]);
+        return r;
+    }
+
+    static double cutoff(double a, const std::vector<double>& rsmooth) {
+        double r = std::sqrt(18.0 * std::log(10.0) / a);
+        for (const double rs : rsmooth) r = std::max(r, 7.0 / rs);
+        return r;
+    }
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    NuclearPotentialRemainderFunctor(const Molecule& molecule, double a)
+        : s(molecule, a), rsmooth(smoothing_radii(molecule, s)), sqrta(std::sqrt(a)),
+          peak(2.0 * std::sqrt(a / madness::constants::pi)), rcut(cutoff(a, rsmooth)),
+          near(s.centres, rcut),
+          field{molecule.get_field()[0], molecule.get_field()[1], molecule.get_field()[2]} {}
+
+    double operator()(const coord_3d& x) const override {
+        const double rcutsq = rcut * rcut;
+        double sum = field[0] * x[0] + field[1] * x[1] + field[2] * x[2];
+        near.for_each_near(x, [&](const size_t i) {
+            const double dx = x[0] - s.centres[i][0];
+            const double dy = x[1] - s.centres[i][1];
+            const double dz = x[2] - s.centres[i][2];
+            const double rsq = dx * dx + dy * dy + dz * dz;
+            if (rsq >= rcutsq) return;
+            const double r = std::sqrt(rsq);
+            if (r * rsmooth[i] > 7.0) {
+                sum -= s.charges[i] * std::erfc(sqrta * r) / r;
+            } else {
+                const double u_s = (r > 0.0) ? std::erf(sqrta * r) / r : peak;
+                sum += s.charges[i] * (u_s - smoothed_potential(r * rsmooth[i]) * rsmooth[i]);
+            }
+        });
         return sum;
     }
 
@@ -515,6 +608,8 @@ Molecule mol;
 real_function_3d vnuc;
 real_function_3d unuc;
 real_function_3d sdens;
+real_function_3d cnuc;          ///< c = Vnuc + u(r;s), the local remainder of the nuclear potential
+double ss_coulomb = 0.0;        ///< <s; G~ s> from make_nuclear_potential_by_convolution
 std::string core_type_;
 
 public:
@@ -539,6 +634,17 @@ public:
 
     const real_function_3d& smooth_density() {
         return sdens;
+    }
+
+    /// c = Vnuc + u(r;s), the local remainder of the nuclear potential (make_nuclear_potential_remainder)
+    const real_function_3d& nuclear_potential_remainder() {
+        return cnuc;
+    }
+
+    /// <s; G~ s>, the convolved part of the consistent nuclear repulsion
+    /// E_nn~ = 1/2 <s; G~ s> - sqrt(a/2pi) sum_i Z_i^2 + E_ov (make_nuclear_potential_by_convolution)
+    double smoothed_density_coulomb() const {
+        return ss_coulomb;
     }
 
     /**
@@ -684,6 +790,34 @@ public:
         sdens.set_thresh(FunctionDefaults<3>::get_thresh());
         sdens.reconstruct();
         //if (world.rank() == 0) print("smooth density trace",sdens.trace());
+    }
+
+    /// project c = Vnuc + u(r;s), the local remainder of the nuclear potential, for the smoothed
+    /// density with exponent \p a: O(natom), all-electron atoms only (NuclearPotentialRemainderFunctor)
+    void make_nuclear_potential_remainder(World& world, double a) {
+        double safety = 0.1;
+        double vtol = FunctionDefaults<3>::get_thresh() * safety;
+        cnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearPotentialRemainderFunctor(mol, a))).thresh(vtol).truncate_on_project();
+        cnuc.set_thresh(FunctionDefaults<3>::get_thresh());
+        cnuc.reconstruct();
+    }
+
+    /// The nuclear potential by convolution of the smoothed nuclear charges, Vnuc~ = c - G~ s, with
+    /// \p G the Coulomb operator the caller's electronic Coulomb potential uses. Replaces the
+    /// O(natom^2) projection of make_nuclear_potential by an O(natom) one and one convolution.
+    /// Needs s and c (make_smoothed_nuclear_charge_density, make_nuclear_potential_remainder).
+    ///
+    /// Vnuc~ carries the operator error of G~ s. Only the consistent nuclear repulsion
+    /// E_nn~ = 1/2 <s; G~ s> - sqrt(a/2pi) sum_i Z_i^2 + E_ov (smoothed_density_coulomb()) cancels
+    /// it, together with the error of the electron repulsion; the analytic E_nn does not.
+    void make_nuclear_potential_by_convolution(const real_convolution_3d& G) {
+        MADNESS_CHECK_THROW(sdens.is_initialized() && cnuc.is_initialized(),
+                            "the nuclear potential by convolution needs the smoothed density and the remainder c");
+        real_function_3d Gs = apply(G, sdens);
+        ss_coulomb = inner(sdens, Gs);
+        vnuc = cnuc - Gs;
+        vnuc.truncate(FunctionDefaults<3>::get_thresh() * 0.1);
+        vnuc.reconstruct();
     }
 };
 }
