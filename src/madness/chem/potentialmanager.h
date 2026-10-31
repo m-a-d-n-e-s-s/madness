@@ -157,6 +157,32 @@ public:
         for (size_t i = 0; i < centres.size(); ++i) cells[cell_of(centres[i])].push_back(i);
     }
 
+    /// the centres within one edge length of the box [lo, hi]: those in the cells the box overlaps
+    /// and in the cells adjacent to them. A small box asks its own cells; a large one, which would
+    /// span more cells than are occupied, walks the occupied cells.
+    std::vector<size_t> near_box(const coord_3d& lo, const coord_3d& hi) const {
+        cell_index a = cell_of(lo), b = cell_of(hi);
+        for (int d = 0; d < 3; ++d) { a[d] -= 1; b[d] += 1; }
+        std::vector<size_t> out;
+        const double ncell = double(b[0] - a[0] + 1) * double(b[1] - a[1] + 1) * double(b[2] - a[2] + 1);
+        if (ncell > double(cells.size())) {
+            for (const auto& [c, list] : cells) {
+                if (c[0] < a[0] || c[0] > b[0] || c[1] < a[1] || c[1] > b[1] || c[2] < a[2] || c[2] > b[2]) continue;
+                out.insert(out.end(), list.begin(), list.end());
+            }
+            return out;
+        }
+        for (long i = a[0]; i <= b[0]; ++i) {
+            for (long j = a[1]; j <= b[1]; ++j) {
+                for (long k = a[2]; k <= b[2]; ++k) {
+                    const auto it = cells.find(cell_index{i, j, k});
+                    if (it != cells.end()) out.insert(out.end(), it->second.begin(), it->second.end());
+                }
+            }
+        }
+        return out;
+    }
+
     /// call \p f(i) for every centre i in the cell of \p x and in the 26 adjacent cells
     template <typename funcT>
     void for_each_near(const coord_3d& x, funcT&& f) const {
@@ -172,6 +198,18 @@ public:
         }
     }
 };
+
+/// the bounding box of the \p npts points (x[p], y[p], z[p]) that fcube evaluates a box at
+inline std::pair<coord_3d, coord_3d> points_box(const Vector<double*,3>& xv, int npts) {
+    coord_3d lo{xv[0][0], xv[1][0], xv[2][0]}, hi = lo;
+    for (int p = 1; p < npts; ++p) {
+        for (int d = 0; d < 3; ++d) {
+            lo[d] = std::min(lo[d], xv[d][p]);
+            hi[d] = std::max(hi[d], xv[d][p]);
+        }
+    }
+    return {lo, hi};
+}
 
 /// Potential \f$ u(r;s) = \sum_i Z_i\,\mathrm{erf}(\sqrt{a}\,r_i)/r_i \f$ of the smoothed nuclear
 /// charge density. Like the nuclear potential, every point sums over all atoms.
@@ -219,17 +257,31 @@ public:
         : s(molecule, a), norm(std::pow(a / madness::constants::pi, 1.5)),
           rcut(std::sqrt(18.0 * std::log(10.0) / a)), near(s.centres, rcut) {}
 
+    double term(const coord_3d& x, const size_t iatom) const {
+        const double dx = x[0] - s.centres[iatom][0];
+        const double dy = x[1] - s.centres[iatom][1];
+        const double dz = x[2] - s.centres[iatom][2];
+        const double rsq = dx * dx + dy * dy + dz * dz;
+        return (rsq < rcut * rcut) ? s.charges[iatom] * norm * std::exp(-s.a * rsq) : 0.0;
+    }
+
     double operator()(const coord_3d& x) const override {
-        const double rcutsq = rcut * rcut;
         double sum = 0.0;
-        near.for_each_near(x, [&](const size_t iatom) {
-            const double dx = x[0] - s.centres[iatom][0];
-            const double dy = x[1] - s.centres[iatom][1];
-            const double dz = x[2] - s.centres[iatom][2];
-            const double rsq = dx * dx + dy * dy + dz * dz;
-            if (rsq < rcutsq) sum += s.charges[iatom] * norm * std::exp(-s.a * rsq);
-        });
+        near.for_each_near(x, [&](const size_t iatom) { sum += term(x, iatom); });
         return sum;
+    }
+
+    /// a box at a time: its candidate centres are looked up once, not at each point
+    bool supports_vectorized() const override {return true;}
+    void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+        const auto [lo, hi] = points_box(xv, npts);
+        const std::vector<size_t> candidates = near.near_box(lo, hi);
+        for (int p = 0; p < npts; ++p) {
+            const coord_3d x{xv[0][p], xv[1][p], xv[2][p]};
+            double sum = 0.0;
+            for (const size_t iatom : candidates) sum += term(x, iatom);
+            fv[p] = sum;
+        }
     }
 
     std::vector<coord_3d> special_points() const override {return s.centres;}
@@ -282,24 +334,35 @@ public:
           near(s.centres, rcut),
           field{molecule.get_field()[0], molecule.get_field()[1], molecule.get_field()[2]} {}
 
+    double term(const coord_3d& x, const size_t i) const {
+        const double dx = x[0] - s.centres[i][0];
+        const double dy = x[1] - s.centres[i][1];
+        const double dz = x[2] - s.centres[i][2];
+        const double rsq = dx * dx + dy * dy + dz * dz;
+        if (rsq >= rcut * rcut) return 0.0;
+        const double r = std::sqrt(rsq);
+        if (r * rsmooth[i] > 7.0) return -s.charges[i] * std::erfc(sqrta * r) / r;
+        const double u_s = (r > 0.0) ? std::erf(sqrta * r) / r : peak;
+        return s.charges[i] * (u_s - smoothed_potential(r * rsmooth[i]) * rsmooth[i]);
+    }
+
     double operator()(const coord_3d& x) const override {
-        const double rcutsq = rcut * rcut;
         double sum = field[0] * x[0] + field[1] * x[1] + field[2] * x[2];
-        near.for_each_near(x, [&](const size_t i) {
-            const double dx = x[0] - s.centres[i][0];
-            const double dy = x[1] - s.centres[i][1];
-            const double dz = x[2] - s.centres[i][2];
-            const double rsq = dx * dx + dy * dy + dz * dz;
-            if (rsq >= rcutsq) return;
-            const double r = std::sqrt(rsq);
-            if (r * rsmooth[i] > 7.0) {
-                sum -= s.charges[i] * std::erfc(sqrta * r) / r;
-            } else {
-                const double u_s = (r > 0.0) ? std::erf(sqrta * r) / r : peak;
-                sum += s.charges[i] * (u_s - smoothed_potential(r * rsmooth[i]) * rsmooth[i]);
-            }
-        });
+        near.for_each_near(x, [&](const size_t i) { sum += term(x, i); });
         return sum;
+    }
+
+    /// a box at a time, as SmoothedNuclearChargeDensityFunctor
+    bool supports_vectorized() const override {return true;}
+    void operator()(const Vector<double*,3>& xv, double* fv, int npts) const override {
+        const auto [lo, hi] = points_box(xv, npts);
+        const std::vector<size_t> candidates = near.near_box(lo, hi);
+        for (int p = 0; p < npts; ++p) {
+            const coord_3d x{xv[0][p], xv[1][p], xv[2][p]};
+            double sum = field[0] * x[0] + field[1] * x[1] + field[2] * x[2];
+            for (const size_t i : candidates) sum += term(x, i);
+            fv[p] = sum;
+        }
     }
 
     std::vector<coord_3d> special_points() const override {return s.centres;}
