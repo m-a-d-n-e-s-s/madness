@@ -6,12 +6,25 @@
   Task 0 : SCF  (model = scf)
   ----------------------------------------------------------------------
     Molecule         : HLi
-    Total energy     :       -8.047395831 Ha        -218.9808 eV
+    Total energy     :       -8.047392458 Ha        -218.9807 eV
     Dispersion (D3)  :       -0.000228965 Ha   (included above)
-    Nuclear gradient :  max |g| = 2.05e-03   rms = 1.01e-03 Ha/bohr
+    Nuclear gradient :  max |g| = 2.06e-03   rms = 1.06e-03 Ha/bohr
     Orbital eps (a)  : -1.8670 -0.1611  (Ha)
     Converged        :  thresh = 0.0001  dconv = 0.0001
     Wall time        :  0.0 s   (1 MPI x 1 threads)
+
+  Citations for external modules
+  ----------------------------------------------------------------------
+    DFT-D3 / simple-dftd3:
+      S. Grimme, J. Antony, S. Ehrlich, H. Krieg,
+      J. Chem. Phys. 132, 154104 (2010). doi:10.1063/1.3382344
+      S. Grimme, S. Ehrlich, L. Goerigk,
+      J. Comput. Chem. 32, 1456 (2011). doi:10.1002/jcc.21759
+    Libxc:
+      M. A. L. Marques, M. J. T. Oliveira, T. Burnus,
+      Comput. Phys. Commun. 183, 2272 (2012). doi:10.1016/j.cpc.2012.05.007
+      S. Lehtola, C. Steigemann, M. J. T. Oliveira, M. A. L. Marques,
+      SoftwareX 7, 1 (2018). doi:10.1016/j.softx.2017.11.002
 
 ======================================================================
 
