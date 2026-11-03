@@ -145,6 +145,41 @@ from _pymadness import (
     numpy_to_tensor,
 )
 
+# Gaussian convolution exp(-mu*r^2) and 2D operators; present only if the extension was
+# built with these bindings (see bind_operators.cpp).
+try:
+    from _pymadness import GaussOperator1D, GaussOperator2D, GaussOperator3D
+    HAVE_GAUSS_OPERATOR = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_GAUSS_OPERATOR = False
+try:
+    from _pymadness import BSHOperator2D, SeparatedConvolution2D
+    HAVE_OPERATORS_2D = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_OPERATORS_2D = False
+try:
+    from _pymadness import apply_gauss_1d
+    HAVE_GAUSS_1D = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_GAUSS_1D = False
+try:
+    from _pymadness import apply_gauss_2d, mul_phase
+    HAVE_GAUSS_2D = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_GAUSS_2D = False
+try:
+    from _pymadness import mul_sparse
+    HAVE_MUL_SPARSE = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_MUL_SPARSE = False
+try:
+    # complex magnetic chain: ComplexFunction3D versions of apply_gauss_1d/2d (same names),
+    # f e^{i theta}, real * complex products, parts and assembly
+    from _pymadness import mul_expi, mul, real, imag, to_complex
+    HAVE_COMPLEX_CHAIN = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_COMPLEX_CHAIN = False
+
 from . import plotting
 
 

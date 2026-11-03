@@ -138,6 +138,10 @@ static void bind_function_type(py::module_& m, const char* name) {
             f.truncate(tol);
         }, py::arg("tol") = 0.0,
            "Truncate small wavelet coefficients (0 = use default threshold)")
+        .def("broaden", [](const FuncT& f) {
+            py::gil_scoped_release release;
+            f.broaden();
+        }, "Refine significant leaves that have a refined neighbor (one level of grading)")
 
         // --- In-place operations ---
         .def("scale", [](FuncT& f, T s) {
@@ -205,6 +209,11 @@ static void bind_function_type(py::module_& m, const char* name) {
             py::gil_scoped_release release;
             return madness::copy(f);
         }, "Create a deep copy of this function")
+
+        .def("set_thresh", [](FuncT& f, double t) {
+            py::gil_scoped_release release;
+            f.set_thresh(t);
+        }, py::arg("thresh"), "Set the truncation threshold stored in this function (e.g. after loading)")
 
         // --- Save / Load ---
         // Use ParallelArchive to match the C++ save()/load() free functions

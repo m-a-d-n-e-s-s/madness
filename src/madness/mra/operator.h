@@ -1304,6 +1304,26 @@ namespace madness {
             return result;
         }
 
+        /// upper bound of the operator norm when applied to one particle only (identity on the other)
+
+        /// norm() estimates the NS block from the difference R - T, which is small for smooth
+        /// kernels at fine levels.  Applied to one particle, the block is R x 1 - T x 1_s, which
+        /// contains T x (1 - 1_s): the identity on the spectator does not decay between levels,
+        /// so the block is as large as T itself.  Bound it by sum_mu |fac_mu| prod_d (|R_d| + |T_d|).
+        double norm_lowdim(Level n, const Key<NDIM>& d, const Key<NDIM>& source_key) const {
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(n, d, source_key);
+            double result=0.0;
+            for (int mu=0; mu<rank; ++mu) {
+                double prod=std::abs(ops[mu].getfac());
+                for (std::size_t dd=0; dd<NDIM; ++dd) {
+                    const ConvolutionData1D<Q>* op1d=op->muops[mu].ops[dd];
+                    prod*=op1d->Rnormf + op1d->Tnormf;
+                }
+                result+=prod;
+            }
+            return result;
+        }
+
         /// return that part of a hi-dim key that serves as the base for displacements of this operator
 
         /// if the function and the operator have the same dimension return key
@@ -1461,6 +1481,90 @@ namespace madness {
         }
 
 
+        /// apply this operator on only 1 particle of coefficients in full rank form
+
+        /// Same as apply2_lowdim, for full tensors (e.g. builds without GenTensor): the coefficients
+        /// are a matrix with the active particle's indices as rows and the spectator's as columns,
+        /// and every column is transformed like one singular vector in apply2_lowdim.  Particle 1
+        /// is the first NDIM dimensions of the function, particle 2 the last NDIM dimensions; the
+        /// spectator is the rest and may have a different dimension (e.g. a 1D operator on a 3D
+        /// function).
+        /// @param[in]  source  the source key in low dimensionality (NDIM)
+        /// @param[in]  shift   the displacement in low dimensionality (NDIM)
+        /// @param[in]  coeff   source coeffs in high dimensionality (FDIM > NDIM), full rank, 2k per dimension
+        /// @param[in]  tol     thresh/(#neigh*cnorm)
+        /// @return     coeff result
+        template<typename T>
+        GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2_lowdim_full(const Key<NDIM>& source,
+                const Key<NDIM>& shift, const Tensor<T>& coeff, double tol) const {
+
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+            MADNESS_ASSERT(not modified());
+            MADNESS_ASSERT(not doleaves);
+            MADNESS_ASSERT(coeff.dim(0)==2*k);
+            const long fdim=coeff.ndim();
+            const long sdim=fdim-NDIM;               // spectator dimensions
+            MADNESS_ASSERT(sdim>0);
+
+            double cpu0=cpu_time();
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+
+            long n1=1, n2=1;                        // k^NDIM, (2k)^NDIM
+            for (std::size_t d=0; d<NDIM; ++d) {n1*=k; n2*=2*k;}
+            long ns=1, ns1=1;                       // (2k)^sdim, k^sdim
+            for (long d=0; d<sdim; ++d) {ns*=2*k; ns1*=k;}
+            const std::vector<Slice> s0_op(NDIM,Slice(0,k-1));
+
+            // rows: active particle, columns: spectator
+            Tensor<T> c=(particle()==1) ? copy(coeff).reshape(n2,ns) : transpose(copy(coeff).reshape(ns,n2));
+
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<resultT> r(n2,ns), r0(n1,ns);
+
+            tol = tol*0.01; // Error is per column, as per singular vector in apply2_lowdim
+
+            ApplyTerms at;
+            at.r_term=true;
+            at.t_term=source.level()>0;
+
+            for (long j=0; j<ns; ++j) {
+                const Tensor<T> chunk=copy(c(_,j)).reshape(v2k);
+                const Tensor<T> chunk0=copy(chunk(s0_op));
+
+                // [(P+Q) G (P+Q)]_1 and [P G P]_1 for this column
+                Tensor<resultT> result(v2k), result0(vk);
+                for (int mu=0; mu<rank; ++mu) {
+                    const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
+                            tol/std::abs(fac), fac, work1, work2);
+                }
+                r(_,j)=result.reshape(n2);
+                r0(_,j)=result0.reshape(n1);
+            }
+
+            // back to the function's index order: (2k)^FDIM and k^FDIM
+            std::vector<long> v2kfull(fdim,2*k), vkfull(fdim,k);
+            Tensor<resultT> final=(particle()==2) ? transpose(r) : r;
+            final=copy(final).reshape(v2kfull);
+
+            if (source.level()>0) {
+                // [P G P]_1 only couples to the scaling part of the spectator
+                std::vector<long> vr0(NDIM,k);
+                for (long d=0; d<sdim; ++d) vr0.push_back(2*k);
+                std::vector<Slice> s_spec(NDIM,_);
+                for (long d=0; d<sdim; ++d) s_spec.push_back(Slice(0,k-1));
+                Tensor<resultT> final0=copy(r0.reshape(vr0)(s_spec)).reshape(n1,ns1);
+                if (particle()==2) final0=transpose(final0);
+                final(std::vector<Slice>(fdim,Slice(0,k-1)))+=final0.reshape(vkfull);
+            }
+
+            timer_low_transf.accumulate(cpu_time()-cpu0);
+            return GenTensor<resultT>(final);
+        }
+
+
         /// apply this operator on only 1 particle of the coefficients in low rank form
 
         /// note the unfortunate mess with NDIM: here NDIM is the operator dimension, and FDIM is the
@@ -1478,6 +1582,8 @@ namespace madness {
                 const Key<NDIM>& shift, const GenTensor<T>& coeff, double tol, double tol2) const {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+            if (coeff.is_full_tensor()) return apply2_lowdim_full(source, shift, coeff.full_tensor(), tol);
 
             // prepare access to the singular vectors
             const SVDTensor<T>& svdcoeff=coeff.get_svdtensor();
