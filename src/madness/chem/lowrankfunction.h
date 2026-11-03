@@ -693,6 +693,9 @@ public:
 
         double result=0.0;
         for (std::size_t ia=0; ia<a.size(); ++ia) {
+            // a[ia](first) reconstructs a non-reconstructed function, which fences: fine from the
+            // main thread, a deadlock from inside a task (e.g. projecting this functor), so
+            // reconstruct a and b before using the functor in FunctionFactory::functor()
             double result1=1.0;
             if (a[ia].is_initialized()) result1*=a[ia](first);
             if (b[ia].is_initialized()) result1*=b[ia](second);

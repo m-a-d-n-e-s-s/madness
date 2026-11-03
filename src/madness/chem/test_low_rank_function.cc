@@ -607,6 +607,9 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
         thresh=FunctionDefaults<LDIM>::get_thresh()*50.0;
         // fresh start
         lrf1=builder.project(functor1,target_thresh);
+        // functor1 evaluates phi pointwise inside the projection tasks; the calls above
+        // left phi compressed, and reconstructing it there would fence inside a task
+        phi.reconstruct();
         fullrank1=FunctionFactory<double,NDIM>(world).functor(functor1);
 
         std::vector<Function<double,LDIM>> arg(3);
