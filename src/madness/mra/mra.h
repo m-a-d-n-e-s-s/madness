@@ -114,31 +114,6 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     struct hartree_leaf_op;
 
-    // ---- composite_dsl forward declarations -----------------------------------------
-    /// Tag identifying which particle (1 or 2) an LDIM function refers to in a DSL
-    /// expression.  Concrete tags `p1`, `p2` below.
-    struct ParticleTag {
-        int idx;
-        constexpr explicit ParticleTag(int i) : idx(i) {}
-        constexpr bool operator==(ParticleTag o) const { return idx == o.idx; }
-        constexpr bool operator!=(ParticleTag o) const { return idx != o.idx; }
-    };
-    /// Pre-declared particle tags.  Use as `f(p1)`, `u(p1, p2)`, etc.
-    inline constexpr ParticleTag p1{1};
-    inline constexpr ParticleTag p2{2};
-
-    /// Tagged LDIM-Function proxy, produced by `Function<T,LDIM>::operator()(ParticleTag)`.
-    template<typename T, std::size_t NDIM_> struct LdimRef;
-    /// Tagged NDIM-Function proxy, produced by `Function<T,NDIM>::operator()(ParticleTag,ParticleTag)`.
-    template<typename T, std::size_t NDIM_> struct NdimRef;
-
-    /// Factory functions used by `Function::operator()`.  Definitions live in
-    /// `composite_dsl.h`; include that header to actually use the DSL.
-    template<typename T, std::size_t NDIM_>
-    LdimRef<T, NDIM_> make_ldim_ref(const Function<T, NDIM_>& f, ParticleTag p);
-    template<typename T, std::size_t NDIM_>
-    NdimRef<T, NDIM_> make_ndim_ref(const Function<T, NDIM_>& f);
-
     template<typename T, std::size_t NDIM, std::size_t LDIM, typename opT>
     struct hartree_convolute_leaf_op;
 
@@ -498,35 +473,6 @@ namespace madness {
             if (NDIM>=5) r[4] = yy;
             if (NDIM>=6) r[5] = zz;
             return (*this)(r);
-        }
-
-        // ---- composite_dsl interface --------------------------------------------------
-        // The two member templates below are templated on a `Tag = ParticleTag` so their
-        // bodies are instantiated lazily (on first call) rather than eagerly with the
-        // explicit Function<T,NDIM> instantiations in mra*.cc.  This lets us
-        // forward-declare LdimRef/NdimRef in mra.h and put the actual definitions in
-        // composite_dsl.h without paying a full-class-instantiation tax.
-        //
-        /// Tag this Function (used as an LDIM operand) as a factor on a particular
-        /// particle.  Used to build composite expressions like `f(p1) * u(p1,p2)`.
-        /// Include `<madness/mra/composite_dsl.h>` to enable evaluation.
-        template <class Tag,
-                  class = std::enable_if_t<std::is_same_v<Tag, ParticleTag>>>
-        LdimRef<T,NDIM> operator()(Tag p) const {
-            return make_ldim_ref<T,NDIM>(*this, p);
-        }
-        /// Tag this Function (used as an NDIM operand) with both particle indices.
-        ///
-        /// Only `(p1, p2)` ordering is supported (matches MADNESS's natural NDIM
-        /// dimension order); a permuted ordering would require an explicit dim swap.
-        template <class Tag1, class Tag2,
-                  class = std::enable_if_t<std::is_same_v<Tag1, ParticleTag> &&
-                                           std::is_same_v<Tag2, ParticleTag>>>
-        NdimRef<T,NDIM> operator()(Tag1 a, Tag2 b) const {
-            MADNESS_CHECK_THROW(a == p1 && b == p2,
-                "Function::operator()(a, b): only (p1, p2) ordering is supported; "
-                "permuted ordering would require an explicit dim-swap.");
-            return make_ndim_ref<T,NDIM>(*this);
         }
 
         /// Throws if function is not initialized.
