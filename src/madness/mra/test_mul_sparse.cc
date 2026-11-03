@@ -549,6 +549,168 @@ int test_compress_clears_snorm(World& world, std::vector<operand_pair>& pairs) {
     return t.end();
 }
 
+/// number of nodes of scaled whose norms are not |q| times those of orig, or
+/// whose dnorm_tree is uncomputed; orig and scaled share a tree
+static long nodes_with_unscaled_norms(World& world, const Function<double,D>& orig,
+                                      const Function<double,D>& scaled, double q) {
+    auto agrees = [q](double s, double o) {
+        return std::abs(s - std::abs(q)*o) <= 1.e-14 * std::abs(q)*o;
+    };
+    long bad = 0;
+    const auto& oc = orig.get_impl()->get_coeffs();
+    const auto& sc = scaled.get_impl()->get_coeffs();
+    for (auto it = sc.begin(); it != sc.end(); ++it) {
+        const auto& onode = oc.find(it->first).get()->second;
+        const auto& snode = it->second;
+        if (snode.get_dnorm_tree() >= NORM_TREE_UNCOMPUTED
+            or not agrees(snode.get_norm_tree(),  onode.get_norm_tree())
+            or not agrees(snode.get_dnorm_tree(), onode.get_dnorm_tree())
+            or not agrees(snode.get_snorm(),      onode.get_snorm())
+            or not agrees(snode.get_dnorm(),      onode.get_dnorm())) ++bad;
+    }
+    world.gop.sum(bad);
+    return bad;
+}
+
+/// number of nodes where exactly one of orig and scaled carries the
+/// norm_tree == -1.0 broadened marker; orig and scaled share a tree
+static long nodes_with_moved_marker(World& world, const Function<double,D>& orig,
+                                    const Function<double,D>& scaled) {
+    long moved = 0;
+    const auto& oc = orig.get_impl()->get_coeffs();
+    const auto& sc = scaled.get_impl()->get_coeffs();
+    for (auto it = sc.begin(); it != sc.end(); ++it) {
+        const auto& onode = oc.find(it->first).get()->second;
+        const auto& snode = it->second;
+        if ((snode.get_norm_tree() == -1.0) != (onode.get_norm_tree() == -1.0)) ++moved;
+    }
+    world.gop.sum(moved);
+    return moved;
+}
+
+/// number of nodes carrying the norm_tree == -1.0 broadened marker
+static long nodes_with_marker(World& world, const Function<double,D>& f) {
+    long marked = 0;
+    for (const auto& datum : f.get_impl()->get_coeffs()) {
+        if (datum.second.get_norm_tree() == -1.0) ++marked;
+    }
+    world.gop.sum(marked);
+    return marked;
+}
+
+/// ||mul_sparse(qf, g, tol) - ref||, or 1e300 if the kernel throws
+static double sparse_product_error(World& world, const Function<double,D>& qf,
+                                   const Function<double,D>& g,
+                                   const Function<double,D>& ref, double tol,
+                                   const std::string& tag) {
+    double err = 1.e300;
+    try {
+        Function<double,D> prod = mul_sparse(qf, g, tol);
+        err = (prod - ref).norm2();
+    } catch (const MadnessException& e) {
+        if (world.rank() == 0) printf("  %s mul_sparse threw: %s\n", tag.c_str(), e.what());
+    }
+    return err;
+}
+
+/// T12: q*f copies f's tree state, so a scaled copy of a redundant function is
+/// redundant too, and mul_sparse() takes that label at its word and skips
+/// make_redundant(). The copy therefore has to carry the norms the screen reads,
+/// scaled by |q|; with them left uncomputed the kernel's redundant-form check
+/// fires on the scaled operand.
+int test_scaled_redundant_operand(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T12: a scaled redundant function keeps its norms");
+    t.set_do_print(world.rank() == 0);
+
+    const operand_pair& p = pairs.front();
+    Function<double,D> f = copy(p.f);
+    Function<double,D> g = copy(p.g);
+    f.make_redundant(true);
+
+    for (const double q : {-1.0, 2.5}) {
+        Function<double,D> qf = q*f;
+        t.checkpoint(qf.get_impl()->get_tree_state() == redundant,
+                     "T12 q*f inherits the redundant state, q=" + std::to_string(q));
+
+        const long bad = nodes_with_unscaled_norms(world, f, qf, q);
+        if (world.rank() == 0)
+            printf("  T12 q=%4.1f  %ld nodes with norms that are not |q| times f's\n", q, bad);
+        t.checkpoint(bad == 0, "T12 q*f carries |q| times f's norms, q=" + std::to_string(q));
+
+        // the scaled copy goes straight into the kernel
+        const double err = sparse_product_error(world, qf, g, q*p.fg, 1.e-6, "T12");
+        if (world.rank() == 0) printf("  T12 q=%4.1f  err %.3e\n", q, err);
+        t.checkpoint(err, C_MAX * 1.e-6, "T12 mul_sparse(q*f, g), q=" + std::to_string(q));
+    }
+    return t.end();
+}
+
+/// T13: f.scale(q) scales in place and keeps the tree state, so the node norms
+/// have to follow the coefficients. Left alone they stay computed but wrong by
+/// |q|: the kernel's check passes, and the screen silently judges the product
+/// against norms |q| times too small or too large.
+int test_scale_inplace_norms(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T13: in-place scaling scales the norms");
+    t.set_do_print(world.rank() == 0);
+
+    const operand_pair& p = pairs.front();
+    Function<double,D> f = copy(p.f);
+    Function<double,D> g = copy(p.g);
+    f.make_redundant(true);
+
+    for (const double q : {-1.0, 2.5}) {
+        // copy() keeps both the tree state and the norms of f
+        Function<double,D> qf = copy(f);
+        qf.scale(q);
+        t.checkpoint(qf.get_impl()->get_tree_state() == redundant,
+                     "T13 f.scale(q) keeps the redundant state, q=" + std::to_string(q));
+
+        const long bad = nodes_with_unscaled_norms(world, f, qf, q);
+        if (world.rank() == 0)
+            printf("  T13 q=%4.1f  %ld nodes with norms that are not |q| times f's\n", q, bad);
+        t.checkpoint(bad == 0, "T13 f.scale(q) scales the norms by |q|, q=" + std::to_string(q));
+
+        const double err = sparse_product_error(world, qf, g, q*p.fg, 1.e-6, "T13");
+        if (world.rank() == 0) printf("  T13 q=%4.1f  err %.3e\n", q, err);
+        t.checkpoint(err, C_MAX * 1.e-6, "T13 mul_sparse(f.scale(q), g), q=" + std::to_string(q));
+    }
+    return t.end();
+}
+
+/// T14: broaden and refine_op mark handled nodes with norm_tree == -1.0,
+/// and a later broaden skips those nodes by exact comparison. Scaling must
+/// preserve the marker or broadening can repeat before norms are recomputed.
+int test_scale_preserves_broaden_marker(World& world, std::vector<operand_pair>& pairs) {
+    test_output t("mul_sparse T14: scaling preserves the broadened marker");
+    t.set_do_print(world.rank() == 0);
+
+    Function<double,D> f = copy(pairs.front().f);
+    f.broaden(FunctionDefaults<D>::get_bc(), false);
+    world.gop.fence();
+
+    const long marked = nodes_with_marker(world, f);
+    if (world.rank() == 0) printf("  T14 %ld nodes carry the broadened marker\n", marked);
+    t.checkpoint(marked > 0, "T14 broaden(false) leaves markers to preserve");
+
+    for (const double q : {0.0, 2.5}) {
+        Function<double,D> qf = q*f;
+        long moved = nodes_with_moved_marker(world, f, qf);
+        if (world.rank() == 0)
+            printf("  T14 q=%4.1f  q*f moved %ld broadened markers\n", q, moved);
+        t.checkpoint(moved == 0,
+                     "T14 q*f preserves broadened markers, q=" + std::to_string(q));
+
+        qf = copy(f);
+        qf.scale(q);
+        moved = nodes_with_moved_marker(world, f, qf);
+        if (world.rank() == 0)
+            printf("  T14 q=%4.1f  f.scale(q) moved %ld broadened markers\n", q, moved);
+        t.checkpoint(moved == 0,
+                     "T14 f.scale(q) preserves broadened markers, q=" + std::to_string(q));
+    }
+    return t.end();
+}
+
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
@@ -574,6 +736,9 @@ int main(int argc, char** argv) {
         success += test_empty_vector_norms(world);
         success += test_norms_preserve_tree_state(world, pairs);
         success += test_compress_clears_snorm(world, pairs);
+        success += test_scaled_redundant_operand(world, pairs);
+        success += test_scale_inplace_norms(world, pairs);
+        success += test_scale_preserves_broaden_marker(world, pairs);
     }
 
     world.gop.fence();

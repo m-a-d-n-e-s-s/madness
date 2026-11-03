@@ -39,15 +39,29 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 namespace madness {
+
+    /// Whether two squared real-space distances of displacements (see Key::real_distsq, Key::real_distsq_bc)
+    /// belong to the same shell.
+
+    /// The distances are sums of (cell width * lattice offset)^2, so equivalent displacements (e.g. {3,2,2} and
+    /// {2,2,3} in an (a,b,a) cell) can differ by a few ulps from summation order alone, whereas distinct shells
+    /// differ by many orders of magnitude more than that. The test is purely relative, so the grouping does not
+    /// depend on the units or the size of the cell. Zero (a displacement touching the central box) is exact and
+    /// only matches zero.
+    inline bool same_displacement_shell(double a, double b) {
+        return a == b || std::abs(a - b) <= 1e-10 * std::max(std::abs(a), std::abs(b));
+    }
 
     // How should we treat destinations "extra" to the [0, 2^n) standard domain?
     enum class ExtraDomainPolicy {
@@ -66,14 +80,41 @@ namespace madness {
     class Displacements {
 
         inline static std::vector< Key<NDIM> > disp = {}; ///< standard displacements to be used with standard kernels (range-unrestricted, no lattice sum)
-        inline static array_of_bools<NDIM> periodic_axes{false};  ///< along which axes lattice summation is performed?
-        inline static std::array<std::vector< Key<NDIM>>, 64 > disp_periodic{};  ///< displacements to be used with lattice-summed kernels
         inline static Tensor<double> widths{NDIM}; ///< cell width, used to order displacements from least to most real space distance
+        inline static std::array<int, NDIM> bmax_used{};  ///< the per-axis reach the current lists were built with (see bmax_axes)
+
+        /// the displacements for kernels lattice-summed along one set of axes, per level, in the two orders consumers use
+        struct PeriodicLists {
+            array_of_bools<NDIM> axes;                                       ///< the lattice-summed axes
+            std::array<std::vector< Key<NDIM>>, 64 > by_distance{};         ///< ordered by Key::real_distsq_bc, for kernels that decay away from the source
+            std::array<std::vector< Key<NDIM>>, 64 > by_image_distance{};   ///< ordered by Key::real_distsq_images, for rest-of-crystal kernels (OperatorInfo::images_only)
+            std::atomic<bool> images_built{false};                           ///< by_image_distance is filled on first request (get_disp_images)
+            explicit PeriodicLists(const array_of_bools<NDIM>& a) : axes(a) {}
+        };
+        /// the lists for each set of lattice-summed axes, indexed by the axes' bitmask; a slot is filled on the first
+        /// request for its axes (see periodic()) and published through the atomic once complete, so lookups take no lock.
+        /// Sorting the lists with the metric of the axes they are requested for is what makes the shell-wise screening
+        /// of FunctionImpl::do_apply sound: a list sorted for a superset of the kernel's axes would place a displacement
+        /// wrapped along an axis the kernel does not sum next to the source, where for that kernel it is a cell away.
+        /// A set holds every level's list in each order it was asked for (for NDIM = 3 up to (4 bmax + 1)^3 keys per
+        /// level, some ten MB per order), so a process that uses operators summed along several different axis sets
+        /// pays that per set; before, one set served them all.
+        inline static std::array<std::atomic<PeriodicLists*>, (std::size_t(1) << NDIM)> periodic_lists{};
+        inline static std::vector<std::unique_ptr<PeriodicLists>> periodic_lists_owner{};  ///< owns what periodic_lists points to
+        inline static Mutex periodic_lists_mutex{};  ///< serializes building the lists and set_width()
+        static constexpr Level nlevels = 8 * sizeof(Translation) - 2;  ///< levels for which lists are built
+
+        static std::size_t axes_mask(const array_of_bools<NDIM>& axes) {
+            std::size_t mask = 0;
+            for (std::size_t d = 0; d < NDIM; ++d) if (axes[d]) mask |= std::size_t(1) << d;
+            return mask;
+        }
 
     public:
         static int bmax_default() {
-            // Numbers determined by trial and error. The entire idea of bmax is non-adaptive,
-            // and the decision to have bmax be isotropic is only valid for hypercubes.
+            // Numbers determined by trial and error. The entire idea of bmax is non-adaptive: it caps |l_d|
+            // for the displacements l that FunctionImpl::do_apply visits at each level whatever the kernel.
+            // The bound is isotropic in *real space*, see bmax_axes() for the per-axis values in a non-cubic cell.
             int bmax;
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
@@ -85,132 +126,207 @@ namespace madness {
             return bmax;
         }
 
-    private:
-        static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq(widths);
-            const auto b_width = b.real_distsq(widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq() < b.distsq();
-            else return a_width < b_width;
+        /// The bound on |l_d| for the displacements l that do_apply visits at level n, per axis
+
+        /// The blocks of the non-standard form decay with the real-space distance l_d h_d, so a narrow
+        /// axis needs more boxes to reach the same decay as a wide one: a fit term unresolved on the long
+        /// axis (which is what makes the operator act on it at level n) is smooth across the boxes of a
+        /// short axis, where its block falls off only as exp(-a (l h)^2). Hence
+        /// bmax_d = ceil(bmax_default * w_max / w_d): bmax_default on every axis of a cube, (4, 4, 23) in
+        /// a 100x100x18 cell, where an isotropic 4 leaves the Coulomb potential of a neutral chain 1.3e-4
+        /// off the analytic result at eps 1e-6 (1e-5 with the per-axis bound). The extra displacements
+        /// are only norm-checked: for a decaying kernel the shell-wise stop in do_apply ends the loop at
+        /// the same real distance as before.
+        ///
+        /// Cost: the lists hold prod_d (2 bmax_d + 1) keys (up to 2x more per lattice-summed axis), the
+        /// periodic ones for every level, so they grow with the aspect ratio along every *short* axis.
+        /// Measured in 3D with two short periodic axes and a 100-bohr free one: 18x18x100 -> 4.4e6 keys,
+        /// 170 MB, 0.9 s to build; 5x5x100 -> 5.1e7 keys, 1.9 GB, 13 s, paid on every set_cell that
+        /// changes the shape. Nothing limits the reach beyond the overflow guard below: the boxes past
+        /// the shell stop are never visited, but how to drop them safely is not known (a Dirac solver
+        /// resolving the nuclei refines to level ~30 where the kernel is local on every axis). In 6D the
+        /// standard list alone would hold (2 bmax_d + 1)^6 keys, 7e7 for a 5.6:1 cell, so non-cubic
+        /// cells are not practical there (and 6D is not used in periodic settings).
+        static std::array<int, NDIM> bmax_axes() {
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+          std::array<int, NDIM> b;
+          const int b0 = bmax_default();
+          double wmax = 0;
+          for (std::size_t d = 0; d != NDIM; ++d) wmax = std::max(wmax, widths(long(d)));
+          for (std::size_t d = 0; d != NDIM; ++d) {
+            const double w = widths(long(d));
+            const double ratio = (w <= 0 || wmax <= 0) ? 1.0 : wmax / w;
+            // the reach must stay far from the int range: list sizes and 2*bmax+1 are computed in int/long
+            MADNESS_CHECK_THROW(b0 * ratio < double(1 << 24),
+                                "Displacements::bmax_axes: cell aspect ratio too large, the displacement reach would overflow");
+            // 1e-12 absorbs the roundoff of wmax / w, so an integer ratio (1 in a cube) is not rounded up
+            b[d] = int(std::ceil(b0 * ratio - 1e-12));
+          }
+          return b;
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
-        static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-            const auto a_width = a.real_distsq_bc(periodic_axes, widths);
-            const auto b_width = b.real_distsq_bc(periodic_axes, widths);
-            if (a_width == 0 and a_width == b_width) return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
-            else return a_width < b_width;
+        /// the per-axis reach (in boxes) of the standard displacement lists, see bmax_axes()
+
+        /// the reach the lists were built with; if none was built yet, the reach they will be built with
+        static std::array<int, NDIM> bmax_current() { return disp.empty() ? bmax_axes() : bmax_used; }
+
+        // Represents a displacement paired with its precomputed distance metrics.
+        // Precomputing the distances gives every displacement a single value, so the comparison is a strict
+        // weak ordering even if the compiler evaluates real_distsq differently at different call sites
+        // (FMA contraction, reassociation); recomputing it inside the comparator made std::sort UB.
+        // N.B. the order is exact, not soft: equivalent displacements whose distances differ by rounding are
+        // ordered by that rounding rather than by the tie-breakers. That is harmless, since any shell is still
+        // contiguous (distinct shells are far apart compared to rounding), and consumers group displacements
+        // into shells with same_displacement_shell; only the zero shell, whose distance is exact, is ordered
+        // within by distsq, and consumers rely on that. center_distsq orders within equal (real_distsq, distsq)
+        // and never crosses a shell; it is zero unless the sorter sets it.
+        struct DispEntry {
+            Key<NDIM> key;
+            double real_distsq = 0;
+            uint64_t distsq = 0;
+            double center_distsq = 0;
+
+            bool operator<(const DispEntry& other) const {
+                if (real_distsq != other.real_distsq) return real_distsq < other.real_distsq;
+                if (distsq != other.distsq) return distsq < other.distsq;
+                if (center_distsq != other.center_distsq) return center_distsq < other.center_distsq;
+                return key.translation() < other.key.translation();
+            }
+        };
+
+        static void sort_displacements(std::vector<Key<NDIM>>& d, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq(w), k.distsq()});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
         }
 
-        static void make_disp(int bmax) {
-            // Note newer loop structure in make_disp_periodic_sum
-            Vector<Translation,NDIM> d(0);
-
-            int num = 1;
-            for (std::size_t i=0; i<NDIM; ++i) num *= (2*bmax + 1);
-            disp.resize(num,Key<NDIM>(0));
-
-            num = 0;
-            if (NDIM == 1) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    disp[num++] = Key<NDIM>(0,d);
+        static void sort_displacements_periodic(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq_bc(paxes, w), k.distsq_bc(paxes)});
             }
-            else if (NDIM == 2) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
-                        disp[num++] = Key<NDIM>(0,d);
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
             }
-            else if (NDIM == 3) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
-                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
-                            disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 4) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
-                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
-                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
-                                disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 5) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
-                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
-                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
-                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
-
-                                    disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 6) {
-                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
-                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
-                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
-                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
-                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
-                                    for (d[5]=-bmax; d[5]<=bmax; ++d[5])
-                                        disp[num++] = Key<NDIM>(0,d);
-            }
-            else {
-                MADNESS_EXCEPTION("make_disp: hard dimension loop",NDIM);
-            }
-
-            std::sort(disp.begin(), disp.end(), cmp_keys);
         }
 
-        static void make_disp_periodic(int bmax, Level n) {
+        /// orders by the distance to the nearest non-home image: least distance between the boxes, then boxes,
+        /// then the distance between the box centers. The last breaks the tie among the displacements one box
+        /// from an image, which are all at least distance 0: the narrowest summed axis comes first, and its block
+        /// is the operator's largest (SeparatedConvolution::norm_bound visits the leading image-adjacent run).
+        static void sort_displacements_images(std::vector<Key<NDIM>>& d, const array_of_bools<NDIM>& paxes, const Tensor<double>& w) {
+            std::vector<DispEntry> entries;
+            entries.reserve(d.size());
+            for (const auto& k : d) {
+                entries.push_back({k, k.real_distsq_images(paxes, w), k.distsq_images(paxes), k.real_distsq_images_centers(paxes, w)});
+            }
+            std::sort(entries.begin(), entries.end());
+            for (std::size_t i = 0; i < d.size(); ++i) {
+                d[i] = entries[i].key;
+            }
+        }
+
+        static void make_disp(const std::array<int, NDIM>& bmax) {
+            Vector<long, NDIM> lim;
+            for (std::size_t i = 0; i != NDIM; ++i) lim[i] = 2*bmax[i] + 1;
+            disp.clear();
+            for (IndexIterator index(lim); index; ++index) {
+                Vector<Translation, NDIM> d;
+                for (std::size_t i = 0; i != NDIM; ++i) d[i] = Translation(index[i]) - bmax[i];
+                disp.push_back(Key<NDIM>(0, d));
+            }
+            sort_displacements(disp, widths);
+        }
+
+        /// fills lists.by_distance[n] for lists.axes
+        static void make_disp_periodic(const std::array<int, NDIM>& bmax_in, Level n, PeriodicLists& lists) {
+            const array_of_bools<NDIM>& periodic_axes = lists.axes;
             MADNESS_ASSERT(periodic_axes.any());  // else use make_disp
             Translation twon = Translation(1)<<n;
 
-            if (bmax > (twon-1)) bmax=twon-1;
-
-            // Make permissible 1D translations, periodic and nonperiodic (for mixed BC)
-            std::vector<Translation> bp(4*bmax+1);
-            std::vector<Translation> bnp(2*bmax+1);
-            int ip=0;
-            int inp=0;
-            for (Translation lx=-bmax; lx<=bmax; ++lx) {
-                bp[ip++] = lx;
-                if ((lx < 0) && (lx+twon > bmax)) bp[ip++] = lx + twon;
-                if ((lx > 0) && (lx-twon <-bmax)) bp[ip++] = lx - twon;
-                bnp[inp++] = lx;
+            // Make permissible 1D translations per axis, periodic (with the wrapped images of the
+            // near displacements) and nonperiodic (for mixed BC)
+            std::array<std::vector<Translation>, NDIM> b1d;
+            for (std::size_t i = 0; i != NDIM; ++i) {
+                Translation bmax = bmax_in[i];
+                if (bmax > (twon-1)) bmax = twon-1;
+                for (Translation lx=-bmax; lx<=bmax; ++lx) {
+                    b1d[i].push_back(lx);
+                    if (periodic_axes[i]) {
+                        if ((lx < 0) && (lx+twon > bmax)) b1d[i].push_back(lx + twon);
+                        if ((lx > 0) && (lx-twon <-bmax)) b1d[i].push_back(lx - twon);
+                    }
+                }
             }
-            MADNESS_ASSERT(ip <= 4*bmax+1);
-            MADNESS_ASSERT(inp <= 2*bmax+1);
-            const int nbp = ip;
-            const int nbnp = inp;
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            disp_periodic[n] = std::vector< Key<NDIM> >();
+            std::vector< Key<NDIM> >& disp_periodic = lists.by_distance[n];
+            disp_periodic = std::vector< Key<NDIM> >();
             Vector<long,NDIM> lim;
-            for(size_t i=0; i!=NDIM; ++i) {
-              lim[i] = periodic_axes[i] ? nbp : nbnp;
-            }
+            for(size_t i=0; i!=NDIM; ++i) lim[i] = b1d[i].size();
             for (IndexIterator index(lim); index; ++index) {
                 Vector<Translation,NDIM> d;
-                for (std::size_t i=0; i<NDIM; ++i) {
-                  d[i] = periodic_axes[i] ? bp[index[i]] : bnp[index[i]];
-                }
-                disp_periodic[n].push_back(Key<NDIM>(n,d));
+                for (std::size_t i=0; i<NDIM; ++i) d[i] = b1d[i][index[i]];
+                disp_periodic.push_back(Key<NDIM>(n,d));
             }
 
-            std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+            sort_displacements_periodic(disp_periodic, periodic_axes, widths);
 //             print("KEYS AT LEVEL", n);
-//             print(disp_periodic[n]);
+//             print(disp_periodic);
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)
 
         }
 
+        /// the lists for kernels lattice-summed along \p axes, built on the first request
+        static PeriodicLists& periodic(const array_of_bools<NDIM>& axes) {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+            MADNESS_CHECK_THROW(axes.any(), "Displacements::periodic: no lattice-summed axis");
+            auto& slot = periodic_lists[axes_mask(axes)];
+            if (auto p = slot.load(std::memory_order_acquire)) return *p;
+            ScopedMutex<Mutex> lock(&periodic_lists_mutex);
+            if (auto p = slot.load(std::memory_order_acquire)) return *p;
+            MADNESS_CHECK_THROW(NDIM <= 3, "Displacements: lattice-summed displacements are supported for NDIM <= 3 only");
+            if (disp.empty()) { bmax_used = bmax_axes(); make_disp(bmax_used); }  // the reach the lists share
+            auto lists = std::make_unique<PeriodicLists>(axes);
+            for (Level n = 0; n < nlevels; ++n)
+                make_disp_periodic(bmax_used, n, *lists);
+            PeriodicLists* p = lists.get();
+            periodic_lists_owner.push_back(std::move(lists));
+            slot.store(p, std::memory_order_release);
+            return *p;
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
+
+        /// fills lists.by_image_distance (requires the lock)
+        static void make_disp_images(PeriodicLists& lists) {
+            for (Level n = 0; n < nlevels; ++n) {
+                lists.by_image_distance[n] = lists.by_distance[n];
+                sort_displacements_images(lists.by_image_distance[n], lists.axes, widths);
+            }
+        }
+
 
     public:
-        /// first time this is called displacements are generated.
-        /// if boundary conditions are not periodic, the periodic displacements
-        /// are generated for all axes. This allows to support application of
-        /// operators with boundary conditions periodic along any axis (including all).
-        /// If need to use periodic boundary conditions
-        /// for some axes only, make sure to set the boundary conditions appropriately
-        /// before the first call to this
+        /// The first call generates the standard displacements and, if the default boundary conditions
+        /// have periodic axes, the displacements for kernels lattice-summed along those axes. Lists for
+        /// any other set of lattice-summed axes are built on their first request (get_disp,
+        /// get_disp_images), which SeparatedConvolution makes when it is constructed.
         Displacements() {
           MADNESS_PRAGMA_CLANG(diagnostic push)
           MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -218,41 +334,55 @@ namespace madness {
           if (widths.normf() < 1e-8) widths = 1;
 
           if (disp.empty()) {
-                make_disp(bmax_default());
+                bmax_used = bmax_axes();
+                make_disp(bmax_used);
           }
 
           if constexpr (NDIM <= 3) {
-            if (disp_periodic[0].empty()) {  // if not initialized yet
-              if (FunctionDefaults<NDIM>::get_bc().is_periodic().any())
-                reset_periodic_axes(
-                    FunctionDefaults<NDIM>::get_bc().is_periodic());
-              else
-                reset_periodic_axes(array_of_bools<NDIM>{true});
-            }
+            const auto bc_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
+            if (bc_axes.any()) periodic(bc_axes);
           }
 
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// the displacements for a kernel lattice-summed along \p kernel_lattice_sum_axes (the standard
+        /// displacements if none), ordered by the real-space distance to the source modulo the lattice
+        /// (Key::real_distsq_bc), as FunctionImpl::do_apply screens a kernel that decays away from the source
         const std::vector< Key<NDIM> >& get_disp(Level n,
                                                  const array_of_bools<NDIM>& kernel_lattice_sum_axes) {
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
             if (kernel_lattice_sum_axes.any()) {
-                MADNESS_ASSERT(NDIM <= 3);
-                MADNESS_ASSERT(n < disp_periodic.size());
-                if ((kernel_lattice_sum_axes && periodic_axes) != kernel_lattice_sum_axes) {
-                  std::string msg =
-                      "Displacements<" + std::to_string(NDIM) +
-                      ">::get_disp(level, kernel_lattice_sum_axes): kernel_lattice_sum_axes is set for some axes that were not periodic in the FunctionDefault's boundary conditions active at the time when Displacements were initialized; invoke Displacements<NDIM>::reset_periodic_axes(kernel_lattice_sum_axes) to rebuild the periodic displacements";
-                  MADNESS_EXCEPTION(msg.c_str(), 1);
-                }
-                return disp_periodic[n];
+                MADNESS_CHECK(n >= 0 && n < nlevels);
+                return periodic(kernel_lattice_sum_axes).by_distance[n];
             }
             else {
                 return disp;
             }
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
+
+        /// the displacements of get_disp(n, kernel_lattice_sum_axes) ordered by the distance to the nearest
+        /// lattice image other than the home cell (Key::real_distsq_images), for kernels that sum only those
+        /// images (OperatorInfo::images_only); built on the first request for these axes
+        const std::vector< Key<NDIM> >& get_disp_images(Level n,
+                                                        const array_of_bools<NDIM>& kernel_lattice_sum_axes) {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+            MADNESS_CHECK(n >= 0 && n < nlevels);
+            PeriodicLists& lists = periodic(kernel_lattice_sum_axes);
+            if (!lists.images_built.load(std::memory_order_acquire)) {
+                ScopedMutex<Mutex> lock(&periodic_lists_mutex);
+                if (!lists.images_built.load(std::memory_order_acquire)) {
+                    make_disp_images(lists);
+                    lists.images_built.store(true, std::memory_order_release);
+                }
+            }
+            return lists.by_image_distance[n];
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
@@ -267,31 +397,25 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
-        /// rebuilds periodic displacements so that they are optimal for the given set of periodic axes
+        /// builds the displacements for kernels lattice-summed along \p periodic_axes if they do not exist yet
 
-        /// this must be done while no references to prior periodic displacements are outstanding (i.e. no operator application
-        /// tasks in flight)
-        /// \param new_periodic_axes the new periodic axes
-        static void reset_periodic_axes(const array_of_bools<NDIM>& new_periodic_axes) {
-          MADNESS_PRAGMA_CLANG(diagnostic push)
-          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
-
-          MADNESS_ASSERT(new_periodic_axes.any());  // else why call this?
-          if (new_periodic_axes != periodic_axes) {
-
-            periodic_axes = new_periodic_axes;
-            Level nmax = 8 * sizeof(Translation) - 2;
-            for (Level n = 0; n < nmax; ++n)
-              make_disp_periodic(bmax_default(), n);
-          }
-          MADNESS_PRAGMA_CLANG(diagnostic pop)
+        /// Lists are built per set of lattice-summed axes on first request, so this is not needed for
+        /// correctness; it moves the build (all levels, a few tens of milliseconds) out of the first apply.
+        /// \param periodic_axes the lattice-summed axes
+        static void reset_periodic_axes(const array_of_bools<NDIM>& periodic_axes) {
+          MADNESS_ASSERT(periodic_axes.any());  // else why call this?
+          periodic(periodic_axes);
         }
 
         /// Sets the cell widths used to order the displacements by real-space distance, and reorders them
         /// if the widths changed. Called by FunctionDefaults::recompute_cell_info whenever the cell is set.
-        /// @warning reorders the lists in place: must not be called while operators are being applied
-        ///          (see FunctionDefaults::set_cell)
+        /// @warning mutates the lists in place: reorders them if only the widths changed, rebuilds them
+        ///          (reallocating, so references obtained from get_disp() dangle) if the per-axis reach changed.
+        ///          Must not be called while operators are being applied (see FunctionDefaults::set_cell)
         static void set_width(const Tensor<double>& width) {
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
           MADNESS_ASSERT(width.ndim() == 1 && width.size() == NDIM);
           MADNESS_ASSERT(widths.ndim() == 1 && widths.size() == NDIM);  // invariant: only ever assigned such tensors
           // exact comparison on purpose: any change, however small, reorders (a needless reorder is harmless,
@@ -299,15 +423,26 @@ namespace madness {
           bool changed = false;
           for (std::size_t i = 0; !changed && i != NDIM; ++i) changed = widths(i) != width(i);
           if (!changed) return;
+          ScopedMutex<Mutex> lock(&periodic_lists_mutex);
           widths = copy(width);
+          // the per-axis reach follows the cell shape: rebuild the lists if it changed, else just reorder
+          const auto bmax = bmax_axes();
+          const bool rebuild = bmax != bmax_used;
+          bmax_used = bmax;
           if (!disp.empty()) {
-            std::sort(disp.begin(), disp.end(), cmp_keys);
+            if (rebuild) make_disp(bmax);
+            else sort_displacements(disp, widths);
           }
-          for (size_t n = 0; n < 64; ++n) {
-            if (!disp_periodic[n].empty()) {
-              std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
+          for (auto& lists : periodic_lists_owner) {
+            for (Level n = 0; n < nlevels; ++n) {
+              if (rebuild) make_disp_periodic(bmax, n, *lists);
+              else sort_displacements_periodic(lists->by_distance[n], lists->axes, widths);
             }
+            if (lists->images_built.load(std::memory_order_acquire))
+              make_disp_images(*lists);
           }
+
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
     };
 
@@ -447,9 +582,11 @@ namespace madness {
             bool among_standard_displacements = true;
             for(size_t d=0; d!=NDIM; ++d) {
               const auto disp_d = (*displacement)[d];
-              // N.B. if lattice summation is performed along any axis the standard displacements come from
-              // Displacements::make_disp_periodic, which clips bmax to 2^n-1 along *every* axis
-              auto bmax_standard = Displacements<NDIM>::bmax_default();
+              // N.B. the standard displacements reach Displacements::bmax_current()[d] boxes along axis d:
+              // bmax_default() in a cube, farther along the short axes of a non-cubic cell (see bmax_axes()).
+              // If lattice summation is performed along any axis they come from Displacements::make_disp_periodic,
+              // which clips the reach to 2^n-1 along *every* axis
+              auto bmax_standard = Translation(Displacements<NDIM>::bmax_current()[d]);
               if (is_lattice_summed_.any() && bmax_standard >= twon) bmax_standard = twon - 1;
 
               // the effective displacement length depends on whether lattice summation is performed along it
@@ -485,7 +622,7 @@ namespace madness {
               // among standard displacements => keep if longer than the longest standard displacement considered
               // N.B. same distance as used to order the standard displacements (see FunctionImpl::do_apply)
               const auto distsq = displacement->real_distsq_bc(is_lattice_summed_, cell_width_);
-              return distsq > reach_->max_distsq;
+              return distsq > reach_->max_distsq && !same_displacement_shell(distsq, reach_->max_distsq);
             }
             else  // not among standard displacements => keep it
               return true;
@@ -1070,17 +1207,18 @@ namespace madness {
 
         // The offset along axis d is the least number of boxes that takes us out of the region covered by
         // the standard displacements, which the validator filters out (see BoxSurfaceDisplacementValidator):
-        // either beyond bmax boxes (see Displacements::make_disp), or, within bmax, beyond sqrt(max_distsq) in real space.
+        // either beyond the per-axis reach of the standard displacements (see Displacements::bmax_current), or,
+        // within it, beyond sqrt(max_distsq) in real space.
         // Key::real_distsq_bc measures cell_width*(|l|-1) along an axis, so invert that.
         // Cap the offset at half a cell. If our dimension is lattice-summed, it's even, and half a cell
         // is where it's furthest from the origin. Else, half a cell is the furthest away we can
         // guarantee we can displace to, in the case of an open dimension and the center_ is the origin.
         const Translation half_cell = Translation(1) << (n-1);
-        const Translation bmax = Displacements<NDIM>::bmax_default();
+        const auto bmax = Displacements<NDIM>::bmax_current();  // per axis, see Displacements::bmax_axes
         const auto offset_along = [&](size_t d) -> Translation {
           const double width = reach.cell_width[d];  // positive, checked by the validator
           const Translation nboxes = 1 + static_cast<Translation>(std::sqrt(reach.max_distsq) / width);
-          return std::min(std::min(nboxes, bmax) + 1, half_cell);
+          return std::min(std::min(nboxes, Translation(bmax[d])) + 1, half_cell);
         };
         // real-space distance of the offset; since the face axis folds to zero this is the probe's real distance
         const auto offset_distance = [&](size_t d) -> double {

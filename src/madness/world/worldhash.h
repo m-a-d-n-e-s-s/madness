@@ -128,6 +128,7 @@ provide the appropriate template parameter to the hashing container.
 #include <madness/madness_config.h>
 #include <stdint.h>
 #include <cstddef>
+#include <cstring>
 #include <iterator>
 #include <type_traits>
 
@@ -156,10 +157,10 @@ namespace madness {
         ((sizeof(T)%sizeof(uint32_t)) == 0),
         hashT>::type
     hash_value(const T t) {
-        hashT result = 0ul;
-        result = hashword(reinterpret_cast<const uint32_t*>(&t),
+        alignas(uint32_t) uint32_t buf[sizeof(T)/sizeof(uint32_t)];
+        std::memcpy(buf, &t, sizeof(T));
+        return hashword(buf,
             std::integral_constant<std::size_t,sizeof(T)/sizeof(uint32_t)>::value, 0u);
-        return result;
     }
 
     /// Hash a single fundamental object

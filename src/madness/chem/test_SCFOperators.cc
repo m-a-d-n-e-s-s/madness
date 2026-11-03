@@ -557,7 +557,7 @@ int test_XCOperator(World& world) {
         -1.435302e+00, -1.884266e+00, -5.937228e-01,    // lda energy, pot, kernel
         -1.295368e+00, -1.727158e+00, -5.757192e-01,    // LDA_X energy, pot, kernel
         -1.515767e+00, -1.954087e+00, -5.796946e-01,    // pbe energy, pot, kernel
-        -1.541359e+00, -1.972863e+00, -5.764567e-01     // bp energy, pot, kernel
+        -1.541359e+00, -1.972863e+00, -5.764590e-01     // bp energy, pot, kernel
     };
 
     std::vector<std::string> xcfuncs{"lda","LDA_X","pbe","bp"};

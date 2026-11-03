@@ -352,6 +352,18 @@ namespace madness {
             return snorm;
         }
 
+        /// Multiply the stored norms by a, for coefficients scaled by some q with |q| = a
+
+        /// The tree state survives scaling, and mul_sparse screens on these norms
+        /// without recomputing them. Norms that were never computed stay marked as such.
+        /// A negative norm_tree is a marker left by broaden and refine_op, not a norm.
+        void scale_norms(const double a) {
+            if (_norm_tree >= 0.0 && _norm_tree < NORM_TREE_UNCOMPUTED) _norm_tree *= a;
+            if (_dnorm_tree < NORM_TREE_UNCOMPUTED) _dnorm_tree *= a;
+            if (snorm >= 0.0) snorm *= a;
+            if (dnorm >= 0.0) dnorm *= a;
+        }
+
         void recompute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) {
             snorm = 0.0;
             dnorm = 0.0;
@@ -677,9 +689,7 @@ namespace madness {
             const opkeyT source=op->get_source_key(key);
 
             const double thresh=f->truncate_tol(f->get_thresh(),key);
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const opkeyT& d = *disp.begin();         // use the zero-displacement for screening
-            const double opnorm = op->norm(key.level(), d, source);
+            const double opnorm = op->norm_bound(key.level(), source);   // the operator's largest block at this level
             const double norm=opnorm*cnorm;
             return norm<thresh;
 
@@ -751,9 +761,7 @@ namespace madness {
             if (error < thresh) return true;
 
             // now check if the norm of this and the norm of the operator are significant
-            const std::vector<Key<NDIM> >& disp = op->get_disp(key.level());
-            const Key<NDIM>& d = *disp.begin();         // use the zero-displacement for screening
-            const double opnorm = op->norm(key.level(), d, key);
+            const double opnorm = op->norm_bound(key.level(), key);   // the operator's largest block at this level
             const double final_norm=opnorm*sfnorm*sgnorm;
             if (final_norm < thresh) return true;
 
@@ -5479,13 +5487,14 @@ template<size_t NDIM>
                   : array_of_bools<NDIM>{false}.or_back(
                         op->func_domain_is_periodic());
 
+          // the metric the kernel decays with, which also orders op->get_disp() (see SeparatedConvolution::displacement_real_distsq)
           const auto default_real_distance_squared = [&](const auto &displacement)
               -> double {
-            return displacement.real_distsq_bc(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
+            return op->displacement_real_distsq(displacement);
           };
           const auto default_lattice_distance_squared = [&](const auto &displacement)
               -> std::uint64_t {
-            return displacement.distsq_bc(op->lattice_summed());
+            return op->displacement_distsq(displacement);
           };
           const auto default_skip_predicate = [&](const auto &displacement)
               -> bool {
@@ -5548,11 +5557,12 @@ template<size_t NDIM>
               // Screen out shells. We assume shells are grouped into shells so that the operator decays with shell index.
               // Shells are indexed by least distance from box to the central box.
               // Cells touching so much as a corner of the central box are further grouped by their lattice distance.
-              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc);
+              // the rest-of-crystal kernel decays away from the nearest image instead (Key::distsq_images); the operator supplies the metric
               const auto real_distsq = real_distance_squared(displacement);
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
-                  !nearlyEqual(real_distsq, *real_last_distsq) || (nearlyEqual(*real_last_distsq, 0) && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
+                  !same_displacement_shell(real_distsq, *real_last_distsq) || (*real_last_distsq == 0 && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
@@ -5595,8 +5605,7 @@ template<size_t NDIM>
           // list of displacements sorted in order of increasing distance
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
-          const std::vector<opkeyT> &disp = op->get_disp(key.level());
-          const auto max_distsq_reached = for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
+          const auto max_distsq_reached = for_each(op->get_disp(key.level()), default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
           // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
@@ -5621,7 +5630,9 @@ template<size_t NDIM>
             using SurfaceRange = BoxSurfaceDisplacementRange<opdim>;
             std::optional<typename SurfaceRange::Validator> validator;
             if (max_distsq_reached) {
-              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes
+              // N.B. must use the same widths as default_real_distance_squared, i.e. the first opdim axes.
+              // The validator measures the reach with Key::real_distsq_bc, which is the operator's metric here:
+              // the only operator with another metric (OperatorInfo::images_only) rejects a finite range
               const auto &cell_width = FunctionDefaults<NDIM>::get_cell_width();
               std::array<double, opdim> widths;
               for (std::size_t d = 0; d != opdim; ++d) widths[d] = cell_width(d);
@@ -5683,6 +5694,11 @@ template<size_t NDIM>
         double do_apply_directed_screening(const opT* op, const keyT& key, const coeffT& coeff,
                                            const bool& do_kernel) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+            // this path screens by decay away from the source: the home displacement is "the kernel", displacements
+            // farther out than a negligible one are skipped, and the sweep stops beyond shell 12 of Key::distsq_bc.
+            // The rest-of-crystal kernel vanishes near the source, so it is applied through do_apply only
+            MADNESS_CHECK_THROW(!op->images_only(),
+                                "apply: the rest-of-crystal operator (OperatorInfo::images_only) is supported only where FunctionImpl::do_apply is used (operator and function of the same dimension, NDIM <= 3)");
             // insert timer here
             typedef typename opT::keyT opkeyT;
 
@@ -8029,12 +8045,14 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const fnodeT& node = it->second;
 
-                if (node.has_coeff()) {
-                    coeffs.replace(key,nodeT(node.coeff()*q,node.has_children()));
-                }
-                else {
-                    coeffs.replace(key,nodeT(coeffT(),node.has_children()));
-                }
+                coeffT c = node.has_coeff() ? coeffT(node.coeff()*q) : coeffT();
+
+                // the result inherits f's tree state, so it has to inherit the norms that
+                // state promises too
+                nodeT scaled(c, node.get_norm_tree(), node.get_dnorm_tree(),
+                             node.get_snorm(), node.get_dnorm(), node.has_children());
+                scaled.scale_norms(std::abs(q));
+                coeffs.replace(key,scaled);
             }
             if (fence)
                 world.gop.fence();

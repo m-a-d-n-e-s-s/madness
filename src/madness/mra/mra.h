@@ -62,14 +62,10 @@ namespace madness {
     ///
     /// Reads in (and broadcasts across \p world) the twoscale and autocorrelation coefficients,
     /// Gauss-Legendre quadrature roots/weights, function defaults and operator displacement lists.
-    /// \warning By default this generates operator displacement lists (see Displacements) for up to 6-d free
-    ///          and 3-d periodic boundary conditions. For optimal support for mixed boundary conditions
-    ///          (periodic along some axes only) assign the desired boundary conditions
-    ///          as default (e.g. `FunctionDefaults<3>::set_bc(BoundaryConditions<3>({BC_FREE, BC_FREE, BC_FREE, BC_FREE, BC_PERIODIC, BC_PERIODIC})`)
-    ///          prior to calling this. This will make operator application with such boundary conditions
-    ///          as efficient as possible, but will not allow the use of operators with
-    ///          other boundary conditions that include periodic axes until Displacements::reset_periodic_axes is invoked.
-    ///          By default efficiency is sacrificed for generality.
+    /// \note This generates the operator displacement lists (see Displacements) for free boundary conditions
+    ///       in up to 6 dimensions and, if the default boundary conditions have periodic axes, for kernels
+    ///       lattice-summed along those axes. Lists for any other set of lattice-summed axes are built when an
+    ///       operator summed along them is first constructed.
     /// \param world broadcast data across this World
     /// \param argc command-line parameter count
     /// \param argv command-line parameters array
