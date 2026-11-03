@@ -7,6 +7,7 @@
 
 
 #include <madness/madness_config.h>
+#include <madness/misc/info.h>
 #include <sstream>
 #include <string>
 #include <iostream>
@@ -29,14 +30,6 @@ namespace madness {
 
         const char* git_source_description() {
           return MADNESS_GIT_DESCRIPTION;
-        }
-
-        const char* build_time() {
-            return __TIME__;
-        }
-
-        const char* build_date() {
-            return __DATE__;
         }
 
         std::string print_revision_information() {
