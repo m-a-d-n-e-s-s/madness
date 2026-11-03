@@ -38,6 +38,8 @@ file(WRITE "${OUTPUT}"
 ]=])
 file(GLOB_RECURSE _all_sources
     ${PROJECT_SOURCE_DIR}/src/madness/*.cc
+    ${PROJECT_SOURCE_DIR}/src/madness/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/madness/*.c
     ${PROJECT_SOURCE_DIR}/src/madness/*.h
     ${PROJECT_SOURCE_DIR}/src/madness/*.hpp
     ${PROJECT_SOURCE_DIR}/src/apps/*.cc
