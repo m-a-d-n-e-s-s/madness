@@ -36,7 +36,7 @@ file(WRITE "${OUTPUT}"
     "} }\n"
 )
 ]=])
-file(GLOB_RECURSE _all_sources
+file(GLOB_RECURSE _all_sources CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/src/madness/*.cc
     ${PROJECT_SOURCE_DIR}/src/madness/*.cpp
     ${PROJECT_SOURCE_DIR}/src/madness/*.c
