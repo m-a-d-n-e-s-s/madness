@@ -9,7 +9,6 @@
 #include <madness/chem/lowrankfunction.h>
 #include "memory_measurement.h"
 #include <madness/chem/exchange_commutator.h>
-#include <madness/mra/composite_dsl.h>
 
 
 namespace madness {
@@ -2785,7 +2784,13 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
     g12.particle() = particle;
     g12.destructive()=true;
     std::size_t batchsize=1;
-    ParticleTag p(particle);
+    // f(1,2) * g(particle): one composite_product term, ket f and a single LDIM factor
+    auto times_particle = [particle](const real_function_6d& f, const real_function_3d& g) {
+        composite_term<double,6> t;
+        t.ket = f;
+        (particle == 1 ? t.factor1 : t.factor2) = g;
+        return composite_product<double,6>(f.world(), {t});
+    };
 
     double thresh_6d=FunctionDefaults<6>::get_thresh();
     FunctionDefaults<6>::set_thresh(parameters.tight_thresh_6D());
@@ -2798,9 +2803,9 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
             real_function_6d copyu = copy(u);
             copyu.set_thresh(parameters.tight_thresh_6D());
 
-            auto X= (copyu(p1,p2)*mo_bra[k](p)).eval();
+            auto X= times_particle(copyu, mo_bra[k]);
             real_function_6d Y = g12(X);     // overwrite X to save space
-            real_function_6d tmp=(Y(p1,p2)*mo_ket[k](p)).eval();
+            real_function_6d tmp=times_particle(Y, mo_ket[k]);
             // auto tmp=(multiply(copy(Y), copy(mo_ket[k]),particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
             result += tmp;
         }
