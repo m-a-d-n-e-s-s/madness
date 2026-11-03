@@ -834,7 +834,7 @@ int main(int argc, char **argv) {
 //    parameters.set_user_defined_value("tol",1.0e-10);
     parameters.print("grid");
     int isuccess=0;
-#ifdef USE_GENTENSOR
+#ifdef ENABLE_GENTENSOR
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     // parameters.set_user_defined_value("gridtype",std::string("random"));

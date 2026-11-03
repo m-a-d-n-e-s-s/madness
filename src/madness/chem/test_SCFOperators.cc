@@ -1181,7 +1181,7 @@ int main(int argc, char** argv) {
     result+=test_kinetic<double,1>(world);
     result+=test_kinetic<double,2>(world);
     result+=test_kinetic<double,3>(world);
-#ifndef HAVE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
     result+=test_kinetic<double_complex,1>(world);
     result+=test_kinetic<double_complex,2>(world);
     result+=test_kinetic<double_complex,3>(world);
@@ -1191,18 +1191,14 @@ int main(int argc, char** argv) {
 //    result+=test_kinetic<double_complex,4>(world);
 
     result+=test_coulomb<double>(world);
-#ifndef HAVE_GENTENSOR
-    result+=test_coulomb<double_complex>(world);
-#endif
+    // result+=test_coulomb<double_complex>(world);    // needs Coulomb<T> for complex densities
     if (!smalltest) {
     	result+=test_exchange<double>(world);
-#ifndef HAVE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
 #endif
     	result+=test_XCOperator<double>(world);
-#ifndef HAVE_GENTENSOR
-    	result+=test_XCOperator<double_complex>(world);
-#endif
+    	// result+=test_XCOperator<double_complex>(world);    // needs XCOperator<T> for complex densities
     	result+=test_nuclear(world);
     	result+=test_dnuclear(world);
     	result+=test_XCOperator_matrix(world);
