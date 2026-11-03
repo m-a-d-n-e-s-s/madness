@@ -1047,7 +1047,6 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
-    save(GV,"GV_const"+pair.name());
     CCPair p1=pair;
     p1.update_u(GV);
     double correlation_energy=CCPotentials::compute_pair_correlation_energy(world,p1,singles_dummy,info);
