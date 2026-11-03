@@ -22,7 +22,6 @@ set(MADCHEM_HEADERS
     distpm.h
     electronic_correlation_factor.h
     ESInterface.h
-    b_matrix.h
     exchange_commutator.h
     operator_diagnostics.h
     exchangeoperator.h
@@ -94,7 +93,6 @@ set(MADCHEM_SOURCES
     diamagneticpotentialfactor.cc
     dispersion.cc
     distpm.cc
-    b_matrix.cc
     electronic_correlation_factor.cc
     exchange_commutator.cc
     operator_diagnostics.cc
@@ -222,7 +220,7 @@ if(BUILD_TESTING)
 
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
-    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator test_bmatrix)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()
