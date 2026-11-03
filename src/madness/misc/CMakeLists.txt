@@ -36,21 +36,23 @@ file(WRITE "${OUTPUT}"
     "} }\n"
 )
 ]=])
-file(GLOB_RECURSE _all_sources
-    ${CMAKE_SOURCE_DIR}/src/madness/*.cc
-    ${CMAKE_SOURCE_DIR}/src/madness/*.h
-    ${CMAKE_SOURCE_DIR}/src/madness/*.hpp
-    ${CMAKE_SOURCE_DIR}/src/apps/*.cc
-    ${CMAKE_SOURCE_DIR}/src/apps/*.cpp
-    ${CMAKE_SOURCE_DIR}/src/apps/*.h
-    ${CMAKE_SOURCE_DIR}/src/apps/*.hpp
+file(GLOB_RECURSE _all_sources CONFIGURE_DEPENDS
+    ${PROJECT_SOURCE_DIR}/src/madness/*.cc
+    ${PROJECT_SOURCE_DIR}/src/madness/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/madness/*.c
+    ${PROJECT_SOURCE_DIR}/src/madness/*.h
+    ${PROJECT_SOURCE_DIR}/src/madness/*.hpp
+    ${PROJECT_SOURCE_DIR}/src/apps/*.cc
+    ${PROJECT_SOURCE_DIR}/src/apps/*.cpp
+    ${PROJECT_SOURCE_DIR}/src/apps/*.h
+    ${PROJECT_SOURCE_DIR}/src/apps/*.hpp
 )
 add_custom_command(
     OUTPUT ${BUILD_TIME_CC}
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${BUILD_TIME_CC}
         -P ${CMAKE_CURRENT_BINARY_DIR}/gen_build_timestamp.cmake
-    DEPENDS ${_all_sources}
+    DEPENDS ${_all_sources} "${CMAKE_CURRENT_BINARY_DIR}/gen_build_timestamp.cmake"
     COMMENT "Generating build timestamp"
 )
 
