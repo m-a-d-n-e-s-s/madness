@@ -154,7 +154,10 @@ void QCCalculationParametersBase::read_commandline_options(World& world, const c
 /// all others will be discarded.
 void QCCalculationParametersBase::read_internal(World& world, std::string& filecontents, std::string tag) {
 	std::stringstream f(filecontents);
-	position_stream_to_word(f, tag, '#', true, true);
+	// the group starts at its header, the line whose first word is the tag. Taking the
+	// tag as any word stopped at a value equal to it in an earlier group (`guess lcao`
+	// in the dft group before the lcao group), and read that group's remaining lines
+	position_stream_to_word(f, tag, '#', true, true, true);
 	std::string line, key,value;
 
 	// read input lines

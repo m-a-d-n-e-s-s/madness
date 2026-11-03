@@ -171,6 +171,9 @@ public:
     /// ctor with a nemo calculation
     Exchange(World& world, const Nemo *nemo, const int ispin);
 
+    /// ctor with a nemo calculation whose bra R^2 F is already at hand; neither bra nor ket is copied
+    Exchange(World& world, const Nemo *nemo, const std::vector<Function<double,NDIM>>& R2mo, const int ispin);
+
     std::string info() const {return "K";}
 
     bool is_symmetric() const;
@@ -403,8 +406,10 @@ public:
         public:
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
-                partitionT p={std::pair(Batch(_,_),1.0)};
-                return p;
+                // one task per batch of the orbital vector, so that the subworld running a task
+                // holds only its batch of untruncated vcoul*F products; one task for the whole
+                // vector put every product on one rank (~100 GB at C40 k8 with 8 ranks)
+                return do_1d_partition(vsize1, policy);
             }
         };
 
@@ -421,7 +426,9 @@ public:
         }
 
         resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
-            return truncate(vcoul * arg);
+            // vcoul spans the molecule, each ket is local: screen like SCF's V*psi
+            const double vtol = FunctionDefaults<NDIM>::get_thresh() * 0.1;
+            return truncate(mul_sparse(vcoul.world(), vcoul, arg, vtol));
         }
     };
 

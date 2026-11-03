@@ -15,6 +15,7 @@
 //#include "Plot_VTK.h"
 #include "fcwf.h"
 #include <madness/chem/potentialmanager.h>
+#include <algorithm>
 
 using namespace madness;
 
@@ -158,8 +159,10 @@ GradBSHOperator_Joel(World& world,
      rank = coeff.dim(0);
      //----------------------------------------------------------------------------------------------
 
-    if (bc(0,0) == BC_PERIODIC) {
-        fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
+    {
+        const auto lattice_ranges = bc.lattice_range();
+        if (std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& r) { return r.infinite(); }))
+            fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, width, lo, lattice_finite_reach(lattice_ranges, width), eps);
     }
 
     std::vector<real_convolution_3d_ptr> gradG(3);

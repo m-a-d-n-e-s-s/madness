@@ -337,9 +337,7 @@ public:
         const opkeyT source = op->get_source_key(key);
 
         const double thresh = (this->f->truncate_tol(this->f->get_thresh(), key));
-        const std::vector<opkeyT>& disp = op->get_disp(key.level());
-        const opkeyT& d = *disp.begin();         // use the zero-displacement for screening
-        const double opnorm = op->norm(key.level(), d, source);
+        const double opnorm = op->norm_bound(key.level(), source);   // the operator's largest block at this level
         const double norm = opnorm * cnorm;
 
         return norm < thresh;

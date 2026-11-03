@@ -339,6 +339,7 @@ class Cloud {
 
     bool debug = false;       ///< prints debug output
     bool is_replicated=false;   ///< if contents of the container are replicated
+    bool is_rank_replicated=false;   ///< if every rank holds its own copy of the container (see replicate())
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
     bool use_cache=true;
@@ -884,6 +885,7 @@ public:
         cloudtimer t(world,replication_time);
         container.reset_pmap_to_local();
         is_replicated=true;
+        is_rank_replicated=true;
 
         std::list<keyT> keylist;
         for (auto it=container.begin(); it!=container.end(); ++it) {
@@ -1216,7 +1218,10 @@ public:
 
         if (use_cache) {
             cache(world, target, record);
-            if (is_replicated) container.erase(record);
+            // a rank-replicated record is this rank's own copy, so release it now that it is cached. Not so when
+            // node-replicated: the host's lowest rank owns the only copy, and erase() would remove it for every
+            // rank on the host, which then fail with "record not found"
+            if (is_rank_replicated) container.erase(record);
         }
 
         return target;

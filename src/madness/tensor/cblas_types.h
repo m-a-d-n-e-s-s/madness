@@ -37,41 +37,28 @@
 /// \brief Define types used by CBLAS API
 
 #include <madness/madness_config.h>
-// some BLAS libraries define their own types for complex data
-#ifndef HAVE_INTEL_MKL
-#ifndef blas_complex_float
-# define blas_complex_float  std::complex<float>
-#else
-static_assert(sizeof(std::complex<float>)==sizeof(blas_complex_float), "sizes of blas_complex_float and std::complex<float> do not match");
-#endif
-#ifndef blas_complex_double
-# define blas_complex_double std::complex<double>
-#else
-static_assert(sizeof(std::complex<double>)==sizeof(blas_complex_double), "sizes of blas_complex_double and std::complex<double> do not match");
-#endif
-#else
-// if calling direct need to cast to the MKL complex types
-# ifdef MKL_DIRECT_CALL
+#include <complex>
+#if defined(HAVE_INTEL_MKL) && defined(MKL_DIRECT_CALL)
+// calling MKL directly needs its complex types; via the F77 prototypes no conversion is needed
 #  include <mkl_types.h>
-#  ifndef blas_complex_float
-#   define blas_complex_float MKL_Complex8
-#  endif
-#  ifndef blas_complex_double
-#   define blas_complex_double MKL_Complex16
-#  endif
-// else can call via F77 prototypes which don't need type conversion
-# else
-#  ifndef blas_complex_float
-#   define blas_complex_float  std::complex<float>
-#  endif
-#  ifndef blas_complex_double
-#   define blas_complex_double std::complex<double>
-#  endif
-# endif
 #endif
 
 namespace madness {
 namespace cblas {
+
+    /// The complex types of the BLAS being called. These used to be the macros
+    /// blas_complex_float/double, in the LAPACKE style; blaspp declares typedefs of
+    /// those names and does not tolerate a pre-existing macro, so any translation
+    /// unit that included MADNESS before TiledArray failed to compile.
+#if defined(HAVE_INTEL_MKL) && defined(MKL_DIRECT_CALL)
+    using complex_float = MKL_Complex8;
+    using complex_double = MKL_Complex16;
+#else
+    using complex_float = std::complex<float>;
+    using complex_double = std::complex<double>;
+#endif
+    static_assert(sizeof(complex_float) == sizeof(std::complex<float>), "the BLAS single-precision complex type must match std::complex<float>");
+    static_assert(sizeof(complex_double) == sizeof(std::complex<double>), "the BLAS double-precision complex type must match std::complex<double>");
 
     /// Matrix operations for BLAS function calls
     typedef enum {
@@ -82,29 +69,29 @@ namespace cblas {
 
     /////////// legalized conversions between C++ and CBLAS types //////////
     template <typename T>
-    const blas_complex_float*
+    const complex_float*
     to_cptr(const T* ptr) {
-      static_assert(sizeof(T)==sizeof(blas_complex_float), "sizes of blas_complex_float and T given to madness::cblas::to_cptr do not match");
-      return reinterpret_cast<const blas_complex_float*>(ptr);
+      static_assert(sizeof(T)==sizeof(complex_float), "sizes of complex_float and T given to madness::cblas::to_cptr do not match");
+      return reinterpret_cast<const complex_float*>(ptr);
     }
     template <typename T>
-    typename std::enable_if<!std::is_const<T>::value, blas_complex_float*>::type
+    typename std::enable_if<!std::is_const<T>::value, complex_float*>::type
     to_cptr(T* ptr) {
-      static_assert(sizeof(T)==sizeof(blas_complex_float), "sizes of blas_complex_float and T given to madness::cblas::to_cptr do not match");
-      return reinterpret_cast<blas_complex_float*>(ptr);
+      static_assert(sizeof(T)==sizeof(complex_float), "sizes of complex_float and T given to madness::cblas::to_cptr do not match");
+      return reinterpret_cast<complex_float*>(ptr);
     }
 
     template <typename T>
-    const blas_complex_double*
+    const complex_double*
     to_zptr(const T* ptr) {
-      static_assert(sizeof(T)==sizeof(blas_complex_double), "sizes of blas_complex_double and T given to madness::cblas::to_zptr do not match");
-      return reinterpret_cast<const blas_complex_double*>(ptr);
+      static_assert(sizeof(T)==sizeof(complex_double), "sizes of complex_double and T given to madness::cblas::to_zptr do not match");
+      return reinterpret_cast<const complex_double*>(ptr);
     }
     template <typename T>
-    typename std::enable_if<!std::is_const<T>::value, blas_complex_double*>::type
+    typename std::enable_if<!std::is_const<T>::value, complex_double*>::type
     to_zptr(T* ptr) {
-      static_assert(sizeof(T)==sizeof(blas_complex_double), "sizes of blas_complex_double and T given to madness::cblas::to_zptr do not match");
-      return reinterpret_cast<blas_complex_double*>(ptr);
+      static_assert(sizeof(T)==sizeof(complex_double), "sizes of complex_double and T given to madness::cblas::to_zptr do not match");
+      return reinterpret_cast<complex_double*>(ptr);
     }
 
 } // namespace cblas

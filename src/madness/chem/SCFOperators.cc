@@ -54,12 +54,17 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
     DistributedMatrix<T> r = column_distributed_matrix<T>(world, n, n);
     reconstruct(world, v);
 
+    // many trees differentiated together: pre-stage the remote neighbors and spawn the
+    // per-node tasks from the pool (the same tasks, served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, v);
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dv(NDIM);
     for (std::size_t i = 0; i < NDIM; ++i) {
         dv[i] = apply(world, *(gradop[i]), v, false);
     }
     world.gop.fence();
+    clear_halo(v);
     for (std::size_t i = 0; i < NDIM; ++i) {
         compress(world, dv[i], false);
     }
@@ -82,6 +87,12 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
     reconstruct(world, vket);
     const auto bra_equiv_ket = &vbra == &vket;
 
+    // many trees differentiated together: pre-stage the remote neighbors and spawn the
+    // per-node tasks from the pool (the same tasks, served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, vbra, false);
+    if (not bra_equiv_ket) stage_halo(world, gradop, vket, false);
+    world.gop.fence();
     // apply the derivative operator on each function for each dimension
     std::vector<vecfuncT> dvbra(NDIM), dvket(NDIM);
     for (std::size_t i = 0; i < NDIM; ++i) {
@@ -89,6 +100,8 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
         dvket[i] = apply(world, *(gradop[i]), vket, false);
     }
     world.gop.fence();
+    clear_halo(vbra);
+    if (not bra_equiv_ket) clear_halo(vket);
     for (std::size_t i = 0; i < NDIM; ++i) {
         compress(world, dvbra[i], false);
         compress(world, dvket[i], false);
@@ -184,14 +197,18 @@ class Laplacian<double, 6>;
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
 Coulomb<T, NDIM>::Coulomb(World &world, const Nemo *nemo) : world(world) {
-    reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), nemo->get_calc()->param.econv());
+    // the Poisson operator at the accuracy of moldft's coulop (SCF::set_protocol, 0.001 thresh):
+    // at econv the Coulomb energy error grew with the electron count
+    reset_poisson_operator_ptr(nemo->get_calc()->param.lo(), 0.001 * FunctionDefaults<NDIM>::get_thresh());
     vcoul = compute_potential(nemo);
 }
 
 /// ctor with an SCF calculation providing the MOs and density
 template<typename T, std::size_t NDIM>
 Coulomb<T, NDIM>::Coulomb(World &world, const SCF *calc) : world(world) {
-    reset_poisson_operator_ptr(calc->param.lo(), calc->param.econv());
+    // the Poisson operator at the accuracy of moldft's coulop (SCF::set_protocol, 0.001 thresh):
+    // at econv the Coulomb energy error grew with the electron count
+    reset_poisson_operator_ptr(calc->param.lo(), 0.001 * FunctionDefaults<NDIM>::get_thresh());
     vcoul = compute_potential(calc);
 }
 
@@ -275,16 +292,27 @@ std::vector<Function<T, NDIM> > Nuclear<T, NDIM>::operator()(const std::vector<F
             gradient_operator<T, NDIM>(world);
     reconstruct(world, vket);
     vecfuncT vresult = zero_functions_compressed<T, NDIM>(world, vket.size());
+    // the three derivative applies below share one staged halo per ket and spawn
+    // their per-node tasks from the pool (the same tasks, neighbors served locally)
+    for (auto& D : gradop) D->parallel_submit_ = true;
+    stage_halo(world, gradop, vket);
+
+    // U1 and U2 are refined at every nucleus while each ket is local, so the dense
+    // product descends into the union of both trees and its cost grows with
+    // natom*nmo. Screen the box pairs where the ket vanishes, at the accuracy the
+    // SCF uses for its other local-potential products (SCF::vtol).
+    const double vtol = FunctionDefaults<NDIM>::get_thresh() * 0.1;
 
     // memory-saving algorithm: outer loop over the dimensions
     // apply the derivative operator on each function for each dimension
     for (std::size_t i = 0; i < NDIM; ++i) {
         vecfuncT dv = apply(world, *(gradop[i]), vket, true);
         truncate(world, dv);
-        vresult += truncate(ncf->U1(i % 3) * dv);
+        vresult += truncate(mul_sparse(world, ncf->U1(i % 3), dv, vtol));
     }
+    clear_halo(vket);
 
-    return truncate(vresult + ncf->U2() * vket);
+    return truncate(vresult + mul_sparse(world, ncf->U2(), vket, vtol));
 }
 
 
@@ -1225,86 +1253,6 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
     truncate(world, xc_args, extra_truncation);
 }
 
-/// ctor
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const double lo, const double thresh) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,lo,thresh)) {};
-
-
-/// ctor with a conventional calculation
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
-
-/// ctor with a nemo calculation
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,nemo,ispin)) {};
-
-/// apply the exchange operator on a vector of functions
-
-/// note that only one spin is used (either alpha or beta orbitals)
-/// @param[in]  vket       the orbitals |i> that the operator is applied on
-/// @return     a vector of orbitals  K| i>
-template<typename T, std::size_t NDIM>
-std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
-    impl->set_taskq(this->taskq);
-    auto result=impl->operator()(vket);
-    this->statistics=impl->get_statistics();
-    return result;
-};
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
-    MADNESS_CHECK(impl);
-    impl->set_bra_and_ket(bra, ket);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-bool Exchange<T,NDIM>::is_symmetric() const {
-    return impl->is_symmetric();
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
-    impl->symmetric(flag);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
-    impl->set_algorithm(alg);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& info) {
-    impl->set_macro_task_info(info);
-    return *this;
-}
-
- template<typename T, std::size_t NDIM>
- Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
-    impl->set_printlevel(level);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_batch_granularity(const long level) {
-    impl->set_batch_granularity(level);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
-    impl->set_accumulation_mode(mode);
-    return *this;
-}
-
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
-    impl->set_cost_aware_assignment(flag);
-    return *this;
-}
-
 template<>
 Fock<double, 3>::Fock(World &world, const Nemo *nemo) : world(world) {
     auto tmp = nemo->make_fock_operator();
@@ -1326,9 +1274,6 @@ Fock<double, 3>::Fock(World &world, const NemoBase *nemobase) : world(world) {
     else MADNESS_EXCEPTION("failed to construct fock operator", 1);
 }
 
-
-template class Exchange<double_complex,3>;
-template class Exchange<double,3>;
 
 template class Coulomb<double_complex,3>;
 template class Coulomb<double,3>;

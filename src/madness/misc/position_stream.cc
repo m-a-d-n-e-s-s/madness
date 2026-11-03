@@ -62,9 +62,11 @@ namespace madness {
     /// \param comment  a comment character for (parts of) a line
     /// \param rewind   rewind to the beginning of the stream
     /// \param silent   throws if not successful, but doesn't print error message
+    /// \param first_word_only  match the tag only as the first word of a line, i.e. as the
+    ///                 header of an input group; otherwise any word of a line matches
     /// \return         a stream
     std::istream& position_stream_to_word(std::istream& f, const std::string& tag, const char comment, bool rewind,
-                                          bool silent) {
+                                          bool silent, bool first_word_only) {
         if (rewind) f.seekg(0);
         std::string line, word;
         while (std::getline(f,line)) {
@@ -79,6 +81,7 @@ namespace madness {
                     std::string::size_type loc = line.find(tag, 0);
                     if (loc != std::string::npos) return f;
                 }
+                if (first_word_only) break;
             }
         }
 

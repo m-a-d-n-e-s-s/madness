@@ -637,6 +637,34 @@ namespace madness
             //            ref.reset(); // Matching inc() in find() where ref was made
         }
 
+        /// Handles const find request
+        void find_const_handler(ProcessID requestor, const keyT &key, const RemoteReference<FutureImpl<const_iterator>> &ref)
+        {
+            internal_iteratorT r = local.find(key);
+            if (r == local.end())
+            {
+                this->send(requestor, &implT::find_const_failure_handler, ref);
+            }
+            else
+            {
+                this->send(requestor, &implT::find_const_success_handler, ref, *r);
+            }
+        }
+
+        /// Handles successful const find response
+        void find_const_success_handler(const RemoteReference<FutureImpl<const_iterator>> &ref, const pairT &datum)
+        {
+            FutureImpl<const_iterator> *f = ref.get();
+            f->set(const_iterator(datum));
+        }
+
+        /// Handles unsuccessful const find response
+        void find_const_failure_handler(const RemoteReference<FutureImpl<const_iterator>> &ref)
+        {
+            FutureImpl<const_iterator> *f = ref.get();
+            f->set(const_iterator(local.end()));
+        }
+
     public:
         WorldContainerImpl(World &world,
                            const std::shared_ptr<WorldDCPmapInterface<keyT>> &pm,
@@ -995,13 +1023,17 @@ namespace madness
 
         Future<const_iterator> find(const keyT &key) const
         {
-            // Ugliness here to avoid replicating find() and
-            // associated handlers for const.  Assumption is that
-            // const and non-const iterators are identical except for
-            // const attribute ... at some point probably need to do
-            // the right thing.
-            Future<iterator> r = const_cast<implT *>(this)->find(key);
-            return *(Future<const_iterator> *)(&r);
+            ProcessID dest = owner(key);
+            if (dest == me)
+            {
+                return Future<const_iterator>(const_iterator(local.find(key)));
+            }
+            else
+            {
+                Future<const_iterator> result;
+                this->send(dest, &implT::find_const_handler, me, key, result.remote_ref(this->get_world()));
+                return result;
+            }
         }
 
         Future<iterator> find(const keyT &key)

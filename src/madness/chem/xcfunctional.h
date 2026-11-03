@@ -354,6 +354,15 @@ public:
     /// Returns true if there is a DFT functional (false probably means Hatree-Fock exchange only)
     bool is_dft() const;
 
+    /// Returns true when libxc is the active XC backend for this functional.
+    bool uses_libxc_backend() const {
+#ifdef MADNESS_HAS_LIBXC
+        return !funcs.empty();
+#else
+        return false;
+#endif
+    }
+
     /// Returns true if the functional is spin_polarized
     bool is_spin_polarized() const
     {

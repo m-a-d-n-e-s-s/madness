@@ -368,6 +368,8 @@ public:
   std::optional<Tensor<double>> gradient;
   std::optional<VibrationalResults> vibrations;
   std::optional<RamanResults> raman;
+  /// atomic charges and spin populations by scheme (SCF::population_analysis)
+  std::optional<nlohmann::json> populations;
 
   PropertyResults() = default;
 
@@ -378,6 +380,8 @@ public:
       dipole = tensor_from_json<double>(j["dipole"]);
     if (j.count("gradient") == 1)
       gradient = tensor_from_json<double>(j["gradient"]);
+    if (j.count("populations") == 1)
+      populations = j["populations"];
   }
 
   std::string key() const override { return "properties"; }
@@ -389,6 +393,8 @@ public:
     set_if_exists(j, "gradient", gradient, tensor_out<double>);
     if (vibrations && vibrations->has_data())
       j["vibrations"] = vibrations->to_json();
+    if (populations)
+      j["populations"] = *populations;
     return j;
   } // from json PropertyResults
 
@@ -406,13 +412,15 @@ public:
       if (vib.has_data())
         vibrations = std::move(vib);
     }
+    if (j.contains("populations"))
+      populations = j.at("populations");
   }
 };
 
 // If you keep PropertyResults from earlier, give it:
 inline bool has_data(const PropertyResults &p) {
   return p.energy != 0.0 || p.dipole || p.gradient ||
-         (p.vibrations && p.vibrations->has_data());
+         (p.vibrations && p.vibrations->has_data()) || p.populations;
 }
 
 class SCFResults : public ResultsBase {
@@ -431,6 +439,9 @@ public:
   // empirical dispersion (DFT-D3) contribution already contained in
   // scf_total_energy; 0.0 when no correction was applied
   double scf_dispersion_correction_energy = 0.0;
+  bool uses_dftd3 = false;
+  bool uses_pcm = false;
+  bool uses_libxc = false;
   //
   PropertyResults properties;
   SCFResults() = default;
@@ -455,6 +466,9 @@ public:
     j["model"] = model;
     j["scf_total_energy"] = scf_total_energy;
     j["scf_dispersion_correction_energy"] = scf_dispersion_correction_energy;
+    j["citations"] = {{"dftd3", uses_dftd3},
+                      {"pcm", uses_pcm},
+                      {"libxc", uses_libxc}};
 
     // Optional nested block
     if (has_data(properties)) {
@@ -489,6 +503,12 @@ public:
       scf_total_energy = j.value("scf_total_energy", 0.0);
     scf_dispersion_correction_energy =
         j.value("scf_dispersion_correction_energy", 0.0);
+    if (j.contains("citations") && j["citations"].is_object()) {
+      const auto &c = j["citations"];
+      uses_dftd3 = c.value("dftd3", false);
+      uses_pcm = c.value("pcm", false);
+      uses_libxc = c.value("libxc", false);
+    }
 
     // Nested properties: optional
     if (j.contains("properties")) {

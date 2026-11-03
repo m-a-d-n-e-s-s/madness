@@ -6,6 +6,7 @@ A qctest case is a self-contained directory (see src/examples/qc/README.md):
     <case>/<case>.in                        the input deck
     <case>/run.sh                           one-liner invocation
     <case>/check.json                       result keys + tolerances
+        (each check: "key" plus "tol" | "rtol" | "max"; see compare())
     <case>/reference/<case>.calc_info.json  compared numerically
     <case>/reference/<case>.out             for humans; never compared
 
@@ -169,11 +170,81 @@ def lookup(data, keys):
     return data
 
 
+def _number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def check_max(data, keys, bound):
+    """Upper bound on the produced value alone.
+
+    For iteration counts and residuals the reference is a budget, not a number to
+    reproduce: a solve that takes 9 iterations where the reference took 7 is not a
+    regression, one that takes 40 is. The reference file is not consulted.
+    """
+    try:
+        value = lookup(data, keys)
+    except (KeyError, IndexError, TypeError) as e:
+        print(f"key {keys} not found in the output: {type(e).__name__}: {e}")
+        return False
+    if not _number(value):
+        print(f"key {keys} is {value!r}, not a number; 'max' needs a numeric value")
+        return False
+    ok = value <= bound
+    print(f"key {keys} {'within' if ok else 'exceeds'} max {bound}: {value}")
+    return ok
+
+
+def check_rtol(out, ref, keys, rtol, allow_zero=False):
+    """|out - ref| <= rtol * |ref|.
+
+    A reference of exactly zero makes the bound zero, so the check is either
+    vacuous or unpassable depending on how you read it; it is rejected unless
+    allow_zero, in which case it degenerates to an exact match (the physics is a
+    symmetry zero and the run must reproduce it).
+    """
+    try:
+        v1, v2 = lookup(out, keys), lookup(ref, keys)
+    except (KeyError, IndexError, TypeError) as e:
+        print(f"key {keys} not found in both files: {type(e).__name__}: {e}")
+        return False
+    if not (_number(v1) and _number(v2)):
+        print(f"key {keys} is not numeric in both files ({v1!r}, {v2!r}); 'rtol' needs numbers")
+        return False
+    if v2 == 0 and not allow_zero:
+        print(f"key {keys} has reference value 0, so a relative tolerance is meaningless; "
+              "use 'tol', or set \"allow_zero\": true if the zero is the physics")
+        return False
+    bound = abs(rtol * v2)
+    diff = abs(v1 - v2)
+    ok = diff <= bound
+    print(f"key {keys} {'agrees to' if ok else 'differs gt'} rtol {rtol}: {v1} {v2} "
+          f"diff {diff} bound {bound}")
+    return ok
+
+
 def compare(output, reference, checks):
-    """Numeric/exact comparison of the declared keys. A missing key is a failure."""
+    """Compare the declared keys. A missing key is a failure.
+
+    Each entry names a key path and one or more of:
+      tol   absolute tolerance against the reference (0 = exact; ints/strings/bools exact)
+      rtol  relative tolerance against the reference
+      max   upper bound on the produced value alone (reference not consulted)
+    `max` may be combined with `tol` or `rtol`; an entry with only `max` never reads
+    the reference value.
+    """
     cmp = madjsoncompare(str(output), str(reference))
     for entry in checks:
-        keys, tol = entry["key"], entry.get("tol", 0.0)
+        keys = entry["key"]
+        if "max" in entry:
+            cmp.success = check_max(cmp.data1, keys, entry["max"]) and cmp.success
+            if "tol" not in entry and "rtol" not in entry:
+                continue
+        if "rtol" in entry:
+            cmp.success = check_rtol(cmp.data1, cmp.data2, keys, entry["rtol"],
+                                     entry.get("allow_zero", False)) and cmp.success
+            continue
+
+        tol = entry.get("tol", 0.0)
         try:
             cmp.compare(keys, tol)
         except (KeyError, IndexError, TypeError) as e:
