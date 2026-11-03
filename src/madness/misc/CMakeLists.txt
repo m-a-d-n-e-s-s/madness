@@ -52,7 +52,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${BUILD_TIME_CC}
         -P ${CMAKE_CURRENT_BINARY_DIR}/gen_build_timestamp.cmake
-    DEPENDS ${_all_sources}
+    DEPENDS ${_all_sources} "${CMAKE_CURRENT_BINARY_DIR}/gen_build_timestamp.cmake"
     COMMENT "Generating build timestamp"
 )
 
