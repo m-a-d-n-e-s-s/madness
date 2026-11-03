@@ -45,6 +45,9 @@
 ///                        records that look like headers, must leave unframed (batch) records
 ///                        as the bare payload, and must free chunks on erase.
 ///
+///   test_chunk_collision, test_close_once: a record overwriting a chunk is detected on
+///                        read, and close() followed by the destructor writes only once.
+///
 /// Run -np 1 for the simplest reproduction (single rank => local_size == total > INT_MAX);
 /// -np 2 also exercises the MPI_Gather/Gatherv displacement path.
 
@@ -225,6 +228,7 @@ bool test_lookalike(World& world) {
     new_header[1] = 1;
 
     const keyT k = 100;
+    int ok = 1;     // decided on rank 0; every rank runs both iterations' fences
     for (const auto* payload : {&old_header, &new_header}) {
         {
             madness::archive::ContainerRecordOutputArchive ar(world, container, k);
@@ -240,11 +244,11 @@ bool test_lookalike(World& world) {
         world.gop.fence();
         if (io and rb != *payload) {
             print("  FAIL: look-alike record of", payload->size(), "bytes not read back verbatim");
-            return collective_ok(world, 0);
+            ok = 0;
         }
     }
-    if (io) print("  test_lookalike: OK");
-    return collective_ok(world, 1);
+    if (io and ok) print("  test_lookalike: OK");
+    return collective_ok(world, ok);
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +306,65 @@ bool test_erase(World& world, std::size_t nbytes) {
         if (before < 3) { print("  FAIL: expected a chunked record, container holds", before); ok = 0; }
         if (after != 1) { print("  FAIL: after erase the container holds", after, "records"); ok = 0; }
         if (ok) print("  test_erase: OK (", before, "->", after, "records )");
+    }
+    return collective_ok(world, ok);
+}
+
+// ---------------------------------------------------------------------------
+// Test: a record landing on a chunk's key is detected on read, not returned
+// ---------------------------------------------------------------------------
+bool test_chunk_collision(World& world, std::size_t nbytes) {
+    const bool io = (world.rank() == 0);
+    if (io) print("\n[test_chunk_collision] ranks", world.size(), " payload", nbytes);
+
+    std::shared_ptr<WorldDCPmapInterface<keyT>> pmap(new LastRankPmap(world));
+    containerT container(world, pmap);
+    const keyT big = 7;
+    store_record(world, container, big, io ? pattern(nbytes) : std::vector<unsigned char>{});
+    // an unrelated record overwrites the first chunk
+    store_record(world, container, madness::archive::container_record_chunk_key(big, 0),
+                 io ? pattern(1000, 99) : std::vector<unsigned char>{});
+
+    int ok = 1;
+    if (io) {
+        try {
+            madness::archive::ContainerRecordInputArchive ar(world, container, big);
+            print("  FAIL: the overwritten chunk was not detected");
+            ok = 0;
+        } catch (const madness::MadnessException& e) {
+            print("  test_chunk_collision: OK, detected:", e.msg);
+        }
+    }
+    world.gop.fence();
+    return collective_ok(world, ok);
+}
+
+// ---------------------------------------------------------------------------
+// Test: an explicit close() and the destructor write the record once
+// ---------------------------------------------------------------------------
+bool test_close_once(World& world) {
+    const bool io = (world.rank() == 0);
+    if (io) print("\n[test_close_once] ranks", world.size());
+
+    std::shared_ptr<WorldDCPmapInterface<keyT>> pmap(new LastRankPmap(world));
+    containerT container(world, pmap);
+    const keyT k = 3;
+    {
+        madness::archive::ContainerRecordOutputArchive ar(world, container, k);
+        if (io) ar & pattern(100);
+        ar.close();
+        world.gop.fence();
+        // erase what close() wrote: a second write from the destructor would bring it back
+        if (io) container.erase(k);
+        world.gop.fence();
+    }
+    world.gop.fence();
+    const std::size_t n = global_size(world, container);
+
+    int ok = 1;
+    if (io) {
+        if (n != 0) { print("  FAIL: the destructor wrote the record again"); ok = 0; }
+        else print("  test_close_once: OK");
     }
     return collective_ok(world, ok);
 }
@@ -388,6 +451,10 @@ int main(int argc, char** argv) {
             passed = test_unframed(world, record_bytes) && passed;
         if (!which || std::string(which) == "erase")
             passed = test_erase(world, record_bytes) && passed;
+        if (!which || std::string(which) == "collision")
+            passed = test_chunk_collision(world, record_bytes) && passed;
+        if (!which || std::string(which) == "close")
+            passed = test_close_once(world) && passed;
         if (!which || std::string(which) == "container")
             passed = test_container_store(world, total_bytes) && passed;
     }

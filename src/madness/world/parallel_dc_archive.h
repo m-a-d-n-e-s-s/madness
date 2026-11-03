@@ -22,9 +22,20 @@ namespace madness {
         /// A record larger than the RMI INT_MAX message limit cannot be sent through
         /// `WorldContainer::replace` in one piece, so it is split: the record at `key`
         /// becomes a header `[RECORD_CHUNKED][total][nchunk]` and the payload is stored as
-        /// `nchunk` records `[RECORD_CHUNK][slice]` at `container_record_chunk_key(key, i)`.
+        /// `nchunk` records `[RECORD_CHUNK][key][i][slice]` at `container_record_chunk_key(key, i)`.
         /// Any other record is `[RECORD_INLINE][payload]`, so the tag alone tells the reader
         /// which it is.
+        ///
+        /// Chunk keys share the container's key space, so a chunk can still collide with an
+        /// unrelated record. That is unlikely (64-bit keys) but not prevented: ruling it out
+        /// would need an existence check on the remote owner, and WorldContainer's only remote
+        /// lookup, find(), copies the value, which may itself exceed 2 GiB. A collision is
+        /// detected instead: each chunk names its record and index, so the reader throws
+        /// rather than returning another record's bytes.
+        ///
+        /// Records are write-once: a key holding a chunked record must be freed with
+        /// erase_container_record() before it is written again, or the old chunks stay
+        /// allocated (not checked, for the same reason). The cloud never rewrites a key.
         ///
         /// An unframed record (`framed=false`) is the bare payload, never chunked: for
         /// containers whose bytes are read directly rather than through
@@ -45,12 +56,21 @@ namespace madness {
 
         /// Key of chunk `ichunk` of the chunked record at `key`: hashed, not `key+1, key+2, …`,
         /// so a chunk cannot land on a neighbouring record whose key a caller chose sequentially.
+        ///
+        /// A full 64-bit mix (splitmix64's finalizer, a bijection), not worldhash's hash_value,
+        /// which folds a long to 32 bits: two records whose keys agreed in those 32 bits would
+        /// get identical chunk keys.
         inline long container_record_chunk_key(const long key, const std::uint64_t ichunk) {
-            std::size_t h = std::size_t(0x4D41444E43484B53ull); // "MADNCHKS"
-            hash_combine(h, std::size_t(key));
-            hash_combine(h, std::size_t(ichunk));
-            return long(h);
+            auto mix = [](std::uint64_t z) {
+                z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ull;
+                z = (z ^ (z >> 27)) * 0x94d049bb133111ebull;
+                return z ^ (z >> 31);
+            };
+            return long(mix(mix(std::uint64_t(key) ^ 0x4D41444E43484B53ull) + ichunk)); // "MADNCHKS"
         }
+
+        /// size of a chunk's prefix `[RECORD_CHUNK][key][ichunk]`
+        static constexpr std::size_t CONTAINER_RECORD_CHUNK_PREFIX = 1 + sizeof(long) + sizeof(std::uint64_t);
 
         /// parse a chunk header; false if `raw` is not one
         ///
@@ -86,6 +106,7 @@ namespace madness {
             keyT key;
             containerT& dc; // lifetime???
             const bool framed;
+            bool closed = false;     // the destructor closes too; write the record only once
             std::vector<unsigned char> v;
             VectorOutputArchive ar;
 
@@ -128,6 +149,8 @@ namespace madness {
             void flush() {}
 
             void close() {
+                if (closed) return;
+                closed = true;
                 if (subworld.rank() != 0) return;
 
                 // common case: the serialized record fits in a single RMI message
@@ -139,7 +162,7 @@ namespace madness {
                 // oversized record: write a header at `key` and split the payload (which
                 // follows the inline tag at v[0]) into tagged chunks (see ContainerRecordTag).
                 const std::uint64_t total = v.size() - 1;
-                const std::size_t slice = CONTAINER_RECORD_MAX_CHUNK - 1;   // room for the chunk tag
+                const std::size_t slice = CONTAINER_RECORD_MAX_CHUNK - CONTAINER_RECORD_CHUNK_PREFIX;
                 const std::uint64_t nchunk = (total + slice - 1) / slice;
                 std::vector<unsigned char> header(1 + 2 * sizeof(std::uint64_t));
                 header[0] = RECORD_CHUNKED;
@@ -150,7 +173,10 @@ namespace madness {
                 for (std::uint64_t c = 0; c < nchunk; ++c) {
                     const std::size_t start = 1 + c * slice;
                     const std::size_t end = std::min<std::size_t>(start + slice, v.size());
-                    std::vector<unsigned char> chunk(1, RECORD_CHUNK);
+                    std::vector<unsigned char> chunk(CONTAINER_RECORD_CHUNK_PREFIX);
+                    chunk[0] = RECORD_CHUNK;
+                    std::memcpy(chunk.data() + 1, &key, sizeof(key));
+                    std::memcpy(chunk.data() + 1 + sizeof(key), &c, sizeof(c));
                     chunk.insert(chunk.end(), v.begin() + start, v.begin() + end);
                     dc.replace(container_record_chunk_key(key, c), chunk);
                 }
@@ -172,9 +198,18 @@ namespace madness {
                 buf.reserve(total);
                 for (std::uint64_t c = 0; c < nchunk; ++c) {
                     containerT::const_iterator it = dc.find(container_record_chunk_key(key, c)).get();
-                    MADNESS_CHECK_THROW(it != dc.end() and not it->second.empty() and it->second[0] == RECORD_CHUNK,
-                        "ContainerRecordInputArchive: chunk record not found");
-                    buf.insert(buf.end(), it->second.begin() + 1, it->second.end());
+                    MADNESS_CHECK_THROW(it != dc.end(), "ContainerRecordInputArchive: chunk record not found");
+                    const std::vector<unsigned char>& chunk = it->second;
+                    keyT parent = 0;
+                    std::uint64_t index = 0;
+                    const bool is_chunk = chunk.size() >= CONTAINER_RECORD_CHUNK_PREFIX and chunk[0] == RECORD_CHUNK;
+                    if (is_chunk) {
+                        std::memcpy(&parent, chunk.data() + 1, sizeof(parent));
+                        std::memcpy(&index, chunk.data() + 1 + sizeof(parent), sizeof(index));
+                    }
+                    MADNESS_CHECK_THROW(is_chunk and parent == key and index == c,
+                        "ContainerRecordInputArchive: chunk overwritten by another record (key collision)");
+                    buf.insert(buf.end(), chunk.begin() + CONTAINER_RECORD_CHUNK_PREFIX, chunk.end());
                 }
                 MADNESS_CHECK_THROW(buf.size() == total,
                     "ContainerRecordInputArchive: chunked record size mismatch");

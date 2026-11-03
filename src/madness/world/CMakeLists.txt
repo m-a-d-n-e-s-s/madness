@@ -139,5 +139,9 @@ if(BUILD_TESTING)
   # MPI variant of test_replication. As for the MRA MPI tests,
   # MADNESS_MPI_NODE_OPTIONS sets the MPI options at run time.
   add_mpi_tests(world test_replication "2" "MADworld;MADgtest" "unittests;short")
+
+  # 2-rank variant of the >INT_MAX chunking test: one rank alone never sends a chunk
+  # to a remote owner or takes the multi-rank gather path
+  add_mpi_tests(world test_dc_archive_chunk "2" "MADworld;MADgtest" "unittests;large")
   
 endif()
