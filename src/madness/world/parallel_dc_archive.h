@@ -4,6 +4,7 @@
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
 #include <madness/world/vector_archive.h>
+#include <madness/world/worldhash.h>
 
 #include <algorithm>   // std::min
 #include <cstdint>     // std::uint64_t
@@ -16,15 +17,24 @@ namespace madness {
 
     namespace archive {
         
-        /// Marker for a chunked record header (see ContainerRecordOutputArchive::close).
+        /// Tag byte that starts every framed record (see ContainerRecordOutputArchive::close).
         ///
         /// A record larger than the RMI INT_MAX message limit cannot be sent through
         /// `WorldContainer::replace` in one piece, so it is split: the record at `key`
-        /// becomes a fixed 16-byte header `[CHUNK_MAGIC][total]` and the payload is
-        /// stored as `ceil(total/CONTAINER_RECORD_MAX_CHUNK)` records at `key+1, key+2, …`.
-        /// The magic distinguishes the header from a legitimate record; load additionally
-        /// verifies that chunk `key+1` exists before trusting it.
-        static constexpr std::uint64_t CONTAINER_RECORD_CHUNK_MAGIC = 0x4D41444E43484B53ull; // "MADNCHKS"
+        /// becomes a header `[RECORD_CHUNKED][total][nchunk]` and the payload is stored as
+        /// `nchunk` records `[RECORD_CHUNK][slice]` at `container_record_chunk_key(key, i)`.
+        /// Any other record is `[RECORD_INLINE][payload]`, so the tag alone tells the reader
+        /// which it is.
+        ///
+        /// An unframed record (`framed=false`) is the bare payload, never chunked: for
+        /// containers whose bytes are read directly rather than through
+        /// ContainerRecordInputArchive (the cloud's batch container, which has its own
+        /// chunked transport). Framed and unframed records must not share a container.
+        enum ContainerRecordTag : unsigned char {
+            RECORD_INLINE  = 0x01,
+            RECORD_CHUNKED = 0x02,
+            RECORD_CHUNK   = 0x03
+        };
 
         /// Largest payload sent through a single WorldContainer::replace.
         ///
@@ -32,6 +42,40 @@ namespace madness {
         /// AM header), so we leave 1 MiB of headroom below INT_MAX for that overhead.
         static constexpr std::size_t CONTAINER_RECORD_MAX_CHUNK =
             static_cast<std::size_t>(std::numeric_limits<int>::max()) - (std::size_t(1) << 20);
+
+        /// Key of chunk `ichunk` of the chunked record at `key`: hashed, not `key+1, key+2, …`,
+        /// so a chunk cannot land on a neighbouring record whose key a caller chose sequentially.
+        inline long container_record_chunk_key(const long key, const std::uint64_t ichunk) {
+            std::size_t h = std::size_t(0x4D41444E43484B53ull); // "MADNCHKS"
+            hash_combine(h, std::size_t(key));
+            hash_combine(h, std::size_t(ichunk));
+            return long(h);
+        }
+
+        /// parse a chunk header; false if `raw` is not one
+        ///
+        /// Not in a nested `detail` namespace: code that says `using namespace madness;
+        /// using namespace archive;` would then find `detail::` ambiguous.
+        inline bool parse_container_record_chunk_header(const std::vector<unsigned char>& raw,
+                                                        std::uint64_t& total, std::uint64_t& nchunk) {
+            if (raw.size() != 1 + 2 * sizeof(std::uint64_t) or raw[0] != RECORD_CHUNKED) return false;
+            std::memcpy(&total, raw.data() + 1, sizeof(total));
+            std::memcpy(&nchunk, raw.data() + 1 + sizeof(total), sizeof(nchunk));
+            return true;
+        }
+
+        /// Erase a framed record and, if it is chunked, its chunks; erasing only `key` would
+        /// leave the chunks allocated.
+        inline void erase_container_record(WorldContainer<long, std::vector<unsigned char>>& dc,
+                                           const long key) {
+            auto it = dc.find(key).get();
+            if (it == dc.end()) return;
+            std::uint64_t total = 0, nchunk = 0;
+            const bool chunked = parse_container_record_chunk_header(it->second, total, nchunk);
+            dc.erase(key);
+            if (chunked)
+                for (std::uint64_t c = 0; c < nchunk; ++c) dc.erase(container_record_chunk_key(key, c));
+        }
 
         class ContainerRecordOutputArchive : public BaseOutputArchive {
         public:
@@ -41,18 +85,27 @@ namespace madness {
             World& subworld;
             keyT key;
             containerT& dc; // lifetime???
+            const bool framed;
             std::vector<unsigned char> v;
             VectorOutputArchive ar;
 
         public:
 
-            ContainerRecordOutputArchive(World& subworld, containerT& dc, const keyT& key)
+            /// @param[in] framed  false writes the bare payload, never chunked (see ContainerRecordTag)
+            ContainerRecordOutputArchive(World& subworld, containerT& dc, const keyT& key,
+                                         const bool framed = true)
                 : subworld(subworld)
                 , key(key)
                 , dc(dc)
+                , framed(framed)
                 , v()
                 , ar(v)
-            {}
+            {
+                if (framed and subworld.rank() == 0) {
+                    const unsigned char tag = RECORD_INLINE;
+                    ar.store(&tag, 1);
+                }
+            }
 
             ~ContainerRecordOutputArchive()
             {
@@ -78,25 +131,28 @@ namespace madness {
                 if (subworld.rank() != 0) return;
 
                 // common case: the serialized record fits in a single RMI message
-                if (v.size() <= CONTAINER_RECORD_MAX_CHUNK) {
+                if (not framed or v.size() <= CONTAINER_RECORD_MAX_CHUNK) {
                     dc.replace(key, v);
                     return;
                 }
 
-                // oversized record: write a header at `key` and split the payload into
-                // chunks at `key+1, key+2, …` (see CONTAINER_RECORD_CHUNK_MAGIC).
-                const std::uint64_t total = v.size();
-                const std::uint64_t magic = CONTAINER_RECORD_CHUNK_MAGIC;
-                std::vector<unsigned char> header(2 * sizeof(std::uint64_t));
-                std::memcpy(header.data(), &magic, sizeof(magic));
-                std::memcpy(header.data() + sizeof(magic), &total, sizeof(total));
+                // oversized record: write a header at `key` and split the payload (which
+                // follows the inline tag at v[0]) into tagged chunks (see ContainerRecordTag).
+                const std::uint64_t total = v.size() - 1;
+                const std::size_t slice = CONTAINER_RECORD_MAX_CHUNK - 1;   // room for the chunk tag
+                const std::uint64_t nchunk = (total + slice - 1) / slice;
+                std::vector<unsigned char> header(1 + 2 * sizeof(std::uint64_t));
+                header[0] = RECORD_CHUNKED;
+                std::memcpy(header.data() + 1, &total, sizeof(total));
+                std::memcpy(header.data() + 1 + sizeof(total), &nchunk, sizeof(nchunk));
                 dc.replace(key, header);
 
-                keyT chunk_key = key + 1;
-                for (std::size_t start = 0; start < v.size();
-                     start += CONTAINER_RECORD_MAX_CHUNK, ++chunk_key) {
-                    const std::size_t end = std::min(start + CONTAINER_RECORD_MAX_CHUNK, v.size());
-                    dc.replace(chunk_key, std::vector<unsigned char>(v.begin() + start, v.begin() + end));
+                for (std::uint64_t c = 0; c < nchunk; ++c) {
+                    const std::size_t start = 1 + c * slice;
+                    const std::size_t end = std::min<std::size_t>(start + slice, v.size());
+                    std::vector<unsigned char> chunk(1, RECORD_CHUNK);
+                    chunk.insert(chunk.end(), v.begin() + start, v.begin() + end);
+                    dc.replace(container_record_chunk_key(key, c), chunk);
                 }
             }
         };
@@ -108,17 +164,17 @@ namespace madness {
             std::vector<unsigned char> v;
             VectorInputArchive ar;
 
-            // reassemble a chunked record: concatenate the records at key+1, key+2, …
-            // until `total` bytes have been collected (see CONTAINER_RECORD_CHUNK_MAGIC).
+            // reassemble a chunked record: concatenate the payloads of its `nchunk` chunks
+            // (see ContainerRecordTag).
             static std::vector<unsigned char>
-            load_chunks(const containerT& dc, const keyT& key, std::uint64_t total) {
+            load_chunks(const containerT& dc, const keyT& key, std::uint64_t total, std::uint64_t nchunk) {
                 std::vector<unsigned char> buf;
                 buf.reserve(total);
-                for (keyT chunk_key = key + 1; buf.size() < total; ++chunk_key) {
-                    containerT::const_iterator it = dc.find(chunk_key).get();
-                    MADNESS_CHECK_THROW(it != dc.end(),
+                for (std::uint64_t c = 0; c < nchunk; ++c) {
+                    containerT::const_iterator it = dc.find(container_record_chunk_key(key, c)).get();
+                    MADNESS_CHECK_THROW(it != dc.end() and not it->second.empty() and it->second[0] == RECORD_CHUNK,
                         "ContainerRecordInputArchive: chunk record not found");
-                    buf.insert(buf.end(), it->second.begin(), it->second.end());
+                    buf.insert(buf.end(), it->second.begin() + 1, it->second.end());
                 }
                 MADNESS_CHECK_THROW(buf.size() == total,
                     "ContainerRecordInputArchive: chunked record size mismatch");
@@ -136,20 +192,13 @@ namespace madness {
                 }
                 const std::vector<unsigned char>& raw = it->second;
 
-                // a chunked header is exactly [magic][total] (16 bytes); confirm the
-                // magic and that the first chunk really exists before trusting it, so a
-                // legitimate 16-byte record can never be misread as a header.
-                if (raw.size() == 2 * sizeof(std::uint64_t)) {
-                    std::uint64_t magic = 0, total = 0;
-                    std::memcpy(&magic, raw.data(), sizeof(magic));
-                    if (magic == CONTAINER_RECORD_CHUNK_MAGIC) {
-                        std::memcpy(&total, raw.data() + sizeof(magic), sizeof(total));
-                        if (dc.find(key + 1).get() != dc.end()) {
-                            return load_chunks(dc, key, total);
-                        }
-                    }
-                }
-                return raw;
+                // the tag byte says whether this is the record itself or a chunk header
+                if (not raw.empty() and raw[0] == RECORD_INLINE)
+                    return std::vector<unsigned char>(raw.begin() + 1, raw.end());
+                std::uint64_t total = 0, nchunk = 0;
+                MADNESS_CHECK_THROW(parse_container_record_chunk_header(raw, total, nchunk),
+                    "ContainerRecordInputArchive: untagged record (written with framed=false?)");
+                return load_chunks(dc, key, total, nchunk);
             }
 
         public:

@@ -803,7 +803,9 @@ public:
         batch_pmap->set_owner(record, owner);
         cloudtimer t_batch(world, batch_store_time);
         {
-            madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record);
+            // unframed: BatchTransport ships these bytes as they are, with its own chunking
+            madness::archive::ContainerRecordOutputArchive ar(world, batch_container, record,
+                                                              /*framed=*/false);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par.set_dofence(false);
             std::size_t fsize = batch.size();
@@ -1241,7 +1243,7 @@ public:
             // a rank-replicated record is this rank's own copy, so release it now that it is cached. Not so when
             // node-replicated: the host's lowest rank owns the only copy, and erase() would remove it for every
             // rank on the host, which then fail with "record not found"
-            if (is_rank_replicated) container.erase(record);
+            if (is_rank_replicated) madness::archive::erase_container_record(container, record);
         }
 
         return target;
