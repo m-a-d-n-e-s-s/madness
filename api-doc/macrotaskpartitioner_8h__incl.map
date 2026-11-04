@@ -1,0 +1,25 @@
+<map id="macrotaskpartitioner.h" name="macrotaskpartitioner.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="146,5,316,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,90,68,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,36,80,83,77,85,74,81,78,79,197,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="92,90,133,117"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="210,36,146,82,142,78,214,32"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="157,90,215,117"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="226,31,203,77,198,74,222,36"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="239,90,314,117"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="239,31,265,76,259,76,238,36"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="338,90,412,117"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="255,31,341,81,336,82,254,36"/>
+<area shape="rect" id="Node000007" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="437,81,620,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="279,31,438,75,433,78,279,36"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="359,174,423,201"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="495,125,427,168,425,163,490,127"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="448,174,511,201"/>
+<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="518,125,497,162,493,158,513,128"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="535,174,620,201"/>
+<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="543,124,565,161,560,159,540,128"/>
+<area shape="rect" id="Node000011" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="645,174,846,201"/>
+<area shape="poly" id="edge10_Node000007_Node000011" title=" " alt="" coords="587,124,699,168,694,168,586,129"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="678,249,814,277"/>
+<area shape="poly" id="edge11_Node000011_Node000012" title=" " alt="" coords="748,200,748,235,744,232,744,204"/>
+</map>

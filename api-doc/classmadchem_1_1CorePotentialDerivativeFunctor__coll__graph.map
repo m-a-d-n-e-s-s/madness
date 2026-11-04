@@ -1,0 +1,15 @@
+<map id="madchem::CorePotentialDerivativeFunctor" name="madchem::CorePotentialDerivativeFunctor">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,318,256,362"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="14,200,205,245"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="118,258,129,318,124,317,114,262"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="229,208,376,236"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="274,245,164,320,161,315,268,245"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="80,91,285,118"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="207,127,291,207,286,208,206,132"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="91,5,253,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="176,46,183,91,178,90,175,51"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="329,82,489,127"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="381,137,316,210,313,206,377,140"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="277,5,563,33"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="418,46,414,83,410,81,415,51"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="madness::WignerSeitzPotentialFunctor" name="madness::WignerSeitzPotentialFunctor">
+<area shape="rect" id="Node000001" title="Functor for evaluating the Wigner&#45;Seitz potential in a simulation cell." alt="" coords="5,98,230,143"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="22,5,213,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,64,120,99,115,97,116,68"/>
+</map>

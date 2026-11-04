@@ -1,0 +1,33 @@
+<map id="madness::ThreadPool" name="madness::ThreadPool">
+<area shape="rect" id="Node000001" title="A singleton pool of threads for dynamic execution of tasks." alt="" coords="1007,251,1169,278"/>
+<area shape="poly" id="edge16_Node000001_Node000001" title=" " alt="" coords="1061,232,1070,226,1088,224,1105,226,1115,232,1119,242,1114,252,1111,248,1113,241,1111,236,1103,231,1088,229,1072,231,1063,237"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ThreadPoolThread.html" title="ThreadPool thread object." alt="" coords="659,141,865,169"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="821,172,1047,250,1041,250,820,177"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Thread.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="377,44,510,72"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="506,74,717,140,712,142,506,79"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1ThreadBase.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="13,5,179,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="194,27,378,49,374,52,195,33"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1profiling_1_1TaskProfiler.html" title="This class collects and prints task profiling data." alt="" coords="373,133,514,178"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="529,153,661,154,656,156,530,158"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1profiling_1_1TaskEventListBase.html" title="Task event list base class." alt="" coords="21,106,171,151"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="186,133,374,148,371,152,187,138"/>
+<area shape="poly" id="edge6_Node000006_Node000006" title=" " alt="" coords="66,89,78,82,96,80,113,82,124,87,130,96,129,106,124,105,125,97,121,91,111,87,96,85,80,87,70,92"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="31,175,161,202"/>
+<area shape="poly" id="edge7_Node000005_Node000007" title=" " alt="" coords="176,183,316,172,375,166,370,168,317,177,177,188"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1DQueue.html" title=" " alt="" coords="655,242,869,287"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="885,262,1010,264,1004,265,885,267"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1PthreadConditionVariable.html" title="Simple wrapper for Pthread condition variable with its own mutex." alt="" coords="341,227,546,254"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="562,247,657,256,652,257,562,252"/>
+<area shape="rect" id="Node000010" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="39,227,153,254"/>
+<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="168,238,342,239,338,242,168,243"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface." alt="" coords="342,279,545,306"/>
+<area shape="poly" id="edge11_Node000008_Node000011" title=" " alt="" coords="560,287,631,282,657,281,652,282,631,287,561,292"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task." alt="" coords="5,279,187,306"/>
+<area shape="poly" id="edge12_Node000011_Node000012" title=" " alt="" coords="202,290,344,291,339,294,203,295"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1profiling_1_1TaskEvent.html" title="Task event class." alt="" coords="25,330,167,375"/>
+<area shape="poly" id="edge13_Node000011_Node000013" title=" " alt="" coords="182,340,316,320,385,307,391,306,317,325,183,346"/>
+<area shape="rect" id="Node000014" href="$structmadness_1_1DQStats.html" title=" " alt="" coords="373,331,514,358"/>
+<area shape="poly" id="edge14_Node000008_Node000014" title=" " alt="" coords="529,340,580,332,630,316,642,307,654,297,678,288,683,287,656,301,645,311,632,321,581,337,530,345"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="686,311,838,338"/>
+<area shape="poly" id="edge15_Node000001_Node000015" title=" " alt="" coords="853,313,983,292,1040,279,1045,279,984,297,854,318"/>
+</map>

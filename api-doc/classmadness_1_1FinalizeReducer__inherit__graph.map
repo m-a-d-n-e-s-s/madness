@@ -1,0 +1,7 @@
+<map id="madness::FinalizeReducer&lt; T, NDIM &gt;" name="madness::FinalizeReducer&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title="Receiving end of the exchange finalize, living in the world the transfer rides on." alt="" coords="9,191,201,235"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1WorldObject.html" title=" " alt="" coords="21,81,189,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="107,156,107,191,103,189,103,160"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1WorldObjectBase.html" title="Base class for WorldObject." alt="" coords="5,5,205,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="106,46,108,81,102,80,104,51"/>
+</map>

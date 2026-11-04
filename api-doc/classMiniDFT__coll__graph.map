@@ -1,0 +1,19 @@
+<map id="MiniDFT" name="MiniDFT">
+<area shape="rect" id="Node000001" title=" " alt="" coords="458,301,533,328"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="136,200,284,228"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="255,231,366,274,461,304,455,304,364,279,254,237"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="5,91,210,118"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="131,127,200,199,195,200,130,132"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="16,5,178,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="101,46,108,90,103,90,100,51"/>
+<area shape="rect" id="Node000005" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="254,82,414,127"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="300,136,227,201,224,197,296,139"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="202,5,488,33"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="343,46,339,83,335,81,340,51"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1AtomicBasisSet.html" title="Contracted Gaussian basis." alt="" coords="308,200,499,228"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="427,236,486,301,481,299,425,241"/>
+<area shape="rect" id="Node000008" href="$structBoysLocalization.html" title=" " alt="" coords="523,200,654,228"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="569,238,509,302,507,298,564,240"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals." alt="" coords="678,200,849,228"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="717,233,599,279,533,303,532,298,597,274,712,234"/>
+</map>

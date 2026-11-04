@@ -1,0 +1,5 @@
+<map id="madness::spherical_box&lt; NDIM &gt;" name="madness::spherical_box&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title="an 2&#45;dimensional smooth mask that is 1 inside the radius and 0 outside" alt="" coords="28,145,175,190"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Vector.html" title=" " alt="" coords="5,5,198,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="104,64,104,146,99,144,99,67"/>
+</map>

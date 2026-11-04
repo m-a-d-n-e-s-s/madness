@@ -1,0 +1,13 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="26,84,155,112"/>
+<area shape="rect" id="Node000001" href="$classWriteCoeffImpl.html" title=" " alt="" coords="239,5,414,33"/>
+<area shape="poly" id="edge505_Node000000_Node000001" title=" " alt="" coords="138,75,223,43,268,32,263,35,225,48,140,80"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1RMI_1_1RmiTask.html" title=" " alt="" coords="238,57,414,85"/>
+<area shape="poly" id="edge506_Node000000_Node000002" title=" " alt="" coords="170,86,240,80,235,82,171,91"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface." alt="" coords="224,109,429,137"/>
+<area shape="poly" id="edge507_Node000000_Node000003" title=" " alt="" coords="170,104,226,111,221,113,171,109"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1WorldAmInterface_1_1SendReq.html" title=" " alt="" coords="224,161,429,206"/>
+<area shape="poly" id="edge508_Node000000_Node000004" title=" " alt="" coords="143,115,225,146,259,160,254,160,223,151,142,120"/>
+<area shape="rect" id="Node000005" href="$structmadness_1_1RMISendReq.html" title="This for RMI server thread to manage lifetime of WorldAM messages that it is sending." alt="" coords="5,169,176,197"/>
+<area shape="poly" id="edge509_Node000005_Node000004" title=" " alt="" coords="191,181,226,183,220,183,191,186"/>
+</map>

@@ -1,0 +1,12 @@
+<map id="madness::DependencyInterface" name="madness::DependencyInterface">
+<area shape="rect" id="Node000001" title="Provides an interface for tracking dependencies." alt="" coords="619,55,847,82"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="264,5,466,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="481,9,539,10,596,17,653,32,704,54,699,54,652,37,595,22,538,15,482,14"/>
+<area shape="poly" id="edge5_Node000001_Node000002" title=" " alt="" coords="436,35,499,47,622,62,616,63,498,52,436,40"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations." alt="" coords="294,76,437,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="452,82,622,75,616,76,453,87"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Stack.html" title=" " alt="" coords="256,128,474,172"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="489,130,595,110,690,83,695,82,596,115,490,136"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1detail_1_1StackBase.html" title="Base class for Stack which implements basic memory operations for non&#45;POD objects." alt="" coords="5,128,207,172"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="222,147,258,150,253,150,222,152"/>
+</map>

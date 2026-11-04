@@ -1,0 +1,8 @@
+<map id="MolecularNuclearChargeDensityFunctor" name="MolecularNuclearChargeDensityFunctor">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,123,237,168"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="25,5,217,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,64,116,123,111,122,111,67"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="131,64,131,123,126,122,127,67"/>
+<area shape="rect" id="Node000003" href="$classMolecularEntity.html" title=" " alt="" coords="241,14,364,42"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="272,50,156,125,154,120,266,50"/>
+</map>

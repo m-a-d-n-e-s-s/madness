@@ -1,0 +1,19 @@
+<map id="madness::Localizer" name="madness::Localizer">
+<area shape="rect" id="Node000001" title=" " alt="" coords="983,68,1129,96"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1AtomicBasisSet.html" title="Contracted Gaussian basis." alt="" coords="676,12,867,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="882,38,959,53,1010,68,1004,67,958,58,882,44"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="698,65,845,93"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="861,77,985,81,980,81,861,83"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="341,5,545,33"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="561,33,653,49,716,65,711,65,652,54,561,38"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,5,230,33"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="245,17,343,18,338,20,246,22"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="363,57,523,102"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="539,77,700,79,695,79,539,82"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,65,292,93"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="307,77,365,79,360,80,308,82"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1Function.html" title=" " alt="" coords="694,118,849,163"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="864,126,958,108,1009,97,1014,96,959,113,865,131"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="347,126,539,171"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="555,143,697,142,691,142,555,148"/>
+</map>

@@ -1,0 +1,15 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" title=" " alt="" coords="5,84,119,112"/>
+<area shape="rect" id="Node000001" href="$classSafeMPI_1_1Exception.html" title="SafeMPI exception object." alt="" coords="207,5,354,33"/>
+<area shape="poly" id="edge729_Node000000_Node000001" title=" " alt="" coords="99,74,166,43,209,32,205,35,168,48,102,79"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1LinAlgException.html" title="Linear algebra Exception." alt="" coords="184,57,376,85"/>
+<area shape="poly" id="edge730_Node000000_Node000002" title=" " alt="" coords="133,87,186,81,182,84,135,92"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1MadnessException.html" title="Base class for exceptions thrown in MADNESS." alt="" coords="175,109,386,137"/>
+<area shape="poly" id="edge731_Node000000_Node000003" title=" " alt="" coords="133,104,177,110,172,112,134,109"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1TensorException.html" title="Tensor is intended to throw only TensorExceptions." alt="" coords="183,161,378,189"/>
+<area shape="poly" id="edge733_Node000000_Node000006" title=" " alt="" coords="102,116,168,146,210,160,205,161,166,151,101,122"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1ThreadBindingException.html" title="Thrown by check_thread_binding() when the CPU binding cannot support the thread pool." alt="" coords="442,165,688,193"/>
+<area shape="poly" id="edge732_Node000003_Node000004" title=" " alt="" coords="369,138,494,164,488,165,369,143"/>
+<area shape="rect" id="Node000005" href="$structmadness_1_1detail_1_1ThreadBindingMessage.html" title="Owns the (long) diagnostic text of a ThreadBindingException." alt="" coords="167,213,394,258"/>
+<area shape="poly" id="edge734_Node000005_Node000004" title=" " alt="" coords="409,207,488,194,494,193,410,212"/>
+</map>

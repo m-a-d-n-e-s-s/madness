@@ -1,0 +1,7 @@
+<map id="madness::is_default_serializable_helper&lt; archive::TextFstreamInputArchive, T, std::enable_if_t&lt; is_iostreammable_v&lt; T &gt;||is_any_function_pointer_v&lt; T &gt; &gt; &gt;" name="madness::is_default_serializable_helper&lt; archive::TextFstreamInputArchive, T, std::enable_if_t&lt; is_iostreammable_v&lt; T &gt;||is_any_function_pointer_v&lt; T &gt; &gt; &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="24,81,242,211"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,123,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="79,44,100,80,95,81,78,49"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="147,5,258,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="190,45,171,82,167,79,186,48"/>
+</map>

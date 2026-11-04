@@ -1,0 +1,39 @@
+<map id="madness::archive::BaseArchive" name="madness::archive::BaseArchive">
+<area shape="rect" id="Node000001" title="Base class for all archive classes." alt="" coords="5,534,231,562"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1archive_1_1BaseInputArchive.html" title="Base class for input archive classes." alt="" coords="284,283,494,327"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="145,521,363,325,361,330,149,525"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1archive_1_1BaseOutputArchive.html" title="Base class for output archive classes." alt="" coords="279,768,499,813"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="147,570,365,766,360,769,146,575"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1archive_1_1BinaryFstreamInputArchive.html" title="Wraps an archive around a binary filestream for input." alt="" coords="570,5,756,50"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="402,267,423,220,455,164,495,108,519,83,545,60,571,47,567,51,549,64,523,87,499,112,459,167,428,222,407,269"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1archive_1_1BufferInputArchive.html" title="Wraps an archive around a memory buffer for input." alt="" coords="571,75,754,119"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="411,268,467,198,504,161,546,129,573,118,569,121,548,134,507,165,471,201,415,271"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1archive_1_1ContainerRecordInputArchive.html" title=" " alt="" coords="559,144,766,189"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="429,271,483,234,546,199,578,187,574,191,548,203,486,238,433,275"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1archive_1_1MPIInputArchive.html" title="Archive allowing buffering, deserialization of data, and point&#45;to&#45;point communication between process..." alt="" coords="562,213,763,258"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="493,276,574,257,570,260,496,280"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1archive_1_1MPIRawInputArchive.html" title="Archive allowing deserialization and point&#45;to&#45;point communication between processes with MPI." alt="" coords="564,283,761,327"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="508,303,566,304,562,306,510,307"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1archive_1_1ParallelInputArchive.html" title="An archive for storing local or parallel data, wrapping a BinaryFstreamInputArchive." alt="" coords="552,352,773,397"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="494,329,574,350,569,352,496,334"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1archive_1_1TextFstreamInputArchive.html" title="Wraps an archive around a text filestream for input." alt="" coords="550,421,775,466"/>
+<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="431,334,486,372,548,407,579,420,573,422,546,411,483,376,431,340"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1archive_1_1VectorInputArchive.html" title="Wraps an archive around an STL vector for input." alt="" coords="570,491,755,535"/>
+<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="413,337,471,409,507,445,548,476,572,490,567,491,546,481,504,449,467,412,413,343"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1archive_1_1BinaryFstreamOutputArchive.html" title="Wraps an archive around a binary filestream for output." alt="" coords="570,560,756,605"/>
+<area shape="poly" id="edge11_Node000011_Node000012" title=" " alt="" coords="411,753,467,683,504,646,546,615,572,604,567,607,548,619,507,650,471,687,415,757"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1archive_1_1BufferOutputArchive.html" title="Wraps an archive around a memory buffer for output." alt="" coords="571,629,754,674"/>
+<area shape="poly" id="edge12_Node000011_Node000013" title=" " alt="" coords="429,756,483,719,546,684,578,673,574,676,548,689,486,724,433,761"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1archive_1_1ContainerRecordOutputArchive.html" title=" " alt="" coords="559,699,766,743"/>
+<area shape="poly" id="edge13_Node000011_Node000014" title=" " alt="" coords="494,761,574,743,569,745,496,766"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1archive_1_1MPIOutputArchive.html" title="Archive allowing buffering, serialization of data, and point&#45;to&#45;point communication between processes..." alt="" coords="556,768,769,813"/>
+<area shape="poly" id="edge14_Node000011_Node000015" title=" " alt="" coords="514,788,559,790,553,791,515,793"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1archive_1_1MPIRawOutputArchive.html" title="Archive allowing serialization and point&#45;to&#45;point communication between processes with MPI." alt="" coords="564,837,761,882"/>
+<area shape="poly" id="edge15_Node000011_Node000016" title=" " alt="" coords="495,814,574,836,569,837,495,820"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1archive_1_1ParallelOutputArchive.html" title="An archive for storing local or parallel data wrapping a BinaryFstreamOutputArchive." alt="" coords="547,907,778,951"/>
+<area shape="poly" id="edge16_Node000011_Node000017" title=" " alt="" coords="431,820,486,857,548,892,579,906,573,906,546,897,483,862,431,825"/>
+<area shape="rect" id="Node000018" href="$classmadness_1_1archive_1_1TextFstreamOutputArchive.html" title="Wraps an archive around a text filestream for output." alt="" coords="550,976,775,1021"/>
+<area shape="poly" id="edge17_Node000011_Node000018" title=" " alt="" coords="414,823,471,894,507,930,548,961,572,976,567,975,546,966,504,934,467,897,412,828"/>
+<area shape="rect" id="Node000019" href="$classmadness_1_1archive_1_1VectorOutputArchive.html" title="Wraps an archive around an STL vector for output." alt="" coords="570,1045,755,1090"/>
+<area shape="poly" id="edge18_Node000011_Node000019" title=" " alt="" coords="405,825,428,873,459,928,499,984,523,1009,549,1031,572,1047,567,1046,545,1035,519,1013,495,987,455,931,423,875,403,830"/>
+</map>

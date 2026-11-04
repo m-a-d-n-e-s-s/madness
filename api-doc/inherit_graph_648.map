@@ -1,0 +1,17 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1WorldDCPmapInterface.html" title="Interface to be provided by any process map." alt="" coords="5,213,245,258"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1CloudOwnerPmap.html" title="Process map for the cloud&#39;s batch container." alt="" coords="314,5,518,50"/>
+<area shape="poly" id="edge635_Node000000_Node000001" title=" " alt="" coords="149,199,208,128,248,91,291,60,318,49,314,52,294,65,251,96,212,132,153,202"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1LevelPmap.html" title="A pmap that locates children on odd levels with their even level parents." alt="" coords="336,75,496,119"/>
+<area shape="poly" id="edge636_Node000000_Node000002" title=" " alt="" coords="167,202,225,165,292,129,338,114,333,118,294,134,228,169,171,206"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1SimplePmap.html" title="A simple process map." alt="" coords="331,144,502,189"/>
+<area shape="poly" id="edge637_Node000000_Node000003" title=" " alt="" coords="236,207,333,185,329,188,238,212"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1WorldDCDefaultPmap.html" title="Default process map is &quot;random&quot; using madness::hash(key)." alt="" coords="302,213,531,258"/>
+<area shape="poly" id="edge638_Node000000_Node000004" title=" " alt="" coords="259,233,304,235,299,237,261,238"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1WorldDCLocalPmap.html" title="Local process map will always return the current process as owner." alt="" coords="309,283,524,327"/>
+<area shape="poly" id="edge639_Node000000_Node000005" title=" " alt="" coords="237,260,322,281,317,283,237,265"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1WorldDCNodeReplicatedPmap.html" title=" " alt="" coords="293,352,540,397"/>
+<area shape="poly" id="edge640_Node000000_Node000006" title=" " alt="" coords="169,264,228,302,294,337,326,351,320,352,292,342,225,307,169,270"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1WorldDCSingleOwnerPmap.html" title=" " alt="" coords="303,421,530,466"/>
+<area shape="poly" id="edge641_Node000000_Node000007" title=" " alt="" coords="152,268,212,339,251,376,294,407,319,421,314,420,291,411,248,380,208,343,150,273"/>
+</map>

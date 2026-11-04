@@ -1,0 +1,5 @@
+<map id="Worker" name="Worker">
+<area shape="rect" id="Node000001" title=" " alt="" coords="55,81,121,109"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ThreadBase.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="5,5,171,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="90,47,90,82,86,80,86,51"/>
+</map>

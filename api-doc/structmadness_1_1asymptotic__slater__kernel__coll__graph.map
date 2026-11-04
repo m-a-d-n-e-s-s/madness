@@ -1,0 +1,7 @@
+<map id="madness::asymptotic_slater_kernel" name="madness::asymptotic_slater_kernel">
+<area shape="rect" id="Node000001" title=" " alt="" coords="34,224,196,268"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1asymptotic__density.html" title=" " alt="" coords="34,106,196,151"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,165,118,224,112,222,113,168"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Vector.html" title=" " alt="" coords="5,5,225,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="116,46,118,106,112,105,114,51"/>
+</map>

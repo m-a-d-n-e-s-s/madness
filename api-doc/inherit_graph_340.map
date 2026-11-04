@@ -1,0 +1,15 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,128,197,172"/>
+<area shape="rect" id="Node000001" href="$classG.html" title=" " alt="" coords="321,5,359,33"/>
+<area shape="poly" id="edge321_Node000000_Node000001" title=" " alt="" coords="137,115,186,78,244,43,284,28,322,21,318,24,285,34,246,48,189,82,141,119"/>
+<area shape="rect" id="Node000002" href="$structGConvGNP.html" title=" " alt="" coords="294,57,386,85"/>
+<area shape="poly" id="edge322_Node000000_Node000002" title=" " alt="" coords="175,119,244,95,296,82,291,85,245,100,178,124"/>
+<area shape="rect" id="Node000003" href="$structGConvGRNP.html" title=" " alt="" coords="289,109,390,137"/>
+<area shape="poly" id="edge323_Node000000_Node000003" title=" " alt="" coords="211,135,291,128,286,130,213,140"/>
+<area shape="rect" id="Node000004" href="$structGConvGRP.html" title=" " alt="" coords="294,161,386,189"/>
+<area shape="poly" id="edge324_Node000000_Node000004" title=" " alt="" coords="212,159,296,169,291,171,212,164"/>
+<area shape="rect" id="Node000005" href="$classVnuclear.html" title=" " alt="" coords="301,213,379,241"/>
+<area shape="poly" id="edge325_Node000000_Node000005" title=" " alt="" coords="179,175,245,198,303,217,298,217,244,203,178,181"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1ScalingFunctionFunctor_3_011_01_4.html" title=" " alt="" coords="245,265,435,310"/>
+<area shape="poly" id="edge326_Node000000_Node000006" title=" " alt="" coords="142,180,191,216,246,250,273,264,267,264,243,255,188,220,141,185"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="AtomicBasisFunction" name="AtomicBasisFunction">
+<area shape="rect" id="Node000001" title="Used to represent one basis function from a shell on a specific center." alt="" coords="19,106,176,134"/>
+<area shape="rect" id="Node000002" href="$classContractedGaussianShell.html" title="Represents a single shell of contracted, Cartesian, Gaussian primitives." alt="" coords="5,5,190,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="100,47,100,106,95,105,95,50"/>
+</map>

@@ -1,0 +1,22 @@
+<map id="madness::slater_kernel_apply" name="madness::slater_kernel_apply">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1145,305,1317,349"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="820,202,1053,247"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1017,249,1167,304,1162,304,1017,255"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="501,122,735,167"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="724,168,847,201,842,202,725,174"/>
+<area shape="poly" id="edge3_Node000003_Node000003" title=" " alt="" coords="591,104,601,98,618,95,634,97,645,103,650,112,648,123,644,120,644,113,641,107,632,102,618,101,603,103,594,109"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension." alt="" coords="260,40,379,67"/>
+<area shape="poly" id="edge7_Node000002_Node000004" title=" " alt="" coords="393,38,467,30,554,28,646,35,692,45,736,58,794,87,845,126,888,166,920,202,914,201,884,170,842,130,791,92,734,63,690,50,645,41,554,33,468,36,396,43"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="382,70,544,120,539,122,382,75"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="217,380,421,407"/>
+<area shape="poly" id="edge8_Node000002_Node000005" title=" " alt="" coords="371,410,446,432,538,449,588,452,638,450,687,441,733,425,763,405,779,382,794,355,818,325,905,248,910,246,822,329,799,358,784,385,766,409,736,430,688,446,639,455,588,457,538,454,444,438,371,416"/>
+<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="435,378,457,367,475,351,488,331,493,311,488,270,482,228,486,206,499,184,521,169,525,166,503,187,491,208,487,228,493,270,498,311,493,333,479,354,460,371,437,383"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="5,380,168,407"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="183,391,219,393,214,395,184,396"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1apply__kernel__helper.html" title=" " alt="" coords="851,339,1022,384"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="1037,356,1121,348,1147,346,1142,347,1121,353,1038,361"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1asymptotic__slater.html" title=" " alt="" coords="537,487,699,532"/>
+<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="714,502,755,494,795,480,831,459,864,433,914,385,919,383,867,437,834,464,797,485,756,499,715,508"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="224,487,415,532"/>
+<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="430,507,539,510,534,510,430,512"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="madness::ScopedMutex&lt; mutexT &gt;" name="madness::ScopedMutex&lt; mutexT &gt;">
+<area shape="rect" id="Node000001" title="Mutex that is applied/released at start/end of a scope." alt="" coords="5,106,182,151"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="29,5,158,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="96,47,96,106,91,105,91,51"/>
+</map>

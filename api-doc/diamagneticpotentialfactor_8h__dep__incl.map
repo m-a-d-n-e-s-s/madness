@@ -1,0 +1,15 @@
+<map id="diamagneticpotentialfactor.h" name="diamagneticpotentialfactor.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="190,5,399,33"/>
+<area shape="rect" id="Node000002" href="$diamagneticpotentialfactor_8cc.html" title=" " alt="" coords="5,81,221,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="246,41,146,83,144,78,250,37"/>
+<area shape="rect" id="Node000003" href="$madchem_8h.html" title=" " alt="" coords="245,81,344,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="296,47,297,82,292,79,293,51"/>
+<area shape="rect" id="Node000007" href="$madness_2chem_2znemo_8cc.html" title=" " alt="" coords="367,81,451,109"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="328,39,391,81,386,81,327,44"/>
+<area shape="rect" id="Node000004" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="148,157,211,184"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="264,117,201,159,199,154,258,118"/>
+<area shape="rect" id="Node000005" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="235,157,354,184"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="296,123,296,158,292,155,292,126"/>
+<area shape="rect" id="Node000006" href="$simple__hf_8cpp.html" title=" " alt="" coords="377,157,489,184"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="333,114,411,156,406,156,332,119"/>
+</map>
