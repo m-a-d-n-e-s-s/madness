@@ -5665,6 +5665,20 @@ template<size_t NDIM>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence, double cnorm_max = 0.0) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
+
+            std::size_t max_applied_level = 0;
+            for (const auto& [key, node]: f.coeffs) {
+                if (node.has_coeff()) {
+                    if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
+                        max_applied_level = std::max(max_applied_level, static_cast<std::size_t>(key.level()));
+                    }
+                }
+            }
+            world.gop.max(max_applied_level);
+            if constexpr (requires { op.set_tree_max_level(static_cast<Level>(max_applied_level)); }) {
+                op.set_tree_max_level(static_cast<Level>(max_applied_level));
+            }
+
             for (const auto& [key, node]: f.coeffs) {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {

@@ -44,6 +44,7 @@
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/misc/kahan_accumulator.h>
 #include <algorithm>
+#include <cmath>
 
 /// \file mra/convolution1d.h
 /// \brief Computes most matrix elements over 1D operators (including Gaussians)
@@ -304,6 +305,9 @@ namespace madness {
             return true;
         }
         bool range_restricted() const { return range.finite(); }
+
+        /// Lowest level at which operator stencil narrows to +/-1
+        virtual Level cutoff_level() const { return 0; }
 
         virtual ~Convolution1D() {};
 
@@ -651,6 +655,16 @@ namespace madness {
           }
           return result;
         }
+
+        /// Lowest level at which stencil narrows to +/-1 across all dimensions
+        Level cutoff_level() const {
+            Level ncut = 64;
+            for (int d = 0; d < NDIM; ++d) {
+                if (!ops[d]) return 0;
+                ncut = std::min(ncut, ops[d]->cutoff_level());
+            }
+            return (ncut == 64) ? 0 : ncut;
+        }
     };
 
     // To test generic convolution by comparing with GaussianConvolution1D
@@ -801,6 +815,16 @@ namespace madness {
 
         virtual Level natural_level() const final {
             return natlev;
+        }
+
+        /// Lowest level at which operator stencil narrows to +/-1
+        Level cutoff_level() const override {
+            if (this->images == LatticeImages::exclude_home) return 0;
+            const double overly_large_beta_r2 = 49.0;
+            if (expnt >= overly_large_beta_r2) {
+                return Level(std::floor(0.5 * std::log2(expnt / overly_large_beta_r2)));
+            }
+            return 0;
         }
 
         /// Compute the projection of the operator onto the double order polynomials

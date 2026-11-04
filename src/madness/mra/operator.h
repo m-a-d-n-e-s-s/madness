@@ -170,7 +170,8 @@ namespace madness {
         Tensor<double> stored_exponents;
 
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
-
+        std::vector<Level> cutoff_levels; ///< Cutoff level for each Gaussian term
+        mutable Level tree_max_level_ = MAXLEVEL; ///< Max level of tree currently being evaluated
       private:
         array_of_bools<NDIM>
             lattice_summed_;    ///< If lattice_summed_[d] is true, sum over lattice translations along axis d
@@ -231,6 +232,30 @@ namespace madness {
         const std::vector<ConvolutionND<Q,NDIM>>& get_ops() const { return ops; }
         const std::array<KernelRange, NDIM>& get_range() const { return range; }
         bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.finite(); }); }
+
+        Level get_cutoff_level(int mu) const {
+            if (mu >= 0 && mu < static_cast<int>(cutoff_levels.size()))
+                return cutoff_levels[mu];
+            return 0;
+        }
+
+        const std::vector<Level>& get_cutoff_levels() const {
+            return cutoff_levels;
+        }
+
+        void set_tree_max_level(Level l) const { tree_max_level_ = l; }
+        Level get_tree_max_level() const { return tree_max_level_; }
+
+        void init_cutoff_levels() {
+            cutoff_levels.resize(rank, 0);
+            if (images_only_) {
+                std::fill(cutoff_levels.begin(), cutoff_levels.end(), 0);
+                return;
+            }
+            for (int mu = 0; mu < rank; ++mu) {
+                cutoff_levels[mu] = ops[mu].cutoff_level();
+            }
+        }
 
     private:
 
@@ -1050,6 +1075,7 @@ namespace madness {
             }
             init_range();
             init_lattice_summed();
+            init_cutoff_levels();
 
             this->process_pending();
         }
@@ -1076,6 +1102,7 @@ namespace madness {
         {
             init_range();
             init_lattice_summed();
+            init_cutoff_levels();
             this->process_pending();
         }
 
@@ -1178,6 +1205,7 @@ namespace madness {
                     set_term(ops[std::size_t(pat - 1) * rank0 + mu], coeff(mu), expnt(mu), pat);
             for (int mu = 0; mu < ndropped; ++mu)
                 set_term(ops[std::size_t(rank0) * npat + mu], -dropped_coeff(mu), dropped_expnt(mu), 0);
+            cutoff_levels.assign(rank, 0);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1211,6 +1239,7 @@ namespace madness {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
+            cutoff_levels.resize(rank, 0);
             for (int mu=0; mu<rank; ++mu) {
                 Q c = std::pow(sqrt(expnt(mu)/pi),static_cast<int>(NDIM)); // Normalization coeff
 
@@ -1218,10 +1247,15 @@ namespace madness {
                 // by to recover the coeff we want.
                 ops[mu].setfac(coeff(mu)/c);
 
+                Level ncut = 64;
                 for (std::size_t d=0; d<NDIM; ++d) {
                   ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0,
                                        lattice_range[d], bloch_k[d], range[d]));
+                  const double ed = expnt(mu) * width[d] * width[d];
+                  const Level nd = (ed >= 49.0) ? Level(std::floor(0.5 * std::log2(ed / 49.0))) : 0;
+                  ncut = std::min(ncut, nd);
                 }
+                cutoff_levels[mu] = (ncut == 64) ? 0 : ncut;
             }
         }
 
@@ -1435,13 +1469,11 @@ namespace madness {
                 }
             }
 
+            const Level cur_level = source.level();
             tol = 0.01*tol/rank; // Error is per separated term
-            ApplyTerms at;
-            at.r_term=true;
-            at.t_term=(source.level()>0);
 
             /// SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
-            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(cur_level, shift, source);
 
             //print("sepop",source,shift,op->norm,tol);
 
@@ -1456,12 +1488,25 @@ namespace madness {
 
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; ++mu) {
+                const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+
+                ApplyTerms at_mu;
+                at_mu.r_term = true;
+
+                const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
+                if (ncut <= max_allowed_ncut) {
+                    if (cur_level < ncut) continue;
+                    at_mu.t_term = (cur_level > ncut);
+                } else {
+                    at_mu.t_term = (cur_level > 0);
+                }
+
                 // SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 if (muop.norm > tol) {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
-                    muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    muopxv_fast(at_mu, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2);
                 }
             }
@@ -1537,16 +1582,25 @@ namespace madness {
                 // accumulate all terms of the operator for a specific term of the function
                 Tensor<resultT> result(v2k), result0(vk);
 
-                ApplyTerms at;
-                at.r_term=true;
-                at.t_term=source.level()>0;
-
                 // this loop will return on result and result0 the terms [(P+Q) G (P+Q)]_1,
                 // and [P G P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
+                    const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+
+                    ApplyTerms at_mu;
+                    at_mu.r_term=true;
+
+                    const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
+                    if (ncut <= max_allowed_ncut) {
+                        if (source.level() < ncut) continue;
+                        at_mu.t_term = (source.level() > ncut);
+                    } else {
+                        at_mu.t_term = (source.level() > 0);
+                    }
+
                     const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                     Q fac = ops[mu].getfac();
-                    muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
+                    muopxv_fast(at_mu, muop.ops, chunk, chunk0, result, result0,
                             tol/std::abs(fac), fac, work1, work2);
                 }
 
@@ -1636,6 +1690,17 @@ namespace madness {
 //            const GenTensor<T> f0 = copy(coeff(s0));
             const GenTensor<T> f0 = copy((*input)(s0));
             for (int mu=0; mu<rank; ++mu) {
+                const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+                bool subtract_t = false;
+
+                const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
+                if (ncut <= max_allowed_ncut) {
+                    if (source.level() < ncut) continue;
+                    subtract_t = (source.level() > ncut);
+                } else {
+                    subtract_t = (source.level() > 0);
+                }
+
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
 
@@ -1662,7 +1727,9 @@ namespace madness {
                         timer_low_transf.accumulate(cpu1-cpu0);
 
                         r_list.push_back(r);
-                        r0_list.push_back(r0);
+                        if (subtract_t) {
+                            r0_list.push_back(r0);
+                        }
                     }
                 }
             }
