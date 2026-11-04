@@ -979,6 +979,12 @@ private:
     /// where nothing else forces the trees deep there. 0: off.
     double special_lo=0.0;
 
+    /// special_lo on the nemo route when xc_special_lo is not given, in bohr. Without
+    /// it nemo_lih_pbe_weak (LiH, PBE) is off by 5.8e-5 Ha against moldft and the
+    /// weak and multiplicative forms disagree; from 0.003 down to 0.0003 both
+    /// forms reproduce the pre-R^2-pointwise energies to 5e-7 Ha.
+    static constexpr double nemo_special_lo=0.003;
+
     /// where refine_xc_args_at_nuclei() refines, see set_special_points()
     std::vector<Vector<double,3> > special_points;
 

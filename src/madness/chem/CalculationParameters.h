@@ -84,7 +84,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("dft_deriv","bspline","derivative method for gga potentials",{"abgv","bspline","ble"});
 		initialize<bool>  ("xc_weak_gga",false,"weak form of the semilocal xc potential; nemo only");
 		initialize<double>("xc_special_lo",0.0,"minimum length scale resolved by the xc intermediates at "
-				"the nuclei; refines them there to FunctionDefaults::set_length_scale(lo); 0: off");
+				"the nuclei; refines them there to FunctionDefaults::set_length_scale(lo); 0: off; "
+				"unset: off for scf, 0.003 for nemo");
 		initialize<double>("maxrotn",0.25,"step restriction used in autoshift algorithm");
 		initialize<int>   ("nvalpha",0,"number of alpha virtuals to compute");
 		initialize<int>   ("nvbeta",0,"number of beta virtuals to compute");

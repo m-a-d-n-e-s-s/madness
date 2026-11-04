@@ -454,7 +454,10 @@ XCOperator<T, NDIM>::XCOperator(World &world, const Nemo *nemo, int ispin)
     xc->initialize(nemo->get_calc()->param.xc(),
                    !nemo->get_calc()->param.spin_restricted(), world);
     weak_gga = nemo->get_calc()->param.xc_weak_gga();
-    special_lo = nemo->get_calc()->param.xc_special_lo();
+    // R^2 enters pointwise here, so nothing else forces the xc trees deep at the
+    // nuclei: refine there unless the user chose otherwise (an explicit 0 is off)
+    const auto& param = nemo->get_calc()->param;
+    special_lo = param.is_user_defined("xc_special_lo") ? param.xc_special_lo() : nemo_special_lo;
 
     ncf = nemo->ncf;
 
