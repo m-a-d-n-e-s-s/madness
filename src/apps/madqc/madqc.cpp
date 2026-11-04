@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
         // 12, 2026-09-10: a 97-minute LiH log reduced to the summary).
         std::ofstream report(prefix + ".out", std::ios::app);
         qcapp::write_results_summary(report, wf.results());
-        print("Wrote results summary :", prefix + ".out");
+        print("Wrote results summary :", prefix + ".summary.out");
 
         // Index any visualization artifacts (cube/dx/line plots) the run
         // produced into <prefix>.viz_manifest.json for gecko/ParaView/VMD.

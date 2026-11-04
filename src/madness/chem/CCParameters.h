@@ -74,6 +74,7 @@ namespace madness {
             initialize < double > ("corrfac_gamma", 1.0, "exponent for the correlation factor");
             initialize < std::size_t > ("output_prec", 8, "for formatted output");
             initialize < bool > ("debug", false, "");
+            initialize < std::string > ("cp_diagnostics", "none", "cross-check constant-part intermediates",{"none","final","full"});
             initialize < bool > ("plot", false, "");
             initialize < bool > ("kain", true, "");
             initialize < std::size_t > ("kain_subspace", 3, "");
@@ -88,6 +89,9 @@ namespace madness {
             // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
             initialize < std::vector<size_t>>
             ("excitations", {}, "vector containing the excitations");
+            initialize<std::string>("KffK_algorithm", "lrf_split_alpha", "algorithm for KffK commutator", {"lrf_split_alpha", "lrf_direct", "6d"});
+            initialize<double>("KffK_alpha", 100.0,"max exponent in g12");
+            initialize<double>("KffK_volume_element", 0.2,"volume element for exchange commutator");
         }
 
         void set_derived_values();
@@ -164,6 +168,8 @@ namespace madness {
 
         bool debug() const { return get<bool>("debug"); }
 
+        std::string cp_diagnostics() const { return get<std::string>("cp_diagnostics"); }
+
         bool plot() const { return get<bool>("plot"); }
 
         bool kain() const { return get<bool>("kain"); }
@@ -183,6 +189,11 @@ namespace madness {
         std::vector<std::size_t> excitations() const { return get<std::vector<std::size_t>>("excitations"); }
 
         double gamma() const {return get<double>("corrfac_gamma");}
+
+        double kffk_alpha() const { return get<double>("kffk_alpha");}
+        double kffk_volume_element() const { return get<double>("kffk_volume_element");}
+
+        std::string kffk_algorithm() const { return get<std::string>("kffk_algorithm"); }
 
         /// print out the parameters
         void information(World& world) const;

@@ -853,6 +853,16 @@ namespace madness {
         return a;
     }
 
+	template<typename T>
+	std::vector<double> condition_number(const Tensor<T>& A) {
+    	auto [eval, evec] = syev(A);
+    	double max_eval=eval.absmax();
+    	double min_eval=eval.absmin();
+    	if (min_eval<1.e-12) min_eval=1.e-12;
+    	return std::vector<double>({max_eval/min_eval,max_eval,min_eval});
+    };
+
+
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
 
     A should be a matrix (float, double, float_complex,
@@ -1206,7 +1216,8 @@ namespace madness {
     	piv=Tensor<integer>(n);
     	Tensor<T> work(2*n);
 
-    	integer irank = 0;
+    	integer irank = static_cast<integer>(rank);
+    	// note: will return U, not L, due to lapack convention
     	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &irank, &tol, work.ptr(), &info);
     	rank = static_cast<int>(irank);
 
@@ -1217,6 +1228,7 @@ namespace madness {
     	mask_info(info);
     	TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
 
+    	// zero out lower triangular matrix
     	for (int i=0; i<n; ++i)
     		for (int j=0; j<i; ++j)
     			A(i,j) = 0.0;
@@ -1762,6 +1774,12 @@ namespace madness {
 
     template
     Tensor<double_complex> inverse(const Tensor<double_complex>& A);
+
+	template
+	std::vector<double> condition_number(const Tensor<double>& A);
+
+	template
+	std::vector<double> condition_number(const Tensor<double_complex>& A);
 
     template
     void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,

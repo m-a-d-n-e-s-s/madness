@@ -29,9 +29,11 @@ class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
     CC2(World& world, const CCParameters& cc_param, const TDHFParameters& tdhf_param,
+        const LowRankFunctionParameters& lrfparam,
         const std::shared_ptr<const Nemo> nemo)
             : world(world),
               parameters(cc_param),
+              lrfparameters(lrfparam),
               nemo(nemo),
               tdhf(new TDHF(world, tdhf_param, nemo)),
               CCOPS(world, nemo, parameters),
@@ -42,6 +44,7 @@ public:
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
               parameters(world_,parser),
+              lrfparameters(world_,parser),
               nemo(nemo_),
               tdhf(new TDHF(world, parser, nemo)),
               CCOPS(world, nemo, parameters),
@@ -134,6 +137,7 @@ public:
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation
     CCParameters parameters;
+    LowRankFunctionParameters lrfparameters;
     /// The SCF Calculation
     std::shared_ptr<const Nemo> nemo;
     /// The excited state cis calculation

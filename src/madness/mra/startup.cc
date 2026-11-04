@@ -36,6 +36,7 @@
 /// \file mra/startup.cc
 
 #include <madness/mra/mra.h>
+#include <madness/misc/info.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/timers.h>
 //#include <madness/mra/mraimpl.h> !!!!!!!!!!!!!!!!  NOOOOOOOOOOOOOOOOOOOOOOOOOO !!!!!!!!!!!!!!!!!!!!!!!
@@ -195,7 +196,12 @@ namespace madness {
 #ifdef HAVE_MTXMQ
             print("                   BLAS ...", "Have MTXMQ");
 #endif
-            print("               compiled ...",__TIME__," on ",__DATE__);
+            const std::string time(madness::info::build_time());
+            const std::string date(madness::info::build_date());
+            // print("               compiled ...",__TIME__," on ",__DATE__);
+            print("               compiled ...",time," on ",date);
+            print(" git source description ...",info::git_source_description());
+
 
             //         print(" ");
             //         IndexIterator::test();
