@@ -38,9 +38,10 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <map>
 #include <queue>
 #include <string>
+#include <unordered_map>
+
 #include <madness/world/atomicint.h>
 #include <madness/world/worlddc.h>
 
@@ -63,12 +64,15 @@ namespace madness {
     class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {
         typedef Key<NDIM> keyT;
         typedef std::pair<keyT,ProcessID> pairT;
-        typedef std::map<keyT,ProcessID> mapT;
+        // Only ever queried with find(), never iterated, so ordering buys nothing.
+        // Hash<keyT> returns the hash cached in Key; no rehash on lookup.
+        typedef std::unordered_map<keyT,ProcessID,Hash<keyT>> mapT;
         mapT map;
         typedef typename mapT::const_iterator iteratorT;
 
     public:
         LBDeuxPmap(const std::vector<pairT>& v) {
+            map.reserve(v.size());
             for (unsigned int i=0; i<v.size(); ++i) {
                 map.insert(v[i]);
             }
