@@ -831,6 +831,27 @@ namespace madness {
             return impl->norm2sq_local();
         }
 
+        /// Returns the maximum Frobenius norm of coefficients across local nodes ... no comms
+        double max_coeff_norm_local() const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            return impl->max_coeff_norm_local();
+        }
+
+        /// Returns the global maximum Frobenius norm of coefficients across all nodes and ranks
+        double max_coeff_norm() const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            return impl->max_coeff_norm();
+        }
+
+        /// Returns the per-level maximum coefficient norm vector across all ranks
+        std::vector<double> max_coeff_norm_level() const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            return impl->max_coeff_norm_level();
+        }
+
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
 
@@ -2377,7 +2398,7 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true, double cnorm_max = 0.0) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         constexpr std::size_t OPDIM=opT::opdim;
@@ -2386,7 +2407,7 @@ namespace madness {
         // specialized version for 3D
         if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
-            result.get_impl()->apply(op, *f.get_impl(), fence);
+            result.get_impl()->apply(op, *f.get_impl(), fence, cnorm_max);
 
         } else {        // general version for higher dimension
 	  //bool print_timings=false;
@@ -2440,7 +2461,8 @@ namespace madness {
 
             ff.change_tree_state(redundant);
 //    	    ff.get_impl()->make_redundant(true);
-            result = apply_only(op, ff, fence);
+            const double cnorm_max = ff.get_impl()->max_coeff_norm();
+            result = apply_only(op, ff, fence, cnorm_max);
             ff.get_impl()->undo_redundant(false);
             result.get_impl()->trickle_down(true);
 
@@ -2455,7 +2477,8 @@ namespace madness {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
-            result = apply_only(op, fff, fence);
+            const double cnorm_max = fff.get_impl()->max_coeff_norm();
+            result = apply_only(op, fff, fence, cnorm_max);
             result.get_impl()->set_tree_state(nonstandard_after_apply);
         	ff.world().gop.fence();
             if (print_timings) result.print_size("result after apply_only");

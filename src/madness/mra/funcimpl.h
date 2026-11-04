@@ -50,9 +50,12 @@
 
 #include <madness/mra/leafop.h>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <type_traits>
+#include <vector>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -5437,7 +5440,7 @@ template<size_t NDIM>
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
-        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
+        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c, double cnorm_max = 0.0) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
           // working assumption here WAS that the operator is
@@ -5475,6 +5478,7 @@ template<size_t NDIM>
           // previously fac=10.0 selected empirically constrained by qmprop
 
           double cnorm = c.normf();
+          const double cmax = std::max(cnorm, cnorm_max);
 
           // BC handling:
           // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
@@ -5584,7 +5588,7 @@ template<size_t NDIM>
 
                 if (cnorm * opnorm > tol / fac) {
                   tensorT result =
-                      op->apply(source, displacement, c, tol / fac / cnorm);
+                      op->apply(source, displacement, c, tol / fac / std::max(cmax, 1e-15));
                   if (result.normf() > 0.3 * tol / fac) {
                     if (coeffs.is_local(dest))
                       coeffs.send(dest, &nodeT::accumulate2, result, coeffs,
@@ -5658,7 +5662,7 @@ template<size_t NDIM>
 
         /// apply an operator on f to return this
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence, double cnorm_max = 0.0) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
             for (const auto& [key, node]: f.coeffs) {
@@ -5666,7 +5670,7 @@ template<size_t NDIM>
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 //                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor(), cnorm_max);
                     }
                 }
             }
@@ -6387,6 +6391,47 @@ template<size_t NDIM>
         /// not the norm.  Internal nodes are skipped where they are the
         /// duplicates, so no state change is needed to ask for the norm.
         double norm2sq_local() const;
+
+        /// Returns the maximum Frobenius norm of coefficients across local nodes ... no comms
+        double max_coeff_norm_local() const {
+            double max_norm = 0.0;
+            for (const auto& [key, node] : coeffs) {
+                if (node.has_coeff()) {
+                    double s = node.get_snorm();
+                    double d = node.get_dnorm();
+                    double norm = (s >= 0.0 && d >= 0.0) ? std::hypot(s, d) : node.coeff().normf();
+                    max_norm = std::max(max_norm, norm);
+                }
+            }
+            return max_norm;
+        }
+
+        /// Returns the global maximum Frobenius norm of coefficients across all nodes and ranks
+        double max_coeff_norm() const {
+            double local = max_coeff_norm_local();
+            world.gop.max(local);
+            world.gop.fence();
+            return local;
+        }
+
+        /// Returns the per-level maximum coefficient norm vector across all ranks
+        std::vector<double> max_coeff_norm_level() const {
+            std::vector<double> local(MAXLEVEL, 0.0);
+            for (const auto& [key, node] : coeffs) {
+                if (node.has_coeff()) {
+                    Level l = key.level();
+                    if (l >= 0 && l < MAXLEVEL) {
+                        double s = node.get_snorm();
+                        double d = node.get_dnorm();
+                        double norm = (s >= 0.0 && d >= 0.0) ? std::hypot(s, d) : node.coeff().normf();
+                        local[l] = std::max(local[l], norm);
+                    }
+                }
+            }
+            world.gop.max(local.data(), local.size());
+            world.gop.fence();
+            return local;
+        }
 
         /// compute the inner product of this range with other
         template<typename R>

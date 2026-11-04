@@ -127,6 +127,20 @@ int test_bsh(World& world) {
         double norm = f.trace();
         double ferr = f.err(Gaussian<T,3>(origin, expnt, coeff));
         if (world.rank() == 0) print("norm and error of the initial function", norm, ferr);
+
+        // Verify coefficient norm calculation (Requirement R2)
+        const double cmax = f.max_coeff_norm();
+        const double cmax_local = f.max_coeff_norm_local();
+        const auto cmax_levels = f.max_coeff_norm_level();
+        const double fnorm = f.norm2();
+        MADNESS_CHECK(cmax > 0.0);
+        MADNESS_CHECK(cmax_local <= cmax);
+        MADNESS_CHECK(cmax <= fnorm + 1e-12);
+        MADNESS_CHECK(cmax_levels.size() == static_cast<std::size_t>(MAXLEVEL));
+        for (Level l = 0; l < MAXLEVEL; ++l) {
+            MADNESS_CHECK(cmax_levels[l] <= cmax + 1e-12);
+        }
+        if (world.rank() == 0) print("verified max_coeff_norm =", cmax, "fnorm =", fnorm);
         
         SeparatedConvolution<T,3> op = BSHOperator<3>(world, mu, 1e-4, 1e-8);
         std::cout.precision(8);
