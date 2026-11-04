@@ -42,7 +42,7 @@ if(BUILD_TESTING)
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
       test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc test_displacements.cc
       test_truncate_tol.cc test_periodic_truncation.cc test_images_operator.cc
-      test_anisotropic_reach.cc)
+      test_anisotropic_reach.cc test_lbdeux.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
@@ -62,6 +62,7 @@ if(BUILD_TESTING)
   add_mpi_tests(mra test_mul_sparse "2" "MADmra;MADgtest" "unittests;short")
   # the halo only carries data between ranks, so the single-rank run above cannot exercise it
   add_mpi_tests(mra test_halo "2" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_lbdeux "2" "MADmra;MADgtest" "unittests;short")
 
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
