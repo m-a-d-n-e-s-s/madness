@@ -5316,10 +5316,11 @@ template<size_t NDIM>
             Key<OPDIM> key,d;
             keyT dest;
             double tol, fac, cnorm;
+            Level tree_min_level = 0;
 
             do_op_args() = default;
-            do_op_args(const Key<OPDIM>& key, const Key<OPDIM>& d, const keyT& dest, double tol, double fac, double cnorm)
-                : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm) {}
+            do_op_args(const Key<OPDIM>& key, const Key<OPDIM>& d, const keyT& dest, double tol, double fac, double cnorm, Level tree_min_level = 0)
+                : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm), tree_min_level(tree_min_level) {}
             template <class Archive>
             void serialize(Archive& ar) {
                 ar & archive::wrap_opaque(this,1);
@@ -5334,7 +5335,7 @@ template<size_t NDIM>
         template <typename opT, typename R, size_t OPDIM>
         void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args) {
 
-            tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm, args.tree_min_level);
 
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
@@ -5363,7 +5364,7 @@ template<size_t NDIM>
         double do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args,
                                 const TensorArgs& apply_targs) {
 
-            tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm, args.tree_min_level);
             const double norm=result_full.normf();
 
             // Screen here to reduce communication cost of negligible data
@@ -5403,9 +5404,9 @@ template<size_t NDIM>
 
             coeffT result;
             if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff,
-                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac, args.tree_min_level);
             if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff,
-                    args.tol/args.fac/args.cnorm, args.tol/args.fac);
+                    args.tol/args.fac/args.cnorm, args.tol/args.fac, args.tree_min_level);
 
             const double result_norm=result.svd_normf();
 
@@ -5440,7 +5441,7 @@ template<size_t NDIM>
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
-        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c, double cnorm_max = 0.0) {
+        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c, double cnorm_max = 0.0, Level tree_min_level = 0) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
           // working assumption here WAS that the operator is
@@ -5588,7 +5589,7 @@ template<size_t NDIM>
 
                 if (cnorm * opnorm > tol / fac) {
                   tensorT result =
-                      op->apply(source, displacement, c, tol / fac / std::max(cmax, 1e-15));
+                      op->apply(source, displacement, c, tol / fac / std::max(cmax, 1e-15), tree_min_level);
                   if (result.normf() > 0.3 * tol / fac) {
                     if (coeffs.is_local(dest))
                       coeffs.send(dest, &nodeT::accumulate2, result, coeffs,
@@ -5666,25 +5667,21 @@ template<size_t NDIM>
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
 
-            std::size_t max_applied_level = 0;
-            for (const auto& [key, node]: f.coeffs) {
-                if (node.has_coeff()) {
-                    if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
-                        max_applied_level = std::max(max_applied_level, static_cast<std::size_t>(key.level()));
-                    }
+            std::size_t min_leaf_level = MAXLEVEL;
+            for (const auto& [key, node] : f.coeffs) {
+                if (node.has_coeff() && !node.has_children()) {
+                    min_leaf_level = std::min(min_leaf_level, static_cast<std::size_t>(key.level()));
                 }
             }
-            world.gop.max(max_applied_level);
-            if constexpr (requires { op.set_tree_max_level(static_cast<Level>(max_applied_level)); }) {
-                op.set_tree_max_level(static_cast<Level>(max_applied_level));
-            }
+            world.gop.min(min_leaf_level);
+            if (min_leaf_level == MAXLEVEL) min_leaf_level = 0;
+            const Level tree_min_level = static_cast<Level>(min_leaf_level);
 
             for (const auto& [key, node]: f.coeffs) {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-//                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor(), cnorm_max);
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor(), cnorm_max, tree_min_level);
                     }
                 }
             }
@@ -5710,7 +5707,7 @@ template<size_t NDIM>
         /// @return	   max norm, and will modify or include new nodes in this' tree
         template <typename opT, typename R>
         double do_apply_directed_screening(const opT* op, const keyT& key, const coeffT& coeff,
-                                           const bool& do_kernel) {
+                                           const bool& do_kernel, Level tree_min_level = 0) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // this path screens by decay away from the source: the home displacement is "the kernel", displacements
             // farther out than a negligible one are skipped, and the sweep stops beyond shell 12 of Key::distsq_bc.
@@ -5796,7 +5793,7 @@ template<size_t NDIM>
 
                         if (cost_ratio>0.0) {
 
-                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
+                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm, tree_min_level);
                             norm=0.0;
                             if (cost_ratio<1.0) {
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
@@ -5827,6 +5824,17 @@ template<size_t NDIM>
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             MADNESS_ASSERT(not op.modified());
+
+            std::size_t min_leaf_level = MAXLEVEL;
+            for (const auto& [key, node] : f.coeffs) {
+                if (node.has_coeff() && !node.has_children()) {
+                    min_leaf_level = std::min(min_leaf_level, static_cast<std::size_t>(key.level()));
+                }
+            }
+            world.gop.min(min_leaf_level);
+            if (min_leaf_level == MAXLEVEL) min_leaf_level = 0;
+            const Level tree_min_level = static_cast<Level>(min_leaf_level);
+
             // looping through all the coefficients of the source f
             typename dcT::const_iterator end = f.get_coeffs().end();
             for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
@@ -5836,8 +5844,8 @@ template<size_t NDIM>
 
                 if (coeff.has_data() and (coeff.rank()!=0)) {
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, true);
-                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, false);
+                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, true, tree_min_level);
+                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, false, tree_min_level);
                 }
             }
             if (fence) world.gop.fence();
@@ -5946,7 +5954,7 @@ template<size_t NDIM>
                     double norm0=result->do_apply_directed_screening<opT,T>(apply_op, key, coeff, true);
 
                     result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
-                                 apply_op,key,coeff,false);
+                                 apply_op,key,coeff,false,Level(0));
 
                     return finalize(norm0,key,coeff);
 
@@ -6100,7 +6108,7 @@ template<size_t NDIM>
                     double norm0=result->do_apply_directed_screening<opT,T>(apply_op, key, coeff, true);
 
                     result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
-                                 apply_op,key,coeff,false);
+                                 apply_op,key,coeff,false,Level(0));
 
                     return finalize(norm0,key,coeff);
 
@@ -6230,7 +6238,7 @@ template<size_t NDIM>
                     // now send off the application for all neighbor boxes
                     ProcessID p=result->world.rank();
                     result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
-                                 apply_op, key, coeff, false);
+                                 apply_op, key, coeff, false, Level(0));
 
                     // process the core box
                     double norm0=result->do_apply_directed_screening<opT,T>(apply_op,key,coeff,true);

@@ -171,7 +171,6 @@ namespace madness {
 
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         std::vector<Level> cutoff_levels; ///< Cutoff level for each Gaussian term
-        mutable Level tree_max_level_ = MAXLEVEL; ///< Max level of tree currently being evaluated
       private:
         array_of_bools<NDIM>
             lattice_summed_;    ///< If lattice_summed_[d] is true, sum over lattice translations along axis d
@@ -242,9 +241,6 @@ namespace madness {
         const std::vector<Level>& get_cutoff_levels() const {
             return cutoff_levels;
         }
-
-        void set_tree_max_level(Level l) const { tree_max_level_ = l; }
-        Level get_tree_max_level() const { return tree_max_level_; }
 
         void init_cutoff_levels() {
             cutoff_levels.resize(rank, 0);
@@ -1442,7 +1438,8 @@ namespace madness {
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
                                               const Key<NDIM>& shift,
                                               const Tensor<T>& coeff,
-                                              double tol) const {
+                                              double tol,
+                                              Level tree_min_level = 0) const {
             //PROFILE_MEMBER_FUNC(SeparatedConvolution); // Too fine grain for routine profiling
             MADNESS_ASSERT(coeff.ndim()==NDIM);
 
@@ -1489,14 +1486,13 @@ namespace madness {
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; ++mu) {
                 const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+                const Level eff_ncut = std::min(ncut, tree_min_level);
 
                 ApplyTerms at_mu;
                 at_mu.r_term = true;
-
-                const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
-                if (ncut <= max_allowed_ncut) {
-                    if (cur_level < ncut) continue;
-                    at_mu.t_term = (cur_level > ncut);
+                if (eff_ncut > 0) {
+                    if (cur_level < eff_ncut) continue;
+                    at_mu.t_term = (cur_level > eff_ncut);
                 } else {
                     at_mu.t_term = (cur_level > 0);
                 }
@@ -1533,7 +1529,8 @@ namespace madness {
         /// @return     coeff result
         template<typename T>
         GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2_lowdim(const Key<NDIM>& source,
-                const Key<NDIM>& shift, const GenTensor<T>& coeff, double tol, double tol2) const {
+                const Key<NDIM>& shift, const GenTensor<T>& coeff, double tol, double tol2,
+                Level tree_min_level = 0) const {
 
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
@@ -1586,14 +1583,14 @@ namespace madness {
                 // and [P G P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
                     const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+                    const Level eff_ncut = std::min(ncut, tree_min_level);
 
                     ApplyTerms at_mu;
                     at_mu.r_term=true;
 
-                    const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
-                    if (ncut <= max_allowed_ncut) {
-                        if (source.level() < ncut) continue;
-                        at_mu.t_term = (source.level() > ncut);
+                    if (eff_ncut > 0) {
+                        if (source.level() < eff_ncut) continue;
+                        at_mu.t_term = (source.level() > eff_ncut);
                     } else {
                         at_mu.t_term = (source.level() > 0);
                     }
@@ -1640,7 +1637,8 @@ namespace madness {
         GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2(const Key<NDIM>& source,
                                               const Key<NDIM>& shift,
                                               const GenTensor<T>& coeff,
-                                              double tol, double tol2) const {
+                                              double tol, double tol2,
+                                              Level tree_min_level = 0) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
@@ -1691,12 +1689,12 @@ namespace madness {
             const GenTensor<T> f0 = copy((*input)(s0));
             for (int mu=0; mu<rank; ++mu) {
                 const Level ncut = (mu < (int)cutoff_levels.size()) ? cutoff_levels[mu] : 0;
+                const Level eff_ncut = std::min(ncut, tree_min_level);
                 bool subtract_t = false;
 
-                const Level max_allowed_ncut = (tree_max_level_ >= 2) ? std::min<Level>(5, tree_max_level_ - 2) : 0;
-                if (ncut <= max_allowed_ncut) {
-                    if (source.level() < ncut) continue;
-                    subtract_t = (source.level() > ncut);
+                if (eff_ncut > 0) {
+                    if (source.level() < eff_ncut) continue;
+                    subtract_t = (source.level() > eff_ncut);
                 } else {
                     subtract_t = (source.level() > 0);
                 }
