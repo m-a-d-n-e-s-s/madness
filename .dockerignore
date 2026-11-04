@@ -1,0 +1,9 @@
+.git
+.github
+build
+build*
+*.o
+*.a
+*.so
+*.tar.gz
+*.tar.bz2
