@@ -614,9 +614,6 @@ public:
     /// Phys. Chem. Chem. Phys., vol. 2, no. 22, pp. 5049–5056, 2000.
     real_function_3d kinetic_energy_potential(const vecfuncT& nemo) const;
 
-	/// compute some virtual orbitals
-	MolecularOrbitals<double,3> compute_virtual_orbitals(const int nvir=5) const;
-
 
     /// smooth a function by projecting it onto k-1 and then average with k
 

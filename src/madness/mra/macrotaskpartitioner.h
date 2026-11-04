@@ -234,8 +234,7 @@ public:
             MADNESS_EXCEPTION(msg.c_str(),1);
         }
 
-        partitionT partitioning=do_partitioning(vsize1,vsize2,policy);
-        return partitioning;
+        return do_partitioning(vsize1,vsize2,policy);
     }
 
     /// override this if you want your own partitioning
