@@ -38,6 +38,7 @@
 #include <madness/mra/mra.h>
 #include <madness/world/test_utilities.h>
 #include <map>
+#include <fstream>
 #include <sstream>
 #include <vector>
 #include <algorithm>
@@ -1221,7 +1222,12 @@ int main(int argc, char**argv) {
     int error=0;
 
 //    error+=test_sum_down<double,6>(world,k,thresh);
-    error+=test_sum_down_files<double,6>(world,k,thresh);
+    // needs Ue/fK archives in the working directory: skip when they are not there
+    bool have_files=false;
+    if (world.rank()==0) have_files=std::ifstream("Ue.00000").good() and std::ifstream("fK.00000").good();
+    world.gop.broadcast(have_files,0);
+    if (have_files) error+=test_sum_down_files<double,6>(world,k,thresh);
+    else print("skipping test_sum_down_files: no Ue.00000/fK.00000 in the working directory");
 //    error+=test_Vphi_ij_u<double,2>(world,k,thresh);
 //    error+=test_Vphi_ij_u<double,4>(world,k,thresh);
     // error+=test_Vphi_ij_u<double,6>(world,k,thresh);
