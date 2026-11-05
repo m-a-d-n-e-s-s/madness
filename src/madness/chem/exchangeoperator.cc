@@ -109,7 +109,28 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     double cpu0=wall_time();
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
-        Kf = K_macrotask_efficient(vket, mul_tol);
+        const std::vector<std::size_t> perm = mo_order_permutation();
+        if (perm.empty()) {
+            Kf = K_macrotask_efficient(vket, mul_tol);
+        } else {
+            // shallow copies in the permuted order: the roles keep their impls, so the owner-pinned
+            // path stores one batch set as before. The argument follows the ket only when it is the
+            // ket (the symmetric case); otherwise it keeps its order and so does the result.
+            const bool permute_vket = exchange_same_operands(vket, mo_ket);
+            vecfuncT bra_p(perm.size()), ket_p(perm.size()), vket_p = vket;
+            for (std::size_t i = 0; i < perm.size(); ++i) {
+                bra_p[i] = mo_bra[perm[i]];
+                ket_p[i] = mo_ket[perm[i]];
+                if (permute_vket) vket_p[i] = vket[perm[i]];
+            }
+            const vecfuncT Kf_p = K_macrotask_efficient(vket_p, bra_p, ket_p, mul_tol);
+            if (permute_vket) {
+                Kf.resize(Kf_p.size());
+                for (std::size_t i = 0; i < perm.size(); ++i) Kf[perm[i]] = Kf_p[i];
+            } else {
+                Kf = Kf_p;
+            }
+        }
     } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute) {
         Kf = K_macrotask_efficient_row(vket, mul_tol);
     } else if (algorithm_ == small_memory) {
@@ -150,6 +171,14 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
+    return K_macrotask_efficient(vf, mo_bra, mo_ket, mul_tol);
+}
+
+/// the same, on the bra and ket given rather than the operator's own (the orbital order of the batches)
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> >
+Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const vecfuncT& bra, const vecfuncT& ket,
+                                                       const double mul_tol) const {
 
     if (world.rank()==0 and printdebug()) print("\nentering macrotask_efficient version:");
 
@@ -175,9 +204,9 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, symmetric,
                                   owner_pinned, batch_granularity_,
                                   world.rank(), accumulation_mode_, cost_aware_assign_,
-                                  exchange_batch_salt(mo_ket),
-                                  exchange_same_operands(mo_bra, mo_ket),
-                                  exchange_same_operands(vf, mo_ket), apply_screen_);
+                                  exchange_batch_salt(ket),
+                                  exchange_same_operands(bra, ket),
+                                  exchange_same_operands(vf, ket), apply_screen_);
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. Pinning therefore fixes the storage policy.
@@ -190,7 +219,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
                  : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(policy));
 
     // deferred execution if a taskq is provided by the user
-    vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
+    vecfuncT Kf = mtask(vf, bra, ket);
     world.gop.fence();
 
     // Every tile ran on exactly one rank, so summing the per-rank cost buffers unions them and
@@ -538,6 +567,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
     impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_mo_order(const std::string& order) {
+    impl->set_mo_order(order);
     return *this;
 }
 

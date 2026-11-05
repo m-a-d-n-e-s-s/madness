@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <fstream>
+#include <numeric>
+#include <random>
 #include <list>
 #include <map>
 #include <utility>
@@ -794,6 +796,73 @@ public:
         return *this;
     }
 
+    /// The order of the orbitals in the exchange batches (hfexalg=multiworld): as_is, the order given;
+    /// shuffle, a fixed random permutation; balanced, the orbitals dealt into the batches by their
+    /// coefficient count, largest first, each into the batch with the smallest load so far, so that
+    /// every batch carries the same share of the deep core orbitals. The permutation is applied to the
+    /// argument, the bra and the ket alike, with shallow copies, and the result is permuted back.
+    ExchangeImpl& set_mo_order(const std::string& order) {
+        MADNESS_CHECK_THROW(order == "as_is" or order == "shuffle" or order == "balanced",
+                            "exchange: the orbital order must be as_is, shuffle or balanced");
+        mo_order_ = order;
+        return *this;
+    }
+
+    /// the permutation of the ket for the orbital order, identical on every rank; empty for as_is
+    /// or fewer than two orbitals
+    std::vector<std::size_t> mo_order_permutation() const {
+        const std::size_t n = mo_ket.size();
+        std::vector<std::size_t> perm;
+        if (mo_order_ == "as_is" or n < 2) return perm;
+        perm.resize(n);
+        std::iota(perm.begin(), perm.end(), 0);
+        if (mo_order_ == "shuffle") {
+            // a constant seed on purpose: every rank derives the same order without communicating
+            std::mt19937 rng(42);   // NOLINT(cert-msc51-cpp)
+            std::shuffle(perm.begin(), perm.end(), rng);
+            return perm;
+        }
+        // balanced: the global node count per orbital (the local map sizes, one reduction, identical on
+        // every rank; the coefficient count up to k^NDIM for a reconstructed tree, without walking the
+        // nodes), dealt largest first into the batches of the owner split, each into the batch with the
+        // smallest load that still has room, so the batch sizes are those of the split
+        std::vector<double> cost(n, 0.0);
+        for (std::size_t j = 0; j < n; ++j) cost[j] = double(mo_ket[j].get_impl()->get_coeffs().size());
+        world.gop.sum(cost.data(), cost.size());
+        const std::vector<Batch_1D> split = exchange_sym_owner_split(n, world.size(), batch_granularity_);
+        std::vector<std::size_t> order(n);
+        std::iota(order.begin(), order.end(), 0);
+        std::stable_sort(order.begin(), order.end(),
+                         [&cost](const std::size_t a, const std::size_t b) { return cost[a] > cost[b]; });
+        std::vector<std::vector<std::size_t>> bins(split.size());
+        std::vector<double> load(split.size(), 0.0);
+        for (const std::size_t i : order) {
+            std::size_t best = split.size();
+            for (std::size_t b = 0; b < split.size(); ++b) {
+                if (long(bins[b].size()) >= split[b].size()) continue;
+                if (best == split.size() or load[b] < load[best]) best = b;
+            }
+            bins[best].push_back(i);
+            load[best] += cost[i];
+        }
+        perm.clear();
+        for (const auto& b : bins) perm.insert(perm.end(), b.begin(), b.end());
+        if (world.rank() == 0 and printlevel >= 4) {
+            // the spread of the per-batch coefficient count, balanced against the order given
+            auto spread = [](const std::vector<double>& v) {
+                double mx = 0.0, sum = 0.0;
+                for (const double x : v) { mx = std::max(mx, x); sum += x; }
+                return v.empty() or sum == 0.0 ? 0.0 : mx / (sum / double(v.size()));
+            };
+            std::vector<double> given(split.size(), 0.0);
+            for (std::size_t b = 0; b < split.size(); ++b)
+                for (long i = split[b].begin; i < split[b].end; ++i) given[b] += cost[i];
+            printf("exchange mo order balanced: %ld batches, per-batch node count max/mean %.2f (as given %.2f)\n",
+                   long(split.size()), spread(load), spread(given));
+        }
+        return perm;
+    }
+
     /// skip the Poisson apply where the multiplier is negligible in the destination box (applyscreen.h);
     /// read by the multiworld algorithm, ignored by the others (which say so at the first application)
     ExchangeImpl& set_apply_screen(const bool flag) {
@@ -833,6 +902,10 @@ private:
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds
     vecfuncT K_macrotask_efficient(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
+    /// the same on the bra and ket given rather than the operator's own
+    vecfuncT K_macrotask_efficient(const vecfuncT& vf, const vecfuncT& bra, const vecfuncT& ket,
+                                   double mul_tol) const;
+
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds row-wise
     vecfuncT K_macrotask_efficient_row(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
@@ -870,6 +943,8 @@ private:
     /// place tasks by measured cost instead of by counting them; the first two applications
     /// still count, having no representative reference to measure against
     bool cost_aware_assign_ = true;
+    /// the order of the orbitals in the batches: as_is, shuffle or balanced (set_mo_order)
+    std::string mo_order_ = "as_is";
     /// skip the Poisson apply where the multiplier is negligible in the destination box (applyscreen.h)
     bool apply_screen_ = false;
 
