@@ -186,12 +186,15 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     const long nresult = vf.size();
     // Whether the tiles may exploit the i-j symmetry. MAD_EXCH_FORCE_GENERAL takes it away from an
     // application that is entitled to it, which computes the same numbers down the general path and
-    // so tests that path against a known answer; see exch_force_general_path.
-    const bool symmetric = is_symmetric() and not exch_force_general_path();
+    // so tests that path against a known answer; see exch_force_general_path. The symmetric tiling
+    // walks the operator's kets as the set it is applied to, so it needs vf and ket of one size;
+    // any other set takes the general path, which is right for every bra, ket and vf.
+    const bool symmetric = is_symmetric() and not exch_force_general_path() and vf.size() == ket.size();
     // printlevel rather than printdebug(), which is >= 10: this has to be visible at the level a
     // validation run uses, or a forced run reads as a normal one
     if (symmetric != is_symmetric() and world.rank() == 0 and printlevel >= 4)
-        print("MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path");
+        print(exch_force_general_path() ? "MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path"
+                                        : "exchange applied to a ket set of another size: routing through the general path");
 
     // Whether tasks are pinned to the ranks owning their batches. Both symmetries support it now:
     // the symmetric grid shares one stored set across all three operand roles, and the asymmetric
