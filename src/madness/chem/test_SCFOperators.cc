@@ -667,6 +667,7 @@ int nuclear_anchor_test(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
@@ -740,6 +741,7 @@ int dnuclear_anchor_test(World& world) {
     param.set_user_defined_value("k",8);
     // param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
     write_test_input test_input(param,"hf");
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
@@ -903,6 +905,7 @@ int test_nemo(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     Nemo nemo(world,parser);
@@ -935,6 +938,7 @@ int test_fock(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     Nemo nemo(world,parser);
@@ -1016,6 +1020,7 @@ int test_XCOperator_matrix(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-6});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
