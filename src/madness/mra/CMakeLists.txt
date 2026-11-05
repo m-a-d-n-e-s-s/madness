@@ -11,7 +11,7 @@ set(MADMRA_HEADERS
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h composite_product_op.h
-    interpolation_1d.h phandler.h supbound.h)
+    interpolation_1d.h phandler.h applyscreen.h supbound.h)
 
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
@@ -42,7 +42,7 @@ if(BUILD_TESTING)
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
       test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc test_displacements.cc
       test_truncate_tol.cc test_periodic_truncation.cc test_images_operator.cc
-      test_anisotropic_reach.cc)
+      test_anisotropic_reach.cc test_apply_screen.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
@@ -62,6 +62,8 @@ if(BUILD_TESTING)
   add_mpi_tests(mra test_mul_sparse "2" "MADmra;MADgtest" "unittests;short")
   # the halo only carries data between ranks, so the single-rank run above cannot exercise it
   add_mpi_tests(mra test_halo "2" "MADmra;MADgtest" "unittests;short")
+  # the screen answers only for boxes local to the rank; a remote box must screen nothing
+  add_mpi_tests(mra test_apply_screen "2" "MADmra;MADgtest" "unittests;short")
 
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)

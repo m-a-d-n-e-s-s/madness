@@ -2377,7 +2377,8 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true,
+               const apply_screen_t<NDIM>& screen = apply_screen_t<NDIM>()) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         constexpr std::size_t OPDIM=opT::opdim;
@@ -2386,7 +2387,12 @@ namespace madness {
         // specialized version for 3D
         if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
+            // the destination screen rides on the result for the duration of this apply (applyscreen.h);
+            // MAD_APPLY_SCREEN=0 leaves every apply unscreened; the 6D path below does not read it
+            const bool screened = screen and not apply_screen_disabled();
+            if (screened) result.get_impl()->set_apply_screen(screen);
             result.get_impl()->apply(op, *f.get_impl(), fence);
+            if (screened and fence) result.get_impl()->clear_apply_screen();
 
         } else {        // general version for higher dimension
 	  //bool print_timings=false;
