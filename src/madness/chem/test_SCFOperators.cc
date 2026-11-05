@@ -1202,10 +1202,10 @@ int main(int argc, char** argv) {
 #endif
     if (!smalltest) {
     	result+=test_exchange<double>(world);
-    	result+=test_exchange<double>(world,true);      // with the destination screen of the Poisson apply
+        result+=test_exchange<double>(world,true);      // with the destination screen of the Poisson apply
 #ifndef ENABLE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
-    	result+=test_exchange<double_complex>(world,true);
+        result+=test_exchange<double_complex>(world,true);
 #endif
     	result+=test_XCOperator<double>(world);
 #ifndef ENABLE_GENTENSOR

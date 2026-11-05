@@ -206,7 +206,7 @@ public:
 
     /// skip the Poisson apply where the multiplier is negligible in the destination box (hfexalg multiworld
     /// only; applyscreen.h). Off unless set; MAD_APPLY_SCREEN=0 in the environment keeps it off.
-    Exchange& set_apply_screen(const bool flag);
+    Exchange& set_apply_screen(bool flag);
 
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;

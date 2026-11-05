@@ -106,7 +106,7 @@ public:
     std::vector<Vector<double,D>> special_points() const override { return {Vector<double,D>(0.0)}; }
 };
 
-static real_function_3d project(World& world, std::shared_ptr<FunctionFunctorInterface<double,D>> functor,
+static real_function_3d project(World& world, const std::shared_ptr<FunctionFunctorInterface<double,D>>& functor,
                                 const double thresh) {
     real_function_3d f = real_factory_3d(world).functor(functor).thresh(thresh);
     f.truncate(thresh);
@@ -201,7 +201,7 @@ static operands make_operands(World& world, const real_convolution_3d& P, const 
 int test_unbounded_screen(World& world, const real_convolution_3d& P, operands& o) {
     test_output t("apply screen T1: an unbounded screen reproduces the unscreened apply");
     t.set_do_print(world.rank() == 0);
-    std::array<long, 2> n;
+    std::array<long, 2> n{};
     real_function_3d u = apply_with(world, P, o.g, never_screen(), &n);
     o.blocks_ref = n[0];
     real_function_3d ufull = copy(o.ufull);
@@ -210,7 +210,7 @@ int test_unbounded_screen(World& world, const real_convolution_3d& P, operands& 
     u.truncate();
     ufull.truncate();
     const double diff = (u - ufull).norm2();
-    const long nodes = u.tree_size(), nodes_full = ufull.tree_size();
+    const long nodes = long(u.tree_size()), nodes_full = long(ufull.tree_size());
     if (world.rank() == 0)
         printf("  T1 blocks %ld skipped %ld  nodes %ld / %ld  |u - u_full| %.3e\n", n[0], n[1], nodes, nodes_full, diff);
     t.checkpoint(n[0] > 0, "T1 the screen was consulted");
@@ -227,7 +227,7 @@ int test_accuracy(World& world, const real_convolution_3d& P, operands& o, const
 
     std::vector<double> err_full;
     for (std::size_t i = 0; i < o.m.size(); ++i) err_full.push_back((o.m[i] * (o.ufull - o.uexact)).norm2());
-    const long nodes_full = o.ufull.tree_size();
+    const long nodes_full = long(o.ufull.tree_size());
 
     std::vector<real_function_3d> mred;
     for (const auto& mi : o.m) {
@@ -238,9 +238,9 @@ int test_accuracy(World& world, const real_convolution_3d& P, operands& o, const
 
     for (const std::string form : {"reconstructed", "redundant"}) {
         const std::vector<real_function_3d>& mult = (form == "redundant") ? mred : o.m;
-        std::array<long, 2> n;
+        std::array<long, 2> n{};
         real_function_3d u = apply_with(world, P, o.g, sup_screen(mult), &n);
-        const long nodes = u.tree_size();
+        const long nodes = long(u.tree_size());
         const std::string tag = "T2 " + form;
         if (world.rank() == 0)
             printf("  %s: blocks %ld skipped %ld (%.1f%%)  nodes %ld (unscreened %ld)\n", tag.c_str(),
@@ -277,12 +277,12 @@ int test_shell_loop(World& world) {
     real_function_3d chi = project(world, functorT(new Gauss(3.0, centre)), thresh);
 
     real_function_3d ufull = apply_with(world, P, g, apply_screen_t<D>());
-    std::array<long, 2> nref;
+    std::array<long, 2> nref{};
     apply_with(world, P, g, never_screen(), &nref);
     const double ref = (chi * ufull).norm2();
     if (world.rank() == 0) printf("  T3 unscreened: blocks %ld, |chi u| %.3e\n", nref[0], ref);
     for (const double outside : {1.e-12, 1.e-3, 1.e-2}) {
-        std::array<long, 2> n;
+        std::array<long, 2> n{};
         real_function_3d u = apply_with(world, P, g, box_b_screen(1.0, outside), &n);
         const double err = (chi * (u - ufull)).norm2();
         char tag[64];
@@ -302,7 +302,7 @@ int test_complex(World& world, const real_convolution_3d& P, operands& o, const 
     test_output t("apply screen T4: complex function, real screen");
     t.set_do_print(world.rank() == 0);
     complex_function_3d gc = convert<double, double_complex, D>(o.g);
-    std::array<long, 2> n;
+    std::array<long, 2> n{};
     complex_function_3d uc = apply_with(world, P, gc, sup_screen({o.m[0]}), &n);
     const double err = (o.m[0] * (real(uc) - o.uexact)).norm2();
     const double err_full = (o.m[0] * (o.ufull - o.uexact)).norm2();
@@ -415,7 +415,7 @@ int test_sup_bound(World& world, const double thresh) {
             }
             // the corners of the box, where the scaling functions peak, and random points
             for (int ip = 0; ip < 8 + npoint; ++ip) {
-                std::array<double, D> x;
+                std::array<double, D> x{};
                 for (std::size_t d = 0; d < D; ++d) x[d] = (ip < 8) ? double((ip >> d) & 1) : unif(rng);
                 if (std::abs(eval_in_box(key, c, x)) > s * (1.0 + 1.e-12)) n[2] += 1;
                 Vector<double, D> r;
@@ -490,9 +490,9 @@ int test_exchange_geometry(World& world, const real_convolution_3d& P, const dou
         s.reconstruct();
 
         const real_function_3d ufull = apply_with(world, P, g, apply_screen_t<D>());
-        std::array<long, 2> nref;
+        std::array<long, 2> nref{};
         apply_with(world, P, g, never_screen(), &nref);
-        std::array<long, 2> n;
+        std::array<long, 2> n{};
         const real_function_3d u = apply_with(world, P, g, sup_screen({s}), &n);
         const double err = (s * (u - ufull)).norm2();
         const std::string tag = "T6 " + name;
