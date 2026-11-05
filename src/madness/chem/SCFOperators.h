@@ -201,6 +201,10 @@ public:
     /// place tasks by their measured cost rather than by counting them
     Exchange& set_cost_aware_assignment(const bool flag);
 
+    /// skip the Poisson apply where the multiplier is negligible in the destination box (hfexalg multiworld
+    /// only; applyscreen.h). Off unless set; MAD_APPLY_SCREEN=0 in the environment keeps it off.
+    Exchange& set_apply_screen(const bool flag);
+
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;
         return *this;

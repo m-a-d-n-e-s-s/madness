@@ -50,6 +50,9 @@ std::vector<real_function_3d> make_set(World& world, const long n, const double 
     return v;
 }
 
+/// the exchange is compared without the destination screen of the Poisson apply, and with it
+const std::vector<bool> screen_settings{false, true};
+
 }   // namespace
 
 /// K with bra, ket and vf distinct, and nf != nocc, against the smallmem reference
@@ -68,27 +71,33 @@ int test_generic_exchange(World& world) {
                   "the operands have the intended, differing lengths");
 
     const double lo = 1.e-4;
-    auto apply_with = [&](const Exchange<double, 3>::ExchangeAlgorithm alg) {
+    auto apply_with = [&](const Exchange<double, 3>::ExchangeAlgorithm alg, const bool apply_screen) {
         Exchange<double, 3> K(world, lo, FunctionDefaults<3>::get_thresh());
         K.set_bra_and_ket(bra, ket);
         K.set_symmetric(false);
         K.set_algorithm(alg);
+        K.set_apply_screen(apply_screen);
         return K(vf);
     };
 
-    const auto reference = apply_with(Exchange<double, 3>::small_memory);
+    const auto reference = apply_with(Exchange<double, 3>::small_memory, false);
     t1.checkpoint(reference.size() == std::size_t(nf), "the reference returns one function per vf");
 
-    const auto got = apply_with(Exchange<double, 3>::multiworld_efficient);
-    t1.checkpoint(got.size() == std::size_t(nf), "the macrotask path returns one function per vf");
+    // the macrotask path without the destination screen of the Poisson apply, and with it
+    for (const bool apply_screen : screen_settings) {
+        const auto got = apply_with(Exchange<double, 3>::multiworld_efficient, apply_screen);
+        t1.checkpoint(got.size() == std::size_t(nf), "the macrotask path returns one function per vf");
 
-    // compare the functions themselves, not their norms: two different functions can share a norm
-    double maxdiff = 0.0;
-    for (std::size_t i = 0; i < reference.size() and i < got.size(); ++i)
-        maxdiff = std::max(maxdiff, (reference[i] - got[i]).norm2());
-    if (world.rank() == 0) print("largest |K_multiworld - K_smallmem| over vf:", maxdiff);
-    t1.checkpoint(maxdiff < 10.0 * FunctionDefaults<3>::get_thresh(),
-                  "the macrotask path agrees with the reference on every function");
+        // compare the functions themselves, not their norms: two different functions can share a norm
+        double maxdiff = 0.0;
+        for (std::size_t i = 0; i < reference.size() and i < got.size(); ++i)
+            maxdiff = std::max(maxdiff, (reference[i] - got[i]).norm2());
+        const std::string screened = apply_screen ? ", screened" : "";
+        if (world.rank() == 0)
+            print("largest |K_multiworld - K_smallmem| over vf" + screened + ":", maxdiff);
+        t1.checkpoint(maxdiff < 10.0 * FunctionDefaults<3>::get_thresh(),
+                      "the macrotask path agrees with the reference on every function" + screened);
+    }
 
     // a non-trivial result, so agreement cannot be two zeroes matching
     double smallest = std::numeric_limits<double>::max();
@@ -117,23 +126,29 @@ int test_weighted_bra_exchange(World& world) {
     t1.checkpoint(not exchange_same_operands(bra, ket), "bra and ket are genuinely different functions");
 
     const double lo = 1.e-4;
-    auto apply_with = [&](const Exchange<double, 3>::ExchangeAlgorithm alg, const bool sym) {
+    auto apply_with = [&](const Exchange<double, 3>::ExchangeAlgorithm alg, const bool sym, const bool apply_screen) {
         Exchange<double, 3> K(world, lo, FunctionDefaults<3>::get_thresh());
         K.set_bra_and_ket(bra, ket);
         K.set_symmetric(sym);
         K.set_algorithm(alg);
+        K.set_apply_screen(apply_screen);
         return K(ket);                      // vf == ket, as in nemo's Fock operator
     };
 
-    const auto reference = apply_with(Exchange<double, 3>::small_memory, false);
-    const auto got = apply_with(Exchange<double, 3>::multiworld_efficient, true);
+    const auto reference = apply_with(Exchange<double, 3>::small_memory, false, false);
 
-    double maxdiff = 0.0;
-    for (std::size_t i = 0; i < reference.size() and i < got.size(); ++i)
-        maxdiff = std::max(maxdiff, (reference[i] - got[i]).norm2());
-    if (world.rank() == 0) print("largest |K_symmetric - K_smallmem| over vf:", maxdiff);
-    t1.checkpoint(maxdiff < 10.0 * FunctionDefaults<3>::get_thresh(),
-                  "the symmetric task list over separate bra and ket records agrees with the reference");
+    // the symmetric tiles (diagonal and off-diagonal) without the destination screen, and with it
+    for (const bool apply_screen : screen_settings) {
+        const auto got = apply_with(Exchange<double, 3>::multiworld_efficient, true, apply_screen);
+
+        double maxdiff = 0.0;
+        for (std::size_t i = 0; i < reference.size() and i < got.size(); ++i)
+            maxdiff = std::max(maxdiff, (reference[i] - got[i]).norm2());
+        const std::string screened = apply_screen ? ", screened" : "";
+        if (world.rank() == 0) print("largest |K_symmetric - K_smallmem| over vf" + screened + ":", maxdiff);
+        t1.checkpoint(maxdiff < 10.0 * FunctionDefaults<3>::get_thresh(),
+                      "the symmetric task list over separate bra and ket records agrees with the reference" + screened);
+    }
 
     double smallest = std::numeric_limits<double>::max();
     for (const auto& f : reference) smallest = std::min(smallest, f.norm2());

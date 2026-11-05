@@ -3,6 +3,7 @@
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>
 #include <madness/mra/macrotaskpartitioner.h>
+#include <sstream>
 
 using namespace madness;
 
@@ -90,6 +91,20 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Truncation and addition doesn't commute, so truncation is done after the final accumulation.
     // Other truncations are elementwise and are not affected.
     reset_timer();
+    if (apply_screen_) {
+        ApplyScreenStats::reset();
+        static bool noted = false;      // once per process: the SCF asks every iteration
+        if (not noted and world.rank() == 0) {
+            if (apply_screen_disabled())
+                printf(" apply screen: switched off by MAD_APPLY_SCREEN=0\n");
+            else if (algorithm_ != multiworld_efficient) {
+                std::ostringstream alg;
+                alg << algorithm_;
+                printf(" hfex_apply_screen: not used by hfexalg %s (multiworld only)\n", alg.str().c_str());
+            }
+            noted = true;
+        }
+    }
     statistics=gather_statistics();
     double cpu0=wall_time();
     vecfuncT Kf;
@@ -117,6 +132,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     elapsed_time=cpu1-cpu0;
 
     if (printtimings_detail()) print_timer(world);
+    if (apply_screen_ and not apply_screen_disabled() and printtimings_detail()) report_apply_screen(world);
     return Kf;
 }
 
@@ -161,7 +177,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
                                   world.rank(), accumulation_mode_, cost_aware_assign_,
                                   exchange_batch_salt(mo_ket),
                                   exchange_same_operands(mo_bra, mo_ket),
-                                  exchange_same_operands(vf, mo_ket));
+                                  exchange_same_operands(vf, mo_ket), apply_screen_);
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. Pinning therefore fixes the storage policy.
@@ -272,7 +288,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                                   const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                                  const bool symmetric, const double mul_tol) {
+                                  const bool symmetric, const double mul_tol, const bool apply_screen) {
 
     double cpu0 = cpu_time();
     const long nf = vket.size();
@@ -295,7 +311,23 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
     mul1_timer += long((cpu1 - cpu0) * 1000l);
 
     cpu0 = cpu_time();
-    psif = apply(world, *poisson.get(), psif);
+    if (apply_screen and not apply_screen_disabled()) {
+        // psif[ij] = P(bra_i vket_j) is multiplied by ket_i and, when the symmetry is used, by ket_j; the
+        // kets' sup bounds are built once
+        const exchange_sup_bounds_t<NDIM> sup = exchange_sup_bounds(world, mo_ket);
+        std::vector<apply_screen_t<NDIM>> screens;
+        for (int i = 0; i < nocc; ++i) {
+            const int jtop = symmetric ? i + 1 : nf;
+            for (int j = 0; j < jtop; ++j) {
+                exchange_sup_bounds_t<NDIM> s{sup[i]};
+                if (symmetric and i != j) s.push_back(sup[j]);
+                screens.push_back(exchange_apply_screen<NDIM>(std::move(s)));
+            }
+        }
+        psif = apply(world, *poisson.get(), psif, screens);
+    } else {
+        psif = apply(world, *poisson.get(), psif);
+    }
     truncate(world, psif);
     cpu1 = cpu_time();
     apply_timer += long((cpu1 - cpu0) * 1000l);
@@ -367,6 +399,12 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
     vecfuncT resultcolumn(nrow);                                                   // maps to the row range
     vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to the column range
     auto poisson = set_poisson(subworld, lo);
+    const bool screen = apply_screen_ and not apply_screen_disabled();
+    // the multipliers' sup bounds, once for the tile
+    const exchange_sup_bounds_t<NDIM> sup_rows = screen ? exchange_sup_bounds(subworld, ket_rows)
+                                                        : exchange_sup_bounds_t<NDIM>();
+    const exchange_sup_bounds_t<NDIM> sup_columns = screen ? exchange_sup_bounds(subworld, ket_columns)
+                                                           : exchange_sup_bounds_t<NDIM>();
 
     // per-stage wall, for the profiler only; `tick` is a no-op when it is off
     const bool prof_on = profile_active();
@@ -385,7 +423,14 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 
         cpu0 = cpu_time();
         w0 = prof_on ? wall_time() : 0.0;
-        Nij = apply(subworld, *poisson.get(), Nij);
+        if (screen) {
+            // N_ij is multiplied by ket_rows[irow] (into column j) and by ket_columns[j] (into row irow)
+            std::vector<apply_screen_t<NDIM>> screens(ncolumn);
+            for (long j = 0; j < ncolumn; ++j) screens[j] = exchange_apply_screen<NDIM>({sup_rows[irow], sup_columns[j]});
+            Nij = apply(subworld, *poisson.get(), Nij, screens);
+        } else {
+            Nij = apply(subworld, *poisson.get(), Nij);
+        }
         tick(prof_.apply_wall, w0);
         w0 = prof_on ? wall_time() : 0.0;
         truncate(subworld, Nij);
@@ -493,6 +538,12 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
     impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_apply_screen(const bool flag) {
+    impl->set_apply_screen(flag);
     return *this;
 }
 

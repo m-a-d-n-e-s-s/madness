@@ -71,6 +71,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm; multiworld (the tiled exchange) bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
 		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
 		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<bool>  ("hfex_apply_screen",true,"hfexalg=multiworld: skip the Poisson apply where the multiplier is negligible in the destination box (bounded per block; a one-sided bias of 5e-10 Eh per occupied orbital at thresh 1e-6); MAD_APPLY_SCREEN=0 in the environment switches it off");
 		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
 		initialize<std::string>("bsh_apply","auto","BSH apply backend; auto=macrotask when multinode or at tight thresh, else tile",{"auto","tile","macrotask","plain"});
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
@@ -250,6 +251,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
     std::string hfexalg() const {return get<std::string>("hfexalg");}
     long hfex_granularity() const {return get<long>("hfex_granularity");}
     bool hfex_cost_aware() const {return get<bool>("hfex_cost_aware");}
+    bool hfex_apply_screen() const {return get<bool>("hfex_apply_screen");}
     int hfex_accumulation() const {return get<int>("hfex_accumulation");}
 	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
 
