@@ -34,13 +34,15 @@
 #define MADNESS_MRA_IBDEUX_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <map>
 #include <queue>
 #include <string>
+#include <unordered_map>
+
 #include <madness/world/atomicint.h>
 #include <madness/world/worlddc.h>
 
@@ -63,31 +65,43 @@ namespace madness {
     class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {
         typedef Key<NDIM> keyT;
         typedef std::pair<keyT,ProcessID> pairT;
-        typedef std::map<keyT,ProcessID> mapT;
+        // Only ever queried with find(), never iterated, so ordering buys nothing.
+        // Hash<keyT> returns the hash cached in Key; no rehash on lookup.
+        typedef std::unordered_map<keyT,ProcessID,Hash<keyT>> mapT;
         mapT map;
+        Level max_level = 0; ///< Deepest level of any entry in map
         typedef typename mapT::const_iterator iteratorT;
 
     public:
+        /// @param[in] v The owner of each subtree root. The root key must be present, keys must
+        /// be unique, and ranks must be nonnegative. The caller checks the upper rank bound,
+        /// because this class does not know the size of the World.
+        /// @throw MadnessException if v is not valid
         LBDeuxPmap(const std::vector<pairT>& v) {
-            for (unsigned int i=0; i<v.size(); ++i) {
-                map.insert(v[i]);
+            MADNESS_CHECK_THROW(!v.empty(), "LBDeuxPmap: empty assignment");
+            map.reserve(v.size());
+            for (const pairT& entry : v) {
+                MADNESS_CHECK_THROW(entry.second >= 0, "LBDeuxPmap: negative rank");
+                const bool inserted = map.insert(entry).second;
+                MADNESS_CHECK_THROW(inserted, "LBDeuxPmap: duplicate key");
+                max_level = std::max(max_level, entry.first.level());
             }
+            MADNESS_CHECK_THROW(map.count(keyT(0)) == 1, "LBDeuxPmap: missing root");
         }
 
-        // If level 0 is not entered as a node this will
-        // be an infinite loop.
+        /// @return The owner of the nearest ancestor of key that is in the map, or of key itself
+        /// @throw MadnessException if no ancestor is in the map, which a valid key cannot cause
         ProcessID owner(const keyT& key) const {
-            while (key.level() >= 0) {
-                iteratorT it = map.find(key);
-                if (it == map.end()) {
-                    return owner(key.parent());
+            keyT k = (key.level() > max_level) ? key.parent(key.level() - max_level) : key;
+            while (true) {
+                const iteratorT it = map.find(k);
+                if (it != map.end()) return it->second;
+                if (k.level() <= 0) {
+                    madness::print("LBDeuxPmap: no owner for key", key);
+                    MADNESS_EXCEPTION("LBDeuxPmap: lookup failed", 0);
                 }
-                else {
-                    return it->second;
-                }
+                k = k.parent();
             }
-            madness::print("Mon Dieux!", key);
-            throw "LBDeuxPmap: lookup failed";
         }
 
         void print() const {
@@ -108,6 +122,7 @@ namespace madness {
         double my_cost;
         double total_cost;
         bool gotkids;
+        bool deleted; ///< Set by deleter(). A retained node can have any cost, even a negative one.
         
         AtomicInt nsummed;
 
@@ -120,14 +135,14 @@ namespace madness {
 
     public:
         LBNodeDeux()
-                : my_cost(0.0), total_cost(0.0), gotkids(false) {
+                : my_cost(0.0), total_cost(0.0), gotkids(false), deleted(false) {
             nsummed = 0;
             for (int i=0; i<nchild; ++i)
                 child_cost[i] = 0.0;
         }
 
         LBNodeDeux(const LBNodeDeux<NDIM>& other) :
-            my_cost(other.my_cost), total_cost(other.total_cost), gotkids(other.gotkids)
+            my_cost(other.my_cost), total_cost(other.total_cost), gotkids(other.gotkids), deleted(other.deleted)
         {
             nsummed = other.nsummed;
             for (int i=0; i<nchild; ++i)
@@ -140,6 +155,7 @@ namespace madness {
             my_cost = other.my_cost;
             total_cost = other.total_cost;
             gotkids = other.gotkids;
+            deleted = other.deleted;
             nsummed = other.nsummed;
 
             return *this;
@@ -151,6 +167,11 @@ namespace madness {
 
         double get_total_cost() const {
             return total_cost;
+        }
+
+        /// True if partitioning logically deleted this node, so it is not a subtree root
+        bool is_deleted() const {
+            return deleted;
         }
 
         /// Accumulates cost into this node
@@ -174,12 +195,12 @@ namespace madness {
         }
 
 
-        /// Logically deletes this node by setting cost to -1
+        /// Logically deletes this node and its descendants
 
         /// Cannot actually erase this node from the container since the send() handler
         /// is holding an accessor to it.
         void deleter(const treeT& tree, const keyT& key) {
-            total_cost = my_cost = -1.0;
+            deleted = true;
             if (has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT child = kit.key();
@@ -313,7 +334,7 @@ namespace madness {
 
         /// Per-rank cost bar chart under the given pmap.
         ///
-        /// Walks the aggregator tree locally; each entry with total_cost >= 0
+        /// Walks the aggregator tree locally; each entry that is not deleted
         /// contributes its total_cost to bucket pmap->owner(key). Buckets are
         /// summed across ranks and rank 0 prints a horizontal bar chart with
         /// total/avg/max/avg/max/min ratios.
@@ -331,9 +352,8 @@ namespace madness {
 
             const_iteratorT end = tree.end();
             for (const_iteratorT it = tree.begin(); it != end; ++it) {
-                double c = it->second.get_total_cost();
-                if (c < 0.0) continue;
-                cost[pmap->owner(it->first)] += c;
+                if (it->second.is_deleted()) continue;
+                cost[pmap->owner(it->first)] += it->second.get_total_cost();
             }
             world.gop.sum(cost.data(), nproc);
             world.gop.fence();
@@ -405,7 +425,7 @@ namespace madness {
             std::vector< std::pair<keyT,double> > results;
             const_iteratorT end = tree.end();
             for (const_iteratorT it=tree.begin(); it!=end; ++it) {
-                if (it->second.get_total_cost() >= 0) {
+                if (!it->second.is_deleted()) {
                     results.push_back(std::make_pair(it->first,it->second.get_total_cost()));
                 }
             }
