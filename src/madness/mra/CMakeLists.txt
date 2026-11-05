@@ -11,7 +11,7 @@ set(MADMRA_HEADERS
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h composite_product_op.h
-    interpolation_1d.h phandler.h)
+    interpolation_1d.h phandler.h supbound.h)
 
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
