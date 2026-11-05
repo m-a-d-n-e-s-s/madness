@@ -1564,6 +1564,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_accumulation_mode(param.hfex_accumulation());
         K.set_cost_aware_assignment(param.hfex_cost_aware());
         K.set_apply_screen(param.hfex_apply_screen());
+        K.set_mo_order(param.hfex_mo_order());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
