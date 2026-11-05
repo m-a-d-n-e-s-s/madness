@@ -68,7 +68,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
+		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm; multiworld (the tiled exchange) bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
 		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
 		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
 		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
