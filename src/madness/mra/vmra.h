@@ -2090,13 +2090,20 @@ namespace madness {
     }
 
 
-    /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+    /// Applies an operator to a vector of functions, screened by where each result is needed --- q[i] = apply(op,f[i])
+
+    /// `screens[i]` bounds the size, per box, of what q[i] will be multiplied with (apply_screen_t,
+    /// applyscreen.h); FunctionImpl::do_apply reads it for every destination box, and it is dropped
+    /// again after the fence. An empty vector applies without a screen.
     template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
           const SeparatedConvolution<T,KDIM>& op,
-          const std::vector< Function<R,NDIM> > f) {
+          const std::vector< Function<R,NDIM> > f,
+          const std::vector<apply_screen_t<NDIM>>& screens) {
         PROFILE_BLOCK(Vapply);
+        MADNESS_CHECK_THROW(screens.empty() or screens.size() == f.size(),
+                            "apply: one screen per function, or none");
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
         bool print_timings=(NDIM==6) and (world.rank()==0) and op.print_timings;
@@ -2109,10 +2116,12 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
-            result[i] = apply_only(op, f[i], false);
+            result[i] = apply_only(op, f[i], false,
+                                   screens.empty() ? apply_screen_t<NDIM>() : screens[i]);
         }
 
         world.gop.fence();
+        for (auto& r : result) r.get_impl()->clear_apply_screen();
 
         // restores promise of logical constness
         if (op.destructive()) {
@@ -2134,6 +2143,15 @@ namespace madness {
         reconstruct(world, result);
 
         return result;
+    }
+
+    /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    apply(World& world,
+          const SeparatedConvolution<T,KDIM>& op,
+          const std::vector< Function<R,NDIM> > f) {
+        return apply(world, op, f, std::vector<apply_screen_t<NDIM>>());
     }
 
     /// Normalizes a vector of functions --- v[i] = v[i].scale(1.0/v[i].norm2())
