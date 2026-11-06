@@ -16,6 +16,7 @@ namespace madness {
 
 typedef Tensor<double> tensorT;
 
+std::string resolve_gth_filename(const std::string& filename);
 double get_charge_from_file(const std::string filename, unsigned int atype);
 
 /*template <typename Q, int NDIM>
@@ -93,7 +94,7 @@ public:
     
     ProjRLMFunctor(double alpha, int l, int m, int i, const coord_3d& center) 
      : alpha(alpha), l(l), m(m), center(center) {
-        specialpts.push_back(coord_3d(0.0));
+        specialpts.push_back(center);
         sqrtPI = std::sqrt(constants::pi);
         itmp = 2*l + (4*i-1);
         itmp2 = 2*(i-1);
@@ -279,7 +280,7 @@ public:
         }
         else if (itmp2 == 7) {
             for (int i = 0; i < npts; i++) {
-                fvals[i] *= rr[i]*rsq[i]*rsq[i]*rsq[i];
+                fvals[i] *= rr[i]*rsq[i]*rsq[i]*rsq[i]*std::sqrt(2);
             }
         }
         // Angular part
@@ -402,9 +403,9 @@ public:
 public:
     GTHPseudopotential(World& world, Molecule molecule) : molecule(molecule) {}
 
-    void make_pseudo_potential(World& world) {
+    void make_pseudo_potential(World& world, const std::string& filename = "gth.xml") {
         // Load info from file
-        load_pseudo_from_file(world, "gth.xml");
+        load_pseudo_from_file(world, filename);
         atoms_with_projectors.clear();
         
         // fill list with atoms-with-projectors (i.e. not H or He)
@@ -451,11 +452,11 @@ public:
     }
 
     void load_pseudo_from_file(World& world, const std::string filename) {
-        bool debug = true;
-       
-        TiXmlDocument doc(filename);
+        bool debug = false;
+        std::string resolved = resolve_gth_filename(filename);
+        TiXmlDocument doc(resolved);
         if (!doc.LoadFile()) {
-            MADNESS_EXCEPTION("Failed to load GTH pseudopotential file", 0);
+            MADNESS_EXCEPTION(("Failed to load GTH pseudopotential file: " + resolved).c_str(), 0);
         }
 
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
@@ -471,6 +472,7 @@ public:
                 }
                 else if (strcmp(node->Value(), "atom") == 0) {
                     const char* symbol = node->Attribute("symbol");
+                    if (symbol && std::string(symbol).find('-') != std::string::npos) continue;
                     unsigned int atn = symbol_to_atomic_number(symbol);
                     if (atype == atn) {
                         success = true;
@@ -498,32 +500,38 @@ public:
                             double h00 = 0.0; xmlLnlproj->Attribute("h00", &h00); t_hlij(lvalue, 0, 0) = h00;
                             double h11 = 0.0; xmlLnlproj->Attribute("h11", &h11); t_hlij(lvalue, 1, 1) = h11;
                             double h22 = 0.0; xmlLnlproj->Attribute("h22", &h22); t_hlij(lvalue, 2, 2) = h22;
+
+                            // read off-diag terms if present in XML; otherwise compute from HGH relations
+                            double h01 = 0.0, h02 = 0.0, h12 = 0.0;
+                            const bool has_h01 = (xmlLnlproj->Attribute("h01", &h01) != nullptr);
+                            const bool has_h02 = (xmlLnlproj->Attribute("h02", &h02) != nullptr);
+                            const bool has_h12 = (xmlLnlproj->Attribute("h12", &h12) != nullptr);
+                            if (!has_h01) {
+                                if (lvalue == 0) h01 = -0.5 * std::sqrt(3./5.) * h11;
+                                else if (lvalue == 1) h01 = -0.5 * std::sqrt(5./7.) * h11;
+                                else if (lvalue == 2) h01 = -0.5 * std::sqrt(7./9.) * h11;
+                            }
+                            if (!has_h02) {
+                                if (lvalue == 0) h02 = 0.5 * std::sqrt(5./21.) * h22;
+                                else if (lvalue == 1) h02 = (1./6.) * std::sqrt(35./11.) * h22;
+                                else if (lvalue == 2) h02 = 0.5 * std::sqrt(63./143.) * h22;
+                            }
+                            if (!has_h12) {
+                                if (lvalue == 0) h12 = -0.5 * std::sqrt(100./63.) * h22;
+                                else if (lvalue == 1) h12 = -(1./6.) * (14./std::sqrt(11.)) * h22;
+                                else if (lvalue == 2) h12 = -0.5 * (18./std::sqrt(143.)) * h22;
+                            }
+                            t_hlij(lvalue, 0, 1) = h01;
+                            t_hlij(lvalue, 1, 0) = h01;
+                            t_hlij(lvalue, 0, 2) = h02;
+                            t_hlij(lvalue, 2, 0) = h02;
+                            t_hlij(lvalue, 1, 2) = h12;
+                            t_hlij(lvalue, 2, 1) = h12;
+                            
+                            // we don't use k terms, so for now these are just set to zero and not included in the file
                             double k00 = 0.0; xmlLnlproj->Attribute("k00", &k00); t_klij(lvalue, 0, 0) = k00;
                             double k11 = 0.0; xmlLnlproj->Attribute("k11", &k11); t_klij(lvalue, 1, 1) = k11;
                             double k22 = 0.0; xmlLnlproj->Attribute("k22", &k22); t_klij(lvalue, 2, 2) = k22;
-                        }
-                        // off-diagonal elements
-                        if (lmax >= 0) {
-                            t_hlij(0, 0, 1) = -1./2.*std::sqrt(3./5.)*t_hlij(0, 1, 1); 
-                            t_hlij(0, 1, 0) = t_hlij(0, 0, 1);
-                            t_hlij(0, 0, 2) = 1./2.*std::sqrt(5./21.)*t_hlij(0, 2, 2);
-                            t_hlij(0, 2, 0) = t_hlij(0, 0, 2);
-                            t_hlij(0, 1, 2) = -1./2.*std::sqrt(100./63.)*t_hlij(0, 2, 2);
-                            t_hlij(0, 2, 1) = t_hlij(0, 1, 2);
-                        } if (lmax >= 1) {
-                            t_hlij(1, 0, 1) = -1./2.*std::sqrt(5./7.)*t_hlij(1, 1, 1);
-                            t_hlij(1, 1, 0) = t_hlij(1, 0, 1);
-                            t_hlij(1, 0, 2) = 1./6.*std::sqrt(35./11.)*t_hlij(1, 2, 2);
-                            t_hlij(1, 2, 0) = t_hlij(1, 0, 2);
-                            t_hlij(1, 1, 2) = -1./6.*14./std::sqrt(11.)*t_hlij(1, 2, 2);
-                            t_hlij(1, 2, 1) = t_hlij(1, 1, 2);
-                        } if (lmax >= 2) {
-                            t_hlij(2, 0, 1) = -1./2.*std::sqrt(7./9.)*t_hlij(2, 1, 1);
-                            t_hlij(2, 1, 0) = t_hlij(2, 0, 1);
-                            t_hlij(2, 0, 2) = 1./2.*std::sqrt(63./143.)*t_hlij(2, 2, 2);
-                            t_hlij(2, 2, 0) = t_hlij(2, 0, 2);
-                            t_hlij(2, 1, 2) = -1./2.*18./std::sqrt(143.)*t_hlij(2, 2, 2);
-                            t_hlij(2, 2, 1) = t_hlij(2, 1, 2);
                         }
 
                         // Copy to main array
@@ -545,6 +553,10 @@ public:
 
         unsigned int norbs = psi.size();
         unsigned int natoms = atoms_with_projectors.size();
+        enl = 0.0;
+        if (natoms == 0) {
+            return vpsi;
+        }
 
         // NEW (VECTORIZED) ... hopefully
         vector_real_function_3d localproj;
@@ -636,13 +648,17 @@ public:
         //debug printing
         /*tensorT lmat = matrix_inner(world, vpsi, psi, true);
         Q el = 0.0;
+        Q elt = 0.0;
+        Q enlt = 0.0;
         for(int i = 0;i < nocc;++i){
             el += occ[i] * lmat(i, i);
+            elt += lmat(i, i);
+            enlt += nlmat(i, i);
             std::cout << "nloc/loc " << i << "  " << occ[i] << "  " << nlmat(i,i) << "  "<< lmat(i,i) << std::endl;
         }
 
         if(world.rank() == 0){
-            printf("\n              enl, el, epot %16.8f  %16.8f  %16.8f\n", enl, el, enl+el);
+            printf("\n              enl, el, epot, enltot, eltot, %16.8f  %16.8f  %16.8f  %16.8f  %16.8f\n", enl, el, enl+el, enlt, elt);
         }*/
 
         gaxpy(world, 1.0, vpsi, 1.0, dpsi);
@@ -657,6 +673,10 @@ public:
 
         //unsigned int norbs = psi.size();
         unsigned int natoms = atoms_with_projectors.size();
+        enl = 0.0;
+        if (natoms == 0) {
+            return vpsi;
+        }
 
         for (unsigned int iatom = 0; iatom < natoms; iatom++) {
             Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);

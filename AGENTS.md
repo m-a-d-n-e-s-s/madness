@@ -90,6 +90,17 @@ Each test is also a normal binary under
 `src/examples/periodic` tests at `<build-dir>/src/examples/periodic/<name>`)
 and can be invoked directly for debugging.
 
+When testing, be careful to not oversubscribe either memory or cores.
+MADNESS uses spin locks for fine-grain mutual exclusion and
+oversubscribed cores can cause exponential slowdown.  Manage the
+number of simultaneously running processes and restrict the number of
+threads used by MADNESS via the environment variable MAD_NUM_THREADS
+(if unset all available cores are used), and note if running with MPI
+that each process has an additional communication thread which also
+needs a dedicated core. Be aware that if /tmp is memory mounted then
+building in /tmp also consumes RAM.  Finally, do not set MAD_NUM_THREADS
+less than 2 since verifying thread safety is a key part of testing.
+
 ### QC example decks (`qctest`)
 
 `src/examples/qc/` holds complete, CI-verified `madqc` calculations — one

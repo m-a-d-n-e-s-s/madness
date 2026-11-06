@@ -1,0 +1,1198 @@
+MADNESS runtime initialized with 7 threads in the pool and affinity OFF
+
+================================================================================
+   MADQC -- Multiresolution Quantum Chemistry Code 
+================================================================================ 
+
+
+--------------------------------------------
+   MADNESS 0.10.1 multiresolution suite
+--------------------------------------------
+
+   number of processors ... 1
+    processor frequency ... 3.302326e+09
+     hostname of rank 0 ... sandbox
+            host system ... Linux
+          configured by ... rjh
+          configured on ... sandbox
+          configured at ... 2026-11-05T12:18:18
+                    CXX ... /usr/lib64/ccache/c++
+               CXXFLAGS ... 
+             tuning for ... default
+                    MPI ... multiple
+ multi-threaded runtime ... MADNESS ThreadPool
+                   BLAS ... Intel MKL 10185 10185 MFLOP/s
+                   BLAS ... Have MTXMQ
+               compiled ... 12:59:28  on  Nov 05 2026
+ git source description ... last_svn-6795-gc9d16a233-dirty
+    git source description ...     last_svn-6795-gc9d16a233-dirty
+    built date/time ...     Nov 05 2026/12:59:28
+
+input file  : ne_pbe.in
+workflow    : scf
+
+
+================================================================================
+   Calculation parameters
+================================================================================ 
+
+molecule
+               units  bohr       # defined   coordinate units                        [atomic, angstrom, bohr, au]
+            psp_file  gth_pbe.xml # defined   pseudopotential file name (default: auto-selected from xc)
+ psNe                     0                   0                   0
+end
+dft
+              prefix  ne_pbe     # derived   prefixes your output/restart/json/plot/etc files
+              charge  0.0000e+00 # default   total molecular charge
+                  xc  pbe        # defined   XC input line
+             hfexalg  multiworld_row # default   hf exchange algorithm;                  [multiworld, multiworld_row, fetch_compute, smallmem, largemem]
+                                 #               multiworld bounds memory, needs one subworld per rank
+    hfex_granularity  1          # default   hfexalg=multiworld: orbital batches per rank; >1 balances better
+     hfex_cost_aware  true       # default   hfexalg=multiworld: place tasks by measured cost, not by count
+   hfex_accumulation  2          # default   hfexalg=multiworld: gather tile results 1=per subworld, 2=per node
+           bsh_apply  auto       # default   BSH apply backend; auto=macrotask       [auto, tile, macrotask, plain]
+                                 #           when multinode or at tight thresh, else tile
+              memory  [storefunction, nodereplicated, distributed] # default   memory algorithm for storing functions  
+                                 #                                             (storing,cloud,target)
+               smear  0.0000e+00 # default   smearing parameter
+               econv  1.0000e-05 # default   energy convergence
+               dconv  1.0000e-07 # defined   density convergence
+convergence_criteria  [bsh_residual, total_energy] # default   possible values are: bsh_residual, total_energy, 
+                                 #                             each_energy, density
+                   k  8          # defined   polynomial order
+                   l  3.0000e+01 # defined   user coordinates box size
+               deriv  abgv       # default   derivative method                       [abgv, bspline, ble]
+           dft_deriv  bspline    # default   derivative method for gga               [abgv, bspline, ble]
+                                 #           potentials
+         xc_weak_gga  false      # default   weak form of the semilocal xc potential; nemo only
+             maxrotn  2.5000e-01 # default   step restriction used in autoshift algorithm
+             nvalpha  0          # default   number of alpha virtuals to compute
+              nvbeta  0          # default   number of beta virtuals to compute
+                aocc  []         # default   explicit alpha occupations (0 or 1) by orbital index within the occupied 
+                                 #           span; a 0 is a hole
+                bocc  []         # default   explicit beta occupations (0 or 1) by orbital index within the occupied 
+                                 #           span; a 0 is a hole
+               nopen  0          # default   number of unpaired electrons = nalpha-nbeta
+             maxiter  25         # default   maximum number of iterations
+                 nio  1          # default   no. of io servers to use
+     spin_restricted  true       # default   true if spin restricted
+              plotlo  0          # default   range of MOs to print (for both spins if polarized
+              plothi  -1         # default   range of MOs to print (for both spins if polarized
+            plotdens  false      # default   If true print the density at convergence
+            plotcoul  false      # default   If true plot the total coulomb potential at convergence
+            plotcube  false      # default   If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx
+            localize  canon      # defined   localization method                     [pm, boys, new, new_sys, cholesky, canon]
+          pointgroup  d2h        # derived   use point (sub) group symmetry if       [c1, c2, ci, cs, c2v, c2h, d2, d2h]
+                                 #           not localized
+             restart  auto       # default   where the initial orbitals come         [auto, none, iterate, read_only, ao, nwchem]
+                                 #           from: auto picks between none/iterate/read_only by what is on disk
+           restartao  false      # default   RETIRED -- use restart=ao
+          no_compute  false      # default   RETIRED -- use restart=read_only
+                save  true       # default   if true save orbitals to disk
+              maxsub  10         # default   size of iterative subspace ... set to 0 or 1 to disable
+        orbitalshift  0.0000e+00 # default   scf orbital shift: shift the occ orbitals to lower energies
+            npt_plot  101        # default   no. of points to use in each dim for plots
+           plot_cell  []         # default   lo hi in each dimension for plotting (default is all space)
+             aobasis  6-31g      # derived   AO basis used for initial guess (6-31gss, 6-31g, 3-21g, sto-6g, sto-3g)
+         derivatives  false      # default   if true calculate nuclear derivatives
+              dipole  false      # default   if true calculate dipole moment
+      conv_only_dens  false      # default   if true remove bsh_residual from convergence criteria (deprecated)
+            psp_calc  true       # derived   pseudopotential calculation for all atoms
+            pcm_data  none       # default   do a PCM (solvent) calculation
+          dispersion  none       # default   DFT-D3 dispersion correction            [none, d3bj, d3zero]
+dispersion_functional  none       # default   functional whose D3 damping parameters to use
+      dispersion_atm  false      # default   include the three-body Axilrod-Teller-Muto dispersion term
+             pure_ae  false      # derived   pure all electron calculation with no pseudo-atoms
+         print_level  3          # default   0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug
+          population  [none]     # default   atomic charges (and spin populations) of the final orbitals, printed at 
+                                 #           the end: none, mulliken, lowdin, iao; several allowed, e.g. [iao,mulliken]
+    population_basis  6-31g      # derived   basis set for the mulliken and lowdin populations (default: the value of 
+                                 #           aobasis)
+ population_minbasis  sto-3g     # default   minimal basis set for the iao populations
+ molecular_structure  inputfile  # default   where to read the molecule from: inputfile or name from the library
+              nalpha  4          # derived   number of alpha spin electrons
+               nbeta  4          # derived   number of beta  spin electrons
+           nmo_alpha  4          # derived   number of alpha spin molecular orbitals
+            nmo_beta  4          # derived   number of beta spin molecular orbitals
+                  lo  1.0000e-10 # default   smallest length scale we need to resolve
+            protocol  [1.0000e-04, 1.0000e-06, 1.0000e-08] # defined   calculation protocol
+                gopt  false      # default   RETIRED -- use `madqc --optimize`
+                gtol  1.0000e-04 # default   RETIRED -- use optimization group `gtol`
+               gtest  false      # default   RETIRED -- never had an effect
+                gval  1.0000e-05 # default   RETIRED -- use optimization group `value_precision`
+               gprec  1.0000e-04 # default   RETIRED -- use optimization group `gradient_precision`
+            gmaxiter  20         # default   RETIRED -- use optimization group `maxiter`
+    ginitial_hessian  false      # default   RETIRED -- use optimization group `initial_hessian`
+              algopt  bfgs       # default   RETIRED -- use optimization group       [bfgs, cg]
+                                 #           `algopt`
+           nv_factor  1          # default   RETIRED -- use `nv_extra`/`nv_step`
+            nv_extra  0          # default   extra virtuals converged first and dropped stepwise down to nvalpha
+             nv_step  0          # default   virtuals dropped per step-down stage (0: all extras at once)
+              nv_its  5          # default   maximum iterations per intermediate step-down stage
+     freeze_occupied  false      # default   iterate only the virtuals in the mean field of restarted occupied 
+                                 #           orbitals, which stay fixed
+           vnucextra  2          # default   load balance parameter for nuclear pot
+        loadbalparts  2          # default   ??
+              nwfile  none       # default   Base name of nwchem output files (.out and .movecs extensions) to read 
+                                 #           from
+end
+
+
+================================================================================
+   Starting calculations
+================================================================================ 
+
+Running SCF in "/tmp/psp-tests/madqc_ne/ne_pbe/task_0/moldft"
+input filename:  mad.in
+Molecule from params:
+molecule
+               units  bohr       # defined   coordinate units                        [atomic, angstrom, bohr, au]
+            psp_file  gth_pbe.xml # defined   pseudopotential file name (default: auto-selected from xc)
+ psNe                     0                   0                   0
+end
+Molecule from scf results :
+molecule
+               units  bohr       # defined   coordinate units                        [atomic, angstrom, bohr, au]
+            psp_file  gth_pbe.xml # defined   pseudopotential file name (default: auto-selected from xc)
+ psNe                     0                   0                   0
+end
+Next action is  3  (0=Ok,1=ReloadOnly,2=Restart,3=Redo)
+
+
+
+ MADNESS Hartree-Fock and Density Functional Theory Program
+ ----------------------------------------------------------
+
+
+
+molecule
+               units  bohr       # defined   coordinate units                        [atomic, angstrom, bohr, au]
+            psp_file  gth_pbe.xml # defined   pseudopotential file name (default: auto-selected from xc)
+ psNe                     0                   0                   0
+end
+
+
+dft
+              prefix  ne_pbe     # defined   prefixes your output/restart/json/plot/etc files
+              charge  0.0000e+00 # default   total molecular charge
+                  xc  pbe        # defined   XC input line
+             hfexalg  multiworld_row # default   hf exchange algorithm;                  [multiworld, multiworld_row, fetch_compute, smallmem, largemem]
+                                 #               multiworld bounds memory, needs one subworld per rank
+    hfex_granularity  1          # default   hfexalg=multiworld: orbital batches per rank; >1 balances better
+     hfex_cost_aware  true       # default   hfexalg=multiworld: place tasks by measured cost, not by count
+   hfex_accumulation  2          # default   hfexalg=multiworld: gather tile results 1=per subworld, 2=per node
+           bsh_apply  auto       # default   BSH apply backend; auto=macrotask       [auto, tile, macrotask, plain]
+                                 #           when multinode or at tight thresh, else tile
+              memory  [storefunction, nodereplicated, distributed] # default   memory algorithm for storing functions  
+                                 #                                             (storing,cloud,target)
+               smear  0.0000e+00 # default   smearing parameter
+               econv  1.0000e-05 # default   energy convergence
+               dconv  1.0000e-07 # defined   density convergence
+convergence_criteria  [bsh_residual, total_energy] # default   possible values are: bsh_residual, total_energy, 
+                                 #                             each_energy, density
+                   k  8          # defined   polynomial order
+                   l  3.0000e+01 # defined   user coordinates box size
+               deriv  abgv       # default   derivative method                       [abgv, bspline, ble]
+           dft_deriv  bspline    # default   derivative method for gga               [abgv, bspline, ble]
+                                 #           potentials
+         xc_weak_gga  false      # default   weak form of the semilocal xc potential; nemo only
+             maxrotn  2.5000e-01 # default   step restriction used in autoshift algorithm
+             nvalpha  0          # default   number of alpha virtuals to compute
+              nvbeta  0          # default   number of beta virtuals to compute
+                aocc  []         # default   explicit alpha occupations (0 or 1) by orbital index within the occupied 
+                                 #           span; a 0 is a hole
+                bocc  []         # default   explicit beta occupations (0 or 1) by orbital index within the occupied 
+                                 #           span; a 0 is a hole
+               nopen  0          # default   number of unpaired electrons = nalpha-nbeta
+             maxiter  25         # default   maximum number of iterations
+                 nio  1          # default   no. of io servers to use
+     spin_restricted  true       # default   true if spin restricted
+              plotlo  0          # default   range of MOs to print (for both spins if polarized
+              plothi  -1         # default   range of MOs to print (for both spins if polarized
+            plotdens  false      # default   If true print the density at convergence
+            plotcoul  false      # default   If true plot the total coulomb potential at convergence
+            plotcube  false      # default   If true also write Gaussian .cube files (for Avogadro/VMD) alongside .dx
+            localize  canon      # defined   localization method                     [pm, boys, new, new_sys, cholesky, canon]
+          pointgroup  d2h        # derived   use point (sub) group symmetry if       [c1, c2, ci, cs, c2v, c2h, d2, d2h]
+                                 #           not localized
+             restart  auto       # default   where the initial orbitals come         [auto, none, iterate, read_only, ao, nwchem]
+                                 #           from: auto picks between none/iterate/read_only by what is on disk
+           restartao  false      # default   RETIRED -- use restart=ao
+          no_compute  false      # default   RETIRED -- use restart=read_only
+                save  true       # default   if true save orbitals to disk
+              maxsub  10         # default   size of iterative subspace ... set to 0 or 1 to disable
+        orbitalshift  0.0000e+00 # default   scf orbital shift: shift the occ orbitals to lower energies
+            npt_plot  101        # default   no. of points to use in each dim for plots
+           plot_cell  []         # default   lo hi in each dimension for plotting (default is all space)
+             aobasis  6-31g      # derived   AO basis used for initial guess (6-31gss, 6-31g, 3-21g, sto-6g, sto-3g)
+         derivatives  false      # default   if true calculate nuclear derivatives
+              dipole  false      # default   if true calculate dipole moment
+      conv_only_dens  false      # default   if true remove bsh_residual from convergence criteria (deprecated)
+            psp_calc  true       # derived   pseudopotential calculation for all atoms
+            pcm_data  none       # default   do a PCM (solvent) calculation
+          dispersion  none       # default   DFT-D3 dispersion correction            [none, d3bj, d3zero]
+dispersion_functional  none       # default   functional whose D3 damping parameters to use
+      dispersion_atm  false      # default   include the three-body Axilrod-Teller-Muto dispersion term
+             pure_ae  false      # derived   pure all electron calculation with no pseudo-atoms
+         print_level  3          # default   0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug
+          population  [none]     # default   atomic charges (and spin populations) of the final orbitals, printed at 
+                                 #           the end: none, mulliken, lowdin, iao; several allowed, e.g. [iao,mulliken]
+    population_basis  6-31g      # derived   basis set for the mulliken and lowdin populations (default: the value of 
+                                 #           aobasis)
+ population_minbasis  sto-3g     # default   minimal basis set for the iao populations
+ molecular_structure  inputfile  # default   where to read the molecule from: inputfile or name from the library
+              nalpha  4          # derived   number of alpha spin electrons
+               nbeta  4          # derived   number of beta  spin electrons
+           nmo_alpha  4          # derived   number of alpha spin molecular orbitals
+            nmo_beta  4          # derived   number of beta spin molecular orbitals
+                  lo  1.0000e-10 # default   smallest length scale we need to resolve
+            protocol  [1.0000e-04, 1.0000e-06, 1.0000e-08] # defined   calculation protocol
+                gopt  false      # default   RETIRED -- use `madqc --optimize`
+                gtol  1.0000e-04 # default   RETIRED -- use optimization group `gtol`
+               gtest  false      # default   RETIRED -- never had an effect
+                gval  1.0000e-05 # default   RETIRED -- use optimization group `value_precision`
+               gprec  1.0000e-04 # default   RETIRED -- use optimization group `gradient_precision`
+            gmaxiter  20         # default   RETIRED -- use optimization group `maxiter`
+    ginitial_hessian  false      # default   RETIRED -- use optimization group `initial_hessian`
+              algopt  bfgs       # default   RETIRED -- use optimization group       [bfgs, cg]
+                                 #           `algopt`
+           nv_factor  1          # default   RETIRED -- use `nv_extra`/`nv_step`
+            nv_extra  0          # default   extra virtuals converged first and dropped stepwise down to nvalpha
+             nv_step  0          # default   virtuals dropped per step-down stage (0: all extras at once)
+              nv_its  5          # default   maximum iterations per intermediate step-down stage
+     freeze_occupied  false      # default   iterate only the virtuals in the mean field of restarted occupied 
+                                 #           orbitals, which stay fixed
+           vnucextra  2          # default   load balance parameter for nuclear pot
+        loadbalparts  2          # default   ??
+              nwfile  none       # default   Base name of nwchem output files (.out and .movecs extensions) to read 
+                                 #           from
+
+Solving NDIM= 3  with thresh 1.000000e-04     k 8    conv 1.000000e-04 
+
+restart auto: from initial_guess, starting at protocol rung 0 -- restart auto: nothing on disk
+
+Solving NDIM= 3  with thresh 1.000000e-04     k 8    conv 1.000000e-04 
+
+starting from the atomic initial guess
+timer:     Project vnuclear     0.12s     0.12s
+timer:        guess density     0.15s     0.15s
+timer:   guess Coulomb potn     0.39s     0.39s
+timer:       guess lda potn     0.08s     0.08s
+timer:        guess overlap     0.02s     0.02s
+timer:    KEmat reconstruct     0.08s     0.08s
+timer:  KEmat differentiate     0.08s     0.08s
+timer:       KEmat compress     0.06s     0.06s
+timer: KEmat inner products     0.09s     0.09s
+timer:     guess Kinet potn     0.32s     0.32s
+timer:           guess fock     1.13s     1.13s
+timer:      guess eigen sol     0.00s     0.00s
+timer: guess orbital groupi     0.04s     0.04s
+
+Solving NDIM= 3  with thresh 1.000000e-04     k 8    conv 1.000000e-04 
+
+timer:     Project vnuclear     0.24s     0.24s
+
+Iteration 0 at time 5.3s
+
+timer:       Make densities     0.13s     0.13s
+timer:       Load balancing     0.00s     0.00s
+timer:       Nuclear energy     0.01s     0.01s
+timer:              Coulomb     0.42s     0.42s
+timer:        DFT potential     0.80s     0.80s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.06s     0.06s
+timer:  KEmat differentiate     0.05s     0.05s
+timer:       KEmat compress     0.04s     0.04s
+timer: KEmat inner products     0.11s     0.11s
+timer:            KE matrix     0.25s     0.25s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.16s     0.16s
+
+              kinetic      27.73461997
+         nonlocal psp       2.58099324
+   nuclear attraction     -90.36546615
+              coulomb      31.14827047
+                  PCM       0.00000000
+ exchange-correlation      -5.96922586
+    nuclear-repulsion       0.00000000
+                total     -34.87080834
+
+timer: Compute residual stu     0.01s     0.01s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     0.61s     0.61s
+residuals [3.514082e-02, 6.549437e-02, 6.549551e-02, 6.549492e-02]
+BSH residual: rms 5.937937e-02    max 6.549551e-02
+timer:         BSH residual     0.03s     0.03s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.04s     0.04s
+timer:   Subspace transform     0.01s     0.01s
+Norm of vector changes alpha : rms 5.937937e-02    max 6.549551e-02
+timer:       Orthonormalize     0.11s     0.11s
+
+Iteration 1 at time 9.0s
+
+timer:       Make densities     0.13s     0.13s
+timer:       Load balancing     0.00s     0.00s
+delta rho 3.307418e-02 3.307418e-02 residuals 6.549551e-02 0.000000e+00
+timer:       Nuclear energy     0.02s     0.02s
+timer:              Coulomb     0.19s     0.19s
+timer:        DFT potential     0.69s     0.69s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.04s     0.04s
+timer:  KEmat differentiate     0.06s     0.06s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.10s     0.10s
+timer:            KE matrix     0.26s     0.26s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.12s     0.12s
+
+              kinetic      27.81261647
+         nonlocal psp       2.01825170
+   nuclear attraction     -89.87835707
+              coulomb      30.94611695
+                  PCM       0.00000000
+ exchange-correlation      -5.94629100
+    nuclear-repulsion       0.00000000
+                total     -35.04766295
+
+timer: Compute residual stu     0.01s     0.01s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     0.56s     0.56s
+residuals [1.015440e-02, 1.291162e-02, 1.291282e-02, 1.291220e-02]
+BSH residual: rms 1.228096e-02    max 1.291282e-02
+timer:         BSH residual     0.05s     0.05s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.14s     0.14s
+timer:   Subspace transform     0.02s     0.02s
+Norm of vector changes alpha : rms 1.245034e-02    max 1.309866e-02
+timer:       Orthonormalize     0.09s     0.09s
+
+Iteration 2 at time 12.4s
+
+timer:       Make densities     0.16s     0.16s
+delta rho 2.782448e-02 2.782448e-02 residuals 1.291282e-02 0.000000e+00
+timer:       Nuclear energy     0.01s     0.01s
+timer:              Coulomb     0.24s     0.24s
+timer:        DFT potential     0.78s     0.78s
+timer:            PE matrix     0.02s     0.02s
+timer:    KEmat reconstruct     0.04s     0.04s
+timer:  KEmat differentiate     0.06s     0.06s
+timer:       KEmat compress     0.06s     0.06s
+timer: KEmat inner products     0.09s     0.09s
+timer:            KE matrix     0.26s     0.26s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.11s     0.11s
+
+              kinetic      28.31302812
+         nonlocal psp       2.04658273
+   nuclear attraction     -90.67636097
+              coulomb      31.27137790
+                  PCM       0.00000000
+ exchange-correlation      -6.00843261
+    nuclear-repulsion       0.00000000
+                total     -35.05380483
+
+timer: Compute residual stu     0.00s     0.00s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     0.51s     0.51s
+residuals [4.175114e-03, 1.002827e-02, 1.002776e-02, 1.002800e-02]
+BSH residual: rms 8.931890e-03    max 1.002827e-02
+timer:         BSH residual     0.08s     0.08s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.23s     0.23s
+timer:   Subspace transform     0.02s     0.02s
+Norm of vector changes alpha : rms 5.360969e-03    max 6.072519e-03
+timer:       Orthonormalize     0.09s     0.09s
+
+Iteration 3 at time 16.0s
+
+timer:       Make densities     0.19s     0.19s
+delta rho 5.927608e-03 5.927608e-03 residuals 1.002827e-02 0.000000e+00
+timer:       Nuclear energy     0.03s     0.03s
+timer:              Coulomb     0.35s     0.35s
+timer:        DFT potential     0.78s     0.78s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.03s     0.03s
+timer:  KEmat differentiate     0.05s     0.05s
+timer:       KEmat compress     0.03s     0.03s
+timer: KEmat inner products     0.10s     0.10s
+timer:            KE matrix     0.22s     0.22s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.15s     0.15s
+
+              kinetic      28.18509752
+         nonlocal psp       2.03315162
+   nuclear attraction     -90.43587537
+              coulomb      31.15062863
+                  PCM       0.00000000
+ exchange-correlation      -5.98738263
+    nuclear-repulsion       0.00000000
+                total     -35.05438024
+
+timer: Compute residual stu     0.01s     0.01s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     0.57s     0.57s
+residuals [5.208195e-04, 4.011401e-04, 4.010210e-04, 4.010497e-04]
+BSH residual: rms 4.341155e-04    max 5.208195e-04
+timer:         BSH residual     0.05s     0.05s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.40s     0.40s
+timer:   Subspace transform     0.02s     0.02s
+Norm of vector changes alpha : rms 3.933013e-04    max 4.868200e-04
+timer:       Orthonormalize     0.15s     0.15s
+
+Iteration 4 at time 20.2s
+
+timer:       Make densities     0.15s     0.15s
+delta rho 4.158527e-04 4.158527e-04 residuals 5.208195e-04 0.000000e+00
+timer:       Nuclear energy     0.03s     0.03s
+timer:              Coulomb     0.34s     0.34s
+timer:        DFT potential     0.80s     0.80s
+timer:            PE matrix     0.04s     0.04s
+timer:    KEmat reconstruct     0.05s     0.05s
+timer:  KEmat differentiate     0.07s     0.07s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.07s     0.07s
+timer:            KE matrix     0.24s     0.24s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.13s     0.13s
+
+              kinetic      28.18271463
+         nonlocal psp       2.03297232
+   nuclear attraction     -90.42925936
+              coulomb      31.14574908
+                  PCM       0.00000000
+ exchange-correlation      -5.98657162
+    nuclear-repulsion       0.00000000
+                total     -35.05439494
+
+timer: Compute residual stu     0.01s     0.01s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     0.59s     0.59s
+residuals [1.304680e-04, 7.050543e-05, 7.044558e-05, 7.048378e-05]
+BSH residual: rms 8.933567e-05    max 1.304680e-04
+timer:         BSH residual     0.06s     0.06s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.46s     0.46s
+timer:   Subspace transform     0.03s     0.03s
+Norm of vector changes alpha : rms 9.449586e-05    max 1.457375e-04
+timer:       Orthonormalize     0.12s     0.12s
+
+Iteration 5 at time 24.5s
+
+timer:       Make densities     0.16s     0.16s
+delta rho 8.355543e-05 8.355543e-05 residuals 1.304680e-04 0.000000e+00
+timer:       Nuclear energy     0.01s     0.01s
+timer:              Coulomb     0.24s     0.24s
+timer:        DFT potential     0.69s     0.69s
+timer:            PE matrix     0.02s     0.02s
+timer:    KEmat reconstruct     0.02s     0.02s
+timer:  KEmat differentiate     0.07s     0.07s
+timer:       KEmat compress     0.06s     0.06s
+timer: KEmat inner products     0.10s     0.10s
+timer:            KE matrix     0.24s     0.24s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.10s     0.10s
+
+              kinetic      28.18432766
+         nonlocal psp       2.03268774
+   nuclear attraction     -90.43102769
+              coulomb      31.14629613
+                  PCM       0.00000000
+ exchange-correlation      -5.98667898
+    nuclear-repulsion       0.00000000
+                total     -35.05439514
+
+
+Converged!
+
+timer:              Overlap     0.01s     0.01s
+timer:      focka eigen sol     0.00s     0.00s
+timer:        Transform MOs     0.07s     0.07s
+ 
+alpha eigenvalues
+[*]  -1.39511311  -0.48286464  -0.48286414  -0.48286370
+
+
+ Dipole Moment (a.u.)
+ -----------
+
+     x:  4.572179e-11
+     y:  1.292624e-11
+     z:  -9.906858e-11
+ Total Dipole Moment:  1.098733e-10 
+
+timer:               dipole     0.00s     0.00s
+Orbitals are eigenvectors - energies are eigenvalues
+
+Analysis of alpha MO vectors
+timer:      Analyze vectors     1.11s     1.11s
+timer: Compute eigen gesv a     0.00s     0.00s
+  MO   0 : occ=1.00 : energy=  -1.39511311 : ncoeff=2.01e+05:center=(0.00,0.00,-0.00) : radius=0.97
+           Ne(0)   s( 1)-1.011  
+total number of coefficients = 2.00704000e+05
+
+  MO   1 : occ=1.00 : energy=  -0.48286464 : ncoeff=2.01e+05:center=(0.00,0.00,0.00) : radius=1.15
+           Ne(0)  pz( 4) 0.749    Ne(0)  py( 3) 0.545    Ne(0)  px( 2) 0.322  
+total number of coefficients = 4.01408000e+05
+
+  MO   2 : occ=1.00 : energy=  -0.48286414 : ncoeff=2.01e+05:center=(-0.00,0.00,0.00) : radius=1.15
+           Ne(0)  px( 2)-0.902    Ne(0)  py( 3) 0.365  
+total number of coefficients = 6.02112000e+05
+
+  MO   3 : occ=1.00 : energy=  -0.48286370 : ncoeff=2.01e+05:center=(-0.00,-0.00,0.00) : radius=1.15
+           Ne(0)  py( 3) 0.729    Ne(0)  pz( 4)-0.621    Ne(0)  px( 2) 0.211  
+total number of coefficients = 8.02816000e+05
+
+
+Solving NDIM= 3  with thresh 1.000000e-06     k 8    conv 1.000000e-06 
+
+timer:     Project vnuclear     0.19s     0.19s
+
+Iteration 0 at time 29.8s
+
+timer:       Make densities     0.13s     0.13s
+timer:       Load balancing     0.00s     0.00s
+timer:       Nuclear energy     0.02s     0.02s
+timer:              Coulomb     0.50s     0.50s
+timer:        DFT potential     0.96s     0.96s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.03s     0.03s
+timer:  KEmat differentiate     0.05s     0.05s
+timer:       KEmat compress     0.03s     0.03s
+timer: KEmat inner products     0.11s     0.11s
+timer:            KE matrix     0.23s     0.23s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.15s     0.15s
+
+              kinetic      28.18432766
+         nonlocal psp       2.03268774
+   nuclear attraction     -90.43102769
+              coulomb      31.14629607
+                  PCM       0.00000000
+ exchange-correlation      -5.98667898
+    nuclear-repulsion       0.00000000
+                total     -35.05439520
+
+timer: Compute residual stu     0.01s     0.01s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     2.02s     2.02s
+residuals [1.960117e-04, 1.825662e-04, 1.825415e-04, 1.825736e-04]
+BSH residual: rms 1.860144e-04    max 1.960117e-04
+timer:         BSH residual     0.07s     0.07s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.07s     0.07s
+timer:   Subspace transform     0.01s     0.01s
+Norm of vector changes alpha : rms 1.860144e-04    max 1.960117e-04
+timer:       Orthonormalize     0.14s     0.14s
+
+Iteration 1 at time 35.7s
+
+timer:       Make densities     0.18s     0.18s
+timer:       Load balancing     0.00s     0.00s
+delta rho 2.035548e-04 2.035548e-04 residuals 1.960117e-04 0.000000e+00
+timer:       Nuclear energy     0.01s     0.01s
+timer:              Coulomb     0.65s     0.65s
+timer:        DFT potential     1.23s     1.23s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.03s     0.03s
+timer:  KEmat differentiate     0.07s     0.07s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.13s     0.13s
+timer:            KE matrix     0.27s     0.27s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.16s     0.16s
+
+              kinetic      28.18362766
+         nonlocal psp       2.03232019
+   nuclear attraction     -90.42993563
+              coulomb      31.14628476
+                  PCM       0.00000000
+ exchange-correlation      -5.98479859
+    nuclear-repulsion       0.00000000
+                total     -35.05250161
+
+timer: Compute residual stu     0.02s     0.02s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     2.66s     2.66s
+residuals [4.036564e-05, 5.625504e-05, 5.623350e-05, 5.622929e-05]
+BSH residual: rms 5.272085e-05    max 5.625504e-05
+timer:         BSH residual     0.12s     0.12s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.12s     0.12s
+timer:   Subspace transform     0.02s     0.02s
+Norm of vector changes alpha : rms 5.343278e-05    max 5.701824e-05
+timer:       Orthonormalize     0.11s     0.11s
+
+Iteration 2 at time 43.0s
+
+timer:       Make densities     0.18s     0.18s
+delta rho 1.618217e-04 1.618217e-04 residuals 5.625504e-05 0.000000e+00
+timer:       Nuclear energy     0.02s     0.02s
+timer:              Coulomb     0.70s     0.70s
+timer:        DFT potential     1.52s     1.52s
+timer:            PE matrix     0.04s     0.04s
+timer:    KEmat reconstruct     0.05s     0.05s
+timer:  KEmat differentiate     0.14s     0.14s
+timer:       KEmat compress     0.08s     0.08s
+timer: KEmat inner products     0.13s     0.13s
+timer:            KE matrix     0.40s     0.40s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.23s     0.23s
+
+              kinetic      28.18513219
+         nonlocal psp       2.03287814
+   nuclear attraction     -90.43279285
+              coulomb      31.14724686
+                  PCM       0.00000000
+ exchange-correlation      -5.98493625
+    nuclear-repulsion       0.00000000
+                total     -35.05247191
+
+timer: Compute residual stu     0.04s     0.04s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     3.44s     3.44s
+residuals [2.221326e-05, 2.662641e-05, 2.661959e-05, 2.661402e-05]
+BSH residual: rms 2.558956e-05    max 2.662641e-05
+timer:         BSH residual     0.06s     0.06s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.29s     0.29s
+timer:   Subspace transform     0.03s     0.03s
+Norm of vector changes alpha : rms 2.578006e-05    max 2.680738e-05
+timer:       Orthonormalize     0.15s     0.15s
+
+Iteration 3 at time 52.0s
+
+timer:       Make densities     0.21s     0.21s
+delta rho 7.458068e-05 7.458068e-05 residuals 2.662641e-05 0.000000e+00
+timer:       Nuclear energy     0.03s     0.03s
+timer:              Coulomb     0.74s     0.74s
+timer:        DFT potential     1.16s     1.16s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.07s     0.07s
+timer:  KEmat differentiate     0.09s     0.09s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.08s     0.08s
+timer:            KE matrix     0.30s     0.30s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.21s     0.21s
+
+              kinetic      28.18592787
+         nonlocal psp       2.03291363
+   nuclear attraction     -90.43366652
+              coulomb      31.14729443
+                  PCM       0.00000000
+ exchange-correlation      -5.98494320
+    nuclear-repulsion       0.00000000
+                total     -35.05247378
+
+timer: Compute residual stu     0.04s     0.04s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     2.77s     2.77s
+residuals [8.151255e-06, 1.024631e-05, 1.023354e-05, 1.023968e-05]
+BSH residual: rms 9.759691e-06    max 1.024631e-05
+timer:         BSH residual     0.07s     0.07s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.41s     0.41s
+timer:   Subspace transform     0.04s     0.04s
+Norm of vector changes alpha : rms 1.005620e-05    max 1.019447e-05
+timer:       Orthonormalize     0.15s     0.15s
+
+Iteration 4 at time 59.8s
+
+timer:       Make densities     0.20s     0.20s
+delta rho 2.780196e-05 2.780196e-05 residuals 1.024631e-05 0.000000e+00
+timer:       Nuclear energy     0.03s     0.03s
+timer:              Coulomb     0.52s     0.52s
+timer:        DFT potential     0.95s     0.95s
+timer:            PE matrix     0.05s     0.05s
+timer:    KEmat reconstruct     0.07s     0.07s
+timer:  KEmat differentiate     0.10s     0.10s
+timer:       KEmat compress     0.06s     0.06s
+timer: KEmat inner products     0.13s     0.13s
+timer:            KE matrix     0.35s     0.35s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.19s     0.19s
+
+              kinetic      28.18646305
+         nonlocal psp       2.03286650
+   nuclear attraction     -90.43418826
+              coulomb      31.14733360
+                  PCM       0.00000000
+ exchange-correlation      -5.98494867
+    nuclear-repulsion       0.00000000
+                total     -35.05247377
+
+timer: Compute residual stu     0.02s     0.02s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     3.52s     3.52s
+residuals [1.855163e-06, 2.605420e-06, 2.563089e-06, 2.601926e-06]
+BSH residual: rms 2.427410e-06    max 2.605420e-06
+timer:         BSH residual     0.06s     0.06s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.34s     0.34s
+timer:   Subspace transform     0.06s     0.06s
+Norm of vector changes alpha : rms 3.045775e-06    max 3.098186e-06
+timer:       Orthonormalize     0.12s     0.12s
+
+Iteration 5 at time 67.9s
+
+timer:       Make densities     0.17s     0.17s
+delta rho 8.654288e-06 8.654288e-06 residuals 2.605420e-06 0.000000e+00
+timer:       Nuclear energy     0.03s     0.03s
+timer:              Coulomb     0.46s     0.46s
+timer:        DFT potential     1.03s     1.03s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.04s     0.04s
+timer:  KEmat differentiate     0.10s     0.10s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.10s     0.10s
+timer:            KE matrix     0.30s     0.30s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.16s     0.16s
+
+              kinetic      28.18663392
+         nonlocal psp       2.03284937
+   nuclear attraction     -90.43435287
+              coulomb      31.14734632
+                  PCM       0.00000000
+ exchange-correlation      -5.98495056
+    nuclear-repulsion       0.00000000
+                total     -35.05247380
+
+timer: Compute residual stu     0.04s     0.04s
+BSH apply [auto]: tile (nodes: 1 )
+timer:            Apply BSH     2.68s     2.68s
+residuals [1.421864e-07, 3.817348e-07, 1.286240e-07, 3.707595e-07]
+BSH residual: rms 2.828185e-07    max 3.817348e-07
+timer:         BSH residual     0.06s     0.06s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.45s     0.45s
+timer:   Subspace transform     0.04s     0.04s
+Norm of vector changes alpha : rms 2.352299e-07    max 3.164519e-07
+timer:       Orthonormalize     0.12s     0.12s
+
+Iteration 6 at time 75.1s
+
+timer:       Make densities     0.16s     0.16s
+delta rho 3.901214e-07 3.901214e-07 residuals 3.817348e-07 0.000000e+00
+timer:       Nuclear energy     0.02s     0.02s
+timer:              Coulomb     0.45s     0.45s
+timer:        DFT potential     0.85s     0.85s
+timer:            PE matrix     0.03s     0.03s
+timer:    KEmat reconstruct     0.07s     0.07s
+timer:  KEmat differentiate     0.10s     0.10s
+timer:       KEmat compress     0.05s     0.05s
+timer: KEmat inner products     0.08s     0.08s
+timer:            KE matrix     0.31s     0.31s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.19s     0.19s
+
+              kinetic      28.18663003
+         nonlocal psp       2.03284915
+   nuclear attraction     -90.43434828
+              coulomb      31.14734580
+                  PCM       0.00000000
+ exchange-correlation      -5.98495050
+    nuclear-repulsion       0.00000000
+                total     -35.05247380
+
+
+Converged!
+
+timer:              Overlap     0.03s     0.03s
+timer:      focka eigen sol     0.00s     0.00s
+timer:        Transform MOs     0.05s     0.05s
+ 
+alpha eigenvalues
+[*]  -1.39512997  -0.48289813  -0.48289813  -0.48289813
+
+
+ Dipole Moment (a.u.)
+ -----------
+
+     x:  1.831086e-10
+     y:  6.896918e-11
+     z:  -3.959966e-10
+ Total Dipole Moment:  4.416999e-10 
+
+timer:               dipole     0.01s     0.01s
+Orbitals are eigenvectors - energies are eigenvalues
+
+Analysis of alpha MO vectors
+timer:      Analyze vectors     1.12s     1.12s
+timer: Compute eigen gesv a     0.00s     0.00s
+  MO   0 : occ=1.00 : energy=  -1.39512997 : ncoeff=2.33e+05:center=(0.00,0.00,-0.00) : radius=0.97
+           Ne(0)   s( 1)-1.011  
+total number of coefficients = 2.33472000e+05
+
+  MO   1 : occ=1.00 : energy=  -0.48289813 : ncoeff=2.66e+05:center=(0.00,0.00,-0.00) : radius=1.15
+           Ne(0)  py( 3)-0.940    Ne(0)  pz( 4)-0.233  
+total number of coefficients = 4.99712000e+05
+
+  MO   2 : occ=1.00 : energy=  -0.48289813 : ncoeff=2.66e+05:center=(-0.00,-0.00,0.00) : radius=1.15
+           Ne(0)  pz( 4) 0.900    Ne(0)  px( 2)-0.282    Ne(0)  py( 3)-0.269  
+total number of coefficients = 7.65952000e+05
+
+  MO   3 : occ=1.00 : energy=  -0.48289813 : ncoeff=2.66e+05:center=(-0.00,0.00,-0.00) : radius=1.15
+           Ne(0)  px( 2)-0.926    Ne(0)  pz( 4)-0.313  
+total number of coefficients = 1.03219200e+06
+
+
+Solving NDIM= 3  with thresh 1.000000e-08     k 8    conv 1.000000e-07 
+
+timer:     Project vnuclear     0.52s     0.52s
+
+Iteration 0 at time 82.1s
+
+timer:       Make densities     0.18s     0.18s
+timer:       Load balancing     0.00s     0.00s
+timer:       Nuclear energy     0.02s     0.02s
+timer:              Coulomb     1.75s     1.75s
+timer:        DFT potential     1.22s     1.22s
+timer:            PE matrix     0.04s     0.04s
+timer:    KEmat reconstruct     0.05s     0.05s
+timer:  KEmat differentiate     0.12s     0.12s
+timer:       KEmat compress     0.09s     0.09s
+timer: KEmat inner products     0.10s     0.10s
+timer:            KE matrix     0.36s     0.36s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     0.31s     0.31s
+
+              kinetic      28.18663003
+         nonlocal psp       2.03284915
+   nuclear attraction     -90.43434828
+              coulomb      31.14734580
+                  PCM       0.00000000
+ exchange-correlation      -5.98495050
+    nuclear-repulsion       0.00000000
+                total     -35.05247380
+
+timer: Compute residual stu     0.08s     0.08s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask    18.45s    18.45s
+residuals [2.949884e-06, 4.433544e-06, 4.433271e-06, 4.437475e-06]
+BSH residual: rms 4.114098e-06    max 4.437475e-06
+timer:         BSH residual     0.38s     0.38s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.09s     0.09s
+timer:   Subspace transform     0.07s     0.07s
+Norm of vector changes alpha : rms 4.114098e-06    max 4.437475e-06
+timer:       Orthonormalize     0.67s     0.67s
+
+Iteration 1 at time 109.5s
+
+timer:       Make densities     0.80s     0.80s
+timer:       Load balancing     0.00s     0.00s
+delta rho 5.947944e-06 5.947944e-06 residuals 4.437475e-06 0.000000e+00
+timer:       Nuclear energy     0.15s     0.15s
+timer:              Coulomb    10.37s    10.37s
+timer:        DFT potential     7.49s     7.49s
+timer:            PE matrix     0.13s     0.13s
+timer:    KEmat reconstruct     0.16s     0.16s
+timer:  KEmat differentiate     1.41s     1.41s
+timer:       KEmat compress     0.79s     0.79s
+timer: KEmat inner products     0.23s     0.23s
+timer:            KE matrix     2.60s     2.60s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     1.16s     1.15s
+
+              kinetic      28.18657496
+         nonlocal psp       2.03283793
+   nuclear attraction     -90.43425651
+              coulomb      31.14731513
+                  PCM       0.00000000
+ exchange-correlation      -5.98492217
+    nuclear-repulsion       0.00000000
+                total     -35.05245066
+
+timer: Compute residual stu     0.31s     0.31s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask    47.63s    47.63s
+residuals [1.464013e-06, 3.060862e-06, 3.062028e-06, 3.063613e-06]
+BSH residual: rms 2.751089e-06    max 3.063613e-06
+timer:         BSH residual     1.09s     1.09s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     0.66s     0.66s
+timer:   Subspace transform     0.18s     0.18s
+Norm of vector changes alpha : rms 2.829477e-06    max 3.149733e-06
+timer:       Orthonormalize     1.48s     1.48s
+
+Iteration 2 at time 189.9s
+
+timer:       Make densities     1.24s     1.24s
+delta rho 6.052523e-06 6.052523e-06 residuals 3.063613e-06 0.000000e+00
+timer:       Nuclear energy     0.28s     0.28s
+timer:              Coulomb    19.25s    19.25s
+timer:        DFT potential    14.75s    14.75s
+timer:            PE matrix     0.20s     0.20s
+timer:    KEmat reconstruct     0.34s     0.34s
+timer:  KEmat differentiate     2.74s     2.74s
+timer:       KEmat compress     2.65s     2.65s
+timer: KEmat inner products     0.61s     0.61s
+timer:            KE matrix     6.35s     6.35s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     3.12s     3.12s
+
+              kinetic      28.18647247
+         nonlocal psp       2.03282356
+   nuclear attraction     -90.43410560
+              coulomb      31.14727406
+                  PCM       0.00000000
+ exchange-correlation      -5.98491534
+    nuclear-repulsion       0.00000000
+                total     -35.05245085
+
+timer: Compute residual stu     0.42s     0.42s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask    92.23s    92.23s
+residuals [1.107453e-06, 1.200086e-06, 1.196468e-06, 1.198014e-06]
+BSH residual: rms 1.176162e-06    max 1.200086e-06
+timer:         BSH residual     0.41s     0.41s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     1.46s     1.46s
+timer:   Subspace transform     0.46s     0.46s
+Norm of vector changes alpha : rms 1.061238e-06    max 1.085887e-06
+timer:       Orthonormalize     1.74s     1.74s
+
+Iteration 3 at time 342.7s
+
+timer:       Make densities     1.11s     1.11s
+delta rho 1.543540e-06 1.543540e-06 residuals 1.200086e-06 0.000000e+00
+timer:       Nuclear energy     0.35s     0.35s
+timer:              Coulomb    14.24s    14.24s
+timer:        DFT potential    20.24s    20.23s
+timer:            PE matrix     0.15s     0.15s
+timer:    KEmat reconstruct     0.12s     0.12s
+timer:  KEmat differentiate     1.27s     1.27s
+timer:       KEmat compress     1.02s     1.02s
+timer: KEmat inner products     0.37s     0.37s
+timer:            KE matrix     2.80s     2.80s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     1.61s     1.61s
+
+              kinetic      28.18648104
+         nonlocal psp       2.03282841
+   nuclear attraction     -90.43413738
+              coulomb      31.14729655
+                  PCM       0.00000000
+ exchange-correlation      -5.98491949
+    nuclear-repulsion       0.00000000
+                total     -35.05245087
+
+timer: Compute residual stu     0.52s     0.52s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask    97.03s    97.03s
+residuals [3.034147e-07, 8.670907e-07, 8.626708e-07, 8.607749e-07]
+BSH residual: rms 7.630598e-07    max 8.670907e-07
+timer:         BSH residual     0.72s     0.72s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     1.44s     1.44s
+timer:   Subspace transform     0.69s     0.69s
+Norm of vector changes alpha : rms 5.915682e-07    max 6.577567e-07
+timer:       Orthonormalize     2.11s     2.11s
+
+Iteration 4 at time 497.5s
+
+timer:       Make densities     2.04s     2.04s
+delta rho 1.707286e-06 1.707286e-06 residuals 8.670907e-07 0.000000e+00
+timer:       Nuclear energy     0.30s     0.30s
+timer:              Coulomb    22.65s    22.65s
+timer:        DFT potential    22.73s    22.73s
+timer:            PE matrix     0.27s     0.27s
+timer:    KEmat reconstruct     0.40s     0.40s
+timer:  KEmat differentiate     3.43s     3.43s
+timer:       KEmat compress     3.19s     3.19s
+timer: KEmat inner products     0.81s     0.81s
+timer:            KE matrix     7.85s     7.85s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     3.32s     3.32s
+
+              kinetic      28.18644843
+         nonlocal psp       2.03282823
+   nuclear attraction     -90.43409572
+              coulomb      31.14728593
+                  PCM       0.00000000
+ exchange-correlation      -5.98491768
+    nuclear-repulsion       0.00000000
+                total     -35.05245081
+
+timer: Compute residual stu     0.56s     0.56s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask   121.56s   121.55s
+residuals [2.950739e-07, 3.249572e-07, 3.113056e-07, 3.072178e-07]
+BSH residual: rms 3.098225e-07    max 3.249572e-07
+timer:         BSH residual     0.66s     0.66s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     2.05s     2.05s
+timer:   Subspace transform     0.76s     0.76s
+Norm of vector changes alpha : rms 2.463588e-07    max 2.621798e-07
+timer:       Orthonormalize     1.49s     1.49s
+
+Iteration 5 at time 698.6s
+
+timer:       Make densities     1.17s     1.17s
+delta rho 7.400974e-07 7.400974e-07 residuals 3.249572e-07 0.000000e+00
+timer:       Nuclear energy     0.28s     0.28s
+timer:              Coulomb    18.57s    18.56s
+timer:        DFT potential    17.80s    17.80s
+timer:            PE matrix     0.19s     0.19s
+timer:    KEmat reconstruct     0.26s     0.26s
+timer:  KEmat differentiate     2.51s     2.51s
+timer:       KEmat compress     2.49s     2.49s
+timer: KEmat inner products     0.62s     0.62s
+timer:            KE matrix     5.89s     5.88s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     2.33s     2.33s
+
+              kinetic      28.18644422
+         nonlocal psp       2.03282889
+   nuclear attraction     -90.43409253
+              coulomb      31.14728633
+                  PCM       0.00000000
+ exchange-correlation      -5.98491776
+    nuclear-repulsion       0.00000000
+                total     -35.05245085
+
+timer: Compute residual stu     0.66s     0.66s
+BSH apply [auto]: macrotask (nodes: 1 , tight protocol)
+BSH apply: redistribute operand to single-owner batches (tight protocol)
+timer: Apply BSH (macrotask   101.51s   101.50s
+residuals [1.783972e-07, 1.749117e-07, 1.692964e-07, 1.706588e-07]
+BSH residual: rms 1.733532e-07    max 1.783972e-07
+timer:         BSH residual     0.65s     0.65s
+timer: Update subspace comp     0.00s     0.00s
+timer: Update subspace stuf     2.91s     2.91s
+timer:   Subspace transform     1.26s     1.26s
+Norm of vector changes alpha : rms 1.759733e-07    max 1.801958e-07
+timer:       Orthonormalize     1.96s     1.96s
+
+Iteration 6 at time 864.9s
+
+timer:       Make densities     1.06s     1.06s
+delta rho 3.166688e-07 3.166688e-07 residuals 1.783972e-07 0.000000e+00
+timer:       Nuclear energy     0.22s     0.22s
+timer:              Coulomb    11.49s    11.49s
+timer:        DFT potential    19.25s    19.25s
+timer:            PE matrix     0.17s     0.17s
+timer:    KEmat reconstruct     0.25s     0.25s
+timer:  KEmat differentiate     2.48s     2.48s
+timer:       KEmat compress     1.99s     1.99s
+timer: KEmat inner products     0.76s     0.76s
+timer:            KE matrix     5.49s     5.49s
+timer: Make fock matrix res     0.00s     0.00s
+timer: Diagonalization rest     2.42s     2.42s
+
+              kinetic      28.18644288
+         nonlocal psp       2.03282929
+   nuclear attraction     -90.43409204
+              coulomb      31.14728688
+                  PCM       0.00000000
+ exchange-correlation      -5.98491786
+    nuclear-repulsion       0.00000000
+                total     -35.05245086
+
+
+Converged!
+
+timer:              Overlap     0.07s     0.07s
+timer:      focka eigen sol     0.00s     0.00s
+timer:        Transform MOs     0.47s     0.47s
+ 
+alpha eigenvalues
+[*]  -1.39513643  -0.48289730  -0.48289730  -0.48289730
+
+
+ Dipole Moment (a.u.)
+ -----------
+
+     x:  2.886039e-10
+     y:  -1.784270e-10
+     z:  -9.523990e-11
+ Total Dipole Moment:  3.524188e-10 
+
+timer:               dipole     0.01s     0.01s
+Orbitals are eigenvectors - energies are eigenvalues
+
+Analysis of alpha MO vectors
+timer:      Analyze vectors     6.05s     6.05s
+timer: Compute eigen gesv a     0.00s     0.00s
+  MO   0 : occ=1.00 : energy=  -1.39513643 : ncoeff=4.28e+06:center=(0.00,-0.00,-0.00) : radius=0.97
+           Ne(0)   s( 1) 1.011  
+total number of coefficients = 4.28032000e+06
+
+  MO   1 : occ=1.00 : energy=  -0.48289730 : ncoeff=4.63e+06:center=(-0.00,-0.00,0.00) : radius=1.15
+           Ne(0)  pz( 4) 0.874    Ne(0)  px( 2)-0.409  
+total number of coefficients = 8.91289600e+06
+
+  MO   2 : occ=1.00 : energy=  -0.48289730 : ncoeff=4.58e+06:center=(-0.00,-0.00,-0.00) : radius=1.15
+           Ne(0)  px( 2) 0.883    Ne(0)  pz( 4) 0.424  
+total number of coefficients = 1.34881280e+07
+
+  MO   3 : occ=1.00 : energy=  -0.48289730 : ncoeff=4.29e+06:center=(-0.00,0.00,0.00) : radius=1.15
+           Ne(0)  py( 3) 0.963  
+total number of coefficients = 1.77766400e+07
+
+SCF DATA TO JSON
+timer:             plotting     0.00s     0.00s
+Written checkpoint file:  moldft.calc_info.json
+
+======================================================================
+  MADQC RESULTS SUMMARY
+======================================================================
+
+  Task 0 : SCF  (model = scf)
+  ----------------------------------------------------------------------
+    Molecule         : psNe
+    Total energy     :      -35.052450857 Ha        -953.8258 eV
+    Orbital eps (a)  : -1.3951 -0.4829 -0.4829 -0.4829  (Ha)
+    Converged        :  thresh = 1.000e-08  dconv = 1.000e-07
+    Wall time        :  0.0 s   (1 MPI x 1 threads)
+
+  Citations for external modules
+  ----------------------------------------------------------------------
+    Libxc:
+      M. A. L. Marques, M. J. T. Oliveira, T. Burnus,
+      Comput. Phys. Commun. 183, 2272 (2012). doi:10.1016/j.cpc.2012.05.007
+      S. Lehtola, C. Steigemann, M. J. T. Oliveira, M. A. L. Marques,
+      SoftwareX 7, 1 (2018). doi:10.1016/j.softx.2017.11.002
+
+======================================================================
+
+Wrote results summary : ne_pbe.summary.out
+Wrote viz manifest    : ne_pbe.viz_manifest.json (1 artifacts)
+
+    Parallel environment
+    --------------------
+                  #nodes    1
+       #threads per node    7+main = 8
+          #total threads    8
+
+  RMI message statistics (min / avg / max)
+  ----------------------
+   #messages in server q    0.00e+00 / 0.00e+00 / 0.00e+00
+ #messages sent per node    0.00e+00 / 0.00e+00 / 0.00e+00
+    #bytes sent per node    0.00e+00 / 0.00e+00 / 0.00e+00
+ #messages recv per node    0.00e+00 / 0.00e+00 / 0.00e+00
+    #bytes recv per node    0.00e+00 / 0.00e+00 / 0.00e+00
+        #msgs systemwide    0.00e+00
+       #bytes systemwide    0.00e+00
+
+  Thread pool statistics (min / avg / max)
+  ----------------------
+         #tasks per node    6.75e+07 / 6.75e+07 / 6.75e+07
+     #max q len per node    2.75e+05 / 2.75e+05 / 2.75e+05
+  #hi-pri tasks per node    2.60e+07 / 2.60e+07 / 2.60e+07
+
+         Total wall time    927.1s
+         Total  cpu time    927.2s
+
+002
+
+======================================================================
+

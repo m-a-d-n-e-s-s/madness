@@ -1,0 +1,25 @@
+title "methane GTH-PBE on C, AE on H"
+echo
+start methane_pbe
+memory stack 1500 mb heap 1500 mb global 1000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  C   -0.00000000000000      0.00000000000000     -0.00000000000000
+  H    1.19183538194102     -1.19183538194102      1.19183538194102
+  H   -1.19183538194102      1.19183538194102      1.19183538194102
+  H   -1.19183538194102     -1.19183538194102     -1.19183538194102
+  H    1.19183538194102      1.19183538194102     -1.19183538194102
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 20.0
+    ngrid 128 128 128
+  end
+  xc pbe96
+  mult 1
+  lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy
