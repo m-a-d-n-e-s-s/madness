@@ -185,7 +185,18 @@ public:
   /// derived from the molecule
   void set_derived_values() {
     auto &cparam = this->get<CalculationParameters>();
-    cparam.set_derived_values(this->get<Molecule>());
+    auto &mol = this->get<Molecule>();
+    if (cparam.template get<bool>("psp_calc")) {
+      mol.parameters.set_user_defined_value("psp_calc", true);
+    }
+    const std::string gth_file = CalculationParameters::select_gth_file(
+        cparam.xc(), mol.parameters.psp_file());
+    mol.update_pseudo_atom_charges(gth_file);
+    if (!mol.parameters.pure_ae()) {
+      mol.parameters.set_user_defined_value("psp_file", gth_file);
+      if (!mol.parameters.no_orient()) mol.orient();
+    }
+    cparam.set_derived_values(mol);
     // Derived blocks inherit the numerical knobs of the dft block unless the
     // deck sets them in the derived block itself (set_derived_value never
     // overrides a user-defined value). The response `protocol` ladder already

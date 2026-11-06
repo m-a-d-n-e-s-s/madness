@@ -1,0 +1,21 @@
+title "Ne atom GTH-PBE aperiodic"
+echo
+start ne_pbe
+memory stack 4000 mb heap 4000 mb global 2000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  Ne 0.00000000000000 0.00000000000000 0.00000000000000
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 20.0
+    ngrid 128 128 128
+  end
+  xc pbe96
+  mult 1
+  lmbfgs
+  tolerances 1.0d-9 1.0d-9
+end
+task pspw energy

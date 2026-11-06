@@ -1,0 +1,13 @@
+dft
+  xc lda
+  L 30.0
+  k 8
+  protocol [1e-4, 1e-6, 1e-8]
+  dconv 1e-7
+  psp_calc true
+end
+
+geometry
+  units bohr
+  Be 0.0 0.0 0.0
+end

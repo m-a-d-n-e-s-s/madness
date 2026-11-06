@@ -1,0 +1,465 @@
+ argument  1 = water2_pbe.nw
+
+
+
+============================== echo of input deck ==============================
+title "water2 GTH-PBE on O, AE on H"
+echo
+start water2_pbe
+memory stack 1500 mb heap 1500 mb global 1000 mb
+permanent_dir /tmp/psp-tests/bench_nwchem/water2_pbe
+scratch_dir /tmp/psp-tests/bench_nwchem/water2_pbe
+
+geometry units bohr noautoz nocenter noautosym
+  H  -3.70186011075500     -0.06059028899871      1.37109835461971
+  H  -1.14798027983604      0.02070194978576      0.10614969633645
+  O  -2.90821859864409      0.00859447445236     -0.22172345689761
+  H   3.26470409525617      1.44020185984707     -0.66497005972273
+  H   3.22068292499060     -1.41303137750844     -0.75428607566744
+  O   2.70377479750559     -0.00700332504847      0.21447446745186
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 22.0
+    ngrid 128 128 128
+  end
+  xc pbe96
+  mult 1
+  lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy
+================================================================================
+
+
+                                         
+                                         
+
+
+             Northwest Computational Chemistry Package (NWChem) 7.3.0
+             --------------------------------------------------------
+
+
+                    Environmental Molecular Sciences Laboratory
+                       Pacific Northwest National Laboratory
+                                Richland, WA 99352
+
+                              Copyright (c) 1994-2025
+                       Pacific Northwest National Laboratory
+                            Battelle Memorial Institute
+
+             NWChem is an open-source computational chemistry package
+                        distributed under the terms of the
+                      Educational Community License (ECL) 2.0
+             A copy of the license is included with this distribution
+                              in the LICENSE.TXT file
+
+                                  ACKNOWLEDGMENT
+                                  --------------
+
+            This software and its documentation were developed at the
+            EMSL at Pacific Northwest National Laboratory, a multiprogram
+            national laboratory, operated for the U.S. Department of Energy
+            by Battelle under Contract Number DE-AC05-76RL01830. Support
+            for this work was provided by the Department of Energy Office
+            of Biological and Environmental Research, Office of Basic
+            Energy Sciences, and the Office of Advanced Scientific Computing.
+
+
+           Job information
+           ---------------
+
+    hostname        = sandbox
+    program         = /home/rjh/Devel/nwchem-7.3.1/bin/LINUX64/nwchem
+    date            = Thu Nov  5 19:27:57 2026
+
+    compiled        = Thu_Nov_05_11:52:49_2026
+    source          = /home/rjh/Devel/nwchem-7.3.1
+    nwchem branch   = 7.3.0
+    nwchem revision = 23c3b41b
+    ga revision     = 5.9.2
+    use scalapack   = F
+    input           = water2_pbe.nw
+    prefix          = water2_pbe.
+    data base       = /tmp/psp-tests/bench_nwchem/water2_pbe/water2_pbe.db
+    status          = startup
+    nproc           =        8
+    time left       =     -1s
+
+
+
+           Memory information
+           ------------------
+
+    heap     =    196607998 doubles =     1500.0 Mbytes
+    stack    =    196607995 doubles =     1500.0 Mbytes
+    global   =    131072000 doubles =     1000.0 Mbytes (distinct from heap & stack)
+    total    =    524287993 doubles =     4000.0 Mbytes
+    verify   = yes
+    hardfail = no 
+
+
+           Directory information
+           ---------------------
+
+  0 permanent = /tmp/psp-tests/bench_nwchem/water2_pbe
+  0 scratch   = /tmp/psp-tests/bench_nwchem/water2_pbe
+
+
+
+
+                                NWChem Input Module
+                                -------------------
+
+
+                           water2 GTH-PBE on O, AE on H
+                           ----------------------------
+
+
+                             Geometry "geometry" -> ""
+                             -------------------------
+
+ Output coordinates in a.u. (scale by  1.000000000 to convert to a.u.)
+
+  No.       Tag          Charge          X              Y              Z
+ ---- ---------------- ---------- -------------- -------------- --------------
+    1 H                    1.0000    -3.70186011    -0.06059029     1.37109835
+    2 H                    1.0000    -1.14798028     0.02070195     0.10614970
+    3 O                    8.0000    -2.90821860     0.00859447    -0.22172346
+    4 H                    1.0000     3.26470410     1.44020186    -0.66497006
+    5 H                    1.0000     3.22068292    -1.41303138    -0.75428608
+    6 O                    8.0000     2.70377480    -0.00700333     0.21447447
+
+      Atomic Mass 
+      ----------- 
+
+      H                  1.007825
+      O                 15.994910
+
+
+ Effective nuclear repulsion energy (a.u.)      36.5282430590
+
+            Nuclear Dipole moment (a.u.) 
+            ----------------------------
+        X                 Y               Z
+ ---------------- ---------------- ----------------
+    -0.0000037795     0.0000113384    -0.0000000000
+
+
+            XYZ format geometry
+            -------------------
+     6
+ geometry
+ H                    -1.95894015    -0.03206300     0.72555406
+ H                    -0.60748505     0.01095500     0.05617200
+ O                    -1.53896312     0.00454800    -0.11733101
+ H                     1.72760713     0.76212206    -0.35188703
+ H                     1.70431213    -0.74774406    -0.39915103
+ O                     1.43077611    -0.00370600     0.11349501
+
+ ==============================================================================
+                                internuclear distances
+ ------------------------------------------------------------------------------
+       center one      |      center two      | atomic units |       a.u.
+ ------------------------------------------------------------------------------
+    3 O                |   1 H                |     1.78094  |     1.78094
+    3 O                |   2 H                |     1.79055  |     1.79055
+    6 O                |   4 H                |     1.78395  |     1.78395
+    6 O                |   5 H                |     1.78399  |     1.78399
+ ------------------------------------------------------------------------------
+                         number of included internuclear distances:          4
+ ==============================================================================
+
+
+
+ ==============================================================================
+                                 internuclear angles
+ ------------------------------------------------------------------------------
+        center 1       |       center 2       |       center 3       |  degrees
+ ------------------------------------------------------------------------------
+    1 H                |   3 O                |   2 H                |   105.94
+    4 H                |   6 O                |   5 H                |   106.29
+ ------------------------------------------------------------------------------
+                            number of included internuclear angles:          2
+ ==============================================================================
+
+
+
+          ****************************************************
+          *                                                  *
+          *               NWPW PSPW Calculation              *
+          *                                                  *
+          * [ (Grassmann/Stiefel manifold implementation)  ] *
+          *                                                  *
+          *      [ NorthWest Chemistry implementation ]      *
+          *                                                  *
+          *            version #5.10   06/12/02              *
+          *                                                  *
+          *    This code was developed by Eric J. Bylaska,   *
+          *    and was based upon algorithms and code        *
+          *    developed by the group of Prof. John H. Weare *
+          *                                                  *
+          ****************************************************
+     >>>  JOB STARTED       AT Thu Nov  5 19:27:57 2026  <<<
+          ================ input data ========================
+
+ Generated formatted_filename: /tmp/psp-tests/bench_nwchem/water2_pbe/H.vpp
+
+ Generated formatted_filename: /tmp/psp-tests/bench_nwchem/water2_pbe/O.vpp
+
+ input psi filename:/tmp/psp-tests/bench_nwchem/water2_pbe/water2_pbe.movecs
+
+ number of processors used:         8
+ processor grid           :   8 x   1
+ parallel mapping         :2d-hilbert
+ parallel mapping         :  balanced
+ number of threads        :         1
+ parallel io              :       off
+
+ options:
+      boundary conditions  = aperiodic   (version4)
+      electron spin        = restricted
+      exchange-correlation = PBE96 (White and Bird) parameterization
+
+ elements involved in the cluster:
+      1: H   valence charge:  1.0000  lmax=  0
+             comment    : H all-electron Coulomb potential (Zion=1, C=0, H=0)
+             pseudpotential type            :   1
+             highest angular component      :   0
+             local potential used           :   1
+             number of non-local projections:   0
+             aperiodic cutoff radius        :  1.000
+             cutoff =   0.500
+
+      2: O   valence charge:  6.0000  lmax=  1
+             comment    : O GTH-PBE from madness gth_pbe.xml
+             pseudpotential type            :   1
+             highest angular component      :   1
+             local potential used           :   2
+             number of non-local projections:   1
+             aperiodic cutoff radius        :  1.000
+             cutoff =   0.221   0.211
+
+
+ total charge:   0.000
+
+ atomic composition:
+     H   :    4     O   :    2
+
+ number of electrons: spin up=     8 (   8 per task)  down=     8 (   8 per task) (Fourier space)
+ number of orbitals : spin up=     8 (   8 per task)  down=     8 (   8 per task) (Fourier space)
+
+ supercell:
+      cell_name:  cell_default                                      
+      lattice:    a1=<  22.000   0.000   0.000 >
+                  a2=<   0.000  22.000   0.000 >
+                  a3=<   0.000   0.000  22.000 >
+      reciprocal: b1=<   0.286   0.000   0.000 >
+                  b2=<   0.000   0.286   0.000 >
+                  b3=<   0.000   0.000   0.286 >
+      lattice:    a=      22.000 b=     22.000 c=      22.000
+                  alpha=  90.000 beta=  90.000 gamma=  90.000
+                  omega=     10648.0
+
+      density cutoff=167.049  fft=128x128x128(   548956 waves    68619 per task)
+      wavefnc cutoff=167.049  fft=128x128x128(   548956 waves    68619 per task)
+
+ technical parameters:
+      time step=      5.80     fictitious mass=  400000.0
+      tolerance=0.100E-06 (energy)   0.100E-06 (density)
+      maximum iterations =      1000 (   10 inner    100 outer )
+
+
+
+
+
+== Energy Calculation ==
+
+
+          ============ Grassmann lmbfgs iteration ============
+     >>>  ITERATION STARTED AT Thu Nov  5 19:28:04 2026  <<<
+    iter.           Energy         DeltaE       DeltaRho 
+    ------------------------------------------------------
+      10   -0.3445396517E+02   -0.57598E-04    0.40184E-03
+      20   -0.3445416597E+02   -0.81418E-05    0.18049E-04
+      30   -0.3445420527E+02   -0.18379E-05    0.22947E-05
+      40   -0.3445421436E+02   -0.46630E-06    0.20095E-06
+      50   -0.3445421668E+02   -0.11920E-06    0.50902E-07
+      60   -0.3445421688E+02   -0.90445E-07    0.94514E-09
+  *** tolerance ok. iteration terminated
+     >>>  ITERATION ENDED   AT Thu Nov  5 19:29:56 2026  <<<
+
+
+==  Summary Of Results  ==
+
+ number of electrons: spin up=    8.00000  down=    8.00000 (real space)
+
+ total     energy    :  -0.3445421688E+02 (   -0.57424E+01/ion)
+ total orbital energy:  -0.8168436694E+01 (   -0.10211E+01/electron)
+ hartree   energy    :   0.5442349254E+02 (    0.68029E+01/electron)
+ exc-corr  energy    :  -0.8497368391E+01 (   -0.10622E+01/electron)
+ ion-ion   energy    :   0.2561390787E+02 (    0.42690E+01/ion)
+
+ kinetic (planewave) :   0.2759553530E+02 (    0.34494E+01/electron)
+ V_local (planewave) :  -0.1358823949E+03 (   -0.16985E+02/electron)
+ V_nl    (planewave) :   0.2292610748E+01 (    0.28658E+00/electron)
+ V_Coul  (planewave) :   0.1088469851E+03 (    0.13606E+02/electron)
+ V_xc.   (planewave) :  -0.1102117288E+02 (   -0.13776E+01/electron)
+ Virial Coefficient  :  -0.1296005734E+01
+
+ orbital energies:
+    -0.2459589E+00 (  -6.693eV)
+    -0.2916073E+00 (  -7.935eV)
+    -0.3179897E+00 (  -8.653eV)
+    -0.3672328E+00 (  -9.993eV)
+    -0.4689153E+00 ( -12.760eV)
+    -0.5154141E+00 ( -14.025eV)
+    -0.9136881E+00 ( -24.863eV)
+    -0.9634121E+00 ( -26.216eV)
+
+ Total PSPW energy     :  -0.3445421688E+02
+
+
+=== Spin Contamination ===
+
+ <Sexact^2> =    0.0000000000000000     
+ <S^2>      =    0.0000000000000000     
+
+
+
+== Center of Charge ==
+
+spin up     (   -0.0302,    0.0001,   -0.0002 )
+spin down   (   -0.0302,    0.0001,   -0.0002 )
+     total  (   -0.0302,    0.0001,   -0.0002 )
+ionic       (    0.0256,   -0.0002,    0.0009 )
+
+
+== Molecular Dipole wrt Center of Mass ==
+
+mu   =  (    0.8916,   -0.0054,    0.0173 ) au
+|mu| =     0.8918 au,       2.2665 Debye
+
+ output psi filename:/tmp/psp-tests/bench_nwchem/water2_pbe/water2_pbe.movecs
+
+
+== Timing ==
+
+cputime in seconds
+  prologue    :   0.704950E+01
+  main loop   :   0.112410E+03
+  epilogue    :   0.597660E+00
+  total       :   0.120057E+03
+  cputime/step:   0.944623E+00       (     119 evalulations,      52 linesearches)
+
+
+Time spent doing                        total          step       percent
+  total time                 :   0.120077E+03  0.100905E+01       100.0 %
+  i/o time                   :   0.198338E+01  0.166670E-01         1.7 %
+  FFTs                       :   0.536726E+02  0.451030E+00        44.7 %
+  dot products               :   0.518558E+01  0.435763E-01         4.3 %
+  geodesic                   :   0.575814E+01  0.483878E-01         4.8 %
+  ffm_dgemm                  :   0.138902E+01  0.116725E-01         1.2 %
+  fmf_dgemm                  :   0.306618E+01  0.257663E-01         2.6 %
+  mmm_dgemm                  :   0.847374E-02  0.712079E-04         0.0 %
+  m_diagonalize              :   0.354970E-02  0.298294E-04         0.0 %
+  exchange correlation       :   0.256636E+02  0.215660E+00        21.4 %
+  local pseudopotentials     :   0.373657E-01  0.313997E-03         0.0 %
+  non-local pseudopotentials :   0.192197E+01  0.161510E-01         1.6 %
+  structure factors          :   0.208359E+00  0.175091E-02         0.2 %
+  phase factors              :   0.221485E-04  0.186121E-06         0.0 %
+  masking and packing        :   0.510913E+01  0.429339E-01         4.3 %
+  queue fft                  :   0.310861E+02  0.261227E+00        25.9 %
+  queue fft (serial)         :   0.600964E+01  0.505012E-01         5.0 %
+  queue fft (message passing):   0.243049E+02  0.204243E+00        20.2 %
+  non-local psp FFM          :   0.123702E+01  0.103951E-01         1.0 %
+  non-local psp FMF          :   0.409106E+00  0.343786E-02         0.3 %
+  non-local psp FFM A        :   0.594888E-01  0.499906E-03         0.0 %
+  non-local psp FFM B        :   0.237529E+00  0.199604E-02         0.2 %
+
+     >>>  JOB COMPLETED     AT Thu Nov  5 19:29:57 2026  <<<
+
+ Task  times  cpu:      120.1s     wall:      120.1s
+
+
+                                NWChem Input Module
+                                -------------------
+
+
+ Summary of allocated global arrays
+-----------------------------------
+  No active global arrays
+
+
+MA_summarize_allocated_blocks: starting scan ...
+MA_summarize_allocated_blocks: scan completed: 0 heap blocks, 0 stack blocks
+MA usage statistics:
+
+	allocation statistics:
+					      heap	     stack
+					      ----	     -----
+	current number of blocks	         0	         0
+	maximum number of blocks	       299	        15
+	current total bytes		         0	         0
+	maximum total bytes		 336749496	  70424248
+	maximum total K-bytes		    336750	     70425
+	maximum total M-bytes		       337	        71
+
+
+                                     CITATION
+                                     --------
+                Please cite the following reference when publishing
+                           results obtained with NWChem:
+
+          E. Apra, E. J. Bylaska, W. A. de Jong, N. Govind, K. Kowalski,
+       T. P. Straatsma, M. Valiev, H. J. J. van Dam, Y. Alexeev, J. Anchell,
+       V. Anisimov, F. W. Aquino, R. Atta-Fynn, J. Autschbach, N. P. Bauman,
+     J. C. Becca, D. E. Bernholdt, K. Bhaskaran-Nair, S. Bogatko, P. Borowski,
+         J. Boschen, J. Brabec, A. Bruner, E. Cauet, Y. Chen, G. N. Chuev,
+      C. J. Cramer, J. Daily, M. J. O. Deegan, T. H. Dunning Jr., M. Dupuis,
+   K. G. Dyall, G. I. Fann, S. A. Fischer, A. Fonari, H. Fruchtl, L. Gagliardi,
+      J. Garza, N. Gawande, S. Ghosh, K. Glaesemann, A. W. Gotz, J. Hammond,
+       V. Helms, E. D. Hermes, K. Hirao, S. Hirata, M. Jacquelin, L. Jensen,
+   B. G. Johnson, H. Jonsson, R. A. Kendall, M. Klemm, R. Kobayashi, V. Konkov,
+      S. Krishnamoorthy, M. Krishnan, Z. Lin, R. D. Lins, R. J. Littlefield,
+      A. J. Logsdail, K. Lopata, W. Ma, A. V. Marenich, J. Martin del Campo,
+   D. Mejia-Rodriguez, J. E. Moore, J. M. Mullin, T. Nakajima, D. R. Nascimento,
+    J. A. Nichols, P. J. Nichols, J. Nieplocha, A. Otero-de-la-Roza, B. Palmer,
+    A. Panyala, T. Pirojsirikul, B. Peng, R. Peverati, J. Pittner, L. Pollack,
+   R. M. Richard, P. Sadayappan, G. C. Schatz, W. A. Shelton, D. W. Silverstein,
+   D. M. A. Smith, T. A. Soares, D. Song, M. Swart, H. L. Taylor, G. S. Thomas,
+            V. Tipparaju, D. G. Truhlar, K. Tsemekhman, T. Van Voorhis,
+      A. Vazquez-Mayagoitia, P. Verma, O. Villa, A. Vishnu, K. D. Vogiatzis,
+        D. Wang, J. H. Weare, M. J. Williamson, T. L. Windus, K. Wolinski,
+        A. T. Wong, Q. Wu, C. Yang, Q. Yu, M. Zacharias, Z. Zhang, Y. Zhao,
+                                and R. J. Harrison
+                        "NWChem: Past, present, and future
+                         J. Chem. Phys. 152, 184102 (2020)
+                               doi:10.1063/5.0004997
+
+                                      AUTHORS
+                                      -------
+        E. Apra, E. J. Bylaska, N. Govind, K. Kowalski, D. Mejia-Rodriguez,
+        N. P. Bauman, A. Panyala, R. J. Harrison, M. Valiev, W. A. de Jong,
+       T. P. Straatsma, H. J. J. van Dam, D. Wang, T. L. Windus, J. Hammond,
+     J. Autschbach, R. de P. Soares, A. Kunitsa, K. Bhaskaran-Nair, J. Brabec,
+      K. Lopata, S. A. Fischer, S. Krishnamoorthy, M. Jacquelin, R. Goswami,
+       A. Woods, W. Ma, M. Klemm, O. Villa, Y. Chen, V. Anisimov, F. Aquino,
+     S. Hirata, M. T. Hackler, E. Hermes, L. Jensen, J. E. Moore, J. C. Becca,
+      V. Konjkov, T. Risthaus, M. Malagoli, A. Marenich, A. Otero-de-la-Roza,
+        J. Mullin, P. Nichols, R. Peverati, J. Pittner, Y. Zhao, P.-D. Fan,
+        A. Fonari, M. J. Williamson, J. R. Rehr, M. Dupuis, D. Silverstein,
+    D. M. A. Smith, J. Nieplocha, V. Tipparaju, M. Krishnan, B. E. Van Kuiken,
+        A. Vazquez-Mayagoitia, M. Swart, Q. Wu, T. Van Voorhis, A. A. Auer,
+     M. Nooijen, L. D. Crosby, E. Brown, G. Cisneros, G. I. Fann, H. Fruchtl,
+   J. Garza, K. Hirao, R. A. Kendall, J. A. Nichols, K. Tsemekhman, K. Wolinski,
+     J. Anchell, D. E. Bernholdt, P. Borowski, T. Clark, D. Clerc, H. Dachsel,
+   M. J. O. Deegan, K. Dyall, D. Elwood, E. Glendening, M. Gutowski, A. C. Hess,
+         J. Jaffe, B. G. Johnson, J. Ju, R. Kobayashi, R. Kutteh, Z. Lin,
+   R. Littlefield, X. Long, B. Meng, T. Nakajima, S. Niu, L. Pollack, M. Rosing,
+   K. Glaesemann, G. Sandrone, M. Stave, H. Taylor, G. Thomas, J. H. van Lenthe,
+                               A. T. Wong, Z. Zhang.
+
+ Total times  cpu:      120.4s     wall:      120.4s

@@ -240,11 +240,21 @@ SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& mole
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
+        if (this->param.get<bool>("psp_calc")) {
+            this->molecule.parameters.set_user_defined_value("psp_calc", true);
+        }
+        const std::string gth_file = CalculationParameters::select_gth_file(
+            this->param.xc(), this->molecule.parameters.psp_file());
+        this->molecule.update_pseudo_atom_charges(gth_file);
+        if (!this->molecule.parameters.pure_ae()) {
+            this->molecule.parameters.set_user_defined_value("psp_file", gth_file);
+        }
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
         else aobasis.read_nw_file(param.nwfile());
-        this->param.set_derived_values(molecule);
+        this->param.set_derived_values(this->molecule);
     }
+    world.gop.broadcast_serializable(this->molecule, 0);
     world.gop.broadcast_serializable(param, 0);
     world.gop.broadcast_serializable(aobasis, 0);
 
@@ -678,7 +688,9 @@ void SCF::make_nuclear_potential(World& world) {
     >(new GTHPseudopotential<double>(world, molecule));
 
     if (!molecule.parameters.pure_ae()) {
-        gthpseudopotential->make_pseudo_potential(world);
+        const std::string gth_file = CalculationParameters::select_gth_file(
+            param.xc(), molecule.parameters.psp_file());
+        gthpseudopotential->make_pseudo_potential(world, gth_file);
     }
     if (!molecule.parameters.psp_calc()) {
         potentialmanager->make_nuclear_potential(world);

@@ -186,6 +186,7 @@ class Molecule {
       initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
       initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
       initialize<bool>("pure_ae", true, "pure all electron calculation with no pseudo-atoms");
+      initialize<std::string>("psp_file", "none", "pseudopotential file name (default: auto-selected from xc)");
     }
 
     std::string get_tag() const override {
@@ -308,6 +309,7 @@ class Molecule {
     std::string core_type() const { return get<std::string>("core_type"); }
     bool psp_calc() const { return get<bool>("psp_calc"); }
     bool pure_ae() const { return get<bool>("pure_ae"); }
+    std::string psp_file() const { return get<std::string>("psp_file"); }
     bool no_orient() const { return get<bool>("no_orient"); }
     double symtol() const { return get<double>("symtol"); }
 
@@ -471,6 +473,8 @@ class Molecule {
   void set_pseudo_atom(unsigned int i, bool psat);
 
   bool get_pseudo_atom(unsigned int i) const;
+
+  void update_pseudo_atom_charges(const std::string &psp_filename = "gth.xml");
 
   void set_atom_coords(unsigned int i, double x, double y, double z);
 
