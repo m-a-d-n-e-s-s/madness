@@ -37,6 +37,8 @@ ALL_TESTS = [
     "methane_pbe",
     "ethylene_lda",
     "ethylene_pbe",
+    "ethylene_allpsp_lda",
+    "ethylene_allpsp_pbe",
 ]
 
 
@@ -149,6 +151,12 @@ def main():
         "--work-dir",
         help="Directory in which to run madqc calculations (default: temporary directory)",
     )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=int(os.environ.get("MAD_NUM_THREADS", "4")),
+        help="Number of MADNESS threads (MAD_NUM_THREADS) to use when running madqc to avoid core oversubscription (default: 4)",
+    )
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -169,11 +177,15 @@ def main():
         env = os.environ.copy()
         if "MRA_CHEMDATA_DIR" not in env and os.path.isdir(chemdata_dir):
             env["MRA_CHEMDATA_DIR"] = chemdata_dir
+        env["MAD_NUM_THREADS"] = str(args.threads)
+        env["OMP_NUM_THREADS"] = "1"
+        env["MKL_NUM_THREADS"] = "1"
 
         work_root = args.work_dir or tempfile.mkdtemp(prefix="madqc_ps_test_")
         os.makedirs(work_root, exist_ok=True)
         print(f"Using madqc binary   : {madqc_bin}")
         print(f"Using MRA_CHEMDATA_DIR: {env.get('MRA_CHEMDATA_DIR', '(default)')}")
+        print(f"Using MAD_NUM_THREADS: {env['MAD_NUM_THREADS']} (OMP_NUM_THREADS=1, MKL_NUM_THREADS=1)")
         print(f"Working directory    : {work_root}\n")
 
         for test in args.tests:
@@ -200,7 +212,7 @@ def main():
 
     # Print comparison table
     header = (
-        f"{'Test':<14} {'E(madqc ref) [Ha]':>18} {'E(NWChem pspw) [Ha]':>20} "
+        f"{'Test':<20} {'E(madqc ref) [Ha]':>18} {'E(NWChem pspw) [Ha]':>20} "
         f"{'dE(madqc-NWChem)':>17} {'V_nl(madqc)':>13} {'V_nl(NWChem)':>13}"
     )
     if not args.compare_only:
@@ -219,7 +231,7 @@ def main():
         vnl_mad = ref_madqc.get("nonlocal_psp", float("nan")) if ref_madqc else float("nan")
         vnl_nwc = ref_nwchem.get("nonlocal_psp", float("nan")) if ref_nwchem else float("nan")
 
-        row = f"{test:<14} {e_mad:18.8f} {e_nwc:20.8f} {de_nw:+17.8f} {vnl_mad:13.8f} {vnl_nwc:13.8f}"
+        row = f"{test:<20} {e_mad:18.8f} {e_nwc:20.8f} {de_nw:+17.8f} {vnl_mad:13.8f} {vnl_nwc:13.8f}"
         if not args.compare_only:
             e_run = run_results[test]["total"]
             de_ref = e_run - e_mad

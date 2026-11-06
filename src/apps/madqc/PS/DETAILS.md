@@ -75,15 +75,52 @@ Seven bugs and regressions were identified and fixed to restore full pseudopoten
 
 ### 3.1 `madqc` Settings
 - **Atoms (`Be`, `Ne`)**: Cubic box half-width `L = 30.0` Bohr, wavelet order `k = 8`, adaptive refinement protocol `[1e-4, 1e-6, 1e-8]`, density convergence `dconv = 1e-7`.
-- **Benchmark Suite (`mg`, `water`, `water2`, `methane`, `ethylene`)**: Exact Cartesian geometries (in Bohr) from `src/madness/chem/structure_library` with `no_orient true`, pseudopotentials on heavy atoms (`psMg`, `psO`, `psC`) and all-electron hydrogen (`H`), `L = 30.0` Bohr, `k = 8`, `protocol [1e-4, 1e-6]`, `dconv = 1e-6`.
+- **Mixed AE/PSP Molecular Suite (`mg`, `water`, `water2`, `methane`, `ethylene`)**: Exact Cartesian geometries (in Bohr) from `src/madness/chem/structure_library` with `no_orient true`, pseudopotentials on heavy atoms (`psMg`, `psO`, `psC`) and all-electron hydrogen (`H`), `L = 30.0` Bohr, `k = 8`, `protocol [1e-4, 1e-6]`, `dconv = 1e-6`.
+- **All-Atom PSP Molecular Test (`ethylene_allpsp`)**: Same `ethylene` geometry from `structure_library` with `psp_calc true` so that **both** `C` ($Z_{\text{eff}} = 4, l_{\max} = 1$) and `H` ($Z_{\text{eff}} = 1, l_{\max} = -1$) use their GTH pseudopotentials (`L = 30.0` Bohr, `k = 8`, `protocol [1e-4, 1e-6]`, `dconv = 1e-6`).
 
 ### 3.2 NWChem `nwpw` (`pspw`) Settings
 - Executed with `/home/rjh/Devel/nwchem-7.3.1/bin/LINUX64/nwchem` using the `pspw` module (`task pspw energy`).
 - **Boundary Conditions**: Free-space cluster / aperiodic convolution (`boundary_conditions aperiodic`) so electrostatic and local pseudopotential terms are evaluated without periodic images, matching MADNESS's free-space boundary conditions.
-- **Grid & Supercell**: $128 \times 128 \times 128$ FFT grid with supercell length `SC = 30.0` Bohr for `Be` and `Mg` ($E_{\text{cut}} = 89.8\text{ Ha}$), `SC = 25.0` Bohr for `Be` (PBE), `SC = 20.0` Bohr for `Ne`, `water`, `methane`, `ethylene` ($E_{\text{cut}} = 202.1\text{ Ha}$, grid spacing $\Delta x = 0.156\text{ Bohr}$), and `SC = 22.0` Bohr for `water2` ($E_{\text{cut}} = 167.0\text{ Ha}$).
+- **Grid & Supercell**:
+  - `Be` and `Mg`: $128 \times 128 \times 128$ FFT grid with `SC = 30.0` Bohr ($E_{\text{cut}} = 89.8\text{ Ha}$; `SC = 25.0` Bohr for `be_pbe`).
+  - `Ne` (`ne_lda`, `ne_pbe`): Two-stage calculation on `SC = 16.0` Bohr starting from $96 \times 96 \times 96$ ($E_{\text{cut}} = 177.65\text{ Ha}$) followed by $192 \times 192 \times 192$ ($E_{\text{cut}} = 710.61\text{ Ha}$, grid spacing $\Delta x = 0.0833\text{ Bohr}$, `time_step 1.0`, `tolerances 1.0d-9 1.0d-9`). See Section 3.3 below for the plane-wave convergence analysis on `Ne`.
+  - `water`, `methane`, `ethylene`, `ethylene_allpsp`: $128 \times 128 \times 128$ FFT grid with `SC = 20.0` Bohr ($E_{\text{cut}} = 202.1\text{ Ha}$, $\Delta x = 0.15625\text{ Bohr}$).
+  - `water2`: $128 \times 128 \times 128$ FFT grid with `SC = 22.0` Bohr ($E_{\text{cut}} = 167.0\text{ Ha}$).
 - **Pseudopotentials**:
-  - Heavy atoms (`Be`, `Ne`, `Mg`, `O`, `C`) use HGH/GTH format (`psp_type = 1`) `.psp` files constructed with the **exact parameters** from MADNESS's `gth.xml` (for `xc lda`) and `gth_pbe.xml` (for `xc pbe96`).
+  - Pseudopotential atoms (`Be`, `Ne`, `Mg`, `O`, `C`, and `H` in `ethylene_allpsp`) use HGH/GTH format (`psp_type = 1`) `.psp` files constructed with the **exact parameters** from MADNESS's `gth.xml` (for `xc lda`) and `gth_pbe.xml` (for `xc pbe96`).
   - All-electron `H` in `water`, `water2`, `methane`, and `ethylene` uses an HGH-format Coulomb potential (`H_ae.psp`: $Z_{\text{ion}} = 1, r_{\text{loc}} = 0.00275\text{ Bohr}, C_i = 0, h_{ij} = 0$), which NWChem evaluates analytically in Fourier space as $-4\pi/G^2 \exp(-\frac{1}{2}G^2 r_{\text{loc}}^2)$, matching MADNESS's smoothed all-electron nuclear potential on `H`.
+
+### 3.3 Analysis of `Ne` Plane-Wave Cutoff Convergence and Exact 1D Radial Verification
+
+In initial NWChem `pspw` runs using `SC = 20.0` Bohr and `ngrid 128 128 128` ($\Delta x = 0.15625\text{ Bohr}, E_{\text{cut}} = 202.13\text{ Ha}$), `ne_lda` and `ne_pbe` exhibited discrepancies of $3.16\text{ mHa}$ and $3.95\text{ mHa}$ relative to `madqc`.
+
+To determine whether the error resided in `madqc` or in the uniform plane-wave basis of NWChem `pspw`:
+1. **Exact 1D Radial Kohn–Sham Chebyshev Spectral Benchmark**:
+   We solved the spherical radial Kohn–Sham equations for `Ne` with the exact GTH-LDA and GTH-PBE Hamiltonians using a parity-symmetric Chebyshev spectral collocation solver ($N = 701$ points on $R_{\max} = 10.0\text{ Bohr}$). Comparing `madqc` (`k = 8, thresh = 1e-8`) against the exact 1D radial solution:
+
+   | Quantity (Ha) | `Ne` GTH-LDA (Exact 1D) | `Ne` GTH-LDA (`madqc`) | `Ne` GTH-PBE (Exact 1D) | `Ne` GTH-PBE (`madqc`) |
+   | :--- | ---: | ---: | ---: | ---: |
+   | Total Energy ($E_{\text{total}}$) | `-34.85667256` | `-34.85667201` | `-35.05245104` | `-35.05245086` |
+   | Kinetic ($T$) | `28.38126155` | `28.38125889` | `28.18645919` | `28.18644288` |
+   | Local PSP ($V_{\text{loc}}$) | `-90.62689960` | `-90.62689642` | `-90.43412396` | `-90.43409204` |
+   | Nonlocal PSP ($V_{\text{nl}}$) | `2.15542813` | `2.15542743` | `2.03282670` | `2.03282929` |
+   | Coulomb ($J$) | `31.03994009` | `31.03994018` | `31.14730825` | `31.14728688` |
+   | Exchange-Correlation ($E_{\text{xc}}$) | `-5.80640272` | `-5.80640209` | `-5.98492122` | `-5.98491786` |
+   | $\epsilon_{2s}$ | `-1.32730072` | `-1.32730122` | `-1.39513326` | `-1.39513643` |
+   | $\epsilon_{2p}$ | `-0.49748515` | `-0.49748503` | `-0.48289489` | `-0.48289730` |
+
+   `madqc` agrees with the exact 1D radial solution to **$+0.55\ \mu\text{Ha}$ for LDA** and **$+0.18\ \mu\text{Ha}$ for PBE**!
+
+2. **Origin of the Plane-Wave Basis Truncation Error on `Ne` in NWChem `pspw`**:
+   Among all elements tested (`Be`, `Mg`, `C`, `O`, `Ne`), `Ne` sits at the far right of the second period ($Z_{\text{eff}} = 8$) and has by far the **hardest GTH pseudopotential**, with compact Gaussian radii $r_{\text{loc}} = 0.1900\text{ Bohr}$, $r_0 = 0.1795\text{ Bohr}$ ($0.1761\text{ Bohr}$ in PBE), and a strong repulsive $s$-channel projector ($h_{00}^{(0)} = +28.51\text{ Ha}$). At $\Delta x = 0.15625\text{ Bohr}$ ($E_{\text{cut}} = 202.1\text{ Ha}$), the grid spacing is nearly equal to $r_0$, leaving a $+3.16\text{ mHa}$ (LDA) and $+3.95\text{ mHa}$ (PBE) plane-wave basis incompleteness error:
+   - $E_{\text{cut}} = 50.53\text{ Ha}$: $E_{\text{LDA}} = -34.66230314\text{ Ha}$ ($\Delta E = +194.37\text{ mHa}$)
+   - $E_{\text{cut}} = 101.07\text{ Ha}$: $E_{\text{LDA}} = -34.81172127\text{ Ha}$ ($\Delta E = +44.95\text{ mHa}$)
+   - $E_{\text{cut}} = 151.60\text{ Ha}$: $E_{\text{LDA}} = -34.84661503\text{ Ha}$ ($\Delta E = +10.06\text{ mHa}$)
+   - $E_{\text{cut}} = 202.13\text{ Ha}$: $E_{\text{LDA}} = -34.85350735\text{ Ha}$ ($\Delta E = +3.16\text{ mHa}$)
+   - $E_{\text{cut}} = 710.61\text{ Ha}$ (`SC = 16.0`, `ngrid 192 192 192`, $\Delta x = 0.0833\text{ Bohr}$): $E_{\text{LDA}} = -34.85668876\text{ Ha}$ ($\Delta E = -0.017\text{ mHa}$) and $E_{\text{PBE}} = -35.05250345\text{ Ha}$ ($\Delta E = -0.053\text{ mHa}$).
+
+3. **All-Electron `H` vs. GTH Pseudopotential `H` in Molecules (`ethylene` vs. `ethylene_allpsp`)**:
+   Similarly, in `water`, `water2`, `methane`, and `ethylene` (where `H` is treated as all-electron with a $-1/r$ Coulomb potential), NWChem's uniform plane-wave grid at $E_{\text{cut}} = 202.1\text{ Ha}$ underbinds each all-electron `H` atom by $\sim 0.3\text{–}0.4\text{ mHa}$ due to the sharp nuclear cusp on `H`, producing a total discrepancy of $-1.19\text{ mHa}$ (LDA) and $-1.30\text{ mHa}$ (PBE) on `ethylene`. When `H` also uses its smooth GTH pseudopotential (`ethylene_allpsp_lda` and `ethylene_allpsp_pbe`), `madqc` and NWChem `pspw` agree to **$+6.46\ \mu\text{Ha}$ (LDA)** and **$+2.25\ \mu\text{Ha}$ (PBE)**, and `madqc`'s wall time drops by nearly $3\times$ (from `107.1s` to `35.8s` in LDA) with half as many wavelet coefficients (`2.45e6` vs. `4.70e6`).
 
 > [!NOTE]
 > **Note on `Be` GTH-PBE (`be_pbe`)**: In `gth_pbe.xml`, `Be` is a 4-electron purely local pseudopotential ($Z_{\text{eff}} = 4, l_{\max} = -1, r_{\text{loc}} = 0.325\text{ Bohr}$) with a large repulsive barrier ($C_2 = +17.279$) at $r \sim r_{\text{loc}}$ that pushes the $2s$ orbital energy ($\epsilon_{2s} = -0.2061\text{ Ha}$) very close to the $2p$ orbital energy, breaking $2s$–$2p$ degeneracy in the opposite direction of a bare Coulomb potential. Starting from `madqc`'s spherical $1s^2 2s^2$ AO guess preserves the physical $(1s)^2(2s)^2\ (^1S)$ state ($E = -14.535436\text{ Ha}$), which agrees with an exact 1D spherical radial Kohn-Sham solver ($E = -14.536212\text{ Ha}$) to $0.78\text{ mHa}$. In contrast, NWChem `pspw` starts from an unsymmetrized 3D random plane-wave guess without angular momentum constraints and spontaneously breaks spherical symmetry by mixing $2s$ and $2p^2$ character ($E = -14.623508\text{ Ha}$).
@@ -96,22 +133,24 @@ Seven bugs and regressions were identified and fixed to restore full pseudopoten
 
 All energies are in Hartrees ($\text{Ha}$).
 
-| Test Case | XC | Heavy PSP / AE H | $E_{\text{total}}$ (`madqc`) | $E_{\text{total}}$ (`NWChem`) | $\Delta E_{\text{total}}$ (`madqc - NWChem`) | $E_{\text{nl}}$ (`madqc`) | $E_{\text{nl}}$ (`NWChem`) |
+| Test Case | XC | PSP / AE Specification | $E_{\text{total}}$ (`madqc`) | $E_{\text{total}}$ (`NWChem`) | $\Delta E_{\text{total}}$ (`madqc - NWChem`) | $E_{\text{nl}}$ (`madqc`) | $E_{\text{nl}}$ (`NWChem`) |
 | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
 | `be_lda` | LDA | `psBe` ($Z_{\text{eff}}=2$) | `-0.99124457` | `-0.99124509` | `+0.00000052` | `0.23908933` | `0.23908705` |
 | `be_pbe` | PBE | `psBe` ($Z_{\text{eff}}=4, l_{\max}=-1$) | `-14.53543649` | `-14.53621201`* | `+0.00077552`* | `0.00000000` | `0.00000000` |
-| `ne_lda` | LDA | `psNe` ($Z_{\text{eff}}=8$) | `-34.85667201` | `-34.85350735` | `-0.00316466` | `2.15542743` | `2.15622107` |
-| `ne_pbe` | PBE | `psNe` ($Z_{\text{eff}}=8$) | `-35.05245086` | `-35.04850187` | `-0.00394899` | `2.03282929` | `2.03519518` |
+| `ne_lda` | LDA | `psNe` ($Z_{\text{eff}}=8$) | `-34.85667201` | `-34.85668876` | `+0.00001675` | `2.15542743` | `2.15541540` |
+| `ne_pbe` | PBE | `psNe` ($Z_{\text{eff}}=8$) | `-35.05245086` | `-35.05250345` | `+0.00005259` | `2.03282929` | `2.03285566` |
 | `mg_lda` | LDA | `psMg` ($Z_{\text{eff}}=2$) | `-0.83302448` | `-0.83302537` | `+0.00000089` | `0.19798418` | `0.19798145` |
 | `mg_pbe` | PBE | `psMg` ($Z_{\text{eff}}=2$) | `-0.78554523` | `-0.78554835` | `+0.00000312` | `0.11239781` | `0.11245962` |
-| `water_lda` | LDA | `psO` ($Z_{\text{eff}}=6$), AE `H` | `-17.18646296` | `-17.18585569` | `-0.00060727` | `1.14500062` | `1.14484248` |
-| `water_pbe` | PBE | `psO` ($Z_{\text{eff}}=6$), AE `H` | `-17.22421418` | `-17.22340527` | `-0.00080891` | `1.14844619` | `1.14836213` |
+| `water_lda` | LDA | `psO` ($Z_{\text{eff}}=6$), `2` AE `H` | `-17.18646296` | `-17.18585569` | `-0.00060727` | `1.14500062` | `1.14484248` |
+| `water_pbe` | PBE | `psO` ($Z_{\text{eff}}=6$), `2` AE `H` | `-17.22421418` | `-17.22340527` | `-0.00080891` | `1.14844619` | `1.14836213` |
 | `water2_lda` | LDA | `2 psO` ($Z_{\text{eff}}=6$), `4` AE `H` | `-34.38495077` | `-34.38315683` | `-0.00179394` | `2.28610942` | `2.28606754` |
 | `water2_pbe` | PBE | `2 psO` ($Z_{\text{eff}}=6$), `4` AE `H` | `-34.45656437` | `-34.45421688` | `-0.00234749` | `2.29245510` | `2.29261075` |
 | `methane_lda` | LDA | `psC` ($Z_{\text{eff}}=4$), `4` AE `H` | `-8.03824351` | `-8.03696971` | `-0.00127380` | `0.43639087` | `0.43643367` |
 | `methane_pbe` | PBE | `psC` ($Z_{\text{eff}}=4$), `4` AE `H` | `-8.07840368` | `-8.07701913` | `-0.00138455` | `0.43232153` | `0.43237216` |
 | `ethylene_lda` | LDA | `2 psC` ($Z_{\text{eff}}=4$), `4` AE `H` | `-13.69641777` | `-13.69522395` | `-0.00119382` | `0.91657666` | `0.91667292` |
 | `ethylene_pbe` | PBE | `2 psC` ($Z_{\text{eff}}=4$), `4` AE `H` | `-13.72929315` | `-13.72799118` | `-0.00130197` | `0.90865018` | `0.90865911` |
+| `ethylene_allpsp_lda` | LDA | `2 psC` ($Z_{\text{eff}}=4$), `4 psH` ($Z_{\text{eff}}=1$) | `-13.69574202` | `-13.69574848` | `+0.00000646` | `0.91657412` | `0.91654668` |
+| `ethylene_allpsp_pbe` | PBE | `2 psC` ($Z_{\text{eff}}=4$), `4 psH` ($Z_{\text{eff}}=1$) | `-13.72852252` | `-13.72852477` | `+0.00000225` | `0.90865311` | `0.90867941` |
 
 *\*For `be_pbe`, the $(1s)^2(2s)^2\ (^1S)$ reference energy from the 1D spherical radial Kohn-Sham solver is `-14.53621201 Ha`; NWChem `pspw` without angular symmetry constraints converges to a symmetry-broken $2s/2p$ mixed state at `-14.62350849 Ha`.*
 
@@ -125,8 +164,8 @@ All values in Hartrees ($\text{Ha}$). In each cell `A / B`, `A` is `madqc` and `
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | `be_lda` | `0.36065597` / `0.36065241` | `-1.91276905` / `-1.91276073` | `0.23908933` / `0.23908705` | `0.69128142` / `0.69127670` | `-0.36950225` / `-0.36950052` | `0.00000000` / `0.00000000` |
 | `be_pbe` | `12.85774087` / `13.04152245` | `-31.80415516` / `-31.98633274` | `0.00000000` / `0.00000000` | `7.06125052` / `7.07484575` | `-2.65027272` / `-2.75354395` | `0.00000000` / `0.00000000` |
-| `ne_lda` | `28.38125889` / `28.35976878` | `-90.62689642` / `-90.59925988` | `2.15542743` / `2.15622107` | `31.03994018` / `31.03654009` | `-5.80640209` / `-5.80677741` | `0.00000000` / `0.00000000` |
-| `ne_pbe` | `28.18644288` / `28.16468387` | `-90.43409204` / `-90.38816202` | `2.03282929` / `2.03519518` | `31.14728688` / `31.12072555` | `-5.98491786` / `-5.98094446` | `0.00000000` / `0.00000000` |
+| `ne_lda` | `28.38125889` / `28.38148370` | `-90.62689642` / `-90.62729630` | `2.15542743` / `2.15541540` | `31.03994018` / `31.04016163` | `-5.80640209` / `-5.80645319` | `0.00000000` / `0.00000000` |
+| `ne_pbe` | `28.18644288` / `28.18654457` | `-90.43409204` / `-90.43375928` | `2.03282929` / `2.03285566` | `31.14728688` / `31.14674308` | `-5.98491786` / `-5.98488747` | `0.00000000` / `0.00000000` |
 | `mg_lda` | `0.26491062` / `0.26491308` | `-1.55692757` / `-1.55692611` | `0.19798418` / `0.19798145` | `0.57672941` / `0.57672726` | `-0.31572114` / `-0.31572105` | `0.00000000` / `0.00000000` |
 | `mg_pbe` | `0.27250860` / `0.27245637` | `-1.40399767` / `-1.40401004` | `0.11239781` / `0.11245962` | `0.54246856` / `0.54247198` | `-0.30892252` / `-0.30892628` | `0.00000000` / `0.00000000` |
 | `water_lda` | `13.83670233` / `13.83520731` | `-56.58949930` / `-56.58709505` | `1.14500062` / `1.14484248` | `21.47323595` / `21.47297224` | `-4.14310251` / `-4.14298269` | `7.09119995` / `7.09120001` |
@@ -137,6 +176,8 @@ All values in Hartrees ($\text{Ha}$). In each cell `A / B`, `A` is `madqc` and `
 | `methane_pbe` | `6.70787785` / `6.70379154` | `-36.78380966` / `-36.77837485` | `0.43232153` / `0.43237216` | `15.21306444` / `15.21256239` | `-3.17847309` / `-3.17798578` | `9.53061526` / `9.53061540` |
 | `ethylene_lda` | `10.89461636` / `10.89093610` | `-69.65364698` / `-69.64818331` | `0.91657666` / `0.91667292` | `29.45543925` / `29.45427705` | `-4.75330584` / `-4.75282975` | `19.44390278` / `19.44390305` |
 | `ethylene_pbe` | `10.89136829` / `10.88806718` | `-69.58472277` / `-69.58077704` | `0.90865018` / `0.90865911` | `29.47606452` / `29.47639395` | `-4.86455614` / `-4.86423742` | `19.44390278` / `19.44390305` |
+| `ethylene_allpsp_lda` | `10.88470978` / `10.88448944` | `-69.64285043` / `-69.64240135` | `0.91657412` / `0.91654668` | `29.45513644` / `29.45485763` | `-4.75321472` / `-4.75314394` | `19.44390278` / `19.44390305` |
+| `ethylene_allpsp_pbe` | `10.88051459` / `10.88064641` | `-69.57298546` / `-69.57347607` | `0.90865311` / `0.90867941` | `29.47571653` / `29.47608013` | `-4.86432407` / `-4.86435770` | `19.44390278` / `19.44390305` |
 
 ---
 
@@ -158,3 +199,5 @@ All values in Hartrees ($\text{Ha}$). In each cell `A / B`, `A` is `madqc` and `
 | `methane_pbe` | `-0.62575369`, `-0.34655670` ($\times 3$) |
 | `ethylene_lda` | `-0.68750405`, `-0.52022468`, `-0.42273132`, `-0.37760080`, `-0.31128787`, `-0.25461475` |
 | `ethylene_pbe` | `-0.68998977`, `-0.52243633`, `-0.42066109`, `-0.37455429`, `-0.31243454`, `-0.24807320` |
+| `ethylene_allpsp_lda` | `-0.68748396`, `-0.52015969`, `-0.42267853`, `-0.37758028`, `-0.31123654`, `-0.25462323` |
+| `ethylene_allpsp_pbe` | `-0.68997239`, `-0.52237251`, `-0.42060966`, `-0.37453759`, `-0.31238509`, `-0.24808590` |

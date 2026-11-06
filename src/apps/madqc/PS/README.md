@@ -104,9 +104,19 @@ This directory (`src/apps/madqc/PS`) contains benchmark inputs, outputs, and ver
 
 - `README.md`: This user guide.
 - `DETAILS.md`: Technical documentation of the pseudopotential implementation, bugs fixed, capabilities, and complete numerical comparison tables.
-- `madqc/`: Input (`.in`) and reference output (`.out`) files for `madqc` across 7 systems (`be`, `ne`, `mg`, `water`, `water2`, `methane`, `ethylene`) with both `lda` and `pbe`.
-- `nwchem/`: Input (`.nw`), GTH/Coulomb pseudopotential (`.psp`), and reference output (`.out`) files for NWChem `pspw`.
+- `madqc/`: Input (`.in`) and reference output (`.out`) files for `madqc` across 8 test configurations (`be`, `ne`, `mg`, `water`, `water2`, `methane`, `ethylene` with AE H, and `ethylene_allpsp` with all-atom GTH pseudopotentials) for both `lda` and `pbe` (16 calculations total).
+- `nwchem/`: Input (`.nw`) and reference output (`.out`) files for NWChem `pspw`.
 - `run_and_compare.py`: Script to run `madqc` on the benchmark suite (or compare existing outputs) and verify numerical agreement against the reference `madqc` and NWChem results.
+
+### Threading & Avoiding Core Oversubscription (`MAD_NUM_THREADS`)
+
+MADNESS uses spin-locks in its task-queue thread pool, so oversubscribing CPU cores (or letting BLAS/OpenMP spawn nested threads) can cause severe slowdowns. When running `madqc` directly, always restrict the MADNESS thread count via `MAD_NUM_THREADS` and set `OMP_NUM_THREADS=1` and `MKL_NUM_THREADS=1`:
+```bash
+export MAD_NUM_THREADS=4
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+```
+`run_and_compare.py` sets these automatically (controllable via `--threads`, default `4`).
 
 ### Running the Verification Script
 
@@ -117,7 +127,7 @@ python3 run_and_compare.py --compare-only
 
 To run `madqc` on all benchmark inputs (or selected tests) and compare against the reference results:
 ```bash
-python3 run_and_compare.py --madqc /path/to/madqc
+python3 run_and_compare.py --madqc /path/to/madqc --threads 4
 # Or run specific systems:
-python3 run_and_compare.py --madqc /path/to/madqc --tests be_lda ne_pbe water_lda water_pbe
+python3 run_and_compare.py --madqc /path/to/madqc --threads 4 --tests be_lda ne_lda ethylene_allpsp_lda ethylene_allpsp_pbe
 ```

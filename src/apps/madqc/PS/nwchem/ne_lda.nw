@@ -10,12 +10,27 @@ end
 nwpw
   simulation_cell
     boundary_conditions aperiodic
-    SC 20.0
-    ngrid 128 128 128
+    SC 16.0
+    ngrid 96 96 96
   end
   xc lda
   mult 1
   lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 16.0
+    ngrid 192 192 192
+  end
+  cutoff 710.6115
+  xc lda
+  mult 1
+  lmbfgs
+  time_step 1.0
   tolerances 1.0d-9 1.0d-9
 end
 task pspw energy
