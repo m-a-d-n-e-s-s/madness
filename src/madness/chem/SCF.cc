@@ -687,12 +687,22 @@ void SCF::make_nuclear_potential(World& world) {
     gthpseudopotential = std::shared_ptr<GTHPseudopotential<double>
     >(new GTHPseudopotential<double>(world, molecule));
 
-    if (!molecule.parameters.pure_ae()) {
+    bool has_pseudo = false;
+    bool has_ae = false;
+    for (std::size_t i = 0; i < molecule.natom(); ++i) {
+        if (molecule.get_pseudo_atom(i)) {
+            has_pseudo = true;
+        } else {
+            has_ae = true;
+        }
+    }
+
+    if (has_pseudo || (molecule.natom() == 0 && !molecule.parameters.pure_ae())) {
         const std::string gth_file = CalculationParameters::select_gth_file(
             param.xc(), molecule.parameters.psp_file());
         gthpseudopotential->make_pseudo_potential(world, gth_file);
     }
-    if (!molecule.parameters.psp_calc()) {
+    if (has_ae || (molecule.natom() == 0 && !molecule.parameters.psp_calc())) {
         potentialmanager->make_nuclear_potential(world);
     }
     END_TIMER(world, "Project vnuclear");
@@ -1682,31 +1692,48 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
     tensorT rc(molecule.natom() * 3);
     for (size_t atom = 0; atom < molecule.natom(); ++atom) {
         for (int axis = 0; axis < 3; ++axis) {
-            functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
-            dv[atom * 3 + axis] =
-                    functionT(
-                            factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
-            if (molecule.parameters.core_type() != "none"
-                && molecule.is_potential_defined_atom(atom)) {
-                // core potential contribution
-                func = functorT(
-                        new CorePotentialDerivativeFunctor(molecule, atom,
-                                                           axis));
-                du[atom * 3 + axis] = functionT(
-                        factoryT(world).functor(func).truncate_on_project());
+            if (molecule.get_pseudo_atom(atom)) {
+                const Atom& a = molecule.get_atom(atom);
+                unsigned int atype = a.atomic_number;
+                const real_tensor& atom_localp = gthpseudopotential->localp[atype - 1];
+                functorT func(new VLocalDerivativeFunctor(
+                    atom_localp[0], atom_localp[1], atom_localp[2], atom_localp[3], atom_localp[4], atom_localp[5],
+                    a.get_coords(), axis));
+                dv[atom * 3 + axis] = functionT(
+                    factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
 
-                // core projector contribution
-                rc[atom * 3 + axis] =
-                        potentialmanager->core_projector_derivative(world, amo,
-                                                                    aocc, atom, axis);
-                if (!param.spin_restricted()) {
-                    if (param.nbeta())
-                        rc[atom * 3 + axis] +=
-                                potentialmanager->core_projector_derivative(
-                                        world, bmo, bocc, atom, axis);
-                } else {
-                    rc[atom * 3 + axis] *= 2 * 2;
-                    // because of 2 electrons in each valence orbital bra+ket
+                if (molecule.parameters.field()[axis] != 0.0) {
+                    functorT f_func(new MolecularDerivativeFunctor(molecule, atom, axis));
+                    functionT f_term(factoryT(world).functor(f_func).nofence().truncate_on_project().truncate_mode(0));
+                    dv[atom * 3 + axis] += f_term;
+                }
+            } else {
+                functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+                dv[atom * 3 + axis] =
+                        functionT(
+                                factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
+                if (molecule.parameters.core_type() != "none"
+                    && molecule.is_potential_defined_atom(atom)) {
+                    // core potential contribution
+                    func = functorT(
+                            new CorePotentialDerivativeFunctor(molecule, atom,
+                                                               axis));
+                    du[atom * 3 + axis] = functionT(
+                            factoryT(world).functor(func).truncate_on_project());
+
+                    // core projector contribution
+                    rc[atom * 3 + axis] =
+                            potentialmanager->core_projector_derivative(world, amo,
+                                                                        aocc, atom, axis);
+                    if (!param.spin_restricted()) {
+                        if (param.nbeta())
+                            rc[atom * 3 + axis] +=
+                                    potentialmanager->core_projector_derivative(
+                                            world, bmo, bocc, atom, axis);
+                    } else {
+                        rc[atom * 3 + axis] *= 2 * 2;
+                        // because of 2 electrons in each valence orbital bra+ket
+                    }
                 }
             }
         }
@@ -1718,6 +1745,12 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
     tensorT ru = inner(world, rho, du);
     dv.clear();
     du.clear();
+
+    if (!molecule.parameters.pure_ae() && gthpseudopotential) {
+        tensorT rc_gth = gthpseudopotential->compute_nonlocal_derivatives(
+            world, amo, aocc, bmo, bocc, param.spin_restricted(), param.nbeta() != 0);
+        rc += rc_gth;
+    }
     world.gop.fence();
     tensorT ra(r.size());
     for (size_t atom = 0; atom < molecule.natom(); ++atom) {

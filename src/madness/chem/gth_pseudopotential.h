@@ -71,6 +71,76 @@ public:
     }
 };
 
+class VLocalDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    double Zeff, zi, C1, C2, C3, C4;
+    int axis; // 0 for x, 1 for y, 2 for z
+    coord_3d center;
+    std::vector<coord_3d> specialpts;
+
+    // Precomputed constants
+    double c_pre;        // Zeff / (2 * sqrt(2) * zi^3)
+    double inv_zi2;      // 1 / (zi^2)
+    double inv_sqrt2_zi; // 1 / (sqrt(2) * zi)
+    double q0, q1, q2, q3; // Q(x) polynomial coefficients
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    VLocalDerivativeFunctor(double Zeff, double zi, 
+                            double C1, double C2, double C3, double C4, 
+                            const coord_3d& center, int axis)
+        : Zeff(Zeff), zi(zi), C1(C1), C2(C2), C3(C3), C4(C4),
+          axis(axis), center(center) {
+        specialpts.push_back(center);
+        c_pre = Zeff / (2.0 * std::sqrt(2.0) * zi * zi * zi);
+        inv_zi2 = 1.0 / (zi * zi);
+        inv_sqrt2_zi = 1.0 / (std::sqrt(2.0) * zi);
+        q0 = 2.0 * C2 - C1;
+        q1 = 4.0 * C3 - C2;
+        q2 = 6.0 * C4 - C3;
+        q3 = -C4;
+    }
+
+    double operator()(const coord_3d& r) const final {
+        const double dx = r[0] - center[0];
+        const double dy = r[1] - center[1];
+        const double dz = r[2] - center[2];
+        const double rsq = dx*dx + dy*dy + dz*dz;
+        const double rr = std::sqrt(rsq);
+
+        const double u = rr * inv_sqrt2_zi;
+        double term_erf;
+        if (u < 0.1) {
+            const double z = u * u;
+            const double c = 4.0 / std::sqrt(constants::pi);
+            double val = -1.0 / 10800.0;
+            val = 1.0 / 1560.0 + z * val;
+            val = -1.0 / 264.0 + z * val;
+            val = 1.0 / 54.0 + z * val;
+            val = -1.0 / 14.0 + z * val;
+            val = 1.0 / 5.0 + z * val;
+            val = 1.0 / 3.0 - z * val;
+            term_erf = c_pre * (c * val);
+        } else {
+            term_erf = (Zeff / (rsq * rr)) * 
+                       (std::erf(u) - (2.0 * u / std::sqrt(constants::pi)) * std::exp(-u * u));
+        }
+
+        const double x = rsq * inv_zi2;
+        const double poly = q0 + x * (q1 + x * (q2 + x * q3));
+        const double term_poly = std::exp(-0.5 * x) * inv_zi2 * poly;
+
+        const double over_r = term_erf + term_poly;
+        const double coord = (axis == 0) ? dx : ((axis == 1) ? dy : dz);
+        return -coord * over_r;
+    }
+
+    std::vector<coord_3d> special_points() const final { return specialpts; }
+
+    Level special_level() const final { return 6; }
+};
+
 class ProjRLMFunctor : public FunctionFunctorInterface<double,3> {
 private:
     double alpha; // radius
@@ -353,6 +423,128 @@ public:
     Level special_level() const final {
       return 6;
     }
+};
+
+class ProjRLMDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    double alpha;
+    int l, m, i;
+    int axis; // 0 for x, 1 for y, 2 for z
+    coord_3d center;
+    std::vector<coord_3d> specialpts;
+    double sqrtPI;
+    int itmp, itmp2;
+    double t1;
+    double norm;
+    double inv_alpha2;
+
+public:
+    using FunctionFunctorInterface<double,3>::operator();
+
+    virtual bool supports_vectorized() const final { return false; }
+
+    ProjRLMDerivativeFunctor(double alpha, int l, int m, int i, const coord_3d& center, int axis)
+        : alpha(alpha), l(l), m(m), i(i), axis(axis), center(center) {
+        specialpts.push_back(center);
+        sqrtPI = std::sqrt(constants::pi);
+        itmp = 2*l + (4*i-1);
+        itmp2 = 2*(i-1);
+        t1 = 1.0 / std::pow(alpha, 0.5*(double)itmp) / std::sqrt(ProjRLMFunctor::gamma_data[itmp-1]*sqrtPI);
+        norm = std::sqrt(2.0) * t1;
+        inv_alpha2 = 1.0 / (alpha * alpha);
+    }
+
+    double operator()(const coord_3d& r) const final {
+        const double x = r[0] - center[0];
+        const double y = r[1] - center[1];
+        const double z = r[2] - center[2];
+        const double rsq = x*x + y*y + z*z;
+
+        if (rsq > 40.0) return 0.0;
+
+        const double coord = (axis == 0) ? x : ((axis == 1) ? y : z);
+
+        // Radial part: R_i(r^2) and dR_i / dx_axis
+        double R_i = 1.0;
+        double dR_i = 0.0;
+        if (itmp2 == 0) { // i = 1
+            R_i = 1.0;
+            dR_i = 0.0;
+        } else if (itmp2 == 2) { // i = 2
+            R_i = rsq;
+            dR_i = 2.0 * coord;
+        } else if (itmp2 == 4) { // i = 3
+            R_i = rsq * rsq;
+            dR_i = 4.0 * rsq * coord;
+        }
+
+        const double PI = constants::pi;
+        double S = 0.0;
+        double dS = 0.0;
+
+        if (l == 0) {
+            S = 0.5 * std::sqrt(1.0 / PI);
+            dS = 0.0;
+        } else if (l == 1) {
+            const double c1 = std::sqrt(3.0 / (4.0 * PI));
+            if (m == 0) {
+                S = c1 * x;
+                dS = (axis == 0) ? c1 : 0.0;
+            } else if (m == 1) {
+                S = c1 * y;
+                dS = (axis == 1) ? c1 : 0.0;
+            } else if (m == 2) {
+                S = c1 * z;
+                dS = (axis == 2) ? c1 : 0.0;
+            } else {
+                MADNESS_EXCEPTION("m out of range for l = 1", 0);
+            }
+        } else if (l == 2) {
+            const double c20 = 0.25 * std::sqrt(5.0 / PI);
+            const double c2d = 0.5 * std::sqrt(15.0 / PI);
+            const double c24 = 0.25 * std::sqrt(15.0 / PI);
+            if (m == 0) {
+                S = c20 * (-x*x - y*y + 2.0*z*z);
+                if (axis == 0) dS = -2.0 * c20 * x;
+                else if (axis == 1) dS = -2.0 * c20 * y;
+                else dS = 4.0 * c20 * z;
+            } else if (m == 1) {
+                S = c2d * (y * z);
+                if (axis == 0) dS = 0.0;
+                else if (axis == 1) dS = c2d * z;
+                else dS = c2d * y;
+            } else if (m == 2) {
+                S = c2d * (x * z);
+                if (axis == 0) dS = c2d * z;
+                else if (axis == 1) dS = 0.0;
+                else dS = c2d * x;
+            } else if (m == 3) {
+                S = c2d * (x * y);
+                if (axis == 0) dS = c2d * y;
+                else if (axis == 1) dS = c2d * x;
+                else dS = 0.0;
+            } else if (m == 4) {
+                S = c24 * (x*x - y*y);
+                if (axis == 0) dS = 2.0 * c24 * x;
+                else if (axis == 1) dS = -2.0 * c24 * y;
+                else dS = 0.0;
+            } else {
+                MADNESS_EXCEPTION("m out of range for l = 2", 0);
+            }
+        } else {
+            MADNESS_EXCEPTION("l > 2 not implemented for GTH projectors", 0);
+        }
+
+        const double poly = R_i * S;
+        const double dpoly = dR_i * S + R_i * dS;
+
+        const double gauss = std::exp(-0.5 * rsq * inv_alpha2);
+        return norm * gauss * (coord * inv_alpha2 * poly - dpoly);
+    }
+
+    std::vector<coord_3d> special_points() const final { return specialpts; }
+
+    Level special_level() const final { return 6; }
 };
 
 class ProjRLMStore {
@@ -704,6 +896,158 @@ public:
             }
         }
         return vpsi;
+    }
+
+    tensorT compute_nonlocal_derivatives(World& world,
+                                         const std::vector<Function<Q,3>>& amo,
+                                         const tensorT& aocc,
+                                         const std::vector<Function<Q,3>>& bmo,
+                                         const tensorT& bocc,
+                                         bool spin_restricted,
+                                         bool have_beta) const
+    {
+        unsigned int natom = molecule.natom();
+        tensorT rc(natom * 3);
+        for (unsigned int i = 0; i < natom * 3; ++i) rc[i] = 0.0;
+
+        unsigned int nproj_atoms = atoms_with_projectors.size();
+        if (nproj_atoms == 0) return rc;
+
+        auto compute_channel = [&](const std::vector<Function<Q,3>>& psi, const tensorT& occ) -> tensorT {
+            tensorT channel_rc(natom * 3);
+            for (unsigned int i = 0; i < natom * 3; ++i) channel_rc[i] = 0.0;
+            if (psi.empty() || occ.size() == 0) return channel_rc;
+
+            unsigned int norbs = psi.size();
+            unsigned int maxLL = 0;
+            for (unsigned int iatom = 0; iatom < nproj_atoms; iatom++) {
+                Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
+                unsigned int atype = atom.atomic_number;
+                const real_tensor& atom_radii = radii[atype-1];
+                if (atom_radii.dim(0) > 0)
+                    maxLL = std::max(maxLL, (unsigned int)atom_radii.dim(0) - 1);
+            }
+
+            vector_real_function_3d localproj;
+            for (unsigned int iatom = 0; iatom < nproj_atoms; iatom++) {
+                Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
+                coord_3d center = atom.get_coords();
+                unsigned int atype = atom.atomic_number;
+                const real_tensor& atom_radii = radii[atype-1];
+                int maxL = atom_radii.dim(0) - 1;
+
+                ProjRLMStore prlmstore(atom_radii, center);
+                for (unsigned int j = 1; j <= 3; j++) {
+                    for (unsigned int l = 0; l <= maxLL; l++) {
+                        for (unsigned int m = 0; m < 2*maxLL+1; m++) {
+                            if (m < 2*l+1 && (int)l <= maxL) localproj.push_back(prlmstore.nlmproj(world, l, m, j));
+                            else localproj.push_back(real_factory_3d(world));
+                        }
+                    }
+                }
+                world.gop.fence();
+            }
+            truncate(world, localproj, FunctionDefaults<3>::get_thresh());
+            compress(world, localproj);
+
+            Tensor<Q> Pilm = matrix_inner(world, localproj, psi);
+            Pilm = Pilm.reshape(nproj_atoms, 3, maxLL+1, 2*maxLL+1, norbs);
+            localproj.clear();
+
+            Tensor<Q> Qilm((unsigned int)nproj_atoms, (unsigned long)3, (unsigned long)maxLL+1, (unsigned long)2*maxLL+1, (unsigned int)norbs);
+            for (unsigned int iorb = 0; iorb < norbs; iorb++) {
+                for (unsigned int iatom = 0; iatom < nproj_atoms; iatom++) {
+                    Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
+                    unsigned int atype = atom.atomic_number;
+                    const real_tensor& atom_radii = radii[atype-1];
+                    const real_tensor& atom_hlij = hlij[atype-1];
+                    int maxL = atom_radii.dim(0) - 1;
+                    for (unsigned int i = 1; i <= 3; i++) {
+                        for (int l = 0; l <= maxL; l++) {
+                            for (int m = 0; m < 2*l+1; m++) {
+                                Q s = 0.0;
+                                for (unsigned int j = 1; j <= 3; j++) {
+                                    s += atom_hlij(l, i-1, j-1) * Pilm(iatom, j-1, l, m, iorb);
+                                }
+                                Qilm(iatom, i-1, l, m, iorb) = s;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int axis = 0; axis < 3; ++axis) {
+                vector_real_function_3d dlocalproj;
+                for (unsigned int iatom = 0; iatom < nproj_atoms; iatom++) {
+                    Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
+                    coord_3d center = atom.get_coords();
+                    unsigned int atype = atom.atomic_number;
+                    const real_tensor& atom_radii = radii[atype-1];
+                    int maxL = atom_radii.dim(0) - 1;
+
+                    for (unsigned int j = 1; j <= 3; j++) {
+                        for (unsigned int l = 0; l <= maxLL; l++) {
+                            for (unsigned int m = 0; m < 2*maxLL+1; m++) {
+                                if (m < 2*l+1 && (int)l <= maxL) {
+                                    auto func = real_functor_3d(new ProjRLMDerivativeFunctor(atom_radii(l), l, m, j, center, axis));
+                                    dlocalproj.push_back(real_factory_3d(world).functor(func).truncate_on_project().nofence().truncate_mode(0));
+                                } else {
+                                    dlocalproj.push_back(real_factory_3d(world));
+                                }
+                            }
+                        }
+                    }
+                    world.gop.fence();
+                }
+                truncate(world, dlocalproj, FunctionDefaults<3>::get_thresh());
+                compress(world, dlocalproj);
+
+                Tensor<Q> Dilm = matrix_inner(world, dlocalproj, psi);
+                Dilm = Dilm.reshape(nproj_atoms, 3, maxLL+1, 2*maxLL+1, norbs);
+                dlocalproj.clear();
+
+                int nocc = std::min((int)norbs, (int)occ.size());
+                for (unsigned int iatom = 0; iatom < nproj_atoms; iatom++) {
+                    unsigned int orig_atom = atoms_with_projectors[iatom];
+                    Atom atom = molecule.get_atom(orig_atom);
+                    unsigned int atype = atom.atomic_number;
+                    const real_tensor& atom_radii = radii[atype-1];
+                    int maxL = atom_radii.dim(0) - 1;
+
+                    double dE = 0.0;
+                    for (int n = 0; n < nocc; ++n) {
+                        double on = occ[n];
+                        if (std::abs(on) < 1e-14) continue;
+                        double sum_lmi = 0.0;
+                        for (unsigned int i = 1; i <= 3; ++i) {
+                            for (int l = 0; l <= maxL; ++l) {
+                                for (int m = 0; m < 2*l+1; ++m) {
+                                    sum_lmi += Dilm(iatom, i-1, l, m, n) * Qilm(iatom, i-1, l, m, n);
+                                }
+                            }
+                        }
+                        dE += 2.0 * on * sum_lmi;
+                    }
+                    channel_rc[orig_atom * 3 + axis] += dE;
+                }
+            }
+            return channel_rc;
+        };
+
+        tensorT rca = compute_channel(amo, aocc);
+        if (spin_restricted) {
+            double mult = have_beta ? 2.0 : 1.0;
+            for (unsigned int i = 0; i < natom * 3; ++i) {
+                rc[i] = mult * rca[i];
+            }
+        } else {
+            tensorT rcb = compute_channel(bmo, bocc);
+            for (unsigned int i = 0; i < natom * 3; ++i) {
+                rc[i] = rca[i] + rcb[i];
+            }
+        }
+
+        return rc;
     }
 };
 

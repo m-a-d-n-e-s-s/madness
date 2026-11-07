@@ -151,6 +151,22 @@ void test_helpers() {
     check(compare_geometry(lih(), hli) == GeometryMatch::different_composition,
           "geometry: permuted atoms are a different molecule");
 
+    // pseudo-atom vs all-electron atom: must be different composition
+    Molecule lih_ps;
+    lih_ps.add_atom(0.0, 0.0, 0.0, 1.0, 3, true); // pseudo Li (Zeff=1)
+    lih_ps.add_atom(0.0, 0.0, 3.0, 1.0, 1, false); // AE H
+    check(compare_geometry(lih(), lih_ps) == GeometryMatch::different_composition,
+          "geometry: all-electron vs pseudo-atom is different composition");
+    check(compare_geometry(lih_ps, lih()) == GeometryMatch::different_composition,
+          "geometry: pseudo-atom vs all-electron is different composition");
+
+    // pseudo-atom with different effective charge Zeff: must be different composition
+    Molecule lih_ps2;
+    lih_ps2.add_atom(0.0, 0.0, 0.0, 2.0, 3, true); // pseudo Li with different Zeff
+    lih_ps2.add_atom(0.0, 0.0, 3.0, 1.0, 1, false);
+    check(compare_geometry(lih_ps, lih_ps2) == GeometryMatch::different_composition,
+          "geometry: differing Zeff is different composition");
+
     // --restart_info should accept whatever the user types, including the chunk
     // suffix that tab completion appends
     check(restartdata_basename("he") == "he", "basename: bare prefix");
@@ -355,6 +371,52 @@ void test_automatic() {
               "auto: a different ncf still uses the orbitals as a guess");
     }
 
+    // Hamiltonian mismatch: pure_ae, psp_calc, and psp_file
+    {
+        RestartMetadata meta = converged_archive(1.e-6, 1.e-4);
+        meta.molecule.parameters.set_user_defined_value("pure_ae", true);
+        meta.molecule.parameters.set_user_defined_value("psp_calc", false);
+
+        Molecule req_ps = lih();
+        req_ps.parameters.set_user_defined_value("pure_ae", false);
+        req_ps.parameters.set_user_defined_value("psp_calc", true);
+
+        const RestartPlan diff_ae = plan_restart(A, with_archive(meta), moldft, ladder,
+                user_dconv, req_ps, Representation::mo);
+        check(diff_ae.iterate, "auto: pure_ae mismatch re-converges");
+        check(diff_ae.source == RestartSource::restartdata,
+              "auto: pure_ae mismatch still uses orbitals as guess");
+        check(not diff_ae.archive_same_hamiltonian,
+              "auto: pure_ae mismatch flagged as different Hamiltonian");
+
+        // psp_calc mismatch
+        Molecule req_calc = lih();
+        req_calc.parameters.set_user_defined_value("pure_ae", true);
+        req_calc.parameters.set_user_defined_value("psp_calc", true);
+        const RestartPlan diff_calc = plan_restart(A, with_archive(meta), moldft, ladder,
+                user_dconv, req_calc, Representation::mo);
+        check(diff_calc.iterate, "auto: psp_calc mismatch re-converges");
+        check(not diff_calc.archive_same_hamiltonian,
+              "auto: psp_calc mismatch flagged as different Hamiltonian");
+
+        // psp_file mismatch
+        RestartMetadata meta_psp = converged_archive(1.e-6, 1.e-4);
+        meta_psp.molecule.parameters.set_user_defined_value("pure_ae", false);
+        meta_psp.molecule.parameters.set_user_defined_value("psp_calc", true);
+        meta_psp.molecule.parameters.set_user_defined_value("psp_file", std::string("gth.xml"));
+
+        Molecule req_pbe = lih();
+        req_pbe.parameters.set_user_defined_value("pure_ae", false);
+        req_pbe.parameters.set_user_defined_value("psp_calc", true);
+        req_pbe.parameters.set_user_defined_value("psp_file", std::string("gth_pbe.xml"));
+
+        const RestartPlan diff_file = plan_restart(A, with_archive(meta_psp), moldft, ladder,
+                user_dconv, req_pbe, Representation::mo);
+        check(diff_file.iterate, "auto: psp_file mismatch re-converges");
+        check(not diff_file.archive_same_hamiltonian,
+              "auto: psp_file mismatch flagged as different Hamiltonian");
+    }
+
     // nwchem, when there is nothing better and the engine can read it
     expect("auto, nwchem file named", A, nothing(false, true), moldft,
            RestartSource::nwchem, true, 0);
@@ -499,6 +561,20 @@ void test_explicit_modes() {
                          Representation::mo);
         } catch (const MadnessException&) { threw = true; }
         check(threw, "iterate, nemo archive for moldft: refused");
+    }
+
+    // read_only mode refuses different composition (including pseudo-atom mismatch)
+    {
+        RestartSources disk = with_archive(converged_archive(1.e-6, 1.e-4));
+        Molecule req_ps;
+        req_ps.add_atom(0.0, 0.0, 0.0, 1.0, 3, true);
+        req_ps.add_atom(0.0, 0.0, 3.0, 1.0, 1, false);
+        bool threw = false;
+        try {
+            plan_restart(RestartMode::read_only, disk, moldft, ladder, user_dconv,
+                         req_ps, Representation::mo);
+        } catch (const MadnessException&) { threw = true; }
+        check(threw, "read_only: AE archive with pseudo-atom request is refused");
     }
 }
 

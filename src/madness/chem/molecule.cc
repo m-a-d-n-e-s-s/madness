@@ -41,6 +41,7 @@
 #include <madness/constants.h>
 #include <madness/world/world.h>
 #include<madness/chem/molecule.h>
+#include<madness/chem/CalculationParameters.h>
 #include<madness/chem/gth_pseudopotential.h>
 #include<madness/chem/atomutil.h>
 #include <madness/misc/misc.h>
@@ -229,10 +230,10 @@ void Molecule::update_pseudo_atom_charges(const std::string& psp_filename) {
     }
 
     if (has_pseudo) {
-        parameters.set_derived_value("pure_ae", false);
+        parameters.set_user_defined_value("pure_ae", false);
     }
     if (all_pseudo) {
-        parameters.set_derived_value("psp_calc", true);
+        parameters.set_user_defined_value("psp_calc", true);
     }
     update_rcut_with_eprec(parameters.eprec());
 }
@@ -580,8 +581,29 @@ void Molecule::from_json(const json& mol_json) {
 
     add_atom(x, y, z, q, atomic_number, psat);
   }
-  const std::string psp_filename = (parameters.psp_file() != "none") ? parameters.psp_file() : "gth.xml";
+  std::string xc_str = "";
+  if (mol_json.contains("xc")) {
+    xc_str = mol_json["xc"].get<std::string>();
+  } else if (mol_json.contains("hamiltonian") && mol_json["hamiltonian"].contains("xc")) {
+    xc_str = mol_json["hamiltonian"]["xc"].get<std::string>();
+  } else if (mol_json.contains("parameters") && mol_json["parameters"].contains("xc")) {
+    xc_str = mol_json["parameters"]["xc"].get<std::string>();
+  }
+
+  std::string user_psp = parameters.psp_file();
+  if (user_psp == "none" || user_psp.empty()) {
+    if (mol_json.contains("psp_file")) {
+      user_psp = mol_json["psp_file"].get<std::string>();
+    } else if (mol_json.contains("hamiltonian") && mol_json["hamiltonian"].contains("psp_file")) {
+      user_psp = mol_json["hamiltonian"]["psp_file"].get<std::string>();
+    }
+  }
+
+  const std::string psp_filename = CalculationParameters::select_gth_file(xc_str, user_psp);
   update_pseudo_atom_charges(psp_filename);
+  if (parameters.pure_ae() == false && (parameters.psp_file() == "none" || parameters.psp_file().empty())) {
+    parameters.set_user_defined_value("psp_file", psp_filename);
+  }
   if (parameters.no_orient() == false) orient();
 }
 
@@ -1144,6 +1166,9 @@ double Molecule::atomic_attraction_potential(int iatom, double x, double y,
 
 
 double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const {
+    double df = field[axis];
+    if (atoms[atom].pseudo_atom) return df;
+
     double r = distance(atoms[atom].x, atoms[atom].y, atoms[atom].z, x, y, z);
     double rc = rcut[atom];
     double coord;
@@ -1159,7 +1184,6 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
 
     double dv = atoms[atom].q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
     //double dv = q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
-    double df = field[axis];
     return dv + df;
 }
 
