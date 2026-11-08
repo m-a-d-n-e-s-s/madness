@@ -19,6 +19,7 @@ enum OpType {
     OT_F212,        /// (1-exp(-r))^2
     OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
     OT_BSH,         /// exp(-r)/r
+    OT_INVRSQ,      /// 1/r^2
     OT_SIZE         /// for ending loops
 };
 
@@ -47,6 +48,8 @@ std::ostream& operator<<(std::ostream& os, const OpType type) {
                 return "f12^2g";
             case OpType::OT_BSH:
                 return "bsh";
+            case OpType::OT_INVRSQ:
+                return "invrsq";
             default:
                 return "undefined";
         }
@@ -68,6 +71,10 @@ struct OperatorInfo {
     std::vector<KernelRange> range = std::vector<KernelRange>(6);
     bool debug=false;
     std::optional<bool> truncate_lowexp_gaussians;  // if given, overrides the default for whether to truncate low-exponent gaussians
+    /// if true, a lattice-summed operator excludes the home cell (L = 0): the rest-of-crystal
+    /// operator, see SeparatedConvolution::initialize_images_only. Consumed when the operator is
+    /// constructed (SeparatedConvolution::images_only()); changing it on a built operator has no effect.
+    bool images_only = false;
 
     template <std::size_t NDIM>
     std::array<KernelRange, NDIM> range_as_array() const {

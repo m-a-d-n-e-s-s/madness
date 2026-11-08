@@ -285,6 +285,18 @@ public:
         return result;
     }
 
+    /// the task can provide a priority function, otherwise the default is used
+
+    /// signature: taskT::compute_priority(const Batch&, const argtupleT&) const -> double
+    template<typename argtupleT>
+    static void recompute_priorities(partitionT& partition, const argtupleT& argtuple,
+        const std::function<double(const Batch& batch, const argtupleT&)>& predicate) {
+        for (auto& p : partition) {
+            p.second=predicate(p.first, argtuple);
+        }
+    }
+
+    /// simple default priority function: size of the input batch
     virtual double compute_priority(const Batch& batch) const {
         return batch.size_of_input();
     }

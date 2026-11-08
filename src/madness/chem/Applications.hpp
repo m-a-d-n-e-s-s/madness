@@ -684,7 +684,7 @@ public:
   explicit CC2Application(World &w, const Params &p,
                           const std::shared_ptr<Nemo> &reference)
       : Application(p),
-        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference),
+        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), p.get<LowRankFunctionParameters>(), reference),
         world_(w), reference_(reference) {}
 
   // print_parameters
@@ -1149,6 +1149,11 @@ struct moldft_lib {
     tensorT dip;
     if (scf->param.dipole())
       dip = scf->dipole(world, rho);
+
+    // atomic charges by the schemes of the population key (none: empty)
+    const nlohmann::json pop = scf->population_analysis(world);
+    if (not pop.empty())
+      prop_res.populations = pop;
 
     scf->do_plots(world);
 

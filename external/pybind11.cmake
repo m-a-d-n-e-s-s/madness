@@ -1,6 +1,11 @@
 if(ENABLE_PYTHON)
 
   find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
+  # Build against the Python3 found above. As a subproject pybind11 otherwise
+  # defaults to its classic FindPythonLibsNew mode, which ignores Python3_* and
+  # resolves `python3` from PATH on its own -- possibly a different minor
+  # version (e.g. Homebrew's), yielding an extension that will not import.
+  set(PYBIND11_FINDPYTHON ON)
   find_package(pybind11 2.11 CONFIG)
 
   if(NOT pybind11_FOUND)

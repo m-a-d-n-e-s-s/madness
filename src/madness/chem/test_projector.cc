@@ -231,11 +231,11 @@ int main(int argc, char**argv) {
 
         error+=test_projector_outer<double,2>(world);
 
-        if (HAVE_GENTENSOR) {
-            error+=test_Q12_projector<double,2>(world);
-            error+=test_Q12_projector<double,4>(world);
+#ifdef ENABLE_GENTENSOR
+        error+=test_Q12_projector<double,2>(world);
+        error+=test_Q12_projector<double,4>(world);
 //        error+=test_Q12_projector<double,6>(world);
-        }
+#endif
 
     }
 

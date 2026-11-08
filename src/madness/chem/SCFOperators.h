@@ -171,6 +171,9 @@ public:
     /// ctor with a nemo calculation
     Exchange(World& world, const Nemo *nemo, const int ispin);
 
+    /// ctor with a nemo calculation whose bra R^2 F is already at hand; neither bra nor ket is copied
+    Exchange(World& world, const Nemo *nemo, const std::vector<Function<double,NDIM>>& R2mo, const int ispin);
+
     std::string info() const {return "K";}
 
     bool is_symmetric() const;
@@ -395,7 +398,7 @@ public:
     class MacroTaskCoulomb : public MacroTaskOperationBase {
     public:
         // you need to define the exact argument(s) of operator() as tuple
-        typedef std::tuple<const Function<double,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
+        typedef std::tuple<const Function<T,NDIM>&, const std::vector<Function<T,NDIM>> &> argtupleT;
 
         using resultT = std::vector<Function<T,NDIM>>;
 
@@ -403,8 +406,10 @@ public:
         public:
             partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                        const std::string policy) const override {
-                partitionT p={std::pair(Batch(_,_),1.0)};
-                return p;
+                // one task per batch of the orbital vector, so that the subworld running a task
+                // holds only its batch of untruncated vcoul*F products; one task for the whole
+                // vector put every product on one rank (~100 GB at C40 k8 with 8 ranks)
+                return do_1d_partition(vsize1, policy);
             }
         };
 
@@ -420,8 +425,10 @@ public:
             return result;
         }
 
-        resultT operator()(const Function<double,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
-            return truncate(vcoul * arg);
+        resultT operator()(const Function<T,NDIM>& vcoul, const std::vector<Function<T,NDIM>> &arg) const {
+            // vcoul spans the molecule, each ket is local: screen like SCF's V*psi
+            const double vtol = FunctionDefaults<NDIM>::get_thresh() * 0.1;
+            return truncate(mul_sparse(vcoul.world(), vcoul, arg, vtol));
         }
     };
 
@@ -476,17 +483,18 @@ public:
     }
 
     /// getter for the Coulomb potential
-    const real_function_3d& potential() const {return vcoul;}
+    const Function<T,NDIM>& potential() const {return vcoul;}
 
     /// setter for the Coulomb potential
-    real_function_3d& potential() {return vcoul;}
+    Function<T,NDIM>& potential() {return vcoul;}
 
-    real_function_3d compute_density(const SCF* calc) const;
+    Function<T,NDIM> compute_density(const SCF* calc) const;
 
     /// given a density compute the Coulomb potential
 
     /// this function uses a newly constructed Poisson operator. Note that
     /// the accuracy parameters must be consistent with the exchange operator.
+    /// density can be complex, e.g. for excitation energies
     Function<T,NDIM> compute_potential(const Function<T,NDIM>& density) const {
     	return (*poisson)(density).truncate();
     }
@@ -494,18 +502,18 @@ public:
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
     /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const SCF* calc) const;
+    Function<T,NDIM> compute_potential(const SCF* calc) const;
 
     /// given a set of MOs in an SCF calculation, compute the Coulomb potential
 
     /// this function uses the Poisson operator of the SCF calculation
-    real_function_3d compute_potential(const Nemo* nemo) const;
+    Function<T,NDIM> compute_potential(const Nemo* nemo) const;
 
 private:
     World& world;
     std::shared_ptr<real_convolution_3d> poisson;
     double lo=1.e-4;
-    real_function_3d vcoul; ///< the coulomb potential
+    Function<T,NDIM> vcoul; ///< the coulomb potential, can be complex for excited states using complex orbitals
 };
 
 

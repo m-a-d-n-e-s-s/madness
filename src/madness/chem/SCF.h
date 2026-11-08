@@ -497,6 +497,17 @@ public:
     /// @return     the x,y,z components of the el. + nucl. dipole moment
     tensorT dipole(World& world, const functionT& rho) const;
 
+    /// atomic charges, and spin populations for open shells, of the occupied orbitals
+
+    /// Runs the schemes of the `population` key (population.h) on the current orbitals:
+    /// projects the population basis sets at the current FunctionDefaults, forms the
+    /// overlaps, and prints a table per scheme on rank 0. Call it after the final rung.
+    /// The orbitals of each spin are those with a nonzero occupation in aocc/bocc, so
+    /// explicit holes count, and the total charge is the nuclear charge minus their sum.
+    /// A failing scheme only warns: its entry in the result holds the error.
+    /// @return  the results on every rank; empty when `population` is none
+    nlohmann::json population_analysis(World& world) const;
+
     void vector_stats(const std::vector<double>& v, double& rms,
                       double& maxabsval) const;
 
@@ -512,6 +523,11 @@ public:
                              const CalculationParameters& param);
     vecfuncT apply_bsh_plain(World& world, vecfuncT& Vpsi, const tensorT& eps,
                              const CalculationParameters& param);
+    /// Applies the Green's function with the executor the bsh_apply parameter selects
+    /// (auto: macrotask when multinode or at tight thresh, else tile). Consumes Vpsi;
+    /// eps(i) is the orbital energy entering operator i. Shared with nemo's solver.
+    vecfuncT apply_bsh(World& world, vecfuncT& Vpsi, const tensorT& eps,
+                       const CalculationParameters& param);
 
     tensorT make_fock_matrix(World& world, const vecfuncT& psi,
                              const vecfuncT& Vpsi, const tensorT& occ,

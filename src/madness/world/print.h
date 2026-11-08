@@ -223,8 +223,13 @@ operator<<(std::ostream &s, const T (&v)[N]) {
     /// \tparam Ts Argument pack type for the items to be printed.
     /// \param[in] t The first item to be printed.
     /// \param[in] ts The remaining items to be printed in the argument pack.
+    /// \note \c ts are forwarding references, not \c const&: under C++23 ADL
+    ///    on a \c std argument also finds \c std::print, and \c const& would lose
+    ///    to its \c Args&& on that argument, making unqualified calls ambiguous.
+    ///    \c t stays \c const& (it competes only with the \c format_string
+    ///    parameter) so that a call with one argument resolves as before.
     template<typename T, typename... Ts>
-    void print(const T& t, const Ts&... ts) {
+    void print(const T& t, Ts&&... ts) {
         using madness::operators::operator<<;
         ScopedMutex<Mutex> safe(detail::printmutex);
         std::cout << t;
@@ -240,7 +245,7 @@ operator<<(std::ostream &s, const T (&v)[N]) {
     /// \param[in] t The first item to be printed.
     /// \param[in] ts The remaining items to be printed in the argument pack.
     template<typename T, typename... Ts>
-    void print_error(const T& t, const Ts&... ts) {
+    void print_error(const T& t, Ts&&... ts) {
         using madness::operators::operator<<;
         ScopedMutex<Mutex> safe(detail::printmutex);
         std::cerr << t;

@@ -22,6 +22,8 @@ set(MADCHEM_HEADERS
     distpm.h
     electronic_correlation_factor.h
     ESInterface.h
+    exchange_commutator.h
+    operator_diagnostics.h
     exchangeoperator.h
     gaussian.h
     gth_pseudopotential.h
@@ -50,6 +52,7 @@ set(MADCHEM_HEADERS
     pointgroupoperator.h
     pointgroupsymmetry.h
     polynomial.h
+    population.h
     potentialmanager.h
     ParameterManager.hpp
     ResponseParameters.hpp
@@ -90,6 +93,9 @@ set(MADCHEM_SOURCES
     diamagneticpotentialfactor.cc
     dispersion.cc
     distpm.cc
+    electronic_correlation_factor.cc
+    exchange_commutator.cc
+    operator_diagnostics.cc
     exchangeoperator.cc
     gaussian.cc
     gth_pseudopotential.cc
@@ -108,6 +114,7 @@ set(MADCHEM_SOURCES
     pointgroupsymmetry.cc
     potentialmanager.cc
     polynomial.cc
+    population.cc
     SAP.cc
     SCF.cc
     SCFOperators.cc
@@ -191,8 +198,10 @@ if(BUILD_TESTING)
       test_exchange_asymmetric.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
   test_results_summary.cc
-  test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc)
-  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
+  test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc
+  test_population.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc
+  test_operator_diagnostics.cc)
   if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
@@ -211,7 +220,7 @@ if(BUILD_TESTING)
 
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
-    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()

@@ -675,6 +675,9 @@ public:
     /// ctor with a nemo calculation
     ExchangeImpl(World& world, const Nemo *nemo, const int ispin);
 
+    /// ctor with a nemo calculation whose bra R^2 F is already at hand; neither bra nor ket is copied
+    ExchangeImpl(World& world, const Nemo *nemo, const std::vector<Function<double,NDIM>>& R2mo, const int ispin);
+
     /// set the bra and ket orbital spaces, and the occupation
 
     /// @param[in]	bra		bra space, must be provided as complex conjugate

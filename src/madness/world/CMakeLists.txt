@@ -108,6 +108,10 @@ if(BUILD_TESTING)
 
   add_unittests(world "${WORLD_TEST_SOURCES}" ";MADworld;MADgtest" "unittests;short")
 
+  # >INT_MAX record chunking in parallel_dc_archive.h: allocates >2 GiB, so keep it
+  # out of the short/medium suites (run manually or via the "large" label).
+  add_unittests(world "test_dc_archive_chunk.cc" ";MADworld;MADgtest" "unittests;large")
+
   if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
@@ -138,5 +142,9 @@ if(BUILD_TESTING)
   # MPI variant of test_replication. As for the MRA MPI tests,
   # MADNESS_MPI_NODE_OPTIONS sets the MPI options at run time.
   add_mpi_tests(world test_replication "2" "MADworld;MADgtest" "unittests;short")
+
+  # 2-rank variant of the >INT_MAX chunking test: one rank alone never sends a chunk
+  # to a remote owner or takes the multi-rank gather path
+  add_mpi_tests(world test_dc_archive_chunk "2" "MADworld;MADgtest" "unittests;large")
   
 endif()
