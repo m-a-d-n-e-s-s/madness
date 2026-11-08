@@ -2,7 +2,7 @@ IMAGE ?= madness:latest
 DOCKERFILE ?= Dockerfile
 CONTEXT ?= ../../..
 
-.PHONY: all build dev clean
+.PHONY: all build dev clean test
 
 all: build
 
