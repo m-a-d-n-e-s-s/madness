@@ -1,15 +1,17 @@
 /// Unit tests for the LBDeuxPmap process map.
 ///
 /// Each map is written by hand, so that every case reaches one lookup branch or one constructor
-/// check. The ranks are only labels here, because the map does not know the size of the World.
+/// check. The ranks are only labels here, checked against nproc, not against the size of the World.
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/world/test_utilities.h>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -17,6 +19,9 @@ using namespace madness;
 
 template <std::size_t NDIM>
 using Assignment = std::vector<std::pair<Key<NDIM>, ProcessID>>;
+
+/// Rank bound for the hand-written maps, which use the ranks 0, 1 and 2
+static constexpr ProcessID nproc = 3;
 
 static Key<1> key1(Level n, Translation l) {
     return {n, vec(l)};
@@ -30,7 +35,7 @@ static Key<3> key3(Level n, Translation x, Translation y, Translation z) {
 template <std::size_t NDIM>
 static bool constructor_throws(const Assignment<NDIM>& assignment) {
     try {
-        LBDeuxPmap<NDIM> pmap(assignment);
+        LBDeuxPmap<NDIM> pmap(assignment, nproc);
     } catch (const MadnessException&) {
         return true;
     } catch (...) {
@@ -46,7 +51,7 @@ static bool constructor_throws(const Assignment<NDIM>& assignment) {
 ///         (2,2) -> 2
 static int test_nearest_ancestor(World& world) {
     test_output t("owner() returns the nearest mapped ancestor", world.rank() == 0);
-    const LBDeuxPmap<1> pmap(Assignment<1>{{Key<1>(0), 0}, {key1(1, 1), 1}, {key1(2, 2), 2}});
+    const LBDeuxPmap<1> pmap(Assignment<1>{{Key<1>(0), 0}, {key1(1, 1), 1}, {key1(2, 2), 2}}, nproc);
 
     t.checkpoint(pmap.owner(Key<1>(0)), 0, "exact key at the root");
     t.checkpoint(pmap.owner(key1(1, 1)), 1, "exact key at an interior level");
@@ -62,7 +67,7 @@ static int test_nearest_ancestor(World& world) {
 /// two level-3 entries are siblings, so a lookup that stops one level too high finds neither.
 static int test_key_below_deepest_level(World& world) {
     test_output t("owner() resolves a key below the deepest entry", world.rank() == 0);
-    const LBDeuxPmap<3> pmap(Assignment<3>{{Key<3>(0), 0}, {key3(3, 5, 2, 7), 1}, {key3(3, 5, 2, 6), 2}});
+    const LBDeuxPmap<3> pmap(Assignment<3>{{Key<3>(0), 0}, {key3(3, 5, 2, 7), 1}, {key3(3, 5, 2, 6), 2}}, nproc);
 
     t.checkpoint(pmap.owner(key3(20, 667705, 262145, 1048575)), 1, "level 20 inside (3,[5,2,7])");
     t.checkpoint(pmap.owner(key3(20, 667705, 262145, 917503)), 2, "level 20 inside (3,[5,2,6])");
@@ -74,7 +79,7 @@ static int test_key_below_deepest_level(World& world) {
 /// branch, because the constructor requires the root.
 static int test_unmatched_level_zero_key_throws(World& world) {
     test_output t("owner() throws if no ancestor matches", world.rank() == 0);
-    const LBDeuxPmap<1> pmap(Assignment<1>{{Key<1>(0), 0}});
+    const LBDeuxPmap<1> pmap(Assignment<1>{{Key<1>(0), 0}}, nproc);
     bool threw = false;
     try {
         pmap.owner(key1(0, 1));
@@ -100,9 +105,11 @@ static int test_duplicate_key_throws(World& world) {
     return t.end();
 }
 
-static int test_negative_rank_throws(World& world) {
-    test_output t("constructor rejects a negative rank", world.rank() == 0);
+static int test_rank_out_of_range_throws(World& world) {
+    test_output t("constructor rejects a rank out of range", world.rank() == 0);
     t.checkpoint(constructor_throws<1>({{Key<1>(0), 0}, {key1(1, 1), -1}}), "negative rank");
+    t.checkpoint(constructor_throws<1>({{Key<1>(0), 0}, {key1(1, 1), nproc}}), "rank equal to nproc");
+    t.checkpoint(!constructor_throws<1>({{Key<1>(0), 0}, {key1(1, 1), nproc - 1}}), "rank nproc-1 is accepted");
     return t.end();
 }
 
@@ -113,22 +120,75 @@ static double gaussian(const coord_3d& r) {
 /// A negative cost at the root stands in for roundoff in its residual. The real residual can only
 /// go below zero after all children split off, which needs a large fac in load_balance().
 struct NegativeRootCost {
+    static constexpr double root_cost = -1.e-3;
     double operator()(const Key<3>& key, const FunctionNode<double, 3>&) const {
-        return (key.level() == 0) ? -1.e-3 : 1.0;
+        return (key.level() == 0) ? root_cost : 1.0;
     }
 };
 
+/// A guard, not a regression test: a zero root cost passed the old `cost >= 0` filter too.
 struct ZeroCost {
     double operator()(const Key<3>&, const FunctionNode<double, 3>&) const {
         return 0.0;
     }
 };
 
+struct NaNCost {
+    double operator()(const Key<3>& key, const FunctionNode<double, 3>&) const {
+        return (key.level() == 2) ? std::nan("") : 1.0;
+    }
+};
+
+/// A non-finite cost must stop load_balance() on every rank, before it reaches the sort.
+static int test_driver_rejects_nonfinite_cost(World& world) {
+    test_output t("load_balance() rejects a non-finite cost", world.rank() == 0);
+    const real_function_3d f = real_factory_3d(world).f(gaussian);
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(f, NaNCost(), true);
+    bool threw = false;
+    try {
+        lb.load_balance();
+    } catch (const MadnessException&) {
+        threw = true;
+    }
+    t.checkpoint(threw, "NaN cost below the root");
+    return t.end();
+}
+
+/// True if load_balance(fac) splits every child off the root, so that only the root's own cost
+/// stays as its residual. partition() tests the remaining cost against 1.1 times the average before
+/// it subtracts each child, in descending order, so the last test sees the smallest child.
+template <typename costT>
+static bool all_children_split_off(World& world, const real_function_3d& f, const costT& cost,
+                                   const double root_cost, const double fac) {
+    std::vector<double> child_cost(8, 0.0);
+    const auto& coeffs = f.get_impl()->get_coeffs();
+    for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+        const Key<3>& key = it->first;
+        if (key.level() == 0) continue;
+        const Key<3> child = key.parent(key.level() - 1);
+        child_cost[4 * child.translation()[0] + 2 * child.translation()[1] + child.translation()[2]] +=
+            cost(key, it->second);
+    }
+    world.gop.sum(child_cost.data(), child_cost.size());
+    double total = root_cost;
+    for (const double c : child_cost) total += c;
+    const double threshold = 1.1 * total / (world.size() * fac);
+    const double smallest = *std::min_element(child_cost.begin(), child_cost.end());
+    return smallest + root_cost > threshold;
+}
+
 /// Runs the real driver, then asks the returned map for the root and for every local function key.
 template <typename costT>
 static int test_driver_keeps_root(World& world, const std::string& name, const costT& cost, const double fac) {
     test_output t(name, world.rank() == 0);
     const real_function_3d f = real_factory_3d(world).f(gaussian);
+
+    if constexpr (std::is_same_v<costT, NegativeRootCost>) {
+        // Without this, the root residual stays positive and the test passes without the fix.
+        t.checkpoint(all_children_split_off(world, f, cost, NegativeRootCost::root_cost, fac),
+                     "precondition: the root residual goes negative");
+    }
 
     LoadBalanceDeux<3> lb(world);
     lb.add_tree(f, cost, true);
@@ -168,10 +228,11 @@ int main(int argc, char** argv) {
     failures += test_key_below_deepest_level(world);
     failures += test_missing_root_throws(world);
     failures += test_duplicate_key_throws(world);
-    failures += test_negative_rank_throws(world);
+    failures += test_rank_out_of_range_throws(world);
     failures += test_unmatched_level_zero_key_throws(world);
     failures += test_driver_keeps_root(world, "load_balance() keeps a root with negative residual", NegativeRootCost(), 20.0);
     failures += test_driver_keeps_root(world, "load_balance() keeps a root with zero cost", ZeroCost(), 1.0);
+    failures += test_driver_rejects_nonfinite_cost(world);
 
     world.gop.fence();
     finalize();

@@ -66,7 +66,7 @@ namespace madness {
         typedef Key<NDIM> keyT;
         typedef std::pair<keyT,ProcessID> pairT;
         // Only ever queried with find(), never iterated, so ordering buys nothing.
-        // Hash<keyT> returns the hash cached in Key; no rehash on lookup.
+        // Hash<keyT> returns the hash cached in Key.
         typedef std::unordered_map<keyT,ProcessID,Hash<keyT>> mapT;
         mapT map;
         Level max_level = 0; ///< Deepest level of any entry in map
@@ -74,14 +74,14 @@ namespace madness {
 
     public:
         /// @param[in] v The owner of each subtree root. The root key must be present, keys must
-        /// be unique, and ranks must be nonnegative. The caller checks the upper rank bound,
-        /// because this class does not know the size of the World.
+        /// be unique, and ranks must be in [0, nproc).
+        /// @param[in] nproc The number of processes in the World that uses this map
         /// @throw MadnessException if v is not valid
-        LBDeuxPmap(const std::vector<pairT>& v) {
+        LBDeuxPmap(const std::vector<pairT>& v, const ProcessID nproc) {
             MADNESS_CHECK_THROW(!v.empty(), "LBDeuxPmap: empty assignment");
             map.reserve(v.size());
             for (const pairT& entry : v) {
-                MADNESS_CHECK_THROW(entry.second >= 0, "LBDeuxPmap: negative rank");
+                MADNESS_CHECK_THROW(entry.second >= 0 && entry.second < nproc, "LBDeuxPmap: rank out of range");
                 const bool inserted = map.insert(entry).second;
                 MADNESS_CHECK_THROW(inserted, "LBDeuxPmap: duplicate key");
                 max_level = std::max(max_level, entry.first.level());
@@ -92,6 +92,7 @@ namespace madness {
         /// @return The owner of the nearest ancestor of key that is in the map, or of key itself
         /// @throw MadnessException if no ancestor is in the map, which a valid key cannot cause
         ProcessID owner(const keyT& key) const {
+            // No entry is deeper than max_level, so start the walk at the ancestor on that level.
             keyT k = (key.level() > max_level) ? key.parent(key.level() - max_level) : key;
             while (true) {
                 const iteratorT it = map.find(k);
@@ -410,7 +411,11 @@ namespace madness {
         std::shared_ptr< WorldDCPmapInterface<keyT> > load_balance(double fac = 1.0, bool printstuff=false) {
             world.gop.fence();
             // Compute full tree of costs
-            double avg = sum()/(world.size()*fac);
+            const double total = sum();
+            // A NaN or infinite cost anywhere reaches the root total, and would break the sort below.
+            // total is broadcast, so every rank throws together.
+            MADNESS_CHECK_THROW(std::isfinite(total), "LoadBalanceDeux: the cost function returned a non-finite cost");
+            double avg = total/(world.size()*fac);
             //if (world.rank() == 0) print_tree();
             world.gop.fence();
 
@@ -482,7 +487,7 @@ namespace madness {
 
             // Return the Procmap
 
-            return std::shared_ptr< WorldDCPmapInterface<keyT> >(new LBDeuxPmap<NDIM>(map));
+            return std::shared_ptr< WorldDCPmapInterface<keyT> >(new LBDeuxPmap<NDIM>(map, world.size()));
         }
     };
 }
