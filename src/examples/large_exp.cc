@@ -520,7 +520,7 @@ void test6(World& world) {
     print("\n Testing convolution of Gaussians to expose noise from Gibbs oscillations\n");
     int k = 10;
     double thresh = 1e-8;
-    double L = 10.0;
+    double L = 11.0;
     double lo = 1e-6;
     
     FunctionDefaults<3>::set_k(k);
@@ -538,7 +538,7 @@ void test6(World& world) {
     f.reconstruct();
     Level depth = f.max_depth();
     double userh = (2*L) * std::pow(2.0, -depth);
-    printf("a=%.6f sigma_a=%.6f norm=%.6f depth=%d userh=%.6f  input_err=%.2e\n\n", a, sigma_a, f.norm2(), depth, userh, f.err(NormalizedGaussian(a)));
+    printf("a=%.6f sigma_a=%.6f norm=%.6f depth=%d userh=%.6f  input_err=%.2e L=%.2f k=%d tol=%.2e\n\n", a, sigma_a, f.norm2(), depth, userh, f.err(NormalizedGaussian(a)), L, k, thresh);
 
     printf(" userh/sigma     expnt      |G*f-exact|   |newG*f-exact|   |newG2*f-exact|\n");
     printf("                                                    order:");
