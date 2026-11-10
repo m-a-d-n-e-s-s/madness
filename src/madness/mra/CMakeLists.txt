@@ -11,7 +11,8 @@ set(MADMRA_HEADERS
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h composite_product_op.h
-    interpolation_1d.h phandler.h)
+    interpolation_1d.h phandler.h magnetic_primitives.h magnetic_kernel.h magnetic_kernel_chain.h
+    magnetic_kernel_ft.h magnetic_kernel_mehler.h magnetic_kernels.h)
 
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
@@ -47,6 +48,8 @@ if(BUILD_TESTING)
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
+  # magnetic Green's-function kernels (magnetic_kernels.h)
+  add_unittests(mra_magnetic "test_magnetic_kernels.cc" "MADmra;MADgtest" "unittests;long")
   
   # Add MPI tests for test_memory_measurement
   # MPI options can be set at runtime via MADNESS_MPI_NODE_OPTIONS environment variable
