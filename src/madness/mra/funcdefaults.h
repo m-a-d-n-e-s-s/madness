@@ -51,6 +51,34 @@ namespace madness {
     template <std::size_t NDIM> class Displacements;  // defined in displacements.h, included at the end of this file
     template <typename T, std::size_t NDIM> class FunctionImpl;
 
+    /// Whether MADmra instantiates Function, FunctionImpl, FunctionDefaults, ... for dimension \p N
+
+    /// Controlled by the MADNESS_MRA_DIMENSIONS CMake option (FUNCTION_INSTANTIATE_<N> in madness/config.h).
+    /// Use it in `if constexpr` to keep generic code from referencing a dimension that is not built.
+    constexpr bool mra_dimension_instantiated(std::size_t N) {
+        switch (N) {
+#ifdef FUNCTION_INSTANTIATE_1
+            case 1: return true;
+#endif
+#ifdef FUNCTION_INSTANTIATE_2
+            case 2: return true;
+#endif
+#ifdef FUNCTION_INSTANTIATE_3
+            case 3: return true;
+#endif
+#ifdef FUNCTION_INSTANTIATE_4
+            case 4: return true;
+#endif
+#ifdef FUNCTION_INSTANTIATE_5
+            case 5: return true;
+#endif
+#ifdef FUNCTION_INSTANTIATE_6
+            case 6: return true;
+#endif
+            default: return false;
+        }
+    }
+
     /// The maximum wavelet order presently supported
     static const int MAXK = 30;
 

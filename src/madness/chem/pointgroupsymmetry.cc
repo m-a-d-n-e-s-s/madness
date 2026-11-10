@@ -493,35 +493,49 @@ charactertable projector_irrep::make_d2h_table() const {
 
 
 // explicit instantiation
+#ifdef FUNCTION_INSTANTIATE_1
 template std::vector<Function<double,1> > projector_irrep::project_on_irreps (
 		const std::vector<Function<double,1> >& vhrs, const std::vector<std::string>& irreps) const;
+#endif
+#ifdef FUNCTION_INSTANTIATE_2
 template std::vector<Function<double,2> > projector_irrep::project_on_irreps (
 		const std::vector<Function<double,2> >& vhrs, const std::vector<std::string>& irreps) const;
+#endif
+#ifdef FUNCTION_INSTANTIATE_3
 template std::vector<Function<double,3> > projector_irrep::project_on_irreps (
 		const std::vector<Function<double,3> >& vhrs, const std::vector<std::string>& irreps) const;
+#endif
 
 
+#ifdef FUNCTION_INSTANTIATE_1
 template std::vector<Function<double,1> >
 projector_irrep::apply_symmetry_operators(
 		const std::vector<Function<double,1> >& vrhs,
 		Function<double,1> metric,
 		std::vector<std::string>& sirreps) const;
+#endif
+#ifdef FUNCTION_INSTANTIATE_2
 template std::vector<Function<double,2> >
 projector_irrep::apply_symmetry_operators(
 		const std::vector<Function<double,2> >& vrhs,
 		Function<double,2> metric,
 		std::vector<std::string>& sirreps) const;
+#endif
+#ifdef FUNCTION_INSTANTIATE_3
 template std::vector<Function<double,3> >
 projector_irrep::apply_symmetry_operators(
 		const std::vector<Function<double,3> >& vrhs,
 		Function<double,3> metric,
 		std::vector<std::string>& sirreps) const;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_3
 template std::vector<Function<double_complex,3> >
 projector_irrep::apply_symmetry_operators(
         const std::vector<Function<double_complex,3> >& vrhs,
         Function<double,3> metric,
         std::vector<std::string>& sirreps) const;
+#endif
 
 //template void Class::function(int);
 //template class Kinetic<double,2>;

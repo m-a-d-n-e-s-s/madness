@@ -136,12 +136,18 @@ namespace madness {
             if (debug and (world.rank()==0)) print("objects in this world ",all_objects);
 
             for (const auto& obj : all_objects) {
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,1>(obj)) add_memory_to_map(*funcimpl);
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,2>(obj)) add_memory_to_map(*funcimpl);
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,3>(obj)) add_memory_to_map(*funcimpl);
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,4>(obj)) add_memory_to_map(*funcimpl);
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,5>(obj)) add_memory_to_map(*funcimpl);
-                if (auto funcimpl=cast_to_funcimpl_ptr<double,6>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(1))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,1>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(2))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,2>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(3))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,3>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(4))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,4>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(5))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,5>(obj)) add_memory_to_map(*funcimpl);
+                if constexpr (mra_dimension_instantiated(6))
+                    if (auto funcimpl=cast_to_funcimpl_ptr<double,6>(obj)) add_memory_to_map(*funcimpl);
             }
         }
 

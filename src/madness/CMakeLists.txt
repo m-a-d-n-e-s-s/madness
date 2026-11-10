@@ -41,14 +41,18 @@ endif(LAPACK_FOUND)
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
-	add_subdirectory(chem)
+	# MADchem needs MRA dimensions 1,2,3,4,6 (see MADNESS_MRA_DIMENSIONS)
+	if (MADNESS_MRA_HAS_CHEM_DIMENSIONS)
+		add_subdirectory(chem)
+		set(_madchem_objects $<TARGET_OBJECTS:MADchem-obj>)
+	endif()
     # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
     	$<TARGET_OBJECTS:MADtensor-obj>
     	$<TARGET_OBJECTS:MADlinalg-obj> $<TARGET_OBJECTS:MADmuparser-obj>
     	$<TARGET_OBJECTS:MADtinyxml-obj> $<TARGET_OBJECTS:MADmra-obj>
-		$<TARGET_OBJECTS:MADchem-obj>)
+		${_madchem_objects})
 endif(NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # Set the dependencies for the super-library

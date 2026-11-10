@@ -80,6 +80,7 @@ CC_vecfunction::print_size(const std::string& msg) const {
     }
 }
 
+#ifdef FUNCTION_INSTANTIATE_6  // 6D pair functions, see the CCPairBuilder block below
 void
 CCPair::info() const {
     if (constant_part.world().rank() == 0) {
@@ -92,6 +93,7 @@ CCPair::info() const {
         std::cout << "\n";
     }
 }
+#endif
 
 madness::vector_real_function_3d
 CCIntermediatePotentials::get_potential(const PotentialType& ptype, const FuncType& ftype, const bool throw_if_empty) const {
@@ -199,6 +201,7 @@ void CCParameters::information(World& world) const {
     }
 }
 
+#ifdef FUNCTION_INSTANTIATE_6  // compares 3D and 6D FunctionDefaults; only used by CC2
 void CCParameters::sanity_check(World& world) const {
     size_t warnings = 0;
     if (FunctionDefaults<3>::get_thresh() > 0.01 * FunctionDefaults<6>::get_thresh())
@@ -251,6 +254,7 @@ void CCParameters::sanity_check(World& world) const {
         warnings += warning(world, "no_compute flag detected but no restart flag");
     }
 }
+#endif
 
 template<typename T, std::size_t NDIM>
 Function<T,NDIM>
@@ -275,7 +279,8 @@ CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const C
 }
 
 template<typename T, std::size_t NDIM>
-Function<T,2*NDIM> CCConvolutionOperator<T,NDIM>::operator()(const Function<T,2*NDIM>& u, const size_t particle) const {
+Function<T,2*NDIM> CCConvolutionOperator<T,NDIM>::operator()(const Function<T,2*NDIM>& u, const size_t particle) const
+    requires (mra_dimension_instantiated(2*NDIM)) {
     MADNESS_CHECK(particle == 1 or particle == 2);
     MADNESS_CHECK(op);
     op->particle() = particle;
@@ -284,7 +289,8 @@ Function<T,2*NDIM> CCConvolutionOperator<T,NDIM>::operator()(const Function<T,2*
 
 template<typename T, std::size_t NDIM>
 Function<T,NDIM>
-CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const {
+CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const
+    requires (mra_dimension_instantiated(2*NDIM)) {
     MADNESS_CHECK(particle == 1 or particle == 2);
     MADNESS_CHECK(op);
     const Function<T,2*NDIM> tmp = multiply(copy(u), copy(bra.function), particle);
@@ -502,6 +508,9 @@ assign_name(const FuncType& inp) {
     return "???";
 }
 
+// pair construction and the CC/MP2 macrotasks operate on 6D pair functions and call into
+// CCPotentials; they are only built (together with CCPotentials.cc etc.) if 6D MRA is instantiated
+#ifdef FUNCTION_INSTANTIATE_6
 /// make a CCPair without the 6d function and some bookkeeping information
 CCPair CCPairBuilder::make_bare_pair(const int i, const int j) const {
     MADNESS_ASSERT(i>=info.parameters.freeze() && size_t(i) < info.mo_bra.size());
@@ -739,14 +748,20 @@ MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
      }
     return result;
 }
+#endif // FUNCTION_INSTANTIATE_6
 
+#ifdef FUNCTION_INSTANTIATE_3
 template class CCConvolutionOperator<double,3>;
-template class CCConvolutionOperator<double,2>;
-template class CCConvolutionOperator<double,1>;
-
 template class CCFunction<double,3>;
+#endif
+#ifdef FUNCTION_INSTANTIATE_2
+template class CCConvolutionOperator<double,2>;
 template class CCFunction<double,2>;
+#endif
+#ifdef FUNCTION_INSTANTIATE_1
+template class CCConvolutionOperator<double,1>;
 template class CCFunction<double,1>;
+#endif
 
 }// end namespace madness
 

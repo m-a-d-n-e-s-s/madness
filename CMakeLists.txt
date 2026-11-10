@@ -197,6 +197,69 @@ if(ENABLE_GENTENSOR)
 endif()
 set(TENSOR_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL "enable generic tensors")
 
+# MRA dimensions for which Function<T,NDIM> & friends are explicitly instantiated in MADmra.
+# Each dimension costs a large translation unit (mra<N>.cc); restricting the set shortens builds
+# considerably. Code using a Function of a dimension that is not in this list fails to link.
+# MADchem (and everything built on it: apps, examples) needs dimension 3 and is skipped
+# without it; its correlated methods (MP2, MP3, CC2) additionally need 6. Applications,
+# examples and tests that need a missing dimension are skipped; pymadness binds all six.
+set(MADNESS_MRA_DIMENSIONS "1;2;3;4;5;6" CACHE STRING
+    "Semicolon-separated list of MRA dimensions (subset of 1..6) to instantiate")
+list(REMOVE_DUPLICATES MADNESS_MRA_DIMENSIONS)
+list(SORT MADNESS_MRA_DIMENSIONS)
+if (NOT MADNESS_MRA_DIMENSIONS)
+  message(FATAL_ERROR "MADNESS_MRA_DIMENSIONS must name at least one dimension")
+endif()
+foreach(_dim IN LISTS MADNESS_MRA_DIMENSIONS)
+  if (NOT _dim MATCHES "^[1-6]$")
+    message(FATAL_ERROR "MADNESS_MRA_DIMENSIONS: invalid dimension \"${_dim}\" (valid: 1..6)")
+  endif()
+endforeach()
+foreach(_dim RANGE 1 6)
+  if (_dim IN_LIST MADNESS_MRA_DIMENSIONS)
+    set(FUNCTION_INSTANTIATE_${_dim} ON)   # consumed by cmake/config.h.in
+  else()
+    set(FUNCTION_INSTANTIATE_${_dim} OFF)
+  endif()
+endforeach()
+# madness_mra_has_dimensions(<outvar> <dim>...): <outvar> is TRUE iff all <dim>s are instantiated
+function(madness_mra_has_dimensions _out)
+  set(_ok TRUE)
+  foreach(_dim IN LISTS ARGN)
+    if (NOT _dim IN_LIST MADNESS_MRA_DIMENSIONS)
+      set(_ok FALSE)
+    endif()
+  endforeach()
+  set(${_out} ${_ok} PARENT_SCOPE)
+endfunction()
+# madness_mra_filter_targets(<listvar>): drop the entries of <listvar> (target names or source files)
+# that need an MRA dimension not in MADNESS_MRA_DIMENSIONS. The dimensions needed by entry <name>
+# (source file name without extension) are read from the variable mra_dims_<name> in the calling
+# scope; entries without such a variable need no MRA dimension beyond what their library needs.
+function(madness_mra_filter_targets _listvar)
+  set(_kept)
+  foreach(_t IN LISTS ${_listvar})
+    get_filename_component(_name "${_t}" NAME_WE)
+    madness_mra_has_dimensions(_ok ${mra_dims_${_name}})
+    if (_ok)
+      list(APPEND _kept "${_t}")
+    endif()
+  endforeach()
+  set(${_listvar} "${_kept}" PARENT_SCOPE)
+endfunction()
+madness_mra_has_dimensions(MADNESS_MRA_HAS_CHEM_DIMENSIONS 3)
+madness_mra_has_dimensions(MADNESS_MRA_HAS_ALL_DIMENSIONS 1 2 3 4 5 6)
+string(REPLACE ";" "," _mra_dims_str "${MADNESS_MRA_DIMENSIONS}")
+add_feature_info("MRA_DIMENSIONS=${_mra_dims_str}" TRUE
+    "MRA Function dimensions instantiated in MADmra")
+if (NOT MADNESS_MRA_HAS_CHEM_DIMENSIONS)
+  message(STATUS "MADNESS_MRA_DIMENSIONS=${_mra_dims_str} lacks dimension 3 needed by MADchem: "
+                 "MADchem, applications, and examples will not be built")
+elseif (NOT 6 IN_LIST MADNESS_MRA_DIMENSIONS)
+  message(STATUS "MADNESS_MRA_DIMENSIONS=${_mra_dims_str} lacks dimension 6: "
+                 "MADchem is built without the correlated methods (MP2, MP3, CC2)")
+endif()
+
 option(ENABLE_TASK_PROFILER
     "Enable task profiler that collects per-task start and stop times." OFF)
 add_feature_info(TASK_PROFILER ENABLE_TASK_PROFILER "supports task-level tracing of program execution")
