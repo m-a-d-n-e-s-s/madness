@@ -9,6 +9,7 @@ pybind11_add_module(_pymadness
     src/_pymadness/bind_function.cpp
     src/_pymadness/bind_operators.cpp
     src/_pymadness/bind_tensor.cpp
+    src/_pymadness/bind_magnetic.cpp
 )
 
 target_link_libraries(_pymadness PRIVATE madness)

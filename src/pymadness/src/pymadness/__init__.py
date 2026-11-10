@@ -145,6 +145,15 @@ from _pymadness import (
     numpy_to_tensor,
 )
 
+# magnetic Green's-function kernels (madness/mra/magnetic_kernels.h); present only if the extension
+# was built with bind_magnetic.cpp
+try:
+    from _pymadness import (MagneticGauge, MagneticKernel, MagneticKernelParameters, PhaseRefinement,
+                            make_magnetic_kernel, magnetic_kernel_names, mul_bilinear_phase)
+    HAVE_MAGNETIC_KERNEL = True
+except ImportError:                      # pragma: no cover - older extension build
+    HAVE_MAGNETIC_KERNEL = False
+
 from . import plotting
 
 

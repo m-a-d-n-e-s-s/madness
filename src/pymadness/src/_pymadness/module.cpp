@@ -15,6 +15,7 @@ void bind_defaults(py::module_& m);
 void bind_tensor(py::module_& m);
 void bind_function(py::module_& m);
 void bind_operators(py::module_& m);
+void bind_magnetic(py::module_& m);
 
 PYBIND11_MODULE(_pymadness, m) {
     m.doc() = "MADNESS: Multiresolution Adaptive Numerical Environment for Scientific Simulation";
@@ -24,4 +25,5 @@ PYBIND11_MODULE(_pymadness, m) {
     bind_tensor(m);
     bind_function(m);
     bind_operators(m);
+    bind_magnetic(m);
 }
