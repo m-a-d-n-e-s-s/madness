@@ -21,6 +21,7 @@
 #include <madness/mra/nonlinsol.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/vmra.h>
+#include <madness/mra/magnetic_kernel.h>
 
 namespace madness {
 
@@ -67,6 +68,29 @@ public:
         initialize<double>("potential_radius",-1.0);
         initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
         initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
+
+        // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH
+        initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
+                "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
+        initialize<double>("thresh",-1.0,"truncation threshold; <0: dft econv");
+        initialize<double>("nuclear_smoothing",-1.0,"smoothing radius c of the nuclear potential; <0: from eprec");
+        initialize<bool>("spin_zeeman",true,"include the spin Zeeman term +-B/2");
+        initialize<std::string>("guess_type","default","default (see get_initial_orbitals) or magnetic_lcao",{"default","magnetic_lcao"});
+        initialize<std::string>("guess2","sigma","magnetic_lcao: second orbital sigma (+-) or pi ((x-iy) sigma_g)",{"sigma","pi"});
+        initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
+        initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
+        initialize<int>("kernel_nodes",40,"chain, mehler: Gauss-Legendre nodes in ln tau");
+        initialize<double>("kernel_tmin",1.e-4,"chain, mehler: smallest tau");
+        initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
+        initialize<int>("kernel_nbroaden",0,"chain, mehler: broaden passes before each convolution");
+        initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
+        initialize<double>("ft_h",0.25,"ft: step in ln tau");
+        initialize<double>("ft_tmin",1.e-8,"ft: smallest tau");
+        initialize<double>("ft_tmax_factor",45.0,"ft: largest tau = ft_tmax_factor/(B/2-E)");
+        initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
+        initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
+        initialize<double>("ft_rtaper",0.0,"ft: phase taper width; 0: derived");
+        initialize<double>("ft_dphi",3.0,"ft: phase variation per box");
     }
 
 	Nemo_complex_Parameters(World& world, const commandlineparser& parser) : Nemo_complex_Parameters() {
@@ -103,6 +127,37 @@ public:
 	bool use_v_vector() const {return get<bool>("use_v_vector");}
 	std::vector<std::string> guess() const {return get<std::vector<std::string>>("guess");}
 	std::vector<std::string> guess_functions() const {return get<std::vector<std::string>>("guess_functions");}
+
+	std::string kernel() const {return get<std::string>("kernel");}
+	bool use_magnetic_kernel() const {return kernel()!="bsh";}
+	double thresh() const {return get<double>("thresh");}
+	double nuclear_smoothing() const {return get<double>("nuclear_smoothing");}
+	bool spin_zeeman() const {return get<bool>("spin_zeeman");}
+	std::string guess_type() const {return get<std::string>("guess_type");}
+	std::string guess2() const {return get<std::string>("guess2");}
+	double kernel_gap() const {return get<double>("kernel_gap");}
+	double kernel_gap_start() const {return get<double>("kernel_gap_start");}
+
+	/// the parameters of the magnetic kernel (field along z, gauge origin r = 0)
+	MagneticKernelParameters kernel_parameters() const {
+		MagneticKernelParameters p;
+		p.kind=kernel();
+		p.B=physical_B();
+		p.verbose=(printlevel()>=3);
+		p.nodes=get<int>("kernel_nodes");
+		p.tmin=get<double>("kernel_tmin");
+		p.nlll=get<double>("kernel_nlll");
+		p.nbroaden=get<int>("kernel_nbroaden");
+		p.phase_tolfac=get<double>("phase_tolfac");
+		p.ft_h=get<double>("ft_h");
+		p.ft_tmin=get<double>("ft_tmin");
+		p.ft_tmax_factor=get<double>("ft_tmax_factor");
+		p.ft_qextra=get<double>("ft_qextra");
+		p.ft_rcut=get<double>("ft_rcut");
+		p.ft_rtaper=get<double>("ft_rtaper");
+		p.ft_dphi=get<double>("ft_dphi");
+		return p;
+	}
 
 };
 
@@ -396,7 +451,9 @@ public:
 			const std::vector<complex_function_3d>& Vpsi,
 			const std::vector<complex_function_3d>& psi,
 			Tensor<double>& eps,
-			const double levelshift=0.0) const;
+			const double levelshift=0.0,
+			const double spin_zeeman=0.0,
+			const double kernel_gap=1.e-3) const;
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
@@ -437,6 +494,16 @@ public:
 
 	std::vector<complex_function_3d> make_bra(const std::vector<complex_function_3d>& mo) const;
 
+	/// right-hand side V psi of the iteration: the potentials not contained in the Green's function
+	std::vector<complex_function_3d> assemble_rhs(const potentials& pot, const std::vector<complex_function_3d>& mo) const;
+
+	/// magnetic kernels: <pi phi_i|pi phi_j>/2 with pi = -i nabla + A in the gauge of the kernel
+	Tensor<double_complex> kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const;
+
+	/// LCAO of magnetically translated, Landau-squeezed 1s functions (sigma_g, sigma_u or pi)
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
+	magnetic_lcao_guess() const;
+
 
 protected:
 
@@ -450,6 +517,11 @@ protected:
 	CalculationParameters calc_param;
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
+
+	/// magnetic Green's-function kernel (complex block: kernel != bsh)
+	std::shared_ptr<MagneticKernel> mkernel;
+	/// magnetic kernels: sum of the kernel energies - (J - K) + E_nuc, the energy of the original drivers
+	double kernel_energy=0.0;
 
 	/// the magnetic field B=rot(A)
 	coord_3d B;
