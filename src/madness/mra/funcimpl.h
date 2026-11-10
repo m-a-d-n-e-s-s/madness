@@ -564,7 +564,8 @@ namespace madness {
 
             if (key.level()<2) return false;
             Slice s = Slice(0,k-1);
-            std::vector<Slice> s0(NDIM/2,s);
+            // one slice per dimension of each factor (f and g may differ in dimension, e.g. 2D x 1D)
+            std::vector<Slice> s0f(fcoeff.ndim(),s), s0g(gcoeff.ndim(),s);
 
             const double tol=f->get_thresh();
             const double thresh=f->truncate_tol(tol, key)*0.3;      // custom factor to "ensure" accuracy
@@ -577,8 +578,8 @@ namespace madness {
             if (norm < thresh) return true;
 
             // norm of the scaling function coefficients
-            const double sfnorm=fcoeff(s0).normf();
-            const double sgnorm=gcoeff(s0).normf();
+            const double sfnorm=fcoeff(s0f).normf();
+            const double sgnorm=gcoeff(s0g).normf();
 
             // get the error of both functions and of the pair function;
             // need the abs for numerics: sfnorm might be equal fnorm.
@@ -3914,29 +3915,33 @@ template<size_t NDIM>
             set_tree_state(reconstructed);
         }
 
-        /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
-        template<size_t LDIM, typename leaf_opT>
+        /// Hartree product of an LDIM and a KDIM function to yield a NDIM = LDIM+KDIM function
+        /// (KDIM defaults to LDIM: the usual pair function)
+        template<size_t LDIM, typename leaf_opT, size_t KDIM = LDIM>
         struct hartree_op {
             bool randomize() const {return false;}
 
-            typedef hartree_op<LDIM,leaf_opT> this_type;
+            typedef hartree_op<LDIM,leaf_opT,KDIM> this_type;
             typedef CoeffTracker<T,LDIM> ctL;
+            typedef CoeffTracker<T,KDIM> ctK;
 
             implT* result; 	    ///< where to construct the pair function
-            ctL p1, p2;			///< tracking coeffs of the two lo-dim functions
+            ctL p1;			    ///< tracking coeffs of the first lo-dim function (LDIM)
+            ctK p2;			    ///< tracking coeffs of the second lo-dim function (KDIM)
             leaf_opT leaf_op;   ///< determine if a given node will be a leaf node
 
             // ctor
             hartree_op() : result() {}
-            hartree_op(implT* result, const ctL& p11, const ctL& p22, const leaf_opT& leaf_op)
+            hartree_op(implT* result, const ctL& p11, const ctK& p22, const leaf_opT& leaf_op)
                 : result(result), p1(p11), p2(p22), leaf_op(leaf_op) {
-                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+                MADNESS_ASSERT(LDIM+KDIM==NDIM);
             }
 
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
                 // break key into particles (these are the child keys, with datum1/2 come the parent keys)
-                Key<LDIM> key1,key2;
+                Key<LDIM> key1;
+                Key<KDIM> key2;
                 key.break_apart(key1,key2);
 
                 // this returns the appropriate NS coeffs for key1 and key2 resp.
@@ -3959,7 +3964,8 @@ template<size_t NDIM>
             this_type make_child(const keyT& child) const {
 
                 // break key into particles
-                Key<LDIM> key1, key2;
+                Key<LDIM> key1;
+                Key<KDIM> key2;
                 child.break_apart(key1,key2);
 
                 return this_type(result,p1.make_child(key1),p2.make_child(key2),leaf_op);
@@ -3967,12 +3973,12 @@ template<size_t NDIM>
 
             Future<this_type> activate() const {
             	Future<ctL> p11=p1.activate();
-            	Future<ctL> p22=p2.activate();
+            	Future<ctK> p22=p2.activate();
                 return result->world.taskq.add(detail::wrap_mem_fn(*const_cast<this_type *> (this),
                                                &this_type::forward_ctor),result,p11,p22,leaf_op);
             }
 
-            this_type forward_ctor(implT* result1, const ctL& p11, const ctL& p22, const leaf_opT& leaf_op) {
+            this_type forward_ctor(implT* result1, const ctL& p11, const ctK& p22, const leaf_opT& leaf_op) {
             	return this_type(result1,p11,p22,leaf_op);
             }
 
@@ -4031,9 +4037,9 @@ template<size_t NDIM>
         /// @param[in]	p1	FunctionImpl of particle 1
         /// @param[in]	p2	FunctionImpl of particle 2
         /// @param[in]	leaf_op	operator determining of a given box will be a leaf
-        template<std::size_t LDIM, typename leaf_opT>
+        template<std::size_t LDIM, std::size_t KDIM, typename leaf_opT>
         void hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> p1,
-                             const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> p2,
+                             const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> p2,
                              const leaf_opT& leaf_op, bool fence) {
             MADNESS_CHECK_THROW(p1.size()==p2.size(),"hartree_product: p1 and p2 must have the same size");
             for (auto& p : p1) MADNESS_CHECK(p->is_nonstandard() or p->is_nonstandard_with_leaves());
@@ -4046,10 +4052,10 @@ template<size_t NDIM>
 
                     // prepare the CoeffTracker
                     CoeffTracker<T,LDIM> iap1(p1[i].get());
-                    CoeffTracker<T,LDIM> iap2(p2[i].get());
+                    CoeffTracker<T,KDIM> iap2(p2[i].get());
 
                     // the operator making the coefficients
-                    typedef hartree_op<LDIM,leaf_opT> coeff_opT;
+                    typedef hartree_op<LDIM,leaf_opT,KDIM> coeff_opT;
                     coeff_opT coeff_op(this,iap1,iap2,leaf_op);
 
                     // this operator simply inserts the coeffs into this' tree
@@ -7806,19 +7812,16 @@ template<size_t NDIM>
             /// do the actual contraction
             Future<argT> operator()(const Key<NDIM>& key) const {
 
-            	Key<LDIM> key1,key2,dest;
-            	key.break_apart(key1,key2);
+                // g lives on dimensions 0..LDIM-1 (dim = 0) or NDIM-LDIM..NDIM-1 (dim = 1); the result on
+                // the other KDIM = NDIM-LDIM dimensions (KDIM may differ from LDIM, e.g. 3D -> 2D)
+                constexpr std::size_t KDIM=NDIM-LDIM;
+                Key<LDIM> gkey;
+                Key<KDIM> dest;
+                if (dim==0) key.break_apart(gkey,dest);
+                else key.break_apart(dest,gkey);
 
             	// make the right coefficients
-                coeffT gcoeff;
-                if (dim==0) {
-                    gcoeff=iag.get_impl()->parent_to_child(iag.coeff(),iag.key(),key1);
-                    dest=key2;
-                }
-                if (dim==1) {
-                    gcoeff=iag.get_impl()->parent_to_child(iag.coeff(),iag.key(),key2);
-                    dest=key1;
-                }
+                coeffT gcoeff=iag.get_impl()->parent_to_child(iag.coeff(),iag.key(),gkey);
 
                 MADNESS_ASSERT(fimpl->get_coeffs().probe(key));		// must be local!
                 const nodeT& fnode=fimpl->get_coeffs().find(key).get()->second;
@@ -7831,16 +7834,19 @@ template<size_t NDIM>
                 MADNESS_CHECK(gcoeff.is_full_tensor());
                 tensorT final(result->cdata.vk);
                 const int k=fcoeff.dim(0);
-                const int k_ldim=std::pow(k,LDIM);
-                std::vector<long> shape(LDIM, k);
+                const long k_ldim=std::pow(k,LDIM);
+                const long k_kdim=std::pow(k,KDIM);
+                std::vector<long> shape(KDIM, k);
 
                 if (fcoeff.is_full_tensor()) {
                     //  result_i = \sum_j g_j f_ji
                     const tensorT gtensor = gcoeff.full_tensor().reshape(k_ldim);
-                    const tensorT ftensor = fcoeff.full_tensor().reshape(k_ldim,k_ldim);
+                    const tensorT ftensor = (dim==0) ? fcoeff.full_tensor().reshape(k_ldim,k_kdim)
+                                                     : fcoeff.full_tensor().reshape(k_kdim,k_ldim);
                     final=inner(gtensor,ftensor,0,dim).reshape(shape);
 
                 } else if (fcoeff.is_svd_tensor()) {
+                    MADNESS_CHECK_THROW(KDIM==LDIM, "project_out: SVD tensors need equal dimensions");
                     if (fcoeff.rank()>0) {
 
                         //  result_i = \sum_jr g_j a_rj w_r b_ri
@@ -7862,15 +7868,17 @@ template<size_t NDIM>
                 }
 
                 // accumulate the result
-                result->coeffs.task(dest, &FunctionNode<T,LDIM>::accumulate2, final, result->coeffs, dest, TaskAttributes::hipri());
+                result->coeffs.task(dest, &FunctionNode<T,KDIM>::accumulate2, final, result->coeffs, dest, TaskAttributes::hipri());
 
                 return Future<argT> (argT(fnode.is_leaf(),coeffT()));
             }
 
             this_type make_child(const keyT& child) const {
-            	Key<LDIM> key1,key2;
-            	child.break_apart(key1,key2);
-            	const Key<LDIM> gkey = (dim==0) ? key1 : key2;
+                constexpr std::size_t KDIM=NDIM-LDIM;
+                Key<LDIM> gkey;
+                Key<KDIM> other;
+                if (dim==0) child.break_apart(gkey,other);
+                else child.break_apart(other,gkey);
 
                 return this_type(fimpl,result,iag.make_child(gkey),dim);
             }
