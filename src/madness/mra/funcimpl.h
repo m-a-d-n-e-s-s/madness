@@ -5405,9 +5405,9 @@ template<size_t NDIM>
                                 const TensorArgs& apply_targs) {
 
             coeffT result;
-            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff,
+            if constexpr (OPDIM<NDIM) result= op->apply2_lowdim(args.key, args.d, coeff,
                     args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff,
+            if constexpr (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff,
                     args.tol/args.fac/args.cnorm, args.tol/args.fac);
 
             const double result_norm=result.svd_normf();
@@ -5739,16 +5739,17 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            // list of displacements sorted in order of increasing distance
-            // N.B. if op is lattice-summed gives periodic displacements, else uses
-            // non-periodic even if op treats any modes of this as periodic
-            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
+            // An operator acting on one particle of full-rank coefficients: screen with a norm that
+            // includes the identity on the spectator particle (see SeparatedConvolution::norm_lowdim),
+            // and for 1D operators continue beyond the standard displacements while contributions
+            // are significant -- the spectator part of the NS block does not decay between levels,
+            // so a wide kernel needs its full range at every level.  The low-rank (SVD) path keeps
+            // its original screening.
+            const bool lowdim_full = (opdim<NDIM) and coeff.is_full_tensor();
 
-            for (const auto& d: disp) {
-                const int shell=d.distsq_bc(op->lattice_summed());
-                if (do_kernel and (shell>0)) break;
-                if ((not do_kernel) and (shell==0)) continue;
-
+            /// apply the operator for one displacement
+            /// @return -1 if the destination is outside the cell, 0 if the contribution is negligible, 1 otherwise
+            auto apply_displacement = [&](const opkeyT& d, const int shell, bool& stop) -> int {
                 keyT disp1;
                 if (op->particle()==1) disp1=d.merge_with(nullkey);
                 else if (op->particle()==2) disp1=nullkey.merge_with(d);
@@ -5758,7 +5759,55 @@ template<size_t NDIM>
 
                 keyT dest = neighbor_in_volume(key, disp1);
 
-                if (not dest.is_valid()) continue;
+                if (not dest.is_valid()) return -1;
+
+                const double opnorm = lowdim_full ? op->norm_lowdim(key.level(), d, source)
+                                                  : op->norm(key.level(), d, source);
+                double norm=0.0;
+
+                if (cnorm*opnorm> tol/fac) {
+
+                    double cost_ratio=op->estimate_costs(source, d, coeff_SVD, tol/fac/cnorm, tol/fac);
+                    //                        cost_ratio=1.5;     // force low rank
+                    //                        cost_ratio=0.5;     // force full rank
+
+                    if (cost_ratio>0.0) {
+
+                        do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
+                        norm=0.0;
+                        // kernel2 applies the operator to all dimensions of the coefficients,
+                        // so an operator acting on one particle only always uses kernel3
+                        if (cost_ratio<1.0 and (opdim==NDIM)) {
+                            if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
+                            norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
+                        } else {
+                            if (opdim<NDIM) {       // apply operator on one particle only
+                                norm=do_apply_kernel3(op,coeff_SVD,args,apply_targs);
+                            } else {
+                                norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                            }
+                        }
+                        maxnorm=std::max(norm,maxnorm);
+                    }
+
+                } else if (shell >= 12) {
+                    stop=true; // Assumes monotonic decay beyond nearest neighbor
+                }
+                return (norm<0.3*tol/fac) ? 0 : 1;
+            };
+
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed gives periodic displacements, else uses
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
+
+            Translation lmax=0;     // largest |translation| of the standard displacements
+            for (const auto& d: disp) {
+                for (std::size_t i=0; i<opdim; ++i) lmax=std::max(lmax,std::abs(d.translation()[i]));
+
+                const int shell=d.distsq_bc(op->lattice_summed());
+                if (do_kernel and (shell>0)) break;
+                if ((not do_kernel) and (shell==0)) continue;
 
                 // directed screening
                 // working assumption here is that the operator is isotropic and
@@ -5772,39 +5821,48 @@ template<size_t NDIM>
                     }
                 }
                 if (not screened) {
-
-                    double opnorm = op->norm(key.level(), d, source);
-                    double norm=0.0;
-
-                    if (cnorm*opnorm> tol/fac) {
-
-                        double cost_ratio=op->estimate_costs(source, d, coeff_SVD, tol/fac/cnorm, tol/fac);
-                        //                        cost_ratio=1.5;     // force low rank
-                        //                        cost_ratio=0.5;     // force full rank
-
-                        if (cost_ratio>0.0) {
-
-                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
-                            norm=0.0;
-                            if (cost_ratio<1.0) {
-                                if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
-                                norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
-                            } else {
-                                if (2*opdim==NDIM) {    // apply operator on one particle only
-                                    norm=do_apply_kernel3(op,coeff_SVD,args,apply_targs);
-                                } else {
-                                    norm=do_apply_kernel3(op,coeff,args,apply_targs);
-                                }
-                            }
-                            maxnorm=std::max(norm,maxnorm);
-                        }
-
-                    } else if (shell >= 12) {
-                        break; // Assumes monotonic decay beyond nearest neighbor
-                    }
-                    if (norm<0.3*tol/fac) blacklist.push_back(d);
+                    bool stop=false;
+                    const int status=apply_displacement(d, shell, stop);
+                    if (stop) break;
+                    if (status==0) blacklist.push_back(d);
                 }
             }
+
+            // operator on one particle: continue outwards in shells of increasing Chebyshev
+            // distance until the contributions are negligible for two consecutive shells
+            if constexpr (opdim<=2) {
+                if (lowdim_full and (not do_kernel) and (not op->lattice_summed().any())) {
+                    const Translation twon=Translation(1)<<key.level();
+                    int nsmall=0;
+                    for (Translation l=lmax+1; l<twon and nsmall<2; ++l) {
+                        bool significant=false, inside=false;
+                        auto visit = [&](const Vector<Translation,opdim>& t) {
+                            const opkeyT d(key.level(),t);
+                            bool stop=false;
+                            const int status=apply_displacement(d, 0, stop);
+                            if (status>=0) inside=true;
+                            if (status>0) significant=true;
+                        };
+                        if constexpr (opdim==1) {
+                            for (const Translation sign : {Translation(-1),Translation(1)})
+                                visit(Vector<Translation,1>(sign*l));
+                        } else {
+                            // the perimeter of the square of half width l
+                            for (Translation m=-l; m<=l; ++m) {
+                                visit(Vector<Translation,2>({m,-l}));
+                                visit(Vector<Translation,2>({m,l}));
+                            }
+                            for (Translation m=-l+1; m<=l-1; ++m) {
+                                visit(Vector<Translation,2>({-l,m}));
+                                visit(Vector<Translation,2>({l,m}));
+                            }
+                        }
+                        if (not inside) break;              // the whole shell left the cell
+                        nsmall = significant ? 0 : nsmall+1;
+                    }
+                }
+            }
+
             return maxnorm;
         }
 
