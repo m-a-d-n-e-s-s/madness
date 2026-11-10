@@ -6,8 +6,8 @@
 ///   - chain_landau conjugated to the symmetric gauge vs chain_symmetric;
 ///   - mehler vs chain_symmetric on the m = 0 function (Lz = 0: the kernels coincide);
 ///   - the weak resolvent identity <f|(T_B - E) G f> = <f|f>.
-/// With mode=apply: apply one kernel to a saved function and save the result (comparison with the
-/// original implementations), e.g.
+/// mode=make / apply / compare: write a test function, apply one kernel to a saved function and save the
+/// result, compare two saved functions (comparison with the original implementations), e.g.
 ///   test_magnetic_kernels mode=apply kernel=ft B=10 E=4 k=10 thresh=1e-5 L=20 in=f out=gf
 
 #include <madness/mra/magnetic_kernels.h>
@@ -123,7 +123,7 @@ int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     p.verbose = true;
     const double E = getd(a, "E", 0.0);
     auto K = make_magnetic_kernel(world, p);
-    complex_function_3d f;
+    complex_function_3d f = complex_factory_3d(world);
     load(f, a.at("in"));
     const double w0 = wall_time();
     const complex_function_3d g = K->apply(f, E);
@@ -134,13 +134,46 @@ int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     return 0;
 }
 
+/// mode=make: the off-axis test function (alpha, m, R = Rx,Ry,Rz, B), saved as out and, in the axis
+/// order (y, x, z) of the Python chain code, as out_yxz
+int make_mode(World& world, const std::map<std::string, std::string>& a) {
+    coord_3d R(0.0);
+    if (a.count("R")) {
+        std::string s = a.at("R");
+        for (int d = 0; d < 3; ++d) {
+            const auto c = s.find(',');
+            R[d] = std::stod(s.substr(0, c));
+            s = c == std::string::npos ? "0" : s.substr(c + 1);
+        }
+    }
+    const complex_function_3d f = gaussian(world, getd(a, "alpha", 1.0), int(getd(a, "m", 0)), R, getd(a, "B", 0.0));
+    save(f, a.at("out"));
+    save(mapdim(f, std::vector<long>{1, 0, 2}), a.at("out") + "_yxz");
+    if (world.rank() == 0) printf("make: |f| = %.12e\n", f.norm2());
+    return 0;
+}
+
+/// mode=compare: |a - b| / |b|, b optionally in the axis order (y, x, z) (swap_b=1)
+int compare_mode(World& world, const std::map<std::string, std::string>& a) {
+    complex_function_3d f = complex_factory_3d(world), g = complex_factory_3d(world);
+    load(f, a.at("a"));
+    load(g, a.at("b"));
+    if (getd(a, "swap_b", 0.0) != 0.0) g = mapdim(g, std::vector<long>{1, 0, 2});
+    const double d = rel_diff(f, g);
+    if (world.rank() == 0)
+        printf("compare: |a| = %.12e  |b| = %.12e  |a-b|/|b| = %.3e  <b|a>/<b|b> - 1 = %.3e\n", f.norm2(), g.norm2(), d,
+               std::abs(inner(g, f) / inner(g, g) - 1.0));
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     World& world = initialize(argc, argv);
     startup(world, argc, argv, true);
     const auto a = parse_args(argc, argv);
-    const bool apply = a.count("mode") && a.at("mode") == "apply";
+    const std::string mode = a.count("mode") ? a.at("mode") : "test";
+    const bool apply = mode != "test";
 
     const double L = getd(a, "L", apply ? 20.0 : 10.0);
     FunctionDefaults<3>::set_k(int(getd(a, "k", 8)));
@@ -149,7 +182,10 @@ int main(int argc, char** argv) {
 
     int success = 0;
     {
-        success = apply ? apply_mode(world, a) : self_test(world, getd(a, "ft", 1.0) != 0.0, int(getd(a, "nbroaden", 6)));
+        if (mode == "apply") success = apply_mode(world, a);
+        else if (mode == "make") success = make_mode(world, a);
+        else if (mode == "compare") success = compare_mode(world, a);
+        else success = self_test(world, getd(a, "ft", 1.0) != 0.0, int(getd(a, "nbroaden", 6)));
     }
     world.gop.fence();
     finalize();
