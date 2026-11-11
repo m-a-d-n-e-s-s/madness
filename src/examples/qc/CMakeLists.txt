@@ -64,7 +64,7 @@ if (BUILD_TESTING AND Python3_EXECUTABLE)
   # ground state on its way to the excitation, and bounds it with `iter_max`.
   # The 6D pair functions of MP2/CC2 are only tractable with the compressed
   # tensor representation, so these decks need ENABLE_GENTENSOR.
-  if (ENABLE_GENTENSOR)
+  if (ENABLE_GENTENSOR AND 6 IN_LIST MADNESS_MRA_DIMENSIONS)
     add_qctest(mp2_he_corr       madqc "qctest;verylong;applications")  # 790 s
     add_qctest(lrcc2_he_excited  madqc "qctest;verylong;applications")  # 6744 s (1h52m)
   endif()

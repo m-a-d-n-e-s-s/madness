@@ -15,6 +15,15 @@ if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
 endif()
 
+# MRA dimensions beyond 3 each example needs; see madness_mra_filter_targets()
+foreach(_ex ac_corr csqrt hatom_1d nonlinschro sininteg tdse1d testcomplexfunctionsolver testspectralprop)
+  set(mra_dims_${_ex} 1)
+endforeach()
+foreach(_ex he helium_exact tiny)
+  set(mra_dims_${_ex} 6)
+endforeach()
+madness_mra_filter_targets(EXAMPLE_SOURCES)
+
 # Create executables for example applications
 foreach(example ${EXAMPLE_SOURCES})
   add_mad_executable(${example} ${example}.cc "MADchem")

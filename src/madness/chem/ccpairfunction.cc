@@ -781,8 +781,13 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
 };
 
 
+// CCPairFunction<T,NDIM> also operates on functions of dimension NDIM/2
 template class CCPairFunction<double,6>;
+#if defined(FUNCTION_INSTANTIATE_4) && defined(FUNCTION_INSTANTIATE_2)
 template class CCPairFunction<double,4>;
+#endif
+#if defined(FUNCTION_INSTANTIATE_2) && defined(FUNCTION_INSTANTIATE_1)
 template class CCPairFunction<double,2>;
+#endif
 
 } // namespace madness

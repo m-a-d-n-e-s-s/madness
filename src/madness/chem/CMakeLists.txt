@@ -124,6 +124,13 @@ set(MADCHEM_SOURCES
     znemo.cc
     PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
 )
+# The correlated methods (MP2, MP3, CC2) work on 6D pair functions; MADchem builds without them
+# when MADNESS_MRA_DIMENSIONS lacks 6 (everything else in MADchem needs only 3D).
+set(MADCHEM_6D_SOURCES CC2.cc mp3.cc ccpairfunction.cc CCPotentials.cc mp2.cc
+    electronic_correlation_factor.cc exchange_commutator.cc operator_diagnostics.cc)
+if (NOT 6 IN_LIST MADNESS_MRA_DIMENSIONS)
+  list(REMOVE_ITEM MADCHEM_SOURCES ${MADCHEM_6D_SOURCES})
+endif()
 if(TARGET Libxc::xc)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
@@ -213,6 +220,18 @@ if(BUILD_TESTING)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dispersion.cc )
   endif(MADNESS_HAS_DFTD3)
 
+  # MRA dimensions beyond 3 each test needs; see madness_mra_filter_targets()
+  set(mra_dims_test_pointgroupsymmetry 2)
+  set(mra_dims_test_BSHApply 1 2)
+  set(mra_dims_test_projector 1 2 4 5 6)
+  set(mra_dims_test_ccpairfunction 1 2 4 5 6)
+  set(mra_dims_test_low_rank_function 1 2 4 5 6)
+  set(mra_dims_test_SCFOperators 1 2 4 6)
+  set(mra_dims_test_operator_diagnostics 1 2 4 6)
+  set(mra_dims_benchmark_exchange_commutator 6)
+  madness_mra_filter_targets(CHEM_TEST_SOURCES_SHORT)
+  madness_mra_filter_targets(CHEM_TEST_SOURCES_LONG)
+
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
   # the rotating operand only moves between ranks, so the distributed path needs more than one
   add_mpi_tests(chem test_exchange_asymmetric "2" "MADchem;MADgtest" "unittests;short")
@@ -221,6 +240,7 @@ if(BUILD_TESTING)
   # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator benchmark_exchange_commutator)
+    madness_mra_filter_targets(CHEM_OTHER_TESTS)
     foreach(_test ${CHEM_OTHER_TESTS})
       add_mad_executable(${_test} "${_test}.cc" "MADchem")
     endforeach()

@@ -45,14 +45,8 @@
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 
-#define FUNCTION_INSTANTIATE_1
-#define FUNCTION_INSTANTIATE_2
-#define FUNCTION_INSTANTIATE_3
-#if !defined(HAVE_IBMBGP) || !defined(HAVE_IBMBGQ)
-#define FUNCTION_INSTANTIATE_4
-#define FUNCTION_INSTANTIATE_5
-#define FUNCTION_INSTANTIATE_6
-#endif
+// FUNCTION_INSTANTIATE_<N> (N=1..6) are defined in madness/config.h for each dimension
+// listed in the MADNESS_MRA_DIMENSIONS CMake option; Function<T,N> is only usable for those N.
 
 static const bool VERIFY_TREE = false; //true
 
@@ -1591,6 +1585,11 @@ namespace madness {
             MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
             constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
+            if constexpr (!mra_dimension_instantiated(LDIM)) {
+                // the composite functor's low-dim functions live in LDIM, which MADmra does not provide
+                MADNESS_EXCEPTION("inner_on_demand: MRA dimension NDIM/2 not instantiated (see MADNESS_MRA_DIMENSIONS)", int(LDIM));
+                return TENSOR_RESULT_TYPE(T, R)(0);
+            } else {
             auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
             MADNESS_ASSERT(func);
             func->make_redundant(true);
@@ -1604,6 +1603,7 @@ namespace madness {
             impl->world.gop.fence();
 
             return local;
+            }
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>

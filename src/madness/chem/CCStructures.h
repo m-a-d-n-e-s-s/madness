@@ -680,13 +680,16 @@ public:
     // @param[in] u: a 6D-function
     // @param[out] the convolution \int g(r,r') u(r,r') dr' (if particle==2) and g(r,r') u(r',r) dr' (if particle==1)
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
-    Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& u, const size_t particle) const;
+    // (members acting on 2*NDIM-dimensional functions only exist if MADmra instantiates that dimension)
+    Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& u, const size_t particle) const
+        requires (mra_dimension_instantiated(2*NDIM));
 
     // @param[in] bra: a 3D-CC_function, if nuclear-correlation factors are used they have to be applied before
     // @param[in] u: a 6D-function
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
     // @param[out] the convolution <bra|g12|u>_particle
-    Function<T,NDIM> operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const;
+    Function<T,NDIM> operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const
+        requires (mra_dimension_instantiated(2*NDIM));
 
     /// @param[in] bra: a vector of CC_functions, the type has to be HOLE
     /// @param[in] ket: a vector of CC_functions, the type can be HOLE,PARTICLE,RESPONSE
@@ -737,7 +740,8 @@ public:
     }
 
     /// create a TwoElectronFactory with the operatorkernel
-    TwoElectronFactory<T,2*NDIM> get_kernel() const {
+    TwoElectronFactory<T,2*NDIM> get_kernel() const
+        requires (mra_dimension_instantiated(2*NDIM)) {
         auto factory=TwoElectronFactory<T,2*NDIM>(world);
         factory.set_info(op->info);
         return factory;

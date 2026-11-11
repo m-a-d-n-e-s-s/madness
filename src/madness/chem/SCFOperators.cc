@@ -115,41 +115,65 @@ DistributedMatrix<T> Kinetic<T, NDIM>::kinetic_energy_matrix(World &world,
 }
 
 // explicit instantiation
+#ifdef FUNCTION_INSTANTIATE_1
 template
 class Kinetic<double, 1>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_2
 template
 class Kinetic<double, 2>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_3
 template
 class Kinetic<double, 3>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_4
 template
 class Kinetic<double, 4>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_5
 template
 class Kinetic<double, 5>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_6
 template
 class Kinetic<double, 6>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_1
 template
 class Kinetic<double_complex, 1>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_2
 template
 class Kinetic<double_complex, 2>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_3
 template
 class Kinetic<double_complex, 3>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_4
 template
 class Kinetic<double_complex, 4>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_5
 template
 class Kinetic<double_complex, 5>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_6
 template
 class Kinetic<double_complex, 6>;
+#endif
 
 
 template<typename T, std::size_t NDIM>
@@ -175,23 +199,35 @@ Laplacian<T, NDIM>::operator()(const std::vector<Function<T, NDIM> > &vket) cons
 }
 
 // explicit instantiation
+#ifdef FUNCTION_INSTANTIATE_1
 template
 class Laplacian<double, 1>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_2
 template
 class Laplacian<double, 2>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_3
 template
 class Laplacian<double, 3>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_4
 template
 class Laplacian<double, 4>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_5
 template
 class Laplacian<double, 5>;
+#endif
 
+#ifdef FUNCTION_INSTANTIATE_6
 template
 class Laplacian<double, 6>;
+#endif
 
 
 /// ctor with an SCF calculation providing the MOs and density

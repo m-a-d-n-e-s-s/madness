@@ -107,6 +107,15 @@ The following CMake cache variables turn features on and off.
 * MADNESS_BUILD_LIBRARIES_ONLY --- whether to build the MADNESS libraries only; if `ON`,
       building of numerical components and applications will be disabled and
       the value of `MADNESS_BUILD_MADWORLD_ONLY` ignored [default=`OFF`]
+* MADNESS_MRA_DIMENSIONS --- semicolon-separated list of the MRA dimensions (subset of 1..6)
+      for which `Function<T,NDIM>` and related classes are instantiated in MADmra, e.g.
+      `-DMADNESS_MRA_DIMENSIONS="1;3"`. Each dimension is a large translation unit, so
+      a smaller set speeds up the build considerably. Using a `Function` of a dimension
+      outside the set fails at link time. MADchem needs dimension 3 (it is skipped,
+      together with applications and examples, without it); its correlated methods
+      (MP2, MP3, CC2, and the `mp2`/`cc2` applications and `madqc` workflows) need 6.
+      Applications, examples and unit tests needing a missing dimension are not built;
+      the Python bindings need all six. [default=`1;2;3;4;5;6`]
 * MADNESS_WERROR --- treat compiler warnings as errors when compiling MADNESS's
       own translation units. The flag is applied PRIVATE-ly to MADNESS sources
       only and does not propagate to consumers of an installed MADNESS package.

@@ -425,8 +425,12 @@ void DiagnosticMatrix<T,NDIM>::print_report(const std::string& tag) const
 //  Explicit instantiations — NDIM is the pair-space dimension
 // ---------------------------------------------------------------------------
 
+#if defined(FUNCTION_INSTANTIATE_2) && defined(FUNCTION_INSTANTIATE_1)
 template class DiagnosticMatrix<double, 2>;  // LDIM=1 one-particle
+#endif
+#if defined(FUNCTION_INSTANTIATE_4) && defined(FUNCTION_INSTANTIATE_2)
 template class DiagnosticMatrix<double, 4>;  // LDIM=2 one-particle
+#endif
 template class DiagnosticMatrix<double, 6>;  // LDIM=3 one-particle (standard 3D chemistry)
 
 template void print_pair_energy_report<double, 6>(

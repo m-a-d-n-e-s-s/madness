@@ -399,9 +399,16 @@ public:
     template <typename T>
     void doplot() {
         // Redirect to right dimension
-        if      (ndim == 1) doplot1<T,1>();
+        if (false) {}
+#ifdef FUNCTION_INSTANTIATE_1
+        else if (ndim == 1) doplot1<T,1>();
+#endif
+#ifdef FUNCTION_INSTANTIATE_2
         else if (ndim == 2) doplot1<T,2>();
+#endif
+#ifdef FUNCTION_INSTANTIATE_3
         else if (ndim == 3) doplot1<T,3>();
+#endif
 #ifdef FUNCTION_INSTANTIATE_4
         else if (ndim == 4) doplot1<T,4>();
 #endif

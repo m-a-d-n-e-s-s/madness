@@ -36,6 +36,14 @@
 #define MADNESS_CXX_ABI_Microsoft @MADNESS_CXX_ABI_Microsoft@
 #define MADNESS_CXX_ABI @MADNESS_CXX_ABI@
 
+/* MRA dimensions explicitly instantiated in MADmra (see MADNESS_MRA_DIMENSIONS) */
+#cmakedefine FUNCTION_INSTANTIATE_1 1
+#cmakedefine FUNCTION_INSTANTIATE_2 1
+#cmakedefine FUNCTION_INSTANTIATE_3 1
+#cmakedefine FUNCTION_INSTANTIATE_4 1
+#cmakedefine FUNCTION_INSTANTIATE_5 1
+#cmakedefine FUNCTION_INSTANTIATE_6 1
+
 /* Define type macros. */
 #cmakedefine HAVE_INT64_T 1
 #cmakedefine HAVE_LONG_LONG 1
