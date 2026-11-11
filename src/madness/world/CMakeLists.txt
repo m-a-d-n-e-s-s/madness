@@ -100,7 +100,7 @@ if(BUILD_TESTING)
       test_dc.cc test_hashthreaded.cc test_queue.cc test_replication.cc test_world.cc
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
-      test_thread_specific.cc
+      test_thread_specific.cc test_foreign_threads.cc
           )
 
   add_unittests(world "${WORLD_TEST_SOURCES}" ";MADworld;MADgtest" "unittests;short")
