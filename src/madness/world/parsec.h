@@ -13,7 +13,9 @@
 #include <parsec/scheduling.h>
 
 #include <iostream>
+#include <mutex>
 #include <optional>
+#include <vector>
 
 namespace madness{
 
@@ -25,7 +27,9 @@ namespace madness{
         static std::optional<bool> made_new_ctx;
         static parsec_taskpool_t *tp;
         static bool parsec_restart_taskpool;
-        static parsec_execution_stream_t *madness_comm_thread_es;
+        /// Copies of ES[0] made for threads outside PaRSEC's pool, one per thread
+        static std::vector<parsec_execution_stream_t *> non_parsec_thread_es;
+        static std::mutex non_parsec_thread_es_mutex;
 #ifdef PARSEC_PROF_TRACE
         static int               taskpool_profiling_array[2];
 #endif /* PARSEC_PROF_TRACE */
