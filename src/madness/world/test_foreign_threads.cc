@@ -29,6 +29,9 @@
 /// every schedule call in that stream, so this test turns the profiler on.
 
 #include <madness/world/MADworld.h>
+#ifdef HAVE_PARSEC
+#include <madness/world/parsec.h>
+#endif
 
 #include <atomic>
 #include <barrier>
@@ -54,18 +57,25 @@ int main(int argc, char** argv) {
     const int nthreads = 4;
     const long ntasks = 20000;
     std::atomic<long> ndone{0};
+    std::atomic<int> nleft_es{0};  // threads left with a PaRSEC execution stream installed
     std::barrier start(nthreads);
     std::vector<std::thread> threads;
     for (int i = 0; i < nthreads; ++i) {
         threads.emplace_back([&] {
             start.arrive_and_wait();  // all threads submit at the same time
             for (long t = 0; t < ntasks; ++t) world.taskq.add([&ndone] { ++ndone; });
+#ifdef HAVE_PARSEC
+            // the thread may belong to another runtime and outlive MADNESS:
+            // scheduling must not leave PaRSEC state behind on it
+            if (parsec_my_execution_stream() != nullptr) ++nleft_es;
+#endif
         });
     }
     for (auto& t : threads) t.join();
     world.taskq.fence();
 
     MADNESS_CHECK(ndone == nthreads * ntasks);
+    MADNESS_CHECK(nleft_es == 0);
     finalize();
 
 #if defined(HAVE_PARSEC) && defined(PARSEC_PROF_TRACE)

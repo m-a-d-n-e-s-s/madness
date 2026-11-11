@@ -13,8 +13,9 @@ namespace madness {
 #ifndef MADNESS_ASSERTIONS_DISABLE
     static thread_local bool within_madness_task = false;
 #endif
-    /* true on a thread outside PaRSEC's pool once schedule() gave it an execution stream */
-    static thread_local bool on_non_parsec_thread = false;
+    /* On a thread outside PaRSEC's pool: the copy of ES[0] that schedule() made for it,
+     * installed as PaRSEC's current execution stream only for the duration of a schedule */
+    static thread_local parsec_execution_stream_t *non_parsec_thread_es_copy = nullptr;
 
     parsec_hook_return_t complete_madness_task_execution (parsec_execution_stream_t *es,
                                                           parsec_task_t *task) {
@@ -274,16 +275,20 @@ namespace madness {
         tp->tdm.module->taskpool_addto_nb_tasks(tp, 1);
 
         parsec_execution_stream_t *es = parsec_my_execution_stream();
-        if(nullptr == es) {
-            /* A thread outside PaRSEC's pool: the MADNESS comm thread, or another
-             * runtime's callback thread (e.g. a CUDA host-function callback that
-             * releases a dependency). Each gets its own copy of ES[0], on its first
-             * call only: the copy has no scheduler object, so __parsec_schedule_vp
-             * only reads it and schedules on the computation threads, and it has
-             * its own profiling stream, since PaRSEC's tracing is not thread-safe
-             * within a stream. Without a scheduler object such a thread must not
-             * wait on tasks itself (wait/test select tasks through it); wait() and
-             * test() check this. */
+        if(nullptr != es) {  /* a PaRSEC thread */
+            __parsec_schedule_vp(es, vp_parsec_task, is_main_thread() ? 1 : 0);
+            return;
+        }
+
+        /* A thread outside PaRSEC's pool: the MADNESS comm thread, or another
+         * runtime's callback thread (e.g. a CUDA host-function callback that
+         * releases a dependency). On its first call it gets its own copy of ES[0]:
+         * the copy has no scheduler object, so __parsec_schedule_vp only reads it
+         * and schedules on the computation threads, and it has its own profiling
+         * stream, since PaRSEC's tracing is not thread-safe within a stream.
+         * Without a scheduler object such a thread must not wait on tasks itself
+         * (wait/test select tasks through it); wait() and test() check this. */
+        if(nullptr == non_parsec_thread_es_copy) {
             es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
             if(nullptr == es)
                 MADNESS_EXCEPTION("ParsecRuntime::schedule(): failed to allocate an execution stream", 0);
@@ -299,15 +304,25 @@ namespace madness {
             }
 #if defined(PARSEC_PROF_TRACE)
             es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS non-PaRSEC thread %zu", es_index);
-            parsec_profiling_set_default_thread(es->es_profile);
 #else
             (void)es_index;
 #endif /* PARSEC_PROF_TRACE */
-            on_non_parsec_thread = true;
-            parsec_set_my_execution_stream(es);
+            non_parsec_thread_es_copy = es;
         }
 
+        /* Install the copy only while scheduling (PaRSEC's PINS look up the current
+         * stream), then restore the thread's PaRSEC state: the thread may belong to
+         * another runtime and outlive the copy, which ~ParsecRuntime frees. */
+        es = non_parsec_thread_es_copy;
+        parsec_set_my_execution_stream(es);
+#if defined(PARSEC_PROF_TRACE)
+        parsec_profiling_stream_t *prev_profile = parsec_profiling_set_default_thread(es->es_profile);
+#endif /* PARSEC_PROF_TRACE */
         __parsec_schedule_vp(es, vp_parsec_task, is_main_thread() ? 1 : 0);
+#if defined(PARSEC_PROF_TRACE)
+        parsec_profiling_set_default_thread(prev_profile);
+#endif /* PARSEC_PROF_TRACE */
+        parsec_set_my_execution_stream(nullptr);
     }
 
     void ParsecRuntime::wait() {
@@ -318,7 +333,7 @@ namespace madness {
             MADNESS_EXCEPTION("ParsecRuntime::wait(): recursive call to wait/test detected", 0);
         }
 #endif
-        MADNESS_CHECK_THROW(!on_non_parsec_thread,
+        MADNESS_CHECK_THROW(nullptr == non_parsec_thread_es_copy,
                             "ParsecRuntime::wait(): a thread outside PaRSEC's pool cannot wait on tasks");
         parsec_taskpool_wait(tp);
     }
@@ -331,7 +346,7 @@ namespace madness {
             MADNESS_EXCEPTION("ParsecRuntime::wait(): recursive call to wait/test detected", 0);
         }
 #endif
-        MADNESS_CHECK_THROW(!on_non_parsec_thread,
+        MADNESS_CHECK_THROW(nullptr == non_parsec_thread_es_copy,
                             "ParsecRuntime::test(): a thread outside PaRSEC's pool cannot wait on tasks");
         int rc = parsec_taskpool_test(tp);
         assert(rc >= 0);
