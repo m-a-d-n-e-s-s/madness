@@ -263,6 +263,7 @@ void Znemo::iterate() {
 	// and then updated by E - Re<V psi|psi - psi~>/|psi~|^2 as in the original drivers: the Fock energies of
 	// poor first iterates may lie above the Landau threshold, where G(E) has an unbounded range along B
 	Tensor<double> akeps, bkeps;
+	double kernel_energy_old=1.e10;
 
 	// iterate the SCF cycles
 	for (int iter=0; iter<maxiter; ++iter) {
@@ -327,7 +328,10 @@ void Znemo::iterate() {
 					iter, wall_time(), energy, na, nb);
 		}
 
-		if (std::abs(oldenergy-energy)<get_calc_param().econv() and (sqrt(na*na+nb*nb)<dconv)) {
+		// magnetic kernels: test the kernel-consistent energy, as the original drivers did -- the variational
+		// energy (derivatives of orbitals with strong phases) scatters at strong field
+		const double denergy=mkernel ? kernel_energy-kernel_energy_old : oldenergy-energy;
+		if (std::abs(denergy)<get_calc_param().econv() and (sqrt(na*na+nb*nb)<dconv)) {
 			print("energy converged");
 			save_orbitals("converged");
 			converged=true;
@@ -374,6 +378,7 @@ void Znemo::iterate() {
 			nb=0.0;
 		}
 		if (mkernel) {
+			kernel_energy_old=kernel_energy;
 			// E_var + sum_i (E_i + z_i - F_ii) = sum_i (E_i + z_i) - (J - K) + E_nuc
 			kernel_energy=energy;
 			for (long i=0; i<akeps.size(); ++i) kernel_energy+=akeps(i)+zeeman-aeps(i);
