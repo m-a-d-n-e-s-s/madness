@@ -1308,7 +1308,9 @@ Znemo::compute_residuals(
     tmp = apply(world,ops,-2.0*Vpsi-2.0*levelshift*psi);
     }
 
-    const std::vector<complex_function_3d> res=truncate(psi-tmp);
+    // magnetic kernels: truncating the residual at thresh zeroes it (and the energy update below) before the
+    // fixed point is reached, at strong field by up to ~1e-3 Eh in a gauge-dependent way
+    const std::vector<complex_function_3d> res=mkernel ? truncate(psi-tmp,0.1*tol) : truncate(psi-tmp);
     const std::vector<complex_function_3d> bra_res=make_bra(res);
 
     // update eps
