@@ -8,6 +8,7 @@
 
 #include <cinttypes>
 #include <mutex>
+#include <vector>
 
 // Here we initialize with the right child class
 namespace madness {
@@ -159,11 +160,17 @@ namespace madness {
         return PARSEC_SUCCESS;
     }
 
+    namespace {
+        /* Copies of ES[0] made for threads outside PaRSEC's pool, one per thread,
+         * freed in ~ParsecRuntime */
+        std::vector<parsec_execution_stream_t *> madness_non_parsec_thread_es;
+        std::mutex non_parsec_es_mutex;
+    }
+
     const parsec_task_class_t* madness_parsec_tc_array[]= {&(madness::madness_parsec_tc), NULL};
     parsec_taskpool_t *ParsecRuntime::tp = nullptr;
     parsec_context_t *ParsecRuntime::ctx = nullptr;
     std::optional<bool> ParsecRuntime::made_new_ctx{};
-    parsec_execution_stream_t *ParsecRuntime::madness_non_parsec_thread_es = nullptr;
     bool ParsecRuntime::parsec_restart_taskpool = true;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
@@ -229,12 +236,11 @@ namespace madness {
             parsec_fini(&ctx);
             ctx = nullptr;
         }
-        if (nullptr != madness_non_parsec_thread_es) {
-              /* madness_non_parsec_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
-             * actually freed during parsec_fini. Just need to free memory allocated to store it. */
-              free(madness_non_parsec_thread_es);
-              madness_non_parsec_thread_es = nullptr;
-        }
+        /* Each of these is just a copy of ES[0]. Resources (including es->es_profile) are
+         * actually freed during parsec_fini. Just need to free memory allocated to store them. */
+        std::lock_guard<std::mutex> lock(non_parsec_es_mutex);
+        for (auto *es : madness_non_parsec_thread_es) free(es);
+        madness_non_parsec_thread_es.clear();
     }
 
     parsec_context_t *ParsecRuntime::context() { return ctx; }
@@ -276,24 +282,26 @@ namespace madness {
         if(nullptr == es) {
             /* A thread outside PaRSEC's pool: the MADNESS comm thread, or another
              * runtime's callback thread (e.g. a CUDA host-function callback that
-             * releases a dependency). They all share one copy of ES[0]: it has no
-             * scheduler object, so __parsec_schedule_vp only reads it and schedules
-             * on the computation threads. */
-            static std::mutex non_parsec_es_mutex;
+             * releases a dependency). Each gets its own copy of ES[0], on its first
+             * call only: the copy has no scheduler object, so __parsec_schedule_vp
+             * only reads it and schedules on the computation threads, and it has
+             * its own profiling stream, since PaRSEC's tracing is not thread-safe
+             * within a stream. Without a scheduler object such a thread must not
+             * wait on tasks itself (wait/test select tasks through it). */
+            es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
+            if(nullptr == es)
+                MADNESS_EXCEPTION("ParsecRuntime::schedule(): failed to allocate an execution stream", 0);
+            memcpy(es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
+            es->scheduler_object = nullptr;
+#if defined(PARSEC_PROF_TRACE)
+            es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
+            parsec_profiling_set_default_thread(es->es_profile);
+#endif /* PARSEC_PROF_TRACE */
             {
                 std::lock_guard<std::mutex> lock(non_parsec_es_mutex);
-                if(nullptr == madness_non_parsec_thread_es) {
-                    madness_non_parsec_thread_es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
-                    memcpy(madness_non_parsec_thread_es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
-                    madness_non_parsec_thread_es->scheduler_object = nullptr;
-#if defined(PARSEC_PROF_TRACE)
-                    madness_non_parsec_thread_es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
-                    parsec_profiling_set_default_thread(madness_non_parsec_thread_es->es_profile);
-#endif /* PARSEC_PROF_TRACE */
-                }
+                madness_non_parsec_thread_es.push_back(es);
             }
-            parsec_set_my_execution_stream(madness_non_parsec_thread_es);
-            es = madness_non_parsec_thread_es;
+            parsec_set_my_execution_stream(es);
         }
 
         __parsec_schedule_vp(es, vp_parsec_task, is_main_thread() ? 1 : 0);
