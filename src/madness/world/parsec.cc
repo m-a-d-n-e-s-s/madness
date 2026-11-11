@@ -163,7 +163,7 @@ namespace madness {
     parsec_taskpool_t *ParsecRuntime::tp = nullptr;
     parsec_context_t *ParsecRuntime::ctx = nullptr;
     std::optional<bool> ParsecRuntime::made_new_ctx{};
-    parsec_execution_stream_t *ParsecRuntime::madness_comm_thread_es = nullptr;
+    parsec_execution_stream_t *ParsecRuntime::madness_non_parsec_thread_es = nullptr;
     bool ParsecRuntime::parsec_restart_taskpool = true;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
@@ -229,11 +229,11 @@ namespace madness {
             parsec_fini(&ctx);
             ctx = nullptr;
         }
-        if (nullptr != madness_comm_thread_es) {
-              /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
+        if (nullptr != madness_non_parsec_thread_es) {
+              /* madness_non_parsec_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
              * actually freed during parsec_fini. Just need to free memory allocated to store it. */
-              free(madness_comm_thread_es);
-              madness_comm_thread_es = nullptr;
+              free(madness_non_parsec_thread_es);
+              madness_non_parsec_thread_es = nullptr;
         }
     }
 
@@ -279,21 +279,21 @@ namespace madness {
              * releases a dependency). They all share one copy of ES[0]: it has no
              * scheduler object, so __parsec_schedule_vp only reads it and schedules
              * on the computation threads. */
-            static std::mutex comm_es_mutex;
+            static std::mutex non_parsec_es_mutex;
             {
-                std::lock_guard<std::mutex> lock(comm_es_mutex);
-                if(nullptr == madness_comm_thread_es) {
-                    madness_comm_thread_es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
-                    memcpy(madness_comm_thread_es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
-                    madness_comm_thread_es->scheduler_object = nullptr;
+                std::lock_guard<std::mutex> lock(non_parsec_es_mutex);
+                if(nullptr == madness_non_parsec_thread_es) {
+                    madness_non_parsec_thread_es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
+                    memcpy(madness_non_parsec_thread_es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
+                    madness_non_parsec_thread_es->scheduler_object = nullptr;
 #if defined(PARSEC_PROF_TRACE)
-                    madness_comm_thread_es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
-                    parsec_profiling_set_default_thread(madness_comm_thread_es->es_profile);
+                    madness_non_parsec_thread_es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
+                    parsec_profiling_set_default_thread(madness_non_parsec_thread_es->es_profile);
 #endif /* PARSEC_PROF_TRACE */
                 }
             }
-            parsec_set_my_execution_stream(madness_comm_thread_es);
-            es = madness_comm_thread_es;
+            parsec_set_my_execution_stream(madness_non_parsec_thread_es);
+            es = madness_non_parsec_thread_es;
         }
 
         __parsec_schedule_vp(es, vp_parsec_task, is_main_thread() ? 1 : 0);
