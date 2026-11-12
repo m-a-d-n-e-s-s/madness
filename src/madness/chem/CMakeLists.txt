@@ -185,7 +185,10 @@ if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
 endif()
 
 # Install files
-install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
+install(FILES sto-3g sto-6g 6-31g
+    ${PROJECT_SOURCE_DIR}/src/apps/moldft/gth.xml
+    ${PROJECT_SOURCE_DIR}/src/apps/moldft/gth_pbe.xml
+    coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT chem)
 

@@ -1,0 +1,26 @@
+title "ethylene GTH-LDA on C, AE on H"
+echo
+start ethylene_lda
+memory stack 1500 mb heap 1500 mb global 1000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  C    1.25925675384707      0.00000000000000      0.00000000000000
+  C   -1.25925675384707      0.00000000000000      0.00000000000000
+  H    2.34326800978054      1.75410867131933      0.00000000000000
+  H    2.34326800978054     -1.75410867131933      0.00000000000000
+  H   -2.34326800978054      1.75410867131933      0.00000000000000
+  H   -2.34326800978054     -1.75410867131933      0.00000000000000
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 20.0
+    ngrid 128 128 128
+  end
+  xc lda
+  mult 1
+  lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy

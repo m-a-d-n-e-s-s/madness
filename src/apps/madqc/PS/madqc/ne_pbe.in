@@ -1,0 +1,13 @@
+dft
+  xc pbe
+  L 30.0
+  k 8
+  protocol [1e-4, 1e-6, 1e-8]
+  dconv 1e-7
+  localize canon
+end
+
+geometry
+  units bohr
+  psNe 0.0 0.0 0.0
+end

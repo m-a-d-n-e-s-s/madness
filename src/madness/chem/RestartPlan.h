@@ -171,6 +171,10 @@ inline GeometryMatch compare_geometry(const Molecule& archive, const Molecule& r
     for (std::size_t i = 0; i < requested.natom(); ++i) {
         if (archive.get_atomic_number(i) != requested.get_atomic_number(i))
             return GeometryMatch::different_composition;
+        if (archive.get_atom(i).pseudo_atom != requested.get_atom(i).pseudo_atom)
+            return GeometryMatch::different_composition;
+        if (std::abs(archive.get_atom(i).q - requested.get_atom(i).q) > tol)
+            return GeometryMatch::different_composition;
     }
     for (std::size_t i = 0; i < requested.natom(); ++i) {
         const Atom a = archive.get_atom(i);
@@ -327,6 +331,22 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         if (not meta.ncf.empty() and not ncf.empty() and meta.ncf != ncf)
             return "archive was written with the nuclear correlation factor '" +
                    meta.ncf + "', this run uses '" + ncf + "'";
+        if (meta.molecule.parameters.pure_ae() != requested.parameters.pure_ae())
+            return "archive was written with pure_ae=" +
+                   std::string(meta.molecule.parameters.pure_ae() ? "true" : "false") +
+                   ", this run uses pure_ae=" +
+                   std::string(requested.parameters.pure_ae() ? "true" : "false");
+        if (meta.molecule.parameters.psp_calc() != requested.parameters.psp_calc())
+            return "archive was written with psp_calc=" +
+                   std::string(meta.molecule.parameters.psp_calc() ? "true" : "false") +
+                   ", this run uses psp_calc=" +
+                   std::string(requested.parameters.psp_calc() ? "true" : "false");
+        if (meta.molecule.parameters.psp_file() != requested.parameters.psp_file() and
+            meta.molecule.parameters.psp_file() != "none" and
+            requested.parameters.psp_file() != "none")
+            return "archive was written with psp_file '" +
+                   meta.molecule.parameters.psp_file() + "', this run uses '" +
+                   requested.parameters.psp_file() + "'";
         return std::string();
     };
 

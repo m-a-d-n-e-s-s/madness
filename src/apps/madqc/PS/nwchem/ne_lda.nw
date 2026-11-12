@@ -1,0 +1,36 @@
+title "Ne atom GTH-LDA aperiodic"
+echo
+start ne_lda
+memory stack 4000 mb heap 4000 mb global 2000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  Ne 0.00000000000000 0.00000000000000 0.00000000000000
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 16.0
+    ngrid 96 96 96
+  end
+  xc lda
+  mult 1
+  lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 16.0
+    ngrid 192 192 192
+  end
+  cutoff 710.6115
+  xc lda
+  mult 1
+  lmbfgs
+  time_step 1.0
+  tolerances 1.0d-9 1.0d-9
+end
+task pspw energy

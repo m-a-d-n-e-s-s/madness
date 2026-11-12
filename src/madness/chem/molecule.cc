@@ -41,6 +41,7 @@
 #include <madness/constants.h>
 #include <madness/world/world.h>
 #include<madness/chem/molecule.h>
+#include<madness/chem/CalculationParameters.h>
 #include<madness/chem/gth_pseudopotential.h>
 #include<madness/chem/atomutil.h>
 #include <madness/misc/misc.h>
@@ -191,23 +192,8 @@ void Molecule::get_structure() {
   }
 
     // set derived parameters for the molecule
-
-    //if psp_calc is true, set all atoms to PS atoms
-    //if not, check whether some atoms are PS atoms or if this a pure AE calculation
-    if (parameters.get<bool>("psp_calc")) {
-        for (size_t iatom = 0; iatom < natom(); iatom++) {
-            set_pseudo_atom(iatom, true);
-        }
-    }
-
-    //modify atomic charge for complete PSP calc or individual PS atoms
-    for (size_t iatom = 0; iatom < natom(); iatom++) {
-        if (get_pseudo_atom(iatom)) {
-            unsigned int an = get_atomic_number(iatom);
-            double zeff = madness::get_charge_from_file("gth.xml", an);
-            set_atom_charge(iatom, zeff);
-        }
-    }
+    const std::string psp_filename = (parameters.psp_file() != "none") ? parameters.psp_file() : "gth.xml";
+    update_pseudo_atom_charges(psp_filename);
 
     if (parameters.core_type() != "none") {
         read_core_file(parameters.core_type());
@@ -220,6 +206,37 @@ void Molecule::get_structure() {
 
 
 };
+
+void Molecule::update_pseudo_atom_charges(const std::string& psp_filename) {
+    //if psp_calc is true, set all atoms to PS atoms
+    //if not, check whether some atoms are PS atoms or if this is a pure AE calculation
+    if (parameters.get<bool>("psp_calc")) {
+        for (size_t iatom = 0; iatom < natom(); iatom++) {
+            set_pseudo_atom(iatom, true);
+        }
+    }
+
+    bool has_pseudo = false;
+    bool all_pseudo = (natom() > 0);
+    for (size_t iatom = 0; iatom < natom(); iatom++) {
+        if (get_pseudo_atom(iatom)) {
+            has_pseudo = true;
+            unsigned int an = get_atomic_number(iatom);
+            double zeff = madness::get_charge_from_file(psp_filename, an);
+            set_atom_charge(iatom, zeff);
+        } else {
+            all_pseudo = false;
+        }
+    }
+
+    if (has_pseudo) {
+        parameters.set_user_defined_value("pure_ae", false);
+    }
+    if (all_pseudo) {
+        parameters.set_user_defined_value("psp_calc", true);
+    }
+    update_rcut_with_eprec(parameters.eprec());
+}
 
 std::string Molecule::get_structure_library_path() {
     std::string chemdata_dir(MRA_CHEMDATA_DIR);
@@ -529,7 +546,8 @@ void Molecule::insert_symbols_and_geometry(json& mol_json) const {
   }
 
   for (size_t i = 0; i < natom(); ++i) {
-    mol_json["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
+    std::string sym = (atoms[i].pseudo_atom ? "ps" : "") + std::string(get_atomic_data(atoms[i].atomic_number).symbol);
+    mol_json["symbols"].push_back(sym);
     mol_json["geometry"].push_back({atoms[i].x / scale, atoms[i].y / scale, atoms[i].z / scale});
   }
 }
@@ -559,8 +577,32 @@ void Molecule::from_json(const json& mol_json) {
     z *= scale;
     int atomic_number = symbol_to_atomic_number(symbol);
     double q = atomic_number;
+    bool psat = check_if_pseudo_atom(symbol);
 
-    add_atom(x, y, z, q, atomic_number);
+    add_atom(x, y, z, q, atomic_number, psat);
+  }
+  std::string xc_str = "";
+  if (mol_json.contains("xc")) {
+    xc_str = mol_json["xc"].get<std::string>();
+  } else if (mol_json.contains("hamiltonian") && mol_json["hamiltonian"].contains("xc")) {
+    xc_str = mol_json["hamiltonian"]["xc"].get<std::string>();
+  } else if (mol_json.contains("parameters") && mol_json["parameters"].contains("xc")) {
+    xc_str = mol_json["parameters"]["xc"].get<std::string>();
+  }
+
+  std::string user_psp = parameters.psp_file();
+  if (user_psp == "none" || user_psp.empty()) {
+    if (mol_json.contains("psp_file")) {
+      user_psp = mol_json["psp_file"].get<std::string>();
+    } else if (mol_json.contains("hamiltonian") && mol_json["hamiltonian"].contains("psp_file")) {
+      user_psp = mol_json["hamiltonian"]["psp_file"].get<std::string>();
+    }
+  }
+
+  const std::string psp_filename = CalculationParameters::select_gth_file(xc_str, user_psp);
+  update_pseudo_atom_charges(psp_filename);
+  if (parameters.pure_ae() == false && (parameters.psp_file() == "none" || parameters.psp_file().empty())) {
+    parameters.set_user_defined_value("psp_file", psp_filename);
   }
   if (parameters.no_orient() == false) orient();
 }
@@ -574,7 +616,8 @@ void Molecule::print(std::ostream& os, const bool defined_only) const {
   sstream << p << std::endl;
   //sstream << "geometry" << std::endl;
   for (size_t i = 0; i < natom(); ++i) {
-    sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
+    std::string sym = (atoms[i].pseudo_atom ? "ps" : "") + std::string(get_atomic_data(atoms[i].atomic_number).symbol);
+    sstream << std::setw(5) << sym << "  ";
     sstream << std::setw(20) << std::setprecision(8) << atoms[i].x << std::setw(20) << atoms[i].y << std::setw(20)
             << atoms[i].z;
     if (atoms[i].atomic_number == 0)
@@ -656,11 +699,11 @@ Tensor<double> Molecule::nuclear_dipole_derivative(const int atom, const int axi
 
 double Molecule::nuclear_repulsion_derivative(size_t i, int axis) const {
     double sum = 0.0;
-    unsigned int z1 = atoms[i].atomic_number;
+    unsigned int z1 = atoms[i].pseudo_atom ? atoms[i].q : atoms[i].atomic_number;
     if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
     for (size_t j=0; j<atoms.size(); ++j) {
         if (j != i) {
-            size_t z2 = atoms[j].atomic_number;
+            size_t z2 = atoms[j].pseudo_atom ? atoms[j].q : atoms[j].atomic_number;
             if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
             double r = inter_atomic_distance(i,j);
             double xx;
@@ -702,8 +745,8 @@ double Molecule::nuclear_repulsion_second_derivative(int iatom, int jatom,
         int iaxis, int jaxis) const {
 
     double sum = 0.0;
-    unsigned int ZA = atoms[iatom].atomic_number;
-    unsigned int ZB = atoms[jatom].atomic_number;
+    unsigned int ZA = atoms[iatom].pseudo_atom ? atoms[iatom].q : atoms[iatom].atomic_number;
+    unsigned int ZB = atoms[jatom].pseudo_atom ? atoms[jatom].q : atoms[jatom].atomic_number;
 
     Tensor<double> RA(3), RB(3);
     RA(0l)=atoms[iatom].x; RA(1)=atoms[iatom].y; RA(2)=atoms[iatom].z;
@@ -731,7 +774,7 @@ double Molecule::nuclear_repulsion_second_derivative(int iatom, int jatom,
             double RAC = inter_atomic_distance(iatom,katom);
             Tensor<double> RC(3);
             RC(0l)=atoms[katom].x; RC(1)=atoms[katom].y; RC(2)=atoms[katom].z;
-            const unsigned int ZC=atoms[katom].atomic_number;
+            const unsigned int ZC=atoms[katom].pseudo_atom ? atoms[katom].q : atoms[katom].atomic_number;
 
             if (katom != (unsigned int)(iatom)) {
                 if (iaxis==jaxis) {
@@ -1123,6 +1166,9 @@ double Molecule::atomic_attraction_potential(int iatom, double x, double y,
 
 
 double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const {
+    double df = field[axis];
+    if (atoms[atom].pseudo_atom) return df;
+
     double r = distance(atoms[atom].x, atoms[atom].y, atoms[atom].z, x, y, z);
     double rc = rcut[atom];
     double coord;
@@ -1138,7 +1184,6 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
 
     double dv = atoms[atom].q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
     //double dv = q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
-    double df = field[axis];
     return dv + df;
 }
 
