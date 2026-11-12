@@ -29,9 +29,12 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
     FunctionDefaults<3>::set_truncate_mode(1);
     if (param.thresh()>0.0) FunctionDefaults<3>::set_thresh(param.thresh());
     if (param.use_magnetic_kernel()) {
-        // the projection and truncation settings of the original magnetic-kernel codes
+        // initial level of the original magnetic-kernel codes; truncation tightened by 2^-n on fine levels
+        // (mode 1): the variational energy measures the orbital noise through |pi phi|^2, i.e. derivatives,
+        // so absolute truncation (mode 0) leaves it scattering at strong field (mode 2 makes the kernel
+        // application far more expensive)
         FunctionDefaults<3>::set_initial_level(2);
-        FunctionDefaults<3>::set_truncate_mode(0);
+        FunctionDefaults<3>::set_truncate_mode(1);
     }
 
     aobasis.read_file(calc_param.aobasis());
@@ -354,26 +357,29 @@ void Znemo::iterate() {
 		Tensor<double> normsa=real(inner(world,make_bra(resa),resa));
 		na=sqrt(normsa.sumsq());
 
+		// magnetic kernels: truncate the update at 0.1*thresh and not again after orthonormalization -- each
+		// truncation at thresh perturbs the converged orbitals, which the variational energy picks up through
+		// |pi phi|^2, and the kernel energies E_i stall at a noise floor above econv
 		std::vector<complex_function_3d> amo_new=solvera.update(amo,resa,0.01,3);
-		amo_new=mkernel ? truncate(amo_new) : truncate(sbox*amo_new);
+		amo_new=mkernel ? truncate(amo_new,0.1*thresh) : truncate(sbox*amo_new);
 
 		do_step_restriction(amo,amo_new);
 
-		amo=truncate(orthonormalize(amo_new));
+		amo=mkernel ? orthonormalize(amo_new) : truncate(orthonormalize(amo_new));
 
 		if (have_beta()) {
 			double levelshiftb=param.shift()+param.physical_B()*0.5;	// account for spin zeeman term
 			std::vector<complex_function_3d> resb=mkernel
 					? compute_residuals(Vnemob,bmo,bkeps,0.0,0.0,kgap)
 					: compute_residuals(Vnemob,bmo,beps,levelshiftb,-zeeman,kgap);
-			truncate(world,resb);
+			if (not mkernel) truncate(world,resb);	// the kernel residual is already truncated at 0.1*thresh
 			Tensor<double> normsb=real(inner(world,make_bra(resb),resb));
 			nb=sqrt(normsb.sumsq());
 
 			std::vector<complex_function_3d> bmo_new=solverb.update(bmo,resb,0.01,3);
-			bmo_new=mkernel ? truncate(bmo_new) : truncate(sbox*bmo_new);
+			bmo_new=mkernel ? truncate(bmo_new,0.1*thresh) : truncate(sbox*bmo_new);
 			do_step_restriction(bmo,bmo_new);
-			bmo=truncate(orthonormalize(bmo_new));
+			bmo=mkernel ? orthonormalize(bmo_new) : truncate(orthonormalize(bmo_new));
 		} else {
 			nb=0.0;
 		}
