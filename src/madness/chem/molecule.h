@@ -550,7 +550,26 @@ class Molecule {
   /// \sa smoothed_density()
   double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
+  /// @return the smallest nuclear smoothing radius (`1/rcut`), i.e. that of
+  /// the heaviest nucleus
   double smallest_length_scale() const;
+
+  /// the reach of the density of a nucleus (see nuclear_charge_density()),
+  /// in units of its smoothing radius `1/rcut`
+  static constexpr double nuclear_density_reach_in_radii = 6.0;
+
+  /// @param i the index of the atom
+  /// @param rscale as in nuclear_charge_density()
+  /// @return the distance from atom \p i beyond which its nuclear charge
+  /// density vanishes; 0 for an uncharged (ghost) atom, which has no density.
+  /// Its smoothing radius stays finite (1 bohr by default) since `rcut` also
+  /// enters the smoothed potential, where `rcut = inf` would make `0*inf`.
+  double nuclear_density_reach(std::size_t i, double rscale = 1.) const;
+
+  /// @param rscale as in nuclear_charge_density()
+  /// @return the largest nuclear_density_reach() over the atoms, 0 if no atom
+  /// is charged
+  double max_nuclear_density_reach(double rscale = 1.) const;
 
   std::string symmetrize_and_identify_point_group(const double symtol);
 

@@ -44,6 +44,7 @@
 #include<madness/chem/gth_pseudopotential.h>
 #include<madness/chem/atomutil.h>
 #include <madness/misc/misc.h>
+#include <algorithm>
 #include <iomanip>
 #include <climits>
 #include <cstdlib>
@@ -755,6 +756,19 @@ double Molecule::smallest_length_scale() const {
     return 1.0/rcmax;
 }
 
+double Molecule::nuclear_density_reach(std::size_t i, double rscale) const {
+    MADNESS_CHECK(i < atoms.size() && rscale > 0.0);
+    if (atoms[i].q == 0.0) return 0.0;
+    return nuclear_density_reach_in_radii * rscale / rcut[i];
+}
+
+double Molecule::max_nuclear_density_reach(double rscale) const {
+    double reach = 0.0;
+    for (std::size_t i=0; i<atoms.size(); ++i)
+        reach = std::max(reach, nuclear_density_reach(i, rscale));
+    return reach;
+}
+
 
 /// Moves the center of nuclear charge to the origin
 void Molecule::center() {
@@ -1182,19 +1196,24 @@ double Molecule::nuclear_attraction_potential_second_derivative(int atom,
 }
 
 double Molecule::nuclear_charge_density(double x, double y, double z, double rscale) const {
-  // Only one atom will contribute due to the short range of the nuclear charge density
+  // sum over all atoms in reach, since the reaches of charged centers can
+  // overlap (e.g. a point charge next to a nucleus); uncharged (ghost) atoms
+  // have no density, see nuclear_density_reach()
 
   MADNESS_ASSERT(rscale > 0.0);
   const double rscale_inv = 1.0/rscale;
+  constexpr double reach_sq = nuclear_density_reach_in_radii*nuclear_density_reach_in_radii;
+  double sum = 0.0;
   for (unsigned int i=0; i<atoms.size(); i++) {
+      if (atoms[i].q == 0.0) continue;
       const auto rcut_i = rcut[i] * rscale_inv;
       double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z)*rcut_i*rcut_i;
-      if (rsq < 36.0) {
+      if (rsq < reach_sq) {
           double r = sqrt(rsq);
-          return atoms[i].q * smoothed_density(r)*rcut_i*rcut_i*rcut_i;
+          sum += atoms[i].q * smoothed_density(r)*rcut_i*rcut_i*rcut_i;
       }
   }
-  return 0.0;
+  return sum;
 }
 
 
