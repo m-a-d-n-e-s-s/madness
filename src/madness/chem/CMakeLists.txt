@@ -199,7 +199,7 @@ if(BUILD_TESTING)
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc
   test_results_summary.cc test_nuclear_charge_density.cc
   test_exchange_owner_assign.cc test_exchange_batch_cache.cc test_restart.cc
-  test_population.cc)
+  test_population.cc test_nuclear_density_functor.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc
   test_operator_diagnostics.cc)
   if (TARGET Libxc::xc)
