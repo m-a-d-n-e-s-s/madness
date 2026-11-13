@@ -61,6 +61,7 @@ NuclearDensityFunctor::NuclearDensityFunctor(
       special_points_(this->atoms.get_all_coords_vec()),
       special_level_(special_level),
       rscale(rscale) {
+  MADNESS_CHECK(rscale > 0.0);
   if (bc_.is_periodic_any()) {
     MADNESS_ASSERT(cell.ndim() == 2 && cell.dim(0) == 3 && cell.dim(1) == 2);
     this->maxR = 1;
@@ -70,7 +71,9 @@ NuclearDensityFunctor::NuclearDensityFunctor(
 }
 
 double NuclearDensityFunctor::operator()(const coord_3d &x) const {
-  const auto tol = + 6.0*atoms.smallest_length_scale();
+  // a periodic image of x contributes only if it is within the reach of a
+  // nucleus in the cell
+  const auto tol = atoms.max_nuclear_density_reach(rscale);
   double sum = 0.0;
   for (int i=-maxR; i<=+maxR; i++) {
     const double ext_x = cell(0,1) - cell(0,0);
@@ -102,6 +105,7 @@ Level NuclearDensityFunctor::special_level() const {
 }
 
 NuclearDensityFunctor &NuclearDensityFunctor::set_rscale(double rscale) {
+  MADNESS_CHECK(rscale > 0.0);
   this->rscale = rscale;
   return *this;
 }
