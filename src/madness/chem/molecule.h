@@ -564,6 +564,10 @@ class Molecule {
   /// density vanishes; 0 for an uncharged (ghost) atom, which has no density.
   /// Its smoothing radius stays finite (1 bohr by default) since `rcut` also
   /// enters the smoothed potential, where `rcut = inf` would make `0*inf`.
+  /// Follows the current `q` and `rcut`, as the density does; note that
+  /// set_atom_charge() does not update `rcut`.
+  /// @throw MadnessException if the reach of a charged atom is not finite
+  /// and positive (e.g. a negative charge, for which `rcut` is NaN)
   double nuclear_density_reach(std::size_t i, double rscale = 1.) const;
 
   /// @param rscale as in nuclear_charge_density()

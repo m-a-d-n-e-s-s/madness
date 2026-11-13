@@ -45,6 +45,7 @@
 #include<madness/chem/atomutil.h>
 #include <madness/misc/misc.h>
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <climits>
 #include <cstdlib>
@@ -759,7 +760,12 @@ double Molecule::smallest_length_scale() const {
 double Molecule::nuclear_density_reach(std::size_t i, double rscale) const {
     MADNESS_CHECK(i < atoms.size() && rscale > 0.0);
     if (atoms[i].q == 0.0) return 0.0;
-    return nuclear_density_reach_in_radii * rscale / rcut[i];
+    const double reach = nuclear_density_reach_in_radii * rscale / rcut[i];
+    // a NaN here (e.g. smoothing_parameter() of a negative charge) would be
+    // dropped silently by max_nuclear_density_reach()
+    MADNESS_CHECK_THROW(std::isfinite(reach) && reach > 0.0,
+                        "Molecule::nuclear_density_reach: the smoothing radius of a charged atom must be finite and positive");
+    return reach;
 }
 
 double Molecule::max_nuclear_density_reach(double rscale) const {
