@@ -2629,10 +2629,13 @@ namespace madness {
                     coordT simpt;
                     user_to_sim(specialpts[i], simpt);
                     Key<NDIM> specialkey = simpt2key(simpt, key.level());
+                    // Use `else if` to preserve the exact logical OR without duplicating
+                    // `specialpts[i]` at every level (`O(2^{special_level})` blowup), keeping
+                    // `newspecialpts.size() <= specialpts.size()` across all refinement levels.
                     if (specialkey.is_neighbor_of(key,bperiodic)) {
                         newspecialpts.push_back(specialpts[i]);
                     }
-                    if (key.is_neighbor_of(simpt, bperiodic)) {
+                    else if (key.is_neighbor_of(simpt, bperiodic)) {
                         newspecialpts.push_back(specialpts[i]);
                     }
                 }
