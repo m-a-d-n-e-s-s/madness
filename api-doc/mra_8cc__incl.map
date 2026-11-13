@@ -1,0 +1,9 @@
+<map id="mra.cc" name="mra.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="112,5,178,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,85,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,33,76,74,73,70,125,34"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="109,81,181,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="147,32,147,66,143,64,143,36"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="205,81,314,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="166,31,229,72,224,73,165,36"/>
+</map>

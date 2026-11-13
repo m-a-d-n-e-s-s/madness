@@ -1,0 +1,13 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1MacroTaskPartitioner.html" title="partition one (two) vectors into 1D (2D) batches." alt="" coords="5,186,230,214"/>
+<area shape="rect" id="Node000001" href="$classMicroTaskPartitioner_1_1CustomPartitioner.html" title="U can implement a custom partitioner by deriving from MacroTaskPartitioner." alt="" coords="338,5,491,50"/>
+<area shape="poly" id="edge499_Node000000_Node000001" title=" " alt="" coords="139,172,198,115,236,85,276,60,306,47,340,39,335,42,308,52,279,65,239,90,201,119,143,176"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Coulomb_1_1MacroTaskCoulomb_1_1MacroTaskPartitionerCoulomb.html" title=" " alt="" coords="303,74,526,136"/>
+<area shape="poly" id="edge500_Node000000_Node000002" title=" " alt="" coords="176,178,277,145,315,135,311,138,278,150,178,183"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Exchange_1_1ExchangeImpl_1_1MacroTaskExchangeRow_1_1MacroTaskPartitionerRow.html" title="custom partitioning for the exchange operator in exchangeoperator.h" alt="" coords="293,160,536,239"/>
+<area shape="poly" id="edge501_Node000000_Node000003" title=" " alt="" coords="244,197,295,199,290,201,246,202"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Exchange_1_1ExchangeImpl_1_1MacroTaskExchangeSimple_1_1MacroTaskPartitionerExchange.html" title="custom partitioning for the exchange operator in exchangeoperator.h" alt="" coords="278,263,551,342"/>
+<area shape="poly" id="edge502_Node000000_Node000004" title=" " alt="" coords="175,216,301,261,296,264,175,222"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1MP3_1_1MacroTaskMP3_1_1Partitioner.html" title=" " alt="" coords="304,365,525,410"/>
+<area shape="poly" id="edge503_Node000000_Node000005" title=" " alt="" coords="139,223,198,288,237,322,279,351,306,365,301,365,276,355,233,326,195,292,138,228"/>
+</map>

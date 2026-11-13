@@ -1,0 +1,29 @@
+<map id="madness::SCFOperatorBase&lt; T, NDIM &gt;" name="madness::SCFOperatorBase&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,412,208,457"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Exchange.html" title=" " alt="" coords="267,5,482,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="109,396,122,325,148,235,166,188,190,141,219,98,254,60,273,48,270,53,257,64,223,102,195,144,171,190,153,237,127,326,115,397"/>
+<area shape="rect" id="Node000003" href="$classMyDerivativeOperator.html" title=" " alt="" coords="291,75,458,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="113,396,130,337,158,266,198,193,224,159,254,130,293,110,289,114,257,134,228,163,203,195,162,268,135,339,118,397"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Coulomb.html" title=" " alt="" coords="288,144,461,189"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="119,397,139,351,168,298,207,245,254,199,289,182,286,186,257,203,211,248,173,301,144,354,124,399"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1DNuclear.html" title="derivative of the (regularized) nuclear potential wrt nuclear displacements" alt="" coords="295,213,454,258"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="128,398,181,332,215,297,254,268,296,251,292,254,257,273,219,301,185,335,133,401"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1DerivativeOperator.html" title=" " alt="" coords="268,283,481,327"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="148,401,198,368,255,337,287,326,284,330,257,342,201,372,152,405"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Exchange.html" title=" " alt="" coords="293,352,456,397"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="222,406,295,391,291,394,224,411"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1Fock.html" title="Computes matrix representation of the Fock operator." alt="" coords="274,420,474,448"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="222,432,276,433,272,436,225,437"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1Kinetic.html" title=" " alt="" coords="294,472,454,517"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="222,458,296,475,291,478,224,463"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1Laplacian.html" title="the Laplacian operator: \sum_i \nabla^2_i" alt="" coords="299,541,450,586"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="149,463,201,496,257,527,301,544,296,546,255,531,198,501,150,468"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1LocalPotentialOperator.html" title=" " alt="" coords="256,611,493,655"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="131,467,185,533,219,567,257,596,281,610,275,611,254,601,215,571,181,537,130,472"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Lz.html" title="the z component of the angular momentum" alt="" coords="282,679,466,707"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="121,469,143,516,172,569,210,622,232,645,257,665,284,681,279,681,254,670,229,649,206,625,167,572,138,518,121,474"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1Nuclear.html" title=" " alt="" coords="292,731,457,775"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="117,469,137,526,165,592,205,659,229,690,257,716,294,738,288,738,254,720,226,693,201,662,160,594,132,528,117,474"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1XCOperator.html" title="operator class for the handling of DFT exchange&#45;correlation functionals" alt="" coords="293,800,456,845"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="113,469,129,539,155,624,174,668,197,711,225,751,257,786,275,798,296,809,290,809,272,802,254,790,220,754,192,714,169,670,150,626,124,540,112,475"/>
+</map>

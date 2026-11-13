@@ -1,0 +1,6 @@
+<map id="LevelPmap" name="LevelPmap">
+<area shape="rect" id="Node000001" title=" " alt="" coords="78,98,172,126"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1WorldDCPmapInterface.html" title=" " alt="" coords="5,5,245,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="118,63,121,98,116,96,114,67"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="136,64,134,99,129,96,132,67"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="madness::AdhocNuclearCorrelationFactor" name="madness::AdhocNuclearCorrelationFactor">
+<area shape="rect" id="Node000001" title="this ncf has no information about itself, only U2 and U1 assigned" alt="" coords="5,98,256,143"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1NuclearCorrelationFactor.html" title="ABC for the nuclear correlation factors." alt="" coords="25,5,236,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="132,64,133,99,128,97,129,68"/>
+</map>

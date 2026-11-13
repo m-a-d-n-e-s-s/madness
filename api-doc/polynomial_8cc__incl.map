@@ -1,0 +1,14 @@
+<map id="polynomial.cc" name="polynomial.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="118,5,230,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,68,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="148,36,76,76,73,71,151,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="91,81,176,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="168,32,150,69,146,66,165,36"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="187,157,249,184"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="179,31,212,142,207,141,176,35"/>
+<area shape="rect" id="Node000005" href="$polynomial_8h.html" title=" " alt="" coords="251,81,358,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="198,31,271,73,266,74,197,36"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="292,108,246,149,243,144,287,110"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="277,157,332,184"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="306,107,307,143,302,139,303,111"/>
+</map>

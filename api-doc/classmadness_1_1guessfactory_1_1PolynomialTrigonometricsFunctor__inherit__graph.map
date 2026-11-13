@@ -1,0 +1,7 @@
+<map id="madness::guessfactory::PolynomialTrigonometricsFunctor" name="madness::guessfactory::PolynomialTrigonometricsFunctor">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,191,252,235"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1guessfactory_1_1PolynomialFunctor.html" title="Project a general 3D polynomial to the MRA Grid." alt="" coords="42,98,215,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,156,131,192,126,189,127,160"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="33,5,224,50"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="130,63,131,99,126,97,127,68"/>
+</map>

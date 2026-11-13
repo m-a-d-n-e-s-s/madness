@@ -1,0 +1,11 @@
+<map id="test_papi.cc" name="test_papi.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="146,5,245,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,85,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="171,35,87,76,84,71,167,32"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="108,81,182,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="189,32,164,70,161,66,184,35"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="206,81,289,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="206,31,232,69,227,68,204,36"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="313,81,374,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="223,31,307,74,301,74,222,36"/>
+</map>

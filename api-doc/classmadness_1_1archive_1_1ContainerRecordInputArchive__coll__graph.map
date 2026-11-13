@@ -1,0 +1,10 @@
+<map id="madness::archive::ContainerRecordInputArchive" name="madness::archive::ContainerRecordInputArchive">
+<area shape="rect" id="Node000001" title=" " alt="" coords="20,294,227,339"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1archive_1_1BaseInputArchive.html" title="Base class for input archive classes." alt="" coords="13,82,223,127"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,142,125,294,120,293,117,144"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1archive_1_1VectorInputArchive.html" title="Wraps an archive around an STL vector for input." alt="" coords="140,176,325,221"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="157,134,208,175,203,176,157,140"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1archive_1_1BaseArchive.html" title="Base class for all archive classes." alt="" coords="5,5,231,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="119,46,121,82,115,81,117,51"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="204,232,146,296,142,291,199,233"/>
+</map>

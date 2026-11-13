@@ -1,0 +1,5 @@
+<map id="BinaryOp&lt; resultT, L, R, opT, NDIM &gt;" name="BinaryOp&lt; resultT, L, R, opT, NDIM &gt;">
+<area shape="rect" id="Node000001" title="Returns a new functor combining two functors via operation op(left,right)." alt="" coords="32,98,177,143"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,204,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="106,64,107,99,102,97,103,68"/>
+</map>

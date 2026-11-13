@@ -1,0 +1,7 @@
+<map id="madness::is_default_serializable_helper&lt; archive::ParallelInputArchive&lt; localarchiveT &gt;, T, std::enable_if_t&lt; is_trivially_serializable&lt; T &gt;::value &gt; &gt;" name="madness::is_default_serializable_helper&lt; archive::ParallelInputArchive&lt; localarchiveT &gt;, T, std::enable_if_t&lt; is_trivially_serializable&lt; T &gt;::value &gt; &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,81,264,194"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="6,5,124,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="81,44,104,80,99,81,80,49"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="148,5,260,33"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="190,44,170,82,166,79,186,48"/>
+</map>

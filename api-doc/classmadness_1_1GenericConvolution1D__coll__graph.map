@@ -1,0 +1,21 @@
+<map id="madness::GenericConvolution1D&lt; Q, opT &gt;" name="madness::GenericConvolution1D&lt; Q, opT &gt;">
+<area shape="rect" id="Node000001" title="Generic 1D convolution using brute force (i.e., slow) adaptive quadrature for rnlp." alt="" coords="966,254,1190,299"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Convolution1D.html" title="Provides the common functionality/interface of all 1D convolutions." alt="" coords="692,263,916,290"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="932,274,968,276,962,277,932,279"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1KernelRange.html" title=" " alt="" coords="345,16,515,44"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="530,24,602,35,637,47,669,64,697,85,721,110,759,166,786,221,801,263,796,261,781,223,754,169,716,113,693,89,667,68,635,52,600,40,531,29"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="328,179,532,206"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="547,202,669,225,723,241,772,262,767,262,721,246,667,230,548,207"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="34,179,197,206"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="212,190,329,191,325,194,213,195"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SimpleCache.html" title=" " alt="" coords="343,231,516,293"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="532,270,564,272,694,277,689,278,564,277,532,275"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="5,325,226,369"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="215,318,345,284,341,287,216,323"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1SimpleCache.html" title=" " alt="" coords="320,316,540,378"/>
+<area shape="poly" id="edge8_Node000008_Node000007" title=" " alt="" coords="241,344,322,346,317,348,242,350"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1SimpleCache.html" title=" " alt="" coords="320,402,540,463"/>
+<area shape="poly" id="edge10_Node000009_Node000007" title=" " alt="" coords="215,371,322,402,317,403,215,377"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="555,326,667,305,748,290,743,291,669,311,556,331"/>
+<area shape="poly" id="edge9_Node000002_Node000009" title=" " alt="" coords="554,397,611,378,667,355,730,321,780,292,785,290,733,326,669,360,613,383,556,402"/>
+</map>

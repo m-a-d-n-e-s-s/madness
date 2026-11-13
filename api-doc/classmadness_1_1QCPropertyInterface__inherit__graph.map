@@ -1,0 +1,21 @@
+<map id="madness::QCPropertyInterface" name="madness::QCPropertyInterface">
+<area shape="rect" id="Node000001" title="class implementing properties of QC models" alt="" coords="5,188,226,216"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CC2.html" title=" " alt="" coords="315,5,430,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="134,174,191,109,230,74,272,43,317,28,313,31,275,48,233,78,195,112,138,177"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1MP2.html" title="a class for computing the first order wave function and MP2 pair energies" alt="" coords="314,57,430,85"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="144,177,202,135,273,95,316,82,312,85,275,100,205,140,148,180"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1MolecularEnergy.html" title=" " alt="" coords="274,109,471,137"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="171,180,273,147,319,136,314,139,274,152,174,185"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Nemo.html" title="The Nemo class." alt="" coords="309,161,436,189"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="240,186,310,181,306,183,242,191"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1PNO.html" title=" " alt="" coords="314,213,430,241"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="241,212,316,220,311,222,242,217"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1TDHF.html" title=" " alt="" coords="310,265,434,293"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="174,218,274,250,319,264,314,265,273,255,174,224"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1Zcis.html" title=" " alt="" coords="315,317,430,345"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="147,223,205,263,275,302,317,319,312,319,273,307,202,268,146,228"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1Znemo.html" title=" " alt="" coords="305,369,440,397"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="137,226,195,291,233,325,275,354,307,370,302,370,272,359,230,329,191,295,135,231"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1OEP.html" title=" " alt="" coords="519,161,633,189"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="451,173,521,174,516,176,452,178"/>
+</map>

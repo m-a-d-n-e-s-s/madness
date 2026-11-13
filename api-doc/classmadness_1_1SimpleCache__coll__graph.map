@@ -1,0 +1,5 @@
+<map id="madness::SimpleCache&lt; Q, NDIM &gt;" name="madness::SimpleCache&lt; Q, NDIM &gt;">
+<area shape="rect" id="Node000001" title="Simplified interface around hash_map to cache stuff for 1D." alt="" coords="29,123,202,168"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="5,5,226,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,64,118,123,113,122,114,68"/>
+</map>

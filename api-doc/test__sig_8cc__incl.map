@@ -1,0 +1,13 @@
+<map id="test_sig.cc" name="test_sig.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="192,5,282,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,85,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,36,94,78,92,73,202,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="109,81,181,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="223,33,174,74,172,69,218,34"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="205,81,269,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="239,32,239,67,235,64,235,35"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="294,81,354,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="253,31,300,71,294,71,252,36"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="378,81,466,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="271,31,378,75,373,75,270,36"/>
+</map>

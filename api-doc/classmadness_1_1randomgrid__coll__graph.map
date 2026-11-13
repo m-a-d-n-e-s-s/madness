@@ -1,0 +1,7 @@
+<map id="madness::randomgrid&lt; NDIM &gt;" name="madness::randomgrid&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title="grid with random points around the origin, with a Gaussian distribution" alt="" coords="92,123,255,168"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1gridbase.html" title=" " alt="" coords="5,14,150,42"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="99,51,158,122,153,123,96,56"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Vector.html" title=" " alt="" coords="173,5,366,50"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="244,61,193,125,190,120,239,63"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="madness::TwoElectronInterface&lt; T, NDIM &gt;" name="madness::TwoElectronInterface&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title="base class to compute the wavelet coefficients for an isotropic 2e&#45;operator" alt="" coords="5,98,230,143"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1GeneralTwoElectronInterface.html" title="a function like f(x)=1/x" alt="" coords="9,191,226,235"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="119,156,120,192,115,189,116,160"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="22,5,213,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,63,120,98,115,97,116,68"/>
+</map>
