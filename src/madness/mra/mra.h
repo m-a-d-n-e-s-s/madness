@@ -2421,6 +2421,26 @@ namespace madness {
     /// g.particle=2                          g(f) = result(x,y)
     ///                 inner(g(y,y'),f(x,y'),1,1) = result(y,x)
     /// also note the confusion with the counting of the particles/integration variables
+    template <typename T, std::size_t NDIM>
+    class SeparatedConvolution;
+
+#ifndef MADNESS_WINDOWED_CONV_FWD_DECLARED
+#define MADNESS_WINDOWED_CONV_FWD_DECLARED
+    template <typename Q = double, std::size_t NDIM = 3>
+    class WindowedSeparatedConvolution;
+#endif
+
+    namespace windowed_ns_bridge {
+        Function<double, 3> apply_on_world(World& world,
+                                           const WindowedSeparatedConvolution<double, 3>& wop,
+                                           const Function<double, 3>& f,
+                                           bool fence);
+        Function<double_complex, 3> apply_on_world(World& world,
+                                                   const WindowedSeparatedConvolution<double, 3>& wop,
+                                                   const Function<double_complex, 3>& f,
+                                                   bool fence);
+    } // namespace windowed_ns_bridge
+
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
@@ -2430,6 +2450,21 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
+
+        if constexpr (std::is_same_v<opT, SeparatedConvolution<double, 3>> && NDIM == 3 &&
+                      (std::is_same_v<R, double> || std::is_same_v<R, double_complex>)) {
+            if (f.is_initialized() && op.windowed_ns_enabled() && f.k() == op.get_k()) {
+                if (auto wop = op.get_windowed_ns_op()) {
+                    result = windowed_ns_bridge::apply_on_world(ff.world(), *wop, f, fence);
+                    if (op.destructive()) {
+                        ff.world().gop.fence();
+                        ff.clear();
+                    }
+                    return result;
+                }
+            }
+        }
+
 		bool print_timings=op.print_timings;
 
     	if (VERIFY_TREE) ff.verify_tree();

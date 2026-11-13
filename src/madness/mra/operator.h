@@ -59,6 +59,23 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class SeparatedConvolution;
 
+#ifndef MADNESS_WINDOWED_CONV_FWD_DECLARED
+#define MADNESS_WINDOWED_CONV_FWD_DECLARED
+    template <typename Q = double, std::size_t NDIM = 3>
+    class WindowedSeparatedConvolution;
+#endif
+
+    namespace windowed_ns_bridge {
+        bool env_opt_in_enabled() noexcept;
+        std::shared_ptr<const WindowedSeparatedConvolution<double, 3>>
+        get_or_make(World& world,
+                    std::shared_ptr<const WindowedSeparatedConvolution<double, 3>>& slot,
+                    int op_type,
+                    double mu,
+                    double thresh,
+                    int k);
+    } // namespace windowed_ns_bridge
+
     template<typename T, std::size_t NDIM>
     class CCPairFunction;
 
@@ -208,6 +225,9 @@ namespace madness {
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data; ///< cache for all terms, dims and displacements
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, 2*NDIM > mod_data; ///< cache for all terms, dims and displacements
 
+        int windowed_ns_mode_ = -1; ///< -1: defer to MADNESS_WINDOWED_NS env var (default OFF), 0: disabled, 1: enabled
+        mutable std::shared_ptr<const WindowedSeparatedConvolution<double, 3>> windowed_ns_op_;
+
     public:
 
         bool& modified() {return modified_;}
@@ -231,6 +251,46 @@ namespace madness {
         const std::vector<ConvolutionND<Q,NDIM>>& get_ops() const { return ops; }
         const std::array<KernelRange, NDIM>& get_range() const { return range; }
         bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.finite(); }); }
+
+        /// Opt in (`flag = true`) or opt out (`flag = false`) of Windowed NS execution
+        /// on eligible 3D cubic free-space Coulomb (`OT_G12`) and BSH (`OT_BSH`) operators.
+        SeparatedConvolution<Q,NDIM>& enable_windowed_ns(bool flag = true) noexcept {
+            windowed_ns_mode_ = flag ? 1 : 0;
+            if (!flag) windowed_ns_op_.reset();
+            return *this;
+        }
+
+        bool windowed_ns_enabled() const noexcept {
+            if constexpr (std::is_same_v<Q, double> && NDIM == 3) {
+                const bool active = (windowed_ns_mode_ == 1) ||
+                                    (windowed_ns_mode_ < 0 && windowed_ns_bridge::env_opt_in_enabled());
+                if (!active) return false;
+                if (!(info.type == OT_G12 || info.type == OT_BSH)) return false;
+                if (info.mu < 0.0 || !(info.thresh > 0.0 && info.thresh < 1.0)) return false;
+                if (modified_ || particle_ != 1 || images_only_) return false;
+                if (lattice_summed_.any() || func_domain_is_periodic_.any() || range_restricted()) return false;
+                if (FunctionDefaults<3>::get_bc().is_periodic_any()) return false;
+                if (info.truncate_lowexp_gaussians.value_or(false)) return false;
+                const Tensor<double>& cw = FunctionDefaults<3>::get_cell_width();
+                if (!(cw(0L) > 0.0)) return false;
+                if (std::abs(cw(1L) - cw(0L)) > 1e-13 * cw(0L) ||
+                    std::abs(cw(2L) - cw(0L)) > 1e-13 * cw(0L)) return false;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        std::shared_ptr<const WindowedSeparatedConvolution<double, 3>>
+        get_windowed_ns_op() const {
+            if constexpr (std::is_same_v<Q, double> && NDIM == 3) {
+                if (!windowed_ns_enabled()) return nullptr;
+                return windowed_ns_bridge::get_or_make(
+                    this->get_world(), windowed_ns_op_, static_cast<int>(info.type), info.mu, info.thresh, k);
+            } else {
+                return nullptr;
+            }
+        }
 
     private:
 
@@ -2313,8 +2373,13 @@ namespace madness {
       if (infinite_any) {
         fit.truncate_mixed_expansion(coeff, expnt, lattice_ranges, cell_width, lo, hi_fin, eps);
       }
-      return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
-                                                 lattice_ranges, k);
+      auto* op = new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
+                                                     lattice_ranges, k, false, mu);
+      op->info.type = OT_BSH;
+      if (infinite_any) {
+        op->info.truncate_lowexp_gaussians = true;
+      }
+      return op;
     }
 
 

@@ -2050,6 +2050,35 @@ namespace madness {
     }
 
 
+    namespace windowed_ns_bridge {
+        std::vector<Function<double, 3>>
+        apply_batch_single_op(World& world,
+                              const WindowedSeparatedConvolution<double, 3>& wop,
+                              const std::vector<Function<double, 3>>& f,
+                              bool fence = true,
+                              bool destructive_input = false);
+
+        std::vector<Function<double_complex, 3>>
+        apply_batch_single_op(World& world,
+                              const WindowedSeparatedConvolution<double, 3>& wop,
+                              const std::vector<Function<double_complex, 3>>& f,
+                              bool fence = true,
+                              bool destructive_input = false);
+
+        std::vector<Function<double, 3>>
+        apply_batch_multi_op(World& world,
+                             const std::vector<const WindowedSeparatedConvolution<double, 3>*>& wops,
+                             const std::vector<Function<double, 3>>& f,
+                             bool fence = true);
+
+        std::vector<Function<double_complex, 3>>
+        apply_batch_multi_op(World& world,
+                             const std::vector<const WindowedSeparatedConvolution<double, 3>*>& wops,
+                             const std::vector<Function<double_complex, 3>>& f,
+                             bool fence = true);
+    } // namespace windowed_ns_bridge
+
+
     /// Applies a vector of operators to a vector of functions --- q[i] = apply(op[i],f[i])
     template <typename opT, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
@@ -2059,6 +2088,34 @@ namespace madness {
 
         PROFILE_BLOCK(Vapplyv);
         MADNESS_ASSERT(f.size()==op.size());
+
+        if constexpr (std::is_same_v<opT, SeparatedConvolution<double, 3>> && NDIM == 3 &&
+                      (std::is_same_v<R, double> || std::is_same_v<R, double_complex>)) {
+            bool all_win = !f.empty();
+            for (std::size_t i = 0; i < f.size() && all_win; ++i) {
+                all_win = static_cast<bool>(op[i]) &&
+                          f[i].is_initialized() &&
+                          !f[i].is_on_demand() &&
+                          op[i]->windowed_ns_enabled() &&
+                          (f[i].k() == op[i]->get_k());
+            }
+            if (all_win) {
+                std::vector<std::shared_ptr<const WindowedSeparatedConvolution<double, 3>>> wop_holders(f.size());
+                std::vector<const WindowedSeparatedConvolution<double, 3>*> wop_ptrs(f.size(), nullptr);
+                bool ok = true;
+                for (std::size_t i = 0; i < f.size(); ++i) {
+                    wop_holders[i] = op[i]->get_windowed_ns_op();
+                    if (!wop_holders[i]) {
+                        ok = false;
+                        break;
+                    }
+                    wop_ptrs[i] = wop_holders[i].get();
+                }
+                if (ok) {
+                    return windowed_ns_bridge::apply_batch_multi_op(world, wop_ptrs, f, true);
+                }
+            }
+        }
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
@@ -2099,6 +2156,23 @@ namespace madness {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
+
+        if constexpr (std::is_same_v<T, double> && NDIM == 3 && KDIM == 3 &&
+                      (std::is_same_v<R, double> || std::is_same_v<R, double_complex>)) {
+            bool all_win = !f.empty() && op.windowed_ns_enabled();
+            for (std::size_t i = 0; i < f.size() && all_win; ++i) {
+                all_win = f[i].is_initialized() &&
+                          !f[i].is_on_demand() &&
+                          (f[i].k() == op.get_k());
+            }
+            if (all_win) {
+                if (auto wop = op.get_windowed_ns_op()) {
+                    return windowed_ns_bridge::apply_batch_single_op(
+                        world, *wop, f, true, op.destructive());
+                }
+            }
+        }
+
         bool print_timings=(NDIM==6) and (world.rank()==0) and op.print_timings;
 
         double wall0=wall_time();
