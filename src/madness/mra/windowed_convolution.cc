@@ -74,6 +74,8 @@ struct PlanCacheEntry {
     int max_tree_level = 0;
     int oversampling_M = 0;
     int gc_rank_Q = 0;
+    std::vector<double> custom_coeffs_user;
+    std::vector<double> custom_expnts_user;
     std::shared_ptr<const WindowedQuadraturePlan> plan;
     std::shared_ptr<const WindowedStencilCache1D> stencil;
 };
@@ -96,7 +98,9 @@ get_or_build_plan_and_stencil(const WindowedQuadratureConfig& cfg) {
             entry.cell_width_L == cfg.cell_width_L &&
             entry.max_tree_level == cfg.max_tree_level &&
             entry.oversampling_M == cfg.oversampling_M &&
-            entry.gc_rank_Q == cfg.gc_rank_Q) {
+            entry.gc_rank_Q == cfg.gc_rank_Q &&
+            entry.custom_coeffs_user == cfg.custom_coeffs_user &&
+            entry.custom_expnts_user == cfg.custom_expnts_user) {
             return {entry.plan, entry.stencil};
         }
     }
@@ -116,6 +120,8 @@ get_or_build_plan_and_stencil(const WindowedQuadratureConfig& cfg) {
         cfg.max_tree_level,
         cfg.oversampling_M,
         cfg.gc_rank_Q,
+        cfg.custom_coeffs_user,
+        cfg.custom_expnts_user,
         plan,
         stencil});
     return {plan, stencil};
@@ -144,13 +150,15 @@ ResolvedOperatorPlan resolve_plan_and_stencil_for_depth(
         const int req_n_max = std::min(max_allowed, std::max(res.plan->n_max(), max_d + 2));
         WindowedQuadratureConfig cfg;
         cfg.k = op.k();
-        cfg.eps = op.eps();
+        cfg.eps = windowed_sumfact_detail::tighten_loose_windowed_eps(op.eps(), opts.eps_loc);
         cfg.mu_user = op.mu_user();
         cfg.cell_width_L = cw_L;
         cfg.max_tree_level = req_n_max;
         cfg.oversampling_M = opts.oversampling_M;
         cfg.gc_rank_Q = opts.gc_rank_Q;
         cfg.kind = op.kind();
+        cfg.custom_coeffs_user = op.custom_coeffs_user();
+        cfg.custom_expnts_user = op.custom_expnts_user();
         auto built = get_or_build_plan_and_stencil(cfg);
         res.ext_plan = std::move(built.first);
         res.ext_stencil = std::move(built.second);
@@ -188,6 +196,94 @@ private:
 };
 
 template <typename R>
+Function<R, 3> apply_pure_spiky_same_world(World& target_world,
+                                           const Function<R, 3>& f_same,
+                                           const WindowedQuadraturePlan& plan,
+                                           double thresh,
+                                           bool fence,
+                                           bool destructive_same_world) {
+    mTxmq_init();
+    Function<R, 3>& ff = const_cast<Function<R, 3>&>(f_same);
+    const TreeState orig_st = ff.get_impl()->get_tree_state();
+    const bool need_reconstruct =
+        (orig_st != reconstructed && orig_st != nonstandard_with_leaves);
+    if (need_reconstruct) {
+        ff.reconstruct(true);
+    }
+
+    const int k = ff.k();
+    const long kk = static_cast<long>(k);
+    const double eff_thresh = (thresh > 0.0) ? thresh : ff.thresh();
+
+    Function<R, 3> result =
+        FunctionFactory<R, 3>(target_world).k(k).thresh(eff_thresh).pmap(ff.get_pmap()).empty();
+    auto* res_impl = result.get_impl().get();
+    auto& res_coeffs = res_impl->get_coeffs();
+    res_coeffs.process_pending();
+
+    struct LeafJob {
+        Key<3> key;
+        int level = 0;
+        Tensor<R> s_in;
+    };
+
+    std::vector<Key<3>> internal_keys;
+    std::vector<LeafJob> leaf_jobs;
+    const auto& src_coeffs = ff.get_impl()->get_coeffs();
+    internal_keys.reserve(src_coeffs.size());
+    leaf_jobs.reserve(src_coeffs.size());
+    for (auto it = src_coeffs.begin(); it != src_coeffs.end(); ++it) {
+        const Key<3>& key = it->first;
+        const FunctionNode<R, 3>& node = it->second;
+        if (node.has_children()) {
+            internal_keys.push_back(key);
+        } else if (node.has_coeff()) {
+            leaf_jobs.push_back(
+                LeafJob{key, static_cast<int>(key.level()), node.coeff().full_tensor_copy()});
+        } else {
+            Tensor<R> zero_s(kk, kk, kk);
+            leaf_jobs.push_back(LeafJob{key, static_cast<int>(key.level()), std::move(zero_s)});
+        }
+    }
+
+    std::vector<Tensor<R>> leaf_outs(leaf_jobs.size());
+    windowed_parallel_detail::parallel_for_chunks(
+        leaf_jobs.size(),
+        windowed_parallel_detail::kDefaultParallelGrain,
+        [&](std::size_t b, std::size_t e_hi, std::size_t) {
+            Tensor<R> tmp;
+            Tensor<R> work1;
+            Tensor<R> work2;
+            for (std::size_t idx = b; idx < e_hi; ++idx) {
+                Tensor<R> out(kk, kk, kk);
+                plan.accumulate_gc_leaf_3d(
+                    leaf_jobs[idx].level, leaf_jobs[idx].s_in, out, tmp, work1, work2);
+                leaf_outs[idx] = std::move(out);
+            }
+        });
+
+    const TensorArgs full_targs(0.0, TT_FULL);
+    for (const Key<3>& key : internal_keys) {
+        res_coeffs.replace(key, FunctionNode<R, 3>(GenTensor<R>(), true));
+    }
+    for (std::size_t idx = 0; idx < leaf_jobs.size(); ++idx) {
+        GenTensor<R> coeff(leaf_outs[idx], full_targs);
+        res_coeffs.replace(leaf_jobs[idx].key, FunctionNode<R, 3>(coeff, false));
+    }
+    res_impl->set_tree_state(reconstructed);
+
+    if (destructive_same_world) {
+        ff.clear(false);
+    } else if (need_reconstruct && orig_st == compressed) {
+        ff.compress(false);
+    }
+    if (fence) {
+        target_world.gop.fence();
+    }
+    return result;
+}
+
+template <typename R>
 Function<R, 3> apply_windowed_impl(World& target_world,
                                    const WindowedSeparatedConvolution<double, 3>& op,
                                    const Function<R, 3>& f,
@@ -219,6 +315,11 @@ Function<R, 3> apply_windowed_impl(World& target_world,
                                   ? opts.eps_loc
                                   : ((f_same.thresh() > 0.0) ? f_same.thresh() : op.eps());
 
+        if (resolved.plan->is_purely_spiky_for_depth(max_d)) {
+            return apply_pure_spiky_same_world<R>(
+                target_world, f_same, *resolved.plan, thresh, inner_fence, destructive_same_world);
+        }
+
         return apply_windowed_ns_3d<R>(target_world,
                                        f_same,
                                        *resolved.plan,
@@ -227,7 +328,8 @@ Function<R, 3> apply_windowed_impl(World& target_world,
                                        opts.enable_dynamic_refinement,
                                        opts.dynamic_refine_factor,
                                        inner_fence,
-                                       destructive_same_world);
+                                       destructive_same_world,
+                                       opts.eps_loc);
     };
 
     if (&f.world() == &target_world) {
@@ -345,29 +447,41 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         }
     }
 
-    // Stage 1a (batched across all unique inputs): reconstruct if needed, then make_nonstandard.
+    // Stage 1a (batched across all unique inputs):
+    // - On `target_world.size() == 1`, `reconstructed`, `compressed`, and `nonstandard_with_leaves`
+    //   are ingested read-only with zero `WorldContainer` mutations.
+    // - On `target_world.size() > 1`, prepare `nonstandard_with_leaves` across ranks.
     bool any_need_reconstruct = false;
     for (auto& ui : unique_inputs) {
         const TreeState st = ui.impl->get_tree_state();
         ui.was_compressed = (st == compressed);
-        if (st != reconstructed && st != nonstandard_with_leaves) {
-            ui.func->reconstruct(false);
-            any_need_reconstruct = true;
+        if (target_world.size() == 1) {
+            if (st != reconstructed && st != compressed && st != nonstandard_with_leaves) {
+                ui.func->reconstruct(false);
+                any_need_reconstruct = true;
+            }
+        } else {
+            if (st != reconstructed && st != nonstandard_with_leaves) {
+                ui.func->reconstruct(false);
+                any_need_reconstruct = true;
+            }
         }
     }
     if (any_need_reconstruct) {
         target_world.gop.fence();
     }
 
-    bool any_need_ns = false;
-    for (auto& ui : unique_inputs) {
-        if (ui.impl->get_tree_state() != nonstandard_with_leaves) {
-            ui.func->make_nonstandard(true, false);
-            any_need_ns = true;
+    if (target_world.size() > 1) {
+        bool any_need_ns = false;
+        for (auto& ui : unique_inputs) {
+            if (ui.impl->get_tree_state() != nonstandard_with_leaves) {
+                ui.func->make_nonstandard(true, false);
+                any_need_ns = true;
+            }
         }
-    }
-    if (any_need_ns) {
-        target_world.gop.fence();
+        if (any_need_ns) {
+            target_world.gop.fence();
+        }
     }
 
     // Pre-compute max tree depths across `target_world` in a single collective,
@@ -418,14 +532,14 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     // - On multi-rank MPI (`target_world.size() > 1`) or `N == 1`, execute sequentially in
     //   deterministic `0..N-1` order so `WindowedNSHaloExchange` collectives match across ranks.
     bool use_function_parallel = false;
-#if !defined(HAVE_INTEL_TBB) && !defined(HAVE_PARSEC)
+#if !defined(HAVE_PARSEC)
     if (target_world.size() == 1 && N >= 2 && !g_in_windowed_batch_task && ThreadPool::size() > 0) {
         use_function_parallel = true;
     }
 #endif
 
     if (use_function_parallel) {
-#if !defined(HAVE_INTEL_TBB) && !defined(HAVE_PARSEC)
+#if !defined(HAVE_PARSEC)
         // LPT (Longest-Processing-Time-First) dispatch order: sort indices `0..N-1` by
         // descending local node count so deep nuclear-cusp trees (e.g., `O 1s`) start first
         // at `t = 0` while keeping `result[0..N-1]` in exact caller order.
@@ -442,9 +556,58 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                          });
 
         std::atomic<std::size_t> next_slot{0};
-        std::atomic<int> remaining{0};
         std::mutex exc_mtx;
         std::exception_ptr captured_exc;
+
+#ifdef HAVE_INTEL_TBB
+        const std::size_t total_threads = ThreadPool::size() + 1;
+        const std::size_t n_workers = std::min<std::size_t>(N, total_threads);
+        auto run_tbb_worker = [&]() noexcept {
+            WindowedActiveBatchWorkerGuard active_guard;
+            WindowedBatchTaskScope batch_scope;
+            for (;;) {
+                const std::size_t slot = next_slot.fetch_add(1, std::memory_order_relaxed);
+                if (slot >= N) break;
+                const std::size_t idx = exec_order[slot];
+                try {
+                    const auto& op_i = *ops[idx];
+                    const auto& opts_i = op_i.options();
+                    apply_windowed_ns_3d_prepared<R>(target_world,
+                                                     f_work[idx],
+                                                     result[idx],
+                                                     *resolved_plans[idx].plan,
+                                                     *resolved_plans[idx].stencil,
+                                                     eff_thresh[idx],
+                                                     opts_i.enable_dynamic_refinement,
+                                                     eff_refine_fac[idx],
+                                                     opts_i.eps_loc);
+                } catch (...) {
+                    std::lock_guard<std::mutex> lock(exc_mtx);
+                    if (!captured_exc) {
+                        captured_exc = std::current_exception();
+                    }
+                    next_slot.store(N, std::memory_order_relaxed);
+                    break;
+                }
+            }
+        };
+
+        if (ThreadPool::tbb_arena) {
+            ThreadPool::tbb_arena->execute([&]() {
+                tbb::parallel_for(
+                    tbb::blocked_range<std::size_t>(0, n_workers, 1),
+                    [&](const tbb::blocked_range<std::size_t>& r) {
+                        for (std::size_t w = r.begin(); w != r.end(); ++w) {
+                            run_tbb_worker();
+                        }
+                    },
+                    tbb::simple_partitioner());
+            });
+        } else {
+            run_tbb_worker();
+        }
+#else
+        std::atomic<int> remaining{0};
 
         struct PreReservedBatchWorkerRelease {
             ~PreReservedBatchWorkerRelease() {
@@ -469,7 +632,8 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                                                      *resolved_plans[idx].stencil,
                                                      eff_thresh[idx],
                                                      opts_i.enable_dynamic_refinement,
-                                                     eff_refine_fac[idx]);
+                                                     eff_refine_fac[idx],
+                                                     opts_i.eps_loc);
                 } catch (...) {
                     std::lock_guard<std::mutex> lock(exc_mtx);
                     if (!captured_exc) {
@@ -500,6 +664,7 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
 
         ThreadPool::await(
             [&remaining]() { return remaining.load(std::memory_order_acquire) == 0; }, true);
+#endif
 
         if (captured_exc) {
             std::rethrow_exception(captured_exc);
@@ -516,17 +681,20 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                                              *resolved_plans[i].stencil,
                                              eff_thresh[i],
                                              opts_i.enable_dynamic_refinement,
-                                             eff_refine_fac[i]);
+                                             eff_refine_fac[i],
+                                             opts_i.eps_loc);
         }
     }
 
-    // Stage 5b (batched): restore unique input Functions and reconstruct all output Functions
-    // behind a single trailing fence.
+    // Stage 5b (batched): restore unique input Functions and reconstruct any output Functions
+    // that used `nonstandard_after_apply` (multi-rank or dynamic leaf/virtual promotion).
     for (auto& ui : unique_inputs) {
         restore_windowed_ns_input_3d(*ui.func, ui.was_compressed, ui.destructive, false);
     }
     for (std::size_t i = 0; i < N; ++i) {
-        result[i].reconstruct(false);
+        if (result[i].get_impl()->get_tree_state() != reconstructed) {
+            result[i].reconstruct(false);
+        }
     }
     if (fence || any_subworld_copy) {
         target_world.gop.fence();
@@ -571,13 +739,69 @@ WindowedSeparatedConvolution<Q, NDIM>::WindowedSeparatedConvolution(
 
     WindowedQuadratureConfig cfg;
     cfg.k = k_;
-    cfg.eps = eps_;
+    cfg.eps = windowed_sumfact_detail::tighten_loose_windowed_eps(eps_, opts_.eps_loc);
     cfg.mu_user = mu_user_;
     cfg.cell_width_L = cell_width_L_;
     cfg.max_tree_level = n_max;
     cfg.oversampling_M = opts_.oversampling_M;
     cfg.gc_rank_Q = opts_.gc_rank_Q;
     cfg.kind = kind_;
+
+    auto built = get_or_build_plan_and_stencil(cfg);
+    plan_ = std::move(built.first);
+    stencil_cache_ = std::move(built.second);
+}
+
+template <typename Q, std::size_t NDIM>
+WindowedSeparatedConvolution<Q, NDIM>::WindowedSeparatedConvolution(
+    World& world,
+    const Tensor<double>& coeff,
+    const Tensor<double>& expnt,
+    double eps,
+    int k,
+    const WindowedConvolutionOptions& opts)
+    : world_(&world)
+    , kind_(WindowedKernelKind::CustomGaussian)
+    , mu_user_(0.0)
+    , eps_(eps)
+    , k_(k)
+    , cell_width_L_(check_and_get_cubic_cell_width_3d())
+    , opts_(opts)
+    , destructive_(false) {
+    MADNESS_CHECK_THROW(k_ >= 1,
+                        "WindowedSeparatedConvolution: wavelet order k must be >= 1");
+    MADNESS_CHECK_THROW(eps_ > 0.0 && eps_ < 1.0,
+                        "WindowedSeparatedConvolution: accuracy eps must lie in (0, 1)");
+    MADNESS_CHECK_THROW(coeff.ndim() == 1 && expnt.ndim() == 1 &&
+                            coeff.size() > 0 && coeff.size() == expnt.size(),
+                        "WindowedSeparatedConvolution: custom Gaussian coeff/expnt must be matching non-empty 1D tensors");
+
+    const long n_terms = coeff.size();
+    custom_coeffs_user_.resize(static_cast<std::size_t>(n_terms));
+    custom_expnts_user_.resize(static_cast<std::size_t>(n_terms));
+    for (long idx = 0; idx < n_terms; ++idx) {
+        const double c_val = coeff(idx);
+        const double e_val = expnt(idx);
+        MADNESS_CHECK_THROW(e_val > 0.0 && std::isfinite(e_val) && std::isfinite(c_val),
+                            "WindowedSeparatedConvolution: custom Gaussian exponents must be finite and > 0");
+        custom_coeffs_user_[static_cast<std::size_t>(idx)] = c_val;
+        custom_expnts_user_[static_cast<std::size_t>(idx)] = e_val;
+    }
+
+    const int max_allowed = static_cast<int>(MAXLEVEL) - 1;
+    const int n_max = std::clamp(std::max(1, opts_.max_level), 1, max_allowed);
+
+    WindowedQuadratureConfig cfg;
+    cfg.k = k_;
+    cfg.eps = windowed_sumfact_detail::tighten_loose_windowed_eps(eps_, opts_.eps_loc);
+    cfg.mu_user = 0.0;
+    cfg.cell_width_L = cell_width_L_;
+    cfg.max_tree_level = n_max;
+    cfg.oversampling_M = opts_.oversampling_M;
+    cfg.gc_rank_Q = opts_.gc_rank_Q;
+    cfg.kind = WindowedKernelKind::CustomGaussian;
+    cfg.custom_coeffs_user = custom_coeffs_user_;
+    cfg.custom_expnts_user = custom_expnts_user_;
 
     auto built = get_or_build_plan_and_stencil(cfg);
     plan_ = std::move(built.first);
@@ -671,11 +895,10 @@ get_or_make(World& world,
             int op_type,
             double mu,
             double thresh,
-            int k) {
-    if (!(op_type == static_cast<int>(OT_G12) || op_type == static_cast<int>(OT_BSH))) {
-        return nullptr;
-    }
-    if (mu < 0.0 || !(thresh > 0.0 && thresh < 1.0) || k < 1) {
+            int k,
+            const Tensor<double>& stored_coeffs,
+            const Tensor<double>& stored_exponents) {
+    if (!(thresh > 0.0 && thresh < 1.0) || k < 1) {
         return nullptr;
     }
     const Tensor<double>& cw = FunctionDefaults<3>::get_cell_width();
@@ -688,24 +911,68 @@ get_or_make(World& world,
         return nullptr;
     }
 
-    const WindowedKernelKind kind =
-        (op_type == static_cast<int>(OT_G12)) ? WindowedKernelKind::Coulomb
-                                              : WindowedKernelKind::BSH;
-    const double eff_mu = (kind == WindowedKernelKind::Coulomb) ? 0.0 : mu;
+    const bool is_coulomb_or_bsh =
+        (op_type == static_cast<int>(OT_G12) || op_type == static_cast<int>(OT_BSH));
+    if (is_coulomb_or_bsh) {
+        if (mu < 0.0) {
+            return nullptr;
+        }
+        const WindowedKernelKind kind =
+            (op_type == static_cast<int>(OT_G12)) ? WindowedKernelKind::Coulomb
+                                                  : WindowedKernelKind::BSH;
+        const double eff_mu = (kind == WindowedKernelKind::Coulomb) ? 0.0 : mu;
 
-    static std::mutex bridge_mtx;
-    std::lock_guard<std::mutex> lock(bridge_mtx);
-    if (slot &&
-        slot->kind() == kind &&
-        slot->k() == k &&
-        slot->eps() == thresh &&
-        slot->mu_user() == eff_mu &&
-        std::abs(slot->cell_width() - cw_L) <= 1e-13 * std::max(1.0, cw_L)) {
+        static std::mutex bridge_mtx;
+        std::lock_guard<std::mutex> lock(bridge_mtx);
+        if (slot &&
+            slot->kind() == kind &&
+            slot->k() == k &&
+            slot->eps() == thresh &&
+            slot->mu_user() == eff_mu &&
+            std::abs(slot->cell_width() - cw_L) <= 1e-13 * std::max(1.0, cw_L)) {
+            return slot;
+        }
+
+        slot = std::make_shared<const WindowedSeparatedConvolution<double, 3>>(
+            world, kind, eff_mu, thresh, k);
         return slot;
     }
 
+    if (stored_coeffs.ndim() != 1 || stored_exponents.ndim() != 1 ||
+        stored_coeffs.size() <= 0 || stored_coeffs.size() != stored_exponents.size()) {
+        return nullptr;
+    }
+    const long n_terms = stored_coeffs.size();
+    for (long idx = 0; idx < n_terms; ++idx) {
+        if (!(stored_exponents(idx) > 0.0) || !std::isfinite(stored_exponents(idx)) ||
+            !std::isfinite(stored_coeffs(idx))) {
+            return nullptr;
+        }
+    }
+
+    static std::mutex custom_bridge_mtx;
+    std::lock_guard<std::mutex> lock(custom_bridge_mtx);
+    if (slot &&
+        slot->kind() == WindowedKernelKind::CustomGaussian &&
+        slot->k() == k &&
+        slot->eps() == thresh &&
+        std::abs(slot->cell_width() - cw_L) <= 1e-13 * std::max(1.0, cw_L) &&
+        static_cast<long>(slot->custom_coeffs_user().size()) == n_terms) {
+        bool same = true;
+        for (long idx = 0; idx < n_terms; ++idx) {
+            if (slot->custom_coeffs_user()[static_cast<std::size_t>(idx)] != stored_coeffs(idx) ||
+                slot->custom_expnts_user()[static_cast<std::size_t>(idx)] != stored_exponents(idx)) {
+                same = false;
+                break;
+            }
+        }
+        if (same) {
+            return slot;
+        }
+    }
+
     slot = std::make_shared<const WindowedSeparatedConvolution<double, 3>>(
-        world, kind, eff_mu, thresh, k);
+        world, stored_coeffs, stored_exponents, thresh, k);
     return slot;
 }
 

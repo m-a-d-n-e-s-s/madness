@@ -607,7 +607,8 @@ public:
                 root_T0_by_term_[idx] =
                     windowed_stencil_detail::build_root_T0_transposed(k_, alpha_sim);
             } else if (!term.on_dyadic_grid) {
-                for (int j = term.j0; j <= term.n_diff; ++j) {
+                const int j_top = std::min(plan.n_max(), term.n_diff);
+                for (int j = term.j0; j <= j_top; ++j) {
                     const double gamma_pj =
                         std::exp(2.0 * term.t_p - 2.0 * static_cast<double>(j) * ln2);
                     offgrid_entries_.push_back(OffGridEntry{

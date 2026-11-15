@@ -61,9 +61,10 @@ namespace madness {
 
 /// Kernel family and physical normalization convention for Windowed NS operators.
 enum class WindowedKernelKind {
-    Coulomb,   ///< Physical kernel 1 / r (matches MADNESS CoulombOperator).
-    BSH,       ///< Physical kernel exp(-mu * r) / (4 * pi * r) (matches BSHOperator).
-    YukawaRaw  ///< Physical kernel exp(-mu * r) / r (unnormalized Yukawa).
+    Coulomb,        ///< Physical kernel 1 / r (matches MADNESS CoulombOperator).
+    BSH,            ///< Physical kernel exp(-mu * r) / (4 * pi * r) (matches BSHOperator).
+    YukawaRaw,      ///< Physical kernel exp(-mu * r) / r (unnormalized Yukawa).
+    CustomGaussian  ///< Arbitrary user-supplied isotropic 3D Gaussian sum sum_p c_p exp(-alpha_p r^2).
 };
 
 /// Configuration parameters for constructing a WindowedQuadraturePlan.
@@ -76,6 +77,8 @@ struct WindowedQuadratureConfig {
     int oversampling_M = 0;                              ///< Terms per dyadic octave (0 => auto from eps).
     int gc_rank_Q = 0;                                   ///< Gauss-Christoffel rank Q (0 => auto in {4, 5}).
     WindowedKernelKind kind = WindowedKernelKind::Coulomb;
+    std::vector<double> custom_coeffs_user;              ///< User-space c_p for CustomGaussian.
+    std::vector<double> custom_expnts_user;              ///< User-space alpha_p > 0 for CustomGaussian.
 };
 
 /// Metadata and weights for a single Gaussian term in the dyadic-locked expansion.
@@ -454,7 +457,10 @@ public:
     explicit WindowedQuadraturePlan(const WindowedQuadratureConfig& cfg)
         : k_(cfg.k)
         , eps_(cfg.eps)
-        , mu_user_((cfg.kind == WindowedKernelKind::Coulomb) ? 0.0 : cfg.mu_user)
+        , mu_user_((cfg.kind == WindowedKernelKind::Coulomb ||
+                    cfg.kind == WindowedKernelKind::CustomGaussian)
+                       ? 0.0
+                       : cfg.mu_user)
         , cell_width_L_(cfg.cell_width_L)
         , mu_sim_(mu_user_ * cfg.cell_width_L)
         , op_scale_(compute_op_scale(cfg.kind, cfg.cell_width_L))
@@ -505,104 +511,143 @@ public:
             }
         }
 
-        // Low-tail cutoff p_min and discrete low-tail completion (Eqs. 15-17).
-        const double r_max = std::sqrt(3.0);
-        const double eps_quad = 0.1 * eps_;
-        if (mu_sim_ == 0.0) {
-            const double r_max_7 = std::pow(r_max, 7);
-            const double t_target = (1.0 / 7.0) *
-                std::log((525.0 * constants::sqrt_pi * eps_quad) / (4.0 * r_max_7));
-            p_min_ = static_cast<int>(std::floor(t_target / delta_t_));
-
-            const double tp_min = static_cast<double>(p_min_) * delta_t_;
-            const double pref = (2.0 * delta_t_) * constants::inv_sqrt_pi;
-            const double M0 = pref * std::exp(1.0 * tp_min) / std::expm1(1.0 * delta_t_);
-            const double M1 = pref * std::exp(3.0 * tp_min) / std::expm1(3.0 * delta_t_);
-            const double M2 = pref * std::exp(5.0 * tp_min) / std::expm1(5.0 * delta_t_);
-
-            const double alpha_low = M2 / M1;
-            const double t_low = 0.5 * std::log(alpha_low);
-            const double c_low = (M1 * M1) / M2;
-            const double w_low_sim = c_low * std::pow(constants::pi / alpha_low, 1.5);
-            w_const_sim_ = M0 - c_low;
-            w_const_scaled_ = op_scale_ * w_const_sim_;
-
-            WindowedQuadratureTerm low_term;
-            low_term.p = p_min_ - 1;
-            low_term.on_dyadic_grid = false;
-            low_term.sub_octave_m = windowed_quad_detail::divmod_euclidean(p_min_ - 1, M_).second;
-            low_term.t_p = t_low;
-            low_term.coeff_sim = c_low;
-            low_term.weight_sim = w_low_sim;
-            low_term.weight_scaled = op_scale_ * w_low_sim;
-            low_term.n_spiky = static_cast<int>(std::floor((2.0 * t_low - log_gs) / two_ln2));
-            low_term.n_diff = static_cast<int>(std::floor((2.0 * t_low - log_gd) / two_ln2));
-            low_term.j0 = std::max(0, low_term.n_spiky + 1);
-            low_term.j1 = std::min(n_max_ - 1, low_term.n_diff);
-            terms_.push_back(low_term);
-        } else {
+        if (kind_ == WindowedKernelKind::CustomGaussian) {
+            MADNESS_CHECK(cfg.custom_coeffs_user.size() == cfg.custom_expnts_user.size());
             w_const_sim_ = 0.0;
             w_const_scaled_ = 0.0;
-            const double k_rmax = (mu_sim_ * r_max < 700.0) ? (std::exp(-mu_sim_ * r_max) / r_max) : 0.0;
-            const double eps_abs = eps_quad * std::min(1.0 / r_max, std::max(1e-15, k_rmax));
-            const double log_denom = 4.0 * std::log(std::max(100.0, 100.0 / std::min(eps_quad, eps_abs)));
-            const double alpha_cut_mu = (mu_sim_ * mu_sim_) / log_denom;
-            const double alpha_cut_unif = (constants::pi * eps_abs * eps_abs) / 4.0;
-            const double alpha_min = std::max(alpha_cut_mu, alpha_cut_unif);
-            p_min_ = static_cast<int>(std::floor(0.5 * std::log(alpha_min) / delta_t_));
-        }
+            p_min_ = 0;
+            p_max_ = -1;
+            p_tail_ = -1;
 
-        // High-alpha cusp cutoff: smallest p_first such that n_spiky_grid(p_first) >= n_max_.
-        int p_probe = static_cast<int>(std::floor((static_cast<double>(n_max_) * ln2 + 0.5 * log_gs) / delta_t_)) - 2;
-        while (grid_n_spiky(p_probe) >= n_max_) {
-            --p_probe;
-        }
-        while (grid_n_spiky(p_probe) < n_max_) {
-            ++p_probe;
-        }
-        p_max_ = p_probe - 1;
-        p_tail_ = p_max_ + 10 * M_;
+            const double log_L = std::log(cell_width_L_);
+            const double log_pi = std::log(constants::pi);
+            const std::size_t n_custom = cfg.custom_coeffs_user.size();
+            terms_.reserve(n_custom);
+            for (std::size_t idx = 0; idx < n_custom; ++idx) {
+                const double c_user = cfg.custom_coeffs_user[idx];
+                const double alpha_user = cfg.custom_expnts_user[idx];
+                MADNESS_CHECK(alpha_user > 0.0 && std::isfinite(alpha_user));
+                MADNESS_CHECK(std::isfinite(c_user));
+                if (c_user == 0.0) continue;
 
-        // Populate uniform dyadic-locked terms p in [p_min_, p_tail_].
-        terms_.reserve(terms_.size() + static_cast<std::size_t>(std::max(0, p_tail_ - p_min_ + 1)));
-        for (int p = p_min_; p <= p_tail_; ++p) {
-            const auto [q_oct, m_sub] = windowed_quad_detail::divmod_euclidean(p, M_);
-            const double tp = static_cast<double>(p) * delta_t_;
+                const double log_alpha_user = std::log(alpha_user);
+                const double tp = 0.5 * log_alpha_user + log_L;
+                const double w_scaled = c_user * std::exp(1.5 * (log_pi - log_alpha_user));
 
-            double mu_arg = 0.0;
-            if (mu_sim_ > 0.0) {
-                if (-2.0 * tp > 700.0) {
-                    mu_arg = std::numeric_limits<double>::infinity();
-                } else {
-                    mu_arg = 0.25 * mu_sim_ * mu_sim_ * std::exp(-2.0 * tp);
-                }
+                WindowedQuadratureTerm term;
+                term.p = static_cast<int>(idx);
+                term.on_dyadic_grid = false;
+                term.sub_octave_m = 0;
+                term.t_p = tp;
+                term.coeff_sim = c_user * cell_width_L_;
+                term.weight_sim = w_scaled / op_scale_;
+                term.weight_scaled = w_scaled;
+                term.n_spiky = static_cast<int>(std::floor((2.0 * tp - log_gs) / two_ln2));
+                term.n_diff = static_cast<int>(std::floor((2.0 * tp - log_gd) / two_ln2));
+                term.j0 = std::max(0, term.n_spiky + 1);
+                term.j1 = std::min(n_max_ - 1, term.n_diff);
+                terms_.push_back(term);
+            }
+        } else {
+            // Low-tail cutoff p_min and discrete low-tail completion (Eqs. 15-17).
+            const double r_max = std::sqrt(3.0);
+            const double eps_quad = 0.1 * eps_;
+            if (mu_sim_ == 0.0) {
+                const double r_max_7 = std::pow(r_max, 7);
+                const double t_target = (1.0 / 7.0) *
+                    std::log((525.0 * constants::sqrt_pi * eps_quad) / (4.0 * r_max_7));
+                p_min_ = static_cast<int>(std::floor(t_target / delta_t_));
+
+                const double tp_min = static_cast<double>(p_min_) * delta_t_;
+                const double pref = (2.0 * delta_t_) * constants::inv_sqrt_pi;
+                const double M0 = pref * std::exp(1.0 * tp_min) / std::expm1(1.0 * delta_t_);
+                const double M1 = pref * std::exp(3.0 * tp_min) / std::expm1(3.0 * delta_t_);
+                const double M2 = pref * std::exp(5.0 * tp_min) / std::expm1(5.0 * delta_t_);
+
+                const double alpha_low = M2 / M1;
+                const double t_low = 0.5 * std::log(alpha_low);
+                const double c_low = (M1 * M1) / M2;
+                const double w_low_sim = c_low * std::pow(constants::pi / alpha_low, 1.5);
+                w_const_sim_ = M0 - c_low;
+                w_const_scaled_ = op_scale_ * w_const_sim_;
+
+                WindowedQuadratureTerm low_term;
+                low_term.p = p_min_ - 1;
+                low_term.on_dyadic_grid = false;
+                low_term.sub_octave_m = windowed_quad_detail::divmod_euclidean(p_min_ - 1, M_).second;
+                low_term.t_p = t_low;
+                low_term.coeff_sim = c_low;
+                low_term.weight_sim = w_low_sim;
+                low_term.weight_scaled = op_scale_ * w_low_sim;
+                low_term.n_spiky = static_cast<int>(std::floor((2.0 * t_low - log_gs) / two_ln2));
+                low_term.n_diff = static_cast<int>(std::floor((2.0 * t_low - log_gd) / two_ln2));
+                low_term.j0 = std::max(0, low_term.n_spiky + 1);
+                low_term.j1 = std::min(n_max_ - 1, low_term.n_diff);
+                terms_.push_back(low_term);
+            } else {
+                w_const_sim_ = 0.0;
+                w_const_scaled_ = 0.0;
+                const double k_rmax = (mu_sim_ * r_max < 700.0) ? (std::exp(-mu_sim_ * r_max) / r_max) : 0.0;
+                const double eps_abs = eps_quad * std::min(1.0 / r_max, std::max(1e-15, k_rmax));
+                const double log_denom = 4.0 * std::log(std::max(100.0, 100.0 / std::min(eps_quad, eps_abs)));
+                const double alpha_cut_mu = (mu_sim_ * mu_sim_) / log_denom;
+                const double alpha_cut_unif = (constants::pi * eps_abs * eps_abs) / 4.0;
+                const double alpha_min = std::max(alpha_cut_mu, alpha_cut_unif);
+                p_min_ = static_cast<int>(std::floor(0.5 * std::log(alpha_min) / delta_t_));
             }
 
-            double c_sim = 0.0;
-            double w_sim = 0.0;
-            if (std::isfinite(mu_arg) && mu_arg < 700.0) {
-                if (tp - mu_arg > -740.0 && tp - mu_arg < 705.0) {
-                    c_sim = (2.0 * delta_t_ * constants::inv_sqrt_pi) * std::exp(tp - mu_arg);
-                }
-                const double w_log_exp = -2.0 * tp - mu_arg;
-                if (w_log_exp > -740.0 && w_log_exp < 705.0) {
-                    w_sim = (2.0 * constants::pi * delta_t_) * std::exp(w_log_exp);
-                }
+            // High-alpha cusp cutoff: smallest p_first such that n_spiky_grid(p_first) >= n_max_.
+            int p_probe = static_cast<int>(std::floor((static_cast<double>(n_max_) * ln2 + 0.5 * log_gs) / delta_t_)) - 2;
+            while (grid_n_spiky(p_probe) >= n_max_) {
+                --p_probe;
             }
+            while (grid_n_spiky(p_probe) < n_max_) {
+                ++p_probe;
+            }
+            p_max_ = p_probe - 1;
+            p_tail_ = p_max_ + 10 * M_;
 
-            WindowedQuadratureTerm term;
-            term.p = p;
-            term.on_dyadic_grid = true;
-            term.sub_octave_m = m_sub;
-            term.t_p = tp;
-            term.coeff_sim = c_sim;
-            term.weight_sim = w_sim;
-            term.weight_scaled = op_scale_ * w_sim;
-            term.n_spiky = q_oct + s_base_spiky_[static_cast<std::size_t>(m_sub)];
-            term.n_diff = q_oct + s_base_diff_[static_cast<std::size_t>(m_sub)];
-            term.j0 = std::max(0, term.n_spiky + 1);
-            term.j1 = std::min(n_max_ - 1, term.n_diff);
-            terms_.push_back(term);
+            // Populate uniform dyadic-locked terms p in [p_min_, p_tail_].
+            terms_.reserve(terms_.size() + static_cast<std::size_t>(std::max(0, p_tail_ - p_min_ + 1)));
+            for (int p = p_min_; p <= p_tail_; ++p) {
+                const auto [q_oct, m_sub] = windowed_quad_detail::divmod_euclidean(p, M_);
+                const double tp = static_cast<double>(p) * delta_t_;
+
+                double mu_arg = 0.0;
+                if (mu_sim_ > 0.0) {
+                    if (-2.0 * tp > 700.0) {
+                        mu_arg = std::numeric_limits<double>::infinity();
+                    } else {
+                        mu_arg = 0.25 * mu_sim_ * mu_sim_ * std::exp(-2.0 * tp);
+                    }
+                }
+
+                double c_sim = 0.0;
+                double w_sim = 0.0;
+                if (std::isfinite(mu_arg) && mu_arg < 700.0) {
+                    if (tp - mu_arg > -740.0 && tp - mu_arg < 705.0) {
+                        c_sim = (2.0 * delta_t_ * constants::inv_sqrt_pi) * std::exp(tp - mu_arg);
+                    }
+                    const double w_log_exp = -2.0 * tp - mu_arg;
+                    if (w_log_exp > -740.0 && w_log_exp < 705.0) {
+                        w_sim = (2.0 * constants::pi * delta_t_) * std::exp(w_log_exp);
+                    }
+                }
+
+                WindowedQuadratureTerm term;
+                term.p = p;
+                term.on_dyadic_grid = true;
+                term.sub_octave_m = m_sub;
+                term.t_p = tp;
+                term.coeff_sim = c_sim;
+                term.weight_sim = w_sim;
+                term.weight_scaled = op_scale_ * w_sim;
+                term.n_spiky = q_oct + s_base_spiky_[static_cast<std::size_t>(m_sub)];
+                term.n_diff = q_oct + s_base_diff_[static_cast<std::size_t>(m_sub)];
+                term.j0 = std::max(0, term.n_spiky + 1);
+                term.j1 = std::min(n_max_ - 1, term.n_diff);
+                terms_.push_back(term);
+            }
         }
 
         // Precompute compressed Gauss-Christoffel rules lock-free for all levels 0 .. n_max_ + 12.
@@ -701,12 +746,26 @@ public:
     WindowedKernelKind kind() const noexcept { return kind_; }
 
     /// Whether an analytic p > p_tail discrete remainder mass is included in GC compression.
-    bool has_high_tail_remainder() const noexcept { return mu_sim_ == 0.0; }
+    bool has_high_tail_remainder() const noexcept {
+        return kind_ != WindowedKernelKind::CustomGaussian && mu_sim_ == 0.0;
+    }
+
+    /// Whether every nonzero quadrature term is spiky on all tree levels `0 .. max_d`
+    /// (`w_const_scaled == 0` and `n_spiky >= max_d` for every active term), so convolution
+    /// reduces identically to Stage 2 local moment evaluation on the input leaf boxes.
+    bool is_purely_spiky_for_depth(int max_d) const noexcept {
+        if (max_d < 0 || w_const_scaled_ != 0.0) return false;
+        for (const WindowedQuadratureTerm& term : terms_) {
+            if (term.weight_scaled == 0.0) continue;
+            if (term.n_diff < 0 || term.n_spiky < max_d) return false;
+        }
+        return true;
+    }
 
     /// Exact analytic p > p_tail remainder spike {weight_scaled_rem, gamma_rem} at tree level `level`
-    /// (zero weight when mu_sim > 0). Useful for Gate 1 uncompressed vs GC norm verification.
+    /// (zero weight when mu_sim > 0 or CustomGaussian). Useful for Gate 1 uncompressed vs GC norm verification.
     std::pair<double, double> high_tail_remainder_node(int level) const noexcept {
-        if (mu_sim_ != 0.0) return {0.0, 1.0};
+        if (!has_high_tail_remainder()) return {0.0, 1.0};
         const double ln2 = std::log(2.0);
         const double tp_tail = static_cast<double>(p_tail_) * delta_t_;
         const double u_tail = std::exp(2.0 * static_cast<double>(level) * ln2 - 2.0 * tp_tail);
@@ -825,20 +884,22 @@ public:
                 sum += term.coeff_sim * std::exp(-std::exp(log_arg));
             }
         }
-        // If called at tiny r_sim on a shallow max_tree_level plan where exp(2*t_{p_tail})*r_sim^2 < 45,
-        // include the analytic high-p dyadic grid continuation beyond p_tail.
-        const double top_log_arg = 2.0 * static_cast<double>(p_tail_) * delta_t_ + log_r2;
-        if (top_log_arg < 45.0) {
-            for (int p = p_tail_ + 1;; ++p) {
-                const double tp = static_cast<double>(p) * delta_t_;
-                const double log_arg = 2.0 * tp + log_r2;
-                if (log_arg >= 45.0) break;
-                const double mu_arg = (mu_sim_ > 0.0 && -2.0 * tp < 700.0)
-                    ? (0.25 * mu_sim_ * mu_sim_ * std::exp(-2.0 * tp))
-                    : 0.0;
-                if (mu_arg < 700.0) {
-                    const double cp = (2.0 * delta_t_ * constants::inv_sqrt_pi) * std::exp(tp - mu_arg);
-                    sum += cp * std::exp(-std::exp(log_arg));
+        if (kind_ != WindowedKernelKind::CustomGaussian) {
+            // If called at tiny r_sim on a shallow max_tree_level plan where exp(2*t_{p_tail})*r_sim^2 < 45,
+            // include the analytic high-p dyadic grid continuation beyond p_tail.
+            const double top_log_arg = 2.0 * static_cast<double>(p_tail_) * delta_t_ + log_r2;
+            if (top_log_arg < 45.0) {
+                for (int p = p_tail_ + 1;; ++p) {
+                    const double tp = static_cast<double>(p) * delta_t_;
+                    const double log_arg = 2.0 * tp + log_r2;
+                    if (log_arg >= 45.0) break;
+                    const double mu_arg = (mu_sim_ > 0.0 && -2.0 * tp < 700.0)
+                        ? (0.25 * mu_sim_ * mu_sim_ * std::exp(-2.0 * tp))
+                        : 0.0;
+                    if (mu_arg < 700.0) {
+                        const double cp = (2.0 * delta_t_ * constants::inv_sqrt_pi) * std::exp(tp - mu_arg);
+                        sum += cp * std::exp(-std::exp(log_arg));
+                    }
                 }
             }
         }
@@ -904,6 +965,140 @@ private:
         const double ln2 = std::log(2.0);
         const double two_n_ln2 = 2.0 * static_cast<double>(level) * ln2;
 
+        if (kind_ == WindowedKernelKind::CustomGaussian) {
+            std::vector<std::size_t> spiky_idx;
+            bool any_nonpos = false;
+            for (std::size_t idx = 0; idx < terms_.size(); ++idx) {
+                const WindowedQuadratureTerm& term = terms_[idx];
+                if (term.weight_scaled == 0.0 || term.n_spiky < level) continue;
+                spiky_idx.push_back(idx);
+                if (term.weight_scaled < 0.0) any_nonpos = true;
+            }
+            if (spiky_idx.empty()) {
+                return rule;
+            }
+            if (any_nonpos || static_cast<int>(spiky_idx.size()) <= gc_rank_Q_) {
+                rule.nodes.reserve(spiky_idx.size());
+                for (std::size_t idx : spiky_idx) {
+                    const WindowedQuadratureTerm& term = terms_[idx];
+                    const double log_gamma = std::min(690.0, 2.0 * term.t_p - two_n_ln2);
+                    const double gamma_pn = std::exp(log_gamma);
+                    GCNode node;
+                    node.gamma_tilde = gamma_pn;
+                    node.weight_hat = term.weight_scaled;
+                    node.weight_scaled = term.weight_scaled;
+                    node.MT = moment_op_.make_MT(gamma_pn);
+                    rule.nodes.push_back(std::move(node));
+                }
+                return rule;
+            }
+
+            // More than Q positive custom spiky Gaussians: compress directly on unscaled weights.
+            const std::size_t n_src = spiky_idx.size();
+            int Q_eff = std::min(gc_rank_Q_, static_cast<int>(n_src));
+            std::vector<double> u_pts(n_src, 0.0);
+            std::vector<double> w_hats(n_src, 0.0);
+            double u_max = 0.0;
+            double w_sum = 0.0;
+            for (std::size_t i = 0; i < n_src; ++i) {
+                const WindowedQuadratureTerm& term = terms_[spiky_idx[i]];
+                const double log_u = std::max(-690.0, two_n_ln2 - 2.0 * term.t_p);
+                u_pts[i] = std::exp(log_u);
+                w_hats[i] = term.weight_scaled;
+                u_max = std::max(u_max, u_pts[i]);
+                w_sum += w_hats[i];
+            }
+            if (u_max <= 0.0 || w_sum <= 0.0) {
+                return rule;
+            }
+
+            std::vector<double> s_pts(n_src);
+            std::vector<double> w_norm(n_src);
+            for (std::size_t i = 0; i < n_src; ++i) {
+                s_pts[i] = u_pts[i] / u_max;
+                w_norm[i] = w_hats[i] / w_sum;
+            }
+
+            std::vector<double> diag_a(static_cast<std::size_t>(Q_eff), 0.0);
+            std::vector<double> sub_b(static_cast<std::size_t>(std::max(0, Q_eff - 1)), 0.0);
+            std::vector<double> p_prev(n_src, 0.0);
+            std::vector<double> p_curr(n_src, 1.0);
+            std::vector<double> p_next(n_src, 0.0);
+            double norm_sq_prev = 1.0;
+            for (int j = 0; j < Q_eff; ++j) {
+                double norm_sq = 0.0;
+                double s_num = 0.0;
+                for (std::size_t i = 0; i < n_src; ++i) {
+                    const double wp2 = w_norm[i] * p_curr[i] * p_curr[i];
+                    norm_sq += wp2;
+                    s_num += wp2 * s_pts[i];
+                }
+                if (norm_sq <= 1e-300) {
+                    Q_eff = j;
+                    break;
+                }
+                const double aj = s_num / norm_sq;
+                diag_a[static_cast<std::size_t>(j)] = aj;
+                if (j + 1 < Q_eff) {
+                    const double beta_sq = (j > 0) ? (norm_sq / norm_sq_prev) : 0.0;
+                    double norm_sq_next = 0.0;
+                    for (std::size_t i = 0; i < n_src; ++i) {
+                        const double val =
+                            (s_pts[i] - aj) * p_curr[i] - ((j > 0) ? (beta_sq * p_prev[i]) : 0.0);
+                        p_next[i] = val;
+                        norm_sq_next += w_norm[i] * val * val;
+                    }
+                    if (norm_sq_next <= 1e-28 * norm_sq) {
+                        Q_eff = j + 1;
+                        break;
+                    }
+                    sub_b[static_cast<std::size_t>(j)] = std::sqrt(norm_sq_next / norm_sq);
+                    p_prev.swap(p_curr);
+                    p_curr.swap(p_next);
+                    norm_sq_prev = norm_sq;
+                }
+            }
+            if (Q_eff <= 0) {
+                return rule;
+            }
+            const long q_dim = static_cast<long>(Q_eff);
+            Tensor<double> J(q_dim, q_dim);
+            J = 0.0;
+            for (int j = 0; j < Q_eff; ++j) {
+                J(j, j) = diag_a[static_cast<std::size_t>(j)];
+                if (j + 1 < Q_eff) {
+                    const double bj = sub_b[static_cast<std::size_t>(j)];
+                    J(j, j + 1) = bj;
+                    J(j + 1, j) = bj;
+                }
+            }
+            Tensor<double> V;
+            Tensor<double> evals;
+            if (Q_eff == 1) {
+                V = Tensor<double>(1L, 1L);
+                V(0L, 0L) = 1.0;
+                evals = Tensor<double>(1L);
+                evals(0L) = J(0L, 0L);
+            } else {
+                syev(J, V, evals);
+            }
+            rule.nodes.reserve(static_cast<std::size_t>(Q_eff));
+            for (int q = 0; q < Q_eff; ++q) {
+                const double s_q = std::clamp(evals(q), 1e-300, 1.0);
+                const double u_tilde = u_max * s_q;
+                const double gamma_tilde = 1.0 / u_tilde;
+                const double v0 = V(0L, q);
+                const double w_q = w_sum * (v0 * v0);
+                GCNode node;
+                node.gamma_tilde = gamma_tilde;
+                node.weight_hat = w_q;
+                node.weight_scaled = w_q;
+                node.MT = moment_op_.make_MT(gamma_tilde);
+                rule.nodes.push_back(std::move(node));
+            }
+            return rule;
+        }
+
         std::vector<double> u_pts;
         std::vector<double> w_hats;
         u_pts.reserve(terms_.size() + 1);
@@ -928,7 +1123,7 @@ private:
                 wh_pn = op_scale_ * (2.0 * constants::pi * delta_t_) * u_pn * mu_factor;
             } else {
                 // Off-grid term (only possible if n_spiky(low) >= level, never for typical eps).
-                wh_pn = (-two_n_ln2 < 700.0) ? (std::exp(two_n_ln2) * term.weight_scaled) : 0.0;
+                wh_pn = (two_n_ln2 < 700.0) ? (std::exp(two_n_ln2) * term.weight_scaled) : 0.0;
             }
 
             if (wh_pn > 0.0) {
@@ -938,7 +1133,7 @@ private:
         }
 
         // Include exact analytic discrete high-tail remainder spike for p > p_tail when mu_sim == 0.
-        if (mu_sim_ == 0.0) {
+        if (has_high_tail_remainder()) {
             const double tp_tail = static_cast<double>(p_tail_) * delta_t_;
             if (grid_n_spiky(p_tail_) >= level) {
                 const double u_tail = std::exp(two_n_ln2 - 2.0 * tp_tail);

@@ -100,6 +100,20 @@ public:
                                  const WindowedConvolutionOptions& opts)
         : WindowedSeparatedConvolution(world, kind, mu_user, eps, FunctionDefaults<NDIM>::get_k(), opts) {}
 
+    WindowedSeparatedConvolution(World& world,
+                                 const Tensor<double>& coeff,
+                                 const Tensor<double>& expnt,
+                                 double eps,
+                                 int k = FunctionDefaults<NDIM>::get_k(),
+                                 const WindowedConvolutionOptions& opts = {});
+
+    WindowedSeparatedConvolution(World& world,
+                                 const Tensor<double>& coeff,
+                                 const Tensor<double>& expnt,
+                                 double eps,
+                                 const WindowedConvolutionOptions& opts)
+        : WindowedSeparatedConvolution(world, coeff, expnt, eps, FunctionDefaults<NDIM>::get_k(), opts) {}
+
     WindowedSeparatedConvolution(const WindowedSeparatedConvolution&) = default;
     WindowedSeparatedConvolution(WindowedSeparatedConvolution&&) noexcept = default;
     WindowedSeparatedConvolution& operator=(const WindowedSeparatedConvolution&) = default;
@@ -121,6 +135,8 @@ public:
 
     double cell_width() const noexcept { return cell_width_L_; }
     WindowedKernelKind kind() const noexcept { return kind_; }
+    const std::vector<double>& custom_coeffs_user() const noexcept { return custom_coeffs_user_; }
+    const std::vector<double>& custom_expnts_user() const noexcept { return custom_expnts_user_; }
 
     const WindowedQuadraturePlan& plan() const noexcept { return *plan_; }
     const WindowedStencilCache1D& stencil_cache() const noexcept { return *stencil_cache_; }
@@ -200,6 +216,8 @@ private:
     double cell_width_L_ = 1.0;
     WindowedConvolutionOptions opts_{};
     bool destructive_ = false;
+    std::vector<double> custom_coeffs_user_;
+    std::vector<double> custom_expnts_user_;
 
     std::shared_ptr<const WindowedQuadraturePlan> plan_;
     std::shared_ptr<const WindowedStencilCache1D> stencil_cache_;
@@ -491,6 +509,27 @@ WindowedYukawaOperatorPtr(World& world,
                           const WindowedConvolutionOptions& opts = {}) {
     return std::make_shared<WindowedSeparatedConvolution<double, 3>>(
         world, WindowedKernelKind::YukawaRaw, mu, eps, k, opts);
+}
+
+inline WindowedSeparatedConvolution<double, 3>
+WindowedGaussianOperator(World& world,
+                         const Tensor<double>& coeff,
+                         const Tensor<double>& expnt,
+                         double eps,
+                         int k = FunctionDefaults<3>::get_k(),
+                         const WindowedConvolutionOptions& opts = {}) {
+    return WindowedSeparatedConvolution<double, 3>(world, coeff, expnt, eps, k, opts);
+}
+
+inline std::shared_ptr<WindowedSeparatedConvolution<double, 3>>
+WindowedGaussianOperatorPtr(World& world,
+                            const Tensor<double>& coeff,
+                            const Tensor<double>& expnt,
+                            double eps,
+                            int k = FunctionDefaults<3>::get_k(),
+                            const WindowedConvolutionOptions& opts = {}) {
+    return std::make_shared<WindowedSeparatedConvolution<double, 3>>(
+        world, coeff, expnt, eps, k, opts);
 }
 
 } // namespace madness

@@ -54,6 +54,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <mutex>
@@ -62,6 +63,12 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#ifdef HAVE_INTEL_TBB
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <tbb/partitioner.h>
+#endif
 
 namespace madness {
 
@@ -107,7 +114,7 @@ struct WindowedActiveBatchWorkerGuard {
 
 namespace windowed_parallel_detail {
 
-inline constexpr std::size_t kMaxParallelChunks = 16;
+inline constexpr std::size_t kMaxParallelChunks = 32;
 inline constexpr std::size_t kDefaultParallelGrain = 4;
 inline std::atomic<int> g_active_inner_helper_tasks{0};
 inline thread_local bool g_in_inner_sumfact_chunk = false;
@@ -253,6 +260,28 @@ inline void parallel_for_chunks(std::size_t n_items, std::size_t min_grain, cons
         return {b, e};
     };
 
+#ifdef HAVE_INTEL_TBB
+    if (ThreadPool::tbb_arena) {
+        ThreadPool::tbb_arena->execute([&]() {
+            tbb::parallel_for(
+                tbb::blocked_range<std::size_t>(0, n_chunks, 1),
+                [&](const tbb::blocked_range<std::size_t>& r) {
+                    InnerChunkFlagGuard inner_guard;
+                    for (std::size_t cid = r.begin(); cid != r.end(); ++cid) {
+                        const auto [b, e] = chunk_bounds(cid);
+                        fn(b, e, cid);
+                    }
+                },
+                tbb::simple_partitioner());
+        });
+    } else {
+        InnerChunkFlagGuard chunk0_guard;
+        for (std::size_t cid = 0; cid < n_chunks; ++cid) {
+            const auto [b, e] = chunk_bounds(cid);
+            fn(b, e, cid);
+        }
+    }
+#else
     std::atomic<int> remaining{reserved_helpers};
     std::atomic<bool> failed{false};
 
@@ -270,6 +299,7 @@ inline void parallel_for_chunks(std::size_t n_items, std::size_t min_grain, cons
 
     ThreadPool::await([&remaining]() { return remaining.load(std::memory_order_acquire) == 0; }, true);
     MADNESS_CHECK(!failed.load(std::memory_order_acquire));
+#endif
 }
 
 } // namespace windowed_parallel_detail
@@ -277,10 +307,11 @@ inline void parallel_for_chunks(std::size_t n_items, std::size_t min_grain, cons
 /// Bitmask flags classifying virtual halo nodes at level `j`.
 enum WindowedHaloFlags : std::uint8_t {
     kHaloNone = 0u,
-    kHaloH1T = 1u << 0,       ///< Primary virtual halo dH_j^{(1,T)} around real nodes T_j (Stage 4a).
-    kHaloH1Gamma = 1u << 1,   ///< Primary virtual halo dH_j^{(1,Gamma)} around T_j^{int} (Pass 4b-1 ds_corr).
-    kHaloH1Refine = 1u << 2,  ///< Virtual dynamic-refinement candidate around T_j^{int} (Pass 4b-2).
-    kHaloH2Ghost = 1u << 3    ///< Secondary read-only virtual ghost dH_j^{(2)} completing scaling stencils.
+    kHaloH1T = 1u << 0,                  ///< Primary virtual halo dH_j^{(1,T)} around real nodes T_j (Stage 4a).
+    kHaloH1Gamma = 1u << 1,              ///< Primary virtual halo dH_j^{(1,Gamma)} around T_j^{int} (Pass 4b-1 ds_corr).
+    kHaloH1Refine = 1u << 2,             ///< Virtual dynamic-refinement candidate around T_j^{int} (Pass 4b-2).
+    kHaloH2Ghost = 1u << 3,              ///< Secondary read-only virtual ghost dH_j^{(2)} completing scaling stencils.
+    kHaloH1RefineLeafUngraded = 1u << 4  ///< Real-leaf dynamic-refinement gate: ungraded jump (dj >= 2) across neighbor.
 };
 
 /// Per-level active operator half-bandwidths driving minimal fine-driven halo construction.
@@ -484,6 +515,24 @@ inline int child_octant_index(const Key<3>& child_key) noexcept {
            static_cast<int>(l[2] & Translation(1));
 }
 
+/// Return true iff an internal node at level `j` with 8-bit `internal_child_mask` (bit `oct` set iff
+/// child `oct` at `j + 1` is internal) has at least one internal child touching the `sh == 1` neighbor
+/// at displacement `(dx, dy, dz) in {-1, 0, +1}^3 \ {(0, 0, 0)}` (i.e. an ungraded jump `dj >= 2`).
+inline bool has_ungraded_child_toward(std::uint8_t internal_child_mask,
+                                      int dx,
+                                      int dy,
+                                      int dz) noexcept {
+    std::uint8_t mask = internal_child_mask;
+    if (mask == 0u) return false;
+    if (dx < 0) mask &= 0x0Fu;
+    else if (dx > 0) mask &= 0xF0u;
+    if (dy < 0) mask &= 0x33u;
+    else if (dy > 0) mask &= 0xCCu;
+    if (dz < 0) mask &= 0x55u;
+    else if (dz > 0) mask &= 0xAAu;
+    return (mask != 0u);
+}
+
 /// Compute `s000 = s(0,0,0)`, cancellation-free `s_osc_norm2 = \sum_{(i,j,l) != (0,0,0)} |s(i,j,l)|^2`,
 /// and `s_normf = ||s||_F` 100% read-only on a contiguous `k^3` tensor via BLAS `cblas::dot`.
 template <typename T>
@@ -512,6 +561,22 @@ inline void compute_scaling_norms_readonly(const Tensor<T>& s_cube,
     }
     out_s_osc_norm2 = std::max(0.0, osc_sq);
     out_s_normf = std::sqrt(scalar_abs2(out_s000) + out_s_osc_norm2);
+}
+
+/// Fast BLAS `cblas::dot` check returning true iff contiguous `s_cube` has non-zero Frobenius norm.
+template <typename T>
+inline bool is_cube_nonzero_readonly(const Tensor<T>& s_cube) noexcept {
+    const long sz = s_cube.size();
+    if (sz <= 0) return false;
+    const T* p = s_cube.ptr();
+    double sq = 0.0;
+    if constexpr (std::is_same_v<T, double>) {
+        sq = madness::cblas::dot(static_cast<integer>(sz), p, 1, p, 1);
+    } else {
+        const double* p_re = reinterpret_cast<const double*>(p);
+        sq = madness::cblas::dot(static_cast<integer>(2L * sz), p_re, 1, p_re, 1);
+    }
+    return sq > 0.0;
 }
 
 /// Extract a contiguous `k x k x k` scaling tensor from a `(2k)^3` or `k^3` tensor using `Slice`.
@@ -792,10 +857,11 @@ private:
 template <typename T>
 struct WindowedOwnedRealNode {
     Key<3> key;
-    bool is_internal = false;        ///< True iff `node.has_children()` in input tree.
-    bool near_internal_4b1 = false;  ///< For leaves: within `m_max_4b1 >= 1` of `T_j^{int}`.
-    bool near_internal_4b2 = false;  ///< For leaves: within `max_refine_cand_bw >= 1` of `T_j^{int}`.
-    bool promoted_leaf = false;      ///< For leaves: true iff dynamically refined in Stage 4(b).
+    bool is_internal = false;               ///< True iff `node.has_children()` in input tree.
+    bool near_internal_4b1 = false;         ///< For leaves: within `m_max_4b1 >= 1` of `T_j^{int}`.
+    bool near_internal_4b2 = false;         ///< For leaves: abuts ungraded (`dj >= 2`) boundary of `T_j^{int}`.
+    bool promoted_leaf = false;             ///< For leaves: true iff dynamically refined in Stage 4(b).
+    std::uint8_t internal_child_mask = 0u;  ///< For internals: bit `oct` set iff child `oct` at `j+1` is internal.
     T s000 = T(0);                   ///< `s_in(0, 0, 0)` constant moment.
     double s_osc_norm2 = 0.0;        ///< `||s_in - s000 e_{000}||_F^2` (cancellation-free).
     double s_normf = 0.0;            ///< `||s_in||_F`.
@@ -880,6 +946,18 @@ inline const WindowedSourceEntry<T>* find_windowed_source_packed(
     return nullptr;
 }
 
+/// Active internal-node level bounds for zero-mutation serial (`world.size() == 1`) input ingestion:
+///   - `min_s_int_level` / `max_s_int_level`: smallest / largest level `j in [0, n_max_tree - 1]`
+///     that reads `s_in` (or `(s_in, d_in)`) on internal nodes (`> max_s_int_level` / `< 0` if none).
+///   - `min_gamma_level` / `max_gamma_level`: smallest / largest level `j in [0, n_max_tree - 1]`
+///     that reads `(2k)^3` `ns_in` / `wav_in` on internal nodes (`> max_gamma_level` / `< 0` if none).
+struct WindowedSerialInputRange {
+    int min_s_int_level = 0;
+    int max_s_int_level = 1000;
+    int min_gamma_level = 0;
+    int max_gamma_level = 1000;
+};
+
 /// Complete Stage 1b + Stage 5a distributed halo workspace for one `apply_windowed_ns_3d` call.
 template <typename T>
 class WindowedNSHaloWorkspace {
@@ -888,20 +966,31 @@ public:
                                               std::vector<WindowedLevelRadii>&)>;
 
     WindowedNSHaloWorkspace(World& world,
-                            const Function<T, 3>& f_ns,
+                            const Function<T, 3>& f_in,
                             int n_max_tree,
                             bool dynamic_refine,
                             int max_refine_level,
-                            const RadiiBuilderFn& radii_builder)
+                            const RadiiBuilderFn& radii_builder,
+                            const WindowedSerialInputRange& serial_range = WindowedSerialInputRange{},
+                            bool ungraded_leaf_refine_only = false)
         : world_(world)
-        , k_(f_ns.k())
+        , k_(f_in.k())
         , n_max_tree_(n_max_tree)
         , dynamic_refine_(dynamic_refine)
         , max_refine_level_(max_refine_level)
-        , cdata_(FunctionCommonData<T, 3>::get(f_ns.k()))
+        , ungraded_leaf_refine_only_(ungraded_leaf_refine_only)
+        , serial_range_(serial_range)
+        , cdata_(FunctionCommonData<T, 3>::get(f_in.k()))
         , is_periodic_(FunctionDefaults<3>::get_bc().is_periodic())
-        , pmap_(f_ns.get_pmap()) {
-        MADNESS_CHECK(f_ns.get_impl()->get_tree_state() == nonstandard_with_leaves);
+        , pmap_(f_in.get_pmap()) {
+        const TreeState in_state = f_in.get_impl()->get_tree_state();
+        if (world_.size() > 1) {
+            MADNESS_CHECK(in_state == nonstandard_with_leaves);
+        } else {
+            MADNESS_CHECK(in_state == nonstandard_with_leaves ||
+                          in_state == reconstructed ||
+                          in_state == compressed);
+        }
         init_octant_filters();
         levels_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
         global_stats_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
@@ -913,9 +1002,9 @@ public:
 
         if (world_.size() > 1) {
             exchange_ = std::make_unique<windowed_halo_detail::WindowedNSHaloExchange<T>>(world_);
-            build_distributed(f_ns, radii_builder);
+            build_distributed(f_in, radii_builder);
         } else {
-            build_serial(f_ns, radii_builder);
+            build_serial(f_in, radii_builder);
         }
     }
 
@@ -959,6 +1048,146 @@ public:
 
     const WindowedLevelData<T>& level_data(int j) const {
         return levels_[static_cast<std::size_t>(j)];
+    }
+
+    /// Fast single-rank (`world.size() == 1`) Stage 5a + Stage 5b synthesis directly into
+    /// `TreeState::reconstructed` when no dynamic leaf/virtual promotion occurred:
+    ///   - Restricts all virtual boundary corrections in flat arrays (`restrict_all_virtual_unpromoted`).
+    ///   - Propagates non-zero internal `(s_out, ns_out)` top-down (`j = 0 .. n_max_tree - 1`) in parallel
+    ///     flat arrays via `fast_transform(..., cdata_.hg)` (or `prolong_step_3d` when `ns_out` is empty),
+    ///     completely skipping untouched/zero internal nodes and inactive coarse levels.
+    ///   - Populates `result`'s `WorldContainer` ONCE directly in `TreeState::reconstructed` (zero
+    ///     `result.reconstruct()` task-queue walk).
+    /// Falls back cleanly to `assemble_output_nonstandard_tree(result)` (`return false`) when
+    /// `world.size() > 1` or when any leaf/virtual node was dynamically promoted.
+    bool assemble_output_reconstructed_serial(Function<T, 3>& result) {
+        if (world_.size() > 1) {
+            assemble_output_nonstandard_tree(result);
+            return false;
+        }
+
+        long local_any_promoted = 0;
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            for (const auto& rn : levels_[static_cast<std::size_t>(j)].owned_real) {
+                if (rn.promoted_leaf && j < max_refine_level_) ++local_any_promoted;
+            }
+            if (j >= 1) {
+                for (const auto& vn : levels_[static_cast<std::size_t>(j)].owned_virt) {
+                    if (vn.promoted && j < max_refine_level_) ++local_any_promoted;
+                }
+            }
+        }
+        if (local_any_promoted > 0) {
+            assemble_output_nonstandard_tree(result);
+            return false;
+        }
+
+        restrict_all_virtual_unpromoted();
+
+        const long kk = static_cast<long>(k_);
+        const long kk3 = kk * kk * kk;
+        const long twok = 2L * kk;
+        const long twok3 = twok * twok * twok;
+        const long k_dims[3] = {kk, kk, kk};
+        const long twok_dims[3] = {twok, twok, twok};
+        const Slice s0(0, kk - 1);
+
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_full_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_unf_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_work_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_child_k3;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_work_k3;
+
+        std::vector<std::size_t> active_ints;
+        for (int j = 0; j < n_max_tree_; ++j) {
+            auto& ld = levels_[static_cast<std::size_t>(j)];
+            auto& child_ld = levels_[static_cast<std::size_t>(j + 1)];
+            if (ld.owned_real.empty()) continue;
+
+            active_ints.clear();
+            for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                const auto& rn = ld.owned_real[ri];
+                if (!rn.is_internal) continue;
+                if (rn.ns_out.size() == twok3 ||
+                    windowed_halo_detail::is_cube_nonzero_readonly(rn.s_out)) {
+                    active_ints.push_back(ri);
+                }
+            }
+            if (active_ints.empty()) continue;
+
+            windowed_parallel_detail::parallel_for_chunks(
+                active_ints.size(),
+                2,
+                [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    for (std::size_t ai = b; ai < e_hi; ++ai) {
+                        const auto& rn = ld.owned_real[active_ints[ai]];
+                        if (rn.ns_out.size() == twok3) {
+                            if (tls_full_2k[cid].size() != twok3) {
+                                tls_full_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                                tls_unf_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                                tls_work_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                            }
+                            Tensor<T>& full_ns = tls_full_2k[cid];
+                            Tensor<T>& unf_2k = tls_unf_2k[cid];
+                            Tensor<T>& work_2k = tls_work_2k[cid];
+
+                            std::memcpy(full_ns.ptr(),
+                                        rn.ns_out.ptr(),
+                                        static_cast<std::size_t>(twok3) * sizeof(T));
+                            full_ns(s0, s0, s0) = rn.s_out;
+                            fast_transform(full_ns, cdata_.hg, unf_2k, work_2k);
+
+                            for (KeyChildIterator<3> kit(rn.key); kit; ++kit) {
+                                const Key<3>& ch = kit.key();
+                                const std::size_t cidx = find_owned_real_index(j + 1, ch);
+                                MADNESS_CHECK(cidx != SIZE_MAX);
+                                const auto& cl = ch.translation();
+                                child_ld.owned_real[cidx].s_out +=
+                                    unf_2k(cdata_.s[cl[0] & 1],
+                                           cdata_.s[cl[1] & 1],
+                                           cdata_.s[cl[2] & 1]);
+                            }
+                        } else {
+                            if (tls_child_k3[cid].size() != kk3) {
+                                tls_child_k3[cid] = Tensor<T>(3L, k_dims, false);
+                                tls_work_k3[cid] = Tensor<T>(3L, k_dims, false);
+                            }
+                            Tensor<T>& child_tmp = tls_child_k3[cid];
+                            Tensor<T>& work_k3 = tls_work_k3[cid];
+
+                            for (KeyChildIterator<3> kit(rn.key); kit; ++kit) {
+                                const Key<3>& ch = kit.key();
+                                const std::size_t cidx = find_owned_real_index(j + 1, ch);
+                                MADNESS_CHECK(cidx != SIZE_MAX);
+                                windowed_halo_detail::prolong_step_3d(
+                                    h_oct_, rn.s_out, ch, child_tmp, work_k3);
+                                aligned_axpy(kk3,
+                                             child_ld.owned_real[cidx].s_out.ptr(),
+                                             child_tmp.ptr(),
+                                             1.0);
+                            }
+                        }
+                    }
+                });
+        }
+
+        auto* res_impl = result.get_impl().get();
+        auto& res_coeffs = res_impl->get_coeffs();
+        const TensorArgs res_targs = res_impl->get_tensor_args();
+        const GenTensor<T> empty_coeff;
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            auto& ld = levels_[static_cast<std::size_t>(j)];
+            for (auto& rn : ld.owned_real) {
+                if (rn.is_internal) {
+                    res_coeffs.replace(rn.key, FunctionNode<T, 3>(empty_coeff, true));
+                } else {
+                    GenTensor<T> coeff(rn.s_out, res_targs);
+                    res_coeffs.replace(rn.key, FunctionNode<T, 3>(coeff, false));
+                }
+            }
+        }
+        res_impl->set_tree_state(reconstructed);
+        return true;
     }
 
     /// Stage 5a + Stage 5b assembly:
@@ -1259,13 +1488,558 @@ private:
                 }
             }
         }
+
+        if (world_.size() == 1 && dynamic_refine_ && ungraded_leaf_refine_only_) {
+            populate_serial_internal_child_masks();
+        }
+    }
+
+    void populate_serial_internal_child_masks() {
+        for (int j = 1; j <= n_max_tree_; ++j) {
+            for (const auto& ch : levels_[static_cast<std::size_t>(j)].owned_real) {
+                if (!ch.is_internal) continue;
+                const Key<3> par = ch.key.parent();
+                const std::size_t pidx = find_owned_real_index(j - 1, par);
+                if (pidx != SIZE_MAX) {
+                    const int oct = windowed_halo_detail::child_octant_index(ch.key);
+                    auto& prn = levels_[static_cast<std::size_t>(j - 1)].owned_real[pidx];
+                    prn.internal_child_mask = static_cast<std::uint8_t>(
+                        prn.internal_child_mask | static_cast<std::uint8_t>(1u << oct));
+                }
+            }
+        }
+    }
+
+    void finalize_serial_stats_and_child_masks() {
+        double coarse_leaf_max = 0.0;
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            const std::size_t sj = static_cast<std::size_t>(j);
+            auto& ld = levels_[sj];
+            auto& st = global_stats_[sj];
+            for (const auto& rn : ld.owned_real) {
+                st.max_s_real = std::max(st.max_s_real, rn.s_normf);
+                if (rn.is_internal) {
+                    st.has_internal = true;
+                    st.max_d_int = std::max(st.max_d_int, rn.d_normf);
+                    st.max_ns_int = std::max(st.max_ns_int, rn.ns_normf);
+                } else {
+                    st.max_s_leaf = std::max(st.max_s_leaf, rn.s_normf);
+                }
+            }
+            st.max_coarse_leaf_above = coarse_leaf_max;
+            st.max_s_source = std::max(st.max_s_real, coarse_leaf_max);
+            coarse_leaf_max = std::max(coarse_leaf_max, st.max_s_leaf);
+            ld.global_has_internal = st.has_internal;
+        }
+        if (dynamic_refine_ && ungraded_leaf_refine_only_) {
+            populate_serial_internal_child_masks();
+        }
+    }
+
+    /// Zero-mutation read-only serial ingestion directly from `TreeState::reconstructed`:
+    ///   - Reads leaf `k^3` tensors in O(1) shallow handles (zero `f.make_nonstandard()`, zero `f.reconstruct()`).
+    ///   - Restricts internal nodes bottom-up strictly down to `serial_range_.min_s_int_level`, skipping all
+    ///     coarser levels `j < min_s_int_level` completely (and skipping ALL internal nodes when
+    ///     `serial_range_.max_s_int_level < 0`, e.g., when `j_0 == n_max_tree` and `raw_gamma_terms` is empty).
+    ///   - Computes `(2k)^3` `ns_in` + `wav_in` strictly on `[min_gamma_level, max_gamma_level]`, using
+    ///     lightweight `k^3` `restrict_step_accumulate_3d` (`24 k^4` flops, zero `(2k)^3` allocs) elsewhere.
+    void ingest_local_real_nodes_serial_reconstructed(const Function<T, 3>& f_rec) {
+        const long kk = static_cast<long>(k_);
+        const long kk3 = kk * kk * kk;
+        const long twok = 2L * kk;
+        const long twok3 = twok * twok * twok;
+        const long k_dims[3] = {kk, kk, kk};
+        const long twok_dims[3] = {twok, twok, twok};
+        const Slice s0(0, kk - 1);
+        const auto& coeffs = f_rec.get_impl()->get_coeffs();
+
+        std::vector<std::pair<Key<3>, const FunctionNode<T, 3>*>> raw_nodes;
+        raw_nodes.reserve(coeffs.size());
+        std::vector<std::size_t> lvl_counts(static_cast<std::size_t>(n_max_tree_ + 1), 0u);
+        for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+            const int j = static_cast<int>(it->first.level());
+            MADNESS_CHECK(j >= 0 && j <= n_max_tree_);
+            raw_nodes.emplace_back(it->first, &(it->second));
+            ++lvl_counts[static_cast<std::size_t>(j)];
+        }
+
+        if (raw_nodes.empty()) {
+            WindowedOwnedRealNode<T> root_rn;
+            root_rn.key = cdata_.key0;
+            root_rn.is_internal = false;
+            root_rn.s_in = Tensor<T>(kk, kk, kk);
+            root_rn.s_out = Tensor<T>(kk, kk, kk);
+            levels_[0].owned_real.push_back(std::move(root_rn));
+            levels_[0].real_packed_keys = {
+                windowed_halo_detail::pack_spatial_key_same_level(cdata_.key0)};
+            finalize_serial_stats_and_child_masks();
+            return;
+        }
+
+        std::vector<WindowedOwnedRealNode<T>> built_nodes(raw_nodes.size());
+        windowed_parallel_detail::parallel_for_chunks(
+            raw_nodes.size(),
+            windowed_parallel_detail::kDefaultParallelGrain,
+            [&](std::size_t b, std::size_t e_hi, std::size_t) {
+                for (std::size_t idx = b; idx < e_hi; ++idx) {
+                    const Key<3>& key = raw_nodes[idx].first;
+                    const FunctionNode<T, 3>& node = *raw_nodes[idx].second;
+
+                    WindowedOwnedRealNode<T>& rn = built_nodes[idx];
+                    rn.key = key;
+                    rn.is_internal = node.has_children();
+                    rn.s_out = Tensor<T>(kk, kk, kk);
+
+                    if (!rn.is_internal) {
+                        if (node.has_coeff()) {
+                            const auto& gen_c = node.coeff();
+                            const bool is_contig_full =
+                                (gen_c.tensor_type() == TT_FULL && gen_c.get_tensor().iscontiguous());
+                            const Tensor<T> full_c =
+                                is_contig_full ? gen_c.get_tensor() : gen_c.full_tensor_copy();
+                            if (full_c.dim(0) == kk && full_c.dim(1) == kk && full_c.dim(2) == kk &&
+                                full_c.iscontiguous()) {
+                                rn.s_in = full_c;
+                            } else {
+                                rn.s_in = windowed_halo_detail::extract_scaling_cube(full_c, k_);
+                            }
+                        } else {
+                            rn.s_in = Tensor<T>(kk, kk, kk);
+                        }
+                        windowed_halo_detail::compute_scaling_norms_readonly(
+                            rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
+                        rn.ns_normf = rn.s_normf;
+                    }
+                }
+            });
+
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            levels_[static_cast<std::size_t>(j)].owned_real.reserve(
+                lvl_counts[static_cast<std::size_t>(j)]);
+        }
+        for (auto& rn : built_nodes) {
+            levels_[static_cast<std::size_t>(rn.key.level())].owned_real.push_back(std::move(rn));
+        }
+
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            auto& ld = levels_[static_cast<std::size_t>(j)];
+            std::sort(ld.owned_real.begin(), ld.owned_real.end(), [](const auto& a, const auto& b) noexcept {
+                return windowed_halo_detail::windowed_key_less(a.key, b.key);
+            });
+            if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
+                ld.real_packed_keys.resize(ld.owned_real.size());
+                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                    ld.real_packed_keys[ri] =
+                        windowed_halo_detail::pack_spatial_key_same_level(ld.owned_real[ri].key);
+                }
+            }
+        }
+
+        if (n_max_tree_ >= 1 &&
+            serial_range_.max_s_int_level >= 0 &&
+            serial_range_.min_s_int_level <= serial_range_.max_s_int_level) {
+            const int j_stop = std::max(0, serial_range_.min_s_int_level);
+            std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_box_2k;
+            std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_work_2k;
+            std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_w1_k3;
+            std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_w2_k3;
+            std::vector<std::size_t> int_indices;
+
+            for (int j = n_max_tree_ - 1; j >= j_stop; --j) {
+                auto& ld = levels_[static_cast<std::size_t>(j)];
+                const auto& child_ld = levels_[static_cast<std::size_t>(j + 1)];
+                int_indices.clear();
+                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                    if (ld.owned_real[ri].is_internal) {
+                        int_indices.push_back(ri);
+                    }
+                }
+                if (int_indices.empty()) continue;
+
+                const bool need_gamma_j =
+                    (j >= serial_range_.min_gamma_level && j <= serial_range_.max_gamma_level);
+
+                windowed_parallel_detail::parallel_for_chunks(
+                    int_indices.size(),
+                    2,
+                    [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                        if (need_gamma_j) {
+                            if (tls_box_2k[cid].size() != twok3) {
+                                tls_box_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                                tls_work_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                            }
+                            Tensor<T>& box_2k = tls_box_2k[cid];
+                            Tensor<T>& work_2k = tls_work_2k[cid];
+
+                            for (std::size_t ii = b; ii < e_hi; ++ii) {
+                                auto& rn = ld.owned_real[int_indices[ii]];
+                                for (KeyChildIterator<3> kit(rn.key); kit; ++kit) {
+                                    const Key<3>& ch = kit.key();
+                                    const std::size_t cidx = find_owned_real_index(j + 1, ch);
+                                    MADNESS_CHECK(cidx != SIZE_MAX);
+                                    const auto& cl = ch.translation();
+                                    box_2k(cdata_.s[cl[0] & 1],
+                                           cdata_.s[cl[1] & 1],
+                                           cdata_.s[cl[2] & 1]) = child_ld.owned_real[cidx].s_in;
+                                }
+                                rn.ns_in = Tensor<T>(3L, twok_dims, false);
+                                fast_transform(box_2k, cdata_.hgT, rn.ns_in, work_2k);
+                                rn.s_in = copy(rn.ns_in(s0, s0, s0));
+                                windowed_halo_detail::compute_scaling_norms_readonly(
+                                    rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
+                                rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
+                                    rn.ns_in, k_, &rn.d_normf);
+                                rn.ns_normf =
+                                    std::sqrt(rn.s_normf * rn.s_normf + rn.d_normf * rn.d_normf);
+                            }
+                        } else {
+                            if (tls_w1_k3[cid].size() != kk3) {
+                                tls_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
+                                tls_w2_k3[cid] = Tensor<T>(3L, k_dims, false);
+                            }
+                            Tensor<T>& w1_k3 = tls_w1_k3[cid];
+                            Tensor<T>& w2_k3 = tls_w2_k3[cid];
+
+                            for (std::size_t ii = b; ii < e_hi; ++ii) {
+                                auto& rn = ld.owned_real[int_indices[ii]];
+                                rn.s_in = Tensor<T>(kk, kk, kk);
+                                for (KeyChildIterator<3> kit(rn.key); kit; ++kit) {
+                                    const Key<3>& ch = kit.key();
+                                    const std::size_t cidx = find_owned_real_index(j + 1, ch);
+                                    MADNESS_CHECK(cidx != SIZE_MAX);
+                                    windowed_halo_detail::restrict_step_accumulate_3d(
+                                        kk3,
+                                        hT_oct_,
+                                        child_ld.owned_real[cidx].s_in,
+                                        ch,
+                                        rn.s_in,
+                                        w1_k3,
+                                        w2_k3);
+                                }
+                                windowed_halo_detail::compute_scaling_norms_readonly(
+                                    rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
+                                rn.ns_normf = rn.s_normf;
+                            }
+                        }
+                    });
+            }
+        }
+
+        finalize_serial_stats_and_child_masks();
+    }
+
+    /// Zero-mutation read-only serial ingestion directly from `TreeState::compressed`:
+    ///   - Reads root `(s^0, d^0)` and internal `(0, d^j)` tensors read-only and synthesizes `s_in`
+    ///     top-down (`0 .. n_max_tree`) in flat parallel arrays via `fast_transform(..., cdata_.hg)`
+    ///     with zero `WorldContainer` mutations (`f` stays in `TreeState::compressed` untouched!).
+    ///   - Matches `FunctionImpl::reconstruct_op` 1:1 on sparse compressed trees produced by
+    ///     `vtransform` / `gaxpy_inplace` (where leaf siblings or empty intermediate ancestors may
+    ///     be absent from `coeffs`), materializing all 8 octree children of every internal node.
+    void ingest_local_real_nodes_serial_compressed(const Function<T, 3>& f_comp) {
+        const long kk = static_cast<long>(k_);
+        const long kk3 = kk * kk * kk;
+        const long twok = 2L * kk;
+        const long twok3 = twok * twok * twok;
+        const long k_dims[3] = {kk, kk, kk};
+        const long twok_dims[3] = {twok, twok, twok};
+        const Slice s0(0, kk - 1);
+        const auto& coeffs = f_comp.get_impl()->get_coeffs();
+
+        struct RawCompEntry {
+            Key<3> key;
+            const FunctionNode<T, 3>* node = nullptr;
+        };
+        std::vector<std::vector<RawCompEntry>> raw_by_level(
+            static_cast<std::size_t>(n_max_tree_ + 1));
+        for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+            const int j = static_cast<int>(it->first.level());
+            if (j >= 0 && j <= n_max_tree_) {
+                raw_by_level[static_cast<std::size_t>(j)].push_back(
+                    RawCompEntry{it->first, &(it->second)});
+            }
+        }
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            auto& vec = raw_by_level[static_cast<std::size_t>(j)];
+            std::sort(vec.begin(), vec.end(), [](const RawCompEntry& a, const RawCompEntry& b) noexcept {
+                return windowed_halo_detail::windowed_key_less(a.key, b.key);
+            });
+        }
+
+        auto find_raw = [&](int j, const Key<3>& key) noexcept -> const FunctionNode<T, 3>* {
+            if (j < 0 || j > n_max_tree_) return nullptr;
+            const auto& vec = raw_by_level[static_cast<std::size_t>(j)];
+            const auto it = std::lower_bound(
+                vec.begin(),
+                vec.end(),
+                key,
+                [](const RawCompEntry& e, const Key<3>& k) noexcept {
+                    return windowed_halo_detail::windowed_key_less(e.key, k);
+                });
+            if (it != vec.end() && it->key == key) return it->node;
+            return nullptr;
+        };
+
+        auto extract_node_tensor = [](const FunctionNode<T, 3>* fn) -> Tensor<T> {
+            if (fn == nullptr || !fn->has_coeff()) return Tensor<T>();
+            const auto& gen_c = fn->coeff();
+            if (!gen_c.has_data()) return Tensor<T>();
+            const bool is_contig_full =
+                (gen_c.tensor_type() == TT_FULL && gen_c.get_tensor().iscontiguous());
+            return is_contig_full ? gen_c.get_tensor() : gen_c.full_tensor_copy();
+        };
+
+        auto is_comp_internal = [&](int j,
+                                    const FunctionNode<T, 3>* fn,
+                                    const Tensor<T>& full_c) -> bool {
+            if (fn == nullptr || j >= n_max_tree_) return false;
+            if (fn->has_children()) return true;
+            if (full_c.ndim() == 3 && full_c.dim(0) == twok) {
+                if (j > 0) return true;
+                return windowed_halo_detail::wavelet_octants_normf(full_c, k_) > 0.0;
+            }
+            return false;
+        };
+
+        auto sort_and_pack_level = [&](int j) {
+            auto& ld = levels_[static_cast<std::size_t>(j)];
+            std::sort(ld.owned_real.begin(),
+                      ld.owned_real.end(),
+                      [](const auto& a, const auto& b) noexcept {
+                          return windowed_halo_detail::windowed_key_less(a.key, b.key);
+                      });
+            if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
+                ld.real_packed_keys.resize(ld.owned_real.size());
+                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                    ld.real_packed_keys[ri] =
+                        windowed_halo_detail::pack_spatial_key_same_level(ld.owned_real[ri].key);
+                }
+            }
+        };
+
+        // Level 0 (root): holds `(s^0, d^0)` when internal, or `s^0` (in `k^3` or `(2k)^3` s0) when leaf.
+        {
+            const Key<3>& k0 = cdata_.key0;
+            const FunctionNode<T, 3>* fn0 = find_raw(0, k0);
+            Tensor<T> c0 = extract_node_tensor(fn0);
+
+            WindowedOwnedRealNode<T> root_rn;
+            root_rn.key = k0;
+            root_rn.is_internal = is_comp_internal(0, fn0, c0);
+            root_rn.s_out = Tensor<T>(kk, kk, kk);
+            root_rn.s_in = (c0.size() > 0) ? windowed_halo_detail::extract_scaling_cube(c0, k_)
+                                           : Tensor<T>(kk, kk, kk);
+            windowed_halo_detail::compute_scaling_norms_readonly(
+                root_rn.s_in, root_rn.s000, root_rn.s_osc_norm2, root_rn.s_normf);
+
+            if (root_rn.is_internal) {
+                Tensor<T> unf_2k(3L, twok_dims, false);
+                Tensor<T> work_2k(3L, twok_dims, false);
+                if (c0.size() == twok3) {
+                    fast_transform(c0, cdata_.hg, unf_2k, work_2k);
+                } else if (c0.size() == kk3) {
+                    Tensor<T> full_ns(twok, twok, twok);
+                    full_ns(s0, s0, s0) = root_rn.s_in;
+                    fast_transform(full_ns, cdata_.hg, unf_2k, work_2k);
+                } else {
+                    unf_2k = T(0);
+                }
+
+                levels_[1].owned_real.reserve(8u);
+                for (KeyChildIterator<3> kit(k0); kit; ++kit) {
+                    const Key<3>& ch = kit.key();
+                    const auto& cl = ch.translation();
+                    const FunctionNode<T, 3>* fn_ch = find_raw(1, ch);
+                    Tensor<T> c_ch = extract_node_tensor(fn_ch);
+
+                    WindowedOwnedRealNode<T> ch_rn;
+                    ch_rn.key = ch;
+                    ch_rn.is_internal = is_comp_internal(1, fn_ch, c_ch);
+                    ch_rn.s_in = copy(unf_2k(cdata_.s[cl[0] & 1],
+                                             cdata_.s[cl[1] & 1],
+                                             cdata_.s[cl[2] & 1]));
+                    ch_rn.s_out = Tensor<T>(kk, kk, kk);
+                    if (ch_rn.is_internal && c_ch.size() == twok3) {
+                        ch_rn.ns_in = c_ch;
+                    }
+                    levels_[1].owned_real.push_back(std::move(ch_rn));
+                }
+                sort_and_pack_level(1);
+
+                const bool need_gamma_0 =
+                    (0 >= serial_range_.min_gamma_level && 0 <= serial_range_.max_gamma_level);
+                if (need_gamma_0) {
+                    if (c0.size() == twok3) {
+                        root_rn.ns_in = c0;
+                        root_rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
+                            c0, k_, &root_rn.d_normf);
+                        root_rn.ns_normf = std::sqrt(
+                            root_rn.s_normf * root_rn.s_normf + root_rn.d_normf * root_rn.d_normf);
+                    } else {
+                        root_rn.ns_in = Tensor<T>(twok, twok, twok);
+                        root_rn.ns_in(s0, s0, s0) = root_rn.s_in;
+                        root_rn.wav_in = Tensor<T>(twok, twok, twok);
+                        root_rn.d_normf = 0.0;
+                        root_rn.ns_normf = root_rn.s_normf;
+                    }
+                } else {
+                    root_rn.ns_normf = root_rn.s_normf;
+                }
+            } else {
+                root_rn.ns_normf = root_rn.s_normf;
+            }
+
+            levels_[0].owned_real.push_back(std::move(root_rn));
+            levels_[0].real_packed_keys = {windowed_halo_detail::pack_spatial_key_same_level(k0)};
+        }
+
+        // Top-down pass across levels `1 .. n_max_tree_`, expanding all 8 children of every
+        // internal node in parallel without requiring explicit leaf entries in `f_comp.coeffs`.
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_full_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_unf_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_work_2k;
+        std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> tls_w1_k3;
+
+        for (int j = 1; j <= n_max_tree_; ++j) {
+            auto& ld = levels_[static_cast<std::size_t>(j)];
+            if (ld.owned_real.empty()) break;
+
+            std::vector<std::size_t> int_slot(ld.owned_real.size(), SIZE_MAX);
+            std::size_t n_int = 0;
+            if (j < n_max_tree_) {
+                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                    if (ld.owned_real[ri].is_internal) {
+                        int_slot[ri] = n_int++;
+                    }
+                }
+            }
+            std::vector<WindowedOwnedRealNode<T>> next_nodes(n_int * 8u);
+
+            const bool need_gamma_j =
+                (j < n_max_tree_ &&
+                 j >= serial_range_.min_gamma_level &&
+                 j <= serial_range_.max_gamma_level);
+
+            windowed_parallel_detail::parallel_for_chunks(
+                ld.owned_real.size(),
+                windowed_parallel_detail::kDefaultParallelGrain,
+                [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    for (std::size_t ri = b; ri < e_hi; ++ri) {
+                        auto& rn = ld.owned_real[ri];
+                        windowed_halo_detail::compute_scaling_norms_readonly(
+                            rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
+
+                        if (!rn.is_internal || j >= n_max_tree_) {
+                            rn.is_internal = false;
+                            rn.ns_in = Tensor<T>();
+                            rn.ns_normf = rn.s_normf;
+                            continue;
+                        }
+
+                        const std::size_t base_out = int_slot[ri] * 8u;
+                        if (rn.ns_in.size() == twok3) {
+                            if (tls_full_2k[cid].size() != twok3) {
+                                tls_full_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                                tls_unf_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                                tls_work_2k[cid] = Tensor<T>(3L, twok_dims, false);
+                            }
+                            Tensor<T>& full_ns = tls_full_2k[cid];
+                            Tensor<T>& unf_2k = tls_unf_2k[cid];
+                            Tensor<T>& work_2k = tls_work_2k[cid];
+
+                            std::memcpy(full_ns.ptr(),
+                                        rn.ns_in.ptr(),
+                                        static_cast<std::size_t>(twok3) * sizeof(T));
+                            full_ns(s0, s0, s0) = rn.s_in;
+                            fast_transform(full_ns, cdata_.hg, unf_2k, work_2k);
+
+                            std::size_t oct = 0;
+                            for (KeyChildIterator<3> kit(rn.key); kit; ++kit, ++oct) {
+                                const Key<3>& ch = kit.key();
+                                const auto& cl = ch.translation();
+                                const FunctionNode<T, 3>* fn_ch = find_raw(j + 1, ch);
+                                Tensor<T> c_ch = extract_node_tensor(fn_ch);
+
+                                WindowedOwnedRealNode<T>& ch_rn = next_nodes[base_out + oct];
+                                ch_rn.key = ch;
+                                ch_rn.is_internal = is_comp_internal(j + 1, fn_ch, c_ch);
+                                ch_rn.s_in = copy(unf_2k(cdata_.s[cl[0] & 1],
+                                                         cdata_.s[cl[1] & 1],
+                                                         cdata_.s[cl[2] & 1]));
+                                ch_rn.s_out = Tensor<T>(kk, kk, kk);
+                                if (ch_rn.is_internal && c_ch.size() == twok3) {
+                                    ch_rn.ns_in = c_ch;
+                                }
+                            }
+
+                            if (need_gamma_j) {
+                                rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
+                                    rn.ns_in, k_, &rn.d_normf);
+                                rn.ns_in = copy(full_ns);
+                                rn.ns_normf = std::sqrt(
+                                    rn.s_normf * rn.s_normf + rn.d_normf * rn.d_normf);
+                            } else {
+                                rn.ns_in = Tensor<T>();
+                                rn.ns_normf = rn.s_normf;
+                            }
+                        } else {
+                            if (tls_w1_k3[cid].size() != kk3) {
+                                tls_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
+                            }
+                            Tensor<T>& w1_k3 = tls_w1_k3[cid];
+
+                            std::size_t oct = 0;
+                            for (KeyChildIterator<3> kit(rn.key); kit; ++kit, ++oct) {
+                                const Key<3>& ch = kit.key();
+                                const FunctionNode<T, 3>* fn_ch = find_raw(j + 1, ch);
+                                Tensor<T> c_ch = extract_node_tensor(fn_ch);
+
+                                WindowedOwnedRealNode<T>& ch_rn = next_nodes[base_out + oct];
+                                ch_rn.key = ch;
+                                ch_rn.is_internal = is_comp_internal(j + 1, fn_ch, c_ch);
+                                ch_rn.s_in = Tensor<T>(3L, k_dims, false);
+                                windowed_halo_detail::prolong_step_3d(
+                                    h_oct_, rn.s_in, ch, ch_rn.s_in, w1_k3);
+                                ch_rn.s_out = Tensor<T>(kk, kk, kk);
+                                if (ch_rn.is_internal && c_ch.size() == twok3) {
+                                    ch_rn.ns_in = c_ch;
+                                }
+                            }
+
+                            if (need_gamma_j) {
+                                rn.ns_in = Tensor<T>(twok, twok, twok);
+                                rn.ns_in(s0, s0, s0) = rn.s_in;
+                                rn.wav_in = Tensor<T>(twok, twok, twok);
+                                rn.d_normf = 0.0;
+                                rn.ns_normf = rn.s_normf;
+                            } else {
+                                rn.ns_in = Tensor<T>();
+                                rn.ns_normf = rn.s_normf;
+                            }
+                        }
+                    }
+                });
+
+            if (n_int > 0) {
+                levels_[static_cast<std::size_t>(j + 1)].owned_real = std::move(next_nodes);
+                sort_and_pack_level(j + 1);
+            }
+        }
+
+        finalize_serial_stats_and_child_masks();
     }
 
     // =========================================================================
     // Serial Single-Rank Build (`world.size() == 1`) — Parallel + 64-Bit Packed Keys
     // =========================================================================
-    void build_serial(const Function<T, 3>& f_ns, const RadiiBuilderFn& radii_builder) {
-        ingest_local_real_nodes(f_ns);
+    void build_serial(const Function<T, 3>& f_in, const RadiiBuilderFn& radii_builder) {
+        const TreeState in_state = f_in.get_impl()->get_tree_state();
+        if (in_state == reconstructed) {
+            ingest_local_real_nodes_serial_reconstructed(f_in);
+        } else if (in_state == compressed) {
+            ingest_local_real_nodes_serial_compressed(f_in);
+        } else {
+            ingest_local_real_nodes(f_in);
+        }
         radii_builder(global_stats_, radii_);
 
         const std::size_t n_lvls = static_cast<std::size_t>(n_max_tree_ + 1);
@@ -1292,7 +2066,8 @@ private:
             const bool can_refine_j = dynamic_refine_ && (j < max_refine_level_);
             const bool need_T = (rad.has_T_terms && rad.m_max_T >= 1);
             const int m1 = (ld.global_has_internal && rad.has_4b1_terms) ? rad.m_max_4b1 : -1;
-            const int m2 = (ld.global_has_internal && can_refine_j) ? rad.max_refine_cand_bw() : -1;
+            const int m2 =
+                (ld.global_has_internal && can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
             if (!need_T && std::max(m1, m2) < 1) continue;
 
             for (std::size_t b = 0; b < ld.owned_real.size(); b += kHaloChunkNodes) {
@@ -1391,7 +2166,8 @@ private:
 
                         if (ld.global_has_internal) {
                             const int m1 = rad.has_4b1_terms ? rad.m_max_4b1 : -1;
-                            const int m2 = can_refine_j ? rad.max_refine_cand_bw() : -1;
+                            const int m2 =
+                                (can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
                             if (std::max(m1, m2) >= 1) {
                                 auto& out_near = my_near[sj];
                                 for (std::size_t ri = sl.begin; ri < sl.end; ++ri) {
@@ -1402,11 +2178,7 @@ private:
                                          (!dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
                                             ? m1
                                             : std::min(m1, 1);
-                                    const int m2_rn =
-                                        (m2 >= 2 &&
-                                         (!dynamic_refine_ || rn.ns_normf > rad.sh2_refine_thresh))
-                                            ? m2
-                                            : std::min(m2, 1);
+                                    const int m2_rn = m2;
                                     const int m_emit_rn = std::max(m1_rn, m2_rn);
                                     if (m_emit_rn < 1) continue;
 
@@ -1438,7 +2210,12 @@ private:
                                                         if (!ld.owned_real[ridx].is_internal) {
                                                             std::uint8_t nbits = 0u;
                                                             if (sh <= m1_rn) nbits |= 1u;
-                                                            if (sh <= m2_rn) nbits |= 2u;
+                                                            if (sh <= m2_rn &&
+                                                                (!ungraded_leaf_refine_only_ ||
+                                                                 windowed_halo_detail::has_ungraded_child_toward(
+                                                                     rn.internal_child_mask, dx, dy, dz))) {
+                                                                nbits |= 2u;
+                                                            }
                                                             if (nbits != 0u) {
                                                                 out_near.emplace_back(
                                                                     static_cast<std::uint32_t>(ridx),
@@ -1483,7 +2260,12 @@ private:
                                                         if (!ld.owned_real[ridx].is_internal) {
                                                             std::uint8_t nbits = 0u;
                                                             if (sh <= m1_rn) nbits |= 1u;
-                                                            if (sh <= m2_rn) nbits |= 2u;
+                                                            if (sh <= m2_rn &&
+                                                                (!ungraded_leaf_refine_only_ ||
+                                                                 windowed_halo_detail::has_ungraded_child_toward(
+                                                                     rn.internal_child_mask, dx, dy, dz))) {
+                                                                nbits |= 2u;
+                                                            }
                                                             if (nbits != 0u) {
                                                                 out_near.emplace_back(
                                                                     static_cast<std::uint32_t>(ridx),
@@ -1833,6 +2615,48 @@ private:
         ingest_local_real_nodes(f_ns);
         radii_builder(global_stats_, radii_);
 
+        if (dynamic_refine_ && ungraded_leaf_refine_only_ && n_max_tree_ >= 1) {
+            std::vector<KeyFlagVec> parent_mask_vecs(static_cast<std::size_t>(nproc));
+            for (int j = 1; j <= n_max_tree_; ++j) {
+                for (const auto& ch : levels_[static_cast<std::size_t>(j)].owned_real) {
+                    if (!ch.is_internal) continue;
+                    const Key<3> par = ch.key.parent();
+                    const int oct = windowed_halo_detail::child_octant_index(ch.key);
+                    const ProcessID owner = pmap_->owner(par);
+                    parent_mask_vecs[static_cast<std::size_t>(owner)].emplace_back(
+                        par, static_cast<std::uint8_t>(1u << oct));
+                }
+            }
+            for (int p = 0; p < nproc; ++p) {
+                auto& vec = parent_mask_vecs[static_cast<std::size_t>(p)];
+                if (vec.empty()) continue;
+                windowed_halo_detail::sort_and_merge_key_flags(vec);
+                std::vector<windowed_halo_detail::HaloCandidateMsg> batch;
+                batch.reserve(vec.size());
+                for (const auto& kv : vec) {
+                    batch.push_back(windowed_halo_detail::HaloCandidateMsg{kv.first, kv.second});
+                }
+                if (p == me) {
+                    exchange_->recv_halo_candidates(batch);
+                } else {
+                    exchange_->send(
+                        static_cast<ProcessID>(p),
+                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_halo_candidates,
+                        batch);
+                }
+            }
+            world_.gop.fence();
+            for (const auto& msg : exchange_->take_halo_candidates()) {
+                const int pj = static_cast<int>(msg.key.level());
+                const std::size_t pidx = find_owned_real_index(pj, msg.key);
+                if (pidx != SIZE_MAX) {
+                    auto& prn = levels_[static_cast<std::size_t>(pj)].owned_real[pidx];
+                    prn.internal_child_mask =
+                        static_cast<std::uint8_t>(prn.internal_child_mask | msg.flags);
+                }
+            }
+        }
+
         // 2. Collective Exchange 1: Discover owned H1 virtual halo nodes & near_internal real leaves.
         std::vector<KeyFlagVec> out_cand_vecs(static_cast<std::size_t>(nproc));
 
@@ -1869,7 +2693,7 @@ private:
 
             if (ld.global_has_internal) {
                 const int m1 = rad.has_4b1_terms ? rad.m_max_4b1 : -1;
-                const int m2 = can_refine_j ? rad.max_refine_cand_bw() : -1;
+                const int m2 = (can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
                 if (std::max(m1, m2) >= 1) {
                     for (const auto& rn : ld.owned_real) {
                         if (!rn.is_internal) continue;
@@ -1877,10 +2701,7 @@ private:
                             (m1 >= 2 && (!dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
                                 ? m1
                                 : std::min(m1, 1);
-                        const int m2_rn =
-                            (m2 >= 2 && (!dynamic_refine_ || rn.ns_normf > rad.sh2_refine_thresh))
-                                ? m2
-                                : std::min(m2, 1);
+                        const int m2_rn = m2;
                         const int m_emit_rn = std::max(m1_rn, m2_rn);
                         if (m_emit_rn < 1) continue;
                         for (int dx = -m_emit_rn; dx <= m_emit_rn; ++dx) {
@@ -1893,7 +2714,15 @@ private:
                                             rn.key, dx, dy, dz, is_periodic_, nb)) {
                                         std::uint8_t bits = 0u;
                                         if (sh <= m1_rn) bits = static_cast<std::uint8_t>(bits | kHaloH1Gamma);
-                                        if (sh <= m2_rn) bits = static_cast<std::uint8_t>(bits | kHaloH1Refine);
+                                        if (sh <= m2_rn) {
+                                            bits = static_cast<std::uint8_t>(bits | kHaloH1Refine);
+                                            if (!ungraded_leaf_refine_only_ ||
+                                                windowed_halo_detail::has_ungraded_child_toward(
+                                                    rn.internal_child_mask, dx, dy, dz)) {
+                                                bits = static_cast<std::uint8_t>(
+                                                    bits | kHaloH1RefineLeafUngraded);
+                                            }
+                                        }
                                         if (bits != 0u) emit_candidate(nb, bits);
                                     }
                                 }
@@ -1931,10 +2760,14 @@ private:
                 auto& rn = levels_[static_cast<std::size_t>(j)].owned_real[ridx];
                 if (!rn.is_internal) {
                     if ((cand.flags & kHaloH1Gamma) != 0) rn.near_internal_4b1 = true;
-                    if ((cand.flags & kHaloH1Refine) != 0) rn.near_internal_4b2 = true;
+                    if ((cand.flags & kHaloH1RefineLeafUngraded) != 0) rn.near_internal_4b2 = true;
                 }
             } else {
-                virt_flags[static_cast<std::size_t>(j)].emplace_back(cand.key, cand.flags);
+                const std::uint8_t vflags = static_cast<std::uint8_t>(
+                    cand.flags & static_cast<std::uint8_t>(~kHaloH1RefineLeafUngraded));
+                if (vflags != 0u) {
+                    virt_flags[static_cast<std::size_t>(j)].emplace_back(cand.key, vflags);
+                }
             }
         }
         for (int j = 1; j <= n_max_tree_; ++j) {
@@ -2343,9 +3176,21 @@ private:
             const auto& vf = virt_flags[sj];
             const auto& rem_j = remote_by_level[sj];
 
+            if (world_.size() == 1 && vf.empty()) {
+                const auto& rad = radii_[sj];
+                const bool need_sources_j =
+                    (j >= 1 && rad.has_T_terms) ||
+                    rad.has_4b1_terms ||
+                    rad.has_4b2_int_terms ||
+                    rad.has_4b2_leaf_terms;
+                if (!need_sources_j) {
+                    continue;
+                }
+            }
+
             ld.sources.reserve(ld.owned_real.size() + vf.size() + rem_j.size());
 
-            for (const auto& rn : ld.owned_real) {
+            auto make_real_source = [](const WindowedOwnedRealNode<T>& rn) {
                 WindowedSourceEntry<T> se;
                 se.key = rn.key;
                 se.is_internal = rn.is_internal;
@@ -2359,15 +3204,16 @@ private:
                     se.ns_coeff = rn.ns_in;
                     se.wav_coeff = rn.wav_in;
                 }
-                ld.sources.push_back(std::move(se));
-            }
+                return se;
+            };
 
             if (j >= 1 && !vf.empty()) {
                 const auto& pl_j = prolong_levels[sj];
                 ld.owned_virt.reserve(vf.size());
                 std::size_t p_cursor = 0;
+                std::size_t r_idx = 0;
 
-                for (const auto& [vkey, flags] : vf) {
+                auto emit_virt_entry = [&](const Key<3>& vkey, std::uint8_t flags) {
                     while (p_cursor < pl_j.size() &&
                            windowed_halo_detail::windowed_key_less(pl_j[p_cursor].key, vkey)) {
                         ++p_cursor;
@@ -2402,16 +3248,40 @@ private:
                         }
                         ld.owned_virt.push_back(std::move(vn));
                     }
+                };
+
+                // O(N) linear merge of already-sorted `ld.owned_real` and `vf` (zero `std::sort` when `rem_j.empty()`).
+                std::size_t v_idx = 0;
+                while (r_idx < ld.owned_real.size() && v_idx < vf.size()) {
+                    if (windowed_halo_detail::windowed_key_less(
+                            ld.owned_real[r_idx].key, vf[v_idx].first)) {
+                        ld.sources.push_back(make_real_source(ld.owned_real[r_idx++]));
+                    } else {
+                        emit_virt_entry(vf[v_idx].first, vf[v_idx].second);
+                        ++v_idx;
+                    }
+                }
+                while (r_idx < ld.owned_real.size()) {
+                    ld.sources.push_back(make_real_source(ld.owned_real[r_idx++]));
+                }
+                while (v_idx < vf.size()) {
+                    emit_virt_entry(vf[v_idx].first, vf[v_idx].second);
+                    ++v_idx;
+                }
+            } else {
+                for (const auto& rn : ld.owned_real) {
+                    ld.sources.push_back(make_real_source(rn));
                 }
             }
 
-            for (const auto& se : rem_j) {
-                ld.sources.push_back(se);
+            if (!rem_j.empty()) {
+                for (const auto& se : rem_j) {
+                    ld.sources.push_back(se);
+                }
+                std::sort(ld.sources.begin(), ld.sources.end(), [](const auto& a, const auto& b) noexcept {
+                    return windowed_halo_detail::windowed_key_less(a.key, b.key);
+                });
             }
-
-            std::sort(ld.sources.begin(), ld.sources.end(), [](const auto& a, const auto& b) noexcept {
-                return windowed_halo_detail::windowed_key_less(a.key, b.key);
-            });
             if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
                 ld.source_packed_keys.resize(ld.sources.size());
                 for (std::size_t si = 0; si < ld.sources.size(); ++si) {
@@ -2467,9 +3337,19 @@ private:
             const auto& ov = levels_[static_cast<std::size_t>(j)].owned_virt;
             acc_j.reserve(ov.size());
             for (const auto& vn : ov) {
-                if (vn.ds_corr.size() == kk3) {
+                if (vn.ds_corr.size() == kk3 &&
+                    windowed_halo_detail::is_cube_nonzero_readonly(vn.ds_corr)) {
+                    // Note: if `sort_and_merge_accum` merges two entries at level `j - 1`, the target
+                    // at level `j - 1` was either newly allocated (`ensure_parent_slots`) or came from
+                    // `ov[j - 1]`; `copy(vn.ds_corr)` is only needed if `acc_j` could be mutated in-place,
+                    // which happens when an ancestor virtual node ALSO exists in `ov` AND receives restricted
+                    // child deltas. On `j == n_max_tree_`, no child level exists so `vn.ds_corr` is strictly
+                    // read-only (`O(1)` shallow handle)!
                     acc_j.push_back(RestrictAccum{
-                        vn.key, vn.coarse_leaf_key, vn.key, copy(vn.ds_corr)});
+                        vn.key,
+                        vn.coarse_leaf_key,
+                        vn.key,
+                        (j == n_max_tree_) ? vn.ds_corr : copy(vn.ds_corr)});
                 }
             }
         }
@@ -3045,6 +3925,8 @@ private:
     int n_max_tree_ = 0;
     bool dynamic_refine_ = true;
     int max_refine_level_ = 30;
+    bool ungraded_leaf_refine_only_ = false;
+    WindowedSerialInputRange serial_range_{};
     const FunctionCommonData<T, 3>& cdata_;
     array_of_bools<3> is_periodic_;
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> pmap_;

@@ -1692,6 +1692,41 @@ void run_gate3(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
                          bridge_coul_vec_diff, 1e-12);
             rep.check_le("SeparatedConvolution::enable_windowed_ns(true) batched vector BSH parity",
                          bridge_bsh_diff, 1e-12);
+
+            // Sparse compressed tree regression (SCF residual `transform(..., trantol)` + `gaxpy`):
+            // `vtransform_doit` omits leaf entries and screens small internal wavelets while setting
+            // `has_children` recursively; direct `TreeState::compressed` ingestion must match
+            // `reconstruct()` + apply to machine precision and preserve `compressed` state.
+            Tensor<double> c_mat(static_cast<long>(vf.size()), 2L);
+            c_mat = 0.0;
+            c_mat(0, 0) = 1.0;
+            c_mat(1, 0) = -0.05;
+            c_mat(2, 0) = 0.002;
+            c_mat(1, 1) = 0.8;
+            c_mat(3, 1) = -0.01;
+            std::vector<Function<double, 3>> v_sparse_comp =
+                madness::transform(world, vf, c_mat, 1e-4, true);
+            std::vector<Function<double, 3>> v_rec_ref = madness::copy(world, v_sparse_comp);
+            madness::reconstruct(world, v_rec_ref);
+
+            std::vector<std::shared_ptr<SeparatedConvolution<double, 3>>> sparse_ops = {
+                leg_vec_ops[0], leg_vec_ops[1]};
+            std::vector<Function<double, 3>> vb_from_comp =
+                madness::apply(world, sparse_ops, v_sparse_comp);
+            std::vector<Function<double, 3>> vb_from_rec =
+                madness::apply(world, sparse_ops, v_rec_ref);
+            double sparse_comp_diff = 0.0;
+            bool kept_compressed = true;
+            for (std::size_t idx = 0; idx < v_sparse_comp.size(); ++idx) {
+                kept_compressed = kept_compressed && v_sparse_comp[idx].is_compressed();
+                const double snorm = std::max(1e-30, vb_from_rec[idx].norm2());
+                sparse_comp_diff = std::max(
+                    sparse_comp_diff, (vb_from_comp[idx] - vb_from_rec[idx]).norm2() / snorm);
+            }
+            rep.check_true("Sparse vtransform compressed input preserved TreeState::compressed",
+                           kept_compressed);
+            rep.check_le("Sparse vtransform compressed BSH parity vs reconstructed input",
+                         sparse_comp_diff, 1e-13);
         }
 
         // Complex Function<double_complex, 3> linearity check:
