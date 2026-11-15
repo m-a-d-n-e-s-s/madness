@@ -363,6 +363,27 @@ and executed sequentially on `1` MPI process with `MAD_NUM_THREADS=11` (`10 + ma
 | **`water2` (`1` MPI $\times$ `11` thr)** | 72.3 $\rightarrow$ **50.5** | **1.43x** | 35.00 $\rightarrow$ **29.10** (**1.20x**) | 34.60 $\rightarrow$ **19.16** | **1.81x** | 1654.4 $\rightarrow$ **1463.4** (**-11.5%**) | — |
 | **`c2h4` (`1` MPI $\times$ `11` thr)** | 55.8 $\rightarrow$ **38.8** | **1.44x** | 27.40 $\rightarrow$ **21.90** (**1.25x**) | 25.99 $\rightarrow$ **14.60** | **1.78x** | 1421.2 $\rightarrow$ **1393.8** (**-1.9%**) | — |
 
+#### Allocator Comparison: `tcmalloc_minimal` vs. `mimalloc v3.5.3` (`1` MPI $\times$ `MAD_NUM_THREADS=11`)
+
+Rebuilding `madqc` with `-DENABLE_TCMALLOC_MINIMAL=OFF -DENABLE_GPERFTOOLS=OFF` (keeping identical `-DMADNESS_TARGET_ARCH=native -DMADNESS_RELAXED_MATH=fast -DMADNESS_TASK_BACKEND=TBB` flags) and preloading `mimalloc v3.5.3` at runtime (`LD_PRELOAD=libmimalloc.so.3.5`) across all 10 structures in both `Before` and `After` modes:
+
+| Structure | `tcmalloc` Wall Bef $\rightarrow$ Aft (s) | **`mimalloc` Wall Bef $\rightarrow$ Aft (s)** | **`mimalloc` Bef/Aft Speedup** | **`mimalloc` `1e-6` Span Bef $\rightarrow$ Aft (s)** | **Allocator Gain (`tc` $\rightarrow$ `mi` Aft)** | **Combined (`tc` Bef $\rightarrow$ `mi` Aft)** | `tcmalloc` RSS Bef $\rightarrow$ Aft (MB) | `mimalloc` RSS Bef $\rightarrow$ Aft (MB) | `mimalloc` RSS Change |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`water`** | 28.2 $\rightarrow$ 16.6 | 25.8 $\rightarrow$ **14.0** | **1.84x** | 11.39 $\rightarrow$ **4.55** (**2.50x**) | **1.19x** | **2.01x** | 1016 $\rightarrow$ **974** (-4.2%) | 1430 $\rightarrow$ **1203** | **-15.9%** |
+| **`water2`** | 72.3 $\rightarrow$ 50.5 | 62.7 $\rightarrow$ **41.9** | **1.50x** | 30.74 $\rightarrow$ **16.17** (**1.90x**) | **1.21x** | **1.73x** | 1654 $\rightarrow$ **1463** (-11.5%) | 2336 $\rightarrow$ **1892** | **-19.0%** |
+| **`water5`** | 281.4 $\rightarrow$ 240.8 | 233.5 $\rightarrow$ **194.4** | **1.20x** | 123.34 $\rightarrow$ **85.17** (**1.45x**) | **1.24x** | **1.45x** | 4065 $\rightarrow$ **3506** (-13.8%) | 5484 $\rightarrow$ **4843** | **-11.7%** |
+| **`water9`** | 970.0 $\rightarrow$ 732.6 | 785.4 $\rightarrow$ **569.1** | **1.38x** | 515.23 $\rightarrow$ **250.38** (**2.06x**) | **1.29x** | **1.70x** | 8621 $\rightarrow$ **7120** (-17.4%) | 11779 $\rightarrow$ **9992** | **-15.2%** |
+| **`mg`** | 32.4 $\rightarrow$ 14.8 | 29.3 $\rightarrow$ **12.4** | **2.36x** | 16.13 $\rightarrow$ **4.52** (**3.57x**) | **1.19x** | **2.61x** | 1097 $\rightarrow$ **905** (-17.5%) | 1514 $\rightarrow$ **1102** | **-27.2%** |
+| **`ca`** | 118.3 $\rightarrow$ 35.8 | 109.0 $\rightarrow$ **29.8** | **3.66x** | 78.30 $\rightarrow$ **12.50** (**6.26x**) | **1.20x** | **3.97x** | 1984 $\rightarrow$ **1147** (-42.2%) | 2971 $\rightarrow$ **1472** | **-50.5%** |
+| **`sr`** | 900.6 $\rightarrow$ 219.4 | 810.8 $\rightarrow$ **177.4** | **4.57x** | 568.60 $\rightarrow$ **75.10** (**7.57x**) | **1.24x** | **5.08x** | 4818 $\rightarrow$ **2191** (-54.5%) | 6763 $\rightarrow$ **3051** | **-54.9%** |
+| **`c2h4`** | 55.8 $\rightarrow$ 38.8 | 50.6 $\rightarrow$ **32.5** | **1.56x** | 24.05 $\rightarrow$ **12.43** (**1.93x**) | **1.19x** | **1.72x** | 1421 $\rightarrow$ **1394** (-1.9%) | 2028 $\rightarrow$ **1718** | **-15.3%** |
+| **`ne`** | 24.3 $\rightarrow$ 12.0 | 23.2 $\rightarrow$ **10.0** | **2.32x** | 11.14 $\rightarrow$ **3.36** (**3.32x**) | **1.20x** | **2.43x** | 968 $\rightarrow$ **807** (-16.6%) | 1337 $\rightarrow$ **1013** | **-24.3%** |
+| **`ar`** | 75.0 $\rightarrow$ 32.1 | 67.4 $\rightarrow$ **26.6** | **2.53x** | 36.70 $\rightarrow$ **10.15** (**3.62x**) | **1.21x** | **2.82x** | 1511 $\rightarrow$ **1071** (-29.1%) | 2093 $\rightarrow$ **1348** | **-35.6%** |
+| **TOTAL** | 2558.3 $\rightarrow$ 1393.4 (**1.84x**) | 2197.7 $\rightarrow$ **1108.1** | **1.98x** | 1415.62 $\rightarrow$ **474.33** (**2.98x**) | **1.26x** | **2.31x** | — | — | — |
+
+- **Uniform `mimalloc` Speedup (`1.19x` – `1.29x` Faster on `After`, `2.31x` Combined)**: Under 11-thread Intel TBB HF exchange ($O(N_{\text{MO}}^2)$ pair products allocating `FunctionNode` / `Tensor<double>` cubes on one worker and freeing them on sibling threads), `mimalloc`'s lock-free per-page cross-thread free lists (`xthread_free`) eliminate `gperftools` `tcmalloc_minimal`'s central-freelist spinlock contention. Because `WindowedSeparatedConvolution` already shrank arithmetic bottlenecks via Tier-1 `libxsmm` `mTxmq` and target-brick L3 tiling, it benefits even more from `mimalloc` (**`1.26x`** cumulative faster vs **`1.16x`** on Legacy), widening the Before-vs-After speedup to **`1.98x`** overall and **`1.45x` – `7.57x`** (`2.98x` cumulative) in the `1e-6, k = 8` protocol.
+- **Peak RSS Behavior (`-11.7%` to `-54.9%` After vs. Before; `+23%` to `+41%` vs. `tcmalloc_minimal`)**: Within `mimalloc`, all `10 / 10` structures have strictly lower Peak RSS After than Before (`-11.7%` to `-54.9%`). Across allocators, `mimalloc`'s default `32 MiB` thread-local segment caching and delayed OS page decommit (`purge_delay = 1000 ms`, `arena_eager_commit = 2`) hold freed pages in RSS longer than `tcmalloc_minimal`, trading ~`23%–41%` higher high-water RSS for `+19%–29%` higher multi-threaded throughput (tunable at runtime via `MIMALLOC_PURGE_DELAY`).
+
 ---
 
 ### 6.2 3D Multi-Scale Gaussian Convolution & Octree Benchmark (`src/examples/large_exp_3d.cc`)
