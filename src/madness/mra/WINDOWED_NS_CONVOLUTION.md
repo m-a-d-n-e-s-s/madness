@@ -265,7 +265,7 @@ Inside `execute_sumfact_3d` (`windowed_ns_sumfact.h`), two low-level properties 
 3. **Gate 3 — 22–25 Level All-Electron Slater Cusps, Sparse Compressed Trees & Batched Linearity (`51 / 51 PASS`)**:
    - All-electron Slater density $\rho(\bm{r}) = \frac{Z^3}{\pi} e^{-2Z|\bm{r}-\bm{R}_A|}$ at $\bm{R}_A = (0.5000004, 0.5, 0.5)$ ($\epsilon = 10^{-8}$, analytic potential $V(\bm{R}_A) = Z$ and Hartree energy $E_H = \frac{5}{16} Z$):
 
-     | Case | Octree Depth | Output $V$ Nodes | Global Rel $L_2$ Error | Cusp $|V(\bm{R}_A)-Z|/Z$ | Hartree $|E_H - \frac{5}{16}Z|/(\frac{5}{16}Z)$ |
+     | Case | Octree Depth | Output $V$ Nodes | Global Rel $L_2$ Error | Cusp $\lvert V(\bm{R}_A)-Z\rvert / Z$ | Hartree $\lvert E_H - \frac{5}{16}Z\rvert / (\frac{5}{16}Z)$ |
      | :--- | :---: | :---: | :---: | :---: | :---: |
      | `Z=20, k=8, L=4` | `23` | `12,681` | `2.34e-09` | `2.87e-09` | `8.09e-11` |
      | `Z=20, k=10, L=4` | `22` | `4,873` | `2.68e-09` | `2.55e-10` | `4.22e-11` |
@@ -305,7 +305,7 @@ and executed sequentially on `1` MPI process with `MAD_NUM_THREADS=11` (`10 + ma
 
 #### End-to-End Summary (`10 / 10` Structures Faster After: `1.15x` – `4.11x`)
 
-| Structure | $N_{\text{MO}}$ | $E_{\text{tot}}$ Before (Ha) | $E_{\text{tot}}$ After (Ha) | $|\Delta E|$ (Ha) | Iters (`1e-4`+`1e-6`) Bef $\rightarrow$ Aft | Total Wall Bef (s) | Total Wall Aft (s) | Total Speedup | Final MO Boxes (`1e-6`) Bef $\rightarrow$ Aft | MO Box Change | Peak RSS Bef $\rightarrow$ Aft (MB) |
+| Structure | $N_{\text{MO}}$ | $E_{\text{tot}}$ Before (Ha) | $E_{\text{tot}}$ After (Ha) | $\lvert\Delta E\rvert$ (Ha) | Iters (`1e-4`+`1e-6`) Bef $\rightarrow$ Aft | Total Wall Bef (s) | Total Wall Aft (s) | Total Speedup | Final MO Boxes (`1e-6`) Bef $\rightarrow$ Aft | MO Box Change | Peak RSS Bef $\rightarrow$ Aft (MB) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **`water`** | 5 | -76.06793430 | -76.06793479 | `4.88e-7` | `8+2` $\rightarrow$ `8+2` | 28.2 | **16.3** | **1.73x** | 5,784 $\rightarrow$ **4,632** | **-19.9%** | 1016 $\rightarrow$ 1350 |
 | **`water2`** | 10 | -152.14150118 | -152.14150248 | `1.30e-6` | `8+2` $\rightarrow$ `8+2` | 72.3 | **50.0** | **1.45x** | 14,008 $\rightarrow$ **11,752** | **-16.1%** | 1654 $\rightarrow$ 3211 |
