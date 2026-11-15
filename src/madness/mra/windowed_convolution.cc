@@ -383,6 +383,47 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                             "WindowedSeparatedConvolution: mismatch between Function::k() and operator k");
     }
 
+    // On multi-rank MPI (`target_world.size() > 1`), bound simultaneous nonstandard input/output
+    // tree memory (`nonstandard_with_leaves` + `nonstandard_after_apply`) to tiles of `<= 4`
+    // functions whenever all `N` input handles refer to distinct `FunctionImpl` instances.
+    constexpr std::size_t kMultiRankBatchTile = 4;
+    if (target_world.size() > 1 && N > kMultiRankBatchTile) {
+        bool all_distinct_inputs = true;
+        for (std::size_t i = 0; i < N && all_distinct_inputs; ++i) {
+            const auto* pi = f[i].get_impl().get();
+            for (std::size_t j = 0; j < i; ++j) {
+                if (f[j].get_impl().get() == pi) {
+                    all_distinct_inputs = false;
+                    break;
+                }
+            }
+        }
+        if (all_distinct_inputs) {
+            std::vector<Function<R, 3>> tiled_res;
+            tiled_res.reserve(N);
+            for (std::size_t ilo = 0; ilo < N; ilo += kMultiRankBatchTile) {
+                const std::size_t ihi = std::min(ilo + kMultiRankBatchTile, N);
+                const bool is_last_tile = (ihi == N);
+                std::vector<const WindowedSeparatedConvolution<double, 3>*> sub_ops(
+                    ops.begin() + static_cast<std::ptrdiff_t>(ilo),
+                    ops.begin() + static_cast<std::ptrdiff_t>(ihi));
+                std::vector<Function<R, 3>> sub_f(
+                    f.begin() + static_cast<std::ptrdiff_t>(ilo),
+                    f.begin() + static_cast<std::ptrdiff_t>(ihi));
+                auto sub_out = apply_windowed_batch_impl<R>(target_world,
+                                                            sub_ops,
+                                                            sub_f,
+                                                            is_last_tile ? fence : true,
+                                                            ignore_op_destructive,
+                                                            force_destructive);
+                for (auto& fn_out : sub_out) {
+                    tiled_res.push_back(std::move(fn_out));
+                }
+            }
+            return tiled_res;
+        }
+    }
+
     mTxmq_init();
 
     // Prepare working handles on `target_world` (copying across worlds only when needed).
@@ -526,19 +567,41 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     }
 
     // Stages 1b..5a:
-    // - On single-rank (`target_world.size() == 1`) with `N >= 2` and available `ThreadPool`
-    //   workers outside nested batch tasks, dispatch `(f_work[idx], result[idx])` across
-    //   pool threads + calling thread via atomic work-stealing under `WindowedBatchTaskScope`.
-    // - On multi-rank MPI (`target_world.size() > 1`) or `N == 1`, execute sequentially in
-    //   deterministic `0..N-1` order so `WindowedNSHaloExchange` collectives match across ranks.
-    bool use_function_parallel = false;
+    // - Each `apply_windowed_ns_3d_prepared` call already parallelizes all stages across
+    //   `ThreadPool` / `tbb_arena` via `parallel_for_chunks`. Spawning `O(nthreads)` outer
+    //   function workers simultaneously multiplies peak `WindowedNSHaloWorkspace` +
+    //   `SumFactScratch3D` memory by `nthreads` and thrashes L3 cache.
+    // - On single-rank (`target_world.size() == 1`), run non-trivial trees (`max_node_count >= 128`)
+    //   with `max_outer_workers = 1` (100% inner thread parallelism, 1x workspace footprint in L3)
+    //   and cap small-tree outer concurrency at `<= 2` workers (overridable via
+    //   `MADNESS_WINDOWED_BATCH_WORKERS` for diagnostics).
+    std::size_t desired_outer_workers = 1;
 #if !defined(HAVE_PARSEC)
     if (target_world.size() == 1 && N >= 2 && !g_in_windowed_batch_task && ThreadPool::size() > 0) {
-        use_function_parallel = true;
+        static const int env_batch_workers = []() {
+            const char* s = std::getenv("MADNESS_WINDOWED_BATCH_WORKERS");
+            if (s == nullptr || *s == '\0') return 0;
+            const int v = std::atoi(s);
+            return (v > 0) ? v : 0;
+        }();
+        const std::size_t total_threads = ThreadPool::size() + 1;
+        if (env_batch_workers > 0) {
+            desired_outer_workers = std::min<std::size_t>(
+                {N, total_threads, static_cast<std::size_t>(env_batch_workers)});
+        } else {
+            std::size_t max_nodes = 0;
+            for (std::size_t i = 0; i < N; ++i) {
+                max_nodes = std::max(max_nodes, f_work[i].get_impl()->get_coeffs().size());
+            }
+            const std::size_t thread_cap =
+                std::clamp<std::size_t>((total_threads + 1u) / 4u, 1u, 3u);
+            const std::size_t cap = (max_nodes >= 128u) ? thread_cap : std::max<std::size_t>(2u, thread_cap);
+            desired_outer_workers = std::min<std::size_t>({N, total_threads, cap});
+        }
     }
 #endif
 
-    if (use_function_parallel) {
+    if (desired_outer_workers >= 2) {
 #if !defined(HAVE_PARSEC)
         // LPT (Longest-Processing-Time-First) dispatch order: sort indices `0..N-1` by
         // descending local node count so deep nuclear-cusp trees (e.g., `O 1s`) start first
@@ -560,8 +623,7 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         std::exception_ptr captured_exc;
 
 #ifdef HAVE_INTEL_TBB
-        const std::size_t total_threads = ThreadPool::size() + 1;
-        const std::size_t n_workers = std::min<std::size_t>(N, total_threads);
+        const std::size_t n_workers = desired_outer_workers;
         auto run_tbb_worker = [&]() noexcept {
             WindowedActiveBatchWorkerGuard active_guard;
             WindowedBatchTaskScope batch_scope;
@@ -645,7 +707,8 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
             }
         };
 
-        const std::size_t n_helpers = std::min<std::size_t>(N - 1, ThreadPool::size());
+        const std::size_t n_helpers =
+            std::min<std::size_t>(desired_outer_workers - 1, ThreadPool::size());
         using WorkerTask = WindowedBatchWorkerTask<decltype(run_worker)>;
         std::vector<WorkerTask*> helper_tasks(n_helpers, nullptr);
         for (std::size_t w = 0; w < n_helpers; ++w) {

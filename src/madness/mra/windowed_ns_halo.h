@@ -638,14 +638,19 @@ inline void restrict_step_accumulate_3d(long kk3,
     aligned_axpy(kk3, parent_ds_accum.ptr(), work2.ptr(), 1.0);
 }
 
-/// Compute Frobenius norm of the 7 wavelet octants (`[0..2k)^3 \ [0..k)^3`) of a `(2k)^3` NS tensor.
+/// Compute Frobenius norm of the 7 wavelet octants (`[0..2k)^3 \ [0..k)^3`) of a `(2k)^3` NS tensor
+/// via 3 disjoint slice norms (zero heap allocation, zero `s0` subtraction cancellation).
 template <typename T>
 inline double wavelet_octants_normf(const Tensor<T>& ns_tensor, int k) {
     const long kk = static_cast<long>(k);
+    const long twok = 2L * kk;
+    const Slice all(0, twok - 1);
     const Slice s0(0, kk - 1);
-    const double full_n = ns_tensor.normf();
-    const double s0_n = ns_tensor(s0, s0, s0).normf();
-    return std::sqrt(std::max(0.0, full_n * full_n - s0_n * s0_n));
+    const Slice s1(kk, twok - 1);
+    const double n1 = ns_tensor(s1, all, all).normf();
+    const double n2 = ns_tensor(s0, s1, all).normf();
+    const double n3 = ns_tensor(s0, s0, s1).normf();
+    return std::sqrt(n1 * n1 + n2 * n2 + n3 * n3);
 }
 
 inline void sort_and_merge_key_flags(std::vector<std::pair<Key<3>, std::uint8_t>>& vec) {
@@ -869,7 +874,6 @@ struct WindowedOwnedRealNode {
     double ns_normf = 0.0;           ///< `||(s_in, d_in)||_F`.
     Tensor<T> s_in;                  ///< `k^3` input scaling coefficients.
     Tensor<T> ns_in;                 ///< `(2k)^3` input NS `(s, d)` (populated iff `is_internal`).
-    Tensor<T> wav_in;                ///< `(2k)^3` pure wavelet `(0, d)` (populated iff `is_internal`).
     Tensor<T> s_out;                 ///< `k^3` accumulated scaling output `\hat{s}^j`.
     Tensor<T> ns_out;                ///< `(2k)^3` accumulated NS wavelet output `(0, \hat{d}^j)`.
 };
@@ -902,7 +906,6 @@ struct WindowedSourceEntry {
     double ns_normf = 0.0;
     Tensor<T> s_coeff;               ///< `k^3` scaling coefficients (real or prolonged virtual).
     Tensor<T> ns_coeff;              ///< `(2k)^3` NS `(s, d)` (iff `is_internal`; else empty).
-    Tensor<T> wav_coeff;             ///< `(2k)^3` pure wavelet `(0, d)` (iff `is_internal`; else empty).
 };
 
 /// Binary search `key` in sorted `sources` (`std::vector<WindowedSourceEntry<T>>`), returning `nullptr` if absent.
@@ -1050,6 +1053,24 @@ public:
         return levels_[static_cast<std::size_t>(j)];
     }
 
+    /// Eagerly release input scaling/NS tensors and sorted source tables at level `j`
+    /// once both Stage 4(a) and Stage 4(b) have finished consuming level `j`.
+    void release_stage4_inputs_for_level(int j) {
+        if (j < 0 || j > n_max_tree_) return;
+        auto& ld = levels_[static_cast<std::size_t>(j)];
+        {
+            std::vector<WindowedSourceEntry<T>>().swap(ld.sources);
+            std::vector<std::uint64_t>().swap(ld.source_packed_keys);
+        }
+        for (auto& rn : ld.owned_real) {
+            rn.s_in = Tensor<T>();
+            rn.ns_in = Tensor<T>();
+        }
+        for (auto& vn : ld.owned_virt) {
+            vn.s_virt = Tensor<T>();
+        }
+    }
+
     /// Fast single-rank (`world.size() == 1`) Stage 5a + Stage 5b synthesis directly into
     /// `TreeState::reconstructed` when no dynamic leaf/virtual promotion occurred:
     ///   - Restricts all virtual boundary corrections in flat arrays (`restrict_all_virtual_unpromoted`).
@@ -1083,6 +1104,9 @@ public:
         }
 
         restrict_all_virtual_unpromoted();
+        for (int j = 1; j <= n_max_tree_; ++j) {
+            std::vector<WindowedOwnedVirtNode<T>>().swap(levels_[static_cast<std::size_t>(j)].owned_virt);
+        }
 
         const long kk = static_cast<long>(k_);
         const long kk3 = kk * kk * kk;
@@ -1169,6 +1193,11 @@ public:
                         }
                     }
                 });
+            for (std::size_t ai : active_ints) {
+                auto& rn = ld.owned_real[ai];
+                rn.ns_out = Tensor<T>();
+                rn.s_out = Tensor<T>();
+            }
         }
 
         auto* res_impl = result.get_impl().get();
@@ -1182,6 +1211,7 @@ public:
                     res_coeffs.replace(rn.key, FunctionNode<T, 3>(empty_coeff, true));
                 } else {
                     GenTensor<T> coeff(rn.s_out, res_targs);
+                    rn.s_out = Tensor<T>();
                     res_coeffs.replace(rn.key, FunctionNode<T, 3>(coeff, false));
                 }
             }
@@ -1225,6 +1255,9 @@ public:
         } else {
             restrict_and_split_promoted_virtual(res_coeffs, full_targs);
         }
+        for (int j = 1; j <= n_max_tree_; ++j) {
+            std::vector<WindowedOwnedVirtNode<T>>().swap(levels_[static_cast<std::size_t>(j)].owned_virt);
+        }
 
         std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>> remote_child_inserts(
             static_cast<std::size_t>(world_.size()));
@@ -1237,6 +1270,8 @@ public:
                                        split_coarse_leaves_emitted_.end(),
                                        rn.key,
                                        windowed_halo_detail::windowed_key_less)) {
+                    rn.ns_out = Tensor<T>();
+                    rn.s_out = Tensor<T>();
                     continue;
                 }
 
@@ -1246,6 +1281,8 @@ public:
                         full_ns = Tensor<T>(twok, twok, twok);
                     }
                     full_ns(s0, s0, s0) = rn.s_out;
+                    rn.ns_out = Tensor<T>();
+                    rn.s_out = Tensor<T>();
                     GenTensor<T> coeff(full_ns, full_targs);
                     res_coeffs.replace(rn.key, FunctionNode<T, 3>(coeff, true));
                 } else if (rn.promoted_leaf && j < max_refine_level_) {
@@ -1254,6 +1291,8 @@ public:
                         full_ns = Tensor<T>(twok, twok, twok);
                     }
                     full_ns(s0, s0, s0) = rn.s_out;
+                    rn.ns_out = Tensor<T>();
+                    rn.s_out = Tensor<T>();
                     GenTensor<T> coeff(full_ns, full_targs);
                     res_coeffs.replace(rn.key, FunctionNode<T, 3>(coeff, true));
 
@@ -1271,6 +1310,7 @@ public:
                     }
                 } else {
                     GenTensor<T> coeff(rn.s_out, full_targs);
+                    rn.s_out = Tensor<T>();
                     res_coeffs.replace(rn.key, FunctionNode<T, 3>(coeff, false));
                 }
             }
@@ -1396,8 +1436,7 @@ private:
                         rn.s_in = windowed_halo_detail::extract_scaling_cube(full_c, k_);
                         windowed_halo_detail::compute_scaling_norms_readonly(
                             rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
-                        rn.wav_in =
-                            windowed_halo_detail::make_pure_wavelet_cube(full_c, k_, &rn.d_normf);
+                        rn.d_normf = windowed_halo_detail::wavelet_octants_normf(full_c, k_);
                         rn.ns_normf = std::sqrt(rn.s_normf * rn.s_normf + rn.d_normf * rn.d_normf);
                     } else {
                         if (full_c.dim(0) == kk && full_c.dim(1) == kk && full_c.dim(2) == kk &&
@@ -1687,8 +1726,8 @@ private:
                                 rn.s_in = copy(rn.ns_in(s0, s0, s0));
                                 windowed_halo_detail::compute_scaling_norms_readonly(
                                     rn.s_in, rn.s000, rn.s_osc_norm2, rn.s_normf);
-                                rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
-                                    rn.ns_in, k_, &rn.d_normf);
+                                rn.d_normf =
+                                    windowed_halo_detail::wavelet_octants_normf(rn.ns_in, k_);
                                 rn.ns_normf =
                                     std::sqrt(rn.s_normf * rn.s_normf + rn.d_normf * rn.d_normf);
                             }
@@ -1870,14 +1909,12 @@ private:
                 if (need_gamma_0) {
                     if (c0.size() == twok3) {
                         root_rn.ns_in = c0;
-                        root_rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
-                            c0, k_, &root_rn.d_normf);
+                        root_rn.d_normf = windowed_halo_detail::wavelet_octants_normf(c0, k_);
                         root_rn.ns_normf = std::sqrt(
                             root_rn.s_normf * root_rn.s_normf + root_rn.d_normf * root_rn.d_normf);
                     } else {
                         root_rn.ns_in = Tensor<T>(twok, twok, twok);
                         root_rn.ns_in(s0, s0, s0) = root_rn.s_in;
-                        root_rn.wav_in = Tensor<T>(twok, twok, twok);
                         root_rn.d_normf = 0.0;
                         root_rn.ns_normf = root_rn.s_normf;
                     }
@@ -1972,8 +2009,8 @@ private:
                             }
 
                             if (need_gamma_j) {
-                                rn.wav_in = windowed_halo_detail::make_pure_wavelet_cube(
-                                    rn.ns_in, k_, &rn.d_normf);
+                                rn.d_normf =
+                                    windowed_halo_detail::wavelet_octants_normf(full_ns, k_);
                                 rn.ns_in = copy(full_ns);
                                 rn.ns_normf = std::sqrt(
                                     rn.s_normf * rn.s_normf + rn.d_normf * rn.d_normf);
@@ -2008,7 +2045,6 @@ private:
                             if (need_gamma_j) {
                                 rn.ns_in = Tensor<T>(twok, twok, twok);
                                 rn.ns_in(s0, s0, s0) = rn.s_in;
-                                rn.wav_in = Tensor<T>(twok, twok, twok);
                                 rn.d_normf = 0.0;
                                 rn.ns_normf = rn.s_normf;
                             } else {
@@ -2997,8 +3033,7 @@ private:
                 windowed_halo_detail::compute_scaling_norms_readonly(
                     se.s_coeff, se.s000, se.s_osc_norm2, se.s_normf);
                 se.ns_coeff = rep.coeff;
-                se.wav_coeff =
-                    windowed_halo_detail::make_pure_wavelet_cube(rep.coeff, k_, &se.d_normf);
+                se.d_normf = windowed_halo_detail::wavelet_octants_normf(rep.coeff, k_);
                 se.ns_normf = std::sqrt(se.s_normf * se.s_normf + se.d_normf * se.d_normf);
                 remote_real_same_level.push_back(std::move(se));
             }
@@ -3202,7 +3237,6 @@ private:
                 se.s_coeff = rn.s_in;
                 if (rn.is_internal) {
                     se.ns_coeff = rn.ns_in;
-                    se.wav_coeff = rn.wav_in;
                 }
                 return se;
             };
@@ -3289,6 +3323,10 @@ private:
                         windowed_halo_detail::pack_spatial_key_same_level(ld.sources[si].key);
                 }
             }
+            std::vector<VirtProlongItem>().swap(prolong_levels[sj]);
+        }
+        {
+            std::vector<std::vector<std::pair<Key<3>, Tensor<T>>>>().swap(coarse_leaves_by_level_);
         }
     }
 

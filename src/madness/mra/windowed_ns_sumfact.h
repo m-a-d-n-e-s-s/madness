@@ -1121,11 +1121,12 @@ public:
         if (n <= cap_) return;
         std::size_t new_cap = std::max(n, cap_ + (cap_ >> 1));
         new_cap = (new_cap + 7u) & ~std::size_t(7u);
-        T* next = static_cast<T*>(::operator new(new_cap * sizeof(T), std::align_val_t{64}));
         if (ptr_ != nullptr) {
             ::operator delete(ptr_, std::align_val_t{64});
+            ptr_ = nullptr;
+            cap_ = 0;
         }
-        ptr_ = next;
+        ptr_ = static_cast<T*>(::operator new(new_cap * sizeof(T), std::align_val_t{64}));
         cap_ = new_cap;
     }
 
@@ -1178,7 +1179,7 @@ struct SumFactScratch3D {
     }
 
     void trim_after_call() noexcept {
-        constexpr std::size_t kMaxRetainedBufBytes = 64ULL << 20; // 64 MiB per buffer
+        constexpr std::size_t kMaxRetainedBufBytes = 8ULL << 20; // 8 MiB per buffer
         buf_x.trim_if_over_bytes(kMaxRetainedBufBytes);
         buf_xy.trim_if_over_bytes(kMaxRetainedBufBytes);
     }
@@ -1209,7 +1210,7 @@ public:
         ptr_->trim_after_call();
         auto& st = pool_state();
         std::lock_guard<std::mutex> lock(st.mtx);
-        if (st.free_list.size() < 16u) {
+        if (st.free_list.size() < 3u) {
             st.free_list.push_back(std::move(ptr_));
         }
     }
@@ -1521,6 +1522,46 @@ inline void execute_sumfact_3d(
                 }
             }
         });
+}
+
+/// Spatial target-brick tiled wrapper over `build_sumfact_graph_3d` + `execute_sumfact_3d`:
+/// when `tgt_keys.size() <= tile_cap`, builds one graph with zero overhead; on very wide levels,
+/// slices `tgt_keys` into L3-cache-sized bricks so `buf_x + buf_xy` stays bounded (`<= ~16 MiB`).
+template <typename T, typename RunGraphFn>
+inline void run_sumfact_target_tiled_3d(
+    const std::vector<Key<3>>& src_keys,
+    const std::vector<Key<3>>& tgt_keys,
+    const std::vector<T*>& tgt_ptrs,
+    int m_bw,
+    const array_of_bools<3>& is_periodic,
+    std::size_t tile_cap,
+    RunGraphFn&& run_fn) {
+    if (src_keys.empty() || tgt_keys.empty()) return;
+    if (tgt_keys.size() <= tile_cap) {
+        const SumFactGraph3D graph =
+            build_sumfact_graph_3d(src_keys, tgt_keys, m_bw, is_periodic);
+        if (!graph.empty()) {
+            run_fn(graph, tgt_ptrs);
+        }
+        return;
+    }
+
+    std::vector<Key<3>> sub_tkeys;
+    std::vector<T*> sub_tptrs;
+    sub_tkeys.reserve(tile_cap);
+    sub_tptrs.reserve(tile_cap);
+    for (std::size_t t0 = 0; t0 < tgt_keys.size(); t0 += tile_cap) {
+        const std::size_t t1 = std::min(t0 + tile_cap, tgt_keys.size());
+        sub_tkeys.assign(tgt_keys.begin() + static_cast<std::ptrdiff_t>(t0),
+                         tgt_keys.begin() + static_cast<std::ptrdiff_t>(t1));
+        sub_tptrs.assign(tgt_ptrs.begin() + static_cast<std::ptrdiff_t>(t0),
+                         tgt_ptrs.begin() + static_cast<std::ptrdiff_t>(t1));
+        const SumFactGraph3D graph =
+            build_sumfact_graph_3d(src_keys, sub_tkeys, m_bw, is_periodic);
+        if (!graph.empty()) {
+            run_fn(graph, sub_tptrs);
+        }
+    }
 }
 
 /// Self-box (`m_bw == 0`, `disp = (0, 0, 0)`) fast path for Pass 4b-1 (`2k -> k`):
@@ -2149,216 +2190,232 @@ void apply_windowed_ns_3d_prepared(World& world,
         std::array<Tensor<T>, kMaxParallelChunks> h1t_tmp_k3;
         std::array<Tensor<T>, kMaxParallelChunks> h1t_w1_k3;
 
-        for (int j = 0; j <= n_max_tree; ++j) {
-            const std::size_t sj = static_cast<std::size_t>(j);
-            const auto& t_list = active_T_terms[sj];
-            if (t_list.empty()) continue;
+        struct LevelInputReleaseGuard {
+            WindowedNSHaloWorkspace<T>& ws;
+            int level;
+            ~LevelInputReleaseGuard() {
+                ws.release_stage4_inputs_for_level(level);
+            }
+        };
 
+        for (int j = 0; j <= n_max_tree; ++j) {
+            LevelInputReleaseGuard release_guard{ws, j};
+            const std::size_t sj = static_cast<std::size_t>(j);
             auto& ld = ws.level_data(j);
-            if (j == 0) {
-                if (!ld.owned_real.empty()) {
-                    auto& root_rn = ld.owned_real[0];
-                    for (const ActiveBaseTerm& tr : t_list) {
-                        apply_single_box_1d_kronecker_3d(kk3,
-                                                         tr.entry->mat_T(0),
-                                                         tr.weight_scaled,
-                                                         root_rn.s_in,
-                                                         root_rn.s_out,
-                                                         work1_k3,
-                                                         work2_k3);
+
+            // -----------------------------------------------------------------
+            // Stage 4(a) at level `j`
+            // -----------------------------------------------------------------
+            [&]() {
+                const auto& t_list = active_T_terms[sj];
+                if (t_list.empty()) return;
+
+                if (j == 0) {
+                    if (!ld.owned_real.empty()) {
+                        auto& root_rn = ld.owned_real[0];
+                        for (const ActiveBaseTerm& tr : t_list) {
+                            apply_single_box_1d_kronecker_3d(kk3,
+                                                             tr.entry->mat_T(0),
+                                                             tr.weight_scaled,
+                                                             root_rn.s_in,
+                                                             root_rn.s_out,
+                                                             work1_k3,
+                                                             work2_k3);
+                        }
+                    }
+                    return;
+                }
+
+                // Collect sorted targets: all owned real nodes in T_j + all owned H1_T virtual nodes.
+                std::vector<Key<3>> real_tkeys;
+                std::vector<T*> real_tptrs;
+                real_tkeys.reserve(ld.owned_real.size());
+                real_tptrs.reserve(ld.owned_real.size());
+                for (auto& rn : ld.owned_real) {
+                    real_tkeys.push_back(rn.key);
+                    real_tptrs.push_back(rn.s_out.ptr());
+                }
+
+                std::vector<Key<3>> virt_tkeys;
+                std::vector<T*> virt_tptrs;
+                std::vector<WindowedOwnedVirtNode<T>*> h1t_virts;
+                virt_tkeys.reserve(ld.owned_virt.size());
+                virt_tptrs.reserve(ld.owned_virt.size());
+                h1t_virts.reserve(ld.owned_virt.size());
+                for (auto& vn : ld.owned_virt) {
+                    if ((vn.flags & kHaloH1T) != 0) {
+                        virt_tkeys.push_back(vn.key);
+                        virt_tptrs.push_back(vn.ds_corr.ptr());
+                        h1t_virts.push_back(&vn);
                     }
                 }
-                continue;
-            }
 
-            // Collect sorted targets: all owned real nodes in T_j + all owned H1_T virtual nodes.
-            std::vector<Key<3>> real_tkeys;
-            std::vector<T*> real_tptrs;
-            real_tkeys.reserve(ld.owned_real.size());
-            real_tptrs.reserve(ld.owned_real.size());
-            for (auto& rn : ld.owned_real) {
-                real_tkeys.push_back(rn.key);
-                real_tptrs.push_back(rn.s_out.ptr());
-            }
+                std::vector<Key<3>> tgt_keys;
+                std::vector<T*> tgt_ptrs;
+                merge_sorted_targets(real_tkeys, real_tptrs, virt_tkeys, virt_tptrs, tgt_keys, tgt_ptrs);
+                if (tgt_keys.empty()) return;
 
-            std::vector<Key<3>> virt_tkeys;
-            std::vector<T*> virt_tptrs;
-            std::vector<WindowedOwnedVirtNode<T>*> h1t_virts;
-            virt_tkeys.reserve(ld.owned_virt.size());
-            virt_tptrs.reserve(ld.owned_virt.size());
-            h1t_virts.reserve(ld.owned_virt.size());
-            for (auto& vn : ld.owned_virt) {
-                if ((vn.flags & kHaloH1T) != 0) {
-                    virt_tkeys.push_back(vn.key);
-                    virt_tptrs.push_back(vn.ds_corr.ptr());
-                    h1t_virts.push_back(&vn);
-                }
-            }
+                const double loc_tol_j = f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
+                const double sqrt_nT_raw = std::sqrt(
+                    static_cast<double>(std::max<std::size_t>(1, raw_T_terms[sj].size())));
+                const double sqrt_nT =
+                    std::sqrt(static_cast<double>(std::max<std::size_t>(1, t_list.size())));
+                const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT_raw;
+                const double tol_sh2_T =
+                    dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT_raw)) : (0.1 * tol_nn_T);
+                const double svd_fac_T = dynamic_refine ? 0.025 : 0.003;
+                const std::size_t n_buckets_T = dynamic_refine ? kMaxNormBuckets : 1u;
 
-            std::vector<Key<3>> tgt_keys;
-            std::vector<T*> tgt_ptrs;
-            merge_sorted_targets(real_tkeys, real_tptrs, virt_tkeys, virt_tptrs, tgt_keys, tgt_ptrs);
-            if (tgt_keys.empty()) continue;
-
-            const double loc_tol_j = f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
-            const double sqrt_nT_raw = std::sqrt(
-                static_cast<double>(std::max<std::size_t>(1, raw_T_terms[sj].size())));
-            const double sqrt_nT =
-                std::sqrt(static_cast<double>(std::max<std::size_t>(1, t_list.size())));
-            const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT_raw;
-            const double tol_sh2_T =
-                dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT_raw)) : (0.1 * tol_nn_T);
-            const double svd_fac_T = dynamic_refine ? 0.025 : 0.003;
-            const std::size_t n_buckets_T = dynamic_refine ? kMaxNormBuckets : 1u;
-
-            double max_T_single_op = 0.0;
-            for (const ActiveBaseTerm& tr : t_list) {
-                const double aw = std::abs(tr.weight_scaled);
-                for (int sh = 0; sh <= tr.bw_T; ++sh) {
-                    max_T_single_op += aw * tr.entry->shell_max_T[static_cast<std::size_t>(sh)];
-                }
-            }
-            const double t_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
-            const double max_s_T_M =
-                dynamic_refine ? std::max(1e-30, gstats[sj].max_s_source) : 1.0;
-            const std::array<double, kMaxNormBuckets> t_brefs = {
-                max_s_T_M, 0.02 * max_s_T_M, 1e-4 * max_s_T_M};
-
-            std::array<std::vector<Key<3>>, kMaxNormBuckets> b_T_keys;
-            std::array<std::vector<const T*>, kMaxNormBuckets> b_T_ptrs;
-            for (const auto& se : ld.sources) {
-                if (se.s_normf > 0.0 && se.s_coeff.size() == kk3 &&
-                    (!dynamic_refine || se.s_normf * max_T_single_op > t_src_screen_tol)) {
-                    const std::size_t bi = select_norm_bucket(se.s_normf, max_s_T_M);
-                    b_T_keys[bi].push_back(se.key);
-                    b_T_ptrs[bi].push_back(se.s_coeff.ptr());
-                }
-            }
-
-            if (dynamic_refine) {
-                merge_matching_norm_buckets<T, kMaxNormBuckets>(
-                    n_buckets_T,
-                    b_T_keys,
-                    b_T_ptrs,
-                    nullptr,
-                    t_brefs,
-                    [&](double ra, double rb) noexcept {
-                        const double ba = std::max(1e-30, ra);
-                        const double bb = std::max(1e-30, rb);
-                        for (const ActiveBaseTerm& tr : t_list) {
-                            const double aw = std::abs(tr.weight_scaled);
-                            const int bwa = std::min(
-                                tr.bw_T, tr.entry->select_bw_T(aw, ba, tol_nn_T, tol_sh2_T));
-                            const int bwb = std::min(
-                                tr.bw_T, tr.entry->select_bw_T(aw, bb, tol_nn_T, tol_sh2_T));
-                            if (bwa != bwb) return false;
-                        }
-                        return true;
-                    });
-            }
-
-            struct PreparedBaseTerm {
-                const ActiveBaseTerm* tr = nullptr;
-                int eff_bw = -1;
-                std::array<SlotOp1D, StencilEntry1D::kNumDisp> slot_ops{};
-            };
-            std::vector<PreparedBaseTerm> prep_T;
-            prep_T.reserve(t_list.size());
-
-            for (std::size_t bi = 0; bi < n_buckets_T; ++bi) {
-                if (b_T_keys[bi].empty()) continue;
-                const double bref = dynamic_refine ? std::max(1e-30, t_brefs[bi]) : 1.0;
-                const double term_svd_tol_T = (svd_fac_T * loc_tol_j) / (sqrt_nT * bref);
-
-                prep_T.clear();
+                double max_T_single_op = 0.0;
                 for (const ActiveBaseTerm& tr : t_list) {
                     const double aw = std::abs(tr.weight_scaled);
-                    const int bw_T_b = dynamic_refine
-                                           ? std::min(tr.bw_T,
-                                                      tr.entry->select_bw_T(
-                                                          aw, bref, tol_nn_T, tol_sh2_T))
-                                           : tr.bw_T;
-                    if (bw_T_b < 1) continue;
-                    PreparedBaseTerm pt;
-                    pt.tr = &tr;
-                    pt.eff_bw = select_active_1d_slots(bw_T_b,
-                                                       1,
-                                                       kk,
-                                                       kk,
-                                                       tr.entry->T,
-                                                       tr.entry->svd_T,
-                                                       aw,
-                                                       term_svd_tol_T,
-                                                       pt.slot_ops);
-                    if (pt.eff_bw >= 1) {
-                        prep_T.push_back(pt);
+                    for (int sh = 0; sh <= tr.bw_T; ++sh) {
+                        max_T_single_op += aw * tr.entry->shell_max_T[static_cast<std::size_t>(sh)];
+                    }
+                }
+                const double t_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
+                const double max_s_T_M =
+                    dynamic_refine ? std::max(1e-30, gstats[sj].max_s_source) : 1.0;
+                const std::array<double, kMaxNormBuckets> t_brefs = {
+                    max_s_T_M, 0.02 * max_s_T_M, 1e-4 * max_s_T_M};
+
+                std::array<std::vector<Key<3>>, kMaxNormBuckets> b_T_keys;
+                std::array<std::vector<const T*>, kMaxNormBuckets> b_T_ptrs;
+                for (const auto& se : ld.sources) {
+                    if (se.s_normf > 0.0 && se.s_coeff.size() == kk3 &&
+                        (!dynamic_refine || se.s_normf * max_T_single_op > t_src_screen_tol)) {
+                        const std::size_t bi = select_norm_bucket(se.s_normf, max_s_T_M);
+                        b_T_keys[bi].push_back(se.key);
+                        b_T_ptrs[bi].push_back(se.s_coeff.ptr());
                     }
                 }
 
-                for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
-                    bool any_bw = false;
-                    for (const PreparedBaseTerm& pt : prep_T) {
-                        if (pt.eff_bw == m_bw) {
-                            any_bw = true;
-                            break;
-                        }
-                    }
-                    if (!any_bw) continue;
-
-                    const SumFactGraph3D graph_T =
-                        build_sumfact_graph_3d(b_T_keys[bi], tgt_keys, m_bw, ws.is_periodic());
-                    if (graph_T.empty()) continue;
-
-                    for (const PreparedBaseTerm& pt : prep_T) {
-                        if (pt.eff_bw != m_bw) continue;
-                        execute_sumfact_3d(graph_T,
-                                           kk,
-                                           kk,
-                                           pt.slot_ops,
-                                           pt.tr->weight_scaled,
-                                           b_T_ptrs[bi],
-                                           tgt_ptrs,
-                                           sf_scratch);
-                    }
-                }
-            }
-
-            // Theorem 3.1 exact commutation subtraction (executed ONCE per ActiveBaseTerm,
-            // strictly outside source-norm buckets!):
-            //   ds_corr[V] -= W_p * M(gamma_{p, j})^{\otimes 3} s_virt[V]  for all V in dH_j^{(1,T)}.
-            if (!h1t_virts.empty()) {
-                for (const ActiveBaseTerm& tr : t_list) {
-                    mop.fill_MT_buffer(tr.entry->gamma, mt_mat.ptr());
-                    const double neg_w = -tr.weight_scaled;
-                    parallel_for_chunks(
-                        h1t_virts.size(),
-                        kDefaultParallelGrain,
-                        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
-                            if (h1t_tmp_k3[cid].size() != kk3) {
-                                h1t_tmp_k3[cid] = Tensor<T>(3L, k_dims, false);
-                                h1t_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
+                if (dynamic_refine) {
+                    merge_matching_norm_buckets<T, kMaxNormBuckets>(
+                        n_buckets_T,
+                        b_T_keys,
+                        b_T_ptrs,
+                        nullptr,
+                        t_brefs,
+                        [&](double ra, double rb) noexcept {
+                            const double ba = std::max(1e-30, ra);
+                            const double bb = std::max(1e-30, rb);
+                            for (const ActiveBaseTerm& tr : t_list) {
+                                const double aw = std::abs(tr.weight_scaled);
+                                const int bwa = std::min(
+                                    tr.bw_T, tr.entry->select_bw_T(aw, ba, tol_nn_T, tol_sh2_T));
+                                const int bwb = std::min(
+                                    tr.bw_T, tr.entry->select_bw_T(aw, bb, tol_nn_T, tol_sh2_T));
+                                if (bwa != bwb) return false;
                             }
-                            Tensor<T>& t_cube = h1t_tmp_k3[cid];
-                            Tensor<T>& w_cube = h1t_w1_k3[cid];
-                            for (std::size_t vi = b; vi < e_hi; ++vi) {
-                                WindowedOwnedVirtNode<T>* vn_ptr = h1t_virts[vi];
-                                if (!(vn_ptr->s_normf > 0.0)) continue;
-                                fast_transform(vn_ptr->s_virt, mt_mat, t_cube, w_cube);
-                                aligned_axpy(kk3, vn_ptr->ds_corr.ptr(), t_cube.ptr(), neg_w);
-                            }
+                            return true;
                         });
                 }
-            }
-        }
 
-        // =====================================================================
-        // Stage 4(b): `\Gamma^j` Wavelet Decoupling & Dynamic Output Refinement
-        // =====================================================================
+                struct PreparedBaseTerm {
+                    const ActiveBaseTerm* tr = nullptr;
+                    int eff_bw = -1;
+                    std::array<SlotOp1D, StencilEntry1D::kNumDisp> slot_ops{};
+                };
+                std::vector<PreparedBaseTerm> prep_T;
+                prep_T.reserve(t_list.size());
 
-        for (int j = 0; j < n_max_tree; ++j) {
-            const std::size_t sj = static_cast<std::size_t>(j);
+                for (std::size_t bi = 0; bi < n_buckets_T; ++bi) {
+                    if (b_T_keys[bi].empty()) continue;
+                    const double bref = dynamic_refine ? std::max(1e-30, t_brefs[bi]) : 1.0;
+                    const double term_svd_tol_T = (svd_fac_T * loc_tol_j) / (sqrt_nT * bref);
+
+                    prep_T.clear();
+                    for (const ActiveBaseTerm& tr : t_list) {
+                        const double aw = std::abs(tr.weight_scaled);
+                        const int bw_T_b = dynamic_refine
+                                               ? std::min(tr.bw_T,
+                                                          tr.entry->select_bw_T(
+                                                              aw, bref, tol_nn_T, tol_sh2_T))
+                                               : tr.bw_T;
+                        if (bw_T_b < 1) continue;
+                        PreparedBaseTerm pt;
+                        pt.tr = &tr;
+                        pt.eff_bw = select_active_1d_slots(bw_T_b,
+                                                           1,
+                                                           kk,
+                                                           kk,
+                                                           tr.entry->T,
+                                                           tr.entry->svd_T,
+                                                           aw,
+                                                           term_svd_tol_T,
+                                                           pt.slot_ops);
+                        if (pt.eff_bw >= 1) {
+                            prep_T.push_back(pt);
+                        }
+                    }
+
+                    for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
+                        bool any_bw = false;
+                        for (const PreparedBaseTerm& pt : prep_T) {
+                            if (pt.eff_bw == m_bw) {
+                                any_bw = true;
+                                break;
+                            }
+                        }
+                        if (!any_bw) continue;
+
+                        run_sumfact_target_tiled_3d(
+                            b_T_keys[bi],
+                            tgt_keys,
+                            tgt_ptrs,
+                            m_bw,
+                            ws.is_periodic(),
+                            1024u,
+                            [&](const SumFactGraph3D& graph_T, const std::vector<T*>& tile_tptrs) {
+                                for (const PreparedBaseTerm& pt : prep_T) {
+                                    if (pt.eff_bw != m_bw) continue;
+                                    execute_sumfact_3d(graph_T,
+                                                       kk,
+                                                       kk,
+                                                       pt.slot_ops,
+                                                       pt.tr->weight_scaled,
+                                                       b_T_ptrs[bi],
+                                                       tile_tptrs,
+                                                       sf_scratch);
+                                }
+                            });
+                    }
+                }
+
+                // Theorem 3.1 exact commutation subtraction (executed ONCE per ActiveBaseTerm,
+                // strictly outside source-norm buckets!):
+                //   ds_corr[V] -= W_p * M(gamma_{p, j})^{\otimes 3} s_virt[V]  for all V in dH_j^{(1,T)}.
+                if (!h1t_virts.empty()) {
+                    for (const ActiveBaseTerm& tr : t_list) {
+                        mop.fill_MT_buffer(tr.entry->gamma, mt_mat.ptr());
+                        const double neg_w = -tr.weight_scaled;
+                        parallel_for_chunks(
+                            h1t_virts.size(),
+                            kDefaultParallelGrain,
+                            [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                                if (h1t_tmp_k3[cid].size() != kk3) {
+                                    h1t_tmp_k3[cid] = Tensor<T>(3L, k_dims, false);
+                                    h1t_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
+                                }
+                                Tensor<T>& t_cube = h1t_tmp_k3[cid];
+                                Tensor<T>& w_cube = h1t_w1_k3[cid];
+                                for (std::size_t vi = b; vi < e_hi; ++vi) {
+                                    WindowedOwnedVirtNode<T>* vn_ptr = h1t_virts[vi];
+                                    if (!(vn_ptr->s_normf > 0.0)) continue;
+                                    fast_transform(vn_ptr->s_virt, mt_mat, t_cube, w_cube);
+                                    aligned_axpy(kk3, vn_ptr->ds_corr.ptr(), t_cube.ptr(), neg_w);
+                                }
+                            });
+                    }
+                }
+            }();
+
+            // -----------------------------------------------------------------
+            // Stage 4(b) at level `j` (`0 <= j < n_max_tree`)
+            // -----------------------------------------------------------------
+            if (j >= n_max_tree) continue;
             const auto& g_list = active_gamma_terms[sj];
-            auto& ld = ws.level_data(j);
             if (g_list.empty() || !ld.global_has_internal) continue;
 
             const WindowedLevelRadii& rad = radii[sj];
@@ -2428,13 +2485,30 @@ void apply_windowed_ns_3d_prepared(World& world,
                     std::array<std::vector<const T*>, kMaxNormBuckets> b_src_ptrs;
                     std::array<std::vector<const Tensor<T>*>, kMaxNormBuckets> b_src_tensors;
 
+                    std::vector<const WindowedSourceEntry<T>*> active_p1_ses;
                     for (const auto& se : ld.sources) {
-                        if (se.is_internal && se.d_normf > 0.0 && se.wav_coeff.size() == twok3 &&
+                        if (se.is_internal && se.d_normf > 0.0 && se.ns_coeff.size() == twok3 &&
                             (!dynamic_refine || se.d_normf * max_4b1_single_op > p1_src_screen_tol)) {
+                            active_p1_ses.push_back(&se);
+                        }
+                    }
+                    std::vector<Tensor<T>> p1_wav_cubes(active_p1_ses.size());
+                    if (!active_p1_ses.empty()) {
+                        parallel_for_chunks(
+                            active_p1_ses.size(),
+                            kDefaultParallelGrain,
+                            [&](std::size_t b, std::size_t e_hi, std::size_t) {
+                                for (std::size_t si = b; si < e_hi; ++si) {
+                                    p1_wav_cubes[si] = windowed_halo_detail::make_pure_wavelet_cube(
+                                        active_p1_ses[si]->ns_coeff, k);
+                                }
+                            });
+                        for (std::size_t si = 0; si < active_p1_ses.size(); ++si) {
+                            const auto& se = *active_p1_ses[si];
                             const std::size_t bi = select_norm_bucket(se.d_normf, max_d_M);
                             b_src_keys[bi].push_back(se.key);
-                            b_src_ptrs[bi].push_back(se.wav_coeff.ptr());
-                            b_src_tensors[bi].push_back(&se.wav_coeff);
+                            b_src_ptrs[bi].push_back(p1_wav_cubes[si].ptr());
+                            b_src_tensors[bi].push_back(&p1_wav_cubes[si]);
                         }
                     }
 
@@ -2532,21 +2606,26 @@ void apply_windowed_ns_3d_prepared(World& world,
                             }
                             if (!any_bw) continue;
 
-                            const SumFactGraph3D graph_p1 = build_sumfact_graph_3d(
-                                b_src_keys[bi], p1_tgt_keys, m_bw, ws.is_periodic());
-                            if (graph_p1.empty()) continue;
-
-                            for (const PreparedP1Term& pp : prep_p1) {
-                                if (pp.eff_bw != m_bw) continue;
-                                execute_sumfact_3d(graph_p1,
-                                                   twok,
-                                                   kk,
-                                                   pp.slot_ops,
-                                                   pp.gr->weight_scaled,
-                                                   b_src_ptrs[bi],
-                                                   p1_tgt_ptrs,
-                                                   sf_scratch);
-                            }
+                            run_sumfact_target_tiled_3d(
+                                b_src_keys[bi],
+                                p1_tgt_keys,
+                                p1_tgt_ptrs,
+                                m_bw,
+                                ws.is_periodic(),
+                                512u,
+                                [&](const SumFactGraph3D& graph_p1, const std::vector<T*>& tile_tptrs) {
+                                    for (const PreparedP1Term& pp : prep_p1) {
+                                        if (pp.eff_bw != m_bw) continue;
+                                        execute_sumfact_3d(graph_p1,
+                                                           twok,
+                                                           kk,
+                                                           pp.slot_ops,
+                                                           pp.gr->weight_scaled,
+                                                           b_src_ptrs[bi],
+                                                           tile_tptrs,
+                                                           sf_scratch);
+                                    }
+                                });
                         }
                     }
                 }
@@ -2953,21 +3032,27 @@ void apply_windowed_ns_3d_prepared(World& world,
                             }
                             if (!any_bw) continue;
 
-                            const SumFactGraph3D graph_p2_int = build_sumfact_graph_3d(
-                                b_int_keys[bi], p2_tgt_keys, m_bw, ws.is_periodic());
-                            if (graph_p2_int.empty()) continue;
-
-                            for (const PreparedP2IntTerm& pi : prep_int) {
-                                if (pi.eff_bw != m_bw) continue;
-                                execute_sumfact_3d(graph_p2_int,
-                                                   twok,
-                                                   twok,
-                                                   pi.slot_ops,
-                                                   pi.gr->weight_scaled,
-                                                   b_int_ptrs[bi],
-                                                   p2_tgt_ptrs,
-                                                   sf_scratch);
-                            }
+                            run_sumfact_target_tiled_3d(
+                                b_int_keys[bi],
+                                p2_tgt_keys,
+                                p2_tgt_ptrs,
+                                m_bw,
+                                ws.is_periodic(),
+                                256u,
+                                [&](const SumFactGraph3D& graph_p2_int,
+                                    const std::vector<T*>& tile_tptrs) {
+                                    for (const PreparedP2IntTerm& pi : prep_int) {
+                                        if (pi.eff_bw != m_bw) continue;
+                                        execute_sumfact_3d(graph_p2_int,
+                                                           twok,
+                                                           twok,
+                                                           pi.slot_ops,
+                                                           pi.gr->weight_scaled,
+                                                           b_int_ptrs[bi],
+                                                           tile_tptrs,
+                                                           sf_scratch);
+                                    }
+                                });
                         }
                     }
                 }
@@ -3050,21 +3135,27 @@ void apply_windowed_ns_3d_prepared(World& world,
                             }
                             if (!any_bw) continue;
 
-                            const SumFactGraph3D graph_p2_leaf = build_sumfact_graph_3d(
-                                b_leaf_keys[bi], p2_tgt_keys, m_bw, ws.is_periodic());
-                            if (graph_p2_leaf.empty()) continue;
-
-                            for (const PreparedP2LeafTerm& pl : prep_leaf) {
-                                if (pl.eff_bw != m_bw) continue;
-                                execute_sumfact_3d(graph_p2_leaf,
-                                                   kk,
-                                                   twok,
-                                                   pl.slot_ops,
-                                                   pl.gr->weight_scaled,
-                                                   b_leaf_ptrs[bi],
-                                                   p2_tgt_ptrs,
-                                                   sf_scratch);
-                            }
+                            run_sumfact_target_tiled_3d(
+                                b_leaf_keys[bi],
+                                p2_tgt_keys,
+                                p2_tgt_ptrs,
+                                m_bw,
+                                ws.is_periodic(),
+                                256u,
+                                [&](const SumFactGraph3D& graph_p2_leaf,
+                                    const std::vector<T*>& tile_tptrs) {
+                                    for (const PreparedP2LeafTerm& pl : prep_leaf) {
+                                        if (pl.eff_bw != m_bw) continue;
+                                        execute_sumfact_3d(graph_p2_leaf,
+                                                           kk,
+                                                           twok,
+                                                           pl.slot_ops,
+                                                           pl.gr->weight_scaled,
+                                                           b_leaf_ptrs[bi],
+                                                           tile_tptrs,
+                                                           sf_scratch);
+                                    }
+                                });
                         }
                     }
                 }
