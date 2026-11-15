@@ -73,7 +73,9 @@ namespace madness {
                     int op_type,
                     double mu,
                     double thresh,
-                    int k);
+                    int k,
+                    const Tensor<double>& stored_coeffs,
+                    const Tensor<double>& stored_exponents);
     } // namespace windowed_ns_bridge
 
     template<typename T, std::size_t NDIM>
@@ -265,8 +267,16 @@ namespace madness {
                 const bool active = (windowed_ns_mode_ == 1) ||
                                     (windowed_ns_mode_ < 0 && windowed_ns_bridge::env_opt_in_enabled());
                 if (!active) return false;
-                if (!(info.type == OT_G12 || info.type == OT_BSH)) return false;
-                if (info.mu < 0.0 || !(info.thresh > 0.0 && info.thresh < 1.0)) return false;
+                const bool is_coulomb_or_bsh = (info.type == OT_G12 || info.type == OT_BSH);
+                const bool is_custom_gaussian =
+                    (!is_coulomb_or_bsh &&
+                     stored_coeffs.ndim() == 1 &&
+                     stored_exponents.ndim() == 1 &&
+                     stored_coeffs.size() > 0 &&
+                     stored_coeffs.size() == stored_exponents.size());
+                if (!(is_coulomb_or_bsh || is_custom_gaussian)) return false;
+                if (is_coulomb_or_bsh && info.mu < 0.0) return false;
+                if (!(info.thresh > 0.0 && info.thresh < 1.0)) return false;
                 if (modified_ || particle_ != 1 || images_only_) return false;
                 if (lattice_summed_.any() || func_domain_is_periodic_.any() || range_restricted()) return false;
                 if (FunctionDefaults<3>::get_bc().is_periodic_any()) return false;
@@ -275,6 +285,15 @@ namespace madness {
                 if (!(cw(0L) > 0.0)) return false;
                 if (std::abs(cw(1L) - cw(0L)) > 1e-13 * cw(0L) ||
                     std::abs(cw(2L) - cw(0L)) > 1e-13 * cw(0L)) return false;
+                if (is_custom_gaussian) {
+                    const long n_terms = stored_exponents.size();
+                    for (long idx = 0; idx < n_terms; ++idx) {
+                        if (!(stored_exponents(idx) > 0.0) || !std::isfinite(stored_exponents(idx)) ||
+                            !std::isfinite(stored_coeffs(idx))) {
+                            return false;
+                        }
+                    }
+                }
                 return true;
             } else {
                 return false;
@@ -286,7 +305,14 @@ namespace madness {
             if constexpr (std::is_same_v<Q, double> && NDIM == 3) {
                 if (!windowed_ns_enabled()) return nullptr;
                 return windowed_ns_bridge::get_or_make(
-                    this->get_world(), windowed_ns_op_, static_cast<int>(info.type), info.mu, info.thresh, k);
+                    this->get_world(),
+                    windowed_ns_op_,
+                    static_cast<int>(info.type),
+                    info.mu,
+                    info.thresh,
+                    k,
+                    stored_coeffs,
+                    stored_exponents);
             } else {
                 return nullptr;
             }

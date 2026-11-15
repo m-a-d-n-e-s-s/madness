@@ -65,6 +65,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <memory>
+#include <mutex>
+#include <new>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -1079,21 +1082,93 @@ inline int select_active_1d_slots(
     return max_active;
 }
 
+/// 64-byte aligned uninitialized POD scratch buffer (avoids `std::vector<T>::resize` zero-fill
+/// `memset` on multi-megabyte intermediate X / XY sum-factorization workspaces).
+template <typename T>
+class UninitAlignedBuf {
+    static_assert(std::is_trivially_destructible_v<T>,
+                  "UninitAlignedBuf requires trivially destructible scalar types");
+
+public:
+    UninitAlignedBuf() noexcept = default;
+
+    ~UninitAlignedBuf() {
+        reset();
+    }
+
+    UninitAlignedBuf(const UninitAlignedBuf&) = delete;
+    UninitAlignedBuf& operator=(const UninitAlignedBuf&) = delete;
+
+    UninitAlignedBuf(UninitAlignedBuf&& other) noexcept
+        : ptr_(other.ptr_)
+        , cap_(other.cap_) {
+        other.ptr_ = nullptr;
+        other.cap_ = 0;
+    }
+
+    UninitAlignedBuf& operator=(UninitAlignedBuf&& other) noexcept {
+        if (this != &other) {
+            reset();
+            ptr_ = other.ptr_;
+            cap_ = other.cap_;
+            other.ptr_ = nullptr;
+            other.cap_ = 0;
+        }
+        return *this;
+    }
+
+    void ensure(std::size_t n) {
+        if (n <= cap_) return;
+        std::size_t new_cap = std::max(n, cap_ + (cap_ >> 1));
+        new_cap = (new_cap + 7u) & ~std::size_t(7u);
+        T* next = static_cast<T*>(::operator new(new_cap * sizeof(T), std::align_val_t{64}));
+        if (ptr_ != nullptr) {
+            ::operator delete(ptr_, std::align_val_t{64});
+        }
+        ptr_ = next;
+        cap_ = new_cap;
+    }
+
+    void trim_if_over_bytes(std::size_t max_bytes) noexcept {
+        if (cap_ * sizeof(T) > max_bytes) {
+            reset();
+        }
+    }
+
+    void reset() noexcept {
+        if (ptr_ != nullptr) {
+            ::operator delete(ptr_, std::align_val_t{64});
+            ptr_ = nullptr;
+            cap_ = 0;
+        }
+    }
+
+    T* data() noexcept { return ptr_; }
+    const T* data() const noexcept { return ptr_; }
+    std::size_t capacity() const noexcept { return cap_; }
+
+private:
+    T* ptr_ = nullptr;
+    std::size_t cap_ = 0;
+};
+
 /// Reusable contiguous scratch buffers for `execute_sumfact_3d` and self-box fast paths.
 template <typename T>
 struct SumFactScratch3D {
-    std::vector<T> buf_x;
-    std::vector<T> buf_xy;
-    std::vector<double> z_op_buf;
-    std::array<std::vector<T>, kMaxParallelChunks> tmp_blocks;
-    std::array<std::vector<T>, kMaxParallelChunks> svd_blocks;
-    std::array<std::vector<T>, kMaxParallelChunks> svd_t_blocks;
+    UninitAlignedBuf<T> buf_x;
+    UninitAlignedBuf<T> buf_xy;
+    UninitAlignedBuf<double> z_op_buf;
+    std::array<UninitAlignedBuf<T>, kMaxParallelChunks> tmp_blocks;
+    std::array<UninitAlignedBuf<T>, kMaxParallelChunks> svd_blocks;
+    std::array<UninitAlignedBuf<T>, kMaxParallelChunks> svd_t_blocks;
     std::array<Tensor<T>, kMaxParallelChunks> self_work1;
     std::array<Tensor<T>, kMaxParallelChunks> self_work2;
 
     void ensure_self_cubes(long d) {
         const long dims[3] = {d, d, d};
-        for (std::size_t cid = 0; cid < kMaxParallelChunks; ++cid) {
+        const std::size_t n_slots =
+            std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
+        for (std::size_t cid = 0; cid < n_slots; ++cid) {
             if (self_work1[cid].ndim() != 3 || self_work1[cid].dim(0) < d ||
                 self_work1[cid].dim(1) < d || self_work1[cid].dim(2) < d) {
                 self_work1[cid] = Tensor<T>(3L, dims, false);
@@ -1101,7 +1176,146 @@ struct SumFactScratch3D {
             }
         }
     }
+
+    void trim_after_call() noexcept {
+        constexpr std::size_t kMaxRetainedBufBytes = 64ULL << 20; // 64 MiB per buffer
+        buf_x.trim_if_over_bytes(kMaxRetainedBufBytes);
+        buf_xy.trim_if_over_bytes(kMaxRetainedBufBytes);
+    }
 };
+
+/// Thread-safe RAII lease pooling `SumFactScratch3D<T>` instances across operator calls so
+/// repeated scalar and batched `apply` invocations reuse pre-faulted aligned scratch memory
+/// without `mmap` / kernel page-fault zeroing / `munmap` TLB shootdowns.
+template <typename T>
+class SumFactScratchLease {
+public:
+    SumFactScratchLease() {
+        auto& st = pool_state();
+        {
+            std::lock_guard<std::mutex> lock(st.mtx);
+            if (!st.free_list.empty()) {
+                ptr_ = std::move(st.free_list.back());
+                st.free_list.pop_back();
+            }
+        }
+        if (!ptr_) {
+            ptr_ = std::make_unique<SumFactScratch3D<T>>();
+        }
+    }
+
+    ~SumFactScratchLease() {
+        if (!ptr_) return;
+        ptr_->trim_after_call();
+        auto& st = pool_state();
+        std::lock_guard<std::mutex> lock(st.mtx);
+        if (st.free_list.size() < 16u) {
+            st.free_list.push_back(std::move(ptr_));
+        }
+    }
+
+    SumFactScratchLease(const SumFactScratchLease&) = delete;
+    SumFactScratchLease& operator=(const SumFactScratchLease&) = delete;
+
+    SumFactScratch3D<T>& get() noexcept { return *ptr_; }
+
+private:
+    struct PoolState {
+        std::mutex mtx;
+        std::vector<std::unique_ptr<SumFactScratch3D<T>>> free_list;
+    };
+
+    static PoolState& pool_state() {
+        static PoolState st;
+        return st;
+    }
+
+    std::unique_ptr<SumFactScratch3D<T>> ptr_;
+};
+
+/// Merge non-empty source-norm buckets `bi` into an earlier bucket `prev < bi` whenever every
+/// active term selects the exact same bandwidth at `brefs[bi]` as at `brefs[prev]`.
+/// Preserves sorted `windowed_key_less` source order in O(N) time and retains `brefs[prev] >= brefs[bi]`,
+/// eliminating redundant `SumFactGraph3D` builds and 3D Y/Z contractions without loosening SVD screening.
+template <typename T, std::size_t NBuckets, typename BwSameFn>
+inline void merge_matching_norm_buckets(
+    std::size_t n_buckets,
+    std::array<std::vector<Key<3>>, NBuckets>& b_keys,
+    std::array<std::vector<const T*>, NBuckets>& b_ptrs,
+    std::array<std::vector<const Tensor<T>*>, NBuckets>* b_tensors,
+    const std::array<double, NBuckets>& brefs,
+    BwSameFn&& bw_same_fn) {
+    if (n_buckets <= 1) return;
+
+    std::vector<Key<3>> m_keys;
+    std::vector<const T*> m_ptrs;
+    std::vector<const Tensor<T>*> m_tensors;
+
+    for (std::size_t bi = 1; bi < n_buckets; ++bi) {
+        if (b_keys[bi].empty()) continue;
+        std::size_t target_b = SIZE_MAX;
+        for (std::size_t prev = 0; prev < bi; ++prev) {
+            if (!b_keys[prev].empty() && bw_same_fn(brefs[prev], brefs[bi])) {
+                target_b = prev;
+                break;
+            }
+        }
+        if (target_b == SIZE_MAX) continue;
+
+        const auto& ka = b_keys[target_b];
+        const auto& pa = b_ptrs[target_b];
+        const auto& kb = b_keys[bi];
+        const auto& pb = b_ptrs[bi];
+        const std::size_t na = ka.size();
+        const std::size_t nb = kb.size();
+
+        m_keys.clear();
+        m_ptrs.clear();
+        m_keys.reserve(na + nb);
+        m_ptrs.reserve(na + nb);
+        if (b_tensors != nullptr) {
+            m_tensors.clear();
+            m_tensors.reserve(na + nb);
+        }
+
+        std::size_t ia = 0;
+        std::size_t ib = 0;
+        while (ia < na && ib < nb) {
+            if (windowed_halo_detail::windowed_key_less(ka[ia], kb[ib])) {
+                m_keys.push_back(ka[ia]);
+                m_ptrs.push_back(pa[ia]);
+                if (b_tensors != nullptr) m_tensors.push_back((*b_tensors)[target_b][ia]);
+                ++ia;
+            } else {
+                m_keys.push_back(kb[ib]);
+                m_ptrs.push_back(pb[ib]);
+                if (b_tensors != nullptr) m_tensors.push_back((*b_tensors)[bi][ib]);
+                ++ib;
+            }
+        }
+        while (ia < na) {
+            m_keys.push_back(ka[ia]);
+            m_ptrs.push_back(pa[ia]);
+            if (b_tensors != nullptr) m_tensors.push_back((*b_tensors)[target_b][ia]);
+            ++ia;
+        }
+        while (ib < nb) {
+            m_keys.push_back(kb[ib]);
+            m_ptrs.push_back(pb[ib]);
+            if (b_tensors != nullptr) m_tensors.push_back((*b_tensors)[bi][ib]);
+            ++ib;
+        }
+
+        b_keys[target_b].swap(m_keys);
+        b_ptrs[target_b].swap(m_ptrs);
+        b_keys[bi].clear();
+        b_ptrs[bi].clear();
+        if (b_tensors != nullptr) {
+            (*b_tensors)[target_b].swap(m_tensors);
+            (*b_tensors)[bi].clear();
+        }
+    }
+}
 
 /// Contract one spatial stencil edge `target(i, j) = sum_q src(q, i) * A_disp(q, j)` using
 /// 100% Tier-1 `s_dense_table` `mTxmq` (`dimi <= 400, dimj <= 24, dimk <= 24`):
@@ -1174,18 +1388,14 @@ inline void execute_sumfact_3d(
     const std::size_t max_svd_blk = static_cast<std::size_t>(
         std::max({dimi_x, dimi_y, dimi_z}) * std::max(d_in, d_out));
 
-    if (scratch.buf_x.size() < need_x) scratch.buf_x.resize(need_x);
-    if (scratch.buf_xy.size() < need_xy) scratch.buf_xy.resize(need_xy);
-    for (std::size_t cid = 0; cid < kMaxParallelChunks; ++cid) {
-        if (scratch.tmp_blocks[cid].size() < max_blk) {
-            scratch.tmp_blocks[cid].resize(max_blk);
-        }
-        if (scratch.svd_blocks[cid].size() < max_svd_blk) {
-            scratch.svd_blocks[cid].resize(max_svd_blk);
-        }
-        if (scratch.svd_t_blocks[cid].size() < max_svd_blk) {
-            scratch.svd_t_blocks[cid].resize(max_svd_blk);
-        }
+    scratch.buf_x.ensure(need_x);
+    scratch.buf_xy.ensure(need_xy);
+    const std::size_t n_chunk_slots =
+        std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
+    for (std::size_t cid = 0; cid < n_chunk_slots; ++cid) {
+        scratch.tmp_blocks[cid].ensure(max_blk);
+        scratch.svd_blocks[cid].ensure(max_svd_blk);
+        scratch.svd_t_blocks[cid].ensure(max_svd_blk);
     }
 
     // Fold `weight` into a tiny L1-resident copy of the active 1D Z operators (`<= 5` matrices)
@@ -1198,7 +1408,7 @@ inline void execute_sumfact_3d(
         z_buf_base = z_stack_buf.data();
     } else {
         const std::size_t need_z_op = StencilEntry1D::kNumDisp * slot_stride;
-        if (scratch.z_op_buf.size() < need_z_op) scratch.z_op_buf.resize(need_z_op);
+        scratch.z_op_buf.ensure(need_z_op);
         z_buf_base = scratch.z_op_buf.data();
     }
 
@@ -1482,11 +1692,61 @@ struct ActiveGammaTerm {
     int bw_int = -1;
 };
 
+/// Tighten internal operator/stencil/quadrature screening tolerance for loose MRA thresholds
+/// (`eps >= 1e-4`, where `truncate_tol` in `truncate_mode == 1` remains unscaled across coarse
+/// octaves on large multi-center cells) while leaving `eps <= 1e-5` (`1e-6`, `1e-8`, ...) untouched
+/// and honoring any explicit `explicit_eps_loc > 0.0` override.
+inline double tighten_loose_windowed_eps(double eps, double explicit_eps_loc = 0.0) noexcept {
+    if (explicit_eps_loc > 0.0) {
+        return (eps > 0.0) ? std::min(eps, explicit_eps_loc) : explicit_eps_loc;
+    }
+    if (eps > 1e-5) {
+        return std::min(5e-5, std::max(1e-5, 0.1 * eps));
+    }
+    return eps;
+}
+
 } // namespace windowed_sumfact_detail
 
-/// Stage 1a helper: prepare an input `Function<T, 3>` in `TreeState::nonstandard_with_leaves`,
-/// returning `true` iff `f_work` entered in `TreeState::compressed` (so `restore_windowed_ns_input_3d`
-/// can restore it via zero-FLOP `standard()`).
+/// Stage 1a helper: prepare an input `Function<T, 3>` for `apply_windowed_ns_3d_prepared`
+/// (zero-mutation read-only on `world.size() == 1` when already `reconstructed`, `compressed`, or
+/// `nonstandard_with_leaves`; `TreeState::nonstandard_with_leaves` on `world.size() > 1`),
+/// returning `true` iff `f_work` entered in `TreeState::compressed`.
+template <typename T>
+int compute_serial_max_tree_level(const Function<T, 3>& f) {
+    const auto* impl = f.get_impl().get();
+    if (impl->get_tree_state() != compressed) {
+        return static_cast<int>(f.max_local_depth());
+    }
+    const auto& coeffs = impl->get_coeffs();
+    const int k = f.k();
+    const long twok = 2L * static_cast<long>(k);
+    int max_lvl = 0;
+    for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+        const int j = static_cast<int>(it->first.level());
+        const auto& node = it->second;
+        bool expands = node.has_children();
+        if (!expands && node.has_coeff()) {
+            const auto& gen_c = node.coeff();
+            if (gen_c.has_data() && gen_c.ndim() == 3 && gen_c.dim(0) == twok) {
+                if (j > 0) {
+                    expands = true;
+                } else {
+                    const Tensor<T> full_c =
+                        (gen_c.tensor_type() == TT_FULL && gen_c.get_tensor().iscontiguous())
+                            ? gen_c.get_tensor()
+                            : gen_c.full_tensor_copy();
+                    if (windowed_halo_detail::wavelet_octants_normf(full_c, k) > 0.0) {
+                        expands = true;
+                    }
+                }
+            }
+        }
+        max_lvl = std::max(max_lvl, expands ? (j + 1) : j);
+    }
+    return max_lvl;
+}
+
 template <typename T>
 bool prepare_windowed_ns_input_3d(Function<T, 3>& f_work, bool fence = true) {
     MADNESS_CHECK_THROW(f_work.is_initialized(),
@@ -1497,6 +1757,17 @@ bool prepare_windowed_ns_input_3d(Function<T, 3>& f_work, bool fence = true) {
 
     const TreeState init_state = f_work.get_impl()->get_tree_state();
     const bool was_compressed = (init_state == compressed);
+    if (f_work.world().size() == 1) {
+        if (init_state != reconstructed &&
+            init_state != compressed &&
+            init_state != nonstandard_with_leaves) {
+            f_work.reconstruct(fence);
+        } else {
+            f_work.get_impl()->get_coeffs().process_pending();
+        }
+        return was_compressed;
+    }
+
     if (init_state != reconstructed && init_state != nonstandard_with_leaves) {
         f_work.reconstruct(true);
     }
@@ -1506,8 +1777,8 @@ bool prepare_windowed_ns_input_3d(Function<T, 3>& f_work, bool fence = true) {
     return was_compressed;
 }
 
-/// Stage 5b helper: restore `f_work` after `apply_windowed_ns_3d_prepared` using `clear(fence)` when
-/// `destructive_input == true`, zero-FLOP `standard(fence)` when `was_compressed == true`, or `reconstruct(fence)`.
+/// Stage 5b helper: restore `f_work` after `apply_windowed_ns_3d_prepared` (no-op when `f_work`
+/// remained untouched in `reconstructed` or `compressed` on `world.size() == 1`).
 template <typename T>
 void restore_windowed_ns_input_3d(Function<T, 3>& f_work,
                                   bool was_compressed,
@@ -1516,17 +1787,32 @@ void restore_windowed_ns_input_3d(Function<T, 3>& f_work,
     if (!f_work.is_initialized()) return;
     if (destructive_input) {
         f_work.clear(fence);
-    } else if (was_compressed) {
-        f_work.standard(fence);
+        return;
+    }
+    const TreeState cur_state = f_work.get_impl()->get_tree_state();
+    if (was_compressed) {
+        if (cur_state == compressed) {
+            if (fence && f_work.world().size() > 1) f_work.world().gop.fence();
+        } else if (cur_state == nonstandard_with_leaves) {
+            f_work.standard(fence);
+        } else {
+            f_work.compress(fence);
+        }
     } else {
-        f_work.reconstruct(fence);
+        if (cur_state != reconstructed) {
+            f_work.reconstruct(fence);
+        } else if (fence && f_work.world().size() > 1) {
+            f_work.world().gop.fence();
+        }
     }
 }
 
 /// Core Stage 1b through Stage 5a Windowed NS execution on an already-prepared `f_ns`
-/// (`TreeState::nonstandard_with_leaves`) and already-allocated empty `result`
+/// (`reconstructed`, `compressed`, or `nonstandard_with_leaves` on `world.size() == 1`;
+/// `nonstandard_with_leaves` on `world.size() > 1`) and already-allocated empty `result`
 /// (`result.get_impl()->get_coeffs().process_pending()` completed by caller),
-/// leaving `result` in `TreeState::nonstandard_after_apply`.
+/// leaving `result` in `TreeState::reconstructed` (fast serial unpromoted path) or
+/// `TreeState::nonstandard_after_apply`.
 ///
 /// When `world.size() == 1`, performs zero `WorldObject` registrations and zero `world.gop`
 /// collectives, making it safe to execute concurrently across disjoint `(f_ns[i], result[i])`
@@ -1539,11 +1825,19 @@ void apply_windowed_ns_3d_prepared(World& world,
                                    const WindowedStencilCache1D& stencil_cache,
                                    double thresh,
                                    bool dynamic_refine = true,
-                                   double dynamic_refine_factor = 1.0) {
+                                   double dynamic_refine_factor = 1.0,
+                                   double explicit_eps_loc = 0.0) {
     using namespace windowed_sumfact_detail;
 
     MADNESS_CHECK(f_ns.is_initialized() && result.is_initialized());
-    MADNESS_CHECK(f_ns.get_impl()->get_tree_state() == nonstandard_with_leaves);
+    const TreeState in_state = f_ns.get_impl()->get_tree_state();
+    if (world.size() > 1) {
+        MADNESS_CHECK(in_state == nonstandard_with_leaves);
+    } else {
+        MADNESS_CHECK(in_state == nonstandard_with_leaves ||
+                      in_state == reconstructed ||
+                      in_state == compressed);
+    }
     MADNESS_CHECK(f_ns.k() == plan.k() && f_ns.k() == stencil_cache.k());
 
     const int k = f_ns.k();
@@ -1552,10 +1846,11 @@ void apply_windowed_ns_3d_prepared(World& world,
     const long twok = 2L * kk;
     const long twok3 = twok * twok * twok;
     const double eff_thresh = (thresh > 0.0) ? thresh : f_ns.thresh();
-    const double eff_tol = (eff_thresh > 0.0) ? std::min(plan.eps(), eff_thresh) : plan.eps();
+    const double raw_tol = (eff_thresh > 0.0) ? std::min(plan.eps(), eff_thresh) : plan.eps();
+    const double eff_tol = tighten_loose_windowed_eps(raw_tol, explicit_eps_loc);
     const double eff_refine_fac = (dynamic_refine_factor > 0.0) ? dynamic_refine_factor : 1.0;
 
-    const int n_max_tree = (world.size() == 1) ? static_cast<int>(f_ns.max_local_depth())
+    const int n_max_tree = (world.size() == 1) ? compute_serial_max_tree_level(f_ns)
                                                : static_cast<int>(f_ns.max_depth());
     MADNESS_CHECK_THROW(
         n_max_tree <= plan.n_max(),
@@ -1727,11 +2022,41 @@ void apply_windowed_ns_3d_prepared(World& world,
         }
     };
 
+    WindowedSerialInputRange serial_range;
+    serial_range.min_s_int_level = n_max_tree + 1;
+    serial_range.max_s_int_level = -1;
+    serial_range.min_gamma_level = n_max_tree + 1;
+    serial_range.max_gamma_level = -1;
+    for (int j = 0; j < n_max_tree; ++j) {
+        const std::size_t sj = static_cast<std::size_t>(j);
+        const bool has_root_stage3 =
+            (j == 0) && (plan.w_const_scaled() != 0.0 || !root_ultra_diffuse_terms.empty());
+        const bool has_g = !raw_gamma_terms[sj].empty();
+        const bool has_s = has_root_stage3 || !raw_T_terms[sj].empty() || has_g;
+        if (has_s) {
+            serial_range.min_s_int_level = std::min(serial_range.min_s_int_level, j);
+            serial_range.max_s_int_level = std::max(serial_range.max_s_int_level, j);
+        }
+        if (has_g) {
+            serial_range.min_gamma_level = std::min(serial_range.min_gamma_level, j);
+            serial_range.max_gamma_level = std::max(serial_range.max_gamma_level, j);
+        }
+    }
+
+    const bool ungraded_leaf_refine_only = (eff_thresh >= 1e-6);
+
     // Inner scope guarantees `WindowedNSHaloWorkspace`'s internal `WorldObject` (when `world.size() > 1`)
     // is fenced & destroyed before `apply_windowed_ns_3d_prepared` returns.
     {
         WindowedNSHaloWorkspace<T> ws(
-            world, f_ns, n_max_tree, dynamic_refine, max_refine_level, radii_builder);
+            world,
+            f_ns,
+            n_max_tree,
+            dynamic_refine,
+            max_refine_level,
+            radii_builder,
+            serial_range,
+            ungraded_leaf_refine_only);
 
         const LegendreMomentOp& mop = plan.moment_op();
         const auto& gstats = ws.global_stats();
@@ -1741,7 +2066,8 @@ void apply_windowed_ns_3d_prepared(World& world,
         Tensor<T> work1_k3(3L, k_dims, false);
         Tensor<T> work2_k3(3L, k_dims, false);
         Tensor<double> mt_mat(kk, kk);
-        SumFactScratch3D<T> sf_scratch;
+        SumFactScratchLease<T> sf_lease;
+        SumFactScratch3D<T>& sf_scratch = sf_lease.get();
 
         // =====================================================================
         // Stage 2: Cross-Level Flattened Gauss-Christoffel Spiky Moment Pass
@@ -1907,6 +2233,28 @@ void apply_windowed_ns_3d_prepared(World& world,
                     b_T_keys[bi].push_back(se.key);
                     b_T_ptrs[bi].push_back(se.s_coeff.ptr());
                 }
+            }
+
+            if (dynamic_refine) {
+                merge_matching_norm_buckets<T, kMaxNormBuckets>(
+                    n_buckets_T,
+                    b_T_keys,
+                    b_T_ptrs,
+                    nullptr,
+                    t_brefs,
+                    [&](double ra, double rb) noexcept {
+                        const double ba = std::max(1e-30, ra);
+                        const double bb = std::max(1e-30, rb);
+                        for (const ActiveBaseTerm& tr : t_list) {
+                            const double aw = std::abs(tr.weight_scaled);
+                            const int bwa = std::min(
+                                tr.bw_T, tr.entry->select_bw_T(aw, ba, tol_nn_T, tol_sh2_T));
+                            const int bwb = std::min(
+                                tr.bw_T, tr.entry->select_bw_T(aw, bb, tol_nn_T, tol_sh2_T));
+                            if (bwa != bwb) return false;
+                        }
+                        return true;
+                    });
             }
 
             struct PreparedBaseTerm {
@@ -2088,6 +2436,31 @@ void apply_windowed_ns_3d_prepared(World& world,
                             b_src_ptrs[bi].push_back(se.wav_coeff.ptr());
                             b_src_tensors[bi].push_back(&se.wav_coeff);
                         }
+                    }
+
+                    if (dynamic_refine) {
+                        merge_matching_norm_buckets<T, kMaxNormBuckets>(
+                            n_buckets,
+                            b_src_keys,
+                            b_src_ptrs,
+                            &b_src_tensors,
+                            p1_brefs,
+                            [&](double ra, double rb) noexcept {
+                                const double ba = std::max(1e-30, ra);
+                                const double bb = std::max(1e-30, rb);
+                                for (const ActiveGammaTerm& gr : g_list) {
+                                    if (gr.bw_4b1 < 0) continue;
+                                    const double aw = std::abs(gr.weight_scaled);
+                                    const int bwa = std::min(
+                                        gr.bw_4b1,
+                                        gr.entry->select_bw_4b1(aw, ba, tol_nn_G, tol_sh2_G));
+                                    const int bwb = std::min(
+                                        gr.bw_4b1,
+                                        gr.entry->select_bw_4b1(aw, bb, tol_nn_G, tol_sh2_G));
+                                    if (bwa != bwb) return false;
+                                }
+                                return true;
+                            });
                     }
 
                     struct PreparedP1Term {
@@ -2469,6 +2842,39 @@ void apply_windowed_ns_3d_prepared(World& world,
 
                 // 1. Internal `(s, d) -> d_out` contractions (`bw_int in {0, 1, 2}`)
                 if (rad.has_4b2_int_terms) {
+                    if (dynamic_refine) {
+                        merge_matching_norm_buckets<T, kMaxNormBuckets>(
+                            n_buckets,
+                            b_int_keys,
+                            b_int_ptrs,
+                            &b_int_tensors,
+                            int_brefs,
+                            [&](double ra, double rb) noexcept {
+                                const double ba = std::max(1e-30, ra);
+                                const double bb = std::max(1e-30, rb);
+                                for (const ActiveGammaTerm& gr : g_list) {
+                                    if (gr.bw_int < 0) continue;
+                                    const double aw = std::abs(gr.weight_scaled);
+                                    const int bla = std::min(
+                                        gr.bw_leaf,
+                                        gr.entry->select_bw_4b2_leaf(aw, ba, tol_nn_G, tol_sh2_G));
+                                    const int blb = std::min(
+                                        gr.bw_leaf,
+                                        gr.entry->select_bw_4b2_leaf(aw, bb, tol_nn_G, tol_sh2_G));
+                                    const int bia = std::min(
+                                        gr.bw_int,
+                                        gr.entry->select_bw_4b2_int(
+                                            aw, ba, ba, tol_nn_G, tol_sh2_G, bla));
+                                    const int bib = std::min(
+                                        gr.bw_int,
+                                        gr.entry->select_bw_4b2_int(
+                                            aw, bb, bb, tol_nn_G, tol_sh2_G, blb));
+                                    if (bia != bib || ((bla >= 1) != (blb >= 1))) return false;
+                                }
+                                return true;
+                            });
+                    }
+
                     struct PreparedP2IntTerm {
                         const ActiveGammaTerm* gr = nullptr;
                         int eff_bw = -1;
@@ -2568,6 +2974,31 @@ void apply_windowed_ns_3d_prepared(World& world,
 
                 // 2. Leaf & virtual `(s, 0) -> d_out` contractions (`bw_leaf in {1, 2}`, never `0`)
                 if (rad.has_4b2_leaf_terms) {
+                    if (dynamic_refine) {
+                        merge_matching_norm_buckets<T, kMaxNormBuckets>(
+                            n_buckets,
+                            b_leaf_keys,
+                            b_leaf_ptrs,
+                            nullptr,
+                            leaf_brefs,
+                            [&](double ra, double rb) noexcept {
+                                const double ba = std::max(1e-30, ra);
+                                const double bb = std::max(1e-30, rb);
+                                for (const ActiveGammaTerm& gr : g_list) {
+                                    if (gr.bw_leaf < 1) continue;
+                                    const double aw = std::abs(gr.weight_scaled);
+                                    const int bla = std::min(
+                                        gr.bw_leaf,
+                                        gr.entry->select_bw_4b2_leaf(aw, ba, tol_nn_G, tol_sh2_G));
+                                    const int blb = std::min(
+                                        gr.bw_leaf,
+                                        gr.entry->select_bw_4b2_leaf(aw, bb, tol_nn_G, tol_sh2_G));
+                                    if (bla != blb) return false;
+                                }
+                                return true;
+                            });
+                    }
+
                     struct PreparedP2LeafTerm {
                         const ActiveGammaTerm* gr = nullptr;
                         int eff_bw = -1;
@@ -2678,9 +3109,13 @@ void apply_windowed_ns_3d_prepared(World& world,
         }
 
         // =====================================================================
-        // Stage 5a: Bottom-Up Virtual Restriction & Nonstandard Tree Assembly
+        // Stage 5a: Bottom-Up Virtual Restriction & Output Tree Assembly
         // =====================================================================
-        ws.assemble_output_nonstandard_tree(result);
+        if (world.size() == 1) {
+            (void)ws.assemble_output_reconstructed_serial(result);
+        } else {
+            ws.assemble_output_nonstandard_tree(result);
+        }
     }
 }
 
@@ -2700,7 +3135,8 @@ Function<T, 3> apply_windowed_ns_3d(
     bool dynamic_refine = true,
     double dynamic_refine_factor = 1.0,
     bool fence = true,
-    bool destructive_input = false) {
+    bool destructive_input = false,
+    double explicit_eps_loc = 0.0) {
     MADNESS_CHECK_THROW(f.is_initialized(), "apply_windowed_ns_3d: input Function must be initialized");
     MADNESS_CHECK_THROW(!f.is_on_demand(), "apply_windowed_ns_3d: on-demand input Function is not supported");
     MADNESS_CHECK_THROW(
@@ -2722,11 +3158,22 @@ Function<T, 3> apply_windowed_ns_3d(
             world.gop.fence();
         }
 
-        apply_windowed_ns_3d_prepared(
-            world, ff, result, plan, stencil_cache, eff_thresh, dynamic_refine, eff_refine_fac);
+        apply_windowed_ns_3d_prepared(world,
+                                      ff,
+                                      result,
+                                      plan,
+                                      stencil_cache,
+                                      eff_thresh,
+                                      dynamic_refine,
+                                      eff_refine_fac,
+                                      explicit_eps_loc);
 
         restore_windowed_ns_input_3d(ff, was_compressed, destructive_input, false);
-        result.reconstruct(fence);
+        if (result.get_impl()->get_tree_state() != reconstructed) {
+            result.reconstruct(fence);
+        } else if (fence) {
+            world.gop.fence();
+        }
         return result;
     }
 
@@ -2742,11 +3189,22 @@ Function<T, 3> apply_windowed_ns_3d(
             world.gop.fence();
         }
 
-        apply_windowed_ns_3d_prepared(
-            world, f_sub, result, plan, stencil_cache, eff_thresh, dynamic_refine, eff_refine_fac);
+        apply_windowed_ns_3d_prepared(world,
+                                      f_sub,
+                                      result,
+                                      plan,
+                                      stencil_cache,
+                                      eff_thresh,
+                                      dynamic_refine,
+                                      eff_refine_fac,
+                                      explicit_eps_loc);
 
         restore_windowed_ns_input_3d(f_sub, was_compressed, true, true);
-        result.reconstruct(true);
+        if (result.get_impl()->get_tree_state() != reconstructed) {
+            result.reconstruct(true);
+        } else {
+            world.gop.fence();
+        }
     }
     if (destructive_input) {
         const_cast<Function<T, 3>&>(f).clear(fence);
