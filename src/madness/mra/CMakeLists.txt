@@ -62,6 +62,7 @@ if(BUILD_TESTING)
   set(mra_dims_test_periodic_truncation 3)
   set(mra_dims_test_images_operator 3)
   set(mra_dims_test_anisotropic_reach 3)
+  set(mra_dims_test_lbdeux 3)
   set(mra_dims_testsuite 1 2 3 4)
   set(mra_dims_testper 1)
   set(mra_dims_testperiodic 1 3)
@@ -83,7 +84,7 @@ if(BUILD_TESTING)
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc
       test_keybox.cc test_eval.cc test_mul_sparse.cc test_halo.cc interp3.cc test_displacements.cc
       test_truncate_tol.cc test_periodic_truncation.cc test_images_operator.cc
-      test_anisotropic_reach.cc)
+      test_anisotropic_reach.cc test_lbdeux.cc)
   madness_mra_filter_targets(MRA_TEST_SOURCES)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
@@ -102,7 +103,7 @@ if(BUILD_TESTING)
   #  replicated state, so only a multi-rank run exercises them;
   #  test_halo: the halo only carries data between ranks, so the single-rank run cannot exercise it)
   set(MRA_MPI_TESTS test_memory_measurement test_cloud test_vectormacrotask test_eval
-      test_mul_sparse test_halo)
+      test_mul_sparse test_halo test_lbdeux)
   madness_mra_filter_targets(MRA_MPI_TESTS)
   foreach(_test IN LISTS MRA_MPI_TESTS)
     add_mpi_tests(mra ${_test} "2" "MADmra;MADgtest" "unittests;short")

@@ -213,6 +213,35 @@ namespace {
         ITERATOR(t,EXPECT_EQ(t(IND),TypeParam(3)));
     }
 
+    // Slice(start,end,step) selects i = start, start+step, ... while i<=end (step>0) or
+    // i>=end (step<0), see slice.h. Compare every slice of short vectors with that loop,
+    // in particular for negative and non-unit steps.
+    TYPED_TEST(TensorTest, SliceLength) {
+        for (long n=1; n<=7; ++n) {
+            madness::Tensor<TypeParam> t(n);
+            t.fillindex();
+            for (long start=0; start<n; ++start) {
+                for (long end=0; end<n; ++end) {
+                    for (long step : {-3L, -2L, -1L, 1L, 2L, 3L}) {
+                        if ((end-start)*step < 0) continue; // end on the wrong side of start
+                        madness::Tensor<TypeParam> v = t(madness::Slice(start,end,step));
+                        long len = 0;
+                        for (long i=start; step>0 ? i<=end : i>=end; i+=step, ++len) {
+                            ASSERT_LT(len, v.dim(0)) << "n=" << n << " Slice(" << start << "," << end << "," << step << ")";
+                            ASSERT_EQ(v(len), t(i));
+                        }
+                        ASSERT_EQ(v.dim(0), len) << "n=" << n << " Slice(" << start << "," << end << "," << step << ")";
+                    }
+                }
+            }
+            ASSERT_EQ(t(_reverse).dim(0), n);
+            ASSERT_EQ(t(madness::Slice(0,-1,2)).dim(0), (n+1)/2);
+            if (n>1) ASSERT_EQ(t(madness::Slice(1,-1,2)).dim(0), n/2);
+            // step 0 eliminates the dimension and requires start==end
+            if (n>1) EXPECT_THROW(t(madness::Slice(0,1,0)), madness::TensorException);
+        }
+    }
+
 
     TYPED_TEST(TensorTest, SliceAndDice) {
         madness::Tensor<TypeParam> a(5,6,7), b;
@@ -226,16 +255,19 @@ namespace {
         ITERATOR3(b,ASSERT_EQ(b(IND3),a(IND3)));
 
         b = a(_reverse,_,_);
+        ASSERT_EQ(b.dim(0),a.dim(0));
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k), a(4-_i,_j,_k)));
         b.fillrandom();      // verify it is indeed a view of the same thing
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k), a(4-_i,_j,_k)));
 
         b = a(_,_reverse,_);
+        ASSERT_EQ(b.dim(1),a.dim(1));
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k),a(_i,5-_j,_k)));
         b.fillrandom();      // verify it is indeed a view of the same thing
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k),a(_i,5-_j,_k)));
 
         b = a(_,_,_reverse);
+        ASSERT_EQ(b.dim(2),a.dim(2));
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k),a(_i,_j,6-_k)));
         b.fillrandom();      // verify it is indeed a view of the same thing
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k),a(_i,_j,6-_k)));

@@ -2083,11 +2083,16 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
                 //i, start, end, step);
                 if (start < 0) start += this->_dim[i];
                 if (end < 0) end += this->_dim[i];
-                long len = end-start+1;
-                if (step) len /= step;	// Rounds len towards zero
+                // number of i visited by for (i=start; i<=end; i+=step), or i>=end for step<0;
+                // zero if end lies on the wrong side of start. step==0 eliminates the dimension.
+                long len;
+                if (step == 0) len = end-start+1;
+                else if ((end-start)*step < 0) len = 0;
+                else len = (end-start)/step + 1;	// Rounds towards start
 
                 // if input length is not exact multiple of step, round end towards start
                 // for the same behaviour of for (i=start; i<=end; i+=step);
+                const long requested_end = end;
                 end = start + (len-1)*step;
 
                 //std::printf("%ld munged start=%ld end=%ld step=%ld len=%ld _dim=%ld\n",
@@ -2096,6 +2101,12 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
                 TENSOR_ASSERT(start>=0 && start<this->_dim[i],"slice start invalid",start,this);
                 TENSOR_ASSERT(end>=0 && end<this->_dim[i],"slice end invalid",end,this);
                 TENSOR_ASSERT(len>0,"slice length must be non-zero",len,this);
+                // The view must hold exactly the indices the loops in slice.h generate: its last
+                // index is at or before the requested end and less than one step from it. A step
+                // of 0 requires start==end (slice.h: "runtime error detected when slice is used").
+                TENSOR_ASSERT(step ? ((requested_end-end)*step >= 0 && (requested_end-end)*step < step*step)
+                                   : (requested_end == start),
+                              "slice does not match the elements its start, end and step define",requested_end,this);
 
                 this->_p += start * t._stride[i];
 

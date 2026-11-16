@@ -824,6 +824,31 @@ void test_in(const InputArchive& iar) {
         std::cout << "Sorry, back to the drawing board.\n";
 }
 
+// The count of an array is a std::size_t, so an array of 2^32 or more elements keeps
+// its size. A counting archive never touches the data, so this needs no memory.
+static_assert(std::is_same_v<decltype(madness::archive::archive_array<double>::n), std::size_t>);
+
+void test_array_count_beyond_32_bits() {
+  using madness::archive::wrap;
+  using madness::archive::wrap_opaque;
+  const std::size_t n = (std::size_t(1) << 32) + 5;
+
+  MADNESS_CHECK(wrap(static_cast<const unsigned char*>(nullptr), n).n == n);
+  MADNESS_CHECK(wrap_opaque(static_cast<const double*>(nullptr), n).n == n * sizeof(double));
+
+  BufferOutputArchive count_bytes;
+  count_bytes << wrap(static_cast<const unsigned char*>(nullptr), n);
+  MADNESS_CHECK(count_bytes.size() == n);
+
+  BufferOutputArchive count_doubles;
+  count_doubles << wrap(static_cast<const double*>(nullptr), n);
+  MADNESS_CHECK(count_doubles.size() == n * sizeof(double));
+
+  BufferOutputArchive count_opaque;
+  count_opaque << wrap_opaque(static_cast<const double*>(nullptr), n);
+  MADNESS_CHECK(count_opaque.size() == n * sizeof(double));
+}
+
 int main(int argc, char* argv[]) {
 
   auto &world = madness::initialize(argc, argv);
@@ -840,6 +865,8 @@ int main(int argc, char* argv[]) {
     }
     world.gop.barrier();
   }
+
+  test_array_count_beyond_32_bits();
 
   madness::archive::archive_initialize_type_names();
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(A);
