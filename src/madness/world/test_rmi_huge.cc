@@ -19,6 +19,6 @@
 */
 
 /// \file test_rmi_huge.cc
-/// \brief Messages that RMI must describe to MPI by a derived datatype; see test_rmi_huge.h
+/// \brief Messages that RMI cannot give to MPI as a plain count of bytes; see test_rmi_huge.h
 
 #include "test_rmi_huge.h"

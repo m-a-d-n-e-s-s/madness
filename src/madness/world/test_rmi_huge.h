@@ -22,17 +22,21 @@
 /// \brief Messages too large for an MPI count of bytes, sent as the argument of a remote task.
 ///
 /// A message longer than \c MAD_BUFFER_SIZE takes RMI's huge-message protocol, and one of
-/// more than \c INT_MAX bytes must further be described to MPI by a derived datatype
+/// more than \c INT_MAX bytes must further be given to MPI either by its large-count
+/// functions (MPI 4) or, where MPI has none, described by a derived datatype
 /// ( \c SafeMPI::ByteCount ). This is the body of two tests, each a source file that
 /// includes it:
-///   - test_rmi_huge.cc lowers the size at which the derived datatype takes over, so that
-///     messages of a few MiB cover that path: one that leaves a remainder after whole
-///     chunks, one that does not, one that stays a plain count, and several at once. It
-///     also checks the datatypes ByteCount builds for sizes beyond \c INT_MAX , which
-///     takes no memory.
+///   - test_rmi_huge.cc lowers the size above which a plain count of bytes is not used,
+///     so that messages of a few MiB cover the other paths: one that leaves a remainder
+///     after whole chunks of the derived datatype, one that does not, one that stays a
+///     plain count, and several at once. Where MPI has large counts these are sent that
+///     way, then by the derived datatype, then with the two ends disagreeing. It also
+///     checks the datatypes ByteCount builds for sizes beyond \c INT_MAX , which takes no
+///     memory.
 ///   - test_rmi_huge_large.cc defines \c MADNESS_TEST_RMI_HUGE_LARGE and sends one message
-///     of more than \c INT_MAX bytes at the default setting; that takes about 9 GiB, so it
-///     carries the "large" label.
+///     of more than \c INT_MAX bytes at the default setting (and, where MPI has large
+///     counts, once more by the derived datatype); that takes about 9 GiB, so it carries
+///     the "large" label.
 ///
 /// Needs at least 2 ranks to send anything; with 1 the tasks are local.
 
@@ -43,6 +47,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include <madness/world/MADworld.h>
@@ -78,7 +83,7 @@ std::size_t count_errors(const std::vector<wordT>& v, std::size_t nbyte, std::ui
 }
 
 /// sends messages of the given sizes to the next rank, all pending at once
-bool send_and_check(World& world, const std::vector<std::size_t>& sizes, const char* what) {
+bool send_and_check(World& world, const std::vector<std::size_t>& sizes, const std::string& what) {
     const ProcessID dest = (world.rank() + 1) % world.size();
     std::vector<Future<std::size_t>> results;
     for (std::size_t k = 0; k < sizes.size(); ++k) {
@@ -158,7 +163,15 @@ int main(int argc, char** argv) {
     std::size_t n = (std::size_t(1) << 31) + (std::size_t(1) << 20) + 7;
     if (const char* env = std::getenv("MAD_TEST_RMI_HUGE_BYTES")) n = std::strtoull(env, nullptr, 10);
     ok = send_and_check(world, world.rank() == 0 ? std::vector<std::size_t>{n} : std::vector<std::size_t>{},
-                        "a message of more than INT_MAX bytes") && ok;
+                        std::string("a message of more than INT_MAX bytes") +
+                            (SafeMPI::ByteCount::use_large_count() ? " (large count)" : " (derived datatype)")) && ok;
+    if (SafeMPI::ByteCount::have_large_count()) {
+        // again with what an MPI without large counts would do
+        SafeMPI::ByteCount::set_use_large_count(false);
+        ok = send_and_check(world, world.rank() == 0 ? std::vector<std::size_t>{n} : std::vector<std::size_t>{},
+                            "a message of more than INT_MAX bytes (derived datatype)") && ok;
+        SafeMPI::ByteCount::set_use_large_count(true);
+    }
 #else
     const std::size_t MiB = std::size_t(1) << 20;
     // a huge message in RMI's terms, whatever MAD_BUFFER_SIZE is; with one rank there is
@@ -175,14 +188,28 @@ int main(int argc, char** argv) {
 
     ok = send_and_check(world, {huge + 12345}, "a plain count") && ok;
 
-    SafeMPI::ByteCount::set_max_plain_count(MiB);
-    ok = send_and_check(world, {huge + 12345}, "whole chunks and a remainder") && ok;
-    // the serialized task is larger than its payload, so pick the datatype's chunk to
-    // divide the message rather than the payload: a chunk of 1 byte always does
-    SafeMPI::ByteCount::set_max_plain_count(1);
-    ok = send_and_check(world, {huge / 8}, "whole chunks only") && ok;
-    SafeMPI::ByteCount::set_max_plain_count(MiB);
-    ok = send_and_check(world, {huge + 1, 2 * huge + 77, huge + MiB, 100, huge + 5}, "several at once") && ok;
+    // above the plain count MPI is given either a large count (MPI 4) or a derived
+    // datatype; where MPI has large counts both are tried, and then also one on each end
+    std::vector<bool> large_count_choices{false};
+    if (SafeMPI::ByteCount::have_large_count()) large_count_choices.insert(large_count_choices.begin(), true);
+    for (const bool large_count : large_count_choices) {
+        SafeMPI::ByteCount::set_use_large_count(large_count);
+        const std::string how = large_count ? " (large count)" : " (derived datatype)";
+        SafeMPI::ByteCount::set_max_plain_count(MiB);
+        ok = send_and_check(world, {huge + 12345}, "one message, not a whole number of chunks" + how) && ok;
+        // the serialized task is larger than its payload, so pick the datatype's chunk to
+        // divide the message rather than the payload: a chunk of 1 byte always does
+        SafeMPI::ByteCount::set_max_plain_count(1);
+        ok = send_and_check(world, {huge / 8}, "one message, a whole number of chunks" + how) && ok;
+        SafeMPI::ByteCount::set_max_plain_count(MiB);
+        ok = send_and_check(world, {huge + 1, 2 * huge + 77, huge + MiB, 100, huge + 5}, "several at once" + how) && ok;
+    }
+    if (SafeMPI::ByteCount::have_large_count()) {
+        // the two ends need not describe a message the same way
+        SafeMPI::ByteCount::set_use_large_count(world.rank() % 2 == 0);
+        ok = send_and_check(world, {huge + 12345, 2 * huge + 77}, "large count on one end, derived datatype on the other") && ok;
+    }
+    SafeMPI::ByteCount::set_use_large_count(true);
     SafeMPI::ByteCount::set_max_plain_count(0);
 #endif
 

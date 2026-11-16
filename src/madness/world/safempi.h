@@ -60,6 +60,12 @@
 
 #endif
 
+/// Defined if MPI has the large-count functions introduced by MPI 4 ( \c MPI_Isend_c
+/// and the like), which take counts of type \c MPI_Count rather than \c int
+#if !defined(STUBOUTMPI) && defined(MPI_VERSION) && MPI_VERSION >= 4
+#  define MADNESS_MPI_HAS_LARGE_COUNT 1
+#endif
+
 
 #if MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_SERIALIZED
 #  define MADNESS_SERIALIZES_MPI
@@ -272,6 +278,22 @@ namespace SafeMPI {
             int count = 0;
             MADNESS_MPI_TEST(MPI_Get_count(const_cast<MPI_Status*>(&status_), datatype, &count));
             return count;
+        }
+
+        /// The size of a received message of bytes, which may exceed \c INT_MAX
+
+        /// \return the number of bytes received, or -1 if MPI cannot tell: without the
+        /// large-count functions of MPI 4 ( \c MPI_Get_count_c ) a count above \c INT_MAX
+        /// is not reported
+        long long Get_byte_count() const {
+#ifdef MADNESS_MPI_HAS_LARGE_COUNT
+            MPI_Count count = 0;
+            MADNESS_MPI_TEST(MPI_Get_count_c(const_cast<MPI_Status*>(&status_), MPI_BYTE, &count));
+#else
+            int count = 0;
+            MADNESS_MPI_TEST(MPI_Get_count(const_cast<MPI_Status*>(&status_), MPI_BYTE, &count));
+#endif
+            return count == MPI_UNDEFINED ? -1ll : static_cast<long long>(count);
         }
 
 //        void Set_cancelled(bool flag) {
@@ -497,6 +519,8 @@ namespace SafeMPI {
 
     /// The (count, datatype) pair that describes a buffer of bytes to MPI
 
+    /// This is how a buffer of more than \c INT_MAX bytes is sent and received where MPI
+    /// has no large-count functions (before MPI 4), see Intracomm::Isend_bytes() .
     /// MPI counts are \c int , so a buffer of more than \c INT_MAX bytes cannot be
     /// described as a count of \c MPI_BYTE . Such a buffer is described here as one element
     /// of a derived datatype: whole chunks of bytes, then the bytes left over. The type
@@ -579,7 +603,34 @@ namespace SafeMPI {
             max_plain_count_accessor() = (n == 0 || n > int_max) ? int_max : n;
         }
 
+        /// \return whether this MPI has the large-count functions of MPI 4
+        /// ( \c MPI_Isend_c and the like), which take a count of type \c MPI_Count
+        static constexpr bool have_large_count() {
+#ifdef MADNESS_MPI_HAS_LARGE_COUNT
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        /// \return whether buffers above max_plain_count() are given to the large-count
+        /// functions of MPI rather than described by a derived datatype; true by default
+        /// if have_large_count() , and always false otherwise
+        static bool use_large_count() { return have_large_count() && use_large_count_accessor(); }
+
+        /// Sets use_large_count()
+
+        /// Like set_max_plain_count() this exists for tests, which turn it off to take
+        /// the derived-datatype path with an MPI that has large counts. The two ends of a
+        /// message need not agree.
+        static void set_use_large_count(bool flag) { use_large_count_accessor() = flag; }
+
     private:
+        static std::atomic<bool>& use_large_count_accessor() {
+            static std::atomic<bool> value{true};
+            return value;
+        }
+
         static std::atomic<std::size_t>& max_plain_count_accessor() {
             static std::atomic<std::size_t> value{static_cast<std::size_t>(std::numeric_limits<int>::max())};
             return value;
@@ -851,19 +902,48 @@ namespace SafeMPI {
 
         /// Nonblocking send of \c nbyte bytes; unlike Isend() , \c nbyte may exceed \c INT_MAX
 
+        /// Up to ByteCount::max_plain_count() bytes ( \c INT_MAX unless a test lowered it)
+        /// are sent as Isend() sends them. More are given to the large-count function of
+        /// MPI 4 ( \c MPI_Isend_c ) where MPI has it, and are otherwise described by a
+        /// derived datatype (see ByteCount ).
         /// \param sync if true, the send is synchronous ( \c MPI_Issend )
         Request Isend_bytes(const void* buf, const std::size_t nbyte, const int dest, const int tag, const bool sync = false) const {
-            const ByteCount bc(nbyte);
+            const std::size_t max_plain = ByteCount::max_plain_count();
+#ifdef MADNESS_MPI_HAS_LARGE_COUNT
+            if (nbyte > max_plain && ByteCount::use_large_count()) {
+                MADNESS_ASSERT(pimpl);
+                SAFE_MPI_GLOBAL_MUTEX;
+                Request request;
+                const MPI_Count count = static_cast<MPI_Count>(nbyte);
+                MADNESS_MPI_TEST(sync ? MPI_Issend_c(buf, count, MPI_BYTE, dest, tag, pimpl->comm, request)
+                                      : MPI_Isend_c(buf, count, MPI_BYTE, dest, tag, pimpl->comm, request));
+                return request;
+            }
+#endif
+            const ByteCount bc(nbyte, max_plain);
             return sync ? Issend(buf, bc.count(), bc.datatype(), dest, tag)
                         : Isend(buf, bc.count(), bc.datatype(), dest, tag);
         }
 
         /// Nonblocking receive of \c nbyte bytes; unlike Irecv() , \c nbyte may exceed \c INT_MAX
 
-        /// \note the count of a message received this way cannot be had from its
-        /// Status if it exceeds \c INT_MAX ; the receiver must know the size
+        /// The large-count function of MPI 4 ( \c MPI_Irecv_c ) or a derived datatype is
+        /// used as in Isend_bytes() ; the sender need not have made the same choice.
+        /// \note the size of the message received is Status::Get_byte_count() , which
+        /// cannot report more than \c INT_MAX bytes without MPI 4; the receiver should
+        /// know the size
         Request Irecv_bytes(void* buf, const std::size_t nbyte, const int src, const int tag) const {
-            const ByteCount bc(nbyte);
+            const std::size_t max_plain = ByteCount::max_plain_count();
+#ifdef MADNESS_MPI_HAS_LARGE_COUNT
+            if (nbyte > max_plain && ByteCount::use_large_count()) {
+                MADNESS_ASSERT(pimpl);
+                SAFE_MPI_GLOBAL_MUTEX;
+                Request request;
+                MADNESS_MPI_TEST(MPI_Irecv_c(buf, static_cast<MPI_Count>(nbyte), MPI_BYTE, src, tag, pimpl->comm, request));
+                return request;
+            }
+#endif
+            const ByteCount bc(nbyte, max_plain);
             return Irecv(buf, bc.count(), bc.datatype(), src, tag);
         }
 

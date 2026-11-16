@@ -94,17 +94,17 @@ namespace madness {
                 const int src = status[m].Get_source();
                 const int i = ind[m];
                 // the size of a huge message is known from its announcement, and may
-                // exceed what MPI_Get_count can report
+                // exceed what MPI can report
                 size_t len;
                 if (i == (int)nrecv_) {
                     len = huge_msg_len_;
-                    // MPI reports the count when it fits an int (MPI_UNDEFINED otherwise);
-                    // it must then be what was announced
-                    const int count = status[m].Get_count(MPI_BYTE);
-                    if (count != MPI_UNDEFINED && size_t(count) != len) {
+                    // MPI reports the size unless it exceeds INT_MAX and MPI has no
+                    // large counts (-1 then); it must be what was announced
+                    const long long count = status[m].Get_byte_count();
+                    if (count >= 0 && size_t(count) != len) {
                         print_error(rank, ":RMI: huge message from ", src, " announced as ", len,
                                     " bytes arrived as ", count, " bytes\n");
-                        MADNESS_EXCEPTION("RMI: huge message is not of the announced size", count);
+                        MADNESS_EXCEPTION("RMI: huge message is not of the announced size", 0);
                     }
                 }
                 else {
