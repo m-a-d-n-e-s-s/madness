@@ -31,6 +31,7 @@
   $Id$
 */
 
+#include <limits>
 #include <madness/world/worldrmi.h>
 #include <madness/world/posixmem.h>
 #include <madness/world/timers.h>
@@ -94,8 +95,21 @@ namespace madness {
                 const int i = ind[m];
                 // the size of a huge message is known from its announcement, and may
                 // exceed what MPI_Get_count can report
-                const size_t len = (i == (int)nrecv_) ? huge_msg_len_
-                                                      : size_t(status[m].Get_count(MPI_BYTE));
+                size_t len;
+                if (i == (int)nrecv_) {
+                    len = huge_msg_len_;
+                    // MPI reports the count when it fits an int (MPI_UNDEFINED otherwise);
+                    // it must then be what was announced
+                    const int count = status[m].Get_count(MPI_BYTE);
+                    if (count != MPI_UNDEFINED && size_t(count) != len) {
+                        print_error(rank, ":RMI: huge message from ", src, " announced as ", len,
+                                    " bytes arrived as ", count, " bytes\n");
+                        MADNESS_EXCEPTION("RMI: huge message is not of the announced size", count);
+                    }
+                }
+                else {
+                    len = size_t(status[m].Get_count(MPI_BYTE));
+                }
 
                 ++(RMI::stats.nmsg_recv);
                 RMI::stats.nbyte_recv += len;
@@ -265,6 +279,16 @@ namespace madness {
             const std::size_t unaligned = max_msg_len_ % ALIGNMENT;
             if(unaligned != 0)
                 max_msg_len_ += ALIGNMENT - unaligned;
+            // The receive buffers are posted with an int count of bytes. A message that
+            // does not fit one is sent by the huge-message protocol, which has no such limit.
+            const std::size_t max_len = (static_cast<std::size_t>(std::numeric_limits<int>::max()) / ALIGNMENT) * ALIGNMENT;
+            if(max_msg_len_ > max_len) {
+                max_msg_len_ = max_len;
+                print_error(
+                    "!!! WARNING: MAD_BUFFER_SIZE cannot exceed INT_MAX bytes.\n",
+                    "!!! WARNING: Decreasing MAD_BUFFER_SIZE to ",
+                    max_msg_len_, " bytes.\n");
+            }
         }
 
         // Get the number of receive buffers from the MAD_RECV_BUFFERS

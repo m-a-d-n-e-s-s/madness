@@ -19,7 +19,7 @@
 */
 
 /// \file test_rmi_huge_large.cc
-/// \brief test_rmi_huge.cc with one message of more than \c INT_MAX bytes; takes about 9 GiB.
+/// \brief One message of more than \c INT_MAX bytes; takes about 9 GiB. See test_rmi_huge.h
 
 #define MADNESS_TEST_RMI_HUGE_LARGE 1
-#include "test_rmi_huge.cc"
+#include "test_rmi_huge.h"

@@ -69,6 +69,7 @@
 
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
+#include <atomic>
 #include <iostream>
 #include <limits>
 #include <csignal>
@@ -506,15 +507,18 @@ namespace SafeMPI {
     class ByteCount {
     public:
         /// \param nbyte the size of the buffer
-        /// \param max_plain_count the largest size described as a count of \c MPI_BYTE
-        ///        (default: max_plain_count() ); also the chunk of the derived datatype
-        explicit ByteCount(std::size_t nbyte, std::size_t max_plain_count = ByteCount::max_plain_count())
-                : count_(static_cast<int>(nbyte)), datatype_(MPI_BYTE), derived_(false) {
+        /// \param chunk a buffer of up to this many bytes is described as a count of
+        ///        \c MPI_BYTE , and a larger one as chunks of this many bytes plus the rest
+        ///        (default: max_plain_count() ; 0, or a value above \c INT_MAX , means \c INT_MAX )
+        explicit ByteCount(std::size_t nbyte, std::size_t chunk = ByteCount::max_plain_count())
+                : count_(0), datatype_(MPI_BYTE), derived_(false) {
             const std::size_t int_max = static_cast<std::size_t>(std::numeric_limits<int>::max());
-            if (max_plain_count == 0 || max_plain_count > int_max) max_plain_count = int_max;
-            if (nbyte <= max_plain_count) return;
+            if (chunk == 0 || chunk > int_max) chunk = int_max;
+            if (nbyte <= chunk) {
+                count_ = static_cast<int>(nbyte);
+                return;
+            }
 
-            const std::size_t chunk = max_plain_count;
             const std::size_t nchunk = nbyte / chunk;
             const std::size_t nleft = nbyte % chunk;
             // a chunk count beyond int would take chunks of chunks; with the default chunk
@@ -530,9 +534,16 @@ namespace SafeMPI {
             int blocklengths[2] = {static_cast<int>(nchunk), static_cast<int>(nleft)};
             MPI_Aint displacements[2] = {0, static_cast<MPI_Aint>(nchunk * chunk)};
             MPI_Datatype types[2] = {chunk_type, MPI_BYTE};
-            MADNESS_MPI_TEST(MPI_Type_create_struct(nleft ? 2 : 1, blocklengths, displacements, types, &datatype_));
-            MADNESS_MPI_TEST(MPI_Type_commit(&datatype_));
-            MADNESS_MPI_TEST(MPI_Type_free(&chunk_type));
+            MPI_Datatype whole;
+            int status = MPI_Type_create_struct(nleft ? 2 : 1, blocklengths, displacements, types, &whole);
+            // the struct keeps what it needs of the chunk type, which is freed either way
+            MPI_Type_free(&chunk_type);
+            if (status == MPI_SUCCESS) {
+                status = MPI_Type_commit(&whole);
+                if (status != MPI_SUCCESS) MPI_Type_free(&whole);
+            }
+            MADNESS_MPI_TEST(status);
+            datatype_ = whole;
             count_ = 1;
             derived_ = true;
         }
@@ -556,18 +567,21 @@ namespace SafeMPI {
         /// \return the largest buffer that is described as a count of \c MPI_BYTE
         static std::size_t max_plain_count() { return max_plain_count_accessor(); }
 
-        /// Sets max_plain_count(); for testing the derived-datatype path with small buffers
+        /// Sets max_plain_count()
 
+        /// This exists for tests, which lower it to take the derived-datatype path with
+        /// small buffers; nothing else has a reason to call it. The two ends of a message
+        /// may use different values, and a change while messages are in flight is safe:
+        /// each ByteCount reads the value once.
         /// \param n the new value; 0, or a value above \c INT_MAX , restores the default
-        /// \warning not thread safe: call it while no messages are being sent or received
         static void set_max_plain_count(std::size_t n) {
             const std::size_t int_max = static_cast<std::size_t>(std::numeric_limits<int>::max());
             max_plain_count_accessor() = (n == 0 || n > int_max) ? int_max : n;
         }
 
     private:
-        static std::size_t& max_plain_count_accessor() {
-            static std::size_t value = static_cast<std::size_t>(std::numeric_limits<int>::max());
+        static std::atomic<std::size_t>& max_plain_count_accessor() {
+            static std::atomic<std::size_t> value{static_cast<std::size_t>(std::numeric_limits<int>::max())};
             return value;
         }
 

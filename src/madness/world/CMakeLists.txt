@@ -145,8 +145,9 @@ if(BUILD_TESTING)
   add_mpi_tests(world test_dc_archive_chunk "2" "MADworld;MADgtest" "unittests;large")
 
   # messages that RMI must describe to MPI by a derived datatype: with one rank nothing
-  # is sent, so the 2-rank variants are the tests. The "large" one sends more than
-  # INT_MAX bytes and takes about 9 GiB.
+  # is sent, so the 2-rank variants are the tests (the 1-rank "large" one only reports
+  # that it was skipped; add_mpi_tests needs its target). The "large" one sends more
+  # than INT_MAX bytes and takes about 9 GiB.
   add_mpi_tests(world test_rmi_huge "2" "MADworld;MADgtest" "unittests;short")
   add_unittests(world "test_rmi_huge_large.cc" ";MADworld;MADgtest" "unittests;large")
   add_mpi_tests(world test_rmi_huge_large "2" "MADworld;MADgtest" "unittests;large")
