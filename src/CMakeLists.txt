@@ -10,7 +10,7 @@ if(MADNESS_HAS_PYTHON)
 	if (MADNESS_MRA_HAS_ALL_DIMENSIONS)
 		add_subdirectory(pymadness)
 	else()
-		message(WARNING "pymadness binds all MRA dimensions 1..6; skipped because MADNESS_MRA_DIMENSIONS=${MADNESS_MRA_DIMENSIONS}")
+		message(STATUS "pymadness binds all MRA dimensions 1..6; skipped because MADNESS_MRA_DIMENSIONS=${MADNESS_MRA_DIMENSIONS}")
 	endif()
 endif()
 install(FILES madness.h

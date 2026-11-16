@@ -115,7 +115,8 @@ The following CMake cache variables turn features on and off.
       together with applications and examples, without it); its correlated methods
       (MP2, MP3, CC2, and the `mp2`/`cc2` applications and `madqc` workflows) need 6.
       Applications, examples and unit tests needing a missing dimension are not built;
-      the Python bindings need all six. [default=`1;2;3;4;5;6`]
+      the Python bindings need all six. The installed `madness-config.cmake` records the
+      set as `madness_MRA_DIMENSIONS`. [default=`1;2;3;4;5;6`]
 * MADNESS_WERROR --- treat compiler warnings as errors when compiling MADNESS's
       own translation units. The flag is applied PRIVATE-ly to MADNESS sources
       only and does not propagate to consumers of an installed MADNESS package.
