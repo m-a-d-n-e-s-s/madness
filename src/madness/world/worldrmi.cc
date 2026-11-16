@@ -91,8 +91,11 @@ namespace madness {
         if (narrived) {
             for (int m=0; m<narrived; ++m) {
                 const int src = status[m].Get_source();
-                const size_t len = status[m].Get_count(MPI_BYTE);
                 const int i = ind[m];
+                // the size of a huge message is known from its announcement, and may
+                // exceed what MPI_Get_count can report
+                const size_t len = (i == (int)nrecv_) ? huge_msg_len_
+                                                      : size_t(status[m].Get_count(MPI_BYTE));
 
                 ++(RMI::stats.nmsg_recv);
                 RMI::stats.nbyte_recv += len;
@@ -187,7 +190,8 @@ namespace madness {
             hugeq.pop_front();
             if (posix_memalign(&recv_buf[nrecv_], ALIGNMENT, nbyte))
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
-            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, tag);
+            huge_msg_len_ = nbyte;
+            recv_req[nrecv_] = comm.Irecv_bytes(recv_buf[nrecv_], nbyte, src, tag);
             int nada=0;
             // make unique tags to ensure that ack msgs do not collide with normal recv msgs
 #ifdef MADNESS_USE_BSEND_ACKS
@@ -415,8 +419,6 @@ namespace madness {
     RMI::Request
     RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
 
-        MADNESS_ASSERT(nbyte <= std::numeric_limits<int>::max());
-
         int tag = SafeMPI::RMI_TAG;
         static std::size_t numsent = 0; // for tracking synchronous sends
 
@@ -472,13 +474,10 @@ namespace madness {
 
         numsent++;
         Request result;
-        if (nssend_ && numsent==std::size_t(nssend_)) {
-            result = comm.Issend(buf, nbyte, MPI_BYTE, dest, tag);
-            numsent %= nssend_;
-        }
-        else {
-            result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
-        }
+        // only a huge message can exceed INT_MAX bytes; Isend_bytes handles that
+        const bool sync = nssend_ && numsent==std::size_t(nssend_);
+        if (sync) numsent %= nssend_;
+        result = comm.Isend_bytes(buf, nbyte, dest, tag, sync);
 
         unlock();
 

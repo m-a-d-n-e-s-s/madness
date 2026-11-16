@@ -70,6 +70,7 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
 #include <iostream>
+#include <limits>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
@@ -493,6 +494,88 @@ namespace SafeMPI {
         std::shared_ptr<Impl> pimpl;
     }; // class Group
 
+    /// The (count, datatype) pair that describes a buffer of bytes to MPI
+
+    /// MPI counts are \c int , so a buffer of more than \c INT_MAX bytes cannot be
+    /// described as a count of \c MPI_BYTE . Such a buffer is described here as one element
+    /// of a derived datatype: whole chunks of bytes, then the bytes left over. The type
+    /// signature is that of the same number of \c MPI_BYTE , so the two ends of a message
+    /// need not agree on how they describe it. A derived datatype is freed by the
+    /// destructor; MPI lets a datatype be freed while a nonblocking operation that uses it
+    /// is pending, so the object need not outlive the request.
+    class ByteCount {
+    public:
+        /// \param nbyte the size of the buffer
+        /// \param max_plain_count the largest size described as a count of \c MPI_BYTE
+        ///        (default: max_plain_count() ); also the chunk of the derived datatype
+        explicit ByteCount(std::size_t nbyte, std::size_t max_plain_count = ByteCount::max_plain_count())
+                : count_(static_cast<int>(nbyte)), datatype_(MPI_BYTE), derived_(false) {
+            const std::size_t int_max = static_cast<std::size_t>(std::numeric_limits<int>::max());
+            if (max_plain_count == 0 || max_plain_count > int_max) max_plain_count = int_max;
+            if (nbyte <= max_plain_count) return;
+
+            const std::size_t chunk = max_plain_count;
+            const std::size_t nchunk = nbyte / chunk;
+            const std::size_t nleft = nbyte % chunk;
+            // a chunk count beyond int would take chunks of chunks; with the default chunk
+            // that is a buffer of 2^62 bytes
+            if (nchunk > int_max) {
+                std::cout << "SafeMPI::ByteCount: " << nbyte << " bytes in chunks of " << chunk
+                          << " bytes: more chunks than an MPI count can hold\n";
+                throw ::SafeMPI::Exception(MPI_ERR_COUNT);
+            }
+            SAFE_MPI_GLOBAL_MUTEX;
+            MPI_Datatype chunk_type;
+            MADNESS_MPI_TEST(MPI_Type_contiguous(static_cast<int>(chunk), MPI_BYTE, &chunk_type));
+            int blocklengths[2] = {static_cast<int>(nchunk), static_cast<int>(nleft)};
+            MPI_Aint displacements[2] = {0, static_cast<MPI_Aint>(nchunk * chunk)};
+            MPI_Datatype types[2] = {chunk_type, MPI_BYTE};
+            MADNESS_MPI_TEST(MPI_Type_create_struct(nleft ? 2 : 1, blocklengths, displacements, types, &datatype_));
+            MADNESS_MPI_TEST(MPI_Type_commit(&datatype_));
+            MADNESS_MPI_TEST(MPI_Type_free(&chunk_type));
+            count_ = 1;
+            derived_ = true;
+        }
+
+        ByteCount(const ByteCount&) = delete;
+        ByteCount& operator=(const ByteCount&) = delete;
+
+        ~ByteCount() {
+            if (derived_) {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MPI_Type_free(&datatype_);
+            }
+        }
+
+        /// \return the count to give MPI together with datatype()
+        int count() const { return count_; }
+        MPI_Datatype datatype() const { return datatype_; }
+        /// \return whether the buffer was too large for a count of \c MPI_BYTE
+        bool derived() const { return derived_; }
+
+        /// \return the largest buffer that is described as a count of \c MPI_BYTE
+        static std::size_t max_plain_count() { return max_plain_count_accessor(); }
+
+        /// Sets max_plain_count(); for testing the derived-datatype path with small buffers
+
+        /// \param n the new value; 0, or a value above \c INT_MAX , restores the default
+        /// \warning not thread safe: call it while no messages are being sent or received
+        static void set_max_plain_count(std::size_t n) {
+            const std::size_t int_max = static_cast<std::size_t>(std::numeric_limits<int>::max());
+            max_plain_count_accessor() = (n == 0 || n > int_max) ? int_max : n;
+        }
+
+    private:
+        static std::size_t& max_plain_count_accessor() {
+            static std::size_t value = static_cast<std::size_t>(std::numeric_limits<int>::max());
+            return value;
+        }
+
+        int count_;
+        MPI_Datatype datatype_;
+        bool derived_;
+    }; // class ByteCount
+
     ///  Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy
     class Intracomm {
 
@@ -750,6 +833,24 @@ namespace SafeMPI {
             Request request;
             MADNESS_MPI_TEST(MPI_Irecv(buf, count, datatype, src, tag, pimpl->comm, request));
             return request;
+        }
+
+        /// Nonblocking send of \c nbyte bytes; unlike Isend() , \c nbyte may exceed \c INT_MAX
+
+        /// \param sync if true, the send is synchronous ( \c MPI_Issend )
+        Request Isend_bytes(const void* buf, const std::size_t nbyte, const int dest, const int tag, const bool sync = false) const {
+            const ByteCount bc(nbyte);
+            return sync ? Issend(buf, bc.count(), bc.datatype(), dest, tag)
+                        : Isend(buf, bc.count(), bc.datatype(), dest, tag);
+        }
+
+        /// Nonblocking receive of \c nbyte bytes; unlike Irecv() , \c nbyte may exceed \c INT_MAX
+
+        /// \note the count of a message received this way cannot be had from its
+        /// Status if it exceeds \c INT_MAX ; the receiver must know the size
+        Request Irecv_bytes(void* buf, const std::size_t nbyte, const int src, const int tag) const {
+            const ByteCount bc(nbyte);
+            return Irecv(buf, bc.count(), bc.datatype(), src, tag);
         }
 
         void Send(const void* buf, const int count, const MPI_Datatype datatype, int dest, int tag) const {
