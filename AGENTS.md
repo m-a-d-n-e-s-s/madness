@@ -53,10 +53,10 @@ For focused iteration, these scope flags drop rebuild time substantially:
   `cc2`.
 - `-DMADNESS_MRA_DIMENSIONS="1;3"` (default `1;2;3;4;5;6`) — instantiate MRA
   only for the listed dimensions (`mra<N>.cc` is the most expensive TU each).
-  Drives the `FUNCTION_INSTANTIATE_<N>` macros in the generated `config.h`
+  Drives the `MADNESS_FUNCTION_INSTANTIATE_<N>` macros in the generated `config.h`
   (and `mra_dimension_instantiated(N)` in `funcdefaults.h` for `if constexpr` /
   `requires`). MADchem needs only 3; its MP2/MP3/CC2 sources need 6. Tests,
-  examples and apps are filtered by `mra_dims_<name>` tables next to their
+  examples and apps are filtered by `madness_mra_dims_<name>` tables next to their
   `add_unittests`/`add_mad_executable` calls (`madness_mra_filter_targets`) —
   a new target using a non-3D `Function` needs an entry there.
 

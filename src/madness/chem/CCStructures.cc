@@ -80,7 +80,7 @@ CC_vecfunction::print_size(const std::string& msg) const {
     }
 }
 
-#ifdef FUNCTION_INSTANTIATE_6  // 6D pair functions, see the CCPairBuilder block below
+#ifdef MADNESS_FUNCTION_INSTANTIATE_6  // 6D pair functions, see the CCPairBuilder block below
 void
 CCPair::info() const {
     if (constant_part.world().rank() == 0) {
@@ -201,7 +201,7 @@ void CCParameters::information(World& world) const {
     }
 }
 
-#ifdef FUNCTION_INSTANTIATE_6  // compares 3D and 6D FunctionDefaults; only used by CC2
+#ifdef MADNESS_FUNCTION_INSTANTIATE_6  // compares 3D and 6D FunctionDefaults; only used by CC2
 void CCParameters::sanity_check(World& world) const {
     size_t warnings = 0;
     if (FunctionDefaults<3>::get_thresh() > 0.01 * FunctionDefaults<6>::get_thresh())
@@ -510,7 +510,7 @@ assign_name(const FuncType& inp) {
 
 // pair construction and the CC/MP2 macrotasks operate on 6D pair functions and call into
 // CCPotentials; they are only built (together with CCPotentials.cc etc.) if 6D MRA is instantiated
-#ifdef FUNCTION_INSTANTIATE_6
+#ifdef MADNESS_FUNCTION_INSTANTIATE_6
 /// make a CCPair without the 6d function and some bookkeeping information
 CCPair CCPairBuilder::make_bare_pair(const int i, const int j) const {
     MADNESS_ASSERT(i>=info.parameters.freeze() && size_t(i) < info.mo_bra.size());
@@ -748,17 +748,17 @@ MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
      }
     return result;
 }
-#endif // FUNCTION_INSTANTIATE_6
+#endif // MADNESS_FUNCTION_INSTANTIATE_6
 
-#ifdef FUNCTION_INSTANTIATE_3
+#ifdef MADNESS_FUNCTION_INSTANTIATE_3
 template class CCConvolutionOperator<double,3>;
 template class CCFunction<double,3>;
 #endif
-#ifdef FUNCTION_INSTANTIATE_2
+#ifdef MADNESS_FUNCTION_INSTANTIATE_2
 template class CCConvolutionOperator<double,2>;
 template class CCFunction<double,2>;
 #endif
-#ifdef FUNCTION_INSTANTIATE_1
+#ifdef MADNESS_FUNCTION_INSTANTIATE_1
 template class CCConvolutionOperator<double,1>;
 template class CCFunction<double,1>;
 #endif

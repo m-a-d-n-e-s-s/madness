@@ -100,27 +100,27 @@ namespace madness {
           std::cout << std::setprecision(6);
         }
 
-#ifdef FUNCTION_INSTANTIATE_1
+#ifdef MADNESS_FUNCTION_INSTANTIATE_1
         FunctionDefaults<1>::set_defaults(world);
         Displacements<1> d1;
 #endif
-#ifdef FUNCTION_INSTANTIATE_2
+#ifdef MADNESS_FUNCTION_INSTANTIATE_2
         FunctionDefaults<2>::set_defaults(world);
         Displacements<2> d2;
 #endif
-#ifdef FUNCTION_INSTANTIATE_3
+#ifdef MADNESS_FUNCTION_INSTANTIATE_3
         FunctionDefaults<3>::set_defaults(world);
         Displacements<3> d3;
 #endif
-#ifdef FUNCTION_INSTANTIATE_4
+#ifdef MADNESS_FUNCTION_INSTANTIATE_4
         FunctionDefaults<4>::set_defaults(world);
         Displacements<4> d4;
 #endif
-#ifdef FUNCTION_INSTANTIATE_5
+#ifdef MADNESS_FUNCTION_INSTANTIATE_5
         FunctionDefaults<5>::set_defaults(world);
         Displacements<5> d5;
 #endif
-#ifdef FUNCTION_INSTANTIATE_6
+#ifdef MADNESS_FUNCTION_INSTANTIATE_6
         FunctionDefaults<6>::set_defaults(world);
         Displacements<6> d6;
 #endif

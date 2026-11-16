@@ -45,7 +45,7 @@
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 
-// FUNCTION_INSTANTIATE_<N> (N=1..6) are defined in madness/config.h for each dimension
+// MADNESS_FUNCTION_INSTANTIATE_<N> (N=1..6) are defined in madness/config.h for each dimension
 // listed in the MADNESS_MRA_DIMENSIONS CMake option; Function<T,N> is only usable for those N.
 
 static const bool VERIFY_TREE = false; //true

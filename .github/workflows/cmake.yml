@@ -32,7 +32,7 @@ jobs:
             gentensor: ON
           # Reduced MADNESS_MRA_DIMENSIONS: builds every target (Release => apps and examples too),
           # so a test/example/app that uses an MRA dimension without declaring it in its
-          # mra_dims_<name> table fails to link here instead of in users' reduced builds.
+          # madness_mra_dims_<name> table fails to link here instead of in users' reduced builds.
           # 3;6 covers MADchem with and without its 6D correlated methods' guards.
           - os: ubuntu-24.04
             build_type: Release

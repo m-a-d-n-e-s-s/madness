@@ -123,7 +123,7 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
 #ifndef ENABLE_GENTENSOR
   MADNESS_EXCEPTION("cc2 and mp2 only with -DENABLE_GENTENSOR configured",1);
 #endif
-#ifndef FUNCTION_INSTANTIATE_6
+#ifndef MADNESS_FUNCTION_INSTANTIATE_6
   MADNESS_EXCEPTION("cc2 and mp2 need 6D MRA: add 6 to MADNESS_MRA_DIMENSIONS",1);
 #else
 
@@ -152,7 +152,7 @@ inline void add_cc2_workflow_drivers(World &world, Params &pm,
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
   wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
       std::make_unique<CC2Application>(world, pm, ref_calc)));
-#endif // FUNCTION_INSTANTIATE_6
+#endif // MADNESS_FUNCTION_INSTANTIATE_6
 }
 
 inline void add_cis_workflow_drivers(World &world, Params &pm,

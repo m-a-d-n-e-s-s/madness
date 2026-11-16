@@ -217,9 +217,9 @@ foreach(_dim IN LISTS MADNESS_MRA_DIMENSIONS)
 endforeach()
 foreach(_dim RANGE 1 6)
   if (_dim IN_LIST MADNESS_MRA_DIMENSIONS)
-    set(FUNCTION_INSTANTIATE_${_dim} ON)   # consumed by cmake/config.h.in
+    set(MADNESS_FUNCTION_INSTANTIATE_${_dim} ON)   # consumed by cmake/config.h.in
   else()
-    set(FUNCTION_INSTANTIATE_${_dim} OFF)
+    set(MADNESS_FUNCTION_INSTANTIATE_${_dim} OFF)
   endif()
 endforeach()
 # madness_mra_has_dimensions(<outvar> <dim>...): <outvar> is TRUE iff all <dim>s are instantiated
@@ -234,13 +234,13 @@ function(madness_mra_has_dimensions _out)
 endfunction()
 # madness_mra_filter_targets(<listvar>): drop the entries of <listvar> (target names or source files)
 # that need an MRA dimension not in MADNESS_MRA_DIMENSIONS. The dimensions needed by entry <name>
-# (source file name without extension) are read from the variable mra_dims_<name> in the calling
+# (source file name without extension) are read from the variable madness_mra_dims_<name> in the calling
 # scope; entries without such a variable need no MRA dimension beyond what their library needs.
 function(madness_mra_filter_targets _listvar)
   set(_kept)
   foreach(_t IN LISTS ${_listvar})
     get_filename_component(_name "${_t}" NAME_WE)
-    madness_mra_has_dimensions(_ok ${mra_dims_${_name}})
+    madness_mra_has_dimensions(_ok ${madness_mra_dims_${_name}})
     if (_ok)
       list(APPEND _kept "${_t}")
     endif()
