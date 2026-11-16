@@ -34,6 +34,7 @@ typedef std::ptrdiff_t MPI_Aint;
 /* MPI's error classes */
 /* these constants are consistent with MPICH2 mpi.h */
 #define MPI_SUCCESS          0      /* Successful return code */
+#define MPI_ERR_COUNT        2      /* Invalid count argument */
 #define MPI_ERR_COMM         5      /* Invalid communicator */
 #define MPI_ERR_ARG         12      /* Invalid argument */
 #define MPI_ERR_IN_STATUS 999999
@@ -88,6 +89,12 @@ typedef int MPI_Datatype;
 #define MPI_LONG_LONG_INT      ((MPI_Datatype)0x4c000809)
 #define MPI_UNSIGNED_LONG_LONG ((MPI_Datatype)0x4c000819)
 #define MPI_LONG_LONG          ((MPI_Datatype)0x4c000809)
+
+// derived datatypes describe messages, and there are none to send here
+inline int MPI_Type_contiguous(int, MPI_Datatype, MPI_Datatype *) { return MPI_ERR_COMM; }
+inline int MPI_Type_create_struct(int, const int[], const MPI_Aint[], const MPI_Datatype[], MPI_Datatype *) { return MPI_ERR_COMM; }
+inline int MPI_Type_commit(MPI_Datatype *) { return MPI_ERR_COMM; }
+inline int MPI_Type_free(MPI_Datatype *) { return MPI_ERR_COMM; }
 
 inline int MPI_Type_get_extent(MPI_Datatype datatype, MPI_Aint *lb,
                                MPI_Aint *extent) {

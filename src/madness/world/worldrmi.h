@@ -218,6 +218,8 @@ namespace madness {
 
             /// q of huge messages, each msg = {source,nbytes,tag}
             std::list< std::tuple<int,size_t,int> > hugeq;
+            /// size of the huge message being received into recv_buf[nrecv_]
+            std::size_t huge_msg_len_ = 0;
 
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world

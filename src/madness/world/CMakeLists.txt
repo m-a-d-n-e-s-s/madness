@@ -100,7 +100,7 @@ if(BUILD_TESTING)
       test_dc.cc test_hashthreaded.cc test_queue.cc test_replication.cc test_world.cc
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
-      test_thread_specific.cc test_foreign_threads.cc
+      test_thread_specific.cc test_foreign_threads.cc test_rmi_huge.cc
           )
 
   add_unittests(world "${WORLD_TEST_SOURCES}" ";MADworld;MADgtest" "unittests;short")
@@ -146,5 +146,13 @@ if(BUILD_TESTING)
   # 2-rank variant of the >INT_MAX chunking test: one rank alone never sends a chunk
   # to a remote owner or takes the multi-rank gather path
   add_mpi_tests(world test_dc_archive_chunk "2" "MADworld;MADgtest" "unittests;large")
+
+  # messages that RMI must describe to MPI by a derived datatype: with one rank nothing
+  # is sent, so the 2-rank variants are the tests (the 1-rank "large" one only reports
+  # that it was skipped; add_mpi_tests needs its target). The "large" one sends more
+  # than INT_MAX bytes and takes about 9 GiB.
+  add_mpi_tests(world test_rmi_huge "2" "MADworld;MADgtest" "unittests;short")
+  add_unittests(world "test_rmi_huge_large.cc" ";MADworld;MADgtest" "unittests;large")
+  add_mpi_tests(world test_rmi_huge_large "2" "MADworld;MADgtest" "unittests;large")
   
 endif()
