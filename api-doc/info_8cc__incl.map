@@ -1,0 +1,16 @@
+<map id="info.cc" name="info.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="392,5,457,33"/>
+<area shape="rect" id="Node000002" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="5,81,207,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="391,30,178,80,177,75,393,25"/>
+<area shape="rect" id="Node000004" href="$info_8h.html" title="Defines functions that give information on this version of MADNESS." alt="" coords="230,81,387,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="406,32,343,75,341,70,401,35"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="337,157,395,184"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="424,32,416,69,402,110,384,145,380,141,397,108,411,67,420,35"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="462,81,536,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="439,31,478,70,473,69,437,36"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="561,81,640,109"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="457,31,558,75,553,75,456,36"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="38,157,174,184"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="108,107,108,142,104,140,104,111"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="320,107,349,145,344,144,318,112"/>
+</map>

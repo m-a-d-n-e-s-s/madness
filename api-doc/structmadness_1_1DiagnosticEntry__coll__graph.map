@@ -1,0 +1,7 @@
+<map id="madness::DiagnosticEntry&lt; T &gt;" name="madness::DiagnosticEntry&lt; T &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,205,235,233"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="18,82,222,110"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="122,124,123,205,117,204,118,127"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="39,5,201,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="121,46,123,83,117,81,119,51"/>
+</map>

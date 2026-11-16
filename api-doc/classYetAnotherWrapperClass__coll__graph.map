@@ -1,0 +1,14 @@
+<map id="YetAnotherWrapperClass" name="YetAnotherWrapperClass">
+<area shape="rect" id="Node000001" title=" " alt="" coords="557,80,739,108"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Function.html" title=" " alt="" coords="272,6,426,51"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="442,43,534,62,596,79,591,80,533,67,442,48"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,50,198,95"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="212,50,274,41,269,43,214,55"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Function.html" title=" " alt="" coords="272,76,426,120"/>
+<area shape="poly" id="edge6_Node000006_Node000003" title=" " alt="" coords="213,81,274,89,269,91,214,87"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="247,203,451,230"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="466,210,500,203,532,191,564,173,592,150,633,109,638,107,596,154,567,177,534,196,501,208,467,215"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="20,203,183,230"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="198,214,249,216,244,217,198,219"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="442,94,560,95,554,96,442,99"/>
+</map>

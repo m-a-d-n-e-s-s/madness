@@ -1,0 +1,5 @@
+<map id="madness::R_times_arg_div_R" name="madness::R_times_arg_div_R">
+<area shape="rect" id="Node000001" title="compute the expression (\sum_i R_i)^(&#45;1) \sum_i R_i arg(r,B,v_i)" alt="" coords="30,106,200,151"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Vector.html" title=" " alt="" coords="5,5,225,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,47,118,106,112,105,113,51"/>
+</map>

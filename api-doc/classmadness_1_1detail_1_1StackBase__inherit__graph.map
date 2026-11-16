@@ -1,0 +1,5 @@
+<map id="madness::detail::StackBase&lt; T, isPod &gt;" name="madness::detail::StackBase&lt; T, isPod &gt;">
+<area shape="rect" id="Node000001" title="Base class for Stack which implements basic memory operations for non&#45;POD objects." alt="" coords="14,5,215,50"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Stack.html" title=" " alt="" coords="5,98,224,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,64,117,99,112,97,113,68"/>
+</map>

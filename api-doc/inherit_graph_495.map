@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1Operator.html" title=" " alt="" coords="5,49,191,94"/>
+<area shape="rect" id="Node000001" href="$classDirichletCondIntOp.html" title="The operator needed for solving for &#160;with GMRES." alt="" coords="239,5,383,33"/>
+<area shape="poly" id="edge518_Node000000_Node000001" title=" " alt="" coords="205,42,253,33,248,35,207,47"/>
+<area shape="rect" id="Node000002" href="$classRealFuncIdentOp.html" title="the identity operator for a real function" alt="" coords="245,57,376,85"/>
+<area shape="poly" id="edge519_Node000000_Node000002" title=" " alt="" coords="206,69,247,71,242,72,206,74"/>
+<area shape="rect" id="Node000003" href="$classRealFuncLinearOp.html" title=" " alt="" coords="242,109,380,137"/>
+<area shape="poly" id="edge520_Node000000_Node000003" title=" " alt="" coords="206,95,254,109,248,109,206,100"/>
+</map>

@@ -1,0 +1,20 @@
+<map id="madness_exception.cc" name="madness_exception.cc">
+<area shape="rect" id="Node000001" title="Implementation of madness::MadnessException." alt="" coords="158,5,328,33"/>
+<area shape="rect" id="Node000002" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="75,81,258,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="229,36,199,71,195,67,232,32"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,70,201"/>
+<area shape="poly" id="edge7_Node000001_Node000003" title=" " alt="" coords="156,33,108,52,85,65,65,83,53,100,46,119,40,158,35,157,41,118,49,97,61,79,82,61,106,47,160,29"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="283,90,357,117"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="256,31,300,78,295,79,255,36"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="382,90,461,117"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="272,31,382,82,376,83,271,36"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="131,129,73,167,69,163,134,124"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="94,174,157,201"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="158,124,141,161,137,158,154,128"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="182,174,267,201"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="183,124,209,161,204,161,181,129"/>
+<area shape="rect" id="Node000006" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="292,174,493,201"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="227,124,344,167,339,169,226,129"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="324,249,460,277"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="394,200,394,235,390,232,390,204"/>
+</map>

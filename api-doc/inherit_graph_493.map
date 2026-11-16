@@ -1,0 +1,19 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1NuclearCorrelationFactor.html" title="ABC for the nuclear correlation factors." alt="" coords="5,212,216,257"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1AdhocNuclearCorrelationFactor.html" title="this ncf has no information about itself, only U2 and U1 assigned" alt="" coords="267,5,518,50"/>
+<area shape="poly" id="edge510_Node000000_Node000001" title=" " alt="" coords="132,197,186,127,222,91,262,60,289,49,285,52,265,65,225,95,190,131,136,200"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1GaussSlater.html" title="A nuclear correlation factor class." alt="" coords="309,74,476,102"/>
+<area shape="poly" id="edge511_Node000000_Node000002" title=" " alt="" coords="142,199,195,153,228,130,263,111,311,96,307,100,265,115,231,134,199,157,146,203"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1GradientalGaussSlater.html" title="A nuclear correlation factor class." alt="" coords="294,125,490,170"/>
+<area shape="poly" id="edge512_Node000000_Node000003" title=" " alt="" coords="189,204,263,180,306,169,302,172,264,185,191,209"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1LinearSlater.html" title="A nuclear correlation factor class." alt="" coords="309,194,476,222"/>
+<area shape="poly" id="edge513_Node000000_Node000004" title=" " alt="" coords="231,220,311,214,306,217,232,225"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Polynomial.html" title="A nuclear correlation factor class." alt="" coords="292,246,493,274"/>
+<area shape="poly" id="edge514_Node000000_Node000005" title=" " alt="" coords="231,243,294,250,289,252,232,248"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1PseudoNuclearCorrelationFactor.html" title=" " alt="" coords="264,297,521,342"/>
+<area shape="poly" id="edge515_Node000000_Node000006" title=" " alt="" coords="192,259,264,282,307,296,302,297,263,288,192,265"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Slater.html" title="A nuclear correlation factor class." alt="" coords="329,366,456,394"/>
+<area shape="poly" id="edge516_Node000000_Node000007" title=" " alt="" coords="145,265,199,311,231,334,265,352,297,363,332,373,326,373,295,368,263,357,228,338,196,316,144,271"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1poly4erfc.html" title=" " alt="" coords="318,418,467,446"/>
+<area shape="poly" id="edge517_Node000000_Node000008" title=" " alt="" coords="134,267,189,338,224,373,265,403,291,414,320,425,315,424,289,419,262,407,221,377,185,341,132,272"/>
+</map>

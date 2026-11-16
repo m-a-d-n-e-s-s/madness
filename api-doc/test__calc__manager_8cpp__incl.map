@@ -1,0 +1,15 @@
+<map id="test_calc_manager.cpp" name="test_calc_manager.cpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="519,5,689,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,187,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="519,35,202,81,201,76,518,30"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="210,81,438,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="557,33,389,79,388,74,551,34"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="462,81,607,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="594,32,559,72,556,67,589,35"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="631,81,716,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="617,31,653,70,648,69,615,36"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="739,81,800,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="634,31,729,75,723,74,633,36"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="824,81,882,109"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="650,31,812,80,806,80,649,36"/>
+</map>

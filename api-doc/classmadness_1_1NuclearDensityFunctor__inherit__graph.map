@@ -1,0 +1,5 @@
+<map id="madness::NuclearDensityFunctor" name="madness::NuclearDensityFunctor">
+<area shape="rect" id="Node000001" title="Default functor for evaluating nuclear density at a given point in space." alt="" coords="5,98,242,126"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="28,5,219,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,64,126,99,121,96,122,68"/>
+</map>

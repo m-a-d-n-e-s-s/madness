@@ -1,0 +1,21 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1ProjectorBase.html" title=" " alt="" coords="5,291,184,319"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1Projector.html" title=" " alt="" coords="268,5,414,50"/>
+<area shape="poly" id="edge554_Node000000_Node000001" title=" " alt="" coords="102,275,119,228,145,171,182,111,205,84,230,60,270,40,266,44,233,64,208,88,186,115,150,173,123,230,107,277"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Projector.html" title=" " alt="" coords="240,75,442,119"/>
+<area shape="poly" id="edge555_Node000000_Node000002" title=" " alt="" coords="108,276,156,203,190,164,230,129,254,118,251,122,233,134,194,167,160,206,113,279"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1QProjector.html" title=" " alt="" coords="263,144,420,189"/>
+<area shape="poly" id="edge556_Node000000_Node000003" title=" " alt="" coords="120,279,169,238,230,199,265,186,261,189,233,203,173,242,124,282"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1QProjector.html" title=" " alt="" coords="254,213,428,258"/>
+<area shape="poly" id="edge557_Node000000_Node000004" title=" " alt="" coords="160,284,261,257,257,261,163,289"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1StrongOrthogonalityProjector.html" title=" " alt="" coords="232,283,451,327"/>
+<area shape="poly" id="edge558_Node000000_Node000005" title=" " alt="" coords="198,303,234,304,229,306,201,307"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1OuterProjector.html" title="an outer product of two projectors" alt="" coords="250,352,432,397"/>
+<area shape="poly" id="edge559_Node000000_Node000006" title=" " alt="" coords="161,321,261,350,257,353,162,326"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Projector.html" title="simple projector class" alt="" coords="268,421,414,466"/>
+<area shape="poly" id="edge560_Node000000_Node000007" title=" " alt="" coords="122,327,173,368,233,407,271,424,265,425,230,411,169,372,122,332"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1QProjector.html" title="orthogonality projector" alt="" coords="263,491,420,535"/>
+<area shape="poly" id="edge561_Node000000_Node000008" title=" " alt="" coords="111,330,160,404,194,443,233,476,265,494,260,495,230,481,190,446,156,407,110,335"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1StrongOrthogonalityProjector.html" title="a SO projector class" alt="" coords="232,560,451,605"/>
+<area shape="poly" id="edge562_Node000000_Node000009" title=" " alt="" coords="105,331,123,380,150,437,186,495,208,522,233,546,252,560,247,559,230,550,205,526,182,499,145,439,119,382,104,337"/>
+</map>

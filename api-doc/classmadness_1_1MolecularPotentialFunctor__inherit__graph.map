@@ -1,0 +1,5 @@
+<map id="madness::MolecularPotentialFunctor" name="madness::MolecularPotentialFunctor">
+<area shape="rect" id="Node000001" title="Functor for evaluating the nuclear attraction potential of a molecule at a given point." alt="" coords="5,98,216,143"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="15,5,206,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="112,64,113,99,108,97,109,68"/>
+</map>

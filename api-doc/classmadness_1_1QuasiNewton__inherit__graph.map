@@ -1,0 +1,5 @@
+<map id="madness::QuasiNewton" name="madness::QuasiNewton">
+<area shape="rect" id="Node000001" title="Optimization via quasi&#45;Newton (BFGS or SR1 update)." alt="" coords="23,81,198,109"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers." alt="" coords="5,5,216,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="112,47,113,82,108,79,109,51"/>
+</map>

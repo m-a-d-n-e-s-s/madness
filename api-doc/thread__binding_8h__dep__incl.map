@@ -1,0 +1,7 @@
+<map id="thread_binding.h" name="thread_binding.h">
+<area shape="rect" id="Node000001" title="Startup check that the MPI launcher did not pin all threads of a rank onto too few hardware threads." alt="" coords="72,5,203,33"/>
+<area shape="rect" id="Node000002" href="$thread__binding_8cc.html" title="Implementation of the startup CPU&#45;binding sanity check." alt="" coords="5,81,142,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,44,87,83,83,79,114,46"/>
+<area shape="rect" id="Node000003" href="$world_8cc.html" title="Implementation of the World class and associated functions." alt="" coords="165,81,240,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="160,42,194,81,189,80,158,47"/>
+</map>
