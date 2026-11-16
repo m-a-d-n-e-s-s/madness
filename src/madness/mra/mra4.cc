@@ -37,7 +37,7 @@
 #include <list>
 
 
-#ifdef FUNCTION_INSTANTIATE_4
+#ifdef MADNESS_FUNCTION_INSTANTIATE_4
 
 namespace madness {
 

@@ -184,28 +184,28 @@ namespace madness {
         return new SeparatedConvolution<double_complex,NDIM>(world, q, k, true);
     }
 
-#ifdef FUNCTION_INSTANTIATE_1
+#ifdef MADNESS_FUNCTION_INSTANTIATE_1
     template SeparatedConvolution<double_complex,1> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
     template SeparatedConvolution<double_complex,1>* qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep);
 #endif
 
-#ifdef FUNCTION_INSTANTIATE_2
+#ifdef MADNESS_FUNCTION_INSTANTIATE_2
     template SeparatedConvolution<double_complex,2> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
 #endif
 
-#ifdef FUNCTION_INSTANTIATE_3
+#ifdef MADNESS_FUNCTION_INSTANTIATE_3
     template SeparatedConvolution<double_complex,3> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
 #endif
 
-#ifdef FUNCTION_INSTANTIATE_4
+#ifdef MADNESS_FUNCTION_INSTANTIATE_4
     template SeparatedConvolution<double_complex,4> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
 #endif
 
-#ifdef FUNCTION_INSTANTIATE_5
+#ifdef MADNESS_FUNCTION_INSTANTIATE_5
     template SeparatedConvolution<double_complex,5> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
 #endif
 
-#ifdef FUNCTION_INSTANTIATE_6
+#ifdef MADNESS_FUNCTION_INSTANTIATE_6
     template SeparatedConvolution<double_complex,6> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
 #endif
 }

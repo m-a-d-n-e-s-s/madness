@@ -11,6 +11,8 @@
 #  madness_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
 #  madness_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls
 #  madness_ASSUMES_ASLR_DISABLED - Whether MADNESS assumes ASLR to be disabled
+#  madness_MRA_DIMENSIONS       - The MRA dimensions (subset of 1..6) for which MADmra instantiates
+#                                 Function<T,NDIM>; using any other NDIM fails to link
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
@@ -81,6 +83,10 @@ if (madness_HAS_LIBXSMM AND NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
                     "set libxsmm_DIR to the directory containing libxsmm-config.cmake")
   endif()
 endif()
+
+# MRA dimensions instantiated in MADmra (MADNESS_MRA_DIMENSIONS); consumers needing a dimension
+# should check this at configure time rather than discover it as undefined symbols at link time
+set(madness_MRA_DIMENSIONS "@MADNESS_MRA_DIMENSIONS@")
 
 # Set the madness libraries target
 set(madness_LIBRARIES madness)

@@ -36,7 +36,7 @@
 #include <madness/world/worldmutex.h>
 #include <list>
 
-#ifdef FUNCTION_INSTANTIATE_5
+#ifdef MADNESS_FUNCTION_INSTANTIATE_5
 namespace madness {
 
     template void plotdx<double,5>(const Function<double,5>&, const char*, const Tensor<double>&,
