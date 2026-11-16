@@ -693,20 +693,22 @@ inline void sort_unique_keys(std::vector<Key<3>>& keys) {
 struct HaloCandidateMsg {
     Key<3> key;
     std::uint8_t flags = 0;
+    std::uint16_t slot = 0;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & key & flags;
+        ar & key & flags & slot;
     }
 };
 
 struct KeyQueryMsg {
     Key<3> key;
     std::uint8_t need_internal_ns = 0;
+    std::uint16_t slot = 0;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & key & need_internal_ns;
+        ar & key & need_internal_ns & slot;
     }
 };
 
@@ -714,11 +716,12 @@ template <typename T>
 struct KeyReplyMsg {
     Key<3> key;
     std::uint8_t is_internal = 0;
+    std::uint16_t slot = 0;
     Tensor<T> coeff;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & key & is_internal & coeff;
+        ar & key & is_internal & slot & coeff;
     }
 };
 
@@ -727,10 +730,11 @@ struct CoarseLeafDeltaMsg {
     Key<3> leaf_key;
     Key<3> sort_tag_key;
     Tensor<T> delta_s;
+    std::uint16_t slot = 0;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & leaf_key & sort_tag_key & delta_s;
+        ar & leaf_key & sort_tag_key & delta_s & slot;
     }
 };
 
@@ -741,10 +745,11 @@ struct VirtualSubtreeItemMsg {
     std::uint8_t is_promoted = 0;
     Tensor<T> ds_corr;
     Tensor<T> d_virt_ns;
+    std::uint16_t slot = 0;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & coarse_leaf_key & virt_key & is_promoted & ds_corr & d_virt_ns;
+        ar & coarse_leaf_key & virt_key & is_promoted & ds_corr & d_virt_ns & slot;
     }
 };
 
@@ -753,30 +758,43 @@ struct OutputNodeInsertMsg {
     Key<3> key;
     std::uint8_t has_children = 0;
     Tensor<T> coeff;
+    std::uint16_t slot = 0;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & key & has_children & coeff;
+        ar & key & has_children & coeff & slot;
     }
 };
 
-/// Dedicated `WorldObject` handling batched multi-rank halo discovery, ghost/ancestor
-/// fetches, and Stage 5a coarse-leaf restriction / promotion assembly.
+/// Dedicated `WorldObject` handling single-function and multi-orbital lockstep batched
+/// multi-rank halo discovery, ghost/ancestor fetches, and Stage 5a restriction/promotion assembly.
 template <typename T>
 class WindowedNSHaloExchange : public WorldObject<WindowedNSHaloExchange<T>> {
 public:
     using baseT = WorldObject<WindowedNSHaloExchange<T>>;
 
-    explicit WindowedNSHaloExchange(World& world)
-        : baseT(world) {
+    explicit WindowedNSHaloExchange(World& world, std::size_t num_slots = 1)
+        : baseT(world)
+        , num_slots_(std::max<std::size_t>(1, num_slots))
+        , halo_candidates_(num_slots_)
+        , key_replies_(num_slots_)
+        , coarse_deltas_(num_slots_)
+        , subtree_items_(num_slots_)
+        , output_inserts_(num_slots_) {
         this->process_pending();
     }
 
     ~WindowedNSHaloExchange() override = default;
 
+    std::size_t num_slots() const noexcept { return num_slots_; }
+
     void recv_halo_candidates(const std::vector<HaloCandidateMsg>& msgs) {
         std::lock_guard<std::mutex> lock(mtx_);
-        halo_candidates_.insert(halo_candidates_.end(), msgs.begin(), msgs.end());
+        for (const auto& m : msgs) {
+            if (m.slot < num_slots_) {
+                halo_candidates_[m.slot].push_back(m);
+            }
+        }
     }
 
     void recv_key_queries(ProcessID requester, const std::vector<KeyQueryMsg>& queries) {
@@ -786,28 +804,44 @@ public:
 
     void recv_key_replies(const std::vector<KeyReplyMsg<T>>& replies) {
         std::lock_guard<std::mutex> lock(mtx_);
-        key_replies_.insert(key_replies_.end(), replies.begin(), replies.end());
+        for (const auto& r : replies) {
+            if (r.slot < num_slots_) {
+                key_replies_[r.slot].push_back(r);
+            }
+        }
     }
 
     void recv_coarse_deltas(const std::vector<CoarseLeafDeltaMsg<T>>& deltas) {
         std::lock_guard<std::mutex> lock(mtx_);
-        coarse_deltas_.insert(coarse_deltas_.end(), deltas.begin(), deltas.end());
+        for (const auto& d : deltas) {
+            if (d.slot < num_slots_) {
+                coarse_deltas_[d.slot].push_back(d);
+            }
+        }
     }
 
     void recv_virtual_subtree_items(const std::vector<VirtualSubtreeItemMsg<T>>& items) {
         std::lock_guard<std::mutex> lock(mtx_);
-        subtree_items_.insert(subtree_items_.end(), items.begin(), items.end());
+        for (const auto& it : items) {
+            if (it.slot < num_slots_) {
+                subtree_items_[it.slot].push_back(it);
+            }
+        }
     }
 
     void recv_output_inserts(const std::vector<OutputNodeInsertMsg<T>>& inserts) {
         std::lock_guard<std::mutex> lock(mtx_);
-        output_inserts_.insert(output_inserts_.end(), inserts.begin(), inserts.end());
+        for (const auto& ins : inserts) {
+            if (ins.slot < num_slots_) {
+                output_inserts_[ins.slot].push_back(ins);
+            }
+        }
     }
 
-    std::vector<HaloCandidateMsg> take_halo_candidates() {
+    std::vector<HaloCandidateMsg> take_halo_candidates(std::size_t slot = 0) {
         std::lock_guard<std::mutex> lock(mtx_);
         std::vector<HaloCandidateMsg> out;
-        out.swap(halo_candidates_);
+        if (slot < num_slots_) out.swap(halo_candidates_[slot]);
         return out;
     }
 
@@ -818,42 +852,43 @@ public:
         return out;
     }
 
-    std::vector<KeyReplyMsg<T>> take_key_replies() {
+    std::vector<KeyReplyMsg<T>> take_key_replies(std::size_t slot = 0) {
         std::lock_guard<std::mutex> lock(mtx_);
         std::vector<KeyReplyMsg<T>> out;
-        out.swap(key_replies_);
+        if (slot < num_slots_) out.swap(key_replies_[slot]);
         return out;
     }
 
-    std::vector<CoarseLeafDeltaMsg<T>> take_coarse_deltas() {
+    std::vector<CoarseLeafDeltaMsg<T>> take_coarse_deltas(std::size_t slot = 0) {
         std::lock_guard<std::mutex> lock(mtx_);
         std::vector<CoarseLeafDeltaMsg<T>> out;
-        out.swap(coarse_deltas_);
+        if (slot < num_slots_) out.swap(coarse_deltas_[slot]);
         return out;
     }
 
-    std::vector<VirtualSubtreeItemMsg<T>> take_subtree_items() {
+    std::vector<VirtualSubtreeItemMsg<T>> take_subtree_items(std::size_t slot = 0) {
         std::lock_guard<std::mutex> lock(mtx_);
         std::vector<VirtualSubtreeItemMsg<T>> out;
-        out.swap(subtree_items_);
+        if (slot < num_slots_) out.swap(subtree_items_[slot]);
         return out;
     }
 
-    std::vector<OutputNodeInsertMsg<T>> take_output_inserts() {
+    std::vector<OutputNodeInsertMsg<T>> take_output_inserts(std::size_t slot = 0) {
         std::lock_guard<std::mutex> lock(mtx_);
         std::vector<OutputNodeInsertMsg<T>> out;
-        out.swap(output_inserts_);
+        if (slot < num_slots_) out.swap(output_inserts_[slot]);
         return out;
     }
 
 private:
+    std::size_t num_slots_ = 1;
     std::mutex mtx_;
-    std::vector<HaloCandidateMsg> halo_candidates_;
+    std::vector<std::vector<HaloCandidateMsg>> halo_candidates_;
     std::vector<std::pair<ProcessID, std::vector<KeyQueryMsg>>> key_queries_;
-    std::vector<KeyReplyMsg<T>> key_replies_;
-    std::vector<CoarseLeafDeltaMsg<T>> coarse_deltas_;
-    std::vector<VirtualSubtreeItemMsg<T>> subtree_items_;
-    std::vector<OutputNodeInsertMsg<T>> output_inserts_;
+    std::vector<std::vector<KeyReplyMsg<T>>> key_replies_;
+    std::vector<std::vector<CoarseLeafDeltaMsg<T>>> coarse_deltas_;
+    std::vector<std::vector<VirtualSubtreeItemMsg<T>>> subtree_items_;
+    std::vector<std::vector<OutputNodeInsertMsg<T>>> output_inserts_;
 };
 
 } // namespace windowed_halo_detail
@@ -959,14 +994,53 @@ struct WindowedSerialInputRange {
     int max_s_int_level = 1000;
     int min_gamma_level = 0;
     int max_gamma_level = 1000;
+    const std::vector<double>* subtree_d_tol = nullptr;
 };
 
-/// Complete Stage 1b + Stage 5a distributed halo workspace for one `apply_windowed_ns_3d` call.
+/// Complete Stage 1b + Stage 5a distributed halo workspace for one `apply_windowed_ns_3d` call
+/// (or one slot inside a multi-orbital lockstep distributed batch).
 template <typename T>
 class WindowedNSHaloWorkspace {
 public:
     using RadiiBuilderFn = std::function<void(const std::vector<WindowedGlobalLevelStats>&,
                                               std::vector<WindowedLevelRadii>&)>;
+
+    /// Deferred-distributed tag constructor for lockstep multi-orbital batch execution:
+    /// initializes local structures without registering a per-orbital `WorldObject` or running collectives.
+    struct DeferredDistributedTag {};
+
+    WindowedNSHaloWorkspace(DeferredDistributedTag,
+                            World& world,
+                            const Function<T, 3>& f_in,
+                            int n_max_tree,
+                            bool dynamic_refine,
+                            int max_refine_level,
+                            bool ungraded_leaf_refine_only,
+                            windowed_halo_detail::WindowedNSHaloExchange<T>* shared_exchange,
+                            std::uint16_t slot)
+        : world_(world)
+        , k_(f_in.k())
+        , n_max_tree_(n_max_tree)
+        , dynamic_refine_(dynamic_refine)
+        , max_refine_level_(max_refine_level)
+        , ungraded_leaf_refine_only_(ungraded_leaf_refine_only)
+        , cdata_(FunctionCommonData<T, 3>::get(f_in.k()))
+        , is_periodic_(FunctionDefaults<3>::get_bc().is_periodic())
+        , pmap_(f_in.get_pmap())
+        , exchange_ptr_(shared_exchange)
+        , slot_(slot) {
+        MADNESS_CHECK(world_.size() > 1);
+        MADNESS_CHECK(f_in.get_impl()->get_tree_state() == nonstandard_with_leaves);
+        MADNESS_CHECK(exchange_ptr_ != nullptr);
+        init_octant_filters();
+        levels_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
+        global_stats_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
+        radii_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
+        coarse_leaves_by_level_.resize(static_cast<std::size_t>(n_max_tree_ + 1));
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            levels_[static_cast<std::size_t>(j)].level = j;
+        }
+    }
 
     WindowedNSHaloWorkspace(World& world,
                             const Function<T, 3>& f_in,
@@ -1004,7 +1078,10 @@ public:
         }
 
         if (world_.size() > 1) {
-            exchange_ = std::make_unique<windowed_halo_detail::WindowedNSHaloExchange<T>>(world_);
+            owned_exchange_ =
+                std::make_unique<windowed_halo_detail::WindowedNSHaloExchange<T>>(world_, 1u);
+            exchange_ptr_ = owned_exchange_.get();
+            slot_ = 0u;
             build_distributed(f_in, radii_builder);
         } else {
             build_serial(f_in, radii_builder);
@@ -1029,9 +1106,10 @@ public:
               }) {}
 
     ~WindowedNSHaloWorkspace() {
-        if (exchange_) {
+        if (owned_exchange_) {
             world_.gop.fence();
-            exchange_.reset();
+            owned_exchange_.reset();
+            exchange_ptr_ = nullptr;
         }
     }
 
@@ -1220,6 +1298,752 @@ public:
         return true;
     }
 
+    /// Lockstep Stage 1b distributed halo construction across `B` orbitals simultaneously,
+    /// coalescing all `gop.max` reductions and active-message halo exchanges across `0 .. B-1`
+    /// into 4–5 global collectives total for the entire batch.
+    static void build_distributed_lockstep(
+        World& world,
+        const std::vector<WindowedNSHaloWorkspace<T>*>& ws_list,
+        const std::vector<const Function<T, 3>*>& f_list,
+        const std::vector<RadiiBuilderFn>& radii_builders,
+        windowed_halo_detail::WindowedNSHaloExchange<T>& ex) {
+        const std::size_t B = ws_list.size();
+        if (B == 0) return;
+        MADNESS_CHECK(world.size() > 1);
+        MADNESS_CHECK(f_list.size() == B && radii_builders.size() == B);
+        MADNESS_CHECK(ex.num_slots() >= B);
+
+        const ProcessID me = world.rank();
+        const int nproc = world.size();
+
+        // 1. Local real-node ingestion + ONE coalesced `gop.max` across all `B` orbitals.
+        std::size_t total_stat_doubles = 0;
+        std::vector<std::size_t> stat_offsets(B, 0u);
+        for (std::size_t b = 0; b < B; ++b) {
+            auto* ws = ws_list[b];
+            MADNESS_CHECK(ws != nullptr && ws->slot_ == static_cast<std::uint16_t>(b));
+            ws->ingest_local_real_nodes_local_only(*f_list[b]);
+            stat_offsets[b] = total_stat_doubles;
+            total_stat_doubles += 5u * static_cast<std::size_t>(ws->n_max_tree_ + 1);
+        }
+
+        std::vector<double> gop_buf(total_stat_doubles, 0.0);
+        for (std::size_t b = 0; b < B; ++b) {
+            const auto* ws = ws_list[b];
+            const std::size_t n_lvls = static_cast<std::size_t>(ws->n_max_tree_ + 1);
+            const std::size_t base = stat_offsets[b];
+            for (std::size_t j = 0; j < n_lvls; ++j) {
+                const auto& st = ws->global_stats_[j];
+                gop_buf[base + 5 * j + 0] = st.has_internal ? 1.0 : 0.0;
+                gop_buf[base + 5 * j + 1] = st.max_s_real;
+                gop_buf[base + 5 * j + 2] = st.max_s_leaf;
+                gop_buf[base + 5 * j + 3] = st.max_d_int;
+                gop_buf[base + 5 * j + 4] = st.max_ns_int;
+            }
+        }
+        world.gop.max(gop_buf.data(), gop_buf.size());
+
+        bool any_need_parent_mask = false;
+        for (std::size_t b = 0; b < B; ++b) {
+            auto* ws = ws_list[b];
+            const std::size_t n_lvls = static_cast<std::size_t>(ws->n_max_tree_ + 1);
+            const std::size_t base = stat_offsets[b];
+            for (std::size_t j = 0; j < n_lvls; ++j) {
+                auto& st = ws->global_stats_[j];
+                st.has_internal = (gop_buf[base + 5 * j + 0] > 0.5);
+                st.max_s_real = gop_buf[base + 5 * j + 1];
+                st.max_s_leaf = gop_buf[base + 5 * j + 2];
+                st.max_d_int = gop_buf[base + 5 * j + 3];
+                st.max_ns_int = gop_buf[base + 5 * j + 4];
+            }
+            ws->finalize_ingested_global_stats(true);
+            radii_builders[b](ws->global_stats_, ws->radii_);
+            if (ws->dynamic_refine_ && ws->ungraded_leaf_refine_only_ && ws->n_max_tree_ >= 1) {
+                any_need_parent_mask = true;
+            }
+        }
+
+        // 2. Coalesced parent-mask exchange (1 fence across all `B` orbitals; skipped completely if none need it).
+        if (any_need_parent_mask) {
+            std::vector<std::vector<windowed_halo_detail::HaloCandidateMsg>> parent_outbox(
+                static_cast<std::size_t>(nproc));
+            std::vector<KeyFlagVec> pvecs(static_cast<std::size_t>(nproc));
+
+            for (std::size_t b = 0; b < B; ++b) {
+                auto* ws = ws_list[b];
+                if (!(ws->dynamic_refine_ && ws->ungraded_leaf_refine_only_ && ws->n_max_tree_ >= 1)) {
+                    continue;
+                }
+                for (int p = 0; p < nproc; ++p) pvecs[static_cast<std::size_t>(p)].clear();
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    for (const auto& ch : ws->levels_[static_cast<std::size_t>(j)].owned_real) {
+                        if (!ch.is_internal) continue;
+                        const Key<3> par = ch.key.parent();
+                        const int oct = windowed_halo_detail::child_octant_index(ch.key);
+                        const ProcessID owner = ws->pmap_->owner(par);
+                        pvecs[static_cast<std::size_t>(owner)].emplace_back(
+                            par, static_cast<std::uint8_t>(1u << oct));
+                    }
+                }
+                const std::uint16_t slot = ws->slot_;
+                for (int p = 0; p < nproc; ++p) {
+                    auto& vec = pvecs[static_cast<std::size_t>(p)];
+                    if (vec.empty()) continue;
+                    windowed_halo_detail::sort_and_merge_key_flags(vec);
+                    auto& dst = parent_outbox[static_cast<std::size_t>(p)];
+                    for (const auto& kv : vec) {
+                        dst.push_back(
+                            windowed_halo_detail::HaloCandidateMsg{kv.first, kv.second, slot});
+                    }
+                }
+            }
+
+            for (int p = 0; p < nproc; ++p) {
+                auto& batch = parent_outbox[static_cast<std::size_t>(p)];
+                if (batch.empty()) continue;
+                if (p == me) {
+                    ex.recv_halo_candidates(batch);
+                } else {
+                    ex.send(static_cast<ProcessID>(p),
+                            &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_halo_candidates,
+                            batch);
+                }
+            }
+            world.gop.fence();
+
+            for (std::size_t b = 0; b < B; ++b) {
+                auto* ws = ws_list[b];
+                for (const auto& msg : ex.take_halo_candidates(ws->slot_)) {
+                    const int pj = static_cast<int>(msg.key.level());
+                    const std::size_t pidx = ws->find_owned_real_index(pj, msg.key);
+                    if (pidx != SIZE_MAX) {
+                        auto& prn = ws->levels_[static_cast<std::size_t>(pj)].owned_real[pidx];
+                        prn.internal_child_mask =
+                            static_cast<std::uint8_t>(prn.internal_child_mask | msg.flags);
+                    }
+                }
+            }
+        }
+
+        // 3. Coalesced H1 candidate exchange (1 fence across all `B` orbitals).
+        {
+            std::vector<std::vector<windowed_halo_detail::HaloCandidateMsg>> h1_outbox(
+                static_cast<std::size_t>(nproc));
+            std::vector<KeyFlagVec> out_cand_vecs(static_cast<std::size_t>(nproc));
+
+            for (std::size_t b = 0; b < B; ++b) {
+                auto* ws = ws_list[b];
+                for (int p = 0; p < nproc; ++p) out_cand_vecs[static_cast<std::size_t>(p)].clear();
+
+                auto emit_candidate = [&](const Key<3>& nb, std::uint8_t flag_bits) {
+                    const ProcessID owner = ws->pmap_->owner(nb);
+                    out_cand_vecs[static_cast<std::size_t>(owner)].emplace_back(nb, flag_bits);
+                };
+
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    const auto& ld = ws->levels_[static_cast<std::size_t>(j)];
+                    const WindowedLevelRadii& rad = ws->radii_[static_cast<std::size_t>(j)];
+                    const bool can_refine_j = ws->dynamic_refine_ && (j < ws->max_refine_level_);
+
+                    if (rad.has_T_terms && rad.m_max_T >= 1) {
+                        for (const auto& rn : ld.owned_real) {
+                            const int mT_rn =
+                                (rad.m_max_T >= 2 &&
+                                 (!ws->dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
+                                    ? rad.m_max_T
+                                    : std::min(rad.m_max_T, 1);
+                            for (int dx = -mT_rn; dx <= mT_rn; ++dx) {
+                                for (int dy = -mT_rn; dy <= mT_rn; ++dy) {
+                                    for (int dz = -mT_rn; dz <= mT_rn; ++dz) {
+                                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                                        Key<3> nb;
+                                        if (windowed_halo_detail::shift_key_in_domain(
+                                                rn.key, dx, dy, dz, ws->is_periodic_, nb)) {
+                                            emit_candidate(nb, kHaloH1T);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (ld.global_has_internal) {
+                        const int m1 = rad.has_4b1_terms ? rad.m_max_4b1 : -1;
+                        const int m2 = (can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
+                        if (std::max(m1, m2) >= 1) {
+                            for (const auto& rn : ld.owned_real) {
+                                if (!rn.is_internal) continue;
+                                const int m1_rn =
+                                    (m1 >= 2 &&
+                                     (!ws->dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
+                                        ? m1
+                                        : std::min(m1, 1);
+                                const int m2_rn = m2;
+                                const int m_emit_rn = std::max(m1_rn, m2_rn);
+                                if (m_emit_rn < 1) continue;
+                                for (int dx = -m_emit_rn; dx <= m_emit_rn; ++dx) {
+                                    for (int dy = -m_emit_rn; dy <= m_emit_rn; ++dy) {
+                                        for (int dz = -m_emit_rn; dz <= m_emit_rn; ++dz) {
+                                            if (dx == 0 && dy == 0 && dz == 0) continue;
+                                            const int sh = std::max(
+                                                {std::abs(dx), std::abs(dy), std::abs(dz)});
+                                            Key<3> nb;
+                                            if (windowed_halo_detail::shift_key_in_domain(
+                                                    rn.key, dx, dy, dz, ws->is_periodic_, nb)) {
+                                                std::uint8_t bits = 0u;
+                                                if (sh <= m1_rn) {
+                                                    bits = static_cast<std::uint8_t>(
+                                                        bits | kHaloH1Gamma);
+                                                }
+                                                if (sh <= m2_rn) {
+                                                    bits = static_cast<std::uint8_t>(
+                                                        bits | kHaloH1Refine);
+                                                    if (!ws->ungraded_leaf_refine_only_ ||
+                                                        windowed_halo_detail::has_ungraded_child_toward(
+                                                            rn.internal_child_mask, dx, dy, dz)) {
+                                                        bits = static_cast<std::uint8_t>(
+                                                            bits | kHaloH1RefineLeafUngraded);
+                                                    }
+                                                }
+                                                if (bits != 0u) emit_candidate(nb, bits);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const std::uint16_t slot = ws->slot_;
+                for (int p = 0; p < nproc; ++p) {
+                    auto& vec = out_cand_vecs[static_cast<std::size_t>(p)];
+                    if (vec.empty()) continue;
+                    windowed_halo_detail::sort_and_merge_key_flags(vec);
+                    auto& dst = h1_outbox[static_cast<std::size_t>(p)];
+                    for (const auto& kv : vec) {
+                        dst.push_back(
+                            windowed_halo_detail::HaloCandidateMsg{kv.first, kv.second, slot});
+                    }
+                }
+            }
+
+            for (int p = 0; p < nproc; ++p) {
+                auto& batch = h1_outbox[static_cast<std::size_t>(p)];
+                if (batch.empty()) continue;
+                if (p == me) {
+                    ex.recv_halo_candidates(batch);
+                } else {
+                    ex.send(static_cast<ProcessID>(p),
+                            &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_halo_candidates,
+                            batch);
+                }
+            }
+            world.gop.fence();
+        }
+
+        std::vector<std::vector<KeyFlagVec>> virt_flags_all(B);
+        std::vector<std::vector<std::vector<Key<3>>>> needed_vc_all(B);
+        std::vector<std::vector<windowed_halo_detail::KeyQueryMsg>> query_outbox(
+            static_cast<std::size_t>(nproc));
+
+        // 4. Process H1 candidates & coalesce ancestor/source key queries across all `B` orbitals.
+        {
+            std::vector<KeyFlagVec> query_vecs(static_cast<std::size_t>(nproc));
+            for (std::size_t b = 0; b < B; ++b) {
+                auto* ws = ws_list[b];
+                auto& virt_flags = virt_flags_all[b];
+                virt_flags.resize(static_cast<std::size_t>(ws->n_max_tree_ + 1));
+
+                for (const auto& cand : ex.take_halo_candidates(ws->slot_)) {
+                    const int j = static_cast<int>(cand.key.level());
+                    const std::size_t ridx = ws->find_owned_real_index(j, cand.key);
+                    if (ridx != SIZE_MAX) {
+                        auto& rn = ws->levels_[static_cast<std::size_t>(j)].owned_real[ridx];
+                        if (!rn.is_internal) {
+                            if ((cand.flags & kHaloH1Gamma) != 0) rn.near_internal_4b1 = true;
+                            if ((cand.flags & kHaloH1RefineLeafUngraded) != 0) {
+                                rn.near_internal_4b2 = true;
+                            }
+                        }
+                    } else {
+                        const std::uint8_t vflags = static_cast<std::uint8_t>(
+                            cand.flags & static_cast<std::uint8_t>(~kHaloH1RefineLeafUngraded));
+                        if (vflags != 0u) {
+                            virt_flags[static_cast<std::size_t>(j)].emplace_back(cand.key, vflags);
+                        }
+                    }
+                }
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    windowed_halo_detail::sort_and_merge_key_flags(
+                        virt_flags[static_cast<std::size_t>(j)]);
+                }
+
+                auto& needed_virt_capable = needed_vc_all[b];
+                needed_virt_capable.resize(static_cast<std::size_t>(ws->n_max_tree_ + 1));
+                std::vector<std::vector<Key<3>>> needed_real_only(
+                    static_cast<std::size_t>(ws->n_max_tree_ + 1));
+
+                auto add_ring_to = [&](std::vector<Key<3>>& dst, const Key<3>& center, int radius) {
+                    if (radius < 0) return;
+                    for (int dx = -radius; dx <= radius; ++dx) {
+                        for (int dy = -radius; dy <= radius; ++dy) {
+                            for (int dz = -radius; dz <= radius; ++dz) {
+                                Key<3> nb;
+                                if (windowed_halo_detail::shift_key_in_domain(
+                                        center, dx, dy, dz, ws->is_periodic_, nb)) {
+                                    dst.push_back(nb);
+                                }
+                            }
+                        }
+                    }
+                };
+
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    const std::size_t sj = static_cast<std::size_t>(j);
+                    const auto& ld = ws->levels_[sj];
+                    const WindowedLevelRadii& rad = ws->radii_[sj];
+                    const auto& vf = virt_flags[sj];
+                    const bool can_refine_j = ws->dynamic_refine_ && (j < ws->max_refine_level_);
+                    const double max_cl_above = ws->global_stats_[sj].max_coarse_leaf_above;
+                    auto& vc_vec = needed_virt_capable[sj];
+                    auto& ro_vec = needed_real_only[sj];
+
+                    if (rad.has_T_terms && rad.m_max_T >= 1) {
+                        const int mT_h2 =
+                            (rad.m_max_T >= 2 &&
+                             (!ws->dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
+                                ? rad.m_max_T
+                                : std::min(rad.m_max_T, 1);
+                        for (const auto& rn : ld.owned_real) {
+                            const int mT_rn =
+                                (rad.m_max_T >= 2 &&
+                                 (!ws->dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
+                                    ? rad.m_max_T
+                                    : std::min(rad.m_max_T, 1);
+                            add_ring_to(vc_vec, rn.key, mT_rn);
+                            if (rad.m_max_T > mT_rn) {
+                                add_ring_to(ro_vec, rn.key, rad.m_max_T);
+                            }
+                        }
+                        for (const auto& kv : vf) {
+                            if ((kv.second & kHaloH1T) != 0) {
+                                add_ring_to(vc_vec, kv.first, mT_h2);
+                                if (rad.m_max_T > mT_h2) {
+                                    add_ring_to(ro_vec, kv.first, rad.m_max_T);
+                                }
+                            }
+                        }
+                    }
+
+                    if (ld.global_has_internal) {
+                        if (rad.has_4b1_terms && rad.m_max_4b1 >= 1) {
+                            const int m1 = rad.m_max_4b1;
+                            for (const auto& rn : ld.owned_real) {
+                                if (rn.is_internal || rn.near_internal_4b1) {
+                                    add_ring_to(ro_vec, rn.key, m1);
+                                }
+                            }
+                            for (const auto& kv : vf) {
+                                if ((kv.second & kHaloH1Gamma) != 0) {
+                                    add_ring_to(ro_vec, kv.first, m1);
+                                }
+                            }
+                        }
+
+                        if (rad.has_4b2_int_terms && rad.m_max_4b2_int >= 1) {
+                            const int mInt = rad.m_max_4b2_int;
+                            for (const auto& rn : ld.owned_real) {
+                                if (rn.is_internal || (can_refine_j && rn.near_internal_4b2)) {
+                                    add_ring_to(ro_vec, rn.key, mInt);
+                                }
+                            }
+                            if (can_refine_j) {
+                                for (const auto& kv : vf) {
+                                    if ((kv.second & kHaloH1Refine) != 0) {
+                                        add_ring_to(ro_vec, kv.first, mInt);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (rad.has_4b2_leaf_terms && rad.m_max_4b2_leaf >= 1) {
+                            const int mLeaf = rad.m_max_4b2_leaf;
+                            const int mLeaf_h2 =
+                                (mLeaf >= 2 &&
+                                 (!ws->dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
+                                    ? mLeaf
+                                    : std::min(mLeaf, 1);
+                            for (const auto& rn : ld.owned_real) {
+                                if (rn.is_internal || (can_refine_j && rn.near_internal_4b2)) {
+                                    add_ring_to(vc_vec, rn.key, mLeaf_h2);
+                                    if (mLeaf > mLeaf_h2) {
+                                        add_ring_to(ro_vec, rn.key, mLeaf);
+                                    }
+                                }
+                            }
+                            if (can_refine_j) {
+                                for (const auto& kv : vf) {
+                                    if ((kv.second & kHaloH1Refine) != 0) {
+                                        add_ring_to(vc_vec, kv.first, mLeaf_h2);
+                                        if (mLeaf > mLeaf_h2) {
+                                            add_ring_to(ro_vec, kv.first, mLeaf);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    windowed_halo_detail::sort_unique_keys(vc_vec);
+                    windowed_halo_detail::sort_unique_keys(ro_vec);
+                }
+
+                for (int p = 0; p < nproc; ++p) query_vecs[static_cast<std::size_t>(p)].clear();
+
+                auto register_query_chain = [&](const Key<3>& start_key) {
+                    const int j_start = static_cast<int>(start_key.level());
+                    const ProcessID s_owner = ws->pmap_->owner(start_key);
+                    if (s_owner == me && ws->find_owned_real_index(j_start, start_key) != SIZE_MAX) {
+                        return;
+                    }
+                    if (s_owner != me) {
+                        query_vecs[static_cast<std::size_t>(s_owner)].emplace_back(start_key, 1u);
+                    }
+
+                    Key<3> curr = start_key;
+                    while (curr.level() > 0) {
+                        curr = curr.parent();
+                        const int clvl = static_cast<int>(curr.level());
+                        const ProcessID owner = ws->pmap_->owner(curr);
+                        if (owner == me) {
+                            if (ws->find_owned_real_index(clvl, curr) != SIZE_MAX) {
+                                break;
+                            }
+                        } else {
+                            query_vecs[static_cast<std::size_t>(owner)].emplace_back(curr, 0u);
+                        }
+                    }
+                };
+
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    for (const Key<3>& skey : needed_virt_capable[static_cast<std::size_t>(j)]) {
+                        register_query_chain(skey);
+                    }
+                    for (const auto& kv : virt_flags[static_cast<std::size_t>(j)]) {
+                        register_query_chain(kv.first);
+                    }
+                    for (const Key<3>& rkey : needed_real_only[static_cast<std::size_t>(j)]) {
+                        const ProcessID owner = ws->pmap_->owner(rkey);
+                        if (owner != me) {
+                            query_vecs[static_cast<std::size_t>(owner)].emplace_back(rkey, 1u);
+                        }
+                    }
+                }
+
+                const std::uint16_t slot = ws->slot_;
+                for (int p = 0; p < nproc; ++p) {
+                    auto& qv = query_vecs[static_cast<std::size_t>(p)];
+                    if (qv.empty()) continue;
+                    windowed_halo_detail::sort_and_merge_key_flags(qv);
+                    auto& dst = query_outbox[static_cast<std::size_t>(p)];
+                    for (const auto& kv : qv) {
+                        dst.push_back(
+                            windowed_halo_detail::KeyQueryMsg{kv.first, kv.second, slot});
+                    }
+                }
+            }
+
+            for (int p = 0; p < nproc; ++p) {
+                auto& batch = query_outbox[static_cast<std::size_t>(p)];
+                if (batch.empty()) continue;
+                ex.send(static_cast<ProcessID>(p),
+                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_key_queries,
+                        me,
+                        batch);
+            }
+            world.gop.fence();
+        }
+
+        // 5. Coalesced key replies across all `B` orbitals (1 fence total).
+        {
+            std::vector<std::vector<windowed_halo_detail::KeyReplyMsg<T>>> reply_outbox(
+                static_cast<std::size_t>(nproc));
+            for (const auto& [requester, queries] : ex.take_key_queries()) {
+                auto& replies = reply_outbox[static_cast<std::size_t>(requester)];
+                for (const auto& q : queries) {
+                    if (q.slot >= B) continue;
+                    const auto* ws = ws_list[q.slot];
+                    const int qlvl = static_cast<int>(q.key.level());
+                    if (qlvl < 0 || qlvl > ws->n_max_tree_) continue;
+                    const std::size_t ridx = ws->find_owned_real_index(qlvl, q.key);
+                    if (ridx == SIZE_MAX) continue;
+
+                    const auto& rn = ws->levels_[static_cast<std::size_t>(qlvl)].owned_real[ridx];
+                    if (!rn.is_internal) {
+                        replies.push_back(
+                            windowed_halo_detail::KeyReplyMsg<T>{rn.key, 0u, q.slot, rn.s_in});
+                    } else if (q.need_internal_ns != 0) {
+                        replies.push_back(
+                            windowed_halo_detail::KeyReplyMsg<T>{rn.key, 1u, q.slot, rn.ns_in});
+                    }
+                }
+            }
+            for (int p = 0; p < nproc; ++p) {
+                auto& batch = reply_outbox[static_cast<std::size_t>(p)];
+                if (batch.empty()) continue;
+                ex.send(static_cast<ProcessID>(p),
+                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_key_replies,
+                        batch);
+            }
+            world.gop.fence();
+        }
+
+        // 6. Ingest remote sources, complete `kHaloH2Ghost`, and prolong virtual halos per orbital.
+        for (std::size_t b = 0; b < B; ++b) {
+            auto* ws = ws_list[b];
+            auto& virt_flags = virt_flags_all[b];
+            const auto& needed_virt_capable = needed_vc_all[b];
+
+            std::vector<WindowedSourceEntry<T>> remote_real_same_level;
+            for (auto& rep : ex.take_key_replies(ws->slot_)) {
+                const int rlvl = static_cast<int>(rep.key.level());
+                if (rep.is_internal == 0) {
+                    if (rlvl >= 0 && rlvl <= ws->n_max_tree_) {
+                        ws->coarse_leaves_by_level_[static_cast<std::size_t>(rlvl)].emplace_back(
+                            rep.key, rep.coeff);
+                    }
+                    WindowedSourceEntry<T> se;
+                    se.key = rep.key;
+                    se.is_internal = false;
+                    se.s_coeff = rep.coeff.iscontiguous() ? rep.coeff : copy(rep.coeff);
+                    windowed_halo_detail::compute_scaling_norms_readonly(
+                        se.s_coeff, se.s000, se.s_osc_norm2, se.s_normf);
+                    se.ns_normf = se.s_normf;
+                    remote_real_same_level.push_back(std::move(se));
+                } else {
+                    WindowedSourceEntry<T> se;
+                    se.key = rep.key;
+                    se.is_internal = true;
+                    se.s_coeff = windowed_halo_detail::extract_scaling_cube(rep.coeff, ws->k_);
+                    windowed_halo_detail::compute_scaling_norms_readonly(
+                        se.s_coeff, se.s000, se.s_osc_norm2, se.s_normf);
+                    se.ns_coeff = rep.coeff;
+                    se.d_normf = windowed_halo_detail::wavelet_octants_normf(rep.coeff, ws->k_);
+                    se.ns_normf = std::sqrt(se.s_normf * se.s_normf + se.d_normf * se.d_normf);
+                    remote_real_same_level.push_back(std::move(se));
+                }
+            }
+
+            for (int j = 0; j <= ws->n_max_tree_; ++j) {
+                auto& cl = ws->coarse_leaves_by_level_[static_cast<std::size_t>(j)];
+                std::sort(cl.begin(), cl.end(), [](const auto& a, const auto& b) noexcept {
+                    return windowed_halo_detail::windowed_key_less(a.first, b.first);
+                });
+                cl.erase(
+                    std::unique(cl.begin(), cl.end(), [](const auto& a, const auto& b) noexcept {
+                        return a.first == b.first;
+                    }),
+                    cl.end());
+            }
+
+            std::sort(remote_real_same_level.begin(),
+                      remote_real_same_level.end(),
+                      [](const auto& a, const auto& b) noexcept {
+                          return windowed_halo_detail::windowed_key_less(a.key, b.key);
+                      });
+            remote_real_same_level.erase(
+                std::unique(remote_real_same_level.begin(),
+                            remote_real_same_level.end(),
+                            [](const auto& a, const auto& b) noexcept { return a.key == b.key; }),
+                remote_real_same_level.end());
+
+            for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                auto& vf = virt_flags[static_cast<std::size_t>(j)];
+                std::vector<Key<3>> h2_add;
+                for (const Key<3>& skey : needed_virt_capable[static_cast<std::size_t>(j)]) {
+                    if (ws->find_owned_real_index(j, skey) != SIZE_MAX) continue;
+                    if (find_windowed_source(remote_real_same_level, skey) != nullptr) continue;
+                    if (!windowed_halo_detail::contains_sorted_key_flag(vf, skey)) {
+                        h2_add.push_back(skey);
+                    }
+                }
+                if (!h2_add.empty()) {
+                    for (const Key<3>& k_add : h2_add) {
+                        vf.emplace_back(k_add, kHaloH2Ghost);
+                    }
+                    windowed_halo_detail::sort_and_merge_key_flags(vf);
+                }
+            }
+
+            ws->populate_prolonged_virtual_and_sources(virt_flags, remote_real_same_level);
+        }
+    }
+
+    /// Lockstep Stage 5a distributed restriction + nonstandard output tree assembly across `B`
+    /// orbitals simultaneously, coalescing promotion count reduction, coarse-leaf / virtual-subtree
+    /// transport, and remote output-node inserts into 2–3 global collectives total for the batch.
+    static void assemble_output_nonstandard_lockstep(
+        World& world,
+        const std::vector<WindowedNSHaloWorkspace<T>*>& ws_list,
+        const std::vector<Function<T, 3>*>& res_list,
+        windowed_halo_detail::WindowedNSHaloExchange<T>& ex) {
+        const std::size_t B = ws_list.size();
+        if (B == 0) return;
+        MADNESS_CHECK(world.size() > 1);
+        MADNESS_CHECK(res_list.size() == B && ex.num_slots() >= B);
+
+        const ProcessID me = world.rank();
+        const int nproc = world.size();
+        const TensorArgs full_targs(-1.0, TT_FULL);
+
+        // 1. Coalesced global promotion check (1 `gop.sum` across all `B` orbitals).
+        std::vector<long> promo_counts(B, 0L);
+        for (std::size_t b = 0; b < B; ++b) {
+            promo_counts[b] = ws_list[b]->count_local_promotions();
+        }
+        world.gop.sum(promo_counts.data(), promo_counts.size());
+
+        // 2. Local unpromoted bottom-up restriction + coalesced coarse-delta / virtual-subtree exchange (1 fence).
+        std::vector<std::vector<windowed_halo_detail::CoarseLeafDeltaMsg<T>>> delta_outbox(
+            static_cast<std::size_t>(nproc));
+        std::vector<std::vector<windowed_halo_detail::VirtualSubtreeItemMsg<T>>> subtree_outbox(
+            static_cast<std::size_t>(nproc));
+
+        bool any_slot_promoted = false;
+        for (std::size_t b = 0; b < B; ++b) {
+            auto* ws = ws_list[b];
+            const std::uint16_t slot = ws->slot_;
+            const long kk3 =
+                static_cast<long>(ws->k_) * static_cast<long>(ws->k_) * static_cast<long>(ws->k_);
+            if (promo_counts[b] == 0) {
+                auto leaf_contribs = ws->compute_local_leaf_contribs_unpromoted();
+                for (auto& item : leaf_contribs) {
+                    const ProcessID owner = ws->pmap_->owner(item.key);
+                    delta_outbox[static_cast<std::size_t>(owner)].push_back(
+                        windowed_halo_detail::CoarseLeafDeltaMsg<T>{
+                            item.key, item.min_source_key, std::move(item.ds), slot});
+                }
+            } else {
+                any_slot_promoted = true;
+                for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                    for (auto& vn : ws->levels_[static_cast<std::size_t>(j)].owned_virt) {
+                        if (!vn.promoted && vn.ds_corr.size() != kk3) continue;
+                        const ProcessID owner = ws->pmap_->owner(vn.coarse_leaf_key);
+                        subtree_outbox[static_cast<std::size_t>(owner)].push_back(
+                            windowed_halo_detail::VirtualSubtreeItemMsg<T>{
+                                vn.coarse_leaf_key,
+                                vn.key,
+                                static_cast<std::uint8_t>(vn.promoted ? 1u : 0u),
+                                vn.ds_corr,
+                                vn.ns_virt_out,
+                                slot});
+                    }
+                }
+            }
+        }
+
+        for (int p = 0; p < nproc; ++p) {
+            auto& db = delta_outbox[static_cast<std::size_t>(p)];
+            if (!db.empty()) {
+                if (p == me) {
+                    ex.recv_coarse_deltas(db);
+                } else {
+                    ex.send(static_cast<ProcessID>(p),
+                            &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_coarse_deltas,
+                            db);
+                }
+            }
+            auto& sb = subtree_outbox[static_cast<std::size_t>(p)];
+            if (!sb.empty()) {
+                if (p == me) {
+                    ex.recv_virtual_subtree_items(sb);
+                } else {
+                    ex.send(
+                        static_cast<ProcessID>(p),
+                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_virtual_subtree_items,
+                        sb);
+                }
+            }
+        }
+        world.gop.fence();
+
+        // 3. Apply received deltas / promoted subtrees + emit owned real nodes; coalesce all remote output inserts!
+        std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>> insert_outbox(
+            static_cast<std::size_t>(nproc));
+
+        for (std::size_t b = 0; b < B; ++b) {
+            auto* ws = ws_list[b];
+            auto* res_impl = res_list[b]->get_impl().get();
+            auto& res_coeffs = res_impl->get_coeffs();
+            const long kk3 =
+                static_cast<long>(ws->k_) * static_cast<long>(ws->k_) * static_cast<long>(ws->k_);
+
+            if (promo_counts[b] == 0) {
+                auto received = ex.take_coarse_deltas(ws->slot_);
+                std::sort(received.begin(),
+                          received.end(),
+                          [](const auto& a, const auto& b_msg) noexcept {
+                              if (a.leaf_key != b_msg.leaf_key) {
+                                  return windowed_halo_detail::windowed_key_less(
+                                      a.leaf_key, b_msg.leaf_key);
+                              }
+                              return windowed_halo_detail::windowed_key_less(
+                                  a.sort_tag_key, b_msg.sort_tag_key);
+                          });
+                for (const auto& msg : received) {
+                    const int blvl = static_cast<int>(msg.leaf_key.level());
+                    const std::size_t ridx = ws->find_owned_real_index(blvl, msg.leaf_key);
+                    MADNESS_CHECK(ridx != SIZE_MAX);
+                    T* dst =
+                        ws->levels_[static_cast<std::size_t>(blvl)].owned_real[ridx].s_out.ptr();
+                    aligned_axpy(kk3, dst, msg.delta_s.ptr(), 1.0);
+                }
+            } else {
+                auto local_items = ex.take_subtree_items(ws->slot_);
+                ws->apply_promoted_subtree_items(
+                    local_items, res_coeffs, full_targs, &insert_outbox);
+            }
+
+            for (int j = 1; j <= ws->n_max_tree_; ++j) {
+                std::vector<WindowedOwnedVirtNode<T>>().swap(
+                    ws->levels_[static_cast<std::size_t>(j)].owned_virt);
+            }
+
+            ws->emit_owned_real_nodes_nonstandard(res_coeffs, full_targs, &insert_outbox);
+        }
+
+        // 4. Single remote output-node insert fence (strictly skipped when no orbital had promotions!).
+        if (any_slot_promoted) {
+            for (int p = 0; p < nproc; ++p) {
+                auto& batch = insert_outbox[static_cast<std::size_t>(p)];
+                if (batch.empty()) continue;
+                if (p == me) {
+                    ex.recv_output_inserts(batch);
+                } else {
+                    ex.send(static_cast<ProcessID>(p),
+                            &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_output_inserts,
+                            batch);
+                }
+            }
+            world.gop.fence();
+
+            for (std::size_t b = 0; b < B; ++b) {
+                if (promo_counts[b] == 0) continue;
+                auto* ws = ws_list[b];
+                auto& res_coeffs = res_list[b]->get_impl()->get_coeffs();
+                for (auto& msg : ex.take_output_inserts(ws->slot_)) {
+                    GenTensor<T> coeff(msg.coeff, full_targs);
+                    res_coeffs.replace(msg.key, FunctionNode<T, 3>(coeff, msg.has_children != 0));
+                }
+            }
+        }
+
+        for (std::size_t b = 0; b < B; ++b) {
+            res_list[b]->get_impl()->set_tree_state(nonstandard_after_apply);
+        }
+    }
+
     /// Stage 5a + Stage 5b assembly:
     ///   1. Restrict all non-promoted virtual boundary corrections `\Delta\hat{s}^j_{V,corr}`
     ///      bottom-up (`j = n_max_tree -> 1`) onto their real coarse leaves `B in L`
@@ -1227,40 +2051,78 @@ public:
     ///   2. Populate `result` in `TreeState::nonstandard_after_apply` so a subsequent
     ///      `result.reconstruct(fence)` performs top-down NS synthesis cleanly.
     void assemble_output_nonstandard_tree(Function<T, 3>& result) {
-        const long kk = static_cast<long>(k_);
-        const long twok = 2L * kk;
-        const Slice s0(0, kk - 1);
+        if (world_.size() > 1) {
+            MADNESS_CHECK(exchange_ptr_ != nullptr);
+            assemble_output_nonstandard_lockstep(world_, {this}, {&result}, *exchange_ptr_);
+            return;
+        }
+
         auto* res_impl = result.get_impl().get();
         auto& res_coeffs = res_impl->get_coeffs();
         const TensorArgs full_targs(-1.0, TT_FULL);
 
-        long local_any_promoted = 0;
+        const long local_any_promoted = count_local_promotions();
+        if (local_any_promoted == 0) {
+            restrict_all_virtual_unpromoted();
+        } else {
+            const long kk3 = static_cast<long>(k_) * static_cast<long>(k_) * static_cast<long>(k_);
+            std::vector<windowed_halo_detail::VirtualSubtreeItemMsg<T>> local_items;
+            for (int j = 1; j <= n_max_tree_; ++j) {
+                for (auto& vn : levels_[static_cast<std::size_t>(j)].owned_virt) {
+                    if (!vn.promoted && vn.ds_corr.size() != kk3) continue;
+                    local_items.push_back(windowed_halo_detail::VirtualSubtreeItemMsg<T>{
+                        vn.coarse_leaf_key,
+                        vn.key,
+                        static_cast<std::uint8_t>(vn.promoted ? 1u : 0u),
+                        vn.ds_corr,
+                        vn.ns_virt_out,
+                        slot_});
+                }
+            }
+            apply_promoted_subtree_items(local_items, res_coeffs, full_targs, nullptr);
+        }
+        for (int j = 1; j <= n_max_tree_; ++j) {
+            std::vector<WindowedOwnedVirtNode<T>>().swap(
+                levels_[static_cast<std::size_t>(j)].owned_virt);
+        }
+
+        emit_owned_real_nodes_nonstandard(res_coeffs, full_targs, nullptr);
+        res_impl->set_tree_state(nonstandard_after_apply);
+    }
+
+private:
+    using KeyFlagVec = std::vector<std::pair<Key<3>, std::uint8_t>>;
+
+    struct RestrictAccum {
+        Key<3> key;
+        Key<3> coarse_leaf;
+        Key<3> min_source_key;
+        Tensor<T> ds;
+    };
+
+    long count_local_promotions() const noexcept {
+        long count = 0;
         for (int j = 0; j <= n_max_tree_; ++j) {
             for (const auto& rn : levels_[static_cast<std::size_t>(j)].owned_real) {
-                if (rn.promoted_leaf && j < max_refine_level_) ++local_any_promoted;
+                if (rn.promoted_leaf && j < max_refine_level_) ++count;
             }
             if (j >= 1) {
                 for (const auto& vn : levels_[static_cast<std::size_t>(j)].owned_virt) {
-                    if (vn.promoted && j < max_refine_level_) ++local_any_promoted;
+                    if (vn.promoted && j < max_refine_level_) ++count;
                 }
             }
         }
-        long global_any_promoted = local_any_promoted;
-        if (world_.size() > 1) {
-            world_.gop.sum(global_any_promoted);
-        }
+        return count;
+    }
 
-        if (global_any_promoted == 0) {
-            restrict_all_virtual_unpromoted();
-        } else {
-            restrict_and_split_promoted_virtual(res_coeffs, full_targs);
-        }
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            std::vector<WindowedOwnedVirtNode<T>>().swap(levels_[static_cast<std::size_t>(j)].owned_virt);
-        }
-
-        std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>> remote_child_inserts(
-            static_cast<std::size_t>(world_.size()));
+    void emit_owned_real_nodes_nonstandard(
+        typename FunctionImpl<T, 3>::dcT& res_coeffs,
+        const TensorArgs& full_targs,
+        std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>>* remote_outbox) {
+        const long kk = static_cast<long>(k_);
+        const long twok = 2L * kk;
+        const Slice s0(0, kk - 1);
+        const ProcessID me = world_.rank();
 
         for (int j = 0; j <= n_max_tree_; ++j) {
             auto& ld = levels_[static_cast<std::size_t>(j)];
@@ -1299,13 +2161,14 @@ public:
                     for (KeyChildIterator<3> kit(rn.key); kit; ++kit) {
                         const Key<3>& child = kit.key();
                         Tensor<T> zero_s(kk, kk, kk);
-                        const ProcessID owner = pmap_->owner(child);
-                        if (owner == world_.rank()) {
+                        const ProcessID owner = (world_.size() == 1) ? me : pmap_->owner(child);
+                        if (owner == me || remote_outbox == nullptr) {
                             GenTensor<T> c_coeff(zero_s, full_targs);
                             res_coeffs.replace(child, FunctionNode<T, 3>(c_coeff, false));
                         } else {
-                            remote_child_inserts[static_cast<std::size_t>(owner)].push_back(
-                                windowed_halo_detail::OutputNodeInsertMsg<T>{child, 0, std::move(zero_s)});
+                            (*remote_outbox)[static_cast<std::size_t>(owner)].push_back(
+                                windowed_halo_detail::OutputNodeInsertMsg<T>{
+                                    child, 0u, std::move(zero_s), slot_});
                         }
                     }
                 } else {
@@ -1315,29 +2178,7 @@ public:
                 }
             }
         }
-
-        if (world_.size() > 1) {
-            for (ProcessID p = 0; p < world_.size(); ++p) {
-                auto& batch = remote_child_inserts[static_cast<std::size_t>(p)];
-                if (!batch.empty()) {
-                    exchange_->send(p,
-                                    &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_output_inserts,
-                                    batch);
-                }
-            }
-            world_.gop.fence();
-            for (auto& msg : exchange_->take_output_inserts()) {
-                GenTensor<T> coeff(msg.coeff, full_targs);
-                res_coeffs.replace(msg.key, FunctionNode<T, 3>(coeff, msg.has_children != 0));
-            }
-            world_.gop.fence();
-        }
-
-        res_impl->set_tree_state(nonstandard_after_apply);
     }
-
-private:
-    using KeyFlagVec = std::vector<std::pair<Key<3>, std::uint8_t>>;
 
     void init_octant_filters() {
         for (int oct = 0; oct < 8; ++oct) {
@@ -1400,7 +2241,7 @@ private:
         return nullptr;
     }
 
-    void ingest_local_real_nodes(const Function<T, 3>& f_ns) {
+    void ingest_local_real_nodes_local_only(const Function<T, 3>& f_ns) {
         const long kk = static_cast<long>(k_);
         const auto& coeffs = f_ns.get_impl()->get_coeffs();
 
@@ -1474,6 +2315,43 @@ private:
             }
             levels_[sj].owned_real.push_back(std::move(rn));
         }
+    }
+
+    void finalize_ingested_global_stats(bool populate_coarse_leaf_cache) {
+        double coarse_leaf_max = 0.0;
+        for (int j = 0; j <= n_max_tree_; ++j) {
+            const std::size_t sj = static_cast<std::size_t>(j);
+            auto& st = global_stats_[sj];
+            st.max_coarse_leaf_above = coarse_leaf_max;
+            st.max_s_source = std::max(st.max_s_real, coarse_leaf_max);
+            coarse_leaf_max = std::max(coarse_leaf_max, st.max_s_leaf);
+
+            auto& ld = levels_[sj];
+            ld.global_has_internal = st.has_internal;
+            std::sort(ld.owned_real.begin(), ld.owned_real.end(), [](const auto& a, const auto& b) noexcept {
+                return windowed_halo_detail::windowed_key_less(a.key, b.key);
+            });
+            if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
+                ld.real_packed_keys.resize(ld.owned_real.size());
+                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
+                    ld.real_packed_keys[ri] =
+                        windowed_halo_detail::pack_spatial_key_same_level(ld.owned_real[ri].key);
+                }
+            }
+
+            if (populate_coarse_leaf_cache) {
+                auto& cl_vec = coarse_leaves_by_level_[sj];
+                for (const auto& rn : ld.owned_real) {
+                    if (!rn.is_internal) {
+                        cl_vec.emplace_back(rn.key, rn.s_in);
+                    }
+                }
+            }
+        }
+    }
+
+    void ingest_local_real_nodes(const Function<T, 3>& f_ns) {
+        ingest_local_real_nodes_local_only(f_ns);
 
         if (world_.size() > 1) {
             const std::size_t n_lvls = static_cast<std::size_t>(n_max_tree_ + 1);
@@ -1497,36 +2375,7 @@ private:
             }
         }
 
-        double coarse_leaf_max = 0.0;
-        for (int j = 0; j <= n_max_tree_; ++j) {
-            const std::size_t sj = static_cast<std::size_t>(j);
-            auto& st = global_stats_[sj];
-            st.max_coarse_leaf_above = coarse_leaf_max;
-            st.max_s_source = std::max(st.max_s_real, coarse_leaf_max);
-            coarse_leaf_max = std::max(coarse_leaf_max, st.max_s_leaf);
-
-            auto& ld = levels_[sj];
-            ld.global_has_internal = st.has_internal;
-            std::sort(ld.owned_real.begin(), ld.owned_real.end(), [](const auto& a, const auto& b) noexcept {
-                return windowed_halo_detail::windowed_key_less(a.key, b.key);
-            });
-            if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
-                ld.real_packed_keys.resize(ld.owned_real.size());
-                for (std::size_t ri = 0; ri < ld.owned_real.size(); ++ri) {
-                    ld.real_packed_keys[ri] =
-                        windowed_halo_detail::pack_spatial_key_same_level(ld.owned_real[ri].key);
-                }
-            }
-
-            if (world_.size() > 1) {
-                auto& cl_vec = coarse_leaves_by_level_[sj];
-                for (const auto& rn : ld.owned_real) {
-                    if (!rn.is_internal) {
-                        cl_vec.emplace_back(rn.key, rn.s_in);
-                    }
-                }
-            }
-        }
+        finalize_ingested_global_stats(world_.size() > 1);
 
         if (world_.size() == 1 && dynamic_refine_ && ungraded_leaf_refine_only_) {
             populate_serial_internal_child_masks();
@@ -1787,6 +2636,8 @@ private:
         struct RawCompEntry {
             Key<3> key;
             const FunctionNode<T, 3>* node = nullptr;
+            double sub_d_norm2 = 0.0;
+            bool keep_internal = false;
         };
         std::vector<std::vector<RawCompEntry>> raw_by_level(
             static_cast<std::size_t>(n_max_tree_ + 1));
@@ -1794,7 +2645,7 @@ private:
             const int j = static_cast<int>(it->first.level());
             if (j >= 0 && j <= n_max_tree_) {
                 raw_by_level[static_cast<std::size_t>(j)].push_back(
-                    RawCompEntry{it->first, &(it->second)});
+                    RawCompEntry{it->first, &(it->second), 0.0, false});
             }
         }
         for (int j = 0; j <= n_max_tree_; ++j) {
@@ -1803,20 +2654,6 @@ private:
                 return windowed_halo_detail::windowed_key_less(a.key, b.key);
             });
         }
-
-        auto find_raw = [&](int j, const Key<3>& key) noexcept -> const FunctionNode<T, 3>* {
-            if (j < 0 || j > n_max_tree_) return nullptr;
-            const auto& vec = raw_by_level[static_cast<std::size_t>(j)];
-            const auto it = std::lower_bound(
-                vec.begin(),
-                vec.end(),
-                key,
-                [](const RawCompEntry& e, const Key<3>& k) noexcept {
-                    return windowed_halo_detail::windowed_key_less(e.key, k);
-                });
-            if (it != vec.end() && it->key == key) return it->node;
-            return nullptr;
-        };
 
         auto extract_node_tensor = [](const FunctionNode<T, 3>* fn) -> Tensor<T> {
             if (fn == nullptr || !fn->has_coeff()) return Tensor<T>();
@@ -1827,10 +2664,150 @@ private:
             return is_contig_full ? gen_c.get_tensor() : gen_c.full_tensor_copy();
         };
 
+        auto raw_node_is_internal = [&](int j, const FunctionNode<T, 3>* fn) -> bool {
+            if (fn == nullptr || j >= n_max_tree_) return false;
+            if (fn->has_children()) return true;
+            if (fn->has_coeff()) {
+                const auto& gen_c = fn->coeff();
+                if (gen_c.has_data() && gen_c.ndim() == 3 && gen_c.dim(0) == twok) {
+                    if (j > 0) return true;
+                    const Tensor<T> full_c = extract_node_tensor(fn);
+                    return windowed_halo_detail::wavelet_octants_normf(full_c, k_) > 0.0;
+                }
+            }
+            return false;
+        };
+
+        const bool use_subtree_prune =
+            (serial_range_.subtree_d_tol != nullptr &&
+             serial_range_.subtree_d_tol->size() >= static_cast<std::size_t>(n_max_tree_ + 1));
+
+        if (use_subtree_prune && n_max_tree_ >= 1) {
+            // Ensure every present node at level j >= 1 has its parent key in `raw_by_level[j - 1]`
+            // (handles sparse compressed trees from `vtransform` with omitted intermediate nodes).
+            std::vector<Key<3>> missing_pars;
+            for (int j = n_max_tree_; j >= 1; --j) {
+                const auto& cur_vec = raw_by_level[static_cast<std::size_t>(j)];
+                if (cur_vec.empty()) continue;
+                auto& par_vec = raw_by_level[static_cast<std::size_t>(j - 1)];
+                missing_pars.clear();
+                for (const auto& ce : cur_vec) {
+                    if (ce.node != nullptr && !raw_node_is_internal(j, ce.node)) continue;
+                    const Key<3> par = ce.key.parent();
+                    const auto pit = std::lower_bound(
+                        par_vec.begin(), par_vec.end(), par,
+                        [](const RawCompEntry& e, const Key<3>& k) noexcept {
+                            return windowed_halo_detail::windowed_key_less(e.key, k);
+                        });
+                    if (pit == par_vec.end() || pit->key != par) {
+                        missing_pars.push_back(par);
+                    }
+                }
+                if (!missing_pars.empty()) {
+                    windowed_halo_detail::sort_unique_keys(missing_pars);
+                    std::vector<RawCompEntry> merged;
+                    merged.reserve(par_vec.size() + missing_pars.size());
+                    std::size_t ia = 0, ib = 0;
+                    while (ia < par_vec.size() && ib < missing_pars.size()) {
+                        if (windowed_halo_detail::windowed_key_less(par_vec[ia].key, missing_pars[ib])) {
+                            merged.push_back(par_vec[ia++]);
+                        } else {
+                            merged.push_back(RawCompEntry{missing_pars[ib++], nullptr, 0.0, false});
+                        }
+                    }
+                    while (ia < par_vec.size()) merged.push_back(par_vec[ia++]);
+                    while (ib < missing_pars.size()) {
+                        merged.push_back(RawCompEntry{missing_pars[ib++], nullptr, 0.0, false});
+                    }
+                    par_vec.swap(merged);
+                }
+            }
+
+            // Bottom-up exact wavelet-detail L2 norm accumulation & operator-weighted pruning.
+            for (int j = n_max_tree_ - 1; j >= 0; --j) {
+                auto& vec = raw_by_level[static_cast<std::size_t>(j)];
+                if (vec.empty()) continue;
+                windowed_parallel_detail::parallel_for_chunks(
+                    vec.size(),
+                    16,
+                    [&](std::size_t b, std::size_t e_hi, std::size_t) {
+                        for (std::size_t idx = b; idx < e_hi; ++idx) {
+                            auto& e = vec[idx];
+                            if (e.node != nullptr && e.node->has_coeff()) {
+                                const auto& gen_c = e.node->coeff();
+                                if (gen_c.has_data() && gen_c.ndim() == 3 && gen_c.dim(0) == twok) {
+                                    const Tensor<T> full_c = extract_node_tensor(e.node);
+                                    const double dn =
+                                        windowed_halo_detail::wavelet_octants_normf(full_c, k_);
+                                    e.sub_d_norm2 += dn * dn;
+                                }
+                            }
+                            const bool can_be_int =
+                                (j < n_max_tree_) &&
+                                ((e.node == nullptr) || raw_node_is_internal(j, e.node));
+                            if (j <= 1) {
+                                // Match `FunctionImpl::truncate_op` (`key.level() > 1`): never prune `j <= 1`.
+                                e.keep_internal = e.keep_internal || can_be_int;
+                            } else if (!e.keep_internal && can_be_int) {
+                                const double dtol =
+                                    (*serial_range_.subtree_d_tol)[static_cast<std::size_t>(j)];
+                                if (e.sub_d_norm2 > dtol * dtol) {
+                                    e.keep_internal = true;
+                                }
+                            }
+                        }
+                    });
+
+                if (j >= 1) {
+                    auto& par_vec = raw_by_level[static_cast<std::size_t>(j - 1)];
+                    for (const auto& ce : vec) {
+                        if (!ce.keep_internal && !(ce.sub_d_norm2 > 0.0)) continue;
+                        const Key<3> par = ce.key.parent();
+                        auto pit = std::lower_bound(
+                            par_vec.begin(), par_vec.end(), par,
+                            [](const RawCompEntry& e, const Key<3>& k) noexcept {
+                                return windowed_halo_detail::windowed_key_less(e.key, k);
+                            });
+                        if (pit != par_vec.end() && pit->key == par) {
+                            pit->sub_d_norm2 += ce.sub_d_norm2;
+                            if (ce.keep_internal) {
+                                pit->keep_internal = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        auto find_raw_entry = [&](int j, const Key<3>& key) noexcept -> const RawCompEntry* {
+            if (j < 0 || j > n_max_tree_) return nullptr;
+            const auto& vec = raw_by_level[static_cast<std::size_t>(j)];
+            const auto it = std::lower_bound(
+                vec.begin(),
+                vec.end(),
+                key,
+                [](const RawCompEntry& e, const Key<3>& k) noexcept {
+                    return windowed_halo_detail::windowed_key_less(e.key, k);
+                });
+            if (it != vec.end() && it->key == key) return &(*it);
+            return nullptr;
+        };
+
+        auto find_raw = [&](int j, const Key<3>& key) noexcept -> const FunctionNode<T, 3>* {
+            const RawCompEntry* re = find_raw_entry(j, key);
+            return (re != nullptr) ? re->node : nullptr;
+        };
+
         auto is_comp_internal = [&](int j,
+                                    const Key<3>& key,
                                     const FunctionNode<T, 3>* fn,
                                     const Tensor<T>& full_c) -> bool {
-            if (fn == nullptr || j >= n_max_tree_) return false;
+            if (j >= n_max_tree_) return false;
+            if (use_subtree_prune && n_max_tree_ >= 1) {
+                const RawCompEntry* re = find_raw_entry(j, key);
+                return (re != nullptr) && re->keep_internal;
+            }
+            if (fn == nullptr) return false;
             if (fn->has_children()) return true;
             if (full_c.ndim() == 3 && full_c.dim(0) == twok) {
                 if (j > 0) return true;
@@ -1863,7 +2840,7 @@ private:
 
             WindowedOwnedRealNode<T> root_rn;
             root_rn.key = k0;
-            root_rn.is_internal = is_comp_internal(0, fn0, c0);
+            root_rn.is_internal = is_comp_internal(0, k0, fn0, c0);
             root_rn.s_out = Tensor<T>(kk, kk, kk);
             root_rn.s_in = (c0.size() > 0) ? windowed_halo_detail::extract_scaling_cube(c0, k_)
                                            : Tensor<T>(kk, kk, kk);
@@ -1892,7 +2869,7 @@ private:
 
                     WindowedOwnedRealNode<T> ch_rn;
                     ch_rn.key = ch;
-                    ch_rn.is_internal = is_comp_internal(1, fn_ch, c_ch);
+                    ch_rn.is_internal = is_comp_internal(1, ch, fn_ch, c_ch);
                     ch_rn.s_in = copy(unf_2k(cdata_.s[cl[0] & 1],
                                              cdata_.s[cl[1] & 1],
                                              cdata_.s[cl[2] & 1]));
@@ -1998,7 +2975,7 @@ private:
 
                                 WindowedOwnedRealNode<T>& ch_rn = next_nodes[base_out + oct];
                                 ch_rn.key = ch;
-                                ch_rn.is_internal = is_comp_internal(j + 1, fn_ch, c_ch);
+                                ch_rn.is_internal = is_comp_internal(j + 1, ch, fn_ch, c_ch);
                                 ch_rn.s_in = copy(unf_2k(cdata_.s[cl[0] & 1],
                                                          cdata_.s[cl[1] & 1],
                                                          cdata_.s[cl[2] & 1]));
@@ -2032,7 +3009,7 @@ private:
 
                                 WindowedOwnedRealNode<T>& ch_rn = next_nodes[base_out + oct];
                                 ch_rn.key = ch;
-                                ch_rn.is_internal = is_comp_internal(j + 1, fn_ch, c_ch);
+                                ch_rn.is_internal = is_comp_internal(j + 1, ch, fn_ch, c_ch);
                                 ch_rn.s_in = Tensor<T>(3L, k_dims, false);
                                 windowed_halo_detail::prolong_step_3d(
                                     h_oct_, rn.s_in, ch, ch_rn.s_in, w1_k3);
@@ -2645,442 +3622,8 @@ private:
     // Multi-Rank Distributed Build (`world.size() > 1`)
     // =========================================================================
     void build_distributed(const Function<T, 3>& f_ns, const RadiiBuilderFn& radii_builder) {
-        const ProcessID me = world_.rank();
-        const int nproc = world_.size();
-
-        ingest_local_real_nodes(f_ns);
-        radii_builder(global_stats_, radii_);
-
-        if (dynamic_refine_ && ungraded_leaf_refine_only_ && n_max_tree_ >= 1) {
-            std::vector<KeyFlagVec> parent_mask_vecs(static_cast<std::size_t>(nproc));
-            for (int j = 1; j <= n_max_tree_; ++j) {
-                for (const auto& ch : levels_[static_cast<std::size_t>(j)].owned_real) {
-                    if (!ch.is_internal) continue;
-                    const Key<3> par = ch.key.parent();
-                    const int oct = windowed_halo_detail::child_octant_index(ch.key);
-                    const ProcessID owner = pmap_->owner(par);
-                    parent_mask_vecs[static_cast<std::size_t>(owner)].emplace_back(
-                        par, static_cast<std::uint8_t>(1u << oct));
-                }
-            }
-            for (int p = 0; p < nproc; ++p) {
-                auto& vec = parent_mask_vecs[static_cast<std::size_t>(p)];
-                if (vec.empty()) continue;
-                windowed_halo_detail::sort_and_merge_key_flags(vec);
-                std::vector<windowed_halo_detail::HaloCandidateMsg> batch;
-                batch.reserve(vec.size());
-                for (const auto& kv : vec) {
-                    batch.push_back(windowed_halo_detail::HaloCandidateMsg{kv.first, kv.second});
-                }
-                if (p == me) {
-                    exchange_->recv_halo_candidates(batch);
-                } else {
-                    exchange_->send(
-                        static_cast<ProcessID>(p),
-                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_halo_candidates,
-                        batch);
-                }
-            }
-            world_.gop.fence();
-            for (const auto& msg : exchange_->take_halo_candidates()) {
-                const int pj = static_cast<int>(msg.key.level());
-                const std::size_t pidx = find_owned_real_index(pj, msg.key);
-                if (pidx != SIZE_MAX) {
-                    auto& prn = levels_[static_cast<std::size_t>(pj)].owned_real[pidx];
-                    prn.internal_child_mask =
-                        static_cast<std::uint8_t>(prn.internal_child_mask | msg.flags);
-                }
-            }
-        }
-
-        // 2. Collective Exchange 1: Discover owned H1 virtual halo nodes & near_internal real leaves.
-        std::vector<KeyFlagVec> out_cand_vecs(static_cast<std::size_t>(nproc));
-
-        auto emit_candidate = [&](const Key<3>& nb, std::uint8_t flag_bits) {
-            const ProcessID owner = pmap_->owner(nb);
-            out_cand_vecs[static_cast<std::size_t>(owner)].emplace_back(nb, flag_bits);
-        };
-
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            const auto& ld = levels_[static_cast<std::size_t>(j)];
-            const WindowedLevelRadii& rad = radii_[static_cast<std::size_t>(j)];
-            const bool can_refine_j = dynamic_refine_ && (j < max_refine_level_);
-
-            if (rad.has_T_terms && rad.m_max_T >= 1) {
-                for (const auto& rn : ld.owned_real) {
-                    const int mT_rn =
-                        (rad.m_max_T >= 2 && (!dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
-                            ? rad.m_max_T
-                            : std::min(rad.m_max_T, 1);
-                    for (int dx = -mT_rn; dx <= mT_rn; ++dx) {
-                        for (int dy = -mT_rn; dy <= mT_rn; ++dy) {
-                            for (int dz = -mT_rn; dz <= mT_rn; ++dz) {
-                                if (dx == 0 && dy == 0 && dz == 0) continue;
-                                Key<3> nb;
-                                if (windowed_halo_detail::shift_key_in_domain(
-                                        rn.key, dx, dy, dz, is_periodic_, nb)) {
-                                    emit_candidate(nb, kHaloH1T);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (ld.global_has_internal) {
-                const int m1 = rad.has_4b1_terms ? rad.m_max_4b1 : -1;
-                const int m2 = (can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
-                if (std::max(m1, m2) >= 1) {
-                    for (const auto& rn : ld.owned_real) {
-                        if (!rn.is_internal) continue;
-                        const int m1_rn =
-                            (m1 >= 2 && (!dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
-                                ? m1
-                                : std::min(m1, 1);
-                        const int m2_rn = m2;
-                        const int m_emit_rn = std::max(m1_rn, m2_rn);
-                        if (m_emit_rn < 1) continue;
-                        for (int dx = -m_emit_rn; dx <= m_emit_rn; ++dx) {
-                            for (int dy = -m_emit_rn; dy <= m_emit_rn; ++dy) {
-                                for (int dz = -m_emit_rn; dz <= m_emit_rn; ++dz) {
-                                    if (dx == 0 && dy == 0 && dz == 0) continue;
-                                    const int sh = std::max({std::abs(dx), std::abs(dy), std::abs(dz)});
-                                    Key<3> nb;
-                                    if (windowed_halo_detail::shift_key_in_domain(
-                                            rn.key, dx, dy, dz, is_periodic_, nb)) {
-                                        std::uint8_t bits = 0u;
-                                        if (sh <= m1_rn) bits = static_cast<std::uint8_t>(bits | kHaloH1Gamma);
-                                        if (sh <= m2_rn) {
-                                            bits = static_cast<std::uint8_t>(bits | kHaloH1Refine);
-                                            if (!ungraded_leaf_refine_only_ ||
-                                                windowed_halo_detail::has_ungraded_child_toward(
-                                                    rn.internal_child_mask, dx, dy, dz)) {
-                                                bits = static_cast<std::uint8_t>(
-                                                    bits | kHaloH1RefineLeafUngraded);
-                                            }
-                                        }
-                                        if (bits != 0u) emit_candidate(nb, bits);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for (int p = 0; p < nproc; ++p) {
-            auto& vec = out_cand_vecs[static_cast<std::size_t>(p)];
-            if (vec.empty()) continue;
-            windowed_halo_detail::sort_and_merge_key_flags(vec);
-            std::vector<windowed_halo_detail::HaloCandidateMsg> batch;
-            batch.reserve(vec.size());
-            for (const auto& kv : vec) {
-                batch.push_back(windowed_halo_detail::HaloCandidateMsg{kv.first, kv.second});
-            }
-            if (p == me) {
-                exchange_->recv_halo_candidates(batch);
-            } else {
-                exchange_->send(static_cast<ProcessID>(p),
-                                &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_halo_candidates,
-                                batch);
-            }
-        }
-        world_.gop.fence();
-
-        std::vector<KeyFlagVec> virt_flags(static_cast<std::size_t>(n_max_tree_ + 1));
-        for (const auto& cand : exchange_->take_halo_candidates()) {
-            const int j = static_cast<int>(cand.key.level());
-            const std::size_t ridx = find_owned_real_index(j, cand.key);
-            if (ridx != SIZE_MAX) {
-                auto& rn = levels_[static_cast<std::size_t>(j)].owned_real[ridx];
-                if (!rn.is_internal) {
-                    if ((cand.flags & kHaloH1Gamma) != 0) rn.near_internal_4b1 = true;
-                    if ((cand.flags & kHaloH1RefineLeafUngraded) != 0) rn.near_internal_4b2 = true;
-                }
-            } else {
-                const std::uint8_t vflags = static_cast<std::uint8_t>(
-                    cand.flags & static_cast<std::uint8_t>(~kHaloH1RefineLeafUngraded));
-                if (vflags != 0u) {
-                    virt_flags[static_cast<std::size_t>(j)].emplace_back(cand.key, vflags);
-                }
-            }
-        }
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            windowed_halo_detail::sort_and_merge_key_flags(virt_flags[static_cast<std::size_t>(j)]);
-        }
-
-        // 3. Determine needed scaling+virtual stencil sources (`needed_virt_capable`) vs
-        //    strictly real-node stencil sources (`needed_real_only`) at each level j >= 1.
-        std::vector<std::vector<Key<3>>> needed_virt_capable(static_cast<std::size_t>(n_max_tree_ + 1));
-        std::vector<std::vector<Key<3>>> needed_real_only(static_cast<std::size_t>(n_max_tree_ + 1));
-
-        auto add_ring_to = [&](std::vector<Key<3>>& dst, const Key<3>& center, int radius) {
-            if (radius < 0) return;
-            for (int dx = -radius; dx <= radius; ++dx) {
-                for (int dy = -radius; dy <= radius; ++dy) {
-                    for (int dz = -radius; dz <= radius; ++dz) {
-                        Key<3> nb;
-                        if (windowed_halo_detail::shift_key_in_domain(
-                                center, dx, dy, dz, is_periodic_, nb)) {
-                            dst.push_back(nb);
-                        }
-                    }
-                }
-            }
-        };
-
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            const std::size_t sj = static_cast<std::size_t>(j);
-            const auto& ld = levels_[sj];
-            const WindowedLevelRadii& rad = radii_[sj];
-            const auto& vf = virt_flags[sj];
-            const bool can_refine_j = dynamic_refine_ && (j < max_refine_level_);
-            const double max_cl_above = global_stats_[sj].max_coarse_leaf_above;
-            auto& vc_vec = needed_virt_capable[sj];
-            auto& ro_vec = needed_real_only[sj];
-
-            if (rad.has_T_terms && rad.m_max_T >= 1) {
-                const int mT_h2 =
-                    (rad.m_max_T >= 2 && (!dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                        ? rad.m_max_T
-                        : std::min(rad.m_max_T, 1);
-                for (const auto& rn : ld.owned_real) {
-                    const int mT_rn =
-                        (rad.m_max_T >= 2 && (!dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
-                            ? rad.m_max_T
-                            : std::min(rad.m_max_T, 1);
-                    add_ring_to(vc_vec, rn.key, mT_rn);
-                    if (rad.m_max_T > mT_rn) {
-                        add_ring_to(ro_vec, rn.key, rad.m_max_T);
-                    }
-                }
-                for (const auto& kv : vf) {
-                    if ((kv.second & kHaloH1T) != 0) {
-                        add_ring_to(vc_vec, kv.first, mT_h2);
-                        if (rad.m_max_T > mT_h2) {
-                            add_ring_to(ro_vec, kv.first, rad.m_max_T);
-                        }
-                    }
-                }
-            }
-
-            if (ld.global_has_internal) {
-                if (rad.has_4b1_terms && rad.m_max_4b1 >= 1) {
-                    const int m1 = rad.m_max_4b1;
-                    for (const auto& rn : ld.owned_real) {
-                        if (rn.is_internal || rn.near_internal_4b1) {
-                            add_ring_to(ro_vec, rn.key, m1);
-                        }
-                    }
-                    for (const auto& kv : vf) {
-                        if ((kv.second & kHaloH1Gamma) != 0) {
-                            add_ring_to(ro_vec, kv.first, m1);
-                        }
-                    }
-                }
-
-                if (rad.has_4b2_int_terms && rad.m_max_4b2_int >= 1) {
-                    const int mInt = rad.m_max_4b2_int;
-                    for (const auto& rn : ld.owned_real) {
-                        if (rn.is_internal || (can_refine_j && rn.near_internal_4b2)) {
-                            add_ring_to(ro_vec, rn.key, mInt);
-                        }
-                    }
-                    if (can_refine_j) {
-                        for (const auto& kv : vf) {
-                            if ((kv.second & kHaloH1Refine) != 0) {
-                                add_ring_to(ro_vec, kv.first, mInt);
-                            }
-                        }
-                    }
-                }
-
-                if (rad.has_4b2_leaf_terms && rad.m_max_4b2_leaf >= 1) {
-                    const int mLeaf = rad.m_max_4b2_leaf;
-                    const int mLeaf_h2 =
-                        (mLeaf >= 2 && (!dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                            ? mLeaf
-                            : std::min(mLeaf, 1);
-                    for (const auto& rn : ld.owned_real) {
-                        if (rn.is_internal || (can_refine_j && rn.near_internal_4b2)) {
-                            add_ring_to(vc_vec, rn.key, mLeaf_h2);
-                            if (mLeaf > mLeaf_h2) {
-                                add_ring_to(ro_vec, rn.key, mLeaf);
-                            }
-                        }
-                    }
-                    if (can_refine_j) {
-                        for (const auto& kv : vf) {
-                            if ((kv.second & kHaloH1Refine) != 0) {
-                                add_ring_to(vc_vec, kv.first, mLeaf_h2);
-                                if (mLeaf > mLeaf_h2) {
-                                    add_ring_to(ro_vec, kv.first, mLeaf);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            windowed_halo_detail::sort_unique_keys(vc_vec);
-            windowed_halo_detail::sort_unique_keys(ro_vec);
-        }
-
-        std::vector<KeyFlagVec> query_vecs(static_cast<std::size_t>(nproc));
-
-        auto register_query_chain = [&](const Key<3>& start_key) {
-            const int j_start = static_cast<int>(start_key.level());
-            if (pmap_->owner(start_key) == me && find_owned_real_index(j_start, start_key) != SIZE_MAX) {
-                return;
-            }
-            if (pmap_->owner(start_key) != me) {
-                query_vecs[static_cast<std::size_t>(pmap_->owner(start_key))].emplace_back(start_key, 1u);
-            }
-
-            Key<3> curr = start_key;
-            while (curr.level() > 0) {
-                curr = curr.parent();
-                const int clvl = static_cast<int>(curr.level());
-                const ProcessID owner = pmap_->owner(curr);
-                if (owner == me) {
-                    if (find_owned_real_index(clvl, curr) != SIZE_MAX) {
-                        break;
-                    }
-                } else {
-                    query_vecs[static_cast<std::size_t>(owner)].emplace_back(curr, 0u);
-                }
-            }
-        };
-
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            for (const Key<3>& skey : needed_virt_capable[static_cast<std::size_t>(j)]) {
-                register_query_chain(skey);
-            }
-            for (const auto& kv : virt_flags[static_cast<std::size_t>(j)]) {
-                register_query_chain(kv.first);
-            }
-            for (const Key<3>& rkey : needed_real_only[static_cast<std::size_t>(j)]) {
-                const ProcessID owner = pmap_->owner(rkey);
-                if (owner != me) {
-                    query_vecs[static_cast<std::size_t>(owner)].emplace_back(rkey, 1u);
-                }
-            }
-        }
-
-        for (int p = 0; p < nproc; ++p) {
-            auto& qv = query_vecs[static_cast<std::size_t>(p)];
-            if (qv.empty()) continue;
-            windowed_halo_detail::sort_and_merge_key_flags(qv);
-            std::vector<windowed_halo_detail::KeyQueryMsg> batch;
-            batch.reserve(qv.size());
-            for (const auto& kv : qv) {
-                batch.push_back(windowed_halo_detail::KeyQueryMsg{kv.first, kv.second});
-            }
-            exchange_->send(static_cast<ProcessID>(p),
-                            &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_key_queries,
-                            me,
-                            batch);
-        }
-        world_.gop.fence();
-
-        for (const auto& [requester, queries] : exchange_->take_key_queries()) {
-            std::vector<windowed_halo_detail::KeyReplyMsg<T>> replies;
-            replies.reserve(queries.size());
-            for (const auto& q : queries) {
-                const int qlvl = static_cast<int>(q.key.level());
-                if (qlvl < 0 || qlvl > n_max_tree_) continue;
-                const std::size_t ridx = find_owned_real_index(qlvl, q.key);
-                if (ridx == SIZE_MAX) continue;
-
-                const auto& rn = levels_[static_cast<std::size_t>(qlvl)].owned_real[ridx];
-                if (!rn.is_internal) {
-                    replies.push_back(windowed_halo_detail::KeyReplyMsg<T>{rn.key, 0u, rn.s_in});
-                } else if (q.need_internal_ns != 0) {
-                    replies.push_back(windowed_halo_detail::KeyReplyMsg<T>{rn.key, 1u, rn.ns_in});
-                }
-            }
-            if (!replies.empty()) {
-                exchange_->send(requester,
-                                &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_key_replies,
-                                replies);
-            }
-        }
-        world_.gop.fence();
-
-        // Ingest remote real nodes & remote coarse leaves.
-        std::vector<WindowedSourceEntry<T>> remote_real_same_level;
-        for (auto& rep : exchange_->take_key_replies()) {
-            const int rlvl = static_cast<int>(rep.key.level());
-            if (rep.is_internal == 0) {
-                if (rlvl >= 0 && rlvl <= n_max_tree_) {
-                    coarse_leaves_by_level_[static_cast<std::size_t>(rlvl)].emplace_back(
-                        rep.key, rep.coeff);
-                }
-                WindowedSourceEntry<T> se;
-                se.key = rep.key;
-                se.is_internal = false;
-                se.s_coeff = rep.coeff.iscontiguous() ? rep.coeff : copy(rep.coeff);
-                windowed_halo_detail::compute_scaling_norms_readonly(
-                    se.s_coeff, se.s000, se.s_osc_norm2, se.s_normf);
-                se.ns_normf = se.s_normf;
-                remote_real_same_level.push_back(std::move(se));
-            } else {
-                WindowedSourceEntry<T> se;
-                se.key = rep.key;
-                se.is_internal = true;
-                se.s_coeff = windowed_halo_detail::extract_scaling_cube(rep.coeff, k_);
-                windowed_halo_detail::compute_scaling_norms_readonly(
-                    se.s_coeff, se.s000, se.s_osc_norm2, se.s_normf);
-                se.ns_coeff = rep.coeff;
-                se.d_normf = windowed_halo_detail::wavelet_octants_normf(rep.coeff, k_);
-                se.ns_normf = std::sqrt(se.s_normf * se.s_normf + se.d_normf * se.d_normf);
-                remote_real_same_level.push_back(std::move(se));
-            }
-        }
-
-        for (int j = 0; j <= n_max_tree_; ++j) {
-            auto& cl = coarse_leaves_by_level_[static_cast<std::size_t>(j)];
-            std::sort(cl.begin(), cl.end(), [](const auto& a, const auto& b) noexcept {
-                return windowed_halo_detail::windowed_key_less(a.first, b.first);
-            });
-            cl.erase(std::unique(cl.begin(), cl.end(), [](const auto& a, const auto& b) noexcept {
-                         return a.first == b.first;
-                     }),
-                     cl.end());
-        }
-
-        std::sort(remote_real_same_level.begin(),
-                  remote_real_same_level.end(),
-                  [](const auto& a, const auto& b) noexcept {
-                      return windowed_halo_detail::windowed_key_less(a.key, b.key);
-                  });
-        remote_real_same_level.erase(
-            std::unique(remote_real_same_level.begin(),
-                        remote_real_same_level.end(),
-                        [](const auto& a, const auto& b) noexcept { return a.key == b.key; }),
-            remote_real_same_level.end());
-
-        // Mark any needed scaling/virtual source at level j that is neither local real nor remote real as `kHaloH2Ghost`.
-        for (int j = 1; j <= n_max_tree_; ++j) {
-            auto& vf = virt_flags[static_cast<std::size_t>(j)];
-            std::vector<Key<3>> h2_add;
-            for (const Key<3>& skey : needed_virt_capable[static_cast<std::size_t>(j)]) {
-                if (find_owned_real_index(j, skey) != SIZE_MAX) continue;
-                if (find_windowed_source(remote_real_same_level, skey) != nullptr) continue;
-                if (!windowed_halo_detail::contains_sorted_key_flag(vf, skey)) {
-                    h2_add.push_back(skey);
-                }
-            }
-            if (!h2_add.empty()) {
-                for (const Key<3>& k_add : h2_add) {
-                    vf.emplace_back(k_add, kHaloH2Ghost);
-                }
-                windowed_halo_detail::sort_and_merge_key_flags(vf);
-            }
-        }
-
-        populate_prolonged_virtual_and_sources(virt_flags, remote_real_same_level);
+        MADNESS_CHECK(exchange_ptr_ != nullptr);
+        build_distributed_lockstep(world_, {this}, {&f_ns}, {radii_builder}, *exchange_ptr_);
     }
 
     // =========================================================================
@@ -3333,16 +3876,9 @@ private:
     // =========================================================================
     // Stage 5a Fast Path: Bottom-Up Virtual Restriction (Flat Sorted Vectors)
     // =========================================================================
-    void restrict_all_virtual_unpromoted() {
+    std::vector<RestrictAccum> compute_local_leaf_contribs_unpromoted() {
         const long kk = static_cast<long>(k_);
         const long kk3 = kk * kk * kk;
-
-        struct RestrictAccum {
-            Key<3> key;
-            Key<3> coarse_leaf;
-            Key<3> min_source_key;
-            Tensor<T> ds;
-        };
 
         auto sort_and_merge_accum = [kk3](std::vector<RestrictAccum>& vec) {
             if (vec.size() <= 1) return;
@@ -3377,12 +3913,6 @@ private:
             for (const auto& vn : ov) {
                 if (vn.ds_corr.size() == kk3 &&
                     windowed_halo_detail::is_cube_nonzero_readonly(vn.ds_corr)) {
-                    // Note: if `sort_and_merge_accum` merges two entries at level `j - 1`, the target
-                    // at level `j - 1` was either newly allocated (`ensure_parent_slots`) or came from
-                    // `ov[j - 1]`; `copy(vn.ds_corr)` is only needed if `acc_j` could be mutated in-place,
-                    // which happens when an ancestor virtual node ALSO exists in `ov` AND receives restricted
-                    // child deltas. On `j == n_max_tree_`, no child level exists so `vn.ds_corr` is strictly
-                    // read-only (`O(1)` shallow handle)!
                     acc_j.push_back(RestrictAccum{
                         vn.key,
                         vn.coarse_leaf_key,
@@ -3408,8 +3938,6 @@ private:
             if (acc_j.empty()) continue;
             sort_and_merge_accum(acc_j);
 
-            // Pre-insert unique parent slots into `leaf_contribs` and `accum_levels[j - 1]`
-            // so parent-grouped restriction runs in exact sorted `vkey` order without hash tables.
             std::vector<RestrictAccum> new_leaf_parents;
             std::vector<RestrictAccum> new_virt_parents;
             for (const auto& item : acc_j) {
@@ -3548,113 +4076,36 @@ private:
                 });
         }
 
-        if (world_.size() == 1) {
-            for (const auto& item : leaf_contribs) {
-                const int blvl = static_cast<int>(item.key.level());
-                const std::size_t ridx = find_owned_real_index(blvl, item.key);
-                MADNESS_CHECK(ridx != SIZE_MAX);
-                T* dst = levels_[static_cast<std::size_t>(blvl)].owned_real[ridx].s_out.ptr();
-                aligned_axpy(kk3, dst, item.ds.ptr(), 1.0);
-            }
-            return;
-        }
+        return leaf_contribs;
+    }
 
-        const ProcessID me = world_.rank();
-        std::vector<std::vector<windowed_halo_detail::CoarseLeafDeltaMsg<T>>> outbox(
-            static_cast<std::size_t>(world_.size()));
-        for (auto& item : leaf_contribs) {
-            const ProcessID owner = pmap_->owner(item.key);
-            outbox[static_cast<std::size_t>(owner)].push_back(
-                windowed_halo_detail::CoarseLeafDeltaMsg<T>{
-                    item.key, item.min_source_key, std::move(item.ds)});
-        }
-
-        for (ProcessID p = 0; p < world_.size(); ++p) {
-            auto& batch = outbox[static_cast<std::size_t>(p)];
-            if (batch.empty()) continue;
-            if (p == me) {
-                exchange_->recv_coarse_deltas(batch);
-            } else {
-                exchange_->send(p,
-                                &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_coarse_deltas,
-                                batch);
-            }
-        }
-        world_.gop.fence();
-
-        auto received = exchange_->take_coarse_deltas();
-        std::sort(received.begin(), received.end(), [](const auto& a, const auto& b) noexcept {
-            if (a.leaf_key != b.leaf_key) {
-                return windowed_halo_detail::windowed_key_less(a.leaf_key, b.leaf_key);
-            }
-            return windowed_halo_detail::windowed_key_less(a.sort_tag_key, b.sort_tag_key);
-        });
-
-        for (const auto& msg : received) {
-            const int blvl = static_cast<int>(msg.leaf_key.level());
-            const std::size_t ridx = find_owned_real_index(blvl, msg.leaf_key);
+    void restrict_all_virtual_unpromoted() {
+        const long kk = static_cast<long>(k_);
+        const long kk3 = kk * kk * kk;
+        auto leaf_contribs = compute_local_leaf_contribs_unpromoted();
+        MADNESS_CHECK(world_.size() == 1);
+        for (const auto& item : leaf_contribs) {
+            const int blvl = static_cast<int>(item.key.level());
+            const std::size_t ridx = find_owned_real_index(blvl, item.key);
             MADNESS_CHECK(ridx != SIZE_MAX);
             T* dst = levels_[static_cast<std::size_t>(blvl)].owned_real[ridx].s_out.ptr();
-            aligned_axpy(kk3, dst, msg.delta_s.ptr(), 1.0);
+            aligned_axpy(kk3, dst, item.ds.ptr(), 1.0);
         }
     }
 
     // =========================================================================
     // Stage 5a General Path: Restriction + Dynamic Virtual Subtree Promotion
     // =========================================================================
-    void restrict_and_split_promoted_virtual(
+    void apply_promoted_subtree_items(
+        std::vector<windowed_halo_detail::VirtualSubtreeItemMsg<T>>& local_items,
         typename FunctionImpl<T, 3>::dcT& res_coeffs,
-        const TensorArgs& full_targs) {
+        const TensorArgs& full_targs,
+        std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>>* remote_outbox) {
         const long kk = static_cast<long>(k_);
         const long kk3 = kk * kk * kk;
         const long twok = 2L * kk;
         const Slice s0(0, kk - 1);
         const ProcessID me = world_.rank();
-
-        std::vector<windowed_halo_detail::VirtualSubtreeItemMsg<T>> local_items;
-        if (world_.size() == 1) {
-            for (int j = 1; j <= n_max_tree_; ++j) {
-                for (auto& vn : levels_[static_cast<std::size_t>(j)].owned_virt) {
-                    if (!vn.promoted && vn.ds_corr.size() != kk3) continue;
-                    local_items.push_back(windowed_halo_detail::VirtualSubtreeItemMsg<T>{
-                        vn.coarse_leaf_key,
-                        vn.key,
-                        static_cast<std::uint8_t>(vn.promoted ? 1u : 0u),
-                        vn.ds_corr,
-                        vn.ns_virt_out});
-                }
-            }
-        } else {
-            std::vector<std::vector<windowed_halo_detail::VirtualSubtreeItemMsg<T>>> outbox(
-                static_cast<std::size_t>(world_.size()));
-            for (int j = 1; j <= n_max_tree_; ++j) {
-                for (auto& vn : levels_[static_cast<std::size_t>(j)].owned_virt) {
-                    if (!vn.promoted && vn.ds_corr.size() != kk3) continue;
-                    const ProcessID owner = pmap_->owner(vn.coarse_leaf_key);
-                    outbox[static_cast<std::size_t>(owner)].push_back(
-                        windowed_halo_detail::VirtualSubtreeItemMsg<T>{
-                            vn.coarse_leaf_key,
-                            vn.key,
-                            static_cast<std::uint8_t>(vn.promoted ? 1u : 0u),
-                            vn.ds_corr,
-                            vn.ns_virt_out});
-                }
-            }
-            for (ProcessID p = 0; p < world_.size(); ++p) {
-                auto& batch = outbox[static_cast<std::size_t>(p)];
-                if (batch.empty()) continue;
-                if (p == me) {
-                    exchange_->recv_virtual_subtree_items(batch);
-                } else {
-                    exchange_->send(
-                        p,
-                        &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_virtual_subtree_items,
-                        batch);
-                }
-            }
-            world_.gop.fence();
-            local_items = exchange_->take_subtree_items();
-        }
 
         std::sort(local_items.begin(),
                   local_items.end(),
@@ -3709,7 +4160,6 @@ private:
             }
         }
 
-        // Parallel hash-free flat-vector restriction across all unpromoted coarse leaves.
         if (!unpromoted_groups.empty()) {
             const long k_dims[3] = {kk, kk, kk};
             std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> u_work1;
@@ -3821,18 +4271,15 @@ private:
         Tensor<T> work1(kk, kk, kk);
         Tensor<T> work2(kk, kk, kk);
 
-        std::vector<std::vector<windowed_halo_detail::OutputNodeInsertMsg<T>>> remote_inserts(
-            static_cast<std::size_t>(world_.size()));
-
         auto emit_node = [&](const Key<3>& key, bool has_children, const Tensor<T>& coeff_tensor) {
-            const ProcessID owner = pmap_->owner(key);
-            if (owner == me) {
+            const ProcessID owner = (world_.size() == 1) ? me : pmap_->owner(key);
+            if (owner == me || remote_outbox == nullptr) {
                 GenTensor<T> gt(coeff_tensor, full_targs);
                 res_coeffs.replace(key, FunctionNode<T, 3>(gt, has_children));
             } else {
-                remote_inserts[static_cast<std::size_t>(owner)].push_back(
+                (*remote_outbox)[static_cast<std::size_t>(owner)].push_back(
                     windowed_halo_detail::OutputNodeInsertMsg<T>{
-                        key, static_cast<std::uint8_t>(has_children ? 1u : 0u), coeff_tensor});
+                        key, static_cast<std::uint8_t>(has_children ? 1u : 0u), coeff_tensor, slot_});
             }
         };
 
@@ -3939,23 +4386,6 @@ private:
         }
 
         windowed_halo_detail::sort_unique_keys(split_coarse_leaves_emitted_);
-
-        if (world_.size() > 1) {
-            for (ProcessID p = 0; p < world_.size(); ++p) {
-                auto& batch = remote_inserts[static_cast<std::size_t>(p)];
-                if (!batch.empty()) {
-                    exchange_->send(p,
-                                    &windowed_halo_detail::WindowedNSHaloExchange<T>::recv_output_inserts,
-                                    batch);
-                }
-            }
-            world_.gop.fence();
-            for (auto& msg : exchange_->take_output_inserts()) {
-                GenTensor<T> gt(msg.coeff, full_targs);
-                res_coeffs.replace(msg.key, FunctionNode<T, 3>(gt, msg.has_children != 0));
-            }
-            world_.gop.fence();
-        }
     }
 
     World& world_;
@@ -3976,7 +4406,9 @@ private:
     std::vector<WindowedLevelRadii> radii_;
     std::vector<std::vector<std::pair<Key<3>, Tensor<T>>>> coarse_leaves_by_level_;
     std::vector<Key<3>> split_coarse_leaves_emitted_;
-    std::unique_ptr<windowed_halo_detail::WindowedNSHaloExchange<T>> exchange_;
+    std::unique_ptr<windowed_halo_detail::WindowedNSHaloExchange<T>> owned_exchange_;
+    windowed_halo_detail::WindowedNSHaloExchange<T>* exchange_ptr_ = nullptr;
+    std::uint16_t slot_ = 0;
 };
 
 } // namespace madness

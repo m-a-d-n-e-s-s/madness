@@ -76,6 +76,7 @@ struct WindowedQuadratureConfig {
     int max_tree_level = 30;                             ///< Maximum tree level n_max for precomputation.
     int oversampling_M = 0;                              ///< Terms per dyadic octave (0 => auto from eps).
     int gc_rank_Q = 0;                                   ///< Gauss-Christoffel rank Q (0 => auto in {4, 5}).
+    double gamma_spiky_override = 0.0;                   ///< Spiky stiffness threshold override (0 => auto from k).
     WindowedKernelKind kind = WindowedKernelKind::Coulomb;
     std::vector<double> custom_coeffs_user;              ///< User-space c_p for CustomGaussian.
     std::vector<double> custom_expnts_user;              ///< User-space alpha_p > 0 for CustomGaussian.
@@ -464,7 +465,7 @@ public:
         , cell_width_L_(cfg.cell_width_L)
         , mu_sim_(mu_user_ * cfg.cell_width_L)
         , op_scale_(compute_op_scale(cfg.kind, cfg.cell_width_L))
-        , gamma_spiky_(compute_gamma_spiky(cfg.k))
+        , gamma_spiky_((cfg.gamma_spiky_override > 0.0) ? cfg.gamma_spiky_override : compute_gamma_spiky(cfg.k))
         , gamma_diff_(compute_gamma_diff(cfg.k, cfg.eps))
         , M_(select_oversampling_M(cfg.eps, cfg.oversampling_M))
         , gc_rank_Q_(select_gc_rank_Q(cfg.k, cfg.gc_rank_Q))
@@ -650,11 +651,14 @@ public:
             }
         }
 
-        // Precompute compressed Gauss-Christoffel rules lock-free for all levels 0 .. n_max_ + 12.
+        // Precompute compressed Gauss-Christoffel rules and exact tail L1/L2 operator bounds
+        // lock-free for all levels 0 .. n_max_ + 12.
         const int precomp_top = n_max_ + 12;
         gc_rules_.resize(static_cast<std::size_t>(precomp_top + 1));
+        rem_weight_bounds_.assign(static_cast<std::size_t>(precomp_top + 1), 0.0);
         for (int lvl = 0; lvl <= precomp_top; ++lvl) {
             gc_rules_[static_cast<std::size_t>(lvl)] = build_gc_rule_for_level(lvl);
+            rem_weight_bounds_[static_cast<std::size_t>(lvl)] = compute_rem_weight_bound(lvl);
         }
     }
 
@@ -806,6 +810,17 @@ public:
         return extra_gc_rules_.back();
     }
 
+    /// Exact L1(R^3) (= L2 -> L2 Young convolution) operator norm bound for all windowed + GC spiky
+    /// terms active on wavelet details at levels `>= level` (lock-free O(1) for level <= n_max() + 12).
+    double rem_weight_bound(int level) const {
+        MADNESS_CHECK(level >= 0);
+        const std::size_t idx = static_cast<std::size_t>(level);
+        if (idx < rem_weight_bounds_.size()) {
+            return rem_weight_bounds_[idx];
+        }
+        return compute_rem_weight_bound(level);
+    }
+
     const LegendreMomentOp& moment_op() const noexcept { return moment_op_; }
 
     /// Stage 2 leaf helper: accumulate sum_{q=1}^Q W_tilde_{n,q} M(gamma_tilde_{n,q})^{\otimes 3} s_leaf
@@ -942,6 +957,21 @@ private:
             }
         }
         return 8;
+    }
+
+    double compute_rem_weight_bound(int level) const {
+        double sum = 0.0;
+        for (const WindowedQuadratureTerm& term : terms_) {
+            if (term.weight_scaled == 0.0) continue;
+            if (term.n_spiky < level && term.n_diff >= level) {
+                sum += std::abs(term.weight_scaled);
+            }
+        }
+        const GCLevelRule& rule = gc_rule(level);
+        for (const GCNode& node : rule.nodes) {
+            sum += std::abs(node.weight_scaled);
+        }
+        return sum;
     }
 
     static int select_gc_rank_Q(int k, int q_override) noexcept {
@@ -1288,6 +1318,7 @@ private:
     std::vector<double> gamma_ref_table_;
     std::vector<WindowedQuadratureTerm> terms_;
     std::vector<GCLevelRule> gc_rules_;
+    std::vector<double> rem_weight_bounds_;
 
     mutable std::mutex extra_gc_mtx_;
     mutable std::vector<GCLevelRule> extra_gc_rules_;
