@@ -109,6 +109,9 @@ if(BUILD_TESTING)
   # out of the short/medium suites (run manually or via the "large" label).
   add_unittests(world "test_dc_archive_chunk.cc" ";MADworld;MADgtest" "unittests;large")
 
+  # an array of more than 2^32 elements through the archives: about 13 GiB
+  add_unittests(world "test_ar_large.cc" ";MADworld;MADgtest" "unittests;large")
+
   if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)

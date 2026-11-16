@@ -88,9 +88,9 @@ namespace madness {
         template <class>
         class archive_array;
         template <class T>
-        inline archive_array<T> wrap(const T*, unsigned int);
+        inline archive_array<T> wrap(const T*, std::size_t);
         template <class T>
-        inline archive_array<unsigned char> wrap_opaque(const T*, unsigned int);
+        inline archive_array<unsigned char> wrap_opaque(const T*, std::size_t);
         template <class T>
         inline archive_array<unsigned char> wrap_opaque(const T&);
 
@@ -400,7 +400,7 @@ namespace madness {
         typename std::enable_if_t< is_output_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             // transform function pointers to relative pointers
             std::vector<std::ptrdiff_t> t_rel(n);
@@ -414,7 +414,7 @@ namespace madness {
         typename std::enable_if_t< is_output_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
             static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
@@ -431,7 +431,7 @@ namespace madness {
                                       !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value) &&
                                       is_default_serializable<Archive,T>::value
                                    , void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             ar.store(t, n);
         }
@@ -450,7 +450,7 @@ namespace madness {
         typename std::enable_if_t< is_input_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    is_function_pointer_v<T>, void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             // transform function pointers to relative offsets
             std::vector<std::ptrdiff_t> t_rel(n);
@@ -464,7 +464,7 @@ namespace madness {
         typename std::enable_if_t< is_input_archive<Archive>::value &&
                                    is_default_serializable<Archive,T>::value &&
                                    std::is_member_function_pointer<T>::value, void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             using rel_memfn_ptr_t = decltype(to_rel_memfn_ptr(t[0]));
             static_assert(sizeof(rel_memfn_ptr_t) % sizeof(std::ptrdiff_t) == 0);
@@ -479,7 +479,7 @@ namespace madness {
         template <class Archive, class T>
         typename std::enable_if_t< is_input_archive<Archive>::value && is_default_serializable<Archive,T>::value &&
                                    !(is_function_pointer_v<T> || std::is_member_function_pointer<T>::value), void>
-        default_serialize(const Archive& ar, const T* t, unsigned int n) {
+        default_serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             ar.load((T*) t,n);
         }
@@ -495,9 +495,9 @@ namespace madness {
         /// \param[in] n Number of data items to be serialized.
         template <class Archive, class T>
         typename std::enable_if_t< ! is_default_serializable<Archive,T>::value && is_archive<Archive>::value, void>
-        serialize(const Archive& ar, const T* t, unsigned int n) {
+        serialize(const Archive& ar, const T* t, std::size_t n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
-            for (unsigned int i=0; i<n; ++i)
+            for (std::size_t i=0; i<n; ++i)
                 ar & t[i];
         }
 
@@ -891,13 +891,13 @@ namespace madness {
         class archive_array {
         public:
             const T* ptr; ///< The pointer.
-            unsigned int n; ///< The number of objects in the array.
+            std::size_t n; ///< The number of objects in the array.
 
             /// Constructor specifying a memory location and size.
 
             /// \param[in] ptr The pointer.
             /// \param[in] n The number of objects in the array.
-            archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {}
+            archive_array(const T *ptr, std::size_t n) : ptr(ptr), n(n) {}
 
             /// Constructor specifying no array and of 0 length.
             archive_array() : ptr(nullptr), n(0) {}
@@ -911,7 +911,7 @@ namespace madness {
         /// \param[in] n The number of data elements in the array.
         /// \return The wrapped pointer.
         template <class T>
-        inline archive_array<T> wrap(const T* ptr, unsigned int n) {
+        inline archive_array<T> wrap(const T* ptr, std::size_t n) {
             return archive_array<T>(ptr,n);
         }
 
@@ -923,7 +923,7 @@ namespace madness {
         /// \param[in] n The number of data elements in the array.
         /// \return The wrapped pointer, as an opaque \c archive_array.
         template <class T>
-        inline archive_array<unsigned char> wrap_opaque(const T* ptr, unsigned int n) {
+        inline archive_array<unsigned char> wrap_opaque(const T* ptr, std::size_t n) {
             return archive_array<unsigned char>((unsigned char*) ptr, n*sizeof(T));
         }
 
@@ -1045,7 +1045,7 @@ namespace madness {
             static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
-                //unsigned int n;
+                //std::size_t n;
                 //ar >> n;
                 //if (n != t.n)
                 //    MADNESS_EXCEPTION("deserializing archive_array: dimension mismatch", n);
