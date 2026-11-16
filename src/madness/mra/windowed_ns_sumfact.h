@@ -1524,6 +1524,261 @@ inline void execute_sumfact_3d(
         });
 }
 
+struct FusedSumFactTerm {
+    const std::array<SlotOp1D, StencilEntry1D::kNumDisp>* slot_ops = nullptr;
+    double weight = 0.0;
+};
+
+/// Multi-term fused 3D sum-factorized sweep across `terms` sharing the same `SumFactGraph3D`:
+///   - Delegates directly to `execute_sumfact_3d` when `terms.size() == 1`.
+///   - When `terms.size() >= 2`, fuses up to `kMaxFusedTerms = 8` terms per sub-batch (bounded so
+///     `buf_x + buf_xy <= 4 MiB`), parallelizing X over `n_sub * num_x`, Y over `n_sub * num_xy`,
+///     and Z over `num_active_tgt` while accumulating `t = 0 .. n_sub - 1` into `tgt_out_ptrs[ti]`
+///     in exact sequential order in L1 cache (cutting thread-pool barriers up to 8x on middle-of-tree
+///     levels and saturating all worker threads even when `num_x` / `num_active_tgt` is modest).
+template <typename T>
+inline void execute_sumfact_batch_3d(
+    const SumFactGraph3D& graph,
+    long d_in,
+    long d_out,
+    const std::vector<FusedSumFactTerm>& terms,
+    const std::vector<const T*>& src_ptrs,
+    const std::vector<T*>& tgt_out_ptrs,
+    SumFactScratch3D<T>& scratch) {
+    if (graph.empty() || terms.empty()) return;
+    if (terms.size() == 1) {
+        execute_sumfact_3d(graph,
+                           d_in,
+                           d_out,
+                           *terms[0].slot_ops,
+                           terms[0].weight,
+                           src_ptrs,
+                           tgt_out_ptrs,
+                           scratch);
+        return;
+    }
+
+    const long dimi_x = d_in * d_in;
+    const long size_x = dimi_x * d_out;
+
+    const long dimi_y = d_in * d_out;
+    const long size_y = dimi_y * d_out;
+
+    const long dimi_z = d_out * d_out;
+    const long size_z = dimi_z * d_out;
+
+    const std::size_t need_x_1 = graph.num_x * static_cast<std::size_t>(size_x);
+    const std::size_t need_xy_1 = graph.num_xy * static_cast<std::size_t>(size_y);
+    const std::size_t max_blk = static_cast<std::size_t>(std::max({size_x, size_y, size_z}));
+    const std::size_t max_svd_blk = static_cast<std::size_t>(
+        std::max({dimi_x, dimi_y, dimi_z}) * std::max(d_in, d_out));
+
+    constexpr std::size_t kMaxFusedTerms = 8;
+    const std::size_t bytes_per_term = (need_x_1 + need_xy_1) * sizeof(T);
+    const std::size_t mem_cap_terms =
+        (bytes_per_term > 0) ? std::max<std::size_t>(1, (4ULL << 20) / bytes_per_term)
+                             : kMaxFusedTerms;
+    const std::size_t sub_cap = std::min({kMaxFusedTerms, mem_cap_terms, terms.size()});
+
+    if (sub_cap <= 1) {
+        for (const FusedSumFactTerm& ft : terms) {
+            execute_sumfact_3d(
+                graph, d_in, d_out, *ft.slot_ops, ft.weight, src_ptrs, tgt_out_ptrs, scratch);
+        }
+        return;
+    }
+
+    const std::size_t n_chunk_slots =
+        std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
+    for (std::size_t cid = 0; cid < n_chunk_slots; ++cid) {
+        scratch.tmp_blocks[cid].ensure(max_blk);
+        scratch.svd_blocks[cid].ensure(max_svd_blk);
+        scratch.svd_t_blocks[cid].ensure(max_svd_blk);
+    }
+
+    const std::size_t slot_stride = static_cast<std::size_t>(std::max(d_in, d_out) * d_out);
+    scratch.z_op_buf.ensure(sub_cap * StencilEntry1D::kNumDisp * slot_stride);
+
+    std::array<std::array<SlotOp1D, StencilEntry1D::kNumDisp>, kMaxFusedTerms> z_ops_sub;
+
+    for (std::size_t t0 = 0; t0 < terms.size(); t0 += sub_cap) {
+        const std::size_t n_sub = std::min(sub_cap, terms.size() - t0);
+        if (n_sub == 1) {
+            execute_sumfact_3d(graph,
+                               d_in,
+                               d_out,
+                               *terms[t0].slot_ops,
+                               terms[t0].weight,
+                               src_ptrs,
+                               tgt_out_ptrs,
+                               scratch);
+            continue;
+        }
+
+        scratch.buf_x.ensure(n_sub * need_x_1);
+        scratch.buf_xy.ensure(n_sub * need_xy_1);
+        T* const ux_base = scratch.buf_x.data();
+        T* const uxy_base = scratch.buf_xy.data();
+        double* const z_buf_base = scratch.z_op_buf.data();
+
+        for (std::size_t s = 0; s < n_sub; ++s) {
+            const double w = terms[t0 + s].weight;
+            z_ops_sub[s] = *terms[t0 + s].slot_ops;
+            for (std::size_t slot = 0; slot < StencilEntry1D::kNumDisp; ++slot) {
+                SlotOp1D& zop = z_ops_sub[s][slot];
+                if (!zop.active) continue;
+                double* MADNESS_RESTRICT dst_op =
+                    z_buf_base + (s * StencilEntry1D::kNumDisp + slot) * slot_stride;
+                if (zop.use_svd) {
+                    const std::size_t n_el = static_cast<std::size_t>(zop.rank * d_out);
+                    for (std::size_t i = 0; i < n_el; ++i) {
+                        dst_op[i] = w * zop.svt_ptr[i];
+                    }
+                    zop.svt_ptr = dst_op;
+                } else {
+                    const std::size_t n_el = static_cast<std::size_t>(d_in * d_out);
+                    for (std::size_t i = 0; i < n_el; ++i) {
+                        dst_op[i] = w * zop.dense_ptr[i];
+                    }
+                    zop.dense_ptr = dst_op;
+                }
+            }
+        }
+
+        // Fused Sweep 1 (X): flat work domain `n_sub * graph.num_x`
+        if (graph.num_x > 0) {
+            const std::size_t num_x = graph.num_x;
+            parallel_for_chunks(
+                n_sub * num_x,
+                kSumFactSweepGrain,
+                [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
+                    T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
+                    T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
+                    for (std::size_t flat = b; flat < e_hi; ++flat) {
+                        const std::size_t s = flat / num_x;
+                        const std::size_t xi = flat - s * num_x;
+                        const auto& sops = *terms[t0 + s].slot_ops;
+                        T* MADNESS_RESTRICT dst =
+                            ux_base + s * need_x_1 + xi * static_cast<std::size_t>(size_x);
+                        const std::uint32_t e_begin = graph.x_row_ptr[xi];
+                        const std::uint32_t e_end = graph.x_row_ptr[xi + 1];
+                        bool wrote = false;
+                        for (std::uint32_t e = e_begin; e < e_end; ++e) {
+                            const StencilEdge1D edge = graph.x_edges[e];
+                            const SlotOp1D& sop = sops[static_cast<std::size_t>(
+                                static_cast<int>(edge.disp) + StencilEntry1D::kMaxDisp)];
+                            if (!sop.active) continue;
+                            apply_slot_edge_1d(dimi_x,
+                                               d_in,
+                                               d_out,
+                                               size_x,
+                                               sop,
+                                               src_ptrs[edge.src_idx],
+                                               dst,
+                                               tmp,
+                                               tmp_svd,
+                                               tmp_svd_T,
+                                               wrote);
+                        }
+                        if (!wrote) {
+                            aligned_zero(size_x, dst);
+                        }
+                    }
+                });
+        }
+
+        // Fused Sweep 2 (Y): flat work domain `n_sub * graph.num_xy`
+        if (graph.num_xy > 0) {
+            const std::size_t num_xy = graph.num_xy;
+            parallel_for_chunks(
+                n_sub * num_xy,
+                kSumFactSweepGrain,
+                [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
+                    T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
+                    T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
+                    for (std::size_t flat = b; flat < e_hi; ++flat) {
+                        const std::size_t s = flat / num_xy;
+                        const std::size_t xyi = flat - s * num_xy;
+                        const auto& sops = *terms[t0 + s].slot_ops;
+                        const T* const ux_s = ux_base + s * need_x_1;
+                        T* MADNESS_RESTRICT dst =
+                            uxy_base + s * need_xy_1 + xyi * static_cast<std::size_t>(size_y);
+                        const std::uint32_t e_begin = graph.xy_row_ptr[xyi];
+                        const std::uint32_t e_end = graph.xy_row_ptr[xyi + 1];
+                        bool wrote = false;
+                        for (std::uint32_t e = e_begin; e < e_end; ++e) {
+                            const StencilEdge1D edge = graph.xy_edges[e];
+                            const SlotOp1D& sop = sops[static_cast<std::size_t>(
+                                static_cast<int>(edge.disp) + StencilEntry1D::kMaxDisp)];
+                            if (!sop.active) continue;
+                            const T* src = ux_s +
+                                           static_cast<std::size_t>(edge.src_idx) *
+                                               static_cast<std::size_t>(size_x);
+                            apply_slot_edge_1d(dimi_y,
+                                               d_in,
+                                               d_out,
+                                               size_y,
+                                               sop,
+                                               src,
+                                               dst,
+                                               tmp,
+                                               tmp_svd,
+                                               tmp_svd_T,
+                                               wrote);
+                        }
+                        if (!wrote) {
+                            aligned_zero(size_y, dst);
+                        }
+                    }
+                });
+        }
+
+        // Fused Sweep 3 (Z): each target `ti` stays pinned in L1 cache across `s = 0 .. n_sub - 1`
+        // in exact sequential order!
+        const std::size_t num_active_tgt = graph.active_tgt_idx.size();
+        const std::size_t z_grain = std::max<std::size_t>(1, kSumFactSweepGrain / n_sub);
+        parallel_for_chunks(
+            num_active_tgt, z_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
+                T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
+                T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
+                for (std::size_t ai = b; ai < e_hi; ++ai) {
+                    const std::uint32_t ti = graph.active_tgt_idx[ai];
+                    T* MADNESS_RESTRICT dst = tgt_out_ptrs[ti];
+                    const std::uint32_t e_begin = graph.z_row_ptr[ai];
+                    const std::uint32_t e_end = graph.z_row_ptr[ai + 1];
+                    for (std::size_t s = 0; s < n_sub; ++s) {
+                        const auto& zsops = z_ops_sub[s];
+                        const T* const uxy_s = uxy_base + s * need_xy_1;
+                        bool wrote = true;
+                        for (std::uint32_t e = e_begin; e < e_end; ++e) {
+                            const StencilEdge1D edge = graph.z_edges[e];
+                            const SlotOp1D& sop = zsops[static_cast<std::size_t>(
+                                static_cast<int>(edge.disp) + StencilEntry1D::kMaxDisp)];
+                            if (!sop.active) continue;
+                            const T* src = uxy_s +
+                                           static_cast<std::size_t>(edge.src_idx) *
+                                               static_cast<std::size_t>(size_y);
+                            apply_slot_edge_1d(dimi_z,
+                                               d_in,
+                                               d_out,
+                                               size_z,
+                                               sop,
+                                               src,
+                                               dst,
+                                               tmp,
+                                               tmp_svd,
+                                               tmp_svd_T,
+                                               wrote);
+                        }
+                    }
+                }
+            });
+    }
+}
+
 /// Spatial target-brick tiled wrapper over `build_sumfact_graph_3d` + `execute_sumfact_3d`:
 /// when `tgt_keys.size() <= tile_cap`, builds one graph with zero overhead; on very wide levels,
 /// slices `tgt_keys` into L3-cache-sized bricks so `buf_x + buf_xy` stays bounded (`<= ~16 MiB`).
@@ -1733,6 +1988,211 @@ struct ActiveGammaTerm {
     int bw_int = -1;
 };
 
+struct SelfBoxTermSpec {
+    const StencilEntry1D* entry = nullptr;
+    double weight = 0.0;
+};
+
+/// Fused multi-term self-box (`m_bw == 0`) fast path for Pass 4b-1 (`2k -> k`):
+/// launches ONE parallel dispatch across `matches` and accumulates all `eff_bw == 0` terms
+/// into `tgt_ptrs[t_i]` in exact sequential order while keeping `*src_tensors[s_i]` in L1/L2 cache.
+template <typename T>
+inline void execute_self_box_2k_to_k_batch_3d(
+    const std::vector<std::pair<std::size_t, std::size_t>>& matches,
+    const std::vector<const Tensor<T>*>& src_tensors,
+    const std::vector<T*>& tgt_ptrs,
+    long kk,
+    const std::vector<SelfBoxTermSpec>& terms,
+    double term_svd_tol,
+    SumFactScratch3D<T>& scratch) {
+    if (matches.empty() || terms.empty()) return;
+    if (terms.size() == 1) {
+        execute_self_box_2k_to_k_3d(matches,
+                                    src_tensors,
+                                    tgt_ptrs,
+                                    kk,
+                                    *terms[0].entry,
+                                    terms[0].weight,
+                                    term_svd_tol,
+                                    scratch);
+        return;
+    }
+
+    constexpr std::size_t slot0 = static_cast<std::size_t>(StencilEntry1D::kMaxDisp);
+    const long twok = 2L * kk;
+    const long kk3 = kk * kk * kk;
+    const long flops_dense = twok * twok * twok * kk + twok * twok * kk * kk + twok * kk * kk * kk;
+
+    struct PrepSelf2kToK {
+        double weight = 0.0;
+        long r = 0;
+        bool use_svd = false;
+        const double* u_ptr = nullptr;
+        const double* svt_ptr = nullptr;
+        Tensor<double> c3[3];
+    };
+    std::vector<PrepSelf2kToK> active;
+    active.reserve(terms.size());
+    for (const SelfBoxTermSpec& sp : terms) {
+        if (sp.weight == 0.0) continue;
+        const StencilSVD1D& svd0 = sp.entry->svd_R_2k_to_k[slot0];
+        const double n0 = svd0.normf;
+        if (!(n0 > 0.0)) continue;
+        const double tol_1d = term_svd_tol / (3.0 * std::abs(sp.weight) * n0 * n0);
+        const long r = static_cast<long>(svd0.required_rank(tol_1d));
+        if (r <= 0) continue;
+
+        const long flops_svd =
+            (twok * twok * twok * r + twok * twok * r * r + twok * r * r * r) +
+            (r * r * r * kk + r * r * kk * kk + r * kk * kk * kk);
+        const bool use_svd =
+            (r < kk) &&
+            (static_cast<std::size_t>(r) < svd0.U_by_rank.size()) &&
+            (flops_svd * 20L < flops_dense * 17L);
+
+        PrepSelf2kToK item;
+        item.weight = sp.weight;
+        item.r = r;
+        item.use_svd = use_svd;
+        if (use_svd) {
+            item.u_ptr = svd0.U_by_rank[static_cast<std::size_t>(r)].ptr();
+            item.svt_ptr = svd0.SVT.ptr();
+        } else {
+            const Tensor<double>& m0 = sp.entry->R_2k_to_k[slot0];
+            item.c3[0] = m0;
+            item.c3[1] = m0;
+            item.c3[2] = m0;
+        }
+        active.push_back(std::move(item));
+    }
+    if (active.empty()) return;
+
+    scratch.ensure_self_cubes(twok);
+    const std::size_t grain = std::max<std::size_t>(1, kSumFactSweepGrain / active.size());
+    parallel_for_chunks(
+        matches.size(), grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            Tensor<T>& w_res = scratch.self_work1[cid];
+            Tensor<T>& w_tmp = scratch.self_work2[cid];
+            T* MADNESS_RESTRICT w1 = w_res.ptr();
+            T* MADNESS_RESTRICT w2 = w_tmp.ptr();
+            for (std::size_t idx = b; idx < e_hi; ++idx) {
+                const auto [s_i, t_i] = matches[idx];
+                const Tensor<T>& src_t = *src_tensors[s_i];
+                const T* const src_p = src_t.ptr();
+                T* MADNESS_RESTRICT dst_p = tgt_ptrs[t_i];
+                for (const PrepSelf2kToK& it : active) {
+                    if (it.use_svd) {
+                        const long r = it.r;
+                        mTxmq(twok * twok, r, twok, w1, src_p, it.u_ptr);
+                        mTxmq(twok * r, r, twok, w2, w1, it.u_ptr);
+                        mTxmq(r * r, r, twok, w1, w2, it.u_ptr);
+                        mTxmq(r * r, kk, r, w2, w1, it.svt_ptr);
+                        mTxmq(r * kk, kk, r, w1, w2, it.svt_ptr);
+                        mTxmq(kk * kk, kk, r, w2, w1, it.svt_ptr);
+                        aligned_axpy(kk3, dst_p, w2, it.weight);
+                    } else {
+                        general_fast_transform(src_t, it.c3, w_res, w_tmp);
+                        aligned_axpy(kk3, dst_p, w_res.ptr(), it.weight);
+                    }
+                }
+            }
+        });
+}
+
+/// Fused multi-term self-box (`m_bw == 0`) fast path for Pass 4b-2 internal (`2k -> 2k`).
+template <typename T>
+inline void execute_self_box_2k_to_2k_batch_3d(
+    const std::vector<std::pair<std::size_t, std::size_t>>& matches,
+    const std::vector<const Tensor<T>*>& src_tensors,
+    const std::vector<T*>& tgt_ptrs,
+    long twok,
+    const std::vector<SelfBoxTermSpec>& terms,
+    double term_svd_tol,
+    SumFactScratch3D<T>& scratch) {
+    if (matches.empty() || terms.empty()) return;
+    if (terms.size() == 1) {
+        execute_self_box_2k_to_2k_3d(matches,
+                                     src_tensors,
+                                     tgt_ptrs,
+                                     twok,
+                                     *terms[0].entry,
+                                     terms[0].weight,
+                                     term_svd_tol,
+                                     scratch);
+        return;
+    }
+
+    constexpr std::size_t slot0 = static_cast<std::size_t>(StencilEntry1D::kMaxDisp);
+    const long break_even = std::max(1L, static_cast<long>(0.65 * static_cast<double>(twok)));
+    const long twok3 = twok * twok * twok;
+
+    struct PrepSelf2kTo2k {
+        double weight = 0.0;
+        long r = 0;
+        bool use_svd = false;
+        const double* u_ptr = nullptr;
+        const double* svt_ptr = nullptr;
+        const Tensor<double>* mat_R0 = nullptr;
+    };
+    std::vector<PrepSelf2kTo2k> active;
+    active.reserve(terms.size());
+    for (const SelfBoxTermSpec& sp : terms) {
+        if (sp.weight == 0.0) continue;
+        const StencilSVD1D& svd0 = sp.entry->svd_R[slot0];
+        const double n0 = svd0.normf;
+        if (!(n0 > 0.0)) continue;
+        const double tol_1d = term_svd_tol / (3.0 * std::abs(sp.weight) * n0 * n0);
+        const long r = static_cast<long>(svd0.required_rank(tol_1d));
+        if (r <= 0) continue;
+
+        const bool use_svd =
+            (r < break_even) && (static_cast<std::size_t>(r) < svd0.U_by_rank.size());
+        PrepSelf2kTo2k item;
+        item.weight = sp.weight;
+        item.r = r;
+        item.use_svd = use_svd;
+        if (use_svd) {
+            item.u_ptr = svd0.U_by_rank[static_cast<std::size_t>(r)].ptr();
+            item.svt_ptr = svd0.SVT.ptr();
+        } else {
+            item.mat_R0 = &(sp.entry->R[slot0]);
+        }
+        active.push_back(item);
+    }
+    if (active.empty()) return;
+
+    scratch.ensure_self_cubes(twok);
+    const std::size_t grain = std::max<std::size_t>(1, kSumFactSweepGrain / active.size());
+    parallel_for_chunks(
+        matches.size(), grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            Tensor<T>& work1 = scratch.self_work1[cid];
+            Tensor<T>& work2 = scratch.self_work2[cid];
+            T* MADNESS_RESTRICT w1 = work1.ptr();
+            T* MADNESS_RESTRICT w2 = work2.ptr();
+            for (std::size_t idx = b; idx < e_hi; ++idx) {
+                const auto [s_i, t_i] = matches[idx];
+                const Tensor<T>& src_t = *src_tensors[s_i];
+                const T* const src_p = src_t.ptr();
+                T* MADNESS_RESTRICT dst_p = tgt_ptrs[t_i];
+                for (const PrepSelf2kTo2k& it : active) {
+                    if (it.use_svd) {
+                        const long r = it.r;
+                        mTxmq(twok * twok, r, twok, w1, src_p, it.u_ptr);
+                        mTxmq(twok * r, r, twok, w2, w1, it.u_ptr);
+                        mTxmq(r * r, r, twok, w1, w2, it.u_ptr);
+                        mTxmq(r * r, twok, r, w2, w1, it.svt_ptr);
+                        mTxmq(r * twok, twok, r, w1, w2, it.svt_ptr);
+                        mTxmq(twok * twok, twok, r, w2, w1, it.svt_ptr);
+                        aligned_axpy(twok3, dst_p, w2, it.weight);
+                    } else {
+                        fast_transform(src_t, *it.mat_R0, work1, work2);
+                        aligned_axpy(twok3, dst_p, work1.ptr(), it.weight);
+                    }
+                }
+            }
+        });
+}
+
 /// Tighten internal operator/stencil/quadrature screening tolerance for loose MRA thresholds
 /// (`eps >= 1e-4`, where `truncate_tol` in `truncate_mode == 1` remains unscaled across coarse
 /// octaves on large multi-center cells) while leaving `eps <= 1e-5` (`1e-6`, `1e-8`, ...) untouched
@@ -1858,247 +2318,287 @@ void restore_windowed_ns_input_3d(Function<T, 3>& f_work,
 /// When `world.size() == 1`, performs zero `WorldObject` registrations and zero `world.gop`
 /// collectives, making it safe to execute concurrently across disjoint `(f_ns[i], result[i])`
 /// pairs on `ThreadPool` worker threads under `WindowedBatchTaskScope`.
+namespace windowed_sumfact_detail {
+
+/// Shared per-orbital setup & Stage 2–4 execution context used identically by both
+/// single-orbital `apply_windowed_ns_3d_prepared` and multi-orbital lockstep
+/// `apply_windowed_ns_3d_batch_distributed` (zero duplicated kernel code).
 template <typename T>
-void apply_windowed_ns_3d_prepared(World& world,
-                                   const Function<T, 3>& f_ns,
-                                   Function<T, 3>& result,
-                                   const WindowedQuadraturePlan& plan,
-                                   const WindowedStencilCache1D& stencil_cache,
-                                   double thresh,
-                                   bool dynamic_refine = true,
-                                   double dynamic_refine_factor = 1.0,
-                                   double explicit_eps_loc = 0.0) {
-    using namespace windowed_sumfact_detail;
+struct WindowedOrbitalExecContext {
+    const FunctionImpl<T, 3>* f_impl = nullptr;
+    const WindowedQuadraturePlan* plan_ptr = nullptr;
+    const WindowedStencilCache1D* stencil_ptr = nullptr;
+    int k = 0;
+    long kk = 0;
+    long kk3 = 0;
+    long twok = 0;
+    long twok3 = 0;
+    double eff_thresh = 0.0;
+    double raw_tol = 0.0;
+    double eff_tol = 0.0;
+    double eff_refine_fac = 1.0;
+    bool dynamic_refine = true;
+    int n_max_tree = 0;
+    int max_refine_level = 0;
+    bool ungraded_leaf_refine_only = false;
 
-    MADNESS_CHECK(f_ns.is_initialized() && result.is_initialized());
-    const TreeState in_state = f_ns.get_impl()->get_tree_state();
-    if (world.size() > 1) {
-        MADNESS_CHECK(in_state == nonstandard_with_leaves);
-    } else {
-        MADNESS_CHECK(in_state == nonstandard_with_leaves ||
-                      in_state == reconstructed ||
-                      in_state == compressed);
-    }
-    MADNESS_CHECK(f_ns.k() == plan.k() && f_ns.k() == stencil_cache.k());
-
-    const int k = f_ns.k();
-    const long kk = static_cast<long>(k);
-    const long kk3 = kk * kk * kk;
-    const long twok = 2L * kk;
-    const long twok3 = twok * twok * twok;
-    const double eff_thresh = (thresh > 0.0) ? thresh : f_ns.thresh();
-    const double raw_tol = (eff_thresh > 0.0) ? std::min(plan.eps(), eff_thresh) : plan.eps();
-    const double eff_tol = tighten_loose_windowed_eps(raw_tol, explicit_eps_loc);
-    const double eff_refine_fac = (dynamic_refine_factor > 0.0) ? dynamic_refine_factor : 1.0;
-
-    const int n_max_tree = (world.size() == 1) ? compute_serial_max_tree_level(f_ns)
-                                               : static_cast<int>(f_ns.max_depth());
-    MADNESS_CHECK_THROW(
-        n_max_tree <= plan.n_max(),
-        "apply_windowed_ns_3d_prepared: input function depth exceeds WindowedQuadraturePlan::n_max()");
-
-    int max_refine_level = FunctionDefaults<3>::get_max_refine_level();
-    if (max_refine_level <= 0) {
-        max_refine_level = plan.n_max();
-    } else {
-        max_refine_level = std::min(max_refine_level, plan.n_max());
-    }
-    max_refine_level = std::min(max_refine_level, static_cast<int>(MAXLEVEL) - 1);
-
-    // Pre-bucket candidate quadrature terms per tree level `j in [0, n_max_tree]`.
-    std::vector<std::vector<RawTermRef>> raw_T_terms(static_cast<std::size_t>(n_max_tree + 1));
-    std::vector<std::vector<RawTermRef>> raw_gamma_terms(static_cast<std::size_t>(n_max_tree + 1));
+    std::vector<std::vector<RawTermRef>> raw_T_terms;
+    std::vector<std::vector<RawTermRef>> raw_gamma_terms;
     std::vector<std::pair<std::size_t, double>> root_ultra_diffuse_terms;
+    std::vector<std::vector<ActiveBaseTerm>> active_T_terms;
+    std::vector<std::vector<ActiveGammaTerm>> active_gamma_terms;
+    std::vector<double> subtree_d_tol;
+    WindowedSerialInputRange serial_range;
 
-    const auto& all_terms = plan.terms();
-    for (std::size_t t_idx = 0; t_idx < all_terms.size(); ++t_idx) {
-        const WindowedQuadratureTerm& term = all_terms[t_idx];
-        if (term.weight_scaled == 0.0) continue;
+    WindowedOrbitalExecContext(const Function<T, 3>& f_ns,
+                               const WindowedQuadraturePlan& plan,
+                               const WindowedStencilCache1D& stencil_cache,
+                               int n_max_tree_in,
+                               double thresh,
+                               bool dynamic_refine_in,
+                               double dynamic_refine_factor,
+                               double explicit_eps_loc)
+        : f_impl(f_ns.get_impl().get())
+        , plan_ptr(&plan)
+        , stencil_ptr(&stencil_cache)
+        , k(f_ns.k())
+        , kk(static_cast<long>(f_ns.k()))
+        , kk3(kk * kk * kk)
+        , twok(2L * kk)
+        , twok3(twok * twok * twok)
+        , eff_thresh((thresh > 0.0) ? thresh : f_ns.thresh())
+        , dynamic_refine(dynamic_refine_in)
+        , n_max_tree(n_max_tree_in) {
+        MADNESS_CHECK(f_ns.k() == plan.k() && f_ns.k() == stencil_cache.k());
+        MADNESS_CHECK_THROW(
+            n_max_tree <= plan.n_max(),
+            "apply_windowed_ns_3d_prepared: input function depth exceeds WindowedQuadraturePlan::n_max()");
 
-        if (term.n_diff < 0) {
-            root_ultra_diffuse_terms.emplace_back(t_idx, term.weight_scaled);
-            continue;
+        // When `plan.eps() << eff_thresh` (e.g. SCF `coulop` built with `0.001 * thresh`),
+        // cap stencil screening floor at `0.1 * eff_thresh` (unless `explicit_eps_loc` overrides).
+        const double min_plan_tol =
+            (eff_thresh > 0.0 && explicit_eps_loc <= 0.0)
+                ? std::max(plan.eps(), 0.1 * eff_thresh)
+                : plan.eps();
+        raw_tol = (eff_thresh > 0.0) ? std::min(min_plan_tol, eff_thresh) : plan.eps();
+        eff_tol = tighten_loose_windowed_eps(raw_tol, explicit_eps_loc);
+        eff_refine_fac = (dynamic_refine_factor > 0.0) ? dynamic_refine_factor : 1.0;
+
+        max_refine_level = FunctionDefaults<3>::get_max_refine_level();
+        if (max_refine_level <= 0) {
+            max_refine_level = plan.n_max();
+        } else {
+            max_refine_level = std::min(max_refine_level, plan.n_max());
+        }
+        max_refine_level = std::min(max_refine_level, static_cast<int>(MAXLEVEL) - 1);
+
+        raw_T_terms.resize(static_cast<std::size_t>(n_max_tree + 1));
+        raw_gamma_terms.resize(static_cast<std::size_t>(n_max_tree + 1));
+        active_T_terms.resize(static_cast<std::size_t>(n_max_tree + 1));
+        active_gamma_terms.resize(static_cast<std::size_t>(n_max_tree + 1));
+
+        const auto& all_terms = plan.terms();
+        for (std::size_t t_idx = 0; t_idx < all_terms.size(); ++t_idx) {
+            const WindowedQuadratureTerm& term = all_terms[t_idx];
+            if (term.weight_scaled == 0.0) continue;
+
+            if (term.n_diff < 0) {
+                root_ultra_diffuse_terms.emplace_back(t_idx, term.weight_scaled);
+                continue;
+            }
+
+            if (term.j0 <= n_max_tree) {
+                const StencilEntry1D& e_j0 = stencil_cache.entry_for_term(t_idx, term, term.j0);
+                raw_T_terms[static_cast<std::size_t>(term.j0)].push_back(
+                    RawTermRef{t_idx, &e_j0, term.weight_scaled});
+            }
+
+            const int j_gamma_top = std::min(n_max_tree - 1, term.n_diff);
+            for (int j = term.j0; j <= j_gamma_top; ++j) {
+                const StencilEntry1D& e_j = stencil_cache.entry_for_term(t_idx, term, j);
+                raw_gamma_terms[static_cast<std::size_t>(j)].push_back(
+                    RawTermRef{t_idx, &e_j, term.weight_scaled});
+            }
         }
 
-        if (term.j0 <= n_max_tree) {
-            const StencilEntry1D& e_j0 = stencil_cache.entry_for_term(t_idx, term, term.j0);
-            raw_T_terms[static_cast<std::size_t>(term.j0)].push_back(
-                RawTermRef{t_idx, &e_j0, term.weight_scaled});
+        serial_range.min_s_int_level = n_max_tree + 1;
+        serial_range.max_s_int_level = -1;
+        serial_range.min_gamma_level = n_max_tree + 1;
+        serial_range.max_gamma_level = -1;
+        for (int j = 0; j < n_max_tree; ++j) {
+            const std::size_t sj = static_cast<std::size_t>(j);
+            const bool has_root_stage3 =
+                (j == 0) && (plan.w_const_scaled() != 0.0 || !root_ultra_diffuse_terms.empty());
+            const bool has_g = !raw_gamma_terms[sj].empty();
+            const bool has_s = has_root_stage3 || !raw_T_terms[sj].empty() || has_g;
+            if (has_s) {
+                serial_range.min_s_int_level = std::min(serial_range.min_s_int_level, j);
+                serial_range.max_s_int_level = std::max(serial_range.max_s_int_level, j);
+            }
+            if (has_g) {
+                serial_range.min_gamma_level = std::min(serial_range.min_gamma_level, j);
+                serial_range.max_gamma_level = std::max(serial_range.max_gamma_level, j);
+            }
         }
 
-        const int j_gamma_top = std::min(n_max_tree - 1, term.n_diff);
-        for (int j = term.j0; j <= j_gamma_top; ++j) {
-            const StencilEntry1D& e_j = stencil_cache.entry_for_term(t_idx, term, j);
-            raw_gamma_terms[static_cast<std::size_t>(j)].push_back(
-                RawTermRef{t_idx, &e_j, term.weight_scaled});
+        // H1-safe operator-weighted compressed-subtree pruning tolerance (`W_H1(j) * Delta_sub(P) <= 0.002 * loc_tol_j`
+        // for `j >= 2`, with `W_H1(j) = sqrt(W_rem(0) * W_rem(j))` bounding BOTH L2 residual and H1 kinetic-energy
+        // gradient drift while pruning `vtransform` distant-atom union-skeleton cusps):
+        // strictly active only when `dynamic_refine == true` so `dynamic_refine == false` shared-tree
+        // exact linearity tests keep identical input skeletons.
+        if (dynamic_refine && eff_tol > 0.0) {
+            subtree_d_tol.resize(static_cast<std::size_t>(n_max_tree + 1), 0.0);
+            const double w_0 = plan.rem_weight_bound(0);
+            for (int j = 2; j <= n_max_tree; ++j) {
+                const double w_rem = plan.rem_weight_bound(j);
+                const double w_h1 = std::sqrt(std::max(0.0, w_0 * w_rem));
+                if (w_h1 > 0.0) {
+                    const double loc_t =
+                        f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
+                    subtree_d_tol[static_cast<std::size_t>(j)] = (0.002 * loc_t) / w_h1;
+                } else {
+                    subtree_d_tol[static_cast<std::size_t>(j)] = 1e300;
+                }
+            }
+            serial_range.subtree_d_tol = &subtree_d_tol;
         }
+
+        // Use compact ungraded-boundary (`dj >= 2`) leaf refinement for standard SCF thresholds
+        // (`eff_thresh >= 1e-6`), except when an operator was built with `>= 100x` tighter accuracy
+        // than `eff_thresh` at low order `k < 8` (e.g. SCF `coulop` with `op.eps() = 0.001 * thresh`
+        // on `rho` once per iteration, where graded `sh == 1` refinement improves `Vc` accuracy 34x).
+        const bool tight_op_on_loose_fn = (k < 8) && (plan.eps() <= 0.01 * eff_thresh);
+        ungraded_leaf_refine_only = (eff_thresh >= 1e-6) && !tight_op_on_loose_fn;
     }
 
-    const auto* f_impl = f_ns.get_impl().get();
-    std::vector<std::vector<ActiveBaseTerm>> active_T_terms(static_cast<std::size_t>(n_max_tree + 1));
-    std::vector<std::vector<ActiveGammaTerm>> active_gamma_terms(static_cast<std::size_t>(n_max_tree + 1));
+    typename WindowedNSHaloWorkspace<T>::RadiiBuilderFn make_radii_builder() {
+        return [this](const std::vector<WindowedGlobalLevelStats>& gstats,
+                      std::vector<WindowedLevelRadii>& out_radii) {
+            out_radii.assign(static_cast<std::size_t>(n_max_tree + 1), WindowedLevelRadii{});
 
-    // Dynamic bandwidth classification:
-    // - When `dynamic_refine == false`, uses unit reference norms (`1.0`) so operator bandwidths
-    //   depend solely on `(plan, eff_tol, tree_topology)` and shared-tree linearity holds to ~1e-15.
-    // - When `dynamic_refine == true`, uses global level norms and Legacy MADNESS's shell-2
-    //   threshold `loc_tol_j / (14.14 * sqrt(N_terms))` while keeping shell-0/1 at `0.01 * loc_tol_j / sqrt(N)`.
-    auto radii_builder = [&](const std::vector<WindowedGlobalLevelStats>& gstats,
-                             std::vector<WindowedLevelRadii>& out_radii) {
-        out_radii.assign(static_cast<std::size_t>(n_max_tree + 1), WindowedLevelRadii{});
+            for (int j = 0; j <= n_max_tree; ++j) {
+                const std::size_t sj = static_cast<std::size_t>(j);
+                const WindowedGlobalLevelStats& st = gstats[sj];
+                const double loc_tol_j =
+                    f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
 
-        for (int j = 0; j <= n_max_tree; ++j) {
-            const std::size_t sj = static_cast<std::size_t>(j);
-            const WindowedGlobalLevelStats& st = gstats[sj];
-            const double loc_tol_j = f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
+                double sum_sh2_s_T = 0.0;
+                double max_sh2_s_T = 0.0;
+                double sum_sh2_4b1 = 0.0;
+                double max_sh2_4b1 = 0.0;
+                double sum_sh2_s_leaf = 0.0;
+                double max_sh2_s_leaf = 0.0;
+                double sum_sh2_refine = 0.0;
+                double max_sh2_refine = 0.0;
 
-            double sum_sh2_s_T = 0.0;
-            double max_sh2_s_T = 0.0;
-            double sum_sh2_4b1 = 0.0;
-            double max_sh2_4b1 = 0.0;
-            double sum_sh2_s_leaf = 0.0;
-            double max_sh2_s_leaf = 0.0;
-            double sum_sh2_refine = 0.0;
-            double max_sh2_refine = 0.0;
-
-            // Stage 4(a) active bandwidth classification
-            const auto& rT = raw_T_terms[sj];
-            if (!rT.empty()) {
-                if (j == 0) {
-                    if (!dynamic_refine || st.max_s_real > 0.0) {
-                        for (const RawTermRef& rt : rT) {
-                            active_T_terms[sj].push_back(
-                                ActiveBaseTerm{rt.term_idx, rt.entry, rt.weight_scaled, 0});
+                const auto& rT = raw_T_terms[sj];
+                if (!rT.empty()) {
+                    if (j == 0) {
+                        if (!dynamic_refine || st.max_s_real > 0.0) {
+                            for (const RawTermRef& rt : rT) {
+                                active_T_terms[sj].push_back(
+                                    ActiveBaseTerm{rt.term_idx, rt.entry, rt.weight_scaled, 0});
+                            }
                         }
-                    }
-                } else if (!dynamic_refine || st.max_s_source > 0.0) {
-                    const double sqrt_nT =
-                        std::sqrt(static_cast<double>(std::max<std::size_t>(1, rT.size())));
-                    const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT;
-                    const double tol_sh2_T =
-                        dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT)) : (0.1 * tol_nn_T);
-                    const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
+                    } else if (!dynamic_refine || st.max_s_source > 0.0) {
+                        const double sqrt_nT =
+                            std::sqrt(static_cast<double>(std::max<std::size_t>(1, rT.size())));
+                        const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT;
+                        const double tol_sh2_T =
+                            dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT)) : (0.1 * tol_nn_T);
+                        const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
 
-                    for (const RawTermRef& rt : rT) {
-                        const double aw = std::abs(rt.weight_scaled);
-                        const int bw_T = rt.entry->select_bw_T(aw, ref_s_src, tol_nn_T, tol_sh2_T);
-                        if (bw_T >= 1) {
-                            active_T_terms[sj].push_back(
-                                ActiveBaseTerm{rt.term_idx, rt.entry, rt.weight_scaled, bw_T});
-                            out_radii[sj].has_T_terms = true;
-                            out_radii[sj].m_max_T = std::max(out_radii[sj].m_max_T, bw_T);
-                            if (rt.entry->m_max_T >= 2) {
-                                const double op2 = aw * rt.entry->shell_max_T[2];
-                                sum_sh2_s_T += op2;
-                                max_sh2_s_T = std::max(max_sh2_s_T, sqrt_nT * op2);
+                        for (const RawTermRef& rt : rT) {
+                            const double aw = std::abs(rt.weight_scaled);
+                            const int bw_T =
+                                rt.entry->select_bw_T(aw, ref_s_src, tol_nn_T, tol_sh2_T);
+                            if (bw_T >= 1) {
+                                active_T_terms[sj].push_back(
+                                    ActiveBaseTerm{rt.term_idx, rt.entry, rt.weight_scaled, bw_T});
+                                out_radii[sj].has_T_terms = true;
+                                out_radii[sj].m_max_T = std::max(out_radii[sj].m_max_T, bw_T);
+                                if (rt.entry->m_max_T >= 2) {
+                                    const double op2 = aw * rt.entry->shell_max_T[2];
+                                    sum_sh2_s_T += op2;
+                                    max_sh2_s_T = std::max(max_sh2_s_T, sqrt_nT * op2);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Stage 4(b) active bandwidth classification (strictly skipped if level has no internal nodes)
-            if (j < n_max_tree && st.has_internal && !raw_gamma_terms[sj].empty()) {
-                const auto& rG = raw_gamma_terms[sj];
-                const double sqrt_nG =
-                    std::sqrt(static_cast<double>(std::max<std::size_t>(1, rG.size())));
-                const double tol_nn_G = 0.01 * loc_tol_j / sqrt_nG;
-                const double tol_sh2_G =
-                    dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nG)) : (0.1 * tol_nn_G);
-                const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
-                const double ref_s_real = dynamic_refine ? st.max_s_real : 1.0;
-                const double ref_d_int = dynamic_refine ? st.max_d_int : 1.0;
+                if (j < n_max_tree && st.has_internal && !raw_gamma_terms[sj].empty()) {
+                    const auto& rG = raw_gamma_terms[sj];
+                    const double sqrt_nG =
+                        std::sqrt(static_cast<double>(std::max<std::size_t>(1, rG.size())));
+                    const double tol_nn_G = 0.01 * loc_tol_j / sqrt_nG;
+                    const double tol_sh2_G =
+                        dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nG)) : (0.1 * tol_nn_G);
+                    const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
+                    const double ref_s_real = dynamic_refine ? st.max_s_real : 1.0;
+                    const double ref_d_int = dynamic_refine ? st.max_d_int : 1.0;
 
-                for (const RawTermRef& rg : rG) {
-                    const double aw = std::abs(rg.weight_scaled);
-                    const int bw_4b1 =
-                        rg.entry->select_bw_4b1(aw, ref_d_int, tol_nn_G, tol_sh2_G);
-                    const int bw_leaf =
-                        rg.entry->select_bw_4b2_leaf(aw, ref_s_src, tol_nn_G, tol_sh2_G);
-                    const int bw_int = rg.entry->select_bw_4b2_int(
-                        aw, ref_s_real, ref_d_int, tol_nn_G, tol_sh2_G, bw_leaf);
+                    for (const RawTermRef& rg : rG) {
+                        const double aw = std::abs(rg.weight_scaled);
+                        const int bw_4b1 =
+                            rg.entry->select_bw_4b1(aw, ref_d_int, tol_nn_G, tol_sh2_G);
+                        const int bw_leaf =
+                            rg.entry->select_bw_4b2_leaf(aw, ref_s_src, tol_nn_G, tol_sh2_G);
+                        const int bw_int = rg.entry->select_bw_4b2_int(
+                            aw, ref_s_real, ref_d_int, tol_nn_G, tol_sh2_G, bw_leaf);
 
-                    if (bw_4b1 >= 0) {
-                        out_radii[sj].has_4b1_terms = true;
-                        out_radii[sj].m_max_4b1 = std::max(out_radii[sj].m_max_4b1, bw_4b1);
-                    }
-                    if (bw_leaf >= 1) {
-                        out_radii[sj].has_4b2_leaf_terms = true;
-                        out_radii[sj].m_max_4b2_leaf = std::max(out_radii[sj].m_max_4b2_leaf, bw_leaf);
-                    }
-                    if (bw_int >= 0) {
-                        out_radii[sj].has_4b2_int_terms = true;
-                        out_radii[sj].m_max_4b2_int = std::max(out_radii[sj].m_max_4b2_int, bw_int);
-                    }
-                    if (bw_4b1 >= 0 || bw_leaf >= 1 || bw_int >= 0) {
-                        active_gamma_terms[sj].push_back(ActiveGammaTerm{
-                            rg.term_idx, rg.entry, rg.weight_scaled, bw_4b1, bw_leaf, bw_int});
-                        if (rg.entry->m_max_ns >= 2) {
-                            const double op_4b1 = aw * rg.entry->shell_max_4b1[2];
-                            const double op_leaf = aw * rg.entry->shell_max_4b2_leaf[2];
-                            const double op_ref =
-                                aw * std::max(rg.entry->shell_max_4b2_leaf[2],
-                                              rg.entry->shell_max_4b2_int[2]);
-                            sum_sh2_4b1 += op_4b1;
-                            max_sh2_4b1 = std::max(max_sh2_4b1, sqrt_nG * op_4b1);
-                            sum_sh2_s_leaf += op_leaf;
-                            max_sh2_s_leaf = std::max(max_sh2_s_leaf, sqrt_nG * op_leaf);
-                            sum_sh2_refine += op_ref;
-                            max_sh2_refine = std::max(max_sh2_refine, sqrt_nG * op_ref);
+                        if (bw_4b1 >= 0) {
+                            out_radii[sj].has_4b1_terms = true;
+                            out_radii[sj].m_max_4b1 = std::max(out_radii[sj].m_max_4b1, bw_4b1);
+                        }
+                        if (bw_leaf >= 1) {
+                            out_radii[sj].has_4b2_leaf_terms = true;
+                            out_radii[sj].m_max_4b2_leaf =
+                                std::max(out_radii[sj].m_max_4b2_leaf, bw_leaf);
+                        }
+                        if (bw_int >= 0) {
+                            out_radii[sj].has_4b2_int_terms = true;
+                            out_radii[sj].m_max_4b2_int =
+                                std::max(out_radii[sj].m_max_4b2_int, bw_int);
+                        }
+                        if (bw_4b1 >= 0 || bw_leaf >= 1 || bw_int >= 0) {
+                            active_gamma_terms[sj].push_back(ActiveGammaTerm{
+                                rg.term_idx, rg.entry, rg.weight_scaled, bw_4b1, bw_leaf, bw_int});
+                            if (rg.entry->m_max_ns >= 2) {
+                                const double op_4b1 = aw * rg.entry->shell_max_4b1[2];
+                                const double op_leaf = aw * rg.entry->shell_max_4b2_leaf[2];
+                                const double op_ref =
+                                    aw * std::max(rg.entry->shell_max_4b2_leaf[2],
+                                                  rg.entry->shell_max_4b2_int[2]);
+                                sum_sh2_4b1 += op_4b1;
+                                max_sh2_4b1 = std::max(max_sh2_4b1, sqrt_nG * op_4b1);
+                                sum_sh2_s_leaf += op_leaf;
+                                max_sh2_s_leaf = std::max(max_sh2_s_leaf, sqrt_nG * op_leaf);
+                                sum_sh2_refine += op_ref;
+                                max_sh2_refine = std::max(max_sh2_refine, sqrt_nG * op_ref);
+                            }
                         }
                     }
                 }
-            }
 
-            if (dynamic_refine) {
-                const double sh2_tol = loc_tol_j / 14.14;
-                const double eff_s_op = std::max(
-                    {1e-30, 2.5 * (sum_sh2_s_T + sum_sh2_s_leaf), max_sh2_s_T, max_sh2_s_leaf});
-                const double eff_4b1_op = std::max({1e-30, sum_sh2_4b1, max_sh2_4b1});
-                const double eff_ref_op = std::max({1e-30, sum_sh2_refine, max_sh2_refine});
-                out_radii[sj].sh2_s_thresh = sh2_tol / eff_s_op;
-                out_radii[sj].sh2_4b1_thresh = sh2_tol / eff_4b1_op;
-                out_radii[sj].sh2_refine_thresh = sh2_tol / eff_ref_op;
+                if (dynamic_refine) {
+                    const double sh2_tol = loc_tol_j / 14.14;
+                    const double eff_s_op = std::max(
+                        {1e-30, 2.5 * (sum_sh2_s_T + sum_sh2_s_leaf), max_sh2_s_T, max_sh2_s_leaf});
+                    const double eff_4b1_op = std::max({1e-30, sum_sh2_4b1, max_sh2_4b1});
+                    const double eff_ref_op = std::max({1e-30, sum_sh2_refine, max_sh2_refine});
+                    out_radii[sj].sh2_s_thresh = sh2_tol / eff_s_op;
+                    out_radii[sj].sh2_4b1_thresh = sh2_tol / eff_4b1_op;
+                    out_radii[sj].sh2_refine_thresh = sh2_tol / eff_ref_op;
+                }
             }
-        }
-    };
-
-    WindowedSerialInputRange serial_range;
-    serial_range.min_s_int_level = n_max_tree + 1;
-    serial_range.max_s_int_level = -1;
-    serial_range.min_gamma_level = n_max_tree + 1;
-    serial_range.max_gamma_level = -1;
-    for (int j = 0; j < n_max_tree; ++j) {
-        const std::size_t sj = static_cast<std::size_t>(j);
-        const bool has_root_stage3 =
-            (j == 0) && (plan.w_const_scaled() != 0.0 || !root_ultra_diffuse_terms.empty());
-        const bool has_g = !raw_gamma_terms[sj].empty();
-        const bool has_s = has_root_stage3 || !raw_T_terms[sj].empty() || has_g;
-        if (has_s) {
-            serial_range.min_s_int_level = std::min(serial_range.min_s_int_level, j);
-            serial_range.max_s_int_level = std::max(serial_range.max_s_int_level, j);
-        }
-        if (has_g) {
-            serial_range.min_gamma_level = std::min(serial_range.min_gamma_level, j);
-            serial_range.max_gamma_level = std::max(serial_range.max_gamma_level, j);
-        }
+        };
     }
 
-    const bool ungraded_leaf_refine_only = (eff_thresh >= 1e-6);
-
-    // Inner scope guarantees `WindowedNSHaloWorkspace`'s internal `WorldObject` (when `world.size() > 1`)
-    // is fenced & destroyed before `apply_windowed_ns_3d_prepared` returns.
-    {
-        WindowedNSHaloWorkspace<T> ws(
-            world,
-            f_ns,
-            n_max_tree,
-            dynamic_refine,
-            max_refine_level,
-            radii_builder,
-            serial_range,
-            ungraded_leaf_refine_only);
-
+    void execute_local_stages_2_to_4(WindowedNSHaloWorkspace<T>& ws,
+                                     SumFactScratch3D<T>& sf_scratch) {
+        const WindowedQuadraturePlan& plan = *plan_ptr;
+        const WindowedStencilCache1D& stencil_cache = *stencil_ptr;
         const LegendreMomentOp& mop = plan.moment_op();
         const auto& gstats = ws.global_stats();
         const auto& radii = ws.radii();
@@ -2106,9 +2606,6 @@ void apply_windowed_ns_3d_prepared(World& world,
         const long k_dims[3] = {kk, kk, kk};
         Tensor<T> work1_k3(3L, k_dims, false);
         Tensor<T> work2_k3(3L, k_dims, false);
-        Tensor<double> mt_mat(kk, kk);
-        SumFactScratchLease<T> sf_lease;
-        SumFactScratch3D<T>& sf_scratch = sf_lease.get();
 
         // =====================================================================
         // Stage 2: Cross-Level Flattened Gauss-Christoffel Spiky Moment Pass
@@ -2180,8 +2677,9 @@ void apply_windowed_ns_3d_prepared(World& world,
         // Stage 4(a): Base `T^{j_0}` Injection + Theorem 3.1 Halo Subtraction
         // =====================================================================
         constexpr std::size_t kMaxNormBuckets = 3;
-        auto select_norm_bucket = [dynamic_refine](double norm, double max_M) noexcept -> std::size_t {
-            if (!dynamic_refine) return 0u;
+        const bool dyn_bucket = dynamic_refine;
+        auto select_norm_bucket = [dyn_bucket](double norm, double max_M) noexcept -> std::size_t {
+            if (!dyn_bucket) return 0u;
             if (norm > 0.02 * max_M) return 0u;
             if (norm > 1e-4 * max_M) return 1u;
             return 2u;
@@ -2274,8 +2772,7 @@ void apply_windowed_ns_3d_prepared(World& world,
                     }
                 }
                 const double t_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
-                const double max_s_T_M =
-                    dynamic_refine ? std::max(1e-30, gstats[sj].max_s_source) : 1.0;
+                const double max_s_T_M = dynamic_refine ? gstats[sj].max_s_source : 1.0;
                 const std::array<double, kMaxNormBuckets> t_brefs = {
                     max_s_T_M, 0.02 * max_s_T_M, 1e-4 * max_s_T_M};
 
@@ -2350,15 +2847,16 @@ void apply_windowed_ns_3d_prepared(World& world,
                         }
                     }
 
+                    std::vector<FusedSumFactTerm> fused_T;
+                    fused_T.reserve(prep_T.size());
                     for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
-                        bool any_bw = false;
+                        fused_T.clear();
                         for (const PreparedBaseTerm& pt : prep_T) {
                             if (pt.eff_bw == m_bw) {
-                                any_bw = true;
-                                break;
+                                fused_T.push_back(FusedSumFactTerm{&pt.slot_ops, pt.tr->weight_scaled});
                             }
                         }
-                        if (!any_bw) continue;
+                        if (fused_T.empty()) continue;
 
                         run_sumfact_target_tiled_3d(
                             b_T_keys[bi],
@@ -2368,46 +2866,48 @@ void apply_windowed_ns_3d_prepared(World& world,
                             ws.is_periodic(),
                             1024u,
                             [&](const SumFactGraph3D& graph_T, const std::vector<T*>& tile_tptrs) {
-                                for (const PreparedBaseTerm& pt : prep_T) {
-                                    if (pt.eff_bw != m_bw) continue;
-                                    execute_sumfact_3d(graph_T,
-                                                       kk,
-                                                       kk,
-                                                       pt.slot_ops,
-                                                       pt.tr->weight_scaled,
-                                                       b_T_ptrs[bi],
-                                                       tile_tptrs,
-                                                       sf_scratch);
-                                }
+                                execute_sumfact_batch_3d(graph_T,
+                                                         kk,
+                                                         kk,
+                                                         fused_T,
+                                                         b_T_ptrs[bi],
+                                                         tile_tptrs,
+                                                         sf_scratch);
                             });
                     }
                 }
 
-                // Theorem 3.1 exact commutation subtraction (executed ONCE per ActiveBaseTerm,
+                // Theorem 3.1 exact commutation subtraction (fused single-dispatch across all ActiveBaseTerms,
                 // strictly outside source-norm buckets!):
                 //   ds_corr[V] -= W_p * M(gamma_{p, j})^{\otimes 3} s_virt[V]  for all V in dH_j^{(1,T)}.
-                if (!h1t_virts.empty()) {
-                    for (const ActiveBaseTerm& tr : t_list) {
-                        mop.fill_MT_buffer(tr.entry->gamma, mt_mat.ptr());
-                        const double neg_w = -tr.weight_scaled;
-                        parallel_for_chunks(
-                            h1t_virts.size(),
-                            kDefaultParallelGrain,
-                            [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
-                                if (h1t_tmp_k3[cid].size() != kk3) {
-                                    h1t_tmp_k3[cid] = Tensor<T>(3L, k_dims, false);
-                                    h1t_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
-                                }
-                                Tensor<T>& t_cube = h1t_tmp_k3[cid];
-                                Tensor<T>& w_cube = h1t_w1_k3[cid];
-                                for (std::size_t vi = b; vi < e_hi; ++vi) {
-                                    WindowedOwnedVirtNode<T>* vn_ptr = h1t_virts[vi];
-                                    if (!(vn_ptr->s_normf > 0.0)) continue;
-                                    fast_transform(vn_ptr->s_virt, mt_mat, t_cube, w_cube);
-                                    aligned_axpy(kk3, vn_ptr->ds_corr.ptr(), t_cube.ptr(), neg_w);
-                                }
-                            });
+                if (!h1t_virts.empty() && !t_list.empty()) {
+                    std::vector<Tensor<double>> mt_mats(t_list.size());
+                    for (std::size_t ti = 0; ti < t_list.size(); ++ti) {
+                        mt_mats[ti] = Tensor<double>(kk, kk);
+                        mop.fill_MT_buffer(t_list[ti].entry->gamma, mt_mats[ti].ptr());
                     }
+                    parallel_for_chunks(
+                        h1t_virts.size(),
+                        kDefaultParallelGrain,
+                        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                            if (h1t_tmp_k3[cid].size() != kk3) {
+                                h1t_tmp_k3[cid] = Tensor<T>(3L, k_dims, false);
+                                h1t_w1_k3[cid] = Tensor<T>(3L, k_dims, false);
+                            }
+                            Tensor<T>& t_cube = h1t_tmp_k3[cid];
+                            Tensor<T>& w_cube = h1t_w1_k3[cid];
+                            for (std::size_t vi = b; vi < e_hi; ++vi) {
+                                WindowedOwnedVirtNode<T>* vn_ptr = h1t_virts[vi];
+                                if (!(vn_ptr->s_normf > 0.0)) continue;
+                                for (std::size_t ti = 0; ti < t_list.size(); ++ti) {
+                                    fast_transform(vn_ptr->s_virt, mt_mats[ti], t_cube, w_cube);
+                                    aligned_axpy(kk3,
+                                                 vn_ptr->ds_corr.ptr(),
+                                                 t_cube.ptr(),
+                                                 -t_list[ti].weight_scaled);
+                                }
+                            }
+                        });
                 }
             }();
 
@@ -2477,7 +2977,7 @@ void apply_windowed_ns_3d_prepared(World& world,
                     p1_real_tkeys, p1_real_tptrs, p1_virt_tkeys, p1_virt_tptrs, p1_tgt_keys, p1_tgt_ptrs);
 
                 if (!p1_tgt_keys.empty()) {
-                    const double max_d_M = dynamic_refine ? std::max(1e-30, st.max_d_int) : 1.0;
+                    const double max_d_M = dynamic_refine ? st.max_d_int : 1.0;
                     const std::array<double, kMaxNormBuckets> p1_brefs = {
                         max_d_M, 0.02 * max_d_M, 1e-4 * max_d_M};
 
@@ -2582,29 +3082,35 @@ void apply_windowed_ns_3d_prepared(World& world,
                             const auto p1_matches =
                                 intersect_sorted_keys(b_src_keys[bi], p1_tgt_keys);
                             if (!p1_matches.empty()) {
+                                std::vector<SelfBoxTermSpec> self_p1_terms;
+                                self_p1_terms.reserve(prep_p1.size());
                                 for (const PreparedP1Term& pp : prep_p1) {
-                                    if (pp.eff_bw != 0) continue;
-                                    execute_self_box_2k_to_k_3d(p1_matches,
-                                                                b_src_tensors[bi],
-                                                                p1_tgt_ptrs,
-                                                                kk,
-                                                                *pp.gr->entry,
-                                                                pp.gr->weight_scaled,
-                                                                term_svd_tol_p1,
-                                                                sf_scratch);
+                                    if (pp.eff_bw == 0) {
+                                        self_p1_terms.push_back(
+                                            SelfBoxTermSpec{pp.gr->entry, pp.gr->weight_scaled});
+                                    }
                                 }
+                                execute_self_box_2k_to_k_batch_3d(p1_matches,
+                                                                  b_src_tensors[bi],
+                                                                  p1_tgt_ptrs,
+                                                                  kk,
+                                                                  self_p1_terms,
+                                                                  term_svd_tol_p1,
+                                                                  sf_scratch);
                             }
                         }
 
+                        std::vector<FusedSumFactTerm> fused_p1;
+                        fused_p1.reserve(prep_p1.size());
                         for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
-                            bool any_bw = false;
+                            fused_p1.clear();
                             for (const PreparedP1Term& pp : prep_p1) {
                                 if (pp.eff_bw == m_bw) {
-                                    any_bw = true;
-                                    break;
+                                    fused_p1.push_back(
+                                        FusedSumFactTerm{&pp.slot_ops, pp.gr->weight_scaled});
                                 }
                             }
-                            if (!any_bw) continue;
+                            if (fused_p1.empty()) continue;
 
                             run_sumfact_target_tiled_3d(
                                 b_src_keys[bi],
@@ -2614,17 +3120,13 @@ void apply_windowed_ns_3d_prepared(World& world,
                                 ws.is_periodic(),
                                 512u,
                                 [&](const SumFactGraph3D& graph_p1, const std::vector<T*>& tile_tptrs) {
-                                    for (const PreparedP1Term& pp : prep_p1) {
-                                        if (pp.eff_bw != m_bw) continue;
-                                        execute_sumfact_3d(graph_p1,
-                                                           twok,
-                                                           kk,
-                                                           pp.slot_ops,
-                                                           pp.gr->weight_scaled,
-                                                           b_src_ptrs[bi],
-                                                           tile_tptrs,
-                                                           sf_scratch);
-                                    }
+                                    execute_sumfact_batch_3d(graph_p1,
+                                                             twok,
+                                                             kk,
+                                                             fused_p1,
+                                                             b_src_ptrs[bi],
+                                                             tile_tptrs,
+                                                             sf_scratch);
                                 });
                         }
                     }
@@ -2888,8 +3390,8 @@ void apply_windowed_ns_3d_prepared(World& world,
                 }
                 const double p2_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
 
-                const double max_ns_M = dynamic_refine ? std::max(1e-30, st.max_ns_int) : 1.0;
-                const double max_s_M = dynamic_refine ? std::max(1e-30, st.max_s_source) : 1.0;
+                const double max_ns_M = dynamic_refine ? st.max_ns_int : 1.0;
+                const double max_s_M = dynamic_refine ? st.max_s_source : 1.0;
                 const std::array<double, kMaxNormBuckets> int_brefs = {
                     max_ns_M, 0.02 * max_ns_M, 1e-4 * max_ns_M};
                 const std::array<double, kMaxNormBuckets> leaf_brefs = {
@@ -3008,29 +3510,35 @@ void apply_windowed_ns_3d_prepared(World& world,
                             const auto p2_int_matches =
                                 intersect_sorted_keys(b_int_keys[bi], p2_tgt_keys);
                             if (!p2_int_matches.empty()) {
+                                std::vector<SelfBoxTermSpec> self_int_terms;
+                                self_int_terms.reserve(prep_int.size());
                                 for (const PreparedP2IntTerm& pi : prep_int) {
-                                    if (pi.eff_bw != 0) continue;
-                                    execute_self_box_2k_to_2k_3d(p2_int_matches,
-                                                                 b_int_tensors[bi],
-                                                                 p2_tgt_ptrs,
-                                                                 twok,
-                                                                 *pi.gr->entry,
-                                                                 pi.gr->weight_scaled,
-                                                                 term_svd_tol_int,
-                                                                 sf_scratch);
+                                    if (pi.eff_bw == 0) {
+                                        self_int_terms.push_back(
+                                            SelfBoxTermSpec{pi.gr->entry, pi.gr->weight_scaled});
+                                    }
                                 }
+                                execute_self_box_2k_to_2k_batch_3d(p2_int_matches,
+                                                                   b_int_tensors[bi],
+                                                                   p2_tgt_ptrs,
+                                                                   twok,
+                                                                   self_int_terms,
+                                                                   term_svd_tol_int,
+                                                                   sf_scratch);
                             }
                         }
 
+                        std::vector<FusedSumFactTerm> fused_int;
+                        fused_int.reserve(prep_int.size());
                         for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
-                            bool any_bw = false;
+                            fused_int.clear();
                             for (const PreparedP2IntTerm& pi : prep_int) {
                                 if (pi.eff_bw == m_bw) {
-                                    any_bw = true;
-                                    break;
+                                    fused_int.push_back(
+                                        FusedSumFactTerm{&pi.slot_ops, pi.gr->weight_scaled});
                                 }
                             }
-                            if (!any_bw) continue;
+                            if (fused_int.empty()) continue;
 
                             run_sumfact_target_tiled_3d(
                                 b_int_keys[bi],
@@ -3041,17 +3549,13 @@ void apply_windowed_ns_3d_prepared(World& world,
                                 256u,
                                 [&](const SumFactGraph3D& graph_p2_int,
                                     const std::vector<T*>& tile_tptrs) {
-                                    for (const PreparedP2IntTerm& pi : prep_int) {
-                                        if (pi.eff_bw != m_bw) continue;
-                                        execute_sumfact_3d(graph_p2_int,
-                                                           twok,
-                                                           twok,
-                                                           pi.slot_ops,
-                                                           pi.gr->weight_scaled,
-                                                           b_int_ptrs[bi],
-                                                           tile_tptrs,
-                                                           sf_scratch);
-                                    }
+                                    execute_sumfact_batch_3d(graph_p2_int,
+                                                             twok,
+                                                             twok,
+                                                             fused_int,
+                                                             b_int_ptrs[bi],
+                                                             tile_tptrs,
+                                                             sf_scratch);
                                 });
                         }
                     }
@@ -3125,15 +3629,17 @@ void apply_windowed_ns_3d_prepared(World& world,
                             }
                         }
 
+                        std::vector<FusedSumFactTerm> fused_leaf;
+                        fused_leaf.reserve(prep_leaf.size());
                         for (int m_bw = 1; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
-                            bool any_bw = false;
+                            fused_leaf.clear();
                             for (const PreparedP2LeafTerm& pl : prep_leaf) {
                                 if (pl.eff_bw == m_bw) {
-                                    any_bw = true;
-                                    break;
+                                    fused_leaf.push_back(
+                                        FusedSumFactTerm{&pl.slot_ops, pl.gr->weight_scaled});
                                 }
                             }
-                            if (!any_bw) continue;
+                            if (fused_leaf.empty()) continue;
 
                             run_sumfact_target_tiled_3d(
                                 b_leaf_keys[bi],
@@ -3144,17 +3650,13 @@ void apply_windowed_ns_3d_prepared(World& world,
                                 256u,
                                 [&](const SumFactGraph3D& graph_p2_leaf,
                                     const std::vector<T*>& tile_tptrs) {
-                                    for (const PreparedP2LeafTerm& pl : prep_leaf) {
-                                        if (pl.eff_bw != m_bw) continue;
-                                        execute_sumfact_3d(graph_p2_leaf,
-                                                           kk,
-                                                           twok,
-                                                           pl.slot_ops,
-                                                           pl.gr->weight_scaled,
-                                                           b_leaf_ptrs[bi],
-                                                           tile_tptrs,
-                                                           sf_scratch);
-                                    }
+                                    execute_sumfact_batch_3d(graph_p2_leaf,
+                                                             kk,
+                                                             twok,
+                                                             fused_leaf,
+                                                             b_leaf_ptrs[bi],
+                                                             tile_tptrs,
+                                                             sf_scratch);
                                 });
                         }
                     }
@@ -3198,15 +3700,155 @@ void apply_windowed_ns_3d_prepared(World& world,
                 }
             }
         }
+    }
+};
 
-        // =====================================================================
-        // Stage 5a: Bottom-Up Virtual Restriction & Output Tree Assembly
-        // =====================================================================
+} // namespace windowed_sumfact_detail
+
+/// Core Stage 1b through Stage 5a Windowed NS execution on an already-prepared `f_ns`
+/// (`reconstructed`, `compressed`, or `nonstandard_with_leaves` on `world.size() == 1`;
+/// `nonstandard_with_leaves` on `world.size() > 1`) and already-allocated empty `result`
+/// (`result.get_impl()->get_coeffs().process_pending()` completed by caller),
+/// leaving `result` in `TreeState::reconstructed` (fast serial unpromoted path) or
+/// `TreeState::nonstandard_after_apply`.
+template <typename T>
+void apply_windowed_ns_3d_prepared(World& world,
+                                   const Function<T, 3>& f_ns,
+                                   Function<T, 3>& result,
+                                   const WindowedQuadraturePlan& plan,
+                                   const WindowedStencilCache1D& stencil_cache,
+                                   double thresh,
+                                   bool dynamic_refine = true,
+                                   double dynamic_refine_factor = 1.0,
+                                   double explicit_eps_loc = 0.0) {
+    using namespace windowed_sumfact_detail;
+
+    MADNESS_CHECK(f_ns.is_initialized() && result.is_initialized());
+    const TreeState in_state = f_ns.get_impl()->get_tree_state();
+    if (world.size() > 1) {
+        MADNESS_CHECK(in_state == nonstandard_with_leaves);
+    } else {
+        MADNESS_CHECK(in_state == nonstandard_with_leaves ||
+                      in_state == reconstructed ||
+                      in_state == compressed);
+    }
+
+    const int n_max_tree = (world.size() == 1) ? compute_serial_max_tree_level(f_ns)
+                                               : static_cast<int>(f_ns.max_depth());
+    WindowedOrbitalExecContext<T> ctx(f_ns,
+                                      plan,
+                                      stencil_cache,
+                                      n_max_tree,
+                                      thresh,
+                                      dynamic_refine,
+                                      dynamic_refine_factor,
+                                      explicit_eps_loc);
+
+    {
+        WindowedNSHaloWorkspace<T> ws(world,
+                                      f_ns,
+                                      ctx.n_max_tree,
+                                      ctx.dynamic_refine,
+                                      ctx.max_refine_level,
+                                      ctx.make_radii_builder(),
+                                      ctx.serial_range,
+                                      ctx.ungraded_leaf_refine_only);
+
+        SumFactScratchLease<T> sf_lease;
+        ctx.execute_local_stages_2_to_4(ws, sf_lease.get());
+
         if (world.size() == 1) {
             (void)ws.assemble_output_reconstructed_serial(result);
         } else {
             ws.assemble_output_nonstandard_tree(result);
         }
+    }
+}
+
+/// Multi-orbital lockstep Stage 1b through Stage 5a Windowed NS execution on `world.size() > 1`:
+///   - Shares a single `WindowedNSHaloExchange<T>` `WorldObject` across all `B` functions (`B <= 65535`).
+///   - Coalesces all Stage 1b halo collectives (`4–5` total) and Stage 5a restriction/promotion
+///     collectives (`2–3` total) across the entire `B`-orbital batch, eliminating per-orbital MPI barriers.
+///   - Executes Stages 2–4 locally on each rank with full intra-rank thread parallelism and
+///     level-by-level input tensor release (`LevelInputReleaseGuard`).
+template <typename T>
+void apply_windowed_ns_3d_batch_distributed(
+    World& world,
+    const std::vector<Function<T, 3>>& f_ns_vec,
+    std::vector<Function<T, 3>>& result_vec,
+    const std::vector<int>& max_depths,
+    const std::vector<const WindowedQuadraturePlan*>& plans,
+    const std::vector<const WindowedStencilCache1D*>& stencils,
+    const std::vector<double>& eff_thresh,
+    const std::vector<std::uint8_t>& dynamic_refine_flags,
+    const std::vector<double>& eff_refine_fac,
+    const std::vector<double>& explicit_eps_loc) {
+    using namespace windowed_sumfact_detail;
+
+    const std::size_t B = f_ns_vec.size();
+    if (B == 0) return;
+    MADNESS_CHECK(world.size() > 1);
+    MADNESS_CHECK(B <= 65535u);
+    MADNESS_CHECK(result_vec.size() == B && max_depths.size() == B && plans.size() == B &&
+                  stencils.size() == B && eff_thresh.size() == B &&
+                  dynamic_refine_flags.size() == B && eff_refine_fac.size() == B &&
+                  explicit_eps_loc.size() == B);
+
+    {
+        windowed_halo_detail::WindowedNSHaloExchange<T> shared_exchange(world, B);
+
+        std::vector<std::unique_ptr<WindowedOrbitalExecContext<T>>> ctxs(B);
+        std::vector<std::unique_ptr<WindowedNSHaloWorkspace<T>>> workspaces(B);
+        std::vector<WindowedNSHaloWorkspace<T>*> ws_ptrs(B, nullptr);
+        std::vector<const Function<T, 3>*> f_ptrs(B, nullptr);
+        std::vector<Function<T, 3>*> res_ptrs(B, nullptr);
+        std::vector<typename WindowedNSHaloWorkspace<T>::RadiiBuilderFn> radii_builders(B);
+
+        for (std::size_t b = 0; b < B; ++b) {
+            MADNESS_CHECK(f_ns_vec[b].is_initialized() && result_vec[b].is_initialized());
+            MADNESS_CHECK(f_ns_vec[b].get_impl()->get_tree_state() == nonstandard_with_leaves);
+            const bool dyn_b = (dynamic_refine_flags[b] != 0u);
+
+            ctxs[b] = std::make_unique<WindowedOrbitalExecContext<T>>(f_ns_vec[b],
+                                                                      *plans[b],
+                                                                      *stencils[b],
+                                                                      max_depths[b],
+                                                                      eff_thresh[b],
+                                                                      dyn_b,
+                                                                      eff_refine_fac[b],
+                                                                      explicit_eps_loc[b]);
+            workspaces[b] = std::make_unique<WindowedNSHaloWorkspace<T>>(
+                typename WindowedNSHaloWorkspace<T>::DeferredDistributedTag{},
+                world,
+                f_ns_vec[b],
+                ctxs[b]->n_max_tree,
+                ctxs[b]->dynamic_refine,
+                ctxs[b]->max_refine_level,
+                ctxs[b]->ungraded_leaf_refine_only,
+                &shared_exchange,
+                static_cast<std::uint16_t>(b));
+
+            ws_ptrs[b] = workspaces[b].get();
+            f_ptrs[b] = &f_ns_vec[b];
+            res_ptrs[b] = &result_vec[b];
+            radii_builders[b] = ctxs[b]->make_radii_builder();
+        }
+
+        WindowedNSHaloWorkspace<T>::build_distributed_lockstep(
+            world, ws_ptrs, f_ptrs, radii_builders, shared_exchange);
+
+        {
+            SumFactScratchLease<T> sf_lease;
+            SumFactScratch3D<T>& sf_scratch = sf_lease.get();
+            for (std::size_t b = 0; b < B; ++b) {
+                ctxs[b]->execute_local_stages_2_to_4(*ws_ptrs[b], sf_scratch);
+            }
+        }
+
+        WindowedNSHaloWorkspace<T>::assemble_output_nonstandard_lockstep(
+            world, ws_ptrs, res_ptrs, shared_exchange);
+
+        world.gop.fence();
     }
 }
 

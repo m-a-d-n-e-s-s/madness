@@ -65,6 +65,25 @@ double check_and_get_cubic_cell_width_3d() {
     return L0;
 }
 
+inline double select_operator_gamma_spiky_override(int k) noexcept {
+    // At low wavelet order `k < 8` (e.g. loose SCF protocol `1e-4, k = 6`), floor Stage 2's
+    // box-local moment threshold `gamma_spiky` at the `k = 9` stiffness (`270.0`, keeping `W = 5`)
+    // so `erfc` boundary leakage across leaf faces drops >12x and preserves two-scale KAIN linearity.
+    return (k < 8) ? 270.0 : 0.0;
+}
+
+std::size_t get_multi_rank_batch_tile() noexcept {
+    static const std::size_t tile = []() -> std::size_t {
+        constexpr std::size_t kDefaultTile = 16;
+        const char* s = std::getenv("MADNESS_WINDOWED_MPI_BATCH_TILE");
+        if (s == nullptr || *s == '\0') return kDefaultTile;
+        const int v = std::atoi(s);
+        if (v <= 0) return kDefaultTile;
+        return static_cast<std::size_t>(std::clamp(v, 1, 256));
+    }();
+    return tile;
+}
+
 struct PlanCacheEntry {
     WindowedKernelKind kind = WindowedKernelKind::Coulomb;
     int k = 0;
@@ -74,6 +93,7 @@ struct PlanCacheEntry {
     int max_tree_level = 0;
     int oversampling_M = 0;
     int gc_rank_Q = 0;
+    double gamma_spiky_override = 0.0;
     std::vector<double> custom_coeffs_user;
     std::vector<double> custom_expnts_user;
     std::shared_ptr<const WindowedQuadraturePlan> plan;
@@ -99,6 +119,7 @@ get_or_build_plan_and_stencil(const WindowedQuadratureConfig& cfg) {
             entry.max_tree_level == cfg.max_tree_level &&
             entry.oversampling_M == cfg.oversampling_M &&
             entry.gc_rank_Q == cfg.gc_rank_Q &&
+            entry.gamma_spiky_override == cfg.gamma_spiky_override &&
             entry.custom_coeffs_user == cfg.custom_coeffs_user &&
             entry.custom_expnts_user == cfg.custom_expnts_user) {
             return {entry.plan, entry.stencil};
@@ -120,6 +141,7 @@ get_or_build_plan_and_stencil(const WindowedQuadratureConfig& cfg) {
         cfg.max_tree_level,
         cfg.oversampling_M,
         cfg.gc_rank_Q,
+        cfg.gamma_spiky_override,
         cfg.custom_coeffs_user,
         cfg.custom_expnts_user,
         plan,
@@ -156,6 +178,7 @@ ResolvedOperatorPlan resolve_plan_and_stencil_for_depth(
         cfg.max_tree_level = req_n_max;
         cfg.oversampling_M = opts.oversampling_M;
         cfg.gc_rank_Q = opts.gc_rank_Q;
+        cfg.gamma_spiky_override = select_operator_gamma_spiky_override(op.k());
         cfg.kind = op.kind();
         cfg.custom_coeffs_user = op.custom_coeffs_user();
         cfg.custom_expnts_user = op.custom_expnts_user();
@@ -283,6 +306,19 @@ Function<R, 3> apply_pure_spiky_same_world(World& target_world,
     return result;
 }
 
+double compute_effective_apply_thresh(
+    const WindowedSeparatedConvolution<double, 3>& op,
+    double f_thresh) noexcept {
+    const auto& opts = op.options();
+    if (opts.eps_loc > 0.0) {
+        return opts.eps_loc;
+    }
+    if (f_thresh > 0.0) {
+        return f_thresh;
+    }
+    return op.eps();
+}
+
 template <typename R>
 Function<R, 3> apply_windowed_impl(World& target_world,
                                    const WindowedSeparatedConvolution<double, 3>& op,
@@ -311,9 +347,7 @@ Function<R, 3> apply_windowed_impl(World& target_world,
         const ResolvedOperatorPlan resolved =
             resolve_plan_and_stencil_for_depth(op, cw_L, max_d);
 
-        const double thresh = (opts.eps_loc > 0.0)
-                                  ? opts.eps_loc
-                                  : ((f_same.thresh() > 0.0) ? f_same.thresh() : op.eps());
+        const double thresh = compute_effective_apply_thresh(op, f_same.thresh());
 
         if (resolved.plan->is_purely_spiky_for_depth(max_d)) {
             return apply_pure_spiky_same_world<R>(
@@ -384,10 +418,12 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     }
 
     // On multi-rank MPI (`target_world.size() > 1`), bound simultaneous nonstandard input/output
-    // tree memory (`nonstandard_with_leaves` + `nonstandard_after_apply`) to tiles of `<= 4`
-    // functions whenever all `N` input handles refer to distinct `FunctionImpl` instances.
-    constexpr std::size_t kMultiRankBatchTile = 4;
-    if (target_world.size() > 1 && N > kMultiRankBatchTile) {
+    // tree memory (`nonstandard_with_leaves` + `nonstandard_after_apply`) to tiles of `<= 16`
+    // functions by default (overridable via `MADNESS_WINDOWED_MPI_BATCH_TILE` in `[1, 256]`)
+    // whenever all `N` input handles refer to distinct `FunctionImpl` instances, amortizing
+    // lockstep halo & restriction collectives across orbitals in the tile.
+    const std::size_t mpi_batch_tile = get_multi_rank_batch_tile();
+    if (target_world.size() > 1 && N > mpi_batch_tile) {
         bool all_distinct_inputs = true;
         for (std::size_t i = 0; i < N && all_distinct_inputs; ++i) {
             const auto* pi = f[i].get_impl().get();
@@ -401,8 +437,8 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         if (all_distinct_inputs) {
             std::vector<Function<R, 3>> tiled_res;
             tiled_res.reserve(N);
-            for (std::size_t ilo = 0; ilo < N; ilo += kMultiRankBatchTile) {
-                const std::size_t ihi = std::min(ilo + kMultiRankBatchTile, N);
+            for (std::size_t ilo = 0; ilo < N; ilo += mpi_batch_tile) {
+                const std::size_t ihi = std::min(ilo + mpi_batch_tile, N);
                 const bool is_last_tile = (ihi == N);
                 std::vector<const WindowedSeparatedConvolution<double, 3>*> sub_ops(
                     ops.begin() + static_cast<std::ptrdiff_t>(ilo),
@@ -490,8 +526,283 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
 
     // Stage 1a (batched across all unique inputs):
     // - On `target_world.size() == 1`, `reconstructed`, `compressed`, and `nonstandard_with_leaves`
-    //   are ingested read-only with zero `WorldContainer` mutations.
-    // - On `target_world.size() > 1`, prepare `nonstandard_with_leaves` across ranks.
+    //   are ingested read-only with zero `WorldContainer` mutations (and compressed union-skeleton
+    //   bloat is pruned on the fly inside `ingest_local_real_nodes_serial_compressed`).
+    // - On `target_world.size() > 1`, pre-prune union-skeleton bloat on `TreeState::compressed`
+    //   inputs (`W_rem(q) * ||d^Q||_F <= tau_keep(q)`) into slim compressed working copies in ONE
+    //   coalesced ancestor-key exchange before `reconstruct()` + `make_nonstandard()`.
+    if (target_world.size() > 1) {
+        struct CompPruneCand {
+            std::size_t ui_idx = 0;
+            int k = 0;
+            double eff_tol = 0.0;
+            const WindowedQuadraturePlan* base_plan = nullptr;
+            std::vector<Key<3>> local_seeds;
+            long local_orig_int = 0;
+        };
+        std::vector<CompPruneCand> cands;
+        for (std::size_t u = 0; u < unique_inputs.size(); ++u) {
+            auto& ui = unique_inputs[u];
+            if (ui.impl->get_tree_state() != compressed) continue;
+
+            bool all_dyn = true;
+            double min_eff_tol = 1e300;
+            const WindowedQuadraturePlan* bplan = nullptr;
+            int k_u = ui.func->k();
+            for (std::size_t i = 0; i < N; ++i) {
+                if (f_work[i].get_impl().get() != ui.impl) continue;
+                const auto& op_i = *ops[i];
+                const auto& opts_i = op_i.options();
+                if (!opts_i.enable_dynamic_refinement) {
+                    all_dyn = false;
+                    break;
+                }
+                const double eth = compute_effective_apply_thresh(op_i, f_work[i].thresh());
+                const double min_pt = (eth > 0.0 && opts_i.eps_loc <= 0.0)
+                                          ? std::max(op_i.eps(), 0.1 * eth)
+                                          : op_i.eps();
+                const double rtol = (eth > 0.0) ? std::min(min_pt, eth) : op_i.eps();
+                const double etol =
+                    windowed_sumfact_detail::tighten_loose_windowed_eps(rtol, opts_i.eps_loc);
+                min_eff_tol = std::min(min_eff_tol, etol);
+                if (bplan == nullptr) bplan = &op_i.plan();
+            }
+            if (!all_dyn || bplan == nullptr || !(min_eff_tol > 0.0 && min_eff_tol < 1.0)) {
+                continue;
+            }
+
+            CompPruneCand cp;
+            cp.ui_idx = u;
+            cp.k = k_u;
+            cp.eff_tol = min_eff_tol;
+            cp.base_plan = bplan;
+
+            const long twok = 2L * static_cast<long>(k_u);
+            const auto& coeffs = ui.impl->get_coeffs();
+            for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+                const Key<3>& key = it->first;
+                const int j = static_cast<int>(key.level());
+                const auto& node = it->second;
+                bool has_2k = false;
+                double dn = 0.0;
+                if (node.has_coeff()) {
+                    const auto& gen_c = node.coeff();
+                    if (gen_c.has_data() && gen_c.ndim() == 3 && gen_c.dim(0) == twok) {
+                        has_2k = true;
+                        const bool is_contig =
+                            (gen_c.tensor_type() == TT_FULL && gen_c.get_tensor().iscontiguous());
+                        const Tensor<R> full_c =
+                            is_contig ? gen_c.get_tensor() : gen_c.full_tensor_copy();
+                        dn = windowed_halo_detail::wavelet_octants_normf(full_c, k_u);
+                    }
+                }
+                const bool is_exp = node.has_children() || (has_2k && (j > 0 || dn > 0.0));
+                if (!is_exp) continue;
+                ++cp.local_orig_int;
+
+                if (j <= 1) {
+                    cp.local_seeds.push_back(key);
+                    continue;
+                }
+                const double w_0 = bplan->rem_weight_bound(0);
+                const double w_rem = bplan->rem_weight_bound(j);
+                const double w_h1 = std::sqrt(std::max(0.0, w_0 * w_rem));
+                const double loc_t =
+                    ui.impl->truncate_tol(min_eff_tol, Key<3>(static_cast<Level>(j)));
+                const double dtol = (w_h1 > 0.0) ? ((0.002 * loc_t) / w_h1) : 1e300;
+                if (dn > dtol) {
+                    cp.local_seeds.push_back(key);
+                }
+            }
+            cands.push_back(std::move(cp));
+        }
+
+        if (!cands.empty()) {
+            const std::size_t M_c = cands.size();
+            std::vector<long> counts_gop(2 * M_c, 0L);
+            for (std::size_t c = 0; c < M_c; ++c) {
+                counts_gop[2 * c + 0] = cands[c].local_orig_int;
+                counts_gop[2 * c + 1] = static_cast<long>(cands[c].local_seeds.size());
+            }
+            target_world.gop.sum(counts_gop.data(), counts_gop.size());
+
+            std::vector<std::size_t> active_cands;
+            for (std::size_t c = 0; c < M_c; ++c) {
+                const long orig_int = counts_gop[2 * c + 0];
+                const long seed_int = counts_gop[2 * c + 1];
+                if (orig_int >= 32 && seed_int * 10L <= orig_int * 8L) {
+                    active_cands.push_back(c);
+                }
+            }
+
+            if (!active_cands.empty()) {
+                const std::size_t A_c = active_cands.size();
+                const ProcessID me = target_world.rank();
+                const int nproc = target_world.size();
+
+                std::vector<std::vector<Key<3>>> kept_local_keys(A_c);
+                std::vector<Function<R, 3>> slim_funcs(A_c);
+
+                {
+                    windowed_halo_detail::WindowedNSHaloExchange<R> prune_ex(target_world, A_c);
+                    std::vector<std::vector<windowed_halo_detail::HaloCandidateMsg>> anc_outbox(
+                        static_cast<std::size_t>(nproc));
+                    std::vector<std::vector<Key<3>>> per_rank_keys(static_cast<std::size_t>(nproc));
+
+                    for (std::size_t ai = 0; ai < A_c; ++ai) {
+                        const CompPruneCand& cp = cands[active_cands[ai]];
+                        const auto& ui = unique_inputs[cp.ui_idx];
+                        const auto pmap = ui.func->get_pmap();
+                        for (int p = 0; p < nproc; ++p) per_rank_keys[static_cast<std::size_t>(p)].clear();
+
+                        for (const Key<3>& skey : cp.local_seeds) {
+                            Key<3> cur = skey;
+                            for (;;) {
+                                const ProcessID owner = pmap->owner(cur);
+                                per_rank_keys[static_cast<std::size_t>(owner)].push_back(cur);
+                                if (cur.level() == 0) break;
+                                cur = cur.parent();
+                            }
+                        }
+
+                        const std::uint16_t slot = static_cast<std::uint16_t>(ai);
+                        for (int p = 0; p < nproc; ++p) {
+                            auto& kvec = per_rank_keys[static_cast<std::size_t>(p)];
+                            if (kvec.empty()) continue;
+                            windowed_halo_detail::sort_unique_keys(kvec);
+                            if (p == me) {
+                                kept_local_keys[ai] = std::move(kvec);
+                            } else {
+                                auto& dst = anc_outbox[static_cast<std::size_t>(p)];
+                                for (const Key<3>& k_anc : kvec) {
+                                    dst.push_back(
+                                        windowed_halo_detail::HaloCandidateMsg{k_anc, 1u, slot});
+                                }
+                            }
+                        }
+
+                        slim_funcs[ai] = FunctionFactory<R, 3>(target_world)
+                                             .k(cp.k)
+                                             .thresh(ui.func->thresh())
+                                             .pmap(pmap)
+                                             .empty();
+                        slim_funcs[ai].get_impl()->get_coeffs().process_pending();
+                    }
+
+                    for (int p = 0; p < nproc; ++p) {
+                        auto& batch = anc_outbox[static_cast<std::size_t>(p)];
+                        if (batch.empty()) continue;
+                        prune_ex.send(
+                            static_cast<ProcessID>(p),
+                            &windowed_halo_detail::WindowedNSHaloExchange<R>::recv_halo_candidates,
+                            batch);
+                    }
+                    target_world.gop.fence();
+
+                    for (std::size_t ai = 0; ai < A_c; ++ai) {
+                        auto& kvec = kept_local_keys[ai];
+                        for (const auto& msg : prune_ex.take_halo_candidates(ai)) {
+                            kvec.push_back(msg.key);
+                        }
+                        windowed_halo_detail::sort_unique_keys(kvec);
+
+                        const CompPruneCand& cp = cands[active_cands[ai]];
+                        auto& ui = unique_inputs[cp.ui_idx];
+                        const int k_u = cp.k;
+                        const long kk = static_cast<long>(k_u);
+                        const long kk3 = kk * kk * kk;
+                        const long twok = 2L * kk;
+                        const long twok3 = twok * twok * twok;
+                        const Slice s0(0, kk - 1);
+                        const auto& cdata = FunctionCommonData<R, 3>::get(k_u);
+                        const Key<3>& key0 = cdata.key0;
+                        const auto pmap = ui.func->get_pmap();
+                        auto& src_coeffs = ui.impl->get_coeffs();
+                        auto* slim_impl = slim_funcs[ai].get_impl().get();
+                        auto& slim_coeffs = slim_impl->get_coeffs();
+                        const TensorArgs full_targs(-1.0, TT_FULL);
+
+                        if (pmap->owner(key0) == me) {
+                            const bool root_kept_int = std::binary_search(
+                                kvec.begin(),
+                                kvec.end(),
+                                key0,
+                                windowed_halo_detail::windowed_key_less);
+                            auto rit = src_coeffs.find(key0).get();
+                            Tensor<R> c0;
+                            if (rit != src_coeffs.end() && rit->second.has_coeff()) {
+                                const auto& gc0 = rit->second.coeff();
+                                if (gc0.has_data()) {
+                                    c0 = (gc0.tensor_type() == TT_FULL &&
+                                          gc0.get_tensor().iscontiguous())
+                                             ? gc0.get_tensor()
+                                             : gc0.full_tensor_copy();
+                                }
+                            }
+                            if (root_kept_int) {
+                                if (rit != src_coeffs.end() && c0.size() == twok3) {
+                                    slim_coeffs.replace(
+                                        key0, FunctionNode<R, 3>(rit->second.coeff(), true));
+                                } else {
+                                    Tensor<R> ns0(twok, twok, twok);
+                                    if (c0.size() > 0) {
+                                        ns0(s0, s0, s0) =
+                                            windowed_halo_detail::extract_scaling_cube(c0, k_u);
+                                    }
+                                    slim_coeffs.replace(
+                                        key0, FunctionNode<R, 3>(GenTensor<R>(ns0, full_targs), true));
+                                }
+                            } else {
+                                Tensor<R> s0_cube =
+                                    (c0.size() == kk3 && c0.iscontiguous())
+                                        ? c0
+                                        : ((c0.size() > 0)
+                                               ? windowed_halo_detail::extract_scaling_cube(c0, k_u)
+                                               : Tensor<R>(kk, kk, kk));
+                                slim_coeffs.replace(
+                                    key0,
+                                    FunctionNode<R, 3>(GenTensor<R>(s0_cube, full_targs), false));
+                            }
+                        }
+
+                        for (const Key<3>& k_int : kvec) {
+                            if (k_int.level() == 0) continue;
+                            auto it = src_coeffs.find(k_int).get();
+                            if (it != src_coeffs.end() && it->second.has_coeff() &&
+                                it->second.coeff().has_data() &&
+                                it->second.coeff().dim(0) == twok) {
+                                slim_coeffs.replace(
+                                    k_int, FunctionNode<R, 3>(it->second.coeff(), true));
+                            } else {
+                                slim_coeffs.replace(k_int, FunctionNode<R, 3>(GenTensor<R>(), true));
+                            }
+                        }
+                        slim_impl->set_tree_state(compressed);
+
+                        FunctionImpl<R, 3>* old_impl = ui.impl;
+                        if (ui.destructive) {
+                            ui.func->clear(false);
+                        }
+                        std::size_t first_match = SIZE_MAX;
+                        for (std::size_t i = 0; i < N; ++i) {
+                            if (f_work[i].get_impl().get() == old_impl) {
+                                f_work[i] = slim_funcs[ai];
+                                if (first_match == SIZE_MAX) first_match = i;
+                            }
+                        }
+                        MADNESS_CHECK(first_match != SIZE_MAX);
+                        ui.func = &f_work[first_match];
+                        ui.impl = slim_impl;
+                        ui.was_compressed = false;
+                        ui.destructive = true;
+                    }
+
+                    target_world.gop.fence();
+                }
+            }
+        }
+    }
+
     bool any_need_reconstruct = false;
     for (auto& ui : unique_inputs) {
         const TreeState st = ui.impl->get_tree_state();
@@ -547,10 +858,7 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         (void)FunctionCommonData<R, 3>::get(op_i.k());
         resolved_plans[i] = resolve_plan_and_stencil_for_depth(op_i, cw_L, max_depths[i]);
 
-        const double raw_thresh =
-            (opts_i.eps_loc > 0.0)
-                ? opts_i.eps_loc
-                : ((f_work[i].thresh() > 0.0) ? f_work[i].thresh() : op_i.eps());
+        const double raw_thresh = compute_effective_apply_thresh(op_i, f_work[i].thresh());
         eff_thresh[i] = (raw_thresh > 0.0) ? raw_thresh : f_work[i].thresh();
         eff_refine_fac[i] =
             (opts_i.dynamic_refine_factor > 0.0) ? opts_i.dynamic_refine_factor : 1.0;
@@ -733,6 +1041,28 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
             std::rethrow_exception(captured_exc);
         }
 #endif
+    } else if (target_world.size() > 1) {
+        std::vector<const WindowedQuadraturePlan*> plan_ptrs(N, nullptr);
+        std::vector<const WindowedStencilCache1D*> stencil_ptrs(N, nullptr);
+        std::vector<std::uint8_t> dyn_flags(N, 0u);
+        std::vector<double> eps_locs(N, 0.0);
+        for (std::size_t i = 0; i < N; ++i) {
+            const auto& opts_i = ops[i]->options();
+            plan_ptrs[i] = resolved_plans[i].plan;
+            stencil_ptrs[i] = resolved_plans[i].stencil;
+            dyn_flags[i] = static_cast<std::uint8_t>(opts_i.enable_dynamic_refinement ? 1u : 0u);
+            eps_locs[i] = opts_i.eps_loc;
+        }
+        apply_windowed_ns_3d_batch_distributed<R>(target_world,
+                                                  f_work,
+                                                  result,
+                                                  max_depths,
+                                                  plan_ptrs,
+                                                  stencil_ptrs,
+                                                  eff_thresh,
+                                                  dyn_flags,
+                                                  eff_refine_fac,
+                                                  eps_locs);
     } else {
         for (std::size_t i = 0; i < N; ++i) {
             const auto& op_i = *ops[i];
@@ -808,6 +1138,7 @@ WindowedSeparatedConvolution<Q, NDIM>::WindowedSeparatedConvolution(
     cfg.max_tree_level = n_max;
     cfg.oversampling_M = opts_.oversampling_M;
     cfg.gc_rank_Q = opts_.gc_rank_Q;
+    cfg.gamma_spiky_override = select_operator_gamma_spiky_override(k_);
     cfg.kind = kind_;
 
     auto built = get_or_build_plan_and_stencil(cfg);
@@ -862,6 +1193,7 @@ WindowedSeparatedConvolution<Q, NDIM>::WindowedSeparatedConvolution(
     cfg.max_tree_level = n_max;
     cfg.oversampling_M = opts_.oversampling_M;
     cfg.gc_rank_Q = opts_.gc_rank_Q;
+    cfg.gamma_spiky_override = select_operator_gamma_spiky_override(k_);
     cfg.kind = WindowedKernelKind::CustomGaussian;
     cfg.custom_coeffs_user = custom_coeffs_user_;
     cfg.custom_expnts_user = custom_expnts_user_;
