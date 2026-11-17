@@ -36,6 +36,7 @@ The Windowed NS algorithm resolves both bottlenecks simultaneously by enforcing 
 | `mraimpl.h` | Standalone `project_refine_op` fix (`else if` in `newspecialpts` filtering) eliminating $O(2^{\text{special\_level}})$ special-point list duplication on deep nuclear cusps |
 | `test_windowed_convolution.cc` | 4-Gate unit, unbalanced interface jump, 22–25 level nuclear cusp, sparse `vtransform` compressed-tree parity, heterogeneous batched `apply`, and multi-rank MPI parity suite (`--small`, `--full`, `--gate=1..4`, `--write-parity`, `--check-parity`) |
 | `src/examples/large_exp_3d.cc` | Standalone 3D Gaussian convolution & octree inspection benchmark sweeping 41 kernel scales ($b \in [0.5, 5.50 \times 10^{11}]$) across diffuse, intermediate windowed, and ultra-spiky `pure-GC` regimes |
+| `src/examples/hatom_sf_dirac.cc`, `src/examples/dirac-hatom.cc` | Relativistic hydrogenic Dirac example solvers (2-component spin-free eliminated Dirac with `BSHOperator3D` + `pVp` + `CoulombOperator`, and 4-component complex spinor Dirac with `BSHOperator<3>` + $c\,\boldsymbol{\alpha}\cdot\mathbf{p}$) instrumented with per-stage wall-clock timers, raw-vs-truncated octree leaf/node/max-depth diagnostics, Peak RSS tracking, and clean `mask.clear()` teardown before `finalize()` |
 
 ### 2.2 Usage & Runtime Configuration
 
@@ -452,3 +453,49 @@ Extracted from `large_exp.cc::test6` on $[-11, +11]^3$ (`width = 22.0`, $k = 10$
 | `BSH` (`mu = 1.0, np = 1, TBB MAD_NUM_THREADS=4, mimalloc, -ffast-math`) | `1.466 s` (`14,409` nodes) | **`0.431 s` (`7,625` nodes)** | **`3.40x` faster** (**`-47.1%` output nodes**) |
 | `Coulomb` (`np = 4, TBB MAD_NUM_THREADS=2, mimalloc, -ffast-math`) | `3.427 s` (`18,313` nodes) | **`1.748 s` (`7,689` nodes)** | **`1.96x` faster** (**`-58.0%` output nodes**) |
 | `BSH` (`mu = 1.0, np = 4, TBB MAD_NUM_THREADS=2, mimalloc, -ffast-math`) | `2.814 s` (`14,409` nodes) | **`1.526 s` (`7,625` nodes)** | **`1.84x` faster** (**`-47.1%` output nodes**) |
+
+---
+
+### 6.4 Relativistic $Z = 80$ Hydrogenic Dirac Solvers (`src/examples/hatom_sf_dirac.cc` & `src/examples/dirac-hatom.cc`)
+
+Relativistic all-electron solvers at heavy nuclear charge ($Z = 80$, mercury-like hydrogenic ion, exact point-nucleus $1s_{1/2}$ Dirac–Coulomb energy $E_{\text{DC}} = -3532.19209293\text{ Ha}$, $\gamma = \sqrt{1 - (Z/c)^2} \approx 0.811906$) provide an extreme stress test for Gibbs (`erf`) interface noise because **unbounded spatial derivative operators are applied directly to integral-operator outputs on every iteration**:
+
+1. **`hatom_sf_dirac`** (`src/examples/hatom_sf_dirac.cc`, 2-component spin-free / eliminated Dirac): Evaluates `phi_new = apply(BSH, rhs)`, differentiates `phi` twice via `pVp = D(D(phi) * V)` (`bspline1` derivatives), and applies `CoulombOperator` (`psimphi_new = apply(coulop, -pVp/(2\pi))`). Differentiating coarse-to-fine polynomial extrapolation (`erf`) artifacts around the steep $Z = 80$ potential amplifies high-frequency interface oscillations by $O(4^d)$, driving severe tree bloat in both `pVp` and subsequent `BSH`/`Coulomb` applies.
+2. **`dirac-hatom`** (`src/examples/dirac-hatom.cc`, 4-component complex Dirac spinor): Scales the small spinor components by $c \approx 137.036$ prior to `BSHOperator<3>` (effectively truncating small-component BSH outputs at `thresh / 137`) and then applies $H_D = c\,\boldsymbol{\alpha}\cdot\mathbf{p} + \beta m c^2$ (`Hd(gvpsi)`), multiplying first derivatives of BSH interface noise by $c = 137.036$ and coupling them directly back into the large components (`spinor[0]` and the analytically-zero $m_j = +1/2$ component `spinor[1]`). Under Legacy NS (`MADNESS_WINDOWED_NS=0`), this triggers a runaway adaptive-refinement feedback loop across iterations.
+
+All runs below were executed sequentially on `1` MPI process $\times$ `MAD_NUM_THREADS=11` (`10` TBB worker threads + main thread, `LD_PRELOAD=libmimalloc.so.3.5`, `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, `600 s` per-run cap):
+
+#### End-to-End Summary Across All $Z = 80$ Dirac Benchmarks
+
+| Program & Configuration | Metric | Before (`WINDOWED_NS=0`) | **After (`WINDOWED_NS=1`)** | **Improvement** |
+| :--- | :--- | ---: | ---: | :--- |
+| **`hatom_sf_dirac`**<br>`Z=80, k=8, thresh=1e-6`<br>`L=0.5, rcut=1e-4` | Iterations (`rnorm < 1e-5`) | `16` (`7.08e-6`) | `16` (`6.61e-6`) | Identical convergence |
+| | Converged Energy (Ha) | `-3531.844587` | `-3531.840623` | Finite-nuc (`rcut=1e-4`) |
+| | **Total Wall Time** | `185.14 s` | **`28.13 s`** | **`6.58x` faster** (`8.43x` steady-state) |
+| | `BSH_apply` Total / Steady | `35.51 s` (`2.64 s/it`) | **`1.96 s` (`0.107 s/it`)** | **`18.1x` / `24.7x` faster** |
+| | `Coul_apply` Total / Steady | `73.67 s` (`5.71 s/it`) | **`5.71 s` (`0.362 s/it`)** | **`12.9x` / `15.8x` faster** |
+| | `pVp` (`D(D(phi)*V)`) Total | `16.99 s` (`1.22 s/it`) | **`3.76 s` (`0.126 s/it`)** | **`4.52x` / `9.7x` faster** |
+| | Raw `BSH` / `Coul` Leaves (Steady) | `50,576` / `64,856` | **`1,912` / `6,616`** | **`26.5x` / `9.8x` fewer raw leaves** |
+| | Final `psi` / `phi` Leaves | `15,368` / `17,160` | **`1,992` / `1,544`** | **`7.7x` / `11.1x` smaller** |
+| | **Peak RSS** | `9,796.5 MB` | **`3,634.6 MB`** | **`2.70x` lower (`-62.9%`)** |
+| **`dirac-hatom` (Matched)**<br>`Z=80, k=8, thresh=1e-6`<br>`L=0.5, nucrad=1e-4, use_bsp=true` | Iterations (`maxiter=10`) | **Timed out in Iter 4 (`>600 s`)** | **`10 / 10` (`108.28 s`)** | **`>5.5x` total (`22.0x` at Iter 3)** |
+| | Final Elec. Energy (Ha) | `-3531.7228` (at Iter 3) | **`-3531.747234`** (`res=5.7e-5`) | Smooth convergence |
+| | Iter 3 Wall / `BSH_apply` | `233.40 s` / `113.31 s` | **`10.61 s` / `5.14 s`** | **`22.0x` / `22.1x` faster** |
+| | 4-Spinor Leaf Sum (Peak obs.) | `344,992` (`d=15`, growing) | **`12,704` (`10,912` steady, `d=14`)** | **`31.6x` smaller vs steady** |
+| | Raw `GVpsi` Leaf Sum (Iter 3) | `355,520` | **`34,360`** | **`10.3x` smaller** |
+| | **Peak RSS** | `28,311.3 MB` (at Iter 3) | **`4,891.7 MB`** (all 10 iters) | **`5.79x` lower (`-82.7%`)** |
+| **`dirac-hatom` (Deep Tree)**<br>`Z=80, k=7, thresh=1e-5`<br>`L=20, nucrad=1e-8` (`max_depth=30`) | Iterations (`maxiter=10`) | **Timed out in Iter 7 (`>600 s`)** | **`10 / 10` (`112.85 s`)** | **`>5.3x` total (`10.8x` at Iter 6)** |
+| | Final Elec. Energy (Ha) | `-3532.191888` (at Iter 6) | **`-3532.191649`** (`res=7.7e-7`) | **`+0.44 mHa` vs exact point-DC** |
+| | Iter 6 Wall / `BSH_apply` | `124.04 s` / `58.55 s` | **`11.50 s` / `4.44 s`** | **`10.8x` / `13.2x` faster** |
+| | 4-Spinor Leaf Sum (Peak obs.) | `274,528` (`spinor[1]=87,432`) | **`17,376` (`14,304` steady, `d=23`)** | **`19.2x` smaller vs steady** |
+| | Truncated `GVpsi` Leaf Sum | `155,488` (Iter 5) | **`11,744`** (steady) | **`13.2x` smaller** |
+| | **Peak RSS** | `25,471.5 MB` (at Iter 6) | **`3,722.8 MB`** (all 10 iters) | **`6.84x` lower (`-85.4%`)** |
+
+#### Per-Iteration Trajectory Highlights
+
+1. **`hatom_sf_dirac` (`Z = 80, k = 8, thresh = 1e-6, L = 0.5, rcut = 1e-4`)**:
+   Starting from identical over-refined guesses (`psi0 = 14,456` leaves at `d = 19`, `phi0 = 13,336` leaves at `d = 14`, `pVp_rhs = 7,752` leaves in Iter 0), Windowed NS collapses `psi` and `phi` by Iteration 2 down to their true physical support (**`1,800` and `1,480` leaves**), holding `phi_raw = 1,912` leaves (`BSH_apply = 0.104–0.108 s/iter`) and `pVp_rhs = 7,368–7,944` leaves (`Coul_apply = 0.341–0.389 s/iter`) flat through Iteration 15. Under Legacy NS, doubly-differentiating Iteration 0's `erf` boundary artifacts inflates `pVp_rhs` across iterations (`7,752` $\to$ `23,432` $\to$ `34,568` $\to$ `60,808` leaves), bloating `phi_raw` to `51,136` leaves (`26.7x` larger) and slowing steady-state iterations from `1.69 s` to `14.26–15.58 s`.
+
+2. **`dirac-hatom` Matched (`k = 8, L = 0.5, nucrad = 1e-4, use_bsp = true`) & Deep-Tree Point-Like Nucleus (`k = 7, L = 20, nucrad = 1e-8`, `max_depth = 30`)**:
+   - **Deep 30-Level `Key<3>` Execution**: At `L = 20` (`cell = 40 Bohr`) and `nucrad = 1e-8` (Gaussian nuclear exponent $\zeta = 9 \times 10^{16}$), `Hv` and `Vpsi` refine down to **`max_depth = 30`** (box width $40 \times 2^{-30} \approx 3.73 \times 10^{-8}\text{ Bohr}$), directly exercising `WindowedSeparatedConvolution`'s 64-bit `Key<3>` fallback path (`j > 20`) and overflow-free level-rescaled GC compression. Windowed NS completes all `10` iterations at `10.7–11.5 s/iter` (`3.72 GB` RSS), reaching `res = 7.71e-7` and `-3532.19164933 Ha` (`+4.44e-4 Ha` from exact point-nucleus Dirac–Coulomb).
+   - **Analytically-Zero `spinor[1]` Diagnostic**: For the $1s_{1/2}$ ($m_j = +1/2$) ground state, $\psi_1$ (`spinor[1]`) is identically zero analytically; any non-zero tree nodes arise solely from numerical discretization/interface error coupled through $c\,\boldsymbol{\alpha}\cdot\mathbf{p}$. Under Legacy NS, `spinor[1]` explodes to **`87,432` leaves (`26.2M` complex coefficients)** in Iteration 5 (`k = 7`) and **`74,248` leaves (`38.0M` complex coefficients)** in Iteration 3 (`k = 8`) before hitting the `600 s` timeout. Under Windowed NS, `GVpsi_trunc[1]` stabilizes at **`72` leaves** (`norm = 2.4e-8` at `k = 8`, `4.9e-7` at `k = 7`) and `spinor[1]` remains flat at **`840` leaves (`k = 8`)** and **`1,992` leaves (`k = 7`, `d = 23`)** across all iterations.
