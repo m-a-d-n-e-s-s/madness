@@ -183,6 +183,10 @@ struct StencilEntry1D {
     /// of a unit constant scaling field `e_{000}` summed over `[-m_bw, +m_bw]^3` (`m_bw in {0, 1, 2}`).
     std::array<double, kMaxDisp + 1> const_wav_3d_norm{};
 
+    /// Exact 3D Theorem-3.1 constant-field commutation remainder Frobenius norm
+    /// `||(\sum_{|d| <= m_bw} T(d)^{\otimes 3} - (M(\gamma)^T)^{\otimes 3}) e_{000}||_F` (`m_bw in {0, 1, 2}`).
+    std::array<double, kMaxDisp + 1> const_T_rem_3d_norm{};
+
     const Tensor<double>& mat_R(int disp) const noexcept {
         return R[static_cast<std::size_t>(disp + kMaxDisp)];
     }
@@ -488,6 +492,33 @@ inline StencilEntry1D build_stencil_entry_1d(int k, double gamma, double eps) {
         const double s_cube = s_sq * s_sq * s_sq;
         entry.const_wav_3d_norm[static_cast<std::size_t>(m_bw)] =
             std::sqrt(std::max(0.0, all_cube - s_cube));
+    }
+
+    // Precompute exact 3D Theorem-3.1 constant scaling remainder norm for `m_bw in {0, 1, 2}`.
+    {
+        const LegendreMomentOp mop(k);
+        const Tensor<double> mt_mat = mop.make_MT(gamma);
+        for (int m_bw = 0; m_bw <= StencilEntry1D::kMaxDisp; ++m_bw) {
+            double t_sq = 0.0;
+            double m_sq = 0.0;
+            double tm_dot = 0.0;
+            for (long i_out = 0; i_out < kk; ++i_out) {
+                double tv = 0.0;
+                for (int disp = -m_bw; disp <= m_bw; ++disp) {
+                    const std::size_t slot =
+                        static_cast<std::size_t>(disp + StencilEntry1D::kMaxDisp);
+                    tv += entry.T[slot](0L, i_out);
+                }
+                const double mv = mt_mat(0L, i_out);
+                t_sq += tv * tv;
+                m_sq += mv * mv;
+                tm_dot += tv * mv;
+            }
+            const double diff_cube =
+                t_sq * t_sq * t_sq + m_sq * m_sq * m_sq - 2.0 * tm_dot * tm_dot * tm_dot;
+            entry.const_T_rem_3d_norm[static_cast<std::size_t>(m_bw)] =
+                std::sqrt(std::max(0.0, diff_cube));
+        }
     }
 
     // Static ceiling half-bandwidths (finer per-level decision made by `select_bw_*`).

@@ -45,8 +45,10 @@
 
 #include <madness/mra/windowed_ns_stencil.h>
 #include <madness/mra/mra.h>
+#include <madness/world/range.h>
 #include <madness/world/thread.h>
 #include <madness/world/world_object.h>
+#include <madness/world/world_task_queue.h>
 
 #include <algorithm>
 #include <array>
@@ -73,13 +75,8 @@
 namespace madness {
 
 /// Thread-local flag set to `true` when executing inside a function-level batched
-/// `ThreadPool` worker task (e.g., vector `apply`), preventing nested outer batch launches.
+/// task (e.g., vector `apply`), preventing nested outer batch launches.
 inline thread_local bool g_in_windowed_batch_task = false;
-
-/// Count of outer function-batch worker threads actively executing `apply_windowed_ns_3d_prepared`
-/// (`0` outside batched vector `apply`). Used by `parallel_for_chunks` to recruit idle pool threads
-/// automatically when `N < total_threads` or when tail orbitals remain after peers finish.
-inline std::atomic<int> g_active_windowed_batch_workers{0};
 
 /// RAII scope setting `g_in_windowed_batch_task = true` on a batch worker thread.
 struct WindowedBatchTaskScope {
@@ -98,208 +95,388 @@ struct WindowedBatchTaskScope {
     WindowedBatchTaskScope& operator=(const WindowedBatchTaskScope&) = delete;
 };
 
-/// RAII guard incrementing/decrementing `g_active_windowed_batch_workers` around active batch execution.
-struct WindowedActiveBatchWorkerGuard {
-    WindowedActiveBatchWorkerGuard() noexcept {
-        g_active_windowed_batch_workers.fetch_add(1, std::memory_order_acq_rel);
-    }
-
-    ~WindowedActiveBatchWorkerGuard() {
-        g_active_windowed_batch_workers.fetch_sub(1, std::memory_order_acq_rel);
-    }
-
-    WindowedActiveBatchWorkerGuard(const WindowedActiveBatchWorkerGuard&) = delete;
-    WindowedActiveBatchWorkerGuard& operator=(const WindowedActiveBatchWorkerGuard&) = delete;
-};
-
 namespace windowed_parallel_detail {
 
-inline constexpr std::size_t kMaxParallelChunks = 32;
-inline constexpr std::size_t kDefaultParallelGrain = 4;
-inline std::atomic<int> g_active_inner_helper_tasks{0};
-inline thread_local bool g_in_inner_sumfact_chunk = false;
+inline constexpr std::size_t kMaxParallelChunks = 128;
+inline constexpr std::size_t kDefaultParallelGrain = 16;
+inline constexpr std::size_t kHeavyParallelGrain = 4;
+inline constexpr std::size_t kOverdecompPerThread = 4;
+inline thread_local std::uint32_t g_windowed_task_depth = 0;
+inline std::atomic<std::size_t> g_unfinished_outer_tasks{0};
 
-struct InnerChunkFlagGuard {
-    bool prev;
-
-    InnerChunkFlagGuard() noexcept
-        : prev(g_in_inner_sumfact_chunk) {
-        g_in_inner_sumfact_chunk = true;
-    }
-
-    ~InnerChunkFlagGuard() {
-        g_in_inner_sumfact_chunk = prev;
-    }
-
-    InnerChunkFlagGuard(const InnerChunkFlagGuard&) = delete;
-    InnerChunkFlagGuard& operator=(const InnerChunkFlagGuard&) = delete;
+struct WindowedTaskDepthScope {
+    WindowedTaskDepthScope() noexcept { ++g_windowed_task_depth; }
+    ~WindowedTaskDepthScope() { --g_windowed_task_depth; }
+    WindowedTaskDepthScope(const WindowedTaskDepthScope&) = delete;
+    WindowedTaskDepthScope& operator=(const WindowedTaskDepthScope&) = delete;
 };
 
-struct ReservedInnerHelpersGuard {
-    int n = 0;
-
-    explicit ReservedInnerHelpersGuard(int count) noexcept
-        : n(count) {}
-
-    ~ReservedInnerHelpersGuard() {
-        if (n > 0) {
-            g_active_inner_helper_tasks.fetch_sub(n, std::memory_order_acq_rel);
-        }
-    }
-
-    ReservedInnerHelpersGuard(const ReservedInnerHelpersGuard&) = delete;
-    ReservedInnerHelpersGuard& operator=(const ReservedInnerHelpersGuard&) = delete;
-};
-
-template <typename Fn>
-class SumFactChunkTask final : public PoolTaskInterface {
+/// Compact worker-thread slot registry decoupling per-thread scratch storage (`O(N_threads)`)
+/// from over-decomposed `madness::Range` task counts (`O(8 * N_threads)`), with full reentrancy
+/// safety whenever a thread nested-executes tasks during `Future::get` / `ThreadPool::await`.
+class WindowedThreadSlotRegistry {
 public:
-    SumFactChunkTask(const Fn* fn,
-                     std::size_t begin,
-                     std::size_t end,
-                     std::size_t chunk_id,
-                     std::atomic<int>* remaining,
-                     std::atomic<bool>* failed)
-        : PoolTaskInterface(TaskAttributes::hipri())
-        , fn_(fn)
-        , begin_(begin)
-        , end_(end)
-        , chunk_id_(chunk_id)
-        , remaining_(remaining)
-        , failed_(failed) {}
-
-    ~SumFactChunkTask() override {
-        if (remaining_ != nullptr) {
-            remaining_->fetch_sub(1, std::memory_order_release);
-        }
-    }
-
-    void run(const TaskThreadEnv&) override {
-        InnerChunkFlagGuard inner_guard;
-        try {
-            (*fn_)(begin_, end_, chunk_id_);
-        } catch (...) {
-            if (failed_ != nullptr) {
-                failed_->store(true, std::memory_order_release);
+    static std::size_t acquire_slot() {
+        auto& st = state();
+        std::lock_guard<std::mutex> lock(st.mtx);
+        for (std::size_t w = 0; w < 2u; ++w) {
+            const std::uint64_t free_bits = ~st.used_mask[w];
+            if (free_bits != 0ULL) {
+                const std::size_t bit = static_cast<std::size_t>(__builtin_ctzll(free_bits));
+                const std::size_t slot = w * 64u + bit;
+                if (slot < kMaxParallelChunks) {
+                    st.used_mask[w] |= (1ULL << bit);
+                    std::size_t cur_hi = st.high_water.load(std::memory_order_relaxed);
+                    while (slot + 1u > cur_hi &&
+                           !st.high_water.compare_exchange_weak(
+                               cur_hi, slot + 1u, std::memory_order_release, std::memory_order_relaxed)) {
+                    }
+                    return slot;
+                }
             }
         }
+        MADNESS_EXCEPTION("WindowedThreadSlotRegistry: exceeded kMaxParallelChunks (128) active slots", 1);
+        return 0u;
+    }
+
+    static void release_slot(std::size_t slot) noexcept {
+        if (slot >= kMaxParallelChunks) return;
+        auto& st = state();
+        std::lock_guard<std::mutex> lock(st.mtx);
+        st.used_mask[slot / 64u] &= ~(1ULL << (slot % 64u));
+    }
+
+    static std::size_t slot_bound() noexcept {
+        return std::min<std::size_t>(
+            kMaxParallelChunks, state().high_water.load(std::memory_order_acquire));
     }
 
 private:
-    void get_id(std::pair<void*, unsigned short>& id) const override {
-        PoolTaskInterface::make_id(id, &SumFactChunkTask::run);
-    }
+    struct State {
+        std::mutex mtx;
+        std::uint64_t used_mask[2] = {0ULL, 0ULL};
+        std::atomic<std::size_t> high_water{1u};
+    };
 
-    const Fn* fn_;
-    std::size_t begin_;
-    std::size_t end_;
-    std::size_t chunk_id_;
-    std::atomic<int>* remaining_;
-    std::atomic<bool>* failed_;
+    static State& state() {
+        static State st;
+        return st;
+    }
 };
 
-/// Idle-thread-aware deterministic chunk executor over `[0, n_items)`:
-/// recruits up to `avail = (pool_sz + 1) - max(1, g_active_windowed_batch_workers) - g_active_inner_helper_tasks`
-/// high-priority `ThreadPool` helper tasks when `n_items >= 2 * min_grain` and `!g_in_inner_sumfact_chunk`,
-/// saturating all cores across single-function calls, small batches (`N < nthreads`), and tail heavy orbitals
-/// with zero oversubscription and exact serial floating-point rounding order per item.
+struct TlsPrimarySlot {
+    std::size_t primary_slot = SIZE_MAX;
+    std::uint32_t active_depth = 0;
+
+    std::size_t get_or_init() {
+        if (primary_slot == SIZE_MAX) {
+            primary_slot = WindowedThreadSlotRegistry::acquire_slot();
+        }
+        return primary_slot;
+    }
+
+    ~TlsPrimarySlot() {
+        if (primary_slot != SIZE_MAX) {
+            WindowedThreadSlotRegistry::release_slot(primary_slot);
+            primary_slot = SIZE_MAX;
+        }
+    }
+};
+
+inline TlsPrimarySlot& this_thread_slot_state() {
+    static thread_local TlsPrimarySlot tls;
+    return tls;
+}
+
+class ScopedWorkerSlot {
+public:
+    ScopedWorkerSlot() {
+        auto& tls = this_thread_slot_state();
+        if (tls.active_depth == 0u) {
+            slot_ = tls.get_or_init();
+            is_overflow_ = false;
+        } else {
+            slot_ = WindowedThreadSlotRegistry::acquire_slot();
+            is_overflow_ = true;
+        }
+        ++tls.active_depth;
+    }
+
+    ~ScopedWorkerSlot() {
+        auto& tls = this_thread_slot_state();
+        --tls.active_depth;
+        if (is_overflow_) {
+            WindowedThreadSlotRegistry::release_slot(slot_);
+        }
+    }
+
+    ScopedWorkerSlot(const ScopedWorkerSlot&) = delete;
+    ScopedWorkerSlot& operator=(const ScopedWorkerSlot&) = delete;
+
+    std::size_t slot() const noexcept { return slot_; }
+
+private:
+    std::size_t slot_ = 0;
+    bool is_overflow_ = false;
+};
+
+inline std::size_t slot_bound() noexcept {
+    return WindowedThreadSlotRegistry::slot_bound();
+}
+
 template <typename Fn>
-inline void parallel_for_chunks(std::size_t n_items, std::size_t min_grain, const Fn& fn) {
+struct RangeBlockOp {
+    struct SharedCtx {
+        const Fn* fn = nullptr;
+        std::size_t n_items = 0;
+        std::size_t grain = 1;
+        std::atomic<bool> has_exc{false};
+        std::mutex exc_mtx;
+        std::exception_ptr captured_exc;
+    };
+
+    SharedCtx* ctx = nullptr;
+
+    bool operator()(std::size_t blk) const {
+#if !defined(HAVE_INTEL_TBB) && !defined(HAVE_PARSEC)
+        // Flush binary-split `ForEachTask` children on coarse split leaders (`blk % 4 == 0`)
+        // so idle pool threads wake up immediately at `blk == 0` while cutting `DQueue` mutex
+        // lock frequency 4x across leaf blocks.
+        if ((blk & 3u) == 0u) {
+            thread_purge();
+        }
+#endif
+        if (ctx->has_exc.load(std::memory_order_relaxed)) return true;
+        const std::size_t b = blk * ctx->grain;
+        const std::size_t e = std::min<std::size_t>(ctx->n_items, b + ctx->grain);
+        WindowedTaskDepthScope depth_scope;
+        ScopedWorkerSlot slot_guard;
+        try {
+            (*ctx->fn)(b, e, slot_guard.slot());
+        } catch (...) {
+            std::lock_guard<std::mutex> lock(ctx->exc_mtx);
+            if (!ctx->captured_exc) {
+                ctx->captured_exc = std::current_exception();
+            }
+            ctx->has_exc.store(true, std::memory_order_release);
+        }
+        return true;
+    }
+};
+
+/// Over-decomposed MADNESS native task executor over `[0, n_items)`:
+///   - Splits `[0, n_items)` into `~4 * N_threads` fine-grained `madness::Range` blocks (`>= min_grain`)
+///     so heterogeneous big.LITTLE (P/E) cores and dynamically clocked cores naturally self-balance.
+///   - Routes execution through `world.taskq.for_each(madness::Range)` + `thread_purge()` + `Future::get()`
+///     on Pthreads/PaRSEC and `ThreadPool::tbb_arena->execute` + `tbb::parallel_for(madness::Range)` on TBB.
+///   - Assigns each executing worker thread a reentrancy-safe `tid in [0, slot_bound())` (`O(N_threads)` scratch).
+template <typename Fn>
+inline void parallel_for_chunks(World& world,
+                                std::size_t n_items,
+                                std::size_t min_grain,
+                                const Fn& fn) {
     if (n_items == 0) return;
-    const std::size_t eff_grain = std::max<std::size_t>(min_grain, 1);
+    const std::size_t eff_grain = std::max<std::size_t>(min_grain, 1u);
     const std::size_t pool_sz = ThreadPool::size();
-    if (g_in_inner_sumfact_chunk || pool_sz == 0 || n_items < 2 * eff_grain) {
-        fn(0, n_items, 0);
+    const std::size_t total_threads = pool_sz + 1u;
+    if (pool_sz == 0u || n_items < 2u * eff_grain) {
+        ScopedWorkerSlot slot_guard;
+        fn(0u, n_items, slot_guard.slot());
         return;
     }
 
-    const std::size_t max_by_grain = n_items / eff_grain;
-    if (max_by_grain <= 1) {
-        fn(0, n_items, 0);
+    // When executing inside an outer `windowed_for_each_outer_tasks` batch (e.g., an `HF Exchange`
+    // pair tile or `ApplyTask` orbital batch) while `>= total_threads` outer tasks are still
+    // unfinished, every worker thread already has a full outer task in L1/L2 cache; run inner
+    // sweeps inline with zero `ForEachTask` allocations or `DQueue` mutex contention, and
+    // automatically enable inner `madness::Range` over-decomposition as soon as the batch enters
+    // its tail (`g_unfinished_outer_tasks < total_threads`) so fast P-cores help finish stragglers.
+    if (g_windowed_task_depth > 0u &&
+        g_unfinished_outer_tasks.load(std::memory_order_relaxed) >= total_threads) {
+        ScopedWorkerSlot slot_guard;
+        fn(0u, n_items, slot_guard.slot());
         return;
     }
 
-    const int max_wanted_helpers = static_cast<int>(
-        std::min<std::size_t>(max_by_grain - 1, kMaxParallelChunks - 1));
-    if (max_wanted_helpers <= 0) {
-        fn(0, n_items, 0);
+    const std::size_t target_blocks = kOverdecompPerThread * total_threads;
+    const std::size_t grain = std::max<std::size_t>(
+        eff_grain, (n_items + target_blocks - 1u) / target_blocks);
+    if (n_items <= grain) {
+        ScopedWorkerSlot slot_guard;
+        fn(0u, n_items, slot_guard.slot());
         return;
     }
 
-    const int total_threads = static_cast<int>(pool_sz) + 1;
-    int reserved_helpers = 0;
-    int cur_inner = g_active_inner_helper_tasks.load(std::memory_order_relaxed);
-    for (;;) {
-        const int busy_outer =
-            std::max(1, g_active_windowed_batch_workers.load(std::memory_order_relaxed));
-        const int avail = total_threads - busy_outer - cur_inner;
-        if (avail <= 0) {
-            reserved_helpers = 0;
-            break;
+#ifdef HAVE_INTEL_TBB
+    (void)world;
+    if (ThreadPool::tbb_arena) {
+        std::atomic<bool> has_exc{false};
+        std::mutex exc_mtx;
+        std::exception_ptr captured_exc;
+        const int tbb_grain =
+            static_cast<int>(std::min<std::size_t>(grain, static_cast<std::size_t>(0x3fffffff)));
+        const madness::Range<std::size_t> item_range(0u, n_items, tbb_grain);
+        ThreadPool::tbb_arena->execute([&]() {
+            tbb::parallel_for(
+                item_range,
+                [&](const madness::Range<std::size_t>& r) {
+                    if (has_exc.load(std::memory_order_relaxed)) return;
+                    WindowedTaskDepthScope depth_scope;
+                    ScopedWorkerSlot slot_guard;
+                    try {
+                        fn(r.begin(), r.end(), slot_guard.slot());
+                    } catch (...) {
+                        std::lock_guard<std::mutex> lock(exc_mtx);
+                        if (!captured_exc) {
+                            captured_exc = std::current_exception();
+                        }
+                        has_exc.store(true, std::memory_order_release);
+                    }
+                },
+                tbb::auto_partitioner());
+        });
+        if (captured_exc) {
+            std::rethrow_exception(captured_exc);
         }
-        const int take = std::min(max_wanted_helpers, avail);
-        if (g_active_inner_helper_tasks.compare_exchange_weak(
-                cur_inner, cur_inner + take, std::memory_order_acq_rel, std::memory_order_relaxed)) {
-            reserved_helpers = take;
-            break;
-        }
+    } else {
+        ScopedWorkerSlot slot_guard;
+        fn(0u, n_items, slot_guard.slot());
     }
+#else
+    const std::size_t n_blocks = (n_items + grain - 1u) / grain;
+    typename RangeBlockOp<Fn>::SharedCtx shared_ctx;
+    shared_ctx.fn = &fn;
+    shared_ctx.n_items = n_items;
+    shared_ctx.grain = grain;
 
-    if (reserved_helpers <= 0) {
-        fn(0, n_items, 0);
+    const madness::Range<std::size_t> block_range(0u, n_blocks, 1);
+    Future<bool> done = world.taskq.for_each(block_range, RangeBlockOp<Fn>{&shared_ctx});
+    thread_purge();
+#ifdef HAVE_PARSEC
+    const bool allow_dowork = (g_windowed_task_depth == 0u);
+#else
+    constexpr bool allow_dowork = true;
+#endif
+    (void)done.get(allow_dowork);
+    if (shared_ctx.captured_exc) {
+        std::rethrow_exception(shared_ctx.captured_exc);
+    }
+#endif
+}
+
+template <typename Fn>
+inline void windowed_for_each_range(World& world,
+                                    std::size_t n_items,
+                                    std::size_t min_grain,
+                                    const Fn& fn) {
+    parallel_for_chunks(world, n_items, min_grain, fn);
+}
+
+/// Submit `n_tasks` outer orbital/pair tasks (`fn(idx)`) to MADNESS's `WorldTaskQueue` / `tbb_arena`
+/// without holding a leaf `ScopedWorkerSlot` across `Future::get` / nested `Range` sweeps:
+///   - On Pthreads/PaRSEC, submits normal-priority `WorldTaskQueue::add` tasks (pushed to the back of
+///     `DQueue`) so inner `TaskAttributes::hipri()` `ForEachTask` children (`push_front`) always drain
+///     depth-first before starting additional outer tasks, bounding concurrent workspaces to `O(N_threads)`.
+///   - On Intel TBB, dispatches `madness::Range<std::size_t>(0, n_tasks, 1)` inside `ThreadPool::tbb_arena`.
+template <typename TaskFn>
+inline void windowed_for_each_outer_tasks(World& world,
+                                          std::size_t n_tasks,
+                                          const TaskFn& fn) {
+    if (n_tasks == 0u) return;
+    if (n_tasks == 1u || ThreadPool::size() == 0u) {
+        WindowedTaskDepthScope depth_scope;
+        for (std::size_t idx = 0; idx < n_tasks; ++idx) {
+            fn(idx);
+        }
         return;
     }
 
-    ReservedInnerHelpersGuard reserve_guard(reserved_helpers);
-    const std::size_t n_chunks = static_cast<std::size_t>(reserved_helpers) + 1u;
-    const std::size_t base = n_items / n_chunks;
-    const std::size_t rem_items = n_items % n_chunks;
-    auto chunk_bounds = [base, rem_items](std::size_t cid) noexcept -> std::pair<std::size_t, std::size_t> {
-        const std::size_t b = cid * base + std::min<std::size_t>(cid, rem_items);
-        const std::size_t e = b + base + (cid < rem_items ? 1u : 0u);
-        return {b, e};
+    std::atomic<bool> has_exc{false};
+    std::mutex exc_mtx;
+    std::exception_ptr captured_exc;
+
+    struct UnfinishedOuterTaskDec {
+        ~UnfinishedOuterTaskDec() {
+            g_unfinished_outer_tasks.fetch_sub(1u, std::memory_order_release);
+        }
     };
 
 #ifdef HAVE_INTEL_TBB
+    (void)world;
     if (ThreadPool::tbb_arena) {
+        g_unfinished_outer_tasks.fetch_add(n_tasks, std::memory_order_relaxed);
+        const madness::Range<std::size_t> task_range(0u, n_tasks, 1);
         ThreadPool::tbb_arena->execute([&]() {
             tbb::parallel_for(
-                tbb::blocked_range<std::size_t>(0, n_chunks, 1),
-                [&](const tbb::blocked_range<std::size_t>& r) {
-                    InnerChunkFlagGuard inner_guard;
-                    for (std::size_t cid = r.begin(); cid != r.end(); ++cid) {
-                        const auto [b, e] = chunk_bounds(cid);
-                        fn(b, e, cid);
+                task_range,
+                [&](const madness::Range<std::size_t>& r) {
+                    for (std::size_t idx = r.begin(); idx != r.end(); ++idx) {
+                        UnfinishedOuterTaskDec dec_guard;
+                        if (has_exc.load(std::memory_order_relaxed)) continue;
+                        WindowedTaskDepthScope depth_scope;
+                        try {
+                            fn(idx);
+                        } catch (...) {
+                            std::lock_guard<std::mutex> lock(exc_mtx);
+                            if (!captured_exc) {
+                                captured_exc = std::current_exception();
+                            }
+                            has_exc.store(true, std::memory_order_release);
+                        }
                     }
                 },
-                tbb::simple_partitioner());
+                tbb::auto_partitioner());
         });
     } else {
-        InnerChunkFlagGuard chunk0_guard;
-        for (std::size_t cid = 0; cid < n_chunks; ++cid) {
-            const auto [b, e] = chunk_bounds(cid);
-            fn(b, e, cid);
+        WindowedTaskDepthScope depth_scope;
+        for (std::size_t idx = 0; idx < n_tasks; ++idx) {
+            fn(idx);
         }
     }
 #else
-    std::atomic<int> remaining{reserved_helpers};
-    std::atomic<bool> failed{false};
+    struct OuterSharedCtx {
+        const TaskFn* fn = nullptr;
+        std::atomic<bool>* has_exc = nullptr;
+        std::mutex* exc_mtx = nullptr;
+        std::exception_ptr* captured_exc = nullptr;
+    } shared_ctx{&fn, &has_exc, &exc_mtx, &captured_exc};
 
-    for (std::size_t cid = 1; cid < n_chunks; ++cid) {
-        const auto [b, e] = chunk_bounds(cid);
-        ThreadPool::add(new SumFactChunkTask<Fn>(&fn, b, e, cid, &remaining, &failed));
+    auto outer_op = [ctx = &shared_ctx](std::size_t idx) -> bool {
+        UnfinishedOuterTaskDec dec_guard;
+        if (ctx->has_exc->load(std::memory_order_relaxed)) return true;
+        WindowedTaskDepthScope depth_scope;
+        try {
+            (*ctx->fn)(idx);
+        } catch (...) {
+            std::lock_guard<std::mutex> lock(*ctx->exc_mtx);
+            if (!(*ctx->captured_exc)) {
+                *ctx->captured_exc = std::current_exception();
+            }
+            ctx->has_exc->store(true, std::memory_order_release);
+        }
+        return true;
+    };
+
+    g_unfinished_outer_tasks.fetch_add(n_tasks, std::memory_order_relaxed);
+    std::vector<Future<bool>> done;
+    done.reserve(n_tasks);
+    for (std::size_t idx = 0; idx < n_tasks; ++idx) {
+        done.push_back(world.taskq.add(outer_op, idx));
     }
     thread_purge();
-
-    {
-        InnerChunkFlagGuard chunk0_guard;
-        const auto [b0, e0] = chunk_bounds(0);
-        fn(b0, e0, 0);
-    }
-
-    ThreadPool::await([&remaining]() { return remaining.load(std::memory_order_acquire) == 0; }, true);
-    MADNESS_CHECK(!failed.load(std::memory_order_acquire));
+#ifdef HAVE_PARSEC
+    const bool allow_dowork = (g_windowed_task_depth == 0u);
+#else
+    constexpr bool allow_dowork = true;
 #endif
+    for (auto& fut : done) {
+        (void)fut.get(allow_dowork);
+    }
+#endif
+
+    if (captured_exc) {
+        std::rethrow_exception(captured_exc);
+    }
 }
 
 } // namespace windowed_parallel_detail
@@ -314,6 +491,18 @@ enum WindowedHaloFlags : std::uint8_t {
     kHaloH1RefineLeafUngraded = 1u << 4  ///< Real-leaf dynamic-refinement gate: ungraded jump (dj >= 2) across neighbor.
 };
 
+namespace windowed_halo_detail {
+
+inline double scalar_abs2(double x) noexcept { return x * x; }
+
+inline double scalar_abs2(const double_complex& z) noexcept {
+    const double re = z.real();
+    const double im = z.imag();
+    return re * re + im * im;
+}
+
+} // namespace windowed_halo_detail
+
 /// Per-level active operator half-bandwidths driving minimal fine-driven halo construction.
 struct WindowedLevelRadii {
     bool has_T_terms = false;
@@ -325,12 +514,97 @@ struct WindowedLevelRadii {
     bool has_4b2_leaf_terms = false;
     int m_max_4b2_leaf = -1;   ///< Active Pass 4b-2 `(s, 0) -> d` half-bandwidth in `{-1, 1, 2}`.
 
+    double sh1_s_T_thresh = 0.0;              ///< Coarse-leaf `||s_virt||_F` threshold needed for shell-1 (`sh == 1`) `H2_Ghost` around `H1_T`.
+    std::array<double, 4> sh1_T_l1_op{};      ///< Exact 3D `T` operator norm by Manhattan distance `l1 = |dx|+|dy|+|dz| in {1,2,3}` (face, edge, corner).
+    double sh1_T_const_op = 0.0;              ///< Level-`j` Theorem-3.1 constant-mode remainder norm for `kHaloH1T`.
+    double sh1_T_osc_op = 0.0;                ///< Level-`j` shell-1 oscillatory + gradient-jump operator norm bound for `kHaloH1T`.
+    double sh1_T_tol = 0.0;                   ///< Per-node tolerance gating `kHaloH1T` emission.
+    double sh1_4b1_thresh = 0.0;              ///< Per-node `||d_int||_F` threshold needed for shell-1 (`sh == 1`) Pass 4b-1 `kHaloH1Gamma` halo.
+    double sh1_s_leaf_thresh = 0.0;           ///< Coarse-leaf `||s_virt||_F` threshold needed for shell-1 (`sh == 1`) Pass 4b-2 leaf `H2_Ghost`.
+    double sh1_refine_s_op = 0.0;             ///< Level-`j` shell-1 unsubtracted scaling-to-wavelet operator norm bound for `kHaloH1Refine`.
+    double sh1_refine_const_op = 0.0;         ///< Level-`j` shell-1 constant-mode wavelet leakage norm for `kHaloH1Refine`.
+    double sh1_refine_osc_op = 0.0;           ///< Level-`j` shell-1 oscillatory + gradient-jump scaling-to-wavelet norm for `kHaloH1Refine`.
+    double sh1_refine_d_op = 0.0;             ///< Level-`j` shell-1 wavelet-to-wavelet operator norm bound for `kHaloH1Refine`.
+    double sh1_refine_tol = 0.0;              ///< Per-node wavelet output tolerance gating `kHaloH1Refine` / `near_internal_4b2` emission.
+
     double sh2_s_thresh = 0.0;       ///< Per-node `||s||_F` threshold needed for shell-2 (`sh == 2`) scaling halo.
     double sh2_4b1_thresh = 0.0;     ///< Per-node `||d_int||_F` threshold needed for shell-2 (`sh == 2`) Pass 4b-1 halo.
     double sh2_refine_thresh = 0.0;  ///< Per-node `||(s, d)||_F` threshold needed for shell-2 (`sh == 2`) Pass 4b-2 refine halo.
 
     int max_refine_cand_bw() const noexcept {
         return std::max(m_max_4b2_int, m_max_4b2_leaf);
+    }
+
+    /// Returns `{mT_inf, max_l1}` for Stage 4(a) `kHaloH1T` emission around real node `rn`,
+    /// where `mT_inf in {-1, 1, 2}` is the Chebyshev box radius and `max_l1 in {0, 1, 2, 3, 6}`
+    /// bounds `|dx| + |dy| + |dz|` (pruning weak edge/corner neighbors when only faces exceed `sh1_T_tol`).
+    template <typename ScalarT>
+    std::pair<int, int> node_mT_and_l1(bool dyn_refine,
+                                       double s_normf,
+                                       ScalarT s000,
+                                       double s_osc_norm2) const noexcept {
+        if (!has_T_terms || m_max_T < 1) return {-1, 0};
+        if (!dyn_refine) return {m_max_T, 3 * m_max_T};
+        if (m_max_T >= 2 && s_normf > sh2_s_thresh) return {m_max_T, 3 * m_max_T};
+
+        const double s_dc = std::sqrt(windowed_halo_detail::scalar_abs2(s000));
+        const double s_osc = std::sqrt(std::max(0.0, s_osc_norm2));
+        const double csub_ub = s_dc * sh1_T_const_op + s_osc * sh1_T_osc_op;
+        if (!(csub_ub > sh1_T_tol)) return {-1, 0};
+
+        int max_l1 = 0;
+        for (int l1 = 3; l1 >= 1; --l1) {
+            if (s_normf * sh1_T_l1_op[static_cast<std::size_t>(l1)] > sh1_T_tol) {
+                max_l1 = l1;
+                break;
+            }
+        }
+        if (max_l1 == 0) return {-1, 0};
+        return {1, max_l1};
+    }
+
+    int node_m4b1(bool dyn_refine, int m1_lvl, double d_normf) const noexcept {
+        if (m1_lvl < 0) return -1;
+        if (!dyn_refine) return m1_lvl;
+        if (m1_lvl >= 2 && d_normf > sh2_4b1_thresh) return m1_lvl;
+        if (m1_lvl >= 1 && d_normf > sh1_4b1_thresh) return 1;
+        return 0;
+    }
+
+    template <typename ScalarT>
+    int node_mRefine(bool dyn_refine,
+                     int m2_lvl,
+                     double s_normf,
+                     ScalarT s000,
+                     double s_osc_norm2,
+                     double d_normf) const noexcept {
+        if (m2_lvl < 1) return -1;
+        if (!dyn_refine) return m2_lvl;
+        const double s_dc = std::sqrt(windowed_halo_detail::scalar_abs2(s000));
+        const double s_osc = std::sqrt(std::max(0.0, s_osc_norm2));
+        const double s_contrib =
+            std::min(s_normf * sh1_refine_s_op,
+                     s_dc * sh1_refine_const_op + s_osc * sh1_refine_osc_op);
+        if (s_contrib + d_normf * sh1_refine_d_op > sh1_refine_tol) {
+            return m2_lvl;
+        }
+        return -1;
+    }
+
+    int h2_mT(bool dyn_refine, double max_cl_above) const noexcept {
+        if (!has_T_terms || m_max_T < 1) return -1;
+        if (!dyn_refine) return m_max_T;
+        if (m_max_T >= 2 && max_cl_above > sh2_s_thresh) return m_max_T;
+        if (max_cl_above > sh1_s_T_thresh) return 1;
+        return -1;
+    }
+
+    int h2_mLeaf(bool dyn_refine, bool has_int, double max_cl_above) const noexcept {
+        if (!has_int || !has_4b2_leaf_terms || m_max_4b2_leaf < 1) return -1;
+        if (!dyn_refine) return m_max_4b2_leaf;
+        if (m_max_4b2_leaf >= 2 && max_cl_above > sh2_s_thresh) return m_max_4b2_leaf;
+        if (max_cl_above > sh1_s_leaf_thresh) return 1;
+        return -1;
     }
 };
 
@@ -339,7 +613,8 @@ struct WindowedGlobalLevelStats {
     bool has_internal = false;
     double max_s_real = 0.0;             ///< Max `||s_in||_F` over all real nodes at level `j`.
     double max_s_leaf = 0.0;             ///< Max `||s_in||_F` over real leaves at level `j`.
-    double max_coarse_leaf_above = 0.0;  ///< Exact bound `max_{b < j} max_s_leaf[b]` on virtual halo `||s_virt||_F` at level `j`.
+    double max_s_leaf_linf = 0.0;        ///< Exact Legendre Cauchy-Schwarz `L_inf` bound `|s000| + k^3 ||s_osc||_F` over real leaves at level `j`.
+    double max_coarse_leaf_above = 0.0;  ///< Exact volume-scaled bound on prolonged virtual `||s_virt||_F` at level `j`.
     double max_s_source = 0.0;           ///< Exact bound `max(max_s_real[j], max_coarse_leaf_above[j])` covering all sources.
     double max_d_int = 0.0;              ///< Max `||(0, d_in)||_F` over internal nodes at level `j`.
     double max_ns_int = 0.0;             ///< Max `||(s_in, d_in)||_F` over internal nodes at level `j`.
@@ -355,14 +630,6 @@ inline bool windowed_key_less(const Key<3>& a, const Key<3>& b) noexcept {
     if (la[0] != lb[0]) return la[0] < lb[0];
     if (la[1] != lb[1]) return la[1] < lb[1];
     return la[2] < lb[2];
-}
-
-inline double scalar_abs2(double x) noexcept { return x * x; }
-
-inline double scalar_abs2(const double_complex& z) noexcept {
-    const double re = z.real();
-    const double im = z.imag();
-    return re * re + im * im;
 }
 
 /// Maximum tree level `j` for 64-bit packed spatial key indexing (`21` bits/axis -> `0 <= l[d] < 2^20 < 2^21`).
@@ -1116,6 +1383,7 @@ public:
     WindowedNSHaloWorkspace(const WindowedNSHaloWorkspace&) = delete;
     WindowedNSHaloWorkspace& operator=(const WindowedNSHaloWorkspace&) = delete;
 
+    World& world() const noexcept { return world_; }
     int k() const noexcept { return k_; }
     int n_max_tree() const noexcept { return n_max_tree_; }
     const array_of_bools<3>& is_periodic() const noexcept { return is_periodic_; }
@@ -1218,6 +1486,7 @@ public:
             if (active_ints.empty()) continue;
 
             windowed_parallel_detail::parallel_for_chunks(
+                world_,
                 active_ints.size(),
                 2,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
@@ -1324,7 +1593,7 @@ public:
             MADNESS_CHECK(ws != nullptr && ws->slot_ == static_cast<std::uint16_t>(b));
             ws->ingest_local_real_nodes_local_only(*f_list[b]);
             stat_offsets[b] = total_stat_doubles;
-            total_stat_doubles += 5u * static_cast<std::size_t>(ws->n_max_tree_ + 1);
+            total_stat_doubles += 6u * static_cast<std::size_t>(ws->n_max_tree_ + 1);
         }
 
         std::vector<double> gop_buf(total_stat_doubles, 0.0);
@@ -1334,11 +1603,12 @@ public:
             const std::size_t base = stat_offsets[b];
             for (std::size_t j = 0; j < n_lvls; ++j) {
                 const auto& st = ws->global_stats_[j];
-                gop_buf[base + 5 * j + 0] = st.has_internal ? 1.0 : 0.0;
-                gop_buf[base + 5 * j + 1] = st.max_s_real;
-                gop_buf[base + 5 * j + 2] = st.max_s_leaf;
-                gop_buf[base + 5 * j + 3] = st.max_d_int;
-                gop_buf[base + 5 * j + 4] = st.max_ns_int;
+                gop_buf[base + 6 * j + 0] = st.has_internal ? 1.0 : 0.0;
+                gop_buf[base + 6 * j + 1] = st.max_s_real;
+                gop_buf[base + 6 * j + 2] = st.max_s_leaf;
+                gop_buf[base + 6 * j + 3] = st.max_s_leaf_linf;
+                gop_buf[base + 6 * j + 4] = st.max_d_int;
+                gop_buf[base + 6 * j + 5] = st.max_ns_int;
             }
         }
         world.gop.max(gop_buf.data(), gop_buf.size());
@@ -1350,11 +1620,12 @@ public:
             const std::size_t base = stat_offsets[b];
             for (std::size_t j = 0; j < n_lvls; ++j) {
                 auto& st = ws->global_stats_[j];
-                st.has_internal = (gop_buf[base + 5 * j + 0] > 0.5);
-                st.max_s_real = gop_buf[base + 5 * j + 1];
-                st.max_s_leaf = gop_buf[base + 5 * j + 2];
-                st.max_d_int = gop_buf[base + 5 * j + 3];
-                st.max_ns_int = gop_buf[base + 5 * j + 4];
+                st.has_internal = (gop_buf[base + 6 * j + 0] > 0.5);
+                st.max_s_real = gop_buf[base + 6 * j + 1];
+                st.max_s_leaf = gop_buf[base + 6 * j + 2];
+                st.max_s_leaf_linf = gop_buf[base + 6 * j + 3];
+                st.max_d_int = gop_buf[base + 6 * j + 4];
+                st.max_ns_int = gop_buf[base + 6 * j + 5];
             }
             ws->finalize_ingested_global_stats(true);
             radii_builders[b](ws->global_stats_, ws->radii_);
@@ -1447,15 +1718,14 @@ public:
 
                     if (rad.has_T_terms && rad.m_max_T >= 1) {
                         for (const auto& rn : ld.owned_real) {
-                            const int mT_rn =
-                                (rad.m_max_T >= 2 &&
-                                 (!ws->dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
-                                    ? rad.m_max_T
-                                    : std::min(rad.m_max_T, 1);
+                            const auto [mT_rn, max_l1_T] = rad.node_mT_and_l1(
+                                ws->dynamic_refine_, rn.s_normf, rn.s000, rn.s_osc_norm2);
+                            if (mT_rn < 1) continue;
                             for (int dx = -mT_rn; dx <= mT_rn; ++dx) {
                                 for (int dy = -mT_rn; dy <= mT_rn; ++dy) {
                                     for (int dz = -mT_rn; dz <= mT_rn; ++dz) {
-                                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                                        const int l1 = std::abs(dx) + std::abs(dy) + std::abs(dz);
+                                        if (l1 == 0 || l1 > max_l1_T) continue;
                                         Key<3> nb;
                                         if (windowed_halo_detail::shift_key_in_domain(
                                                 rn.key, dx, dy, dz, ws->is_periodic_, nb)) {
@@ -1473,12 +1743,13 @@ public:
                         if (std::max(m1, m2) >= 1) {
                             for (const auto& rn : ld.owned_real) {
                                 if (!rn.is_internal) continue;
-                                const int m1_rn =
-                                    (m1 >= 2 &&
-                                     (!ws->dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
-                                        ? m1
-                                        : std::min(m1, 1);
-                                const int m2_rn = m2;
+                                const int m1_rn = rad.node_m4b1(ws->dynamic_refine_, m1, rn.d_normf);
+                                const int m2_rn = rad.node_mRefine(ws->dynamic_refine_,
+                                                                   m2,
+                                                                   rn.s_normf,
+                                                                   rn.s000,
+                                                                   rn.s_osc_norm2,
+                                                                   rn.d_normf);
                                 const int m_emit_rn = std::max(m1_rn, m2_rn);
                                 if (m_emit_rn < 1) continue;
                                 for (int dx = -m_emit_rn; dx <= m_emit_rn; ++dx) {
@@ -1610,26 +1881,24 @@ public:
                     auto& ro_vec = needed_real_only[sj];
 
                     if (rad.has_T_terms && rad.m_max_T >= 1) {
-                        const int mT_h2 =
-                            (rad.m_max_T >= 2 &&
-                             (!ws->dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                                ? rad.m_max_T
-                                : std::min(rad.m_max_T, 1);
+                        const int mT_h2 = rad.h2_mT(ws->dynamic_refine_, max_cl_above);
                         for (const auto& rn : ld.owned_real) {
-                            const int mT_rn =
-                                (rad.m_max_T >= 2 &&
-                                 (!ws->dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
-                                    ? rad.m_max_T
-                                    : std::min(rad.m_max_T, 1);
-                            add_ring_to(vc_vec, rn.key, mT_rn);
-                            if (rad.m_max_T > mT_rn) {
+                            const auto [mT_rn, max_l1_T] = rad.node_mT_and_l1(
+                                ws->dynamic_refine_, rn.s_normf, rn.s000, rn.s_osc_norm2);
+                            (void)max_l1_T;
+                            if (mT_rn >= 1) {
+                                add_ring_to(vc_vec, rn.key, mT_rn);
+                            }
+                            if (rad.m_max_T > std::max(0, mT_rn)) {
                                 add_ring_to(ro_vec, rn.key, rad.m_max_T);
                             }
                         }
                         for (const auto& kv : vf) {
                             if ((kv.second & kHaloH1T) != 0) {
-                                add_ring_to(vc_vec, kv.first, mT_h2);
-                                if (rad.m_max_T > mT_h2) {
+                                if (mT_h2 >= 1) {
+                                    add_ring_to(vc_vec, kv.first, mT_h2);
+                                }
+                                if (rad.m_max_T > std::max(0, mT_h2)) {
                                     add_ring_to(ro_vec, kv.first, rad.m_max_T);
                                 }
                             }
@@ -1670,14 +1939,13 @@ public:
                         if (rad.has_4b2_leaf_terms && rad.m_max_4b2_leaf >= 1) {
                             const int mLeaf = rad.m_max_4b2_leaf;
                             const int mLeaf_h2 =
-                                (mLeaf >= 2 &&
-                                 (!ws->dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                                    ? mLeaf
-                                    : std::min(mLeaf, 1);
+                                rad.h2_mLeaf(ws->dynamic_refine_, true, max_cl_above);
                             for (const auto& rn : ld.owned_real) {
                                 if (rn.is_internal || (can_refine_j && rn.near_internal_4b2)) {
-                                    add_ring_to(vc_vec, rn.key, mLeaf_h2);
-                                    if (mLeaf > mLeaf_h2) {
+                                    if (mLeaf_h2 >= 1) {
+                                        add_ring_to(vc_vec, rn.key, mLeaf_h2);
+                                    }
+                                    if (mLeaf > std::max(0, mLeaf_h2)) {
                                         add_ring_to(ro_vec, rn.key, mLeaf);
                                     }
                                 }
@@ -1685,8 +1953,10 @@ public:
                             if (can_refine_j) {
                                 for (const auto& kv : vf) {
                                     if ((kv.second & kHaloH1Refine) != 0) {
-                                        add_ring_to(vc_vec, kv.first, mLeaf_h2);
-                                        if (mLeaf > mLeaf_h2) {
+                                        if (mLeaf_h2 >= 1) {
+                                            add_ring_to(vc_vec, kv.first, mLeaf_h2);
+                                        }
+                                        if (mLeaf > std::max(0, mLeaf_h2)) {
                                             add_ring_to(ro_vec, kv.first, mLeaf);
                                         }
                                     }
@@ -2255,6 +2525,7 @@ private:
 
         std::vector<WindowedOwnedRealNode<T>> built_nodes(raw_nodes.size());
         windowed_parallel_detail::parallel_for_chunks(
+            world_,
             raw_nodes.size(),
             windowed_parallel_detail::kDefaultParallelGrain,
             [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -2302,6 +2573,7 @@ private:
                 lvl_counts[static_cast<std::size_t>(j)]);
         }
 
+        const double k3_fac = static_cast<double>(k_ * k_ * k_);
         for (auto& rn : built_nodes) {
             const std::size_t sj = static_cast<std::size_t>(rn.key.level());
             auto& st = global_stats_[sj];
@@ -2312,19 +2584,36 @@ private:
                 st.max_ns_int = std::max(st.max_ns_int, rn.ns_normf);
             } else {
                 st.max_s_leaf = std::max(st.max_s_leaf, rn.s_normf);
+                const double leaf_linf =
+                    std::sqrt(windowed_halo_detail::scalar_abs2(rn.s000)) +
+                    k3_fac * std::sqrt(std::max(0.0, rn.s_osc_norm2));
+                st.max_s_leaf_linf = std::max(st.max_s_leaf_linf, leaf_linf);
             }
             levels_[sj].owned_real.push_back(std::move(rn));
         }
     }
 
+    double compute_coarse_leaf_above_bound(int j) const noexcept {
+        double bound = 0.0;
+        for (int b = 0; b < j; ++b) {
+            const auto& sb = global_stats_[static_cast<std::size_t>(b)];
+            if (!(sb.max_s_leaf > 0.0)) continue;
+            const int shift3 = 3 * (j - b);
+            const double vol_sqrt = std::ldexp(1.0, -(shift3 / 2)) *
+                                    ((shift3 & 1) ? 0.7071067811865476 : 1.0);
+            const double v_bound = std::min(sb.max_s_leaf, vol_sqrt * sb.max_s_leaf_linf);
+            bound = std::max(bound, v_bound);
+        }
+        return bound;
+    }
+
     void finalize_ingested_global_stats(bool populate_coarse_leaf_cache) {
-        double coarse_leaf_max = 0.0;
         for (int j = 0; j <= n_max_tree_; ++j) {
             const std::size_t sj = static_cast<std::size_t>(j);
             auto& st = global_stats_[sj];
+            const double coarse_leaf_max = compute_coarse_leaf_above_bound(j);
             st.max_coarse_leaf_above = coarse_leaf_max;
             st.max_s_source = std::max(st.max_s_real, coarse_leaf_max);
-            coarse_leaf_max = std::max(coarse_leaf_max, st.max_s_leaf);
 
             auto& ld = levels_[sj];
             ld.global_has_internal = st.has_internal;
@@ -2355,23 +2644,25 @@ private:
 
         if (world_.size() > 1) {
             const std::size_t n_lvls = static_cast<std::size_t>(n_max_tree_ + 1);
-            std::vector<double> gop_buf(5 * n_lvls, 0.0);
+            std::vector<double> gop_buf(6 * n_lvls, 0.0);
             for (std::size_t j = 0; j < n_lvls; ++j) {
                 const auto& st = global_stats_[j];
-                gop_buf[5 * j + 0] = st.has_internal ? 1.0 : 0.0;
-                gop_buf[5 * j + 1] = st.max_s_real;
-                gop_buf[5 * j + 2] = st.max_s_leaf;
-                gop_buf[5 * j + 3] = st.max_d_int;
-                gop_buf[5 * j + 4] = st.max_ns_int;
+                gop_buf[6 * j + 0] = st.has_internal ? 1.0 : 0.0;
+                gop_buf[6 * j + 1] = st.max_s_real;
+                gop_buf[6 * j + 2] = st.max_s_leaf;
+                gop_buf[6 * j + 3] = st.max_s_leaf_linf;
+                gop_buf[6 * j + 4] = st.max_d_int;
+                gop_buf[6 * j + 5] = st.max_ns_int;
             }
             world_.gop.max(gop_buf.data(), gop_buf.size());
             for (std::size_t j = 0; j < n_lvls; ++j) {
                 auto& st = global_stats_[j];
-                st.has_internal = (gop_buf[5 * j + 0] > 0.5);
-                st.max_s_real = gop_buf[5 * j + 1];
-                st.max_s_leaf = gop_buf[5 * j + 2];
-                st.max_d_int = gop_buf[5 * j + 3];
-                st.max_ns_int = gop_buf[5 * j + 4];
+                st.has_internal = (gop_buf[6 * j + 0] > 0.5);
+                st.max_s_real = gop_buf[6 * j + 1];
+                st.max_s_leaf = gop_buf[6 * j + 2];
+                st.max_s_leaf_linf = gop_buf[6 * j + 3];
+                st.max_d_int = gop_buf[6 * j + 4];
+                st.max_ns_int = gop_buf[6 * j + 5];
             }
         }
 
@@ -2399,7 +2690,7 @@ private:
     }
 
     void finalize_serial_stats_and_child_masks() {
-        double coarse_leaf_max = 0.0;
+        const double k3_fac = static_cast<double>(k_ * k_ * k_);
         for (int j = 0; j <= n_max_tree_; ++j) {
             const std::size_t sj = static_cast<std::size_t>(j);
             auto& ld = levels_[sj];
@@ -2412,11 +2703,15 @@ private:
                     st.max_ns_int = std::max(st.max_ns_int, rn.ns_normf);
                 } else {
                     st.max_s_leaf = std::max(st.max_s_leaf, rn.s_normf);
+                    const double leaf_linf =
+                        std::sqrt(windowed_halo_detail::scalar_abs2(rn.s000)) +
+                        k3_fac * std::sqrt(std::max(0.0, rn.s_osc_norm2));
+                    st.max_s_leaf_linf = std::max(st.max_s_leaf_linf, leaf_linf);
                 }
             }
+            const double coarse_leaf_max = compute_coarse_leaf_above_bound(j);
             st.max_coarse_leaf_above = coarse_leaf_max;
             st.max_s_source = std::max(st.max_s_real, coarse_leaf_max);
-            coarse_leaf_max = std::max(coarse_leaf_max, st.max_s_leaf);
             ld.global_has_internal = st.has_internal;
         }
         if (dynamic_refine_ && ungraded_leaf_refine_only_) {
@@ -2466,6 +2761,7 @@ private:
 
         std::vector<WindowedOwnedRealNode<T>> built_nodes(raw_nodes.size());
         windowed_parallel_detail::parallel_for_chunks(
+            world_,
             raw_nodes.size(),
             windowed_parallel_detail::kDefaultParallelGrain,
             [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -2548,6 +2844,7 @@ private:
                     (j >= serial_range_.min_gamma_level && j <= serial_range_.max_gamma_level);
 
                 windowed_parallel_detail::parallel_for_chunks(
+                    world_,
                     int_indices.size(),
                     2,
                     [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
@@ -2728,6 +3025,7 @@ private:
                 auto& vec = raw_by_level[static_cast<std::size_t>(j)];
                 if (vec.empty()) continue;
                 windowed_parallel_detail::parallel_for_chunks(
+                    world_,
                     vec.size(),
                     16,
                     [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -2934,6 +3232,7 @@ private:
                  j <= serial_range_.max_gamma_level);
 
             windowed_parallel_detail::parallel_for_chunks(
+                world_,
                 ld.owned_real.size(),
                 windowed_parallel_detail::kDefaultParallelGrain,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
@@ -3076,9 +3375,12 @@ private:
             const auto& ld = levels_[sj];
             if (ld.owned_real.empty()) continue;
             const WindowedLevelRadii& rad = radii_[sj];
+            const auto& st = global_stats_[sj];
             const bool can_refine_j = dynamic_refine_ && (j < max_refine_level_);
             const bool need_T = (rad.has_T_terms && rad.m_max_T >= 1);
-            const int m1 = (ld.global_has_internal && rad.has_4b1_terms) ? rad.m_max_4b1 : -1;
+            const int m1 = (ld.global_has_internal && rad.has_4b1_terms)
+                               ? rad.node_m4b1(dynamic_refine_, rad.m_max_4b1, st.max_d_int)
+                               : -1;
             const int m2 =
                 (ld.global_has_internal && can_refine_j && rad.max_refine_cand_bw() >= 1) ? 1 : -1;
             if (!need_T && std::max(m1, m2) < 1) continue;
@@ -3099,7 +3401,7 @@ private:
 
         if (!h1_slices.empty()) {
             windowed_parallel_detail::parallel_for_chunks(
-                h1_slices.size(), 1, [&](std::size_t sb, std::size_t se, std::size_t cid) {
+                world_, h1_slices.size(), 1, [&](std::size_t sb, std::size_t se, std::size_t cid) {
                     auto& my_h1_packed = h1_packed_tls[cid];
                     auto& my_h1_keys = h1_key_tls[cid];
                     auto& my_near = near_real_tls[cid];
@@ -3123,18 +3425,18 @@ private:
                         if (rad.has_T_terms && rad.m_max_T >= 1) {
                             for (std::size_t ri = sl.begin; ri < sl.end; ++ri) {
                                 const auto& rn = ld.owned_real[ri];
-                                const int mT_rn =
-                                    (rad.m_max_T >= 2 &&
-                                     (!dynamic_refine_ || rn.s_normf > rad.sh2_s_thresh))
-                                        ? rad.m_max_T
-                                        : std::min(rad.m_max_T, 1);
+                                const auto [mT_rn, max_l1_T] = rad.node_mT_and_l1(
+                                    dynamic_refine_, rn.s_normf, rn.s000, rn.s_osc_norm2);
+                                if (mT_rn < 1) continue;
                                 if (use_packed) {
                                     const auto& l = rn.key.translation();
                                     auto& out_p = my_h1_packed[sj];
                                     for (int dx = -mT_rn; dx <= mT_rn; ++dx) {
                                         for (int dy = -mT_rn; dy <= mT_rn; ++dy) {
                                             for (int dz = -mT_rn; dz <= mT_rn; ++dz) {
-                                                if (dx == 0 && dy == 0 && dz == 0) continue;
+                                                const int l1 =
+                                                    std::abs(dx) + std::abs(dy) + std::abs(dz);
+                                                if (l1 == 0 || l1 > max_l1_T) continue;
                                                 std::uint64_t nb_code = 0;
                                                 if (!windowed_halo_detail::shift_packed_coords_in_domain(
                                                         dom,
@@ -3161,7 +3463,9 @@ private:
                                     for (int dx = -mT_rn; dx <= mT_rn; ++dx) {
                                         for (int dy = -mT_rn; dy <= mT_rn; ++dy) {
                                             for (int dz = -mT_rn; dz <= mT_rn; ++dz) {
-                                                if (dx == 0 && dy == 0 && dz == 0) continue;
+                                                const int l1 =
+                                                    std::abs(dx) + std::abs(dy) + std::abs(dz);
+                                                if (l1 == 0 || l1 > max_l1_T) continue;
                                                 Key<3> nb;
                                                 if (!windowed_halo_detail::shift_key_in_domain(
                                                         rn.key, dx, dy, dz, is_periodic_, nb)) {
@@ -3187,11 +3491,13 @@ private:
                                     const auto& rn = ld.owned_real[ri];
                                     if (!rn.is_internal) continue;
                                     const int m1_rn =
-                                        (m1 >= 2 &&
-                                         (!dynamic_refine_ || rn.d_normf > rad.sh2_4b1_thresh))
-                                            ? m1
-                                            : std::min(m1, 1);
-                                    const int m2_rn = m2;
+                                        rad.node_m4b1(dynamic_refine_, m1, rn.d_normf);
+                                    const int m2_rn = rad.node_mRefine(dynamic_refine_,
+                                                                       m2,
+                                                                       rn.s_normf,
+                                                                       rn.s000,
+                                                                       rn.s_osc_norm2,
+                                                                       rn.d_normf);
                                     const int m_emit_rn = std::max(m1_rn, m2_rn);
                                     if (m_emit_rn < 1) continue;
 
@@ -3313,10 +3619,11 @@ private:
         std::vector<std::vector<windowed_halo_detail::PackedKeyFlag>> h1_packed_lvls(n_lvls);
         std::vector<KeyFlagVec> h1_key_lvls(n_lvls);
 
+        const std::size_t h1_slot_lim = windowed_parallel_detail::slot_bound();
         for (int j = 1; j <= n_max_tree_; ++j) {
             const std::size_t sj = static_cast<std::size_t>(j);
             auto& ld = levels_[sj];
-            for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+            for (std::size_t cid = 0; cid < h1_slot_lim; ++cid) {
                 if (!near_real_tls[cid].empty()) {
                     for (const auto& [ridx, nbits] : near_real_tls[cid][sj]) {
                         auto& trn = ld.owned_real[ridx];
@@ -3327,12 +3634,12 @@ private:
             }
             if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
                 std::size_t total_p = 0;
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h1_slot_lim; ++cid) {
                     if (!h1_packed_tls[cid].empty()) total_p += h1_packed_tls[cid][sj].size();
                 }
                 auto& h1p = h1_packed_lvls[sj];
                 h1p.reserve(total_p);
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h1_slot_lim; ++cid) {
                     if (!h1_packed_tls[cid].empty()) {
                         const auto& src = h1_packed_tls[cid][sj];
                         h1p.insert(h1p.end(), src.begin(), src.end());
@@ -3341,12 +3648,12 @@ private:
                 windowed_halo_detail::sort_and_merge_packed_flags(h1p);
             } else {
                 std::size_t total_k = 0;
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h1_slot_lim; ++cid) {
                     if (!h1_key_tls[cid].empty()) total_k += h1_key_tls[cid][sj].size();
                 }
                 auto& h1k = h1_key_lvls[sj];
                 h1k.reserve(total_k);
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h1_slot_lim; ++cid) {
                     if (!h1_key_tls[cid].empty()) {
                         const auto& src = h1_key_tls[cid][sj];
                         h1k.insert(h1k.end(), src.begin(), src.end());
@@ -3368,19 +3675,9 @@ private:
             const bool can_refine_j = dynamic_refine_ && (j < max_refine_level_);
             const double max_cl_above = global_stats_[sj].max_coarse_leaf_above;
 
-            const int mT_h2 =
-                (rad.has_T_terms && rad.m_max_T >= 1)
-                    ? ((rad.m_max_T >= 2 && (!dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                           ? rad.m_max_T
-                           : std::min(rad.m_max_T, 1))
-                    : -1;
+            const int mT_h2 = rad.h2_mT(dynamic_refine_, max_cl_above);
             const int mLeaf_h2 =
-                (ld.global_has_internal && rad.has_4b2_leaf_terms && rad.m_max_4b2_leaf >= 1)
-                    ? ((rad.m_max_4b2_leaf >= 2 &&
-                        (!dynamic_refine_ || max_cl_above > rad.sh2_s_thresh))
-                           ? rad.m_max_4b2_leaf
-                           : std::min(rad.m_max_4b2_leaf, 1))
-                    : -1;
+                rad.h2_mLeaf(dynamic_refine_, ld.global_has_internal, max_cl_above);
             if (std::max(mT_h2, mLeaf_h2) < 1) continue;
 
             if (j <= windowed_halo_detail::kMaxPackedKeyLevel) {
@@ -3453,7 +3750,7 @@ private:
 
         if (!h2_slices.empty()) {
             windowed_parallel_detail::parallel_for_chunks(
-                h2_slices.size(), 1, [&](std::size_t sb, std::size_t se, std::size_t cid) {
+                world_, h2_slices.size(), 1, [&](std::size_t sb, std::size_t se, std::size_t cid) {
                     auto& my_h2_packed = h2_packed_tls[cid];
                     auto& my_h2_keys = h2_key_tls[cid];
                     if (my_h2_packed.empty()) {
@@ -3526,6 +3823,7 @@ private:
         }
 
         // Merge sorted unique `(H1, H2_Ghost)` per level, unpacking `Key<3>` ONCE per unique virtual node.
+        const std::size_t h2_slot_lim = windowed_parallel_detail::slot_bound();
         for (int j = 1; j <= n_max_tree_; ++j) {
             const std::size_t sj = static_cast<std::size_t>(j);
             auto& vf = virt_flags[sj];
@@ -3534,12 +3832,12 @@ private:
                 const Level lvl = static_cast<Level>(j);
                 const auto& h1p = h1_packed_lvls[sj];
                 std::size_t total_h2 = 0;
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h2_slot_lim; ++cid) {
                     if (!h2_packed_tls[cid].empty()) total_h2 += h2_packed_tls[cid][sj].size();
                 }
                 std::vector<std::uint64_t> h2p;
                 h2p.reserve(total_h2);
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h2_slot_lim; ++cid) {
                     if (!h2_packed_tls[cid].empty()) {
                         const auto& src = h2_packed_tls[cid][sj];
                         h2p.insert(h2p.end(), src.begin(), src.end());
@@ -3584,12 +3882,12 @@ private:
             } else {
                 const auto& h1k = h1_key_lvls[sj];
                 std::size_t total_h2 = 0;
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h2_slot_lim; ++cid) {
                     if (!h2_key_tls[cid].empty()) total_h2 += h2_key_tls[cid][sj].size();
                 }
                 std::vector<Key<3>> h2k;
                 h2k.reserve(total_h2);
-                for (std::size_t cid = 0; cid < windowed_parallel_detail::kMaxParallelChunks; ++cid) {
+                for (std::size_t cid = 0; cid < h2_slot_lim; ++cid) {
                     if (!h2_key_tls[cid].empty()) {
                         const auto& src = h2_key_tls[cid][sj];
                         h2k.insert(h2k.end(), src.begin(), src.end());
@@ -3704,8 +4002,9 @@ private:
             if (pl_j.empty()) continue;
             const auto& pl_par = prolong_levels[static_cast<std::size_t>(j - 1)];
             windowed_parallel_detail::parallel_for_chunks(
+                world_,
                 pl_j.size(),
-                windowed_parallel_detail::kDefaultParallelGrain,
+                8u,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
                     if (prolong_work1[cid].size() != kk * kk * kk) {
                         prolong_work1[cid] = Tensor<T>(3L, k_dims, false);
@@ -4056,8 +4355,9 @@ private:
             }
 
             windowed_parallel_detail::parallel_for_chunks(
+                world_,
                 active_pslots.size(),
-                windowed_parallel_detail::kDefaultParallelGrain,
+                windowed_parallel_detail::kHeavyParallelGrain,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
                     if (r_work1[cid].size() != kk3) {
                         r_work1[cid] = Tensor<T>(3L, k_dims, false);
@@ -4165,6 +4465,7 @@ private:
             std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> u_work1;
             std::array<Tensor<T>, windowed_parallel_detail::kMaxParallelChunks> u_work2;
             windowed_parallel_detail::parallel_for_chunks(
+                world_,
                 unpromoted_groups.size(),
                 8,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
