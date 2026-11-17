@@ -80,6 +80,9 @@ if (madness_HAS_LIBXSMM AND NOT TARGET libxsmm::libxsmm AND NOT TARGET xsmm)
     message(WARNING "madness was built against LIBXSMM but no libxsmm CONFIG package was found; "
                     "set libxsmm_DIR to the directory containing libxsmm-config.cmake")
   endif()
+  if (TARGET xsmm AND NOT TARGET libxsmm::libxsmm)
+    add_library(libxsmm::libxsmm ALIAS xsmm)
+  endif()
 endif()
 
 # Set the madness libraries target
