@@ -1,6 +1,8 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <cstdio>
+#include <sys/resource.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/lbdeux.h>
@@ -8,6 +10,54 @@
 #include <madness/chem/atomutil.h>
 
 using namespace madness; 
+
+namespace {
+
+double peak_rss_mb() {
+    struct rusage ru{};
+    if (getrusage(RUSAGE_SELF, &ru) == 0) {
+        return static_cast<double>(ru.ru_maxrss) / 1024.0;
+    }
+    return 0.0;
+}
+
+struct TreeStats {
+    std::size_t leaves = 0;
+    std::size_t tree_nodes = 0;
+    std::size_t max_depth = 0;
+};
+
+template <typename T>
+TreeStats get_tree_stats(const Function<T, 3>& f) {
+    TreeStats s;
+    if (!f.is_initialized()) return s;
+    const std::size_t kk = static_cast<std::size_t>(f.k());
+    const std::size_t k3 = kk * kk * kk;
+    s.leaves = (k3 > 0) ? (f.size() / k3) : 0;
+    s.tree_nodes = f.tree_size();
+    s.max_depth = f.max_depth();
+    return s;
+}
+
+struct IterPerfStats {
+    double t_bsh_rhs = 0.0;
+    double t_bsh_apply = 0.0;
+    double t_pvp = 0.0;
+    double t_coul_apply = 0.0;
+    double t_kain_trunc = 0.0;
+    double t_energy = 0.0;
+    double t_plot = 0.0;
+    double t_iter = 0.0;
+
+    TreeStats bsh_rhs_st;
+    TreeStats phi_raw_st;
+    TreeStats pvp_rhs_st;
+    TreeStats psimphi_raw_st;
+    TreeStats psi_st;
+    TreeStats phi_st;
+};
+
+} // namespace
 
 static const double Z = 80.0;      // nuclear charge
 static const double L = 40.0/Z;    // L=40/Z [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
@@ -209,19 +259,37 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const real_function_3d& phi,
                                                                const double energy,
                                                                const int iter,
-                                                               solverT& solver)
+                                                               solverT& solver,
+                                                               IterPerfStats& istats)
 {
+    double t0 = wall_time();
     real_convolution_3d coulop = CoulombOperator(world, rcut*0.1, thresh);
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), rcut*0.1, thresh);
     real_function_3d rhs = -2*(psi*V - energy*(psi-phi));
     rhs.truncate();
+    istats.bsh_rhs_st = get_tree_stats(rhs);
+    double t1 = wall_time();
+    istats.t_bsh_rhs = t1 - t0;
+
     real_function_3d phi_new = apply(op,rhs);
+    double t2 = wall_time();
+    istats.t_bsh_apply = t2 - t1;
+    istats.phi_raw_st = get_tree_stats(phi_new);
 
     double s = 1.0 + energy/(2*c*c);
     //rhs = -2*(pVp(world,V,gradV,phi) + energy*(psi-s*phi));
+    double t3 = wall_time();
     rhs = -(2/(4*constants::pi))*pVp(world,V,phi);
     rhs.truncate();
+    istats.pvp_rhs_st = get_tree_stats(rhs);
+    double t4 = wall_time();
+    istats.t_pvp = t4 - t3;
+
     real_function_3d psimphi_new = apply(coulop,rhs);
+    double t5 = wall_time();
+    istats.t_coul_apply = t5 - t4;
+    istats.psimphi_raw_st = get_tree_stats(psimphi_new);
+
     real_function_3d psi_new = s*phi_new + psimphi_new;
 
     psi_new.truncate();
@@ -256,11 +324,16 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
     double norm = inner(psi_new,psi_new);
     psi_new *= 1.0/sqrt(norm);
     phi_new *= 1.0/sqrt(norm);
+    double t6 = wall_time();
+    istats.t_kain_trunc = t6 - t5;
+    istats.psi_st = get_tree_stats(psi_new);
+    istats.phi_st = get_tree_stats(phi_new);
     
     return {psi_new, phi_new, rnorm};
 }
 
 void run(World& world) {
+    const double t_run_start = wall_time();
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_truncate_mode(1);
@@ -311,34 +384,119 @@ void run(World& world) {
         norm = phi.norm2();  phi.scale(1.0/norm);
     }
 
+    const double t_setup = wall_time() - t_run_start;
+    const TreeStats vnuc_st = get_tree_stats(Vnuc);
+    const TreeStats gradv0_st = get_tree_stats(gradV[0]);
+    const TreeStats psi0_st = get_tree_stats(psi);
+    const TreeStats phi0_st = get_tree_stats(phi);
+    if (world.rank() == 0) {
+        std::printf("[SETUP] time=%.3fs | Vnuc(leaves=%zu, tree=%zu, depth=%zu) | gradV0(leaves=%zu, tree=%zu, depth=%zu) | psi0(leaves=%zu, depth=%zu) | phi0(leaves=%zu, depth=%zu) | RSS=%.1f MB\n\n",
+                    t_setup,
+                    vnuc_st.leaves, vnuc_st.tree_nodes, vnuc_st.max_depth,
+                    gradv0_st.leaves, gradv0_st.tree_nodes, gradv0_st.max_depth,
+                    psi0_st.leaves, psi0_st.max_depth,
+                    phi0_st.leaves, phi0_st.max_depth,
+                    peak_rss_mb());
+    }
+
     XNonlinearSolver<F,double,allocator> solver = XNonlinearSolver<F,double,allocator>(allocator(world));
     solver.set_maxsub(10);
     
     double energy = -0.5*Z*Z; // NR energy guess
+    double sum_bsh_rhs = 0.0, sum_bsh_apply = 0.0, sum_pvp = 0.0, sum_coul_apply = 0.0;
+    double sum_kain_trunc = 0.0, sum_energy = 0.0, sum_plot = 0.0, sum_iter = 0.0;
+    std::size_t peak_psi_leaves = psi0_st.leaves, peak_phi_leaves = phi0_st.leaves;
+    std::size_t peak_phi_raw_leaves = 0, peak_psimphi_raw_leaves = 0, peak_pvp_leaves = 0;
+    std::size_t max_obs_depth = std::max({vnuc_st.max_depth, gradv0_st.max_depth, psi0_st.max_depth, phi0_st.max_depth});
+    int completed_iters = 0;
+    double final_rnorm = 0.0;
+    TreeStats last_psi_st = psi0_st, last_phi_st = phi0_st;
+
     for (int iter=0; iter<1000; iter++) {
+        const double t_iter0 = wall_time();
         char fname[256];
         snprintf(fname,256,"psi-phi-%3.3d.dat", iter);
+        const double t_pl0 = wall_time();
         plot_line(fname, npt, lo, hi, psi, phi);
+        const double t_pl1 = wall_time();
         
-        auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, energy, iter, solver);
+        IterPerfStats istats;
+        istats.t_plot = t_pl1 - t_pl0;
+        auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, energy, iter, solver, istats);
         psi = psi_new;
         phi = phi_new;
 
+        const double t_en0 = wall_time();
         auto psisize = psi.size();
         auto phisize = phi.size();
         auto phinorm = phi.norm2();
         auto [total_energy, kinetic_energy, potential_energy, overlap] = compute_energy(world, Vnuc, psi, phi);
+        istats.t_energy = wall_time() - t_en0;
+        istats.t_iter = wall_time() - t_iter0;
+
+        sum_bsh_rhs += istats.t_bsh_rhs;
+        sum_bsh_apply += istats.t_bsh_apply;
+        sum_pvp += istats.t_pvp;
+        sum_coul_apply += istats.t_coul_apply;
+        sum_kain_trunc += istats.t_kain_trunc;
+        sum_energy += istats.t_energy;
+        sum_plot += istats.t_plot;
+        sum_iter += istats.t_iter;
+        peak_psi_leaves = std::max(peak_psi_leaves, istats.psi_st.leaves);
+        peak_phi_leaves = std::max(peak_phi_leaves, istats.phi_st.leaves);
+        peak_phi_raw_leaves = std::max(peak_phi_raw_leaves, istats.phi_raw_st.leaves);
+        peak_psimphi_raw_leaves = std::max(peak_psimphi_raw_leaves, istats.psimphi_raw_st.leaves);
+        peak_pvp_leaves = std::max(peak_pvp_leaves, istats.pvp_rhs_st.leaves);
+        max_obs_depth = std::max({max_obs_depth,
+                                  istats.phi_raw_st.max_depth,
+                                  istats.psimphi_raw_st.max_depth,
+                                  istats.psi_st.max_depth,
+                                  istats.phi_st.max_depth});
+        completed_iters = iter + 1;
+        final_rnorm = rnorm;
+        last_psi_st = istats.psi_st;
+        last_phi_st = istats.phi_st;
         
         if (world.rank() == 0) {
             print("\niteration ", iter, " rnorm ", rnorm, " psi size ", psisize, " phi size ", phisize, " phi norm ", phinorm);
             print("            Kinetic energy  ", kinetic_energy);
             print(" Nuclear attraction energy ", potential_energy);
             print("              Total energy ", total_energy, total_energy - energy);
+            std::printf("  [ITER %2d STATS] wall=%.3fs (BSH_rhs=%.3fs, BSH_apply=%.3fs, pVp=%.3fs, Coul_apply=%.3fs, KAIN=%.3fs, E=%.3fs, plot=%.3fs) | RSS=%.1f MB\n",
+                        iter, istats.t_iter, istats.t_bsh_rhs, istats.t_bsh_apply, istats.t_pvp,
+                        istats.t_coul_apply, istats.t_kain_trunc, istats.t_energy, istats.t_plot, peak_rss_mb());
+            std::printf("  [ITER %2d TREES] bsh_rhs(%zu,d=%zu) -> phi_raw(%zu,d=%zu) | pvp_rhs(%zu,d=%zu) -> coul_raw(%zu,d=%zu) | final psi(leaves=%zu,tree=%zu,d=%zu) phi(leaves=%zu,tree=%zu,d=%zu)\n",
+                        iter,
+                        istats.bsh_rhs_st.leaves, istats.bsh_rhs_st.max_depth,
+                        istats.phi_raw_st.leaves, istats.phi_raw_st.max_depth,
+                        istats.pvp_rhs_st.leaves, istats.pvp_rhs_st.max_depth,
+                        istats.psimphi_raw_st.leaves, istats.psimphi_raw_st.max_depth,
+                        istats.psi_st.leaves, istats.psi_st.tree_nodes, istats.psi_st.max_depth,
+                        istats.phi_st.leaves, istats.phi_st.tree_nodes, istats.phi_st.max_depth);
         }
 
         energy = total_energy;
 
         if (iter>10 and rnorm<10.0*thresh) break;
+    }
+
+    const double t_total_wall = wall_time() - t_run_start;
+    if (world.rank() == 0) {
+        std::printf("\n==================== HATOM_SF_DIRAC SUMMARY (Z=%.1f) ====================\n", Z);
+        std::printf("  Iterations completed : %d (final rnorm = %.4e)\n", completed_iters, final_rnorm);
+        std::printf("  Final Total Energy   : %.10f Ha (exact point-DC = %.10f Ha, E - E_DC = %+.6e Ha)\n",
+                    energy, exact_energy(Z), energy - exact_energy(Z));
+        std::printf("  Total Wall Time      : %.3f s (setup=%.3f s, iter_loop=%.3f s)\n",
+                    t_total_wall, t_setup, sum_iter);
+        std::printf("  Stage Wall Breakdown : BSH_apply=%.3f s | pVp=%.3f s | Coul_apply=%.3f s | BSH_rhs=%.3f s | KAIN=%.3f s | E=%.3f s | plot=%.3f s\n",
+                    sum_bsh_apply, sum_pvp, sum_coul_apply, sum_bsh_rhs, sum_kain_trunc, sum_energy, sum_plot);
+        std::printf("  Final Wavefunc Trees : psi(leaves=%zu, tree=%zu, depth=%zu) | phi(leaves=%zu, tree=%zu, depth=%zu)\n",
+                    last_psi_st.leaves, last_psi_st.tree_nodes, last_psi_st.max_depth,
+                    last_phi_st.leaves, last_phi_st.tree_nodes, last_phi_st.max_depth);
+        std::printf("  Peak Leaf Counts     : psi_trunc=%zu | phi_trunc=%zu | phi_raw(BSH)=%zu | psimphi_raw(Coul)=%zu | pVp_rhs=%zu | max_depth=%zu\n",
+                    peak_psi_leaves, peak_phi_leaves, peak_phi_raw_leaves, peak_psimphi_raw_leaves, peak_pvp_leaves, max_obs_depth);
+        std::printf("  Peak RSS             : %.1f MB\n", peak_rss_mb());
+        std::printf("=========================================================================\n");
     }
 }
 

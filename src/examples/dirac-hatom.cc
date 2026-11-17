@@ -7,9 +7,71 @@
 
 */
 #include <iostream>
+#include <array>
+#include <cstdio>
+#include <sys/resource.h>
 #include<madchem.h>
 
 using namespace madness;
+
+namespace {
+
+double peak_rss_mb() {
+    struct rusage ru{};
+    if (getrusage(RUSAGE_SELF, &ru) == 0) {
+        return static_cast<double>(ru.ru_maxrss) / 1024.0;
+    }
+    return 0.0;
+}
+
+struct SpinorTreeStats {
+    std::array<std::size_t, 4> leaves{{0, 0, 0, 0}};
+    std::array<std::size_t, 4> tree_nodes{{0, 0, 0, 0}};
+    std::array<std::size_t, 4> depths{{0, 0, 0, 0}};
+
+    std::size_t sum_leaves() const {
+        return leaves[0] + leaves[1] + leaves[2] + leaves[3];
+    }
+    std::size_t sum_tree_nodes() const {
+        return tree_nodes[0] + tree_nodes[1] + tree_nodes[2] + tree_nodes[3];
+    }
+    std::size_t max_depth() const {
+        return std::max({depths[0], depths[1], depths[2], depths[3]});
+    }
+};
+
+SpinorTreeStats get_vecfunc_tree_stats(const vector_complex_function_3d& v) {
+    SpinorTreeStats st;
+    const std::size_t n = std::min<std::size_t>(4, v.size());
+    for (std::size_t i = 0; i < n; ++i) {
+        if (!v[i].is_initialized()) continue;
+        const std::size_t kk = static_cast<std::size_t>(v[i].k());
+        const std::size_t k3 = kk * kk * kk;
+        st.leaves[i] = (k3 > 0) ? (v[i].size() / k3) : 0;
+        st.tree_nodes[i] = v[i].tree_size();
+        st.depths[i] = v[i].max_depth();
+    }
+    return st;
+}
+
+struct DiracIterStats {
+    double t_vpsi = 0.0;
+    double t_gvpsi_apply = 0.0;
+    double t_gvpsi_trunc = 0.0;
+    double t_hdgvpsi = 0.0;
+    double t_kain_ortho = 0.0;
+    double t_fock_plot = 0.0;
+    double t_energy = 0.0;
+    double t_iter = 0.0;
+
+    SpinorTreeStats vpsi_st;
+    SpinorTreeStats gvpsi_raw_st;
+    SpinorTreeStats gvpsi_trunc_st;
+    SpinorTreeStats updated_st;
+    SpinorTreeStats final_st;
+};
+
+} // namespace
 
 
 enum Uplo {upper, lower};
@@ -42,6 +104,7 @@ public:
         initialize<bool>("use_bsp",false);
         initialize<long>("nstates",1);
         initialize<long>("ansatz",0);
+        initialize<long>("maxiter",10);
     }
 
     DiracParameters(World& world, const commandlineparser& parser) : DiracParameters() {
@@ -57,6 +120,7 @@ public:
     bool use_bsp() const {return get<bool>("use_bsp");}
     long nstates() const {return get<long>("nstates");}
     long ansatz() const {return get<long>("ansatz");}
+    long maxiter() const {return get<long>("maxiter");}
 
 
 };
@@ -417,13 +481,20 @@ public:
         auto realnorms = norm2s(world(), real(components));
         auto imagnorms = norm2s(world(), imag(components));
 	size_t sizes[4];
-	for (size_t i=0; i<4; i++) sizes[i] = components[i].size();
+	size_t tnodes[4];
+	size_t depths[4];
+	for (size_t i=0; i<4; i++) {
+	    sizes[i] = components[i].size();
+	    tnodes[i] = components[i].tree_size();
+	    depths[i] = components[i].max_depth();
+	}
         print(text,norms);
         print("  -- real,imag",realnorms,imagnorms);
 	print("  -- sizes", sizes);
 	size_t k = components[0].k();
 	for (auto& s : sizes) s /= k*k*k;
 	print("  -- nodes", sizes);
+	print("  -- tree_nodes", tnodes, "max_depths", depths);
 	
 //        print("  -- moments  ",x1,y1,z1,x2,y2,z2);
 //        plot(text);
@@ -708,9 +779,17 @@ double potn(double r) {
 
 /// this is the nuclear potential on the diagonal
 MatrixOperator make_Hv(World& world, const double nuclear_charge) {
+    const double t0 = wall_time();
     complex_function_3d V=complex_factory_3d(world)
       .functor([&nuclear_charge](const coord_3d& r){return double_complex(-nuclear_charge*potn(r.normf()));});
           //.functor([&nuclear_charge](const coord_3d& r){return double_complex(-nuclear_charge/(r.normf()+1.e-13));});
+    const double dt = wall_time() - t0;
+    const std::size_t kk = static_cast<std::size_t>(V.k());
+    const std::size_t k3 = kk * kk * kk;
+    if (world.rank() == 0) {
+        std::printf("[HV POTENTIAL] projected in %.3fs | leaves=%zu, tree_nodes=%zu, max_depth=%zu | RSS=%.1f MB\n",
+                    dt, (k3 > 0) ? (V.size() / k3) : 0, V.tree_size(), V.max_depth(), peak_rss_mb());
+    }
     auto V1=LocalPotentialOperator<double_complex,3>(world,"V",V);
     return make_Hdiag(world,V1);
 }
@@ -1263,9 +1342,10 @@ void orthonormalize(std::vector<Spinor>& arg, const AnsatzT ansatz) {
 
 template<typename ansatzT>
 Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator& Hv, const MatrixOperator& metric,
-                 const Spinor& spinor, const double energy) {
+                 const Spinor& spinor, const double energy, DiracIterStats* dstats = nullptr) {
     World& world=spinor.world();
     timer t(world);
+    const double t0 = wall_time();
 
     const double mu=ansatz.mu(energy);
     double fac=  alpha1*alpha1;
@@ -1282,16 +1362,32 @@ Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator
     if (debug) show_norms(bra,vpsi,"norms of vpsi");
     if (debug) show_norms(ansatz.make_bra(vpsi),vpsi,"<vpsi | vpsi>");
     t.tag("Vpsi");
+    const double t1 = wall_time();
+    if (dstats) {
+        dstats->t_vpsi += (t1 - t0);
+        dstats->vpsi_st = get_vecfunc_tree_stats(vpsi.components);
+    }
 
+    const double t_bsh0 = wall_time();
     auto g=BSHOperator<3>(world,mu,lo,FunctionDefaults<3>::get_thresh());
     auto gvpsi1=apply(world,g,vpsi.components);
+    const double t_bsh1 = wall_time();
+    const SpinorTreeStats raw_gv_st = get_vecfunc_tree_stats(gvpsi1);
     gvpsi1 = truncate(gvpsi1); /// Truncate before undoing scaling
+    const SpinorTreeStats trn_gv_st = get_vecfunc_tree_stats(gvpsi1);
     
     vpsi.components[2] *= 1.0/clight; // Undo scaling
     vpsi.components[3] *= 1.0/clight;
     gvpsi1[2] *= 1.0/clight;
     gvpsi1[3] *= 1.0/clight;
     t.tag("GVpsi");
+    const double t2 = wall_time();
+    if (dstats) {
+        dstats->t_gvpsi_apply += (t_bsh1 - t_bsh0);
+        dstats->t_gvpsi_trunc += (t2 - t_bsh1);
+        dstats->gvpsi_raw_st = raw_gv_st;
+        dstats->gvpsi_trunc_st = trn_gv_st;
+    }
 
     auto gvpsi=Spinor(gvpsi1);
     
@@ -1307,7 +1403,13 @@ Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator
     if (debug) show_norms(ansatz.make_bra(result),result,"<result | result>");
     t.tag("HdGVpsi");
 
-    return result.truncate();
+    Spinor out = result.truncate();
+    const double t3 = wall_time();
+    if (dstats) {
+        dstats->t_hdgvpsi += (t3 - t2);
+        dstats->updated_st = get_vecfunc_tree_stats(out.components);
+    }
+    return out;
 }
 
 void apply_mask(std::vector<Spinor>& v) {
@@ -1323,6 +1425,7 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
 
     print_header2("starting iterations");
     World& world=input.front().world();
+    const double t_loop_start = wall_time();
     spinorallocator alloc(world,input.size());
     XNonlinearSolver<std::vector<Spinor>,double_complex,spinorallocator> solver(alloc);
     solver.set_maxsub(5); // was 3
@@ -1334,16 +1437,25 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
     auto metric=  Metric();
     std::vector<Spinor> current=copy(input);
     orthonormalize(current,ansatz);
+
+    double sum_vpsi = 0.0, sum_gvpsi_apply = 0.0, sum_gvpsi_trunc = 0.0, sum_hdgvpsi = 0.0;
+    double sum_kain_ortho = 0.0, sum_fock_plot = 0.0, sum_energy = 0.0, sum_iter = 0.0;
+    std::size_t peak_raw_gv_leaves = 0, peak_trunc_gv_leaves = 0, peak_spinor_leaves = 0, max_obs_depth = 0;
+    double last_el_energy = 0.0, last_exact_el = 0.0, last_diff = 0.0, last_res = 0.0;
+    SpinorTreeStats last_final_st;
+
     for (int iter=0; iter<maxiter; ++iter) {
         if (iter<2) solver.clear_subspace();    // start KAIN after 1st iteration since initial guess might be not very smooth
         double wall0=wall_time();
+        DiracIterStats dstats;
 
         print_header3("Iteration "+std::to_string(iter));
         orthonormalize(current,ansatz);
         std::vector<Spinor> newpsi;
         for (auto& n : current) n.print_norms("norm of current spinor");
-        for (size_t i=0; i<current.size(); ++i) newpsi.push_back(apply_bsh(ansatz,Hd,Hv,metric,current[i],energy[i]));
+        for (size_t i=0; i<current.size(); ++i) newpsi.push_back(apply_bsh(ansatz,Hd,Hv,metric,current[i],energy[i],&dstats));
         for (auto& n : newpsi) n.print_norms("norm of updated spinor");
+        const double t_k0 = wall_time();
         auto residual=truncate(current-newpsi);
         double res=0.0;
         for (const auto& r : residual) res+=norm2(world,r.components);
@@ -1351,6 +1463,9 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
 	apply_mask(newpsi);
         orthonormalize(newpsi,ansatz);
 	auto bra=ansatz.make_vbra(newpsi);
+        const double t_k1 = wall_time();
+        dstats.t_kain_ortho = t_k1 - t_k0;
+
         Tensor<double_complex> fock;
 	{
 	  auto Hpsi = H(newpsi);
@@ -1368,6 +1483,9 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
         fock*=0.5;
         newpsi=truncate(orthonormalize_fock(newpsi,bra,fock));
         bra=ansatz.make_vbra(newpsi);
+        const double t_f1 = wall_time();
+        dstats.t_fock_plot = t_f1 - t_k1;
+
         std::vector<double> energy_differences;
         for (size_t i=0; i<current.size(); ++i) {
 //            newpsi[i].plot("psi"+std::to_string(i)+"_iteration"+std::to_string(iter)+"_ansatz"+ansatz.filename());
@@ -1377,19 +1495,77 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
             double exact_el_energy=compute_electronic_energy(energy[i]);
             double diff=(el_energy-exact_el_energy);
             energy_differences.push_back(diff);
+            last_el_energy = el_energy;
+            last_exact_el = exact_el_energy;
+            last_diff = diff;
             printf("energy, el. energy, exact el. energy, difference %12.8f %12.8f %12.8f %4.1e\n", en, el_energy,exact_el_energy,diff);
         }
+        const double t_e1 = wall_time();
+        dstats.t_energy = t_e1 - t_f1;
+
         current=newpsi;
         double wall1=wall_time();
+        dstats.t_iter = wall1 - wall0;
+        dstats.final_st = get_vecfunc_tree_stats(current[0].components);
+        last_final_st = dstats.final_st;
+        last_res = res;
+
+        sum_vpsi += dstats.t_vpsi;
+        sum_gvpsi_apply += dstats.t_gvpsi_apply;
+        sum_gvpsi_trunc += dstats.t_gvpsi_trunc;
+        sum_hdgvpsi += dstats.t_hdgvpsi;
+        sum_kain_ortho += dstats.t_kain_ortho;
+        sum_fock_plot += dstats.t_fock_plot;
+        sum_energy += dstats.t_energy;
+        sum_iter += dstats.t_iter;
+        peak_raw_gv_leaves = std::max(peak_raw_gv_leaves, dstats.gvpsi_raw_st.sum_leaves());
+        peak_trunc_gv_leaves = std::max(peak_trunc_gv_leaves, dstats.gvpsi_trunc_st.sum_leaves());
+        peak_spinor_leaves = std::max(peak_spinor_leaves, dstats.final_st.sum_leaves());
+        max_obs_depth = std::max({max_obs_depth,
+                                  dstats.vpsi_st.max_depth(),
+                                  dstats.gvpsi_raw_st.max_depth(),
+                                  dstats.final_st.max_depth()});
+
         printf("elapsed time in iteration %2d: %6.2f with error %4.1e \n",iter,wall1-wall0,res );
-//        printf("elapsed time in iteration %2d: %6.2f with energy/diff %12.8f %.2e \n",iter,wall1-wall0,compute_electronic_energy(en),
-//               compute_electronic_energy(en) - compute_electronic_energy(energy));
+        if (world.rank() == 0) {
+            std::printf("  [ITER %2d STATS] wall=%.3fs (Vpsi=%.3fs, BSH_apply=%.3fs, GV_trunc=%.3fs, HdGVpsi=%.3fs, KAIN=%.3fs, Fock+plot=%.3fs, E=%.3fs) | RSS=%.1f MB\n",
+                        iter, dstats.t_iter, dstats.t_vpsi, dstats.t_gvpsi_apply, dstats.t_gvpsi_trunc,
+                        dstats.t_hdgvpsi, dstats.t_kain_ortho, dstats.t_fock_plot, dstats.t_energy, peak_rss_mb());
+            std::printf("  [ITER %2d TREES] Vpsi_sum=%zu(d=%zu) -> GVpsi_raw=[%zu,%zu,%zu,%zu](sum=%zu,d=%zu) -> GVpsi_trunc=[%zu,%zu,%zu,%zu](sum=%zu,d=%zu) -> final=[%zu,%zu,%zu,%zu](sum=%zu,tree=%zu,d=%zu)\n",
+                        iter,
+                        dstats.vpsi_st.sum_leaves(), dstats.vpsi_st.max_depth(),
+                        dstats.gvpsi_raw_st.leaves[0], dstats.gvpsi_raw_st.leaves[1], dstats.gvpsi_raw_st.leaves[2], dstats.gvpsi_raw_st.leaves[3],
+                        dstats.gvpsi_raw_st.sum_leaves(), dstats.gvpsi_raw_st.max_depth(),
+                        dstats.gvpsi_trunc_st.leaves[0], dstats.gvpsi_trunc_st.leaves[1], dstats.gvpsi_trunc_st.leaves[2], dstats.gvpsi_trunc_st.leaves[3],
+                        dstats.gvpsi_trunc_st.sum_leaves(), dstats.gvpsi_trunc_st.max_depth(),
+                        dstats.final_st.leaves[0], dstats.final_st.leaves[1], dstats.final_st.leaves[2], dstats.final_st.leaves[3],
+                        dstats.final_st.sum_leaves(), dstats.final_st.sum_tree_nodes(), dstats.final_st.max_depth());
+        }
     }
+
+    const double t_loop_total = wall_time() - t_loop_start;
+    if (world.rank() == 0) {
+        std::printf("\n==================== DIRAC-HATOM SUMMARY (Z=%.1f) ====================\n", ansatz.nuclear_charge);
+        std::printf("  Iterations completed : %d (final res = %.4e)\n", maxiter, last_res);
+        std::printf("  Final Elec. Energy   : %.8f Ha (exact = %.8f Ha, diff = %+.4e Ha)\n",
+                    last_el_energy, last_exact_el, last_diff);
+        std::printf("  Iterate Loop Wall    : %.3f s (sum_iters = %.3f s)\n", t_loop_total, sum_iter);
+        std::printf("  Stage Wall Breakdown : BSH_apply=%.3f s | GV_trunc=%.3f s | Vpsi=%.3f s | HdGVpsi=%.3f s | KAIN=%.3f s | Fock+plot=%.3f s | E=%.3f s\n",
+                    sum_gvpsi_apply, sum_gvpsi_trunc, sum_vpsi, sum_hdgvpsi, sum_kain_ortho, sum_fock_plot, sum_energy);
+        std::printf("  Final Spinor Leaves  : [%zu, %zu, %zu, %zu] (sum=%zu, tree_sum=%zu, max_depth=%zu)\n",
+                    last_final_st.leaves[0], last_final_st.leaves[1], last_final_st.leaves[2], last_final_st.leaves[3],
+                    last_final_st.sum_leaves(), last_final_st.sum_tree_nodes(), last_final_st.max_depth());
+        std::printf("  Peak Leaf Sums       : GVpsi_raw(BSH)=%zu | GVpsi_trunc=%zu | spinor_final=%zu | max_depth=%zu\n",
+                    peak_raw_gv_leaves, peak_trunc_gv_leaves, peak_spinor_leaves, max_obs_depth);
+        std::printf("  Peak RSS             : %.1f MB\n", peak_rss_mb());
+        std::printf("======================================================================\n");
+    }
+
     return current;
 }
 
 template<typename ansatzT>
-void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandlineparser& parser, const int nstates) {
+void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandlineparser& parser, const int nstates, const int maxiter = 10) {
 
   //double thresh=FunctionDefaults<3>::get_thresh();
   //long tmode=FunctionDefaults<3>::get_truncate_mode();
@@ -1482,8 +1658,8 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
     Hd.print("Hamiltonian Hd");
     H.print("Hamiltonian Hd+Hv");
 
-    auto result=iterate(guesses,energies,ansatz,10);
-
+    auto result=iterate(guesses,energies,ansatz,maxiter);
+    mask.clear();
 }
 
 template<typename ansatzT>
@@ -1639,7 +1815,11 @@ int main(int argc, char* argv[]) {
 
 
     try {
-        run(world,Ansatz0(parameters.charge()),parameters.charge(),parser,parameters.nstates());
+        const double t_prog0 = wall_time();
+        run(world,Ansatz0(parameters.charge()),parameters.charge(),parser,parameters.nstates(),parameters.maxiter());
+        if (world.rank() == 0) {
+            std::printf("[TOTAL PROGRAM WALL] %.3f s | Peak RSS = %.1f MB\n", wall_time() - t_prog0, peak_rss_mb());
+        }
     } catch (...) {
         std::cout << "caught an error " << std::endl;
     }
