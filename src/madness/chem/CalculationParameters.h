@@ -297,8 +297,19 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	}
 
 
+	static std::string select_gth_file(const std::string& xc_str, const std::string& user_psp_file = "none") {
+		if (user_psp_file != "none" && !user_psp_file.empty()) return user_psp_file;
+		std::string xc_lc = xc_str;
+		lowercase(xc_lc);
+		if (xc_lc.find("pbe") != std::string::npos) return "gth_pbe.xml";
+		return "gth.xml";
+	}
+
 	void set_derived_values(const Molecule& molecule) {
 
+        if (molecule.parameters.psp_calc()) {
+            set_derived_value("psp_calc", true);
+        }
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             if (molecule.get_pseudo_atom(iatom)){
                 set_derived_value("pure_ae",false);

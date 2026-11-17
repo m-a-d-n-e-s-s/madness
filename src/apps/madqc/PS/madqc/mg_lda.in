@@ -1,0 +1,14 @@
+dft
+  xc lda
+  L 30.0
+  k 8
+  protocol [1e-4, 1e-6]
+  dconv 1e-6
+  maxiter 30
+end
+
+geometry
+  units bohr
+  no_orient true
+  psMg 0.00000000000000 0.00000000000000 0.00000000000000
+end

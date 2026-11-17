@@ -1,0 +1,21 @@
+title "Mg atom GTH-PBE aperiodic"
+echo
+start mg_pbe
+memory stack 2000 mb heap 2000 mb global 1000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  Mg 0.00000000000000 0.00000000000000 0.00000000000000
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 30.0
+    ngrid 128 128 128
+  end
+  xc pbe96
+  mult 1
+  lmbfgs
+  tolerances 1.0d-8 1.0d-8
+end
+task pspw energy
