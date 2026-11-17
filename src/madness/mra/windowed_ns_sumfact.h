@@ -77,10 +77,19 @@ namespace madness {
 namespace windowed_sumfact_detail {
 
 using windowed_parallel_detail::kDefaultParallelGrain;
+using windowed_parallel_detail::kHeavyParallelGrain;
 using windowed_parallel_detail::kMaxParallelChunks;
 using windowed_parallel_detail::parallel_for_chunks;
 
 inline constexpr std::size_t kSumFactSweepGrain = 2;
+
+inline std::size_t compute_sumfact_sweep_grain(long dimi, long d_in, long d_out) noexcept {
+    const std::size_t flops_per_row =
+        static_cast<std::size_t>(std::max(1L, 6L * dimi * d_in * d_out));
+    constexpr std::size_t kTargetBlockFlops = 48000u;
+    return std::clamp<std::size_t>(
+        (kTargetBlockFlops + flops_per_row - 1u) / flops_per_row, 1u, 16u);
+}
 
 /// Binary-search index of `code` in sorted 64-bit packed `codes`, or `UINT32_MAX` if absent.
 inline std::uint32_t find_sorted_packed_index(const std::vector<std::uint64_t>& codes,
@@ -1156,6 +1165,7 @@ private:
 /// Reusable contiguous scratch buffers for `execute_sumfact_3d` and self-box fast paths.
 template <typename T>
 struct SumFactScratch3D {
+    World* world_ptr = nullptr;
     UninitAlignedBuf<T> buf_x;
     UninitAlignedBuf<T> buf_xy;
     UninitAlignedBuf<double> z_op_buf;
@@ -1165,21 +1175,24 @@ struct SumFactScratch3D {
     std::array<Tensor<T>, kMaxParallelChunks> self_work1;
     std::array<Tensor<T>, kMaxParallelChunks> self_work2;
 
-    void ensure_self_cubes(long d) {
-        const long dims[3] = {d, d, d};
-        const std::size_t n_slots =
-            std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
-        for (std::size_t cid = 0; cid < n_slots; ++cid) {
-            if (self_work1[cid].ndim() != 3 || self_work1[cid].dim(0) < d ||
-                self_work1[cid].dim(1) < d || self_work1[cid].dim(2) < d) {
-                self_work1[cid] = Tensor<T>(3L, dims, false);
-                self_work2[cid] = Tensor<T>(3L, dims, false);
-            }
+    void ensure_sweep_slot(std::size_t cid, std::size_t max_blk, std::size_t max_svd_blk) {
+        tmp_blocks[cid].ensure(max_blk);
+        svd_blocks[cid].ensure(max_svd_blk);
+        svd_t_blocks[cid].ensure(max_svd_blk);
+    }
+
+    void ensure_self_slot(std::size_t cid, long d) {
+        if (self_work1[cid].ndim() != 3 || self_work1[cid].dim(0) < d ||
+            self_work1[cid].dim(1) < d || self_work1[cid].dim(2) < d) {
+            const long dims[3] = {d, d, d};
+            self_work1[cid] = Tensor<T>(3L, dims, false);
+            self_work2[cid] = Tensor<T>(3L, dims, false);
         }
     }
 
     void trim_after_call() noexcept {
-        constexpr std::size_t kMaxRetainedBufBytes = 8ULL << 20; // 8 MiB per buffer
+        constexpr std::size_t kMaxRetainedBufBytes = 2ULL << 20; // 2 MiB per buffer
+        world_ptr = nullptr;
         buf_x.trim_if_over_bytes(kMaxRetainedBufBytes);
         buf_xy.trim_if_over_bytes(kMaxRetainedBufBytes);
     }
@@ -1208,9 +1221,11 @@ public:
     ~SumFactScratchLease() {
         if (!ptr_) return;
         ptr_->trim_after_call();
+        const std::size_t max_pooled =
+            std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
         auto& st = pool_state();
         std::lock_guard<std::mutex> lock(st.mtx);
-        if (st.free_list.size() < 3u) {
+        if (st.free_list.size() < max_pooled) {
             st.free_list.push_back(std::move(ptr_));
         }
     }
@@ -1389,15 +1404,10 @@ inline void execute_sumfact_3d(
     const std::size_t max_svd_blk = static_cast<std::size_t>(
         std::max({dimi_x, dimi_y, dimi_z}) * std::max(d_in, d_out));
 
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
+    World& sf_world = *scratch.world_ptr;
     scratch.buf_x.ensure(need_x);
     scratch.buf_xy.ensure(need_xy);
-    const std::size_t n_chunk_slots =
-        std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
-    for (std::size_t cid = 0; cid < n_chunk_slots; ++cid) {
-        scratch.tmp_blocks[cid].ensure(max_blk);
-        scratch.svd_blocks[cid].ensure(max_svd_blk);
-        scratch.svd_t_blocks[cid].ensure(max_svd_blk);
-    }
 
     // Fold `weight` into a tiny L1-resident copy of the active 1D Z operators (`<= 5` matrices)
     // so Sweep 3 accumulates directly into `tgt_out_ptrs[ti]` with zero `uz` buffer / `aligned_axpy`.
@@ -1435,10 +1445,14 @@ inline void execute_sumfact_3d(
 
     T* const ux_base = scratch.buf_x.data();
     T* const uxy_base = scratch.buf_xy.data();
+    const std::size_t x_grain = compute_sumfact_sweep_grain(dimi_x, d_in, d_out);
+    const std::size_t y_grain = compute_sumfact_sweep_grain(dimi_y, d_in, d_out);
+    const std::size_t z_grain = compute_sumfact_sweep_grain(dimi_z, d_in, d_out);
 
     // Sweep 1 (X): (qx, qy, qz) -> (qy, qz, ix)
     parallel_for_chunks(
-        graph.num_x, kSumFactSweepGrain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        sf_world, graph.num_x, x_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
             T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1472,7 +1486,8 @@ inline void execute_sumfact_3d(
 
     // Sweep 2 (Y): (qy, qz, ix) -> (qz, ix, iy)
     parallel_for_chunks(
-        graph.num_xy, kSumFactSweepGrain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        sf_world, graph.num_xy, y_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
             T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1500,7 +1515,8 @@ inline void execute_sumfact_3d(
     // Sweep 3 (Z): (qz, ix, iy) -> (ix, iy, iz) accumulated directly into `tgt_out_ptrs[ti]`
     const std::size_t num_active_tgt = graph.active_tgt_idx.size();
     parallel_for_chunks(
-        num_active_tgt, kSumFactSweepGrain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        sf_world, num_active_tgt, z_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
             T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
             T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1588,13 +1604,8 @@ inline void execute_sumfact_batch_3d(
         return;
     }
 
-    const std::size_t n_chunk_slots =
-        std::min<std::size_t>(kMaxParallelChunks, ThreadPool::size() + 2u);
-    for (std::size_t cid = 0; cid < n_chunk_slots; ++cid) {
-        scratch.tmp_blocks[cid].ensure(max_blk);
-        scratch.svd_blocks[cid].ensure(max_svd_blk);
-        scratch.svd_t_blocks[cid].ensure(max_svd_blk);
-    }
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
+    World& sf_world = *scratch.world_ptr;
 
     const std::size_t slot_stride = static_cast<std::size_t>(std::max(d_in, d_out) * d_out);
     scratch.z_op_buf.ensure(sub_cap * StencilEntry1D::kNumDisp * slot_stride);
@@ -1646,12 +1657,17 @@ inline void execute_sumfact_batch_3d(
         }
 
         // Fused Sweep 1 (X): flat work domain `n_sub * graph.num_x`
+        const std::size_t x_grain = compute_sumfact_sweep_grain(dimi_x, d_in, d_out);
+        const std::size_t y_grain = compute_sumfact_sweep_grain(dimi_y, d_in, d_out);
+        const std::size_t base_z_grain = compute_sumfact_sweep_grain(dimi_z, d_in, d_out);
         if (graph.num_x > 0) {
             const std::size_t num_x = graph.num_x;
             parallel_for_chunks(
+                sf_world,
                 n_sub * num_x,
-                kSumFactSweepGrain,
+                x_grain,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
                     T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
                     T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
                     T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1692,9 +1708,11 @@ inline void execute_sumfact_batch_3d(
         if (graph.num_xy > 0) {
             const std::size_t num_xy = graph.num_xy;
             parallel_for_chunks(
+                sf_world,
                 n_sub * num_xy,
-                kSumFactSweepGrain,
+                y_grain,
                 [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                    scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
                     T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
                     T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
                     T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1738,9 +1756,10 @@ inline void execute_sumfact_batch_3d(
         // Fused Sweep 3 (Z): each target `ti` stays pinned in L1 cache across `s = 0 .. n_sub - 1`
         // in exact sequential order!
         const std::size_t num_active_tgt = graph.active_tgt_idx.size();
-        const std::size_t z_grain = std::max<std::size_t>(1, kSumFactSweepGrain / n_sub);
+        const std::size_t z_grain = std::max<std::size_t>(1u, (base_z_grain + n_sub - 1u) / n_sub);
         parallel_for_chunks(
-            num_active_tgt, z_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            sf_world, num_active_tgt, z_grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+                scratch.ensure_sweep_slot(cid, max_blk, max_svd_blk);
                 T* MADNESS_RESTRICT tmp = scratch.tmp_blocks[cid].data();
                 T* MADNESS_RESTRICT tmp_svd = scratch.svd_blocks[cid].data();
                 T* MADNESS_RESTRICT tmp_svd_T = scratch.svd_t_blocks[cid].data();
@@ -1854,14 +1873,18 @@ inline void execute_self_box_2k_to_k_3d(
         (static_cast<std::size_t>(r) < svd0.U_by_rank.size()) &&
         (flops_svd * 20L < flops_dense * 17L);
 
-    scratch.ensure_self_cubes(twok);
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
     const Tensor<double>& mat_0 = entry.R_2k_to_k[slot0];
     const Tensor<double> c3[3] = {mat_0, mat_0, mat_0};
     const double* const u_ptr = use_svd ? svd0.U_by_rank[static_cast<std::size_t>(r)].ptr() : nullptr;
     const double* const svt_ptr = use_svd ? svd0.SVT.ptr() : nullptr;
 
     parallel_for_chunks(
-        matches.size(), kSumFactSweepGrain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        *scratch.world_ptr,
+        matches.size(),
+        kSumFactSweepGrain,
+        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_self_slot(cid, twok);
             Tensor<T>& w_res = scratch.self_work1[cid];
             Tensor<T>& w_tmp = scratch.self_work2[cid];
             T* MADNESS_RESTRICT w1 = w_res.ptr();
@@ -1913,13 +1936,17 @@ inline void execute_self_box_2k_to_2k_3d(
         (r < break_even) && (static_cast<std::size_t>(r) < svd0.U_by_rank.size());
 
     const long twok3 = twok * twok * twok;
-    scratch.ensure_self_cubes(twok);
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
     const Tensor<double>& mat_R0 = entry.R[slot0];
     const double* const u_ptr = use_svd ? svd0.U_by_rank[static_cast<std::size_t>(r)].ptr() : nullptr;
     const double* const svt_ptr = use_svd ? svd0.SVT.ptr() : nullptr;
 
     parallel_for_chunks(
-        matches.size(), kSumFactSweepGrain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        *scratch.world_ptr,
+        matches.size(),
+        kSumFactSweepGrain,
+        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_self_slot(cid, twok);
             Tensor<T>& work1 = scratch.self_work1[cid];
             Tensor<T>& work2 = scratch.self_work2[cid];
             T* MADNESS_RESTRICT w1 = work1.ptr();
@@ -2067,10 +2094,14 @@ inline void execute_self_box_2k_to_k_batch_3d(
     }
     if (active.empty()) return;
 
-    scratch.ensure_self_cubes(twok);
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
     const std::size_t grain = std::max<std::size_t>(1, kSumFactSweepGrain / active.size());
     parallel_for_chunks(
-        matches.size(), grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        *scratch.world_ptr,
+        matches.size(),
+        grain,
+        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_self_slot(cid, twok);
             Tensor<T>& w_res = scratch.self_work1[cid];
             Tensor<T>& w_tmp = scratch.self_work2[cid];
             T* MADNESS_RESTRICT w1 = w_res.ptr();
@@ -2161,10 +2192,14 @@ inline void execute_self_box_2k_to_2k_batch_3d(
     }
     if (active.empty()) return;
 
-    scratch.ensure_self_cubes(twok);
+    MADNESS_CHECK(scratch.world_ptr != nullptr);
     const std::size_t grain = std::max<std::size_t>(1, kSumFactSweepGrain / active.size());
     parallel_for_chunks(
-        matches.size(), grain, [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+        *scratch.world_ptr,
+        matches.size(),
+        grain,
+        [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
+            scratch.ensure_self_slot(cid, twok);
             Tensor<T>& work1 = scratch.self_work1[cid];
             Tensor<T>& work2 = scratch.self_work2[cid];
             T* MADNESS_RESTRICT w1 = work1.ptr();
@@ -2482,6 +2517,19 @@ struct WindowedOrbitalExecContext {
                 const double loc_tol_j =
                     f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
 
+                double sum_sh1_s_T = 0.0;
+                double max_sh1_s_T = 0.0;
+                std::array<double, 4> sum_sh1_T_l1{};
+                std::array<double, 4> max_sh1_T_l1{};
+                double sum_sh1_T_const = 0.0;
+                double sum_sh1_4b1 = 0.0;
+                double max_sh1_4b1 = 0.0;
+                double sum_sh1_s_leaf = 0.0;
+                double max_sh1_s_leaf = 0.0;
+                double sum_sh1_ref_const = 0.0;
+                double sum_sh1_ref_s = 0.0;
+                double sum_sh1_ref_d = 0.0;
+
                 double sum_sh2_s_T = 0.0;
                 double max_sh2_s_T = 0.0;
                 double sum_sh2_4b1 = 0.0;
@@ -2517,6 +2565,19 @@ struct WindowedOrbitalExecContext {
                                     ActiveBaseTerm{rt.term_idx, rt.entry, rt.weight_scaled, bw_T});
                                 out_radii[sj].has_T_terms = true;
                                 out_radii[sj].m_max_T = std::max(out_radii[sj].m_max_T, bw_T);
+                                const double op1 = aw * rt.entry->shell_l2_T[1];
+                                sum_sh1_s_T += op1;
+                                max_sh1_s_T = std::max(max_sh1_s_T, sqrt_nT * op1);
+                                sum_sh1_T_const += aw * rt.entry->const_T_rem_3d_norm[1];
+                                const double op_f = aw * rt.entry->opnorm_T(1, 0, 0);
+                                const double op_e = aw * rt.entry->opnorm_T(1, 1, 0);
+                                const double op_c = aw * rt.entry->opnorm_T(1, 1, 1);
+                                sum_sh1_T_l1[1] += op_f;
+                                sum_sh1_T_l1[2] += op_e;
+                                sum_sh1_T_l1[3] += op_c;
+                                max_sh1_T_l1[1] = std::max(max_sh1_T_l1[1], sqrt_nT * op_f);
+                                max_sh1_T_l1[2] = std::max(max_sh1_T_l1[2], sqrt_nT * op_e);
+                                max_sh1_T_l1[3] = std::max(max_sh1_T_l1[3], sqrt_nT * op_c);
                                 if (rt.entry->m_max_T >= 2) {
                                     const double op2 = aw * rt.entry->shell_max_T[2];
                                     sum_sh2_s_T += op2;
@@ -2564,6 +2625,23 @@ struct WindowedOrbitalExecContext {
                         if (bw_4b1 >= 0 || bw_leaf >= 1 || bw_int >= 0) {
                             active_gamma_terms[sj].push_back(ActiveGammaTerm{
                                 rg.term_idx, rg.entry, rg.weight_scaled, bw_4b1, bw_leaf, bw_int});
+                            if (bw_4b1 >= 1) {
+                                const double op1_4b1 = aw * rg.entry->shell_l2_4b1[1];
+                                sum_sh1_4b1 += op1_4b1;
+                                max_sh1_4b1 = std::max(max_sh1_4b1, sqrt_nG * op1_4b1);
+                            }
+                            if (bw_leaf >= 1) {
+                                const double op1_leaf = aw * rg.entry->shell_l2_4b2_leaf[1];
+                                sum_sh1_s_leaf += op1_leaf;
+                                max_sh1_s_leaf = std::max(max_sh1_s_leaf, sqrt_nG * op1_leaf);
+                            }
+                            if (bw_leaf >= 1 || bw_int >= 1) {
+                                if (bw_leaf >= 1) {
+                                    sum_sh1_ref_const += aw * rg.entry->const_wav_3d_norm[1];
+                                }
+                                sum_sh1_ref_s += aw * rg.entry->shell_l2_4b2_leaf[1];
+                                sum_sh1_ref_d += aw * rg.entry->shell_l2_4b2_wav[1];
+                            }
                             if (rg.entry->m_max_ns >= 2) {
                                 const double op_4b1 = aw * rg.entry->shell_max_4b1[2];
                                 const double op_leaf = aw * rg.entry->shell_max_4b2_leaf[2];
@@ -2582,6 +2660,31 @@ struct WindowedOrbitalExecContext {
                 }
 
                 if (dynamic_refine) {
+                    const double sh1_T_tol = loc_tol_j / 28.28;
+                    const double sh1_tol = 0.02 * loc_tol_j;
+                    const double refine_tol_j =
+                        f_impl->truncate_tol(eff_thresh, Key<3>(static_cast<Level>(j))) *
+                        eff_refine_fac;
+                    const double eff_sh1_T_op = std::max({1e-30, sum_sh1_s_T, max_sh1_s_T});
+                    const double eff_sh1_4b1_op = std::max({1e-30, sum_sh1_4b1, max_sh1_4b1});
+                    const double eff_sh1_leaf_op =
+                        std::max({1e-30, sum_sh1_s_leaf, max_sh1_s_leaf});
+                    out_radii[sj].sh1_s_T_thresh = sh1_T_tol / eff_sh1_T_op;
+                    for (std::size_t l1 = 1; l1 <= 3; ++l1) {
+                        out_radii[sj].sh1_T_l1_op[l1] =
+                            std::max(sum_sh1_T_l1[l1], max_sh1_T_l1[l1]);
+                    }
+                    out_radii[sj].sh1_T_const_op = sum_sh1_T_const;
+                    out_radii[sj].sh1_T_osc_op = 4.0 * eff_sh1_T_op;
+                    out_radii[sj].sh1_T_tol = sh1_T_tol;
+                    out_radii[sj].sh1_4b1_thresh = sh1_tol / eff_sh1_4b1_op;
+                    out_radii[sj].sh1_s_leaf_thresh = sh1_tol / eff_sh1_leaf_op;
+                    out_radii[sj].sh1_refine_s_op = sum_sh1_ref_s;
+                    out_radii[sj].sh1_refine_const_op = sum_sh1_ref_const;
+                    out_radii[sj].sh1_refine_osc_op = 4.0 * sum_sh1_ref_s;
+                    out_radii[sj].sh1_refine_d_op = sum_sh1_ref_d;
+                    out_radii[sj].sh1_refine_tol = 0.02 * refine_tol_j;
+
                     const double sh2_tol = loc_tol_j / 14.14;
                     const double eff_s_op = std::max(
                         {1e-30, 2.5 * (sum_sh2_s_T + sum_sh2_s_leaf), max_sh2_s_T, max_sh2_s_leaf});
@@ -2597,6 +2700,8 @@ struct WindowedOrbitalExecContext {
 
     void execute_local_stages_2_to_4(WindowedNSHaloWorkspace<T>& ws,
                                      SumFactScratch3D<T>& sf_scratch) {
+        World& exec_world = ws.world();
+        sf_scratch.world_ptr = &exec_world;
         const WindowedQuadraturePlan& plan = *plan_ptr;
         const WindowedStencilCache1D& stencil_cache = *stencil_ptr;
         const LegendreMomentOp& mop = plan.moment_op();
@@ -2637,8 +2742,9 @@ struct WindowedOrbitalExecContext {
                 std::array<Tensor<T>, kMaxParallelChunks> gc_w1_k3;
                 std::array<Tensor<T>, kMaxParallelChunks> gc_w2_k3;
                 parallel_for_chunks(
+                    exec_world,
                     gc_leaves.size(),
-                    kDefaultParallelGrain,
+                    kHeavyParallelGrain,
                     [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
                         for (std::size_t idx = b; idx < e_hi; ++idx) {
                             const GCLeafRef& item = gc_leaves[idx];
@@ -2887,8 +2993,9 @@ struct WindowedOrbitalExecContext {
                         mop.fill_MT_buffer(t_list[ti].entry->gamma, mt_mats[ti].ptr());
                     }
                     parallel_for_chunks(
+                        exec_world,
                         h1t_virts.size(),
-                        kDefaultParallelGrain,
+                        kHeavyParallelGrain,
                         [&](std::size_t b, std::size_t e_hi, std::size_t cid) {
                             if (h1t_tmp_k3[cid].size() != kk3) {
                                 h1t_tmp_k3[cid] = Tensor<T>(3L, k_dims, false);
@@ -2995,6 +3102,7 @@ struct WindowedOrbitalExecContext {
                     std::vector<Tensor<T>> p1_wav_cubes(active_p1_ses.size());
                     if (!active_p1_ses.empty()) {
                         parallel_for_chunks(
+                            exec_world,
                             active_p1_ses.size(),
                             kDefaultParallelGrain,
                             [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -3158,6 +3266,11 @@ struct WindowedOrbitalExecContext {
             const int m_req_leaf = rad.has_4b2_leaf_terms ? rad.m_max_4b2_leaf : -1;
             const int m_req_int = rad.has_4b2_int_terms ? rad.m_max_4b2_int : -1;
             const int m_cand = std::max(m_req_leaf, m_req_int);
+            const bool mLeaf_h2_sh1_clamped =
+                dynamic_refine && (m_req_leaf >= 1) &&
+                !(st.max_coarse_leaf_above > rad.sh1_s_leaf_thresh);
+            const double missing_sh1_s_bound =
+                mLeaf_h2_sh1_clamped ? std::min(st.max_coarse_leaf_above, rad.sh1_s_leaf_thresh) : 0.0;
             const bool mLeaf_h2_clamped =
                 dynamic_refine && (m_req_leaf >= 2) &&
                 !(st.max_coarse_leaf_above > rad.sh2_s_thresh);
@@ -3252,7 +3365,12 @@ struct WindowedOrbitalExecContext {
                             const std::size_t idx = kidx(dx, dy, dz);
                             if (sh <= 1) {
                                 if (!in_dom || se == nullptr) {
-                                    if (m_req_leaf >= 1) full_sh1_stencil = false;
+                                    if (m_req_leaf >= 1) {
+                                        full_sh1_stencil = false;
+                                        if (in_dom && mLeaf_h2_sh1_clamped) {
+                                            ub_sh1_unsub += K_leaf_sh1[idx] * missing_sh1_s_bound;
+                                        }
+                                    }
                                     continue;
                                 }
                                 if (full_sh1_stencil) {
@@ -3310,6 +3428,7 @@ struct WindowedOrbitalExecContext {
             if (!ld.owned_real.empty()) {
                 std::vector<std::uint8_t> keep_real(ld.owned_real.size(), 0u);
                 parallel_for_chunks(
+                    exec_world,
                     ld.owned_real.size(),
                     kDefaultParallelGrain,
                     [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -3344,6 +3463,7 @@ struct WindowedOrbitalExecContext {
             if (can_refine_level && !ld.owned_virt.empty()) {
                 std::vector<std::uint8_t> keep_virt(ld.owned_virt.size(), 0u);
                 parallel_for_chunks(
+                    exec_world,
                     ld.owned_virt.size(),
                     kDefaultParallelGrain,
                     [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -3664,6 +3784,7 @@ struct WindowedOrbitalExecContext {
 
                 // Clear `s0` octant on allocated `ns_out` / `ns_virt_out` and evaluate dynamic refinement.
                 parallel_for_chunks(
+                    exec_world,
                     ld.owned_real.size(),
                     kDefaultParallelGrain,
                     [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -3682,6 +3803,7 @@ struct WindowedOrbitalExecContext {
                     });
                 if (can_refine_level && !ld.owned_virt.empty()) {
                     parallel_for_chunks(
+                        exec_world,
                         ld.owned_virt.size(),
                         kDefaultParallelGrain,
                         [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -3838,10 +3960,43 @@ void apply_windowed_ns_3d_batch_distributed(
             world, ws_ptrs, f_ptrs, radii_builders, shared_exchange);
 
         {
-            SumFactScratchLease<T> sf_lease;
-            SumFactScratch3D<T>& sf_scratch = sf_lease.get();
+            // Stages 2–4 are 100% rank-local (zero MPI collectives / WorldObject mutations).
+            // When local per-function octrees are small (`max_local_real < 512`, e.g., `HF Exchange`
+            // pair batches distributed across ranks), submit all `B` local executions in LPT order
+            // onto `world.taskq` / `tbb_arena` so every worker thread stays saturated across pairs;
+            // on larger local octrees, process `b = 0 .. B-1` sequentially with full `8x` inner
+            // `madness::Range` over-decomposition and a single shared `SumFactScratch3D`.
+            std::size_t max_local_real = 0;
+            std::vector<std::size_t> local_real_counts(B, 0);
             for (std::size_t b = 0; b < B; ++b) {
-                ctxs[b]->execute_local_stages_2_to_4(*ws_ptrs[b], sf_scratch);
+                std::size_t cnt = 0;
+                for (int j = 0; j <= ctxs[b]->n_max_tree; ++j) {
+                    cnt += ws_ptrs[b]->level_data(j).owned_real.size();
+                }
+                local_real_counts[b] = cnt;
+                max_local_real = std::max(max_local_real, cnt);
+            }
+
+            if (B >= 2u && ThreadPool::size() > 0u && max_local_real < 512u) {
+                std::vector<std::size_t> exec_order(B, 0);
+                for (std::size_t b = 0; b < B; ++b) exec_order[b] = b;
+                std::stable_sort(exec_order.begin(),
+                                 exec_order.end(),
+                                 [&local_real_counts](std::size_t a, std::size_t c) {
+                                     return local_real_counts[a] > local_real_counts[c];
+                                 });
+                windowed_parallel_detail::windowed_for_each_outer_tasks(
+                    world, B, [&](std::size_t slot) {
+                        const std::size_t b = exec_order[slot];
+                        SumFactScratchLease<T> sf_lease;
+                        ctxs[b]->execute_local_stages_2_to_4(*ws_ptrs[b], sf_lease.get());
+                    });
+            } else {
+                SumFactScratchLease<T> sf_lease;
+                SumFactScratch3D<T>& sf_scratch = sf_lease.get();
+                for (std::size_t b = 0; b < B; ++b) {
+                    ctxs[b]->execute_local_stages_2_to_4(*ws_ptrs[b], sf_scratch);
+                }
             }
         }
 

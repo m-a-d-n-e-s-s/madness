@@ -191,33 +191,6 @@ ResolvedOperatorPlan resolve_plan_and_stencil_for_depth(
     return res;
 }
 
-template <typename Fn>
-class WindowedBatchWorkerTask final : public PoolTaskInterface {
-public:
-    WindowedBatchWorkerTask(Fn* fn, std::atomic<int>* remaining)
-        : PoolTaskInterface(TaskAttributes::hipri())
-        , fn_(fn)
-        , remaining_(remaining) {}
-
-    ~WindowedBatchWorkerTask() override {
-        if (remaining_ != nullptr) {
-            remaining_->fetch_sub(1, std::memory_order_release);
-        }
-    }
-
-    void run(const TaskThreadEnv&) override {
-        (*fn_)();
-    }
-
-private:
-    void get_id(std::pair<void*, unsigned short>& id) const override {
-        PoolTaskInterface::make_id(id, &WindowedBatchWorkerTask::run);
-    }
-
-    Fn* fn_;
-    std::atomic<int>* remaining_;
-};
-
 template <typename R>
 Function<R, 3> apply_pure_spiky_same_world(World& target_world,
                                            const Function<R, 3>& f_same,
@@ -271,6 +244,7 @@ Function<R, 3> apply_pure_spiky_same_world(World& target_world,
 
     std::vector<Tensor<R>> leaf_outs(leaf_jobs.size());
     windowed_parallel_detail::parallel_for_chunks(
+        target_world,
         leaf_jobs.size(),
         windowed_parallel_detail::kDefaultParallelGrain,
         [&](std::size_t b, std::size_t e_hi, std::size_t) {
@@ -875,16 +849,18 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     }
 
     // Stages 1b..5a:
-    // - Each `apply_windowed_ns_3d_prepared` call already parallelizes all stages across
-    //   `ThreadPool` / `tbb_arena` via `parallel_for_chunks`. Spawning `O(nthreads)` outer
-    //   function workers simultaneously multiplies peak `WindowedNSHaloWorkspace` +
-    //   `SumFactScratch3D` memory by `nthreads` and thrashes L3 cache.
-    // - On single-rank (`target_world.size() == 1`), run non-trivial trees (`max_node_count >= 128`)
-    //   with `max_outer_workers = 1` (100% inner thread parallelism, 1x workspace footprint in L3)
-    //   and cap small-tree outer concurrency at `<= 2` workers (overridable via
-    //   `MADNESS_WINDOWED_BATCH_WORKERS` for diagnostics).
-    std::size_t desired_outer_workers = 1;
-#if !defined(HAVE_PARSEC)
+    // - Route single-rank vector batches (`target_world.size() == 1`) directly onto MADNESS's
+    //   `WorldTaskQueue` / `tbb_arena` (`windowed_for_each_outer_tasks`) in LPT order:
+    //     * Small-tree batches (`max_nodes < 512`, e.g., `HF Exchange` pair batches): submit all
+    //       `N` functions as outer MADNESS tasks so fast P-cores and slower E-cores drain both
+    //       outer pair tasks and inner `madness::Range` sub-tasks from the shared task queue.
+    //     * Medium-tree batches (`512 <= max_nodes < 2048`): execute in memory-bounded 2-function
+    //       tiles to overlap stage barriers while bounding `WindowedNSHaloWorkspace` RSS.
+    //     * Large-tree batches (`max_nodes >= 2048`, e.g., `Vpsi` in `Apply BSH`): execute one
+    //       orbital at a time (`1x` Peak RSS) while `8x` inner `madness::Range` over-decomposition
+    //       keeps all heterogeneous/dynamically clocked cores saturated.
+    std::size_t outer_batch_tile = 1u;
+    std::vector<std::size_t> exec_order;
     if (target_world.size() == 1 && N >= 2 && !g_in_windowed_batch_task && ThreadPool::size() > 0) {
         static const int env_batch_workers = []() {
             const char* s = std::getenv("MADNESS_WINDOWED_BATCH_WORKERS");
@@ -892,107 +868,45 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
             const int v = std::atoi(s);
             return (v > 0) ? v : 0;
         }();
-        const std::size_t total_threads = ThreadPool::size() + 1;
-        if (env_batch_workers > 0) {
-            desired_outer_workers = std::min<std::size_t>(
-                {N, total_threads, static_cast<std::size_t>(env_batch_workers)});
-        } else {
-            std::size_t max_nodes = 0;
-            for (std::size_t i = 0; i < N; ++i) {
-                max_nodes = std::max(max_nodes, f_work[i].get_impl()->get_coeffs().size());
-            }
-            const std::size_t thread_cap =
-                std::clamp<std::size_t>((total_threads + 1u) / 4u, 1u, 3u);
-            const std::size_t cap = (max_nodes >= 128u) ? thread_cap : std::max<std::size_t>(2u, thread_cap);
-            desired_outer_workers = std::min<std::size_t>({N, total_threads, cap});
-        }
-    }
-#endif
 
-    if (desired_outer_workers >= 2) {
-#if !defined(HAVE_PARSEC)
-        // LPT (Longest-Processing-Time-First) dispatch order: sort indices `0..N-1` by
-        // descending local node count so deep nuclear-cusp trees (e.g., `O 1s`) start first
-        // at `t = 0` while keeping `result[0..N-1]` in exact caller order.
         std::vector<std::size_t> node_counts(N, 0);
-        std::vector<std::size_t> exec_order(N, 0);
+        exec_order.resize(N, 0);
+        std::size_t max_nodes = 0;
         for (std::size_t i = 0; i < N; ++i) {
             node_counts[i] = f_work[i].get_impl()->get_coeffs().size();
+            max_nodes = std::max(max_nodes, node_counts[i]);
             exec_order[i] = i;
         }
-        std::stable_sort(exec_order.begin(),
-                         exec_order.end(),
-                         [&node_counts](std::size_t a, std::size_t b) {
-                             return node_counts[a] > node_counts[b];
-                         });
 
-        std::atomic<std::size_t> next_slot{0};
-        std::mutex exc_mtx;
-        std::exception_ptr captured_exc;
-
-#ifdef HAVE_INTEL_TBB
-        const std::size_t n_workers = desired_outer_workers;
-        auto run_tbb_worker = [&]() noexcept {
-            WindowedActiveBatchWorkerGuard active_guard;
-            WindowedBatchTaskScope batch_scope;
-            for (;;) {
-                const std::size_t slot = next_slot.fetch_add(1, std::memory_order_relaxed);
-                if (slot >= N) break;
-                const std::size_t idx = exec_order[slot];
-                try {
-                    const auto& op_i = *ops[idx];
-                    const auto& opts_i = op_i.options();
-                    apply_windowed_ns_3d_prepared<R>(target_world,
-                                                     f_work[idx],
-                                                     result[idx],
-                                                     *resolved_plans[idx].plan,
-                                                     *resolved_plans[idx].stencil,
-                                                     eff_thresh[idx],
-                                                     opts_i.enable_dynamic_refinement,
-                                                     eff_refine_fac[idx],
-                                                     opts_i.eps_loc);
-                } catch (...) {
-                    std::lock_guard<std::mutex> lock(exc_mtx);
-                    if (!captured_exc) {
-                        captured_exc = std::current_exception();
-                    }
-                    next_slot.store(N, std::memory_order_relaxed);
-                    break;
-                }
-            }
-        };
-
-        if (ThreadPool::tbb_arena) {
-            ThreadPool::tbb_arena->execute([&]() {
-                tbb::parallel_for(
-                    tbb::blocked_range<std::size_t>(0, n_workers, 1),
-                    [&](const tbb::blocked_range<std::size_t>& r) {
-                        for (std::size_t w = r.begin(); w != r.end(); ++w) {
-                            run_tbb_worker();
-                        }
-                    },
-                    tbb::simple_partitioner());
-            });
+        if (env_batch_workers > 0) {
+            outer_batch_tile =
+                std::min<std::size_t>(N, static_cast<std::size_t>(env_batch_workers));
+        } else if (max_nodes < 1024u) {
+            outer_batch_tile = N;
+        } else if (max_nodes < 16384u) {
+            outer_batch_tile = std::min<std::size_t>(N, 4u);
+        } else if (max_nodes < 32768u) {
+            outer_batch_tile = std::min<std::size_t>(N, 2u);
         } else {
-            run_tbb_worker();
+            outer_batch_tile = 1u;
         }
-#else
-        std::atomic<int> remaining{0};
 
-        struct PreReservedBatchWorkerRelease {
-            ~PreReservedBatchWorkerRelease() {
-                g_active_windowed_batch_workers.fetch_sub(1, std::memory_order_acq_rel);
-            }
-        };
+        if (outer_batch_tile >= 2u) {
+            std::stable_sort(exec_order.begin(),
+                             exec_order.end(),
+                             [&node_counts](std::size_t a, std::size_t b) {
+                                 return node_counts[a] > node_counts[b];
+                             });
+        }
+    }
 
-        auto run_worker = [&]() noexcept {
-            PreReservedBatchWorkerRelease worker_release;
-            WindowedBatchTaskScope batch_scope;
-            for (;;) {
-                const std::size_t slot = next_slot.fetch_add(1, std::memory_order_relaxed);
-                if (slot >= N) break;
-                const std::size_t idx = exec_order[slot];
-                try {
+    if (outer_batch_tile >= 2u) {
+        for (std::size_t s0 = 0; s0 < N; s0 += outer_batch_tile) {
+            const std::size_t s1 = std::min<std::size_t>(N, s0 + outer_batch_tile);
+            windowed_parallel_detail::windowed_for_each_outer_tasks(
+                target_world, s1 - s0, [&](std::size_t k_off) {
+                    WindowedBatchTaskScope batch_scope;
+                    const std::size_t idx = exec_order[s0 + k_off];
                     const auto& op_i = *ops[idx];
                     const auto& opts_i = op_i.options();
                     apply_windowed_ns_3d_prepared<R>(target_world,
@@ -1004,43 +918,8 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                                                      opts_i.enable_dynamic_refinement,
                                                      eff_refine_fac[idx],
                                                      opts_i.eps_loc);
-                } catch (...) {
-                    std::lock_guard<std::mutex> lock(exc_mtx);
-                    if (!captured_exc) {
-                        captured_exc = std::current_exception();
-                    }
-                    next_slot.store(N, std::memory_order_relaxed);
-                    break;
-                }
-            }
-        };
-
-        const std::size_t n_helpers =
-            std::min<std::size_t>(desired_outer_workers - 1, ThreadPool::size());
-        using WorkerTask = WindowedBatchWorkerTask<decltype(run_worker)>;
-        std::vector<WorkerTask*> helper_tasks(n_helpers, nullptr);
-        for (std::size_t w = 0; w < n_helpers; ++w) {
-            helper_tasks[w] = new WorkerTask(&run_worker, &remaining);
+                });
         }
-
-        const int total_batch_workers = static_cast<int>(n_helpers + 1);
-        g_active_windowed_batch_workers.fetch_add(total_batch_workers, std::memory_order_acq_rel);
-        remaining.store(static_cast<int>(n_helpers), std::memory_order_relaxed);
-        for (std::size_t w = 0; w < n_helpers; ++w) {
-            ThreadPool::add(helper_tasks[w]);
-        }
-        thread_purge();
-
-        run_worker();
-
-        ThreadPool::await(
-            [&remaining]() { return remaining.load(std::memory_order_acquire) == 0; }, true);
-#endif
-
-        if (captured_exc) {
-            std::rethrow_exception(captured_exc);
-        }
-#endif
     } else if (target_world.size() > 1) {
         std::vector<const WindowedQuadraturePlan*> plan_ptrs(N, nullptr);
         std::vector<const WindowedStencilCache1D*> stencil_ptrs(N, nullptr);
