@@ -1,4 +1,5 @@
 #include "DFConvergence.h"
+#include "DFKramers.h"
 #include "DFParameters.h"
 #include "DFRestart.h"
 #include "InitParameters.h"
@@ -202,6 +203,105 @@ TEST(DFRestart, LegacyArchiveIsRejectedCollectively) {
     world.gop.fence();
     madness::archive::ParallelInputArchive<>::remove(world, path.c_str());
     world.gop.fence();
+}
+
+TEST(DFKramers, QuartetDegeneracyPreservesKramersOrthogonality) {
+    using cplx = std::complex<double>;
+    // 3 Kramers pairs (m = 6): a p_{1/2} doublet (-0.854) and a 4-fold degenerate
+    // p_{3/2} quartet (-0.848), matching Neon's 2p shell structure.
+    const long n = 3;
+    const long m = 2 * n;
+
+    madness::Tensor<cplx> S11(n, n);
+    S11(0, 0) = 1.0;               S11(0, 1) = cplx(0.03, -0.02); S11(0, 2) = cplx(-0.01, 0.04);
+    S11(1, 0) = std::conj(S11(0, 1)); S11(1, 1) = 1.0;            S11(1, 2) = cplx(0.05, 0.01);
+    S11(2, 0) = std::conj(S11(0, 2)); S11(2, 1) = std::conj(S11(1, 2)); S11(2, 2) = 1.0;
+
+    madness::Tensor<cplx> S21_noisy(n, n);
+    S21_noisy(0, 0) = cplx(1e-6, -2e-6); // numerical noise on diagonal
+    S21_noisy(0, 1) = cplx(0.04, 0.03);
+    S21_noisy(1, 0) = -S21_noisy(0, 1) + cplx(2e-6, 1e-6);
+    S21_noisy(1, 2) = cplx(-0.06, 0.05); // non-zero <K*psi_1 | psi_2> overlap!
+    S21_noisy(2, 1) = -S21_noisy(1, 2) + cplx(-1e-6, 3e-6);
+
+    madness::Tensor<cplx> S_unperm =
+        madness::assemble_kramers_hermitian_matrix(S11, S21_noisy, true);
+
+    // Check Lowdin S^{-1/2} preserves Kramers block structure and gives Q^H S Q = I
+    madness::Tensor<cplx> Q =
+        madness::symplectify_unpermuted_hermitian(madness::hermitian_inv_sqrt(S_unperm));
+    madness::Tensor<cplx> prod = madness::inner(madness::conj_transpose(Q), madness::inner(S_unperm, Q));
+    for (long i = 0; i < m; ++i) {
+        for (long j = 0; j < m; ++j) {
+            const double target = (i == j) ? 1.0 : 0.0;
+            EXPECT_NEAR(std::abs(prod(i, j) - target), 0.0, 1.0e-13);
+        }
+    }
+
+    // Build interleaved overlap and a scrambled p_{1/2} + p_{3/2} quaternionic Fock matrix
+    madness::Tensor<double> P(m, m);
+    for (long j = 0; j < n; ++j) {
+        P(j, 2 * j) = 1.0;
+        P(n + j, 2 * j + 1) = 1.0;
+    }
+    madness::Tensor<cplx> S_inter = madness::inner(madness::transpose(P), madness::inner(S_unperm, P));
+
+    madness::Tensor<cplx> D_diag(m, m);
+    D_diag(0, 0) = -0.854; D_diag(1, 1) = -0.854;
+    D_diag(2, 2) = -0.848; D_diag(3, 3) = -0.848;
+    D_diag(4, 4) = -0.848; D_diag(5, 5) = -0.848;
+
+    // Scramble in an arbitrary symplectic gauge mixed with S_inter
+    madness::Tensor<cplx> R_raw(m, m);
+    R_raw(0, 0) = cplx(0.95, 0.1);  R_raw(1, 0) = cplx(0.05, -0.08);
+    R_raw(2, 2) = cplx(0.6, 0.3);   R_raw(3, 2) = cplx(-0.2, 0.4);
+    R_raw(4, 2) = cplx(0.3, -0.4);  R_raw(5, 2) = cplx(0.25, 0.15);
+    R_raw(2, 4) = cplx(-0.35, 0.2); R_raw(3, 4) = cplx(0.3, 0.25);
+    R_raw(4, 4) = cplx(0.7, -0.1);  R_raw(5, 4) = cplx(-0.15, 0.35);
+    madness::Tensor<cplx> R_symp = madness::symplectify_interleaved_matrix(R_raw);
+    madness::Tensor<cplx> VH(m, m), W(m, m);
+    madness::Tensor<double> sig(m);
+    madness::svd(R_symp, W, sig, VH);
+    madness::Tensor<cplx> G = madness::symplectify_interleaved_matrix(madness::inner(W, VH));
+
+    // V_exact = S^{-1/2} * G satisfies V_exact^H * S * V_exact = I, so
+    // F = S * V_exact * D_diag * V_exact^H * S has exact generalized eigenvalues D_diag wrt S
+    madness::Tensor<cplx> Q_inter = madness::inner(madness::transpose(P), madness::inner(Q, P));
+    madness::Tensor<cplx> V_exact = madness::inner(Q_inter, G);
+    madness::Tensor<cplx> F_inter = madness::inner(
+        S_inter, madness::inner(V_exact, madness::inner(D_diag, madness::inner(madness::conj_transpose(V_exact), S_inter))));
+    F_inter = 0.5 * (F_inter + madness::conj_transpose(F_inter));
+
+    madness::Tensor<cplx> U;
+    madness::Tensor<double> evals;
+    madness::sygv(F_inter, S_inter, 1, U, evals);
+    madness::kramers_pair_and_align_eigenvectors(F_inter, S_inter, U, evals, 1.0e-5, false);
+
+    // Check exact partner degeneracy and eigenvalue recovery
+    EXPECT_NEAR(evals(0L), -0.854, 1.0e-13);
+    EXPECT_DOUBLE_EQ(evals(0L), evals(1L));
+    for (long c = 2; c < 6; ++c) {
+        EXPECT_NEAR(evals(c), -0.848, 1.0e-13);
+    }
+    EXPECT_DOUBLE_EQ(evals(2L), evals(3L));
+    EXPECT_DOUBLE_EQ(evals(4L), evals(5L));
+
+    // Check U^H * S_inter * U == I and U(:, 2k+1) == K_vec(U(:, 2k))
+    madness::Tensor<cplx> US = madness::inner(madness::conj_transpose(U), madness::inner(S_inter, U));
+    for (long i = 0; i < m; ++i) {
+        for (long j = 0; j < m; ++j) {
+            const double target = (i == j) ? 1.0 : 0.0;
+            EXPECT_NEAR(std::abs(US(i, j) - target), 0.0, 1.0e-13);
+        }
+    }
+    for (long k = 0; k < n; ++k) {
+        madness::Tensor<cplx> uk = madness::copy(U(madness::_, 2 * k));
+        madness::Tensor<cplx> uk_bar = madness::copy(U(madness::_, 2 * k + 1));
+        madness::Tensor<cplx> expected_bar = madness::kramers_interleaved_partner(uk);
+        for (long r = 0; r < m; ++r) {
+            EXPECT_NEAR(std::abs(uk_bar(r) - expected_bar(r)), 0.0, 1.0e-14);
+        }
+    }
 }
 
 int main(int argc, char** argv) {

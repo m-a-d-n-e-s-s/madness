@@ -11,11 +11,13 @@
  */ 
 
 #include "DF.h"
+#include "DFKramers.h"
 #include "DFRestart.h"
 //#include "Plot_VTK.h"
 #include "fcwf.h"
 #include <madness/chem/potentialmanager.h>
 #include <algorithm>
+#include <sys/resource.h>
 
 using namespace madness;
 
@@ -773,14 +775,11 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //Now compute the fock matrix
      Tensor<std::complex<double>> tempmatrix = matrix_inner(world, occupieds, temp_orbitals);
      if(DFparams.Krestricted){
-          fock(Slice(0,n-1),Slice(0,n-1)) = copy(tempmatrix);
-          fock(Slice(n,m-1),Slice(n,m-1)) = conj(tempmatrix(Slice(0,np-1),Slice(0,np-1)));
-          tempmatrix = matrix_inner(world,kramers_pairs,temp_orbitals);
-          fock(Slice(n,m-1),Slice(0,n-1)) = copy(tempmatrix);
-          fock(Slice(0,n-1),Slice(n,m-1)) = conj_transpose(tempmatrix);
+          Tensor<std::complex<double>> fock21 = matrix_inner(world, kramers_pairs, temp_orbitals);
+          fock = assemble_kramers_hermitian_matrix(tempmatrix, fock21, closed_shell);
      }
      else{
-          fock = tempmatrix;
+          fock = 0.5 * (tempmatrix + conj_transpose(tempmatrix));
      }
 
      //permute and symmetrize
@@ -796,10 +795,9 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          Integrating to form Overlap Matrix");
      start_timer(world);
      if(DFparams.Krestricted){
-          overlap(Slice(0,n-1),Slice(0,n-1)) = matrix_inner(world,occupieds,occupieds);
-          overlap(Slice(0,n-1),Slice(n,m-1)) = matrix_inner(world,occupieds,kramers_pairs);
-          overlap(Slice(n,m-1),Slice(0,n-1)) = matrix_inner(world,kramers_pairs,occupieds);
-          overlap(Slice(n,m-1),Slice(n,m-1)) = matrix_inner(world,kramers_pairs,kramers_pairs);
+          Tensor<std::complex<double>> ovlp11 = matrix_inner(world, occupieds, occupieds);
+          Tensor<std::complex<double>> ovlp21 = matrix_inner(world, kramers_pairs, occupieds);
+          overlap = assemble_kramers_hermitian_matrix(ovlp11, ovlp21, true);
      }
      else{
           overlap = matrix_inner(world,occupieds,occupieds);
@@ -823,79 +821,85 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      if(world.rank()==0) print("          ", times[0]);
 
      //Before applying the transformation, fix arbitrary rotations introduced by the eigensolver. 
-     //This is done in three steps:
-     // 1) Column-swapping in order to obtain a diagonally dominant matrix
-     // 2) Removal of complex phases, so the diagonal is comprised of positive real numbers
-     // 3) Identification of clusters with the same eigenvalue (within some tolerance) and removal of arbitrary
-     //    rotations within the eigenspaces formed by those clusters
-     //
-     //This is largely stolen from SCF.cc, but heavily changed for FCWFs
+     //In closed-shell Kramers-restricted mode, standard LAPACK zhegv returns an arbitrary
+     //S-unitary basis inside each 2-fold (e.g. s_{1/2}, p_{1/2}) or 4+-fold (e.g. p_{3/2})
+     //degenerate eigenspace without enforcing U(:, 2k+1) = K_vec(U(:, 2k)), which otherwise
+     //mixes Kramers partners across stored orbitals and violates <psi_i | K*psi_j> = 0.
      if(world.rank()==0) print("     Removing Rotations");
      start_timer(world);
 
      double thresh_degenerate = DFparams.thresh*10.0; //threshold for determining if eigenvalues are equal
 
-     //swap columns for a diagonally dominant matrix
-     bool switched = true;
-     while (switched) {
-          switched = false;
-          for (unsigned int kk = 0; kk < m; kk++) {
-               for (unsigned int j = kk + 1; j < m; j++) {
-                    double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
-                    double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
-                    if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
-                         if(world.rank()==0){
-                              print("          swapping columns ", kk+1, " and ", j+1);
+     if (DFparams.Krestricted && closed_shell) {
+          kramers_pair_and_align_eigenvectors(fock, overlap, U, evals,
+                                              thresh_degenerate, world.rank() == 0);
+     }
+     else {
+          //swap columns for a diagonally dominant matrix
+          bool switched = true;
+          while (switched) {
+               switched = false;
+               for (unsigned int kk = 0; kk < m; kk++) {
+                    for (unsigned int j = kk + 1; j < m; j++) {
+                         double sold = std::real(U(kk,kk)*std::conj(U(kk,kk))) + std::real(U(j,j)*std::conj(U(j,j)));
+                         double snew = std::real(U(kk,j)*std::conj(U(kk,j))) + std::real(U(j,kk)*std::conj(U(j,kk)));
+                         if (snew > sold and not ((evals[j] - evals[kk]) > thresh_degenerate * std::fabs(evals[kk])) ) {
+                              if(world.rank()==0){
+                                   print("          swapping columns ", kk+1, " and ", j+1);
+                              }
+                              Tensor<std::complex<double>> tmp = copy(U(_, kk));
+                              U(_, kk) = U(_, j);
+                              U(_, j) = tmp;
+                              std::swap(evals[kk], evals[j]);
+                              switched = true;
                          }
-                         Tensor<std::complex<double>> tmp = copy(U(_, kk));
-                         U(_, kk) = U(_, j);
-                         U(_, j) = tmp;
-                         std::swap(evals[kk], evals[j]);
-                         switched = true;
                     }
                }
           }
-     }
 
-     // Fix phases.
-     for (unsigned int kk = 0; kk < m; ++kk)
-          U(_, kk).scale(std::conj(U(kk,kk))/std::abs(U(kk,kk)));
+          //Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
+          unsigned int ilo = 0; // first element of cluster
+          if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
 
-     //Find clusters of degenerate eigenvalues and rotate eigenvectors to maximize overlap with previous ones
-     unsigned int ilo = 0; // first element of cluster
-     if(world.rank()==0) print("          Degeneracy threshold: ",thresh_degenerate);
-
-     while (ilo < m - 1) {
-         unsigned int ihi = ilo;
-         while (fabs(evals[ilo] - evals[ihi + 1]) < thresh_degenerate * std::fabs(evals[ilo])){
-             ++ihi;
-             if (ihi == m - 1) break;
-         }
-         unsigned int nclus = ihi - ilo + 1; //size of the cluster
-         if (nclus > 1) {
-              if(world.rank()==0){
-                    //some printing to tell the user about the clusters found
-                    print("          found cluster from ", ilo + 1, " to " , ihi + 1);
-                    for(unsigned int kk = ilo; kk <= ihi; kk++){
-                         print("               ",evals[kk]);
-                    }
+          while (ilo < m - 1) {
+              unsigned int ihi = ilo;
+              while (fabs(evals[ilo] - evals[ihi + 1]) < thresh_degenerate * std::fabs(evals[ilo])){
+                  ++ihi;
+                  if (ihi == m - 1) break;
               }
+              unsigned int nclus = ihi - ilo + 1; //size of the cluster
+              if (nclus > 1) {
+                   if(world.rank()==0){
+                         //some printing to tell the user about the clusters found
+                         print("          found cluster from ", ilo + 1, " to " , ihi + 1);
+                         for(unsigned int kk = ilo; kk <= ihi; kk++){
+                              print("               ",evals[kk]);
+                         }
+                   }
 
-              //Use the polar decomposition to undo rotations:
-              //For a description of how this works see Matrix Computations by Golub and Van Loan, 4th Ed., Section 6.4.1
-              Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
-              Tensor<std::complex<double>> VH(nclus,nclus);
-              Tensor<std::complex<double>> W(nclus,nclus);
-              Tensor<double> sigma(nclus);
+                   //Use the polar decomposition to undo rotations:
+                   //For a description of how this works see Matrix Computations by Golub and Van Loan, 4th Ed., Section 6.4.1
+                   Tensor<std::complex<double>> q = copy(U(Slice(ilo, ihi), Slice(ilo, ihi)));
+                   Tensor<std::complex<double>> VH(nclus,nclus);
+                   Tensor<std::complex<double>> W(nclus,nclus);
+                   Tensor<double> sigma(nclus);
 
-              svd(q, W, sigma, VH);
+                   svd(q, W, sigma, VH);
 
-              //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
-              q = conj_transpose(inner(W,VH));
-              U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
-              
-         }
-         ilo = ihi + 1;
+                   //W*VH is the rotation part of q. Undo it by taking the adjoint and right-multiplying
+                   q = conj_transpose(inner(W,VH));
+                   U(_, Slice(ilo, ihi)) = inner(U(_, Slice(ilo, ihi)), q);
+              }
+              ilo = ihi + 1;
+          }
+
+          // Fix phases after cluster polar alignment, guarding against near-zero diagonal entries.
+          for (unsigned int kk = 0; kk < m; ++kk) {
+               const double diag_abs = std::abs(U(kk,kk));
+               if (diag_abs > 1.0e-12) {
+                    U(_, kk).scale(std::conj(U(kk,kk)) / diag_abs);
+               }
+          }
      }
      times = end_timer(world);
      if(world.rank()==0) print("          ", times[0]);
@@ -952,32 +956,60 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
 
 }
 
-//orthogonalize occupieds in place. This function mimics a similar one from SCF.cc
+//orthogonalize occupieds in place.
+//In Kramers-restricted mode, enforces full 2n-dimensional Kramers orthonormality
+//(<psi_i | psi_j> = delta_{ij} AND <psi_i | K*psi_j> = 0) via exact Löwdin S^{-1/2}.
 void DF::orthogonalize_inplace(World& world){
 
      unsigned int n = occupieds.size();
-     double maxq;
+     if (n == 0) return;
 
      //normalize beforehand
      for(unsigned int i = 0; i < n; i++){
           occupieds[i].normalize();
      }
 
-     //Basically stolen from SCF.cc. Orthogonalization based on Taylor expansion of (overlap)^(1/2)
-     do{
-          Tensor<std::complex<double>> Q = Q2(matrix_inner(world,occupieds,occupieds));
-          maxq = 0.0;
-          for(unsigned int j=1; j<n; j++){
-               for(unsigned int i=0; i<j; i++){
-                    maxq = std::max(std::abs(Q(j,i)),maxq);
+     if (DFparams.Krestricted) {
+          const unsigned int np = closed_shell ? n : n - 1;
+          if (np > 0) {
+               std::vector<Fcwf> paired(occupieds.begin(), occupieds.begin() + np);
+               std::vector<Fcwf> kramers_pairs;
+               kramers_pairs.reserve(np);
+               for (unsigned int j = 0; j < np; ++j) {
+                    kramers_pairs.push_back(paired[j].KramersPair());
+               }
+               Tensor<std::complex<double>> S11 = matrix_inner(world, paired, paired);
+               Tensor<std::complex<double>> S21 = matrix_inner(world, kramers_pairs, paired);
+               Tensor<std::complex<double>> S = assemble_kramers_hermitian_matrix(S11, S21, true);
+               Tensor<std::complex<double>> Q = symplectify_unpermuted_hermitian(hermitian_inv_sqrt(S));
+
+               Tensor<std::complex<double>> Q11 = copy(Q(Slice(0, np - 1), Slice(0, np - 1)));
+               Tensor<std::complex<double>> Q21 = copy(Q(Slice(np, 2 * np - 1), Slice(0, np - 1)));
+               paired = transform(world, paired, Q11);
+               paired += transform(world, kramers_pairs, Q21);
+               for (unsigned int j = 0; j < np; ++j) {
+                    occupieds[j] = paired[j];
+                    occupieds[j].normalize();
                }
           }
+          if (!closed_shell) {
+               for (int pass = 0; pass < 2; ++pass) {
+                    for (unsigned int j = 0; j < np; ++j) {
+                         Fcwf kp = occupieds[j].KramersPair();
+                         occupieds[n - 1] -= occupieds[j] * inner(occupieds[j], occupieds[n - 1]);
+                         occupieds[n - 1] -= kp * inner(kp, occupieds[n - 1]);
+                    }
+               }
+               occupieds[n - 1].normalize();
+          }
+     }
+     else {
+          Tensor<std::complex<double>> S = matrix_inner(world, occupieds, occupieds);
+          Tensor<std::complex<double>> Q = hermitian_inv_sqrt(S);
           occupieds = transform(world, occupieds, Q);
-     } while (maxq>0.01);
-
-     //normalize afterward
-     for(unsigned int i = 0; i < n; i++){
-          occupieds[i].normalize();
+          for(unsigned int i = 0; i < n; i++){
+               occupieds[i].normalize();
+          }
      }
 
 }
@@ -1776,8 +1808,10 @@ void DF::solve_occupied(World & world)
      XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator> kainsolver(allocator);
      kainsolver.set_maxsub(DFparams.maxsub);
 
-     //normalize initial guesses
+     //orthonormalize initial kinetic-balance guesses (including Kramers partner orthogonality)
+     orthogonalize_inplace(world);
      for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+          occupieds[i].truncate();
           occupieds[i].normalize();
      }
 
@@ -1916,12 +1950,31 @@ void DF::solve(World& world){
           if(world.rank()==0) print("Requested no computation.");
      }
     
-     // Report calculation time
+     // Report calculation time, total spinor leaf boxes, and Peak RSS
      // Precision is set to 10 coming in, drop it to 2
      std::cout.precision(2);
      std::cout << std::fixed;
      Tensor<double> times = end_timer(world);
-     if(world.rank() == 0) print("\n   Calculation time:", times[0],"\n");
+     if(world.rank() == 0) {
+          struct rusage ru{};
+          const double rss_mb = (getrusage(RUSAGE_SELF, &ru) == 0)
+                                    ? (static_cast<double>(ru.ru_maxrss) / 1024.0)
+                                    : 0.0;
+          std::size_t total_coeffs = 0;
+          int global_max_depth = 0;
+          for (unsigned int j = 0; j < Init_params.num_occupied; ++j) {
+               for (int c = 0; c < 4; ++c) {
+                    total_coeffs += occupieds[j][c].size();
+                    global_max_depth = std::max(global_max_depth, int(occupieds[j][c].max_depth()));
+               }
+          }
+          const std::size_t kk = static_cast<std::size_t>(FunctionDefaults<3>::get_k());
+          const std::size_t k3 = kk * kk * kk;
+          const std::size_t total_leaves = (k3 > 0) ? (total_coeffs / k3) : 0;
+          print("\n   Calculation time:", times[0]);
+          std::printf("   Final spinor leaves: %zu (coeffs: %zu, max_depth: %d) | Peak RSS: %.1f MB\n\n",
+                      total_leaves, total_coeffs, global_max_depth, rss_mb);
+     }
 
      //Make density lineplots
      if(DFparams.lineplot){
