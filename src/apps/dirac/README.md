@@ -24,10 +24,8 @@ Key features:
 From your build directory:
 
 ```bash
-cmake ../madness -GNinja -DENABLE_MPI=OFF \
-  -DLAPACK_LIBRARIES="-L/home/rjh/Devel/mTxm/lib -lmTxmq -L/opt/arm/armpl_23.10_gcc-12.2/lib/ -larmpl_lp64 -lamath -lastring"
-
-ninja src/apps/dirac/DFdriver
+cmake ../madness -GNinja
+ninja moldft DFdriver
 ```
 
 ---
@@ -38,39 +36,43 @@ Running a Dirac-Fock calculation is a two-step process:
 
 ### Step 1: Run `moldft` for the Non-Relativistic Ground State
 
-Run `moldft` to generate the molecular orbital restart archive (default prefix: `mad.restartdata.00000`):
+Run `moldft` (with Hartree-Fock `xc hf`, the default) to generate the molecular orbital restart archive (default prefix: `mad.restartdata.00000`). Atoms (`he`, `be`, `ne`, ...) and standard molecules in `structure_library` can be selected directly via `--geometry=<name>`:
 
 ```bash
-# Example: Helium atom
-MAD_NUM_THREADS=20 ./src/apps/moldft/moldft --geometry=he
+# Example: Helium, Beryllium, or Neon atom from structure_library
+MAD_NUM_THREADS=10 ./src/apps/moldft/moldft --geometry=he --dft="xc hf; restart=none"
 ```
 
-Or for a custom geometry using an input deck (e.g. Beryllium):
+Or for a custom geometry using an `input` deck (`geometry ... end` or `molecule ... end`, or `--geometry=my_mol.xyz`):
 ```
 dft
   xc hf
+  restart none
 end
 
 geometry
+  units atomic
   be 0.0 0.0 0.0
 end
 ```
 ```bash
-MAD_NUM_THREADS=20 ./src/apps/moldft/moldft
+MAD_NUM_THREADS=10 ./src/apps/moldft/moldft
 ```
 
 ### Step 2: Run `DFdriver`
 
-Create an `input` file in the working directory:
+Create an `input` file (or append the `DiracFock ... end` block to the same `input` file, or pass a separate file via `--input=df_input`):
 
 ```
 DiracFock
   archive mad.restartdata
+  Krestricted
   small 1e-5
   thresh 1e-6
   k 8
   kain
   maxsub 5
+  convergence_criteria energy_density_residual
   no_save
 end
 ```
@@ -78,12 +80,12 @@ end
 Run `DFdriver`:
 
 ```bash
-MAD_NUM_THREADS=20 ./src/apps/dirac/DFdriver
+MAD_NUM_THREADS=10 ./src/apps/dirac/DFdriver
 ```
 
 By default, `DFdriver` reads `input` in the current working directory. You can specify a different input file via:
 ```bash
-MAD_NUM_THREADS=20 ./src/apps/dirac/DFdriver -input my_input
+MAD_NUM_THREADS=10 ./src/apps/dirac/DFdriver --input=my_input
 ```
 
 ---
