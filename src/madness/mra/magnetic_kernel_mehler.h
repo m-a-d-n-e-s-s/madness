@@ -31,7 +31,7 @@ public:
         const double w = bottom();
         const double gap = w - E;
         MADNESS_CHECK_THROW(gap > 0.0, "MagneticKernelMehler: require E < |B|/2");
-        const magnetic::TauQuadrature quad = magnetic::gauss_legendre_log(p_.nodes, p_.tmin, -std::log(p_.eps) / gap);
+        const magnetic::TauQuadrature quad = tau_quadrature(gap);
         const double thresh = FunctionDefaults<3>::get_thresh();
         const double ox = p_.ox, oy = p_.oy;
 

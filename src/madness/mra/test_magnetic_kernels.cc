@@ -117,6 +117,8 @@ int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     p.kind = a.at("kernel");
     p.B = getd(a, "B", 0.0);
     p.nodes = int(getd(a, "nodes", p.nodes));
+    if (a.count("quadrature")) p.quadrature = a.at("quadrature");
+    p.h = getd(a, "h", p.h);
     p.tmin = getd(a, "tmin", p.tmin);
     p.ft_rcut = getd(a, "rcut", p.ft_rcut);
     p.ft_rtaper = getd(a, "rtaper", p.ft_rtaper);

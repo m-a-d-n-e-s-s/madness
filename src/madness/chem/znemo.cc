@@ -44,7 +44,12 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
     FunctionDefaults<3>::set_cubic_cell(-calc_param.L(), calc_param.L());
     calc_param.set_derived_value("spin_restricted",false);
 
-	param.set_derived_values();
+	// largest distance of a nucleus from the field axis through the gauge origin (default radius of the A cut)
+	double nuclear_rho=0.0;
+	for (const coord_3d& c : mol.get_all_coords_vec()) nuclear_rho=std::max(nuclear_rho,std::sqrt(c[0]*c[0]+c[1]*c[1]));
+	param.set_derived_values(nuclear_rho);
+	MADNESS_CHECK_THROW((not param.cut_vector_potential()) or param.kernel()=="bsh" or param.kernel()=="mehler",
+			"cut_vector_potential: bsh or mehler kernel only (the other kernels contain the uncut A)");
 
 	print_info=printleveler(param.printlevel());
 
@@ -90,6 +95,9 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	if (param.box().size()==5) box_offset={param.box()[2],param.box()[3],param.box()[4]};
 	spherical_box<3> sbox2(param.box()[0],param.box()[1],box_offset);
 	sbox=real_factory_3d(world).functor(sbox2);
+	cutA_S=diafac->cut_A_factor_function();
+	if (param.cut_vector_potential() and world.rank()==0)
+		print("vector potential cut at rho =",param.potential_radius(),"with edge width",param.potential_cut_width());
 
 	// the guess is read from a previous nemo calculation
 	// make sure the molecule was not reoriented there
@@ -430,11 +438,15 @@ std::vector<complex_function_3d> Znemo::assemble_rhs(const potentials& pot,
 
 	// magnetic kernels: the kinetic energy and the diamagnetic term are in the Green's function, the
 	// spin Zeeman term in its energy argument (compute_residuals); the paramagnetic term only if the
-	// kernel does not contain it (mehler, symmetric gauge)
+	// kernel does not contain it (mehler, symmetric gauge), with the cut vector potential as S (B/2) Lz:
+	// the trap (B^2/8) rho^2 stays exact in the kernel, so outside R_c the electron sees the bare trap
 	std::vector<complex_function_3d> v=pot.vnuc_mo+pot.lz_commutator-pot.K_mo+pot.J_mo+pot.zeeman_R_comm;
 	if (not mkernel->absorbs_paramagnetic()) {
 		MADNESS_CHECK_THROW(mkernel->gauge()==MagneticGauge::symmetric,"paramagnetic term needs the symmetric gauge");
-		v+=0.5*B[2]*Lz<double_complex,3>(world,false)(mo);
+		// B-spline derivative: with the Alpert derivative the iteration diverged at B = 100
+		std::vector<complex_function_3d> lz=0.5*B[2]*Lz<double_complex,3>(world,true)(mo);
+		if (param.cut_vector_potential()) lz=cutA_S*lz;
+		v+=lz;
 	}
 	return v;
 }
@@ -1243,7 +1255,15 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 
 	// magnetic kernels: the paramagnetic and diamagnetic terms enter through kinetic_pi_matrix (and,
 	// for a kernel without the paramagnetic term, through assemble_rhs); keep them zero here
-	if (not mkernel) pot.lz_mo=0.5*B[2]*Lz<double_complex,3>(world,false)(rhs);
+	// cut vector potential (bsh: S (B/2) Lz and the cut diamagnetic potential in diafac; mehler: kinetic_pi_matrix
+	// has the uncut (B/2) Lz, and lz_mo = (S-1) (B/2) Lz makes the Fock matrix and the energy those of the cut
+	// Hamiltonian that the iteration solves)
+	if (not mkernel) {
+		pot.lz_mo=0.5*B[2]*Lz<double_complex,3>(world,false)(rhs);
+		if (param.cut_vector_potential()) pot.lz_mo=cutA_S*pot.lz_mo;
+	} else if (param.cut_vector_potential()) {
+		pot.lz_mo=(cutA_S-1.0)*(0.5*B[2]*Lz<double_complex,3>(world,true)(rhs));	// as in assemble_rhs
+	}
 	pot.lz_commutator=diafac->compute_lz_commutator()*rhs;
 
 	if (not mkernel) pot.diamagnetic_mo=diafac->apply_potential(rhs);

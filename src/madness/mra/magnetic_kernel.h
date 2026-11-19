@@ -33,8 +33,10 @@ struct MagneticKernelParameters {
     double ox = 0.0, oy = 0.0;              ///< gauge origin (the FT kernel requires 0, 0)
     bool verbose = false;
 
-    // chain and mehler: Gauss-Legendre in ln tau on [tmin, -ln(eps)/(|B|/2 - E)]
-    int nodes = 40;
+    // chain and mehler: quadrature in ln tau on [tmin, -ln(eps)/(|B|/2 - E)], [0, tmin] as tmin f
+    std::string quadrature = "trapezoid";   ///< trapezoid (step h, endpoint-corrected) | gauss_legendre (nodes)
+    double h = 0.35;            ///< trapezoid step in ln tau
+    int nodes = 40;             ///< gauss_legendre: number of nodes
     double tmin = 1e-4;
     double eps = 1e-10;
     double nlll = 28.0;         ///< chain: beyond nlll/|B| only the free z motion is propagated (0: off)
@@ -103,6 +105,20 @@ public:
     complex_function_3d to_symmetric_gauge(const complex_function_3d& f) const { return from_symmetric_gauge(f, -1.0); }
 
 protected:
+    /// proper-time quadrature of the chain and mehler kernels on [tmin, -ln(eps)/gap], gap = |B|/2 - E.
+    /// trapezoid: the integrand tau e^{-kappa tau} does not vanish at the cut u = ln tmin, so the plain rule
+    /// errs by (h^2/12) F'(ln tmin) ~ (h^2/12) tmin f (first order in tmin, while tmin f itself errs only by
+    /// kappa tmin^2/2 for valence components); the leading Euler-Maclaurin term is folded into the [0, tmin]
+    /// weight, tmin -> tmin (1 + h^2/12).  The upper end needs no correction (the integrand has decayed).
+    magnetic::TauQuadrature tau_quadrature(const double gap) const {
+        const double tmax = -std::log(p_.eps) / gap;
+        if (p_.quadrature == "gauss_legendre") return magnetic::gauss_legendre_log(p_.nodes, p_.tmin, tmax);
+        MADNESS_CHECK_THROW(p_.quadrature == "trapezoid", "MagneticKernel: quadrature must be trapezoid or gauss_legendre");
+        magnetic::TauQuadrature q = magnetic::trapezoid_log(p_.h, p_.tmin, tmax);
+        q.tmin *= 1.0 + p_.h * p_.h / 12.0;
+        return q;
+    }
+
     MagneticKernelParameters p_;
 };
 

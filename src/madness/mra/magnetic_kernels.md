@@ -157,6 +157,44 @@ bitwise (see Verification):
 | `trapezoid_log` | `ft_h`, `ft_tmin`, tmax = `ft_tmax_factor`/(|B|/2 − E) | ft |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
 
+### Short proper times
+
+None of the kernels has a dedicated short-time limit. The only short-time treatment is the cut of the
+Laplace integral at t_min:
+
+```
+∫₀^{t_min} dτ e^{Eτ} e^{−τT} f  ≈  t_min · f        (heat kernel → δ, e^{Eτ} → 1)
+```
+
+| | chain | ft | mehler |
+|---|---|---|---|
+| t_min | `kernel_tmin` = 1e−4 | `ft_tmin` = 1e−8 | `kernel_tmin` = 1e−4 |
+| t_min · f in the code | `quad.tmin * a`, added unphased after the outer phase | `Psi = s0 * F` in every q mode | `quad.tmin * f` |
+| first node | slightly above t_min (Gauss–Legendre) | at t_min, weight ½ (trapezoid) | slightly above t_min |
+| how the first node is reached | one sub-step from τ = 0, with the full phase pair e^{∓iBx~y~} | independent node | independent node |
+| short-time errors | inherited by all later nodes (incremental chain) | local to the node | local to the node |
+
+- **Error of t_min · f.** A component with T − E = κ gets the weight t_min instead of (1 − e^{−κ t_min})/κ,
+  a relative error of about κ t_min/2. It matters only for κ ≳ 1/t_min, i.e. the cusp of Vψ; the bias
+  scales with Z²ρ(R_A) (`magnetic_gf_consolidated.md` §7).
+- **No τ → 0 branch.** The node formulas are evaluated in closed form at every τ (tanh, sinh, log-form
+  normalizations, no clamp on narrow Gaussians). The special cases in `splitting_coefficients`
+  (|Bτ| < 1e−8), `mehler_log_c` (wτ = 0) and `tanh_over_x` (x = 0) are B → 0 guards: with τ ≥ t_min they
+  never fire at nonzero field. The `log_w < −60` skips and the 1e−10 exponent floor act on long times only.
+- **Not the free kernel.** At short τ the symmetric-gauge kernel is the free Gaussian times the phase
+  e^{i(B/2)(xy′−yx′)}, of size (B/2)ρ√τ (about 2 rad at B = 425, ρ = 1, τ = 1e−4). A short-time piece
+  must keep this phase (Peierls form) or be local to a nucleus.
+- **Cost.** In the chain the narrow short-time kernels act on phase-multiplied functions, which inflates
+  the trees over the whole support. This dominates the chain cost (86 % of a G at τ < 1e−3 for a
+  displaced H atom at B = 10, thresh 1e−5). The Python prototypes had cheaper short-time variants
+  (Strang and exact Mehler steps for definite m, local Mehler, free short piece `--short free`); none is
+  in the C++ code (`magnetic_gf_consolidated.md` §5, §10).
+- **Choosing t_min.** The notes use t_min = 1e−4 with 40 nodes at thresh 1e−4 and t_min = 1e−5 with
+  50 nodes at thresh 1e−5 (`notes/mra_magnetic_scheme.md` §2.3); the C++ defaults do not adapt to the
+  threshold. Lowering t_min alone spreads the same `kernel_nodes` over a wider ln τ range, so raise the
+  node count with it. A much smaller t_min makes the chain trees and memory explode
+  (`notes/hydrogen_solvers_handoff.md`).
+
 ## Using the kernels
 
 ### C++
@@ -284,6 +322,8 @@ the B ≤ 100 scan (`h2_h2plus_field_scan.md`) and new runs of the original code
 - `notes/magnetic_greens_function.md`: the magnetic Green's function, the gauge phase, the
   decomposition of T_B.
 - `notes/magnetic_kernel_realspace_splitting.md`: the exact three-factor product (chain).
+- `notes/magnetic_kernels_common_origin.md`: ft, chain_symmetric and chain_landau derived from one
+  Mehler factorization; why the z Gaussian is merged into the x convolution.
 - `notes/mra_magnetic_scheme.md`: the MRA scheme of the chain (sub-steps, LLL shortcut, gauges);
   `notes/decoupling_magnetic_phase.md`.
 - `notes/mehler_kernel_factorization.md`: the rank-1 Mehler kernel and its use as an iteration kernel.

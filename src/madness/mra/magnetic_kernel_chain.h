@@ -46,7 +46,7 @@ public:
         const double B = p_.B;
         const double gap = bottom() - E;
         MADNESS_CHECK_THROW(gap > 0.0, "MagneticKernelChain: require E < |B|/2");
-        const magnetic::TauQuadrature quad = magnetic::gauss_legendre_log(p_.nodes, p_.tmin, -std::log(p_.eps) / gap);
+        const magnetic::TauQuadrature quad = tau_quadrature(gap);
         const std::vector<long> swap_xy{1, 0, 2};
         const complex_function_3d a = mapdim(f, swap_xy);
 

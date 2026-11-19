@@ -168,10 +168,14 @@ real_function_3d Diamagnetic_potential_factor::compute_U2() const {
 	real_function_3d U2c_function(world);
 	double radius=get_potential_radius();
 	if (eB>0.0) U2c_function=real_factory_3d(world).functor(R_times_arg_div_R(U2c,explicit_B,v,radius)).truncate_on_project();
-	real_function_3d harmonic_potential=real_factory_3d(world).functor(harmonic_potential_boxed(radius));
-
 	real_function_3d U2_function;
-	U2_function=-0.5*(-eB - 0.25*pB*pB*harmonic_potential  + U2c_function);
+	if (cut_A) {
+		// eB = 0 (checked in the constructor): U2 is the diamagnetic potential of the cut vector potential
+		U2_function=cut_A_diamagnetic_potential();
+	} else {
+		real_function_3d harmonic_potential=real_factory_3d(world).functor(harmonic_potential_boxed(radius));
+		U2_function=-0.5*(-eB - 0.25*pB*pB*harmonic_potential  + U2c_function);
+	}
 	return U2_function.truncate();
 }
 

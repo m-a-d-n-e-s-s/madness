@@ -65,7 +65,12 @@ public:
         initialize<double>("shift",0.0);
         initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
         initialize<bool>("use_v_vector",false);
-        initialize<double>("potential_radius",-1.0);
+        initialize<double>("potential_radius",-1.0,"radius R_c of the potential cut about the gauge origin: "
+                "bsh: the diamagnetic potential flattens beyond it; with cut_vector_potential: the field is cut "
+                "beyond it (flux-conserving cut of A); <0: derived");
+        initialize<bool>("cut_vector_potential",false,"bsh, mehler: flux-conserving cut of the vector potential, "
+                "A -> S(rho) A with the field B erfc((rho-R_c)/width)/2 (default R_c: max nuclear rho + 6 l_B)");
+        initialize<double>("potential_cut_width",1.0,"cut_vector_potential: edge width in units of l_B = |B|^-1/2");
         initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
         initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
 
@@ -79,6 +84,8 @@ public:
         initialize<std::string>("guess2","sigma","magnetic_lcao: second orbital sigma (+-) or pi ((x-iy) sigma_g)",{"sigma","pi"});
         initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
         initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
+        initialize<std::string>("kernel_quadrature","trapezoid","chain, mehler: proper-time quadrature in ln tau",{"trapezoid","gauss_legendre"});
+        initialize<double>("kernel_h",0.35,"chain, mehler: trapezoid step in ln tau");
         initialize<int>("kernel_nodes",40,"chain, mehler: Gauss-Legendre nodes in ln tau");
         initialize<double>("kernel_tmin",1.e-4,"chain, mehler: smallest tau");
         initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
@@ -102,7 +109,8 @@ public:
 		return std::string("complex");
 	}
 
-	void set_derived_values() {
+	/// @param[in]	nuclear_rho	largest distance of a nucleus from the field axis through the gauge origin
+	void set_derived_values(const double nuclear_rho=0.0) {
 		double pb=physical_B();
 		double eb=explicit_B();
 		double remaining_B=fabs(pb-eb);
@@ -111,10 +119,19 @@ public:
 		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
 		double potential_radius=wave_function_radius*1.6;
 		double box_radius=wave_function_radius*1.33;
+		// cut of the vector potential: the field stays uniform over the molecule, with a margin of 6 l_B
+		if (cut_vector_potential()) potential_radius=nuclear_rho+6.0/sqrt(fabs(pb));
 
 		set_derived_value("box",std::vector<double>{box_radius,0.01});
 		set_derived_value("potential_radius",potential_radius);
-		set_derived_value("shift",physical_B());
+		double shift=physical_B();
+		if (cut_vector_potential() and kernel()=="bsh") {
+			// the free BSH needs E + levelshift < 0 for all orbitals, levelshift = shift - B/2: shift down by more
+			// than the largest cut potential, (B^2/8) (R_c + w)^2 (diamagnetic) + B/2 (exterior offset), plus 1
+			const double R_c=get<double>("potential_radius")+potential_cut_width();
+			shift=0.5*pb-(0.125*pb*pb*R_c*R_c+0.5*fabs(pb)+1.0);
+		}
+		set_derived_value("shift",shift);
 
 	}
 
@@ -124,6 +141,9 @@ public:
 	double explicit_B() const {return get<double>("explicit_b");}
 	std::vector<double> box() const {return get<std::vector<double> >("box");}
 	double potential_radius() const {return get<double>("potential_radius");}
+	bool cut_vector_potential() const {return get<bool>("cut_vector_potential");}
+	/// edge width of the cut of the vector potential in bohr
+	double potential_cut_width() const {return get<double>("potential_cut_width")/sqrt(fabs(physical_B()));}
 	bool use_v_vector() const {return get<bool>("use_v_vector");}
 	std::vector<std::string> guess() const {return get<std::vector<std::string>>("guess");}
 	std::vector<std::string> guess_functions() const {return get<std::vector<std::string>>("guess_functions");}
@@ -144,6 +164,8 @@ public:
 		p.kind=kernel();
 		p.B=physical_B();
 		p.verbose=(printlevel()>=3);
+		p.quadrature=get<std::string>("kernel_quadrature");
+		p.h=get<double>("kernel_h");
 		p.nodes=get<int>("kernel_nodes");
 		p.tmin=get<double>("kernel_tmin");
 		p.nlll=get<double>("kernel_nlll");
@@ -537,6 +559,9 @@ protected:
 
 	/// the spherical damping box
 	real_function_3d sbox;
+
+	/// cut_vector_potential: S(rho) of the cut vector potential A_c = S A (multiplies the paramagnetic term)
+	real_function_3d cutA_S;
 
 	/// the linear moments r={x,y,z}
 	std::vector<real_function_3d> rvec;

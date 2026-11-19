@@ -54,6 +54,8 @@ void bind_magnetic(py::module_& m) {
         .def_readwrite("ox", &MagneticKernelParameters::ox)
         .def_readwrite("oy", &MagneticKernelParameters::oy)
         .def_readwrite("verbose", &MagneticKernelParameters::verbose)
+        .def_readwrite("quadrature", &MagneticKernelParameters::quadrature)
+        .def_readwrite("h", &MagneticKernelParameters::h)
         .def_readwrite("nodes", &MagneticKernelParameters::nodes)
         .def_readwrite("tmin", &MagneticKernelParameters::tmin)
         .def_readwrite("eps", &MagneticKernelParameters::eps)
