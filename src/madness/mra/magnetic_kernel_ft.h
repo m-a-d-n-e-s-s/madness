@@ -212,7 +212,9 @@ private:
                 compress(world_, t);
                 gaxpy(world_, 1.0, Pk, std::exp(nodes[k].log_w), t);
             }
-            truncate(world_, Psi);
+            // the mode functions carry the cell-relative truncation error of 2D functions on the full (x, z) cell:
+            // at the default thresh it raised the H atom (B = 10) by 0.08 mEh
+            truncate(world_, Psi, 0.1 * thresh);
             for (std::size_t i = 0; i < Psi.size(); ++i) {
                 left.push_back(Psi[i]);
                 right.push_back(planewave_win_[jq[i]]);
