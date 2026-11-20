@@ -30,14 +30,15 @@ The Windowed NS algorithm resolves both bottlenecks simultaneously by enforcing 
 | `windowed_quadrature.h` | Two-threshold solver (`compute_gamma_spiky`, `compute_gamma_diff`, `gamma_spiky_override`), parity-sparse `LegendreMomentOp` ($\bm{M}(\gamma)$ / $\bm{M}(\gamma)^{\mathsf{T}}$), dyadic-locked `WindowedQuadraturePlan` (`Coulomb`, `BSH`, `YukawaRaw`, plus overflow-safe off-grid `CustomGaussian`), precomputed remaining operator weight bounds `rem_weight_bounds_` ($W_{\text{rem}}(j)$), discrete low/high tail completion, and level-rescaled Stieltjes–Golub–Welsch `GCLevelRule` compression |
 | `windowed_ns_stencil.h` | 64-bit SplitMix64 `WindowedKeyHash` (`Level <= 62`), universal process-wide `(k, W, M, eps)` memoized `WindowedStencilCache1D` (plus `offgrid_entries_` for off-grid terms and `root_T0_by_term_` for ultra-diffuse $n_{\text{diff}} < 0$ terms), `StencilEntry1D` transition blocks (`T`, `R`, `R_2k_to_k`, `R_k_to_2k`), contiguous `U_by_rank` 1D SVDs (`StencilSVD1D`), and exact 3D NS sub-block/shell, constant-wavelet (`const_wav_3d_norm`), and Theorem-3.1 constant-remainder (`const_T_rem_3d_norm`) norms |
 | `windowed_ns_halo.h` | Worker-thread slot registry (`WindowedThreadSlotRegistry`) & native MADNESS task-model dispatch (`parallel_for_chunks`, `windowed_for_each_outer_tasks` over `madness::Range` + `WorldTaskQueue` / `tbb_arena`), 64-bit packed spatial key indexing (`j <= 20`, exact `Key<3>` fallback for `j > 20`), zero-mutation serial `TreeState::reconstructed` / `TreeState::compressed` ingestion (`WindowedSerialInputRange`) with bottom-up $H^1$-safe `subtree_d_tol` pruning, per-node operator-weighted Shell-1 (`node_mT_and_l1`, `node_m4b1`, `node_mRefine`) & Shell-2 (`h2_mT`, `h2_mLeaf`) halo gating with coarse-leaf Cauchy–Schwarz bounds (`max_s_leaf_linf`), ungraded (`dj >= 2`) leaf-boundary gating (`has_ungraded_child_toward`), slot-tagged multi-orbital `WindowedNSHaloExchange<T>` (`num_slots = B`), `WindowedNSHaloWorkspace` (serial & lockstep distributed `build_distributed_lockstep` / `assemble_output_nonstandard_lockstep`), single-pass interior `virt_cache` prolongation, bottom-up adjoint restriction, direct single-rank `assemble_output_reconstructed_serial`, and dynamic subtree promotion |
-| `windowed_ns_sumfact.h` | Smooth loose-tolerance tightening (`tighten_loose_windowed_eps`), thread-safe pooled 64B-aligned uninitialized scratch (`UninitAlignedBuf`, `SumFactScratchLease`), FLOP-calibrated sweep grain (`compute_sumfact_sweep_grain`), pruned dual-direction 3D sweep graphs (`build_sumfact_graph_3d`), Tier-1 `mTxmq` (`libxsmm` JIT) + L1 `fast_transpose` + fused multi-term bandwidth-grouped `execute_sumfact_batch_3d` (`kMaxFusedTerms = 8`, `4 MiB` pencil cap) & `execute_self_box_*_batch_3d`, fused Theorem 3.1 `h1t_virts`, 3-tier source-norm bucketing with $O(N)$ bandwidth-equivalent merging (`merge_matching_norm_buckets`), `candidate_exceeds_tol` constant-subtracted screening, shared `WindowedOrbitalExecContext<T>`, and single-orbital / lockstep distributed `apply_windowed_ns_3d_batch_distributed<T>` |
-| `windowed_convolution.h`, `windowed_convolution.cc` | `WindowedSeparatedConvolution<double,3>` (including `select_operator_gamma_spiky_override`, custom Gaussian sum constructors, and `apply_pure_spiky_same_world` pure-GC fast path), factory functions (`WindowedCoulombOperator[Ptr]`, `WindowedBSHOperator[Ptr][3D]`, `WindowedYukawaOperator[Ptr]`, `WindowedGaussianOperator[Ptr]`), thread-safe plan/stencil cache, distributed `prune_ex` compressed union-skeleton pre-pruning, single-rank adaptive LPT task-queued & multi-rank lockstep batched vector `apply`, and opt-in `SeparatedConvolution` bridge |
+| `windowed_ns_sumfact.h` | Smooth loose-tolerance tightening (`tighten_loose_windowed_eps`), thread-safe pooled 64B-aligned uninitialized scratch (`UninitAlignedBuf`, `SumFactScratchLease`), FLOP-calibrated sweep grain (`compute_sumfact_sweep_grain`), pruned dual-direction 3D sweep graphs (`build_sumfact_graph_3d`), Tier-1 `mTxmq` (`libxsmm` JIT) + L1 `fast_transpose` + fused multi-term bandwidth-grouped `execute_sumfact_batch_3d` (`kMaxFusedTerms = 8`, `4 MiB` pencil cap) & `execute_self_box_*_batch_3d`, fused Theorem 3.1 `h1t_virts`, 3-tier source-norm bucketing with $O(N)$ bandwidth-equivalent merging (`merge_matching_norm_buckets`), `candidate_exceeds_tol` constant-subtracted screening, shared `WindowedOrbitalExecContext<T>`, per-function `truncate_mode`-preserving output factory allocations, and single-orbital / lockstep distributed `apply_windowed_ns_3d_batch_distributed<T>` |
+| `windowed_convolution.h`, `windowed_convolution.cc` | `WindowedSeparatedConvolution<double,3>` (including `select_operator_gamma_spiky_override`, custom Gaussian sum constructors, and `apply_pure_spiky_same_world` pure-GC fast path), factory functions (`WindowedCoulombOperator[Ptr]`, `WindowedBSHOperator[Ptr][3D]`, `WindowedYukawaOperator[Ptr]`, `WindowedGaussianOperator[Ptr]`), thread-safe plan/stencil cache, distributed `prune_ex` compressed union-skeleton pre-pruning, per-function `truncate_mode` propagation across single/batch/pruned outputs, single-rank adaptive LPT task-queued & multi-rank lockstep batched vector `apply`, and opt-in `SeparatedConvolution` bridge |
 | `operator.h`, `mra.h`, `vmra.h` | Non-intrusive opt-in bridge (`SeparatedConvolution::enable_windowed_ns(bool)` and `MADNESS_WINDOWED_NS=1`) for scalar and vector `apply(...)` across `OT_G12`, `OT_BSH`, and isotropic 3D `CustomGaussian` operators, plus `OT_BSH` metadata population in `BSHOperatorPtr3D` |
 | `mraimpl.h` | Standalone `project_refine_op` fix (`else if` in `newspecialpts` filtering) eliminating $O(2^{\text{special\_level}})$ special-point list duplication on deep nuclear cusps |
-| `test_windowed_convolution.cc` | 4-Gate unit, unbalanced interface jump, 22–25 level nuclear cusp, sparse `vtransform` compressed-tree parity, heterogeneous batched `apply`, and multi-rank MPI parity suite (`--small`, `--full`, `--gate=1..4`, `--write-parity`, `--check-parity`) |
+| `src/madness/chem/potentialmanager.h`, `src/madness/chem/potentialmanager.cc` | Origin-safe small-$u$ Taylor expansion ($r = 0$ `0/0 = NaN` fix), `-ffast-math`-safe exponent clamping, and cell-width-aware `special_level` auto-selection ($h \le 2/\xi_{\max}$, clamped to `[15, MAXLEVEL - 2]`) in `GaussianNuclearDensityPotentialFunctor` and `FermiNuclearDensityFunctor` |
+| `test_windowed_convolution.cc` | 4-Gate unit, unbalanced interface jump, 22–25 level nuclear cusp, sparse `vtransform` compressed-tree parity, heterogeneous batched `apply`, per-function `truncate_mode` preservation & `Dx(BSH)` wide-box accuracy, and multi-rank MPI parity suite (`--small`, `--full`, `--gate=1..4`, `--write-parity`, `--check-parity`) |
 | `src/examples/large_exp_3d.cc` | Standalone 3D Gaussian convolution & octree inspection benchmark sweeping 41 kernel scales ($b \in [0.5, 5.50 \times 10^{11}]$) across diffuse, intermediate windowed, and ultra-spiky `pure-GC` regimes |
 | `src/examples/hatom_sf_dirac.cc`, `src/examples/dirac-hatom.cc` | Relativistic hydrogenic Dirac example solvers (2-component spin-free eliminated Dirac with `BSHOperator3D` + `pVp` + `CoulombOperator`, and 4-component complex spinor Dirac with `BSHOperator<3>` + $c\,\boldsymbol{\alpha}\cdot\mathbf{p}$) instrumented with per-stage wall-clock timers, raw-vs-truncated octree leaf/node/max-depth diagnostics, Peak RSS tracking, and clean `mask.clear()` teardown before `finalize()` |
-| `src/apps/dirac/` (`DFKramers.h`, `DF.cc`, `test_dirac.cc`, `README.md`) | All-electron 4-component molecular Dirac–Hartree–Fock solver (`DFdriver`), updated with exact quaternionic time-reversal matrix assembly ($M_{21}^T = -M_{21}$), symplectic Kramers-paired eigenvector extraction & $Sp(d)$ polar cluster alignment, $2n \times 2n$ Löwdin $S^{-1/2}$ orthonormalization, spinor leaf/RSS diagnostics, and updated `moldft` $\to$ `DFdriver` workflow documentation |
+| `src/apps/dirac/` (`DFKramers.h`, `DF.h`, `DF.cc`, `test_dirac.cc`, `README.md`) | All-electron 4-component molecular Dirac–Hartree–Fock solver (`DFdriver`), updated with exact quaternionic time-reversal matrix assembly ($M_{21}^T = -M_{21}$), symplectic Kramers-paired eigenvector extraction & $Sp(d)$ polar cluster alignment, $2n \times 2n$ Löwdin $S^{-1/2}$ orthonormalization, real-weight Kramers-preserving `DFKainSolver` (`solve_real_kain_weights` with `SCF.cc`-matched conditioning and `U`-rotated subspace history), intermediate `0.1 * thresh` `BSHOperator3D` tightening prior to unbounded Dirac momentum differentiation (`apply_T`), spinor leaf/RSS diagnostics, and updated `moldft` $\to$ `DFdriver` workflow documentation |
 
 ### 2.2 Usage & Runtime Configuration
 
@@ -213,8 +214,9 @@ Executed inside the fused level loop only at levels $j \in [0, n_{\max}-1]$ wher
 4. **Exact Shared-Tree Linearity Mode (`dynamic_refine == false`)**:
    - Replaces data-dependent level norms with `1.0`, tightens `svd_fac` from `0.025` to `0.003`, disables norm bucketing/source screening/subtree pruning/per-node halo gating, and skips output tree promotion so $\mathcal{G}$ is an exact linear map to machine precision on shared octrees.
 
-#### Stage 5 — Direct Single-Rank Synthesis or Lockstep Multi-Rank Assembly
-1. **Stage 5a (`assemble_output_reconstructed_serial` / `assemble_output_nonstandard_lockstep`)**:
+#### Stage 5 — Direct Single-Rank Synthesis or Lockstep Multi-Rank Assembly & Per-Function `truncate_mode` Preservation
+1. **Stage 5a (`assemble_output_reconstructed_serial` / `assemble_output_nonstandard_lockstep`) & Output Metadata Fidelity**:
+   - **Per-Function `truncate_mode` Preservation**: Every output and pre-pruned `FunctionFactory<T, 3>(world).empty()` allocation across `apply_pure_spiky_same_world`, `apply_windowed_ns_3d`, and `apply_windowed_batch_impl` explicitly propagates `.truncate_mode(f.get_impl()->get_truncate_mode())` alongside `.k(k)` and `.thresh(eff_thresh)`, ensuring callers that configure per-function `truncate_mode` overrides (independently of `FunctionDefaults<3>::get_truncate_mode()`) never experience silent truncation-mode resets on operator outputs.
    - **Direct Single-Rank Reconstructed Synthesis (`assemble_output_reconstructed_serial`)**: When `world.size() == 1` and `!any_promoted`, restricts non-zero halo deltas bottom-up (`restrict_all_virtual_unpromoted`), frees `owned_virt`, and runs top-down two-scale synthesis (`fast_transform(..., cdata_.hg)` / `prolong_step_3d`) directly into `result` (`TreeState::reconstructed`), falling back to `assemble_output_nonstandard_tree` + `result.reconstruct()` only when dynamic promotions occurred.
    - **Lockstep Multi-Rank Assembly (`assemble_output_nonstandard_lockstep`)**: Across all $B \le 16$ orbitals in a distributed tile simultaneously, executes **1 coalesced `gop.sum` + 1–2 `world.gop.fence()` collectives**: (1) `gop.sum(promo_counts)` across all $B$ orbitals; (2) bottom-up local virtual restriction + coalesced `CoarseLeafDeltaMsg` / `VirtualSubtreeItemMsg` transport (`1` fence); (3) deterministic `(leaf_key, sort_tag_key)` accumulation per slot + optional remote `OutputNodeInsertMsg` fence (**strictly skipped when no orbital in the tile had promotions**), leaving `result[b]` in `TreeState::nonstandard_after_apply` for asynchronous `result[b].reconstruct(false)`.
 2. **Stage 5b (`restore_windowed_ns_input_3d`)**:
@@ -259,9 +261,9 @@ Inside `execute_sumfact_batch_3d` and `execute_self_box_*_batch_3d` (`windowed_n
 
 ---
 
-## 5. Verification Results (`test_windowed_convolution.cc` & Legacy MRA Suites)
+## 5. Verification Results (`test_windowed_convolution.cc`, `test_dirac.cc` & Legacy MRA Suites)
 
-`test_windowed_convolution` implements an adversarial 4-Gate verification matrix (`116` checks in `--full` mode, `66` checks in `--small` CTest mode):
+`test_windowed_convolution` implements an adversarial 4-Gate verification matrix (`119` checks in `--full` mode, `69` checks in `--small` CTest mode):
 
 1. **Gate 1 — Commutation, 3D GC Spectral Norm, Tail Quadrature & Deep Keys (`15 / 15 PASS`)**:
    - Scale-locked stiffness drift $\max \lvert\gamma_{\text{ref}}(w_{\text{eff}}, m) - \gamma_{p,j}\rvert / \gamma_{\text{ref}} = \mathbf{6.28 \times 10^{-15}} \le 10^{-13}$.
@@ -286,9 +288,11 @@ Inside `execute_sumfact_batch_3d` and `execute_self_box_*_batch_3d` (`windowed_n
    - Sparse `vtransform(..., 1e-4)` `TreeState::compressed` BSH parity vs `TreeState::reconstructed`: **`0.00e+00 – 2.09e-15 <= 1e-13`** with input `TreeState::compressed` preserved unmutated.
    - Shared-tree `Function<double_complex, 3>` linearity and heterogeneous 6-element batched vector `apply` vs scalar `apply` (including multi-tile `MADNESS_WINDOWED_MPI_BATCH_TILE=2` on 4 MPI ranks): **`0.000000e+00 <= 1e-13`**.
 
-4. **Gate 4 — Fast-Math + TBB/Pthreads + Multi-Rank MPI Parity & Large-Cell `truncate_mode = 0` Multi-Electron Regression (`116 / 116 PASS` full, `66 / 66 PASS` small)**:
-   - Full 4-Gate suite (`--full`) under `-march=native -ffast-math` + Intel TBB + `mimalloc`: **`116 / 116 PASSED, 0 FAILED`** on `1` and `4` MPI ranks (`4.53x`–`4.89x` Coulomb & `3.40x`–`3.99x` BSH speedups on `Z = 30` depth-22 cusp), with identical 1-rank vs. multi-rank output node counts (`7,689` and `7,625`), cross-operator relative $L_2$ diffs (`2.34e-8` and `3.58e-7`), and `0` leaked `FunctionImpl` or `WorldObject` instances.
+4. **Gate 4 — Fast-Math + TBB/Pthreads + Multi-Rank MPI Parity & Large-Cell `truncate_mode = 0` Multi-Electron Regression (`119 / 119 PASS` full, `69 / 69 PASS` small)**:
+   - Full 4-Gate suite (`--full`) under `-march=native -ffast-math` + Intel TBB + `mimalloc`: **`119 / 119 PASSED, 0 FAILED`** (`69 / 69` in `--small` on `np = 1` and `np = 2`), with `4.53x`–`4.89x` Coulomb & `3.40x`–`3.99x` BSH speedups on `Z = 30` depth-22 cusp, identical 1-rank vs. multi-rank output node counts (`7,689` and `7,625`), cross-operator relative $L_2$ diffs (`2.34e-8` and `3.58e-7`), and `0` leaked `FunctionImpl` or `WorldObject` instances.
    - **Gate 4d (`MPQC L=100, truncate_mode=0` Multi-Electron Coulomb & Compressed-State Parity)**: Evaluates `SeparatedConvolution(..., OperatorInfo(0.0, 1e-5, 1e-5, OT_G12))` via the `enable_windowed_ns(true)` bridge on a 10-electron ($1s^2 2s^2 2p^6$) Gaussian-nucleus Neon density on $[-50, +50]^3$ ($L = 100$ Bohr, $k = 8$, `thresh = 1e-5`, `truncate_mode = 0`) assembled via sparse `TreeState::compressed` `gaxpy` + `truncate()`. Verifies on both `np = 1` and `np = 2` MPI ranks that `TreeState::compressed` is preserved unmutated, $\lvert E_J^{\text{win}} - E_J^{\text{ref}}\rvert = \mathbf{8.42 \times 10^{-8}\text{ Ha}} \le 5 \times 10^{-6}\text{ Ha}$ (`330x` tighter than unmargined $\gamma_{\text{diff}}(k, \epsilon)$), and relative $\lVert V(\rho_{\text{comp}}) - V(\rho_{\text{rec}})\rVert_2 / \lVert V(\rho_{\text{rec}})\rVert_2 = \mathbf{3.51 \times 10^{-15}} \le 10^{-12}$.
+   - **Gate 4e (`Wide-Box L=200, Per-Function truncate_mode=0 Preservation & Dx(BSH(rhs)) Accuracy`)**: On $[-100, +100]^3$ (width $200$ Bohr, $k = 8$, `thresh = 1e-5`) with global `FunctionDefaults<3>::set_truncate_mode(1)` while input functions carry per-function `truncate_mode == 0`, verifies on both `np = 1` and `np = 2` MPI ranks that both scalar and batched `WindowedBSHOperatorPtr` outputs preserve `truncate_mode == 0` and that tightening intermediate BSH to `0.1 * thresh` prior to unbounded spatial differentiation `Dx` matches exact analytical $\partial_x u$ within `<= 2e-5`.
+   - **Relativistic `test_dirac` Suite (`14 / 14 PASS` on `x86_64` and `aarch64`)**: Covers symplectic quaternionic Kramers diagonalization, 4-fold $2p_{3/2}$ quartet alignment, `DFKramers.RealKainWeightsGuardNoiseFloorStagnation` (real-weight KAIN conditioning and noise-floor history reset), and `DFNuclearFunctors.OriginSafeAndCellWidthScaleAware` (origin $r = 0$ finite evaluation and cell-width-scaled `special_level` across $W = 60\text{--}400$ Bohr).
 
 ---
 
@@ -565,3 +569,89 @@ Unlike `moldft` / `madqc` (which tighten `coulop` to `1e-3 * thresh` under `trun
 | **Tight Check** (`eps=2e-6, lo=1e-7`) | **Windowed (`NS=1`)** | `8` | **`-128.69193094`** | **`-2.40e-6`** *(Iter 1 $\Delta E_J = -1.24\text{e-}6$)* | **`3.75 s` (`1.90x`)** | — | **`261.27`** | — |
 
 *(Under `truncate_mode = 0`, compact `ungraded_leaf_refine_only` BSH trees prior to `make_T_phi` exhibit smooth linear $O(\epsilon)$ convergence toward the exact limit: `-2.06e-5 Ha` at `eps = 1e-5`, shrinking $8.6\times$ to **`-2.40e-6 Ha`** at `eps = 2e-6` while accelerating the MRA HF exchange loop **`1.90x–1.93x`** and cutting end-to-end MPQC CPU time by **`24.8%`**.)*
+
+---
+
+### 6.7 Wide-Box Scaling & Threshold-Sensitivity Sweep (`moldft` + `DFdriver` on `Ne`, `L = 30 .. 200`, Cell Widths `W = 60 .. 400` Bohr)
+
+To systematically isolate box-size and truncation-threshold effects observed in downstream large-cell DHF runs, `moldft` (nonrelativistic Hartree–Fock) + `DFdriver` (4-component Kramers-restricted Gaussian-nucleus Dirac–Hartree–Fock) were swept across seven cubic cells $[-L, +L]^3$ with $L \in \{30, 40, 50, 70, 100, 150, 200\}$ (full widths $W \in \{60, 80, 100, 140, 200, 300, 400\}$ Bohr) on a dedicated DGX node (`1` MPI process $\times$ `10` pinned Cortex-X925 threads via `taskset -c 5-9,15-19`), evaluating both `thresh = 1e-6` (`DFdriver` default) and `thresh = 1e-5` (MPQC threshold).
+
+A high-precision continuum reference (`k = 10, thresh = 1e-7, small = 1e-8, L = 50`, CODATA-2022 $c = 137.035999177$, Gaussian nucleus $A = 20$) was first converged to establish the exact MADNESS continuum limit:
+> **`E_DHF(exact) = -128.69193053 Ha`** (`T = +128.98234328`, `Vnuc = -311.76087771`, `J = +66.20975778`, `K = -12.12315388`; note Visscher & Dyall 1997's `-128.6919346 Ha` used CODATA-1986 $c = 137.0359895$, which shifts $E_{\text{DHF}}$ by `-4.0 μEₕ`).
+
+#### Algorithmic Findings & Fixes Uncovered by the Wide-Box / Threshold Sweep
+
+1. **Unbounded Dirac Operator Amplification of Intermediate `BSH` Truncation (`DF.cc`)**:
+   - In 4-component integral-equation DHF, `apply_BSH_new` applies scalar `BSHOperator3D` to `V*psi` and immediately applies the unbounded Dirac momentum operator $T = \frac{1}{c^2}(c\,\boldsymbol{\alpha}\cdot\mathbf{p} + \beta c^2 + \varepsilon)$ (`apply_T`).
+   - Under `truncate_mode == 0`, truncating the intermediate scalar `BSH` output at `1.0 * thresh` introduces $O(\text{thresh})$ leaf-interface jumps that `apply_T` amplifies by $O(k/h)$, creating a systematic negative energy bias (`-2.7` to `-4.0 μEₕ` at `thresh = 1e-6`, growing to **`-47` to `-65 μEₕ`** at `thresh = 1e-5`) and inflating spinor leaf counts by `30%–40%` with spurious interface wavelets (this mechanism also explains why unmodified MPQC at `eps = 1e-5`, which applies `make_T_phi` directly to `1.0 * thresh` BSH outputs, exhibits an $O(\epsilon)$ `-20.6 μEₕ` shift).
+   - Conversely, Legacy NS (`op_leaf_op`) stops refining `BSH` at `depth = 12–16` ($h \approx 0.004\text{--}0.02$ Bohr vs. Gaussian nuclear radius $R_{\text{rms}} \approx 5.67 \times 10^{-5}$ Bohr), under-resolving the nuclear cusp by `+2` to `+5.7 μEₕ` at `1e-6` and **`+106` to `+166 μEₕ`** at `1e-5`.
+   - **Fix**: `apply_BSH_new` tightens the intermediate scalar `BSHOperator3D` step to `bsh_thresh = 0.1 * thresh` (`Vpsi[i].set_thresh(bsh_thresh)`) prior to `apply_T`, then restores `Vpsi[i].set_thresh(thresh)` before spinor truncation so `(occupieds[j] - temp_function)` is truncated at a consistent `thresh`. Similarly, `DF::make_gaussian_potential` projects $V_{\text{nuc}}$ at `vtol = min(1e-6, 0.1 * default_thresh)` and restores `potential.set_thresh(default_thresh)`.
+
+2. **Kramers-Preserving Real-Weight KAIN Subspace Solver & Canonical Gauge Rotation (`DFKramers.h`, `DF.h`, `DF.cc`)**:
+   - Pre-fix `DFdriver` used `XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, ...>` with `cabsmax = 1000.0`, `rcondtol = 1e-8`, shallow `std::vector<Fcwf>` storage, and unrotated subspace history across `DF::diagonalize`. Near the MRA truncation noise floor (`Iter 8` on `L = 30` and `L = 40`), ill-conditioned complex KAIN weights caused `5x–15x` density-residual spikes (`dRho: 1.1e-5 -> 1.66e-4`, costing `2–3` extra SCF iterations) and `2,000x` Kramers spin-flip noise amplification (`orb2 ||2||: 2.0e-8 -> 4.05e-5` from imaginary weights mixing $i\psi$).
+   - **Fix**: Replaced `XNonlinearSolver` with `DFKainSolver` + `solve_real_kain_weights`, solving the KAIN linear system over **real** inner products $Q_{ij} = \operatorname{Re}\langle u_i \mid r_j\rangle$ ($c_i \in \mathbb{R}$, preserving exact Kramers time-reversal pairing), enforcing `SCF.cc`-matched conditioning (`c.absmax() < 3.0`, escalating `rcond` from `1e-12` up to `0.01`, and resetting stale history to the latest iterate $c = [1.0]$ at the noise floor), deep-copying spinor vectors on insert/return, and rotating stored `ulist` and `rlist` vectors by $U$ inside `DF::diagonalize`.
+
+3. **Origin-Safe & Cell-Width-Aware Finite Nuclear Potential Functors (`potentialmanager.h`, `potentialmanager.cc`)**:
+   - `GaussianNuclearDensityPotentialFunctor::operator()` previously evaluated `erf(xi * r) / r` without an $r = 0$ guard (`0.0 / 0.0 = NaN` at the origin) and hardcoded `special_level_ = 15` (stopping initial projection at $h = 400 / 2^{15} = 0.0122$ Bohr on $W = 400$, `170x` coarser than the nuclear scale $1/\xi \approx 7.0 \times 10^{-5}$ Bohr).
+   - **Fix**: Added an exact 4-term small-$u$ Taylor expansion for $\xi r < 10^{-4}$, `-ffast-math`-safe exponent clamping (`[-700, +700]`) in `FermiNuclearDensityFunctor`, and automatic cell-width-aware `special_level` selection (`special_level = -1` default $\to$ resolves $h \le 2/\xi_{\max}$, clamped to `[15, MAXLEVEL - 2]`, while honoring explicit overrides).
+
+4. **Per-Function `truncate_mode` Propagation in `WindowedSeparatedConvolution` (`windowed_convolution.cc`, `windowed_ns_sumfact.h`)**:
+   - Propagated `f.get_impl()->get_truncate_mode()` across all five `FunctionFactory<T, 3>(world).empty()` output and pruned-tree allocations.
+
+#### 6.7.1 Nonrelativistic Hartree–Fock Across Box Sizes (`moldft`, `k = 8`, `1e-4 -> 1e-6`, `truncate_mode = 1`)
+
+`moldft` uses MADNESS's default smoothed nuclear potential (`eprec = 1e-4`) and converges in `[6, 2] = 8` total SCF iterations across every box size in both modes:
+
+| Box `L` (Width `W`) | Legacy `E_HF` (Ha) | Windowed `E_HF` (Ha) | `ΔE` (`WIN - LEG`) | Iters (`LEG` / `WIN`) | MO Leaves (`LEG` / `WIN`) | Wall Time (`LEG` / `WIN`) | Speedup |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| `30` (`60`) | `-128.54699997` | `-128.54700031` | `-0.34 μEₕ` | `[6,2]` / `[6,2]` | `4,056` / **`3,368`** | `12.30 s` / **`9.30 s`** | **`1.32x`** |
+| `40` (`80`) | `-128.54699998` | `-128.54700036` | `-0.38 μEₕ` | `[6,2]` / `[6,2]` | `4,216` / **`3,496`** | `12.80 s` / **`9.90 s`** | **`1.29x`** |
+| `50` (`100`) | `-128.54700000` | `-128.54700037` | `-0.37 μEₕ` | `[6,2]` / `[6,2]` | `4,424` / **`3,688`** | `13.40 s` / **`9.90 s`** | **`1.35x`** |
+| `70` (`140`) | `-128.54700001` | `-128.54700038` | `-0.37 μEₕ` | `[6,2]` / `[6,2]` | `4,504` / **`3,816`** | `14.30 s` / **`10.20 s`** | **`1.40x`** |
+| `100` (`200`) | `-128.54700010` | `-128.54700037` | `-0.27 μEₕ` | `[6,2]` / `[6,2]` | `4,472` / **`4,008`** | `15.20 s` / **`10.40 s`** | **`1.46x`** |
+| `150` (`300`) | `-128.54700009` | `-128.54700037` | `-0.28 μEₕ` | `[6,2]` / `[6,2]` | `4,584` / **`4,136`** | `16.10 s` / **`10.80 s`** | **`1.49x`** |
+| `200` (`400`) | `-128.54700009` | `-128.54700037` | `-0.28 μEₕ` | `[6,2]` / `[6,2]` | `4,840` / **`4,328`** | `16.70 s` / **`11.40 s`** | **`1.46x`** |
+
+- Across `L = 40..200`, `Windowed NS` varies by **`0.02 μEₕ`** (`L = 30` has a `+0.06 μEₕ` finite-boundary tail), uses `11%–17%` fewer MO leaves, and runs **`1.29x–1.49x` faster**.
+
+#### 6.7.2 Relativistic 4-Component Gaussian-Nucleus DHF Across Box Sizes (`DFdriver`, `k = 8, thresh = 1e-6, small = 1e-5, truncate_mode = 0`)
+
+| Box `L` (`W`) | Mode | Iters | `E_DHF` (Ha) | Error vs Exact (`-128.69193053`) | Spinor Leaves (`max depth`) | Peak RSS (MB) | Wall Time (s) | Speedup vs `LEG` |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| **`30`** (`60`) | Legacy NS | `8` | `-128.69193006` | `+0.47 μEₕ` | `56,752` (`14`) | `13,932.8` | `263.87` | `1.00x` |
+| | Windowed (Pre-Fix) | `10`\* | `-128.69193322` | `-2.69 μEₕ` | `24,704` (`18`) | `6,371.4` | `132.41` | `1.99x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193083`** | **`-0.30 μEₕ`** | **`18,720` (`18`)** | **`7,664.6`** | **`122.85`** | **`2.15x`** |
+| **`40`** (`80`) | Legacy NS | `8` | `-128.69193219` | `-1.66 μEₕ` | `57,968` (`14`) | `14,263.3` | `275.71` | `1.00x` |
+| | Windowed (Pre-Fix) | `11`\* | `-128.69193437` | `-3.84 μEₕ` | `25,280` (`18`) | `6,485.1` | `162.10` | `1.70x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193081`** | **`-0.28 μEₕ`** | **`18,672` (`18`)** | **`6,881.2`** | **`119.34`** | **`2.31x`** |
+| **`50`** (`100`) | Legacy NS | `8` | `-128.69192555` | `+4.98 μEₕ` | `57,952` (`14`) | `14,455.3` | `276.17` | `1.00x` |
+| | Windowed (Pre-Fix) | `8` | `-128.69193446` | `-3.93 μEₕ` | `26,512` (`18`) | `6,616.5` | `113.25` | `2.44x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193091`** | **`-0.38 μEₕ`** | **`17,904` (`18`)** | **`6,620.5`** | **`117.54`** | **`2.35x`** |
+| **`70`** (`140`) | Legacy NS | `8` | `-128.69192807` | `+2.46 μEₕ` | `56,800` (`15`) | `14,183.8` | `280.51` | `1.00x` |
+| | Windowed (Pre-Fix) | `8` | `-128.69193337` | `-2.84 μEₕ` | `26,704` (`19`) | `6,704.1` | `117.11` | `2.40x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193100`** | **`-0.47 μEₕ`** | **`20,256` (`19`)** | **`7,621.9`** | **`127.41`** | **`2.20x`** |
+| **`100`** (`200`) | Legacy NS | `8` | `-128.69192484` | `+5.69 μEₕ` | `58,608` (`15`) | `14,765.8` | `288.67` | `1.00x` |
+| | Windowed (Pre-Fix) | `8` | `-128.69193445` | `-3.92 μEₕ` | `27,360` (`19`) | `6,928.6` | `116.48` | `2.48x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193094`** | **`-0.41 μEₕ`** | **`19,376` (`19`)** | **`7,314.6`** | **`123.86`** | **`2.33x`** |
+| **`150`** (`300`) | Legacy NS | `8` | `-128.69192853` | `+2.00 μEₕ` | `58,640` (`16`) | `14,683.4` | `296.71` | `1.00x` |
+| | Windowed (Pre-Fix) | `8` | `-128.69193384` | `-3.31 μEₕ` | `27,440` (`20`) | `6,962.2` | `128.39` | `2.31x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193096`** | **`-0.43 μEₕ`** | **`21,760` (`20`)** | **`7,809.3`** | **`132.88`** | **`2.23x`** |
+| **`200`** (`400`) | Legacy NS | `8` | `-128.69192498` | `+5.55 μEₕ` | `59,456` (`16`) | `15,197.7` | `311.47` | `1.00x` |
+| | Windowed (Pre-Fix) | `8` | `-128.69193452` | `-3.99 μEₕ` | `28,960` (`20`) | `7,275.9` | `124.19` | `2.51x` |
+| | **Windowed (Post-Fix)** | **`8`** | **`-128.69193090`** | **`-0.37 μEₕ`** | **`19,952` (`20`)** | **`7,312.4`** | **`129.22`** | **`2.41x`** |
+
+*\*Pre-fix `L = 30` and `L = 40` experienced the Iteration-8 complex-KAIN residual jump (`dRho -> 5.08e-5` and `1.66e-4`). Post-fix converges monotonically in **`8` iterations on all 7 box sizes**, cuts spinor leaves by **`63%–69%` vs. Legacy NS** (`25%–32%` smaller than Pre-Fix Windowed NS), halves Peak RSS (`6.6–7.8 GB` vs. `13.9–15.2 GB`), runs **`2.15x–2.41x` faster**, and compresses the box-size spread across `L = 30..200` from `7.35 μEₕ` (Legacy) to **`0.19 μEₕ`** (`-128.69193081` to `-128.69193100 Ha`, within `0.28–0.47 μEₕ` of the `k=10, 1e-7` continuum limit).*
+
+#### 6.7.3 Relativistic Threshold Sensitivity at `thresh = 1e-5` (`DFdriver`, `k = 8, truncate_mode = 0`)
+
+| Box `L` (`W`) | Legacy NS `E_DHF` (Err vs Exact) | Windowed Pre-Fix `E_DHF` (Err vs Exact) | **Windowed Post-Fix `E_DHF` (Err vs Exact)** | Post-Fix Iters / Time (Speedup vs `LEG`) |
+|---:|---:|---:|---:|---:|
+| **`30`** (`60`) | `-128.69176427` (`+166.3 μEₕ`) | `-128.69199564` (`-65.1 μEₕ`) | **`-128.69192647` (`+4.1 μEₕ`)** | `6` it / `52.6 s` (**`1.32x`**) |
+| **`40`** (`80`) | — | — | **`-128.69193834` (`-7.8 μEₕ`)** | `8` it / `71.6 s` |
+| **`50`** (`100`) | `-128.69182424` (`+106.3 μEₕ`) | `-128.69198177` (`-51.2 μEₕ`) | **`-128.69193258` (`-2.1 μEₕ`)** | `6` it / `55.6 s` (**`1.47x`**) |
+| **`70`** (`140`) | — | — | **`-128.69193544` (`-4.9 μEₕ`)** | `6` it / `55.2 s` |
+| **`100`** (`200`) | `-128.69181856` (`+112.0 μEₕ`) | `-128.69197776` (`-47.2 μEₕ`) | **`-128.69193323` (`-2.7 μEₕ`)** | `6` it / `57.3 s` (**`1.59x`**) |
+| **`150`** (`300`) | — | — | **`-128.69193713` (`-6.6 μEₕ`)** | `6` it / `58.9 s` |
+| **`200`** (`400`) | `-128.69181986` (`+110.7 μEₕ`) | `-128.69197758` (`-47.1 μEₕ`) | **`-128.69193310` (`-2.6 μEₕ`)** | `6` it / `60.2 s` (**`1.65x`**) |
+
+- At `thresh = 1e-5`, post-fix `Windowed NS` remains within **`2.1–7.8 μEₕ` (`0.2–0.8 × thresh`)** of the `1e-7` continuum limit across `L = 30..200`—**`10x–25x` more accurate than Pre-Fix Windowed NS** and **`20x–50x` more accurate than Legacy NS**.

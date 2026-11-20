@@ -674,7 +674,8 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 //occupieds is transformed in place.
 //This requires Kpsis to be precomputed.
 //Kpsis are transformed in place as well.
-void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& op, std::vector<Fcwf>& Kpsis){
+void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& op,
+                     std::vector<Fcwf>& Kpsis, DFKainSolver* kainsolver){
 
 
      if(world.rank()==0) print("\n***Diagonalizing***");
@@ -945,6 +946,38 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
            occupieds[kk].truncate();
      }
 
+     //Keep stored KAIN subspace vectors in the exact same canonical orbital & Kramers gauge as occupieds
+     if (kainsolver != nullptr && !kainsolver->empty()) {
+          double u_dev = 0.0;
+          for (unsigned int r = 0; r < m; ++r) {
+               for (unsigned int c = 0; c < m; ++c) {
+                    const double target = (r == c) ? 1.0 : 0.0;
+                    u_dev = std::max(u_dev, std::abs(U(r, c) - target));
+               }
+          }
+          if (u_dev > 1.0e-12) {
+               auto rotate_vec = [&](std::vector<Fcwf>& vec) {
+                    if (DFparams.Krestricted) {
+                         std::vector<Fcwf> kp(np);
+                         for (unsigned int j = 0; j < np; ++j) {
+                              kp[j] = vec[j].KramersPair();
+                         }
+                         Tensor<std::complex<double>> U11 = U(Slice(0, n - 1), Slice(0, n - 1));
+                         vec = transform(world, vec, U11);
+                         Tensor<std::complex<double>> U21 = U(Slice(n, m - 1), Slice(0, n - 1));
+                         vec += transform(world, kp, U21);
+                    } else {
+                         vec = transform(world, vec, U);
+                    }
+               };
+               for (auto& uvec : kainsolver->get_ulist()) rotate_vec(uvec);
+               for (auto& rvec : kainsolver->get_rlist()) rotate_vec(rvec);
+               if (u_dev > 1.0e-4) {
+                    kainsolver->rebuild_Q();
+               }
+          }
+     }
+
      //Set energies = evals
      energies = evals(Slice(0,n-1));
 
@@ -1098,14 +1131,23 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, const double& eps, const double& sm
 
      world.gop.fence();
 
-     //create BSH operator
-     real_convolution_3d op = BSHOperator3D(world, mu,small,thresh); 
+     //Evaluate the intermediate scalar BSH convolution at 0.1*thresh before applying the
+     //unbounded Dirac gradient (1/c^2)*(H_D + eps), then restore thresh so subsequent
+     //orbital truncation matches occupieds[j].thresh().
+     const double bsh_thresh = 0.1 * thresh;
+     for (int i = 0; i < 4; ++i) {
+          Vpsi[i].set_thresh(bsh_thresh);
+     }
+     real_convolution_3d op = BSHOperator3D(world, mu, small, bsh_thresh);
 
      //Apply BSH operator to Vpsi
      Vpsi = apply(world, op, Vpsi);
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
      Vpsi = apply_T(world, Vpsi, myc)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+     for (int i = 0; i < 4; ++i) {
+          Vpsi[i].set_thresh(thresh);
+     }
 
 }
 
@@ -1196,8 +1238,11 @@ void DF::saveDF(World& world){
 //Creates the (Gaussian) nuclear potential from the molecule object
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
+     const double default_thresh = FunctionDefaults<3>::get_thresh();
+     const double vtol = std::min(1.0e-6, 0.1 * default_thresh);
      GaussianNuclearDensityPotentialFunctor Vfunctor(Init_params.molecule);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).thresh(vtol).truncate_mode(0).truncate_on_project();
+     potential.set_thresh(default_thresh);
 }
 
 //Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
@@ -1205,8 +1250,11 @@ void DF::make_gaussian_potential(World& world, real_function_3d& potential, doub
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      auto molecule = Init_params.molecule;
 
+     const double default_thresh = FunctionDefaults<3>::get_thresh();
+     const double vtol = std::min(1.0e-6, 0.1 * default_thresh);
      GaussianNuclearDensityPotentialFunctor Vfunctor(molecule);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     potential = real_factory_3d(world).functor(Vfunctor).thresh(vtol).truncate_mode(0).truncate_on_project();
+     potential.set_thresh(default_thresh);
 
      nuclear_repulsion_energy = 0.0;
      double rr;
@@ -1419,8 +1467,7 @@ void DF::make_density_lineplots(World& world, const char* filename, int npt, dou
 std::tuple<bool, double, real_function_3d>
 DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
             real_function_3d &JandV, std::vector<Fcwf> &Kpsis,
-            XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
-                             Fcwf_vector_allocator> &kainsolver,
+            DFKainSolver &kainsolver,
             double &tolerance, int &iteration_number,
             double &nuclear_repulsion_energy, real_function_3d &prev_rho) {
 
@@ -1442,8 +1489,8 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      //Boolean used in while loop.
      bool iterate_again = true; //If initialize to false = assume iterations will stop
 
-     //First diagonalize the occupied orbitals in the Fock space (of occupied orbitals). Also transforms Kpsis.
-     diagonalize(world, V, op, Kpsis);
+     //First diagonalize the occupied orbitals in the Fock space (of occupied orbitals). Also transforms Kpsis and KAIN subspace.
+     diagonalize(world, V, op, Kpsis, &kainsolver);
 
      //Diagonalization forces us to recompute density
      real_function_3d rho = real_factory_3d(world);
@@ -1805,8 +1852,7 @@ void DF::solve_occupied(World & world)
      Fcwf_vector_allocator allocator(world, Init_params.num_occupied, DFparams.speed_of_light);
 
      //initialize kain solver
-     XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator> kainsolver(allocator);
-     kainsolver.set_maxsub(DFparams.maxsub);
+     DFKainSolver kainsolver(allocator, DFparams.maxsub);
 
      //orthonormalize initial kinetic-balance guesses (including Kramers partner orthogonality)
      orthogonalize_inplace(world);
