@@ -68,10 +68,12 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm; multiworld bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
+		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm; multiworld (the tiled exchange) bounds memory, needs one subworld per rank",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
 		initialize<long>  ("hfex_granularity",1,"hfexalg=multiworld: orbital batches per rank; >1 balances better");
 		initialize<bool>  ("hfex_cost_aware",true,"hfexalg=multiworld: place tasks by measured cost, not by count");
+		initialize<bool>  ("hfex_apply_screen",true,"hfexalg=multiworld: skip the Poisson apply where the multiplier is negligible in the destination box (bounded per block; a one-sided bias of 5e-10 Eh per occupied orbital at thresh 1e-6)");
 		initialize<int>   ("hfex_accumulation",2,"hfexalg=multiworld: gather tile results 1=per subworld, 2=per node");
+		initialize<std::string>("hfex_mo_order","as_is","hfexalg=multiworld: the order of the orbitals in the exchange batches: as_is (as given), shuffle (a fixed random permutation), balanced (dealt into the batches by coefficient count, so every batch carries the same share of the core orbitals)",{"as_is","shuffle","balanced"});
 		initialize<std::string>("bsh_apply","auto","BSH apply backend; auto=macrotask when multinode or at tight thresh, else tile",{"auto","tile","macrotask","plain"});
 		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
@@ -250,7 +252,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
     std::string hfexalg() const {return get<std::string>("hfexalg");}
     long hfex_granularity() const {return get<long>("hfex_granularity");}
     bool hfex_cost_aware() const {return get<bool>("hfex_cost_aware");}
+    bool hfex_apply_screen() const {return get<bool>("hfex_apply_screen");}
     int hfex_accumulation() const {return get<int>("hfex_accumulation");}
+    std::string hfex_mo_order() const {return get<std::string>("hfex_mo_order");}
 	std::string bsh_apply() const {return get<std::string>("bsh_apply");}
 
 	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}

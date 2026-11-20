@@ -477,16 +477,17 @@ int exchange_anchor_test(World& world, Exchange<T,3>& K, const double thresh) {
 }
 
 template<typename T>
-int test_exchange(World& world) {
+int test_exchange(World& world, const bool apply_screen=false) {
 
     FunctionDefaults<3>::set_thresh(1.e-5);
     double thresh=FunctionDefaults<3>::get_thresh();
-    if (world.rank()==0) print("\nentering test_exchange",thresh,typeid(T).name());
+    if (world.rank()==0) print("\nentering test_exchange",thresh,typeid(T).name(),"apply screen",apply_screen);
     FunctionDefaults<3>::set_cubic_cell(-10, 10);
 
     // construct exchange operator
     double lo=1.e-4;
     Exchange<T,3> K(world,lo);
+    K.set_apply_screen(apply_screen);
 
     const int nmo=2;
     Tensor<double> alpha(nmo);
@@ -666,6 +667,7 @@ int nuclear_anchor_test(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
@@ -739,6 +741,7 @@ int dnuclear_anchor_test(World& world) {
     param.set_user_defined_value("k",8);
     // param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
     write_test_input test_input(param,"hf");
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
@@ -902,6 +905,7 @@ int test_nemo(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     Nemo nemo(world,parser);
@@ -934,6 +938,7 @@ int test_fock(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     Nemo nemo(world,parser);
@@ -1015,6 +1020,7 @@ int test_XCOperator_matrix(World& world) {
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-6});
     param.set_user_defined_value("k",8);
     write_test_input test_input(param);
+    world.gop.fence();   // every rank writes the file; none may read it before all have written
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
     SCF calc(world,parser);
@@ -1196,8 +1202,10 @@ int main(int argc, char** argv) {
 #endif
     if (!smalltest) {
     	result+=test_exchange<double>(world);
+        result+=test_exchange<double>(world,true);      // with the destination screen of the Poisson apply
 #ifndef ENABLE_GENTENSOR
     	result+=test_exchange<double_complex>(world);
+        result+=test_exchange<double_complex>(world,true);
 #endif
     	result+=test_XCOperator<double>(world);
 #ifndef ENABLE_GENTENSOR

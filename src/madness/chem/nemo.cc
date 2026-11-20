@@ -407,13 +407,14 @@ std::shared_ptr<Fock<double, 3>> Nemo::make_fock_operator() const {
   fock->add_operator("T", std::make_shared<Kinetic<double, 3>>(world));
   if (calc->xc.hf_exchange_coefficient() > 0.0) {
     // The algorithm comes from the input rather than ExchangeImpl's built-in default, which this
-    // site used to take, ignoring the parameter. Only `multiworld` stores bra and ket apart, which
-    // is what nemo's asymmetric operands need before the triangle is usable -- see
-    // compute_nemo_potentials for why the exchange is symmetric even though the operands are not.
+    // site used to take, ignoring the parameter. This operator is applied to whatever its caller
+    // passes (the CIS: response vectors against the occupied bra), which the symmetric tiling cannot
+    // do; nemo's own SCF builds its symmetric exchange in compute_nemo_potentials.
     const auto alg = Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg());
     Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin)
                                 .set_algorithm(alg)
-                                .set_symmetric(alg == Exchange<double, 3>::multiworld_efficient)
+                                .set_symmetric(false)
+                                .set_apply_screen(get_calc_param().hfex_apply_screen())
                                 .set_printlevel(get_calc_param().print_level());
     fock->add_operator("K", {-1.0, std::make_shared<Exchange<double, 3>>(K)});
   }
@@ -898,6 +899,7 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2
                                   .set_taskq(taskq)
                                   .set_printlevel(get_calc_param().print_level());
       K.set_algorithm(Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg()));
+      K.set_apply_screen(get_calc_param().hfex_apply_screen());
       if (calc->xc.hf_exchange_coefficient() > 0.0)
         Knemo = K(nemo);
 
@@ -906,6 +908,9 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2
       if (get_calc_param().print_level() > 9)
         taskq->print_taskq();
       taskq->run_all();
+      if (get_calc_param().hfex_apply_screen() and get_calc_param().print_level() >= 4 and
+          Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg()) == Exchange<double, 3>::multiworld_efficient)
+        ApplyScreenStats::report(world);
 
       t.tag("compute Knemo");
       scale(world, Knemo, calc->xc.hf_exchange_coefficient());

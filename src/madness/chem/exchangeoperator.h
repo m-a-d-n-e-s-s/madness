@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <fstream>
+#include <numeric>
+#include <random>
 #include <list>
 #include <map>
 #include <utility>
@@ -99,6 +101,37 @@ inline bool exchange_same_operands(const std::vector<Function<T, NDIM>>& a,
     for (std::size_t i = 0; i < a.size(); ++i)
         if (a[i].get_impl().get() != b[i].get_impl().get()) return false;
     return true;
+}
+
+/// the sup bounds (supbound.h) of a tile's multipliers, one per function
+template <std::size_t NDIM>
+using exchange_sup_bounds_t = std::vector<std::shared_ptr<const SupBoundMap<NDIM>>>;
+
+/// The sup bounds of a tile's multipliers, built once for the tile so that the screens of all its potentials
+/// share them, one task per function. The multipliers must be reconstructed or redundant (sup_bound_map
+/// checks). Their construction time goes to ApplyScreenStats.
+template <typename T, std::size_t NDIM>
+exchange_sup_bounds_t<NDIM> exchange_sup_bounds(World& world, const std::vector<Function<T, NDIM>>& multipliers) {
+    exchange_sup_bounds_t<NDIM> sup(multipliers.size());
+    if (multipliers.empty()) return sup;
+    const double t0 = cpu_time();
+    typedef Range<int> rangeT;
+    auto build = [&sup, &multipliers](const rangeT::iterator& it) -> bool {
+        sup[it] = std::make_shared<const SupBoundMap<NDIM>>(multipliers[it].get_impl()->sup_bound_map());
+        return true;
+    };
+    // the fan-out is local, so it is awaited with get(), not with a fence
+    MADNESS_CHECK(world.taskq.for_each(rangeT(0, int(multipliers.size())), build).get());
+    ApplyScreenStats::sup_maps += long(multipliers.size());
+    ApplyScreenStats::sup_build_ns += long((cpu_time() - t0) * 1e9);
+    return sup;
+}
+
+/// The destination screen of one exchange potential: a bound on the size, per box, of the function(s) it
+/// will be multiplied with, from their sup bounds (applyscreen.h)
+template <std::size_t NDIM>
+apply_screen_t<NDIM> exchange_apply_screen(exchange_sup_bounds_t<NDIM> sup) {
+    return SupBoundScreen<NDIM>(std::move(sup));
 }
 
 /// Owner of every task in the asymmetric grid: all tasks of a column go to one worker.
@@ -747,6 +780,80 @@ public:
         return *this;
     }
 
+    /// The order of the orbitals in the exchange batches (hfexalg=multiworld): as_is, the order given;
+    /// shuffle, a fixed random permutation; balanced, the orbitals dealt into the batches by their
+    /// coefficient count, largest first, each into the batch with the smallest load so far, so that
+    /// every batch carries the same share of the deep core orbitals. The permutation is applied to the
+    /// argument, the bra and the ket alike, with shallow copies, and the result is permuted back.
+    ExchangeImpl& set_mo_order(const std::string& order) {
+        MADNESS_CHECK_THROW(order == "as_is" or order == "shuffle" or order == "balanced",
+                            "exchange: the orbital order must be as_is, shuffle or balanced");
+        mo_order_ = order;
+        return *this;
+    }
+
+    /// the permutation of the ket for the orbital order, identical on every rank; empty for as_is
+    /// or fewer than two orbitals
+    std::vector<std::size_t> mo_order_permutation() const {
+        const std::size_t n = mo_ket.size();
+        std::vector<std::size_t> perm;
+        if (mo_order_ == "as_is" or n < 2) return perm;
+        perm.resize(n);
+        std::iota(perm.begin(), perm.end(), 0);
+        if (mo_order_ == "shuffle") {
+            // a constant seed on purpose: every rank derives the same order without communicating
+            std::mt19937 rng(42);   // NOLINT(cert-msc51-cpp)
+            std::shuffle(perm.begin(), perm.end(), rng);
+            return perm;
+        }
+        // balanced: the global node count per orbital (the local map sizes, one reduction, identical on
+        // every rank; the coefficient count up to k^NDIM for a reconstructed tree, without walking the
+        // nodes), dealt largest first into the batches of the owner split, each into the batch with the
+        // smallest load that still has room, so the batch sizes are those of the split
+        std::vector<double> cost(n, 0.0);
+        for (std::size_t j = 0; j < n; ++j) cost[j] = double(mo_ket[j].get_impl()->get_coeffs().size());
+        world.gop.sum(cost.data(), cost.size());
+        const std::vector<Batch_1D> split = exchange_sym_owner_split(n, world.size(), batch_granularity_);
+        std::vector<std::size_t> order(n);
+        std::iota(order.begin(), order.end(), 0);
+        std::stable_sort(order.begin(), order.end(),
+                         [&cost](const std::size_t a, const std::size_t b) { return cost[a] > cost[b]; });
+        std::vector<std::vector<std::size_t>> bins(split.size());
+        std::vector<double> load(split.size(), 0.0);
+        for (const std::size_t i : order) {
+            std::size_t best = split.size();
+            for (std::size_t b = 0; b < split.size(); ++b) {
+                if (long(bins[b].size()) >= split[b].size()) continue;
+                if (best == split.size() or load[b] < load[best]) best = b;
+            }
+            bins[best].push_back(i);
+            load[best] += cost[i];
+        }
+        perm.clear();
+        for (const auto& b : bins) perm.insert(perm.end(), b.begin(), b.end());
+        if (world.rank() == 0 and printlevel >= 4) {
+            // the spread of the per-batch coefficient count, balanced against the order given
+            auto spread = [](const std::vector<double>& v) {
+                double mx = 0.0, sum = 0.0;
+                for (const double x : v) { mx = std::max(mx, x); sum += x; }
+                return v.empty() or sum == 0.0 ? 0.0 : mx / (sum / double(v.size()));
+            };
+            std::vector<double> given(split.size(), 0.0);
+            for (std::size_t b = 0; b < split.size(); ++b)
+                for (long i = split[b].begin; i < split[b].end; ++i) given[b] += cost[i];
+            printf("exchange mo order balanced: %ld batches, per-batch node count max/mean %.2f (as given %.2f)\n",
+                   long(split.size()), spread(load), spread(given));
+        }
+        return perm;
+    }
+
+    /// skip the Poisson apply where the multiplier is negligible in the destination box (applyscreen.h);
+    /// read by the multiworld algorithm, ignored by the others (which say so at the first application)
+    ExchangeImpl& set_apply_screen(const bool flag) {
+        apply_screen_ = flag;
+        return *this;
+    }
+
     ExchangeImpl& set_accumulation_mode(const int mode) {
         MADNESS_CHECK_THROW(mode == 1 or mode == 2, "exchange accumulation mode must be 1 or 2");
         accumulation_mode_ = mode;
@@ -779,6 +886,10 @@ private:
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds
     vecfuncT K_macrotask_efficient(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
+    /// the same on the bra and ket given rather than the operator's own
+    vecfuncT K_macrotask_efficient(const vecfuncT& vf, const vecfuncT& bra, const vecfuncT& ket,
+                                   double mul_tol) const;
+
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds row-wise
     vecfuncT K_macrotask_efficient_row(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
@@ -791,7 +902,8 @@ private:
     /// computing the upper triangle of the double sum (over vket and the K orbitals)
     static vecfuncT compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                                    const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                                   const bool symmetric, const double mul_tol = 0.0);
+                                   const bool symmetric, const double mul_tol = 0.0,
+                                   const bool apply_screen = false);
 
     inline bool printdebug() const {return printlevel >= 10; }
     inline bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
@@ -815,6 +927,10 @@ private:
     /// place tasks by measured cost instead of by counting them; the first two applications
     /// still count, having no representative reference to measure against
     bool cost_aware_assign_ = true;
+    /// the order of the orbitals in the batches: as_is, shuffle or balanced (set_mo_order)
+    std::string mo_order_ = "as_is";
+    /// skip the Poisson apply where the multiplier is negligible in the destination box (applyscreen.h)
+    bool apply_screen_ = false;
 
     mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
@@ -852,6 +968,8 @@ private:
         std::map<std::pair<long,long>,long> owner_map_;
         /// this process's rank in the universe, to recognise the batches it owns
         long universe_rank_ = 0;
+        /// screen the Poisson apply by the multipliers' sizes in the destination box (applyscreen.h)
+        bool apply_screen_ = false;
 
         /// Batches fetched from the cloud, reused across the tasks that run in one subworld.
 
@@ -1089,13 +1207,13 @@ private:
                                 const long granularity_level = 1, const long universe_rank = 0,
                                 const int accumulation_mode = 2, const bool cost_aware = true,
                                 const long batch_salt = 0, const bool bra_shares_ket = true,
-                                const bool vf_shares_ket = true)
+                                const bool vf_shares_ket = true, const bool apply_screen = false)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol), symmetric(symmetric),
                   owner_pinned(owner_pinned), granularity_level(granularity_level),
                   batch_salt_(batch_salt), bra_shares_ket_(bra_shares_ket),
                   vf_shares_ket_(vf_shares_ket),
                   accumulation_mode_(accumulation_mode), cost_aware_(cost_aware),
-                  universe_rank_(universe_rank) {
+                  universe_rank_(universe_rank), apply_screen_(apply_screen) {
             partitioner.reset(new MacroTaskPartitionerExchange(symmetric, owner_pinned, granularity_level));
             name="MacroTaskExchangeSimple";
         }
@@ -1677,6 +1795,10 @@ private:
             const long n = long(vf_batch.size());
             vecfuncT resultcolumn = zero_functions_compressed<T, NDIM>(subworld, n);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
+            const bool screen = apply_screen_;
+            // the multipliers' sup bounds, once for the tile
+            const exchange_sup_bounds_t<NDIM> sup = screen ? exchange_sup_bounds(subworld, ket_batch)
+                                                           : exchange_sup_bounds_t<NDIM>();
 
             // per-stage wall, for the profiler only; `tick` is a no-op when it is off
             const bool prof_on = profile_active();
@@ -1696,7 +1818,14 @@ private:
 
                 cpu0 = cpu_time();
                 w0 = prof_on ? wall_time() : 0.0;
-                psif = apply(subworld, *poisson.get(), psif);
+                if (screen) {
+                    // P(bra_i vf_j) is multiplied by ket_i (into column j) and by ket_j (into column i)
+                    std::vector<apply_screen_t<NDIM>> screens(i + 1);
+                    for (long j = 0; j <= i; ++j) screens[j] = exchange_apply_screen<NDIM>({sup[i], sup[j]});
+                    psif = apply(subworld, *poisson.get(), psif, screens);
+                } else {
+                    psif = apply(subworld, *poisson.get(), psif);
+                }
                 tick(prof_.apply_wall, w0);
                 w0 = prof_on ? wall_time() : 0.0;
                 truncate(subworld, psif);
@@ -1742,7 +1871,7 @@ private:
             double symmetric = false;
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(subworld, lo);
             return Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(subworld, bra_batch, ket_batch, vf_batch, poisson, symmetric,
-                                                     mul_tol);
+                                                     mul_tol, apply_screen_);
         }
 
         /// compute a batch of the exchange matrix, with non-identical ranges
