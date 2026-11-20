@@ -2063,6 +2063,110 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
         rep.check_le("Benchmark Z=30 BSH cross-operator rel L2 diff", bsh_cross_rel, 100.0 * eps);
     }
 
+    // ------------------------------------------------------------------------
+    // Gate 4d: MPQC large-cell (L=100) truncate_mode=0 multi-electron Coulomb energy
+    //          regression check (k=8, eps=1e-5, Q=10 Neon Gaussian-nucleus density
+    //          in TreeState::compressed & reconstructed)
+    // ------------------------------------------------------------------------
+    {
+        ScopedMraDefaults guard(world);
+        FunctionDefaults<3>::set_cubic_cell(-50.0, 50.0);
+        FunctionDefaults<3>::set_k(8);
+        FunctionDefaults<3>::set_thresh(1e-5);
+        FunctionDefaults<3>::set_initial_level(2);
+        FunctionDefaults<3>::set_special_level(3);
+        FunctionDefaults<3>::set_max_refine_level(30);
+        FunctionDefaults<3>::set_truncate_mode(0);
+        FunctionDefaults<3>::set_truncate_on_project(true);
+
+        const std::vector<madness::Vector<double, 3>> sp = {madness::Vector<double, 3>{0.0, 0.0, 0.0}};
+        auto smooth_r = [](const coord_3d& r) noexcept -> double {
+            return std::sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2] + 3.2e-9);
+        };
+        const double z1 = 9.70, z2s = 2.95, z2p = 2.88;
+        const double pi_val = madness::constants::pi;
+        Function<double, 3> p1s = FunctionFactory<double, 3>(world)
+            .functor([=](const coord_3d& r) {
+                return std::sqrt((z1 * z1 * z1) / pi_val) * std::exp(-z1 * smooth_r(r));
+            })
+            .special_points(sp);
+        Function<double, 3> p2s = FunctionFactory<double, 3>(world)
+            .functor([=](const coord_3d& r) {
+                const double rr = smooth_r(r);
+                return std::sqrt((z2s * z2s * z2s) / (32.0 * pi_val)) *
+                       (2.0 - z2s * rr) * std::exp(-0.5 * z2s * rr);
+            })
+            .special_points(sp);
+        Function<double, 3> p2px = FunctionFactory<double, 3>(world)
+            .functor([=](const coord_3d& r) {
+                return std::sqrt(std::pow(z2p, 5) / (32.0 * pi_val)) *
+                       r[0] * std::exp(-0.5 * z2p * smooth_r(r));
+            })
+            .special_points(sp);
+        Function<double, 3> p2py = FunctionFactory<double, 3>(world)
+            .functor([=](const coord_3d& r) {
+                return std::sqrt(std::pow(z2p, 5) / (32.0 * pi_val)) *
+                       r[1] * std::exp(-0.5 * z2p * smooth_r(r));
+            })
+            .special_points(sp);
+        Function<double, 3> p2pz = FunctionFactory<double, 3>(world)
+            .functor([=](const coord_3d& r) {
+                return std::sqrt(std::pow(z2p, 5) / (32.0 * pi_val)) *
+                       r[2] * std::exp(-0.5 * z2p * smooth_r(r));
+            })
+            .special_points(sp);
+
+        std::vector<Function<double, 3>> orbs = {p1s, p2s, p2px, p2py, p2pz};
+        for (auto& phi : orbs) {
+            phi.scale(1.0 / phi.norm2());
+        }
+        madness::reconstruct(world, orbs);
+
+        Function<double, 3> rho_comp = FunctionFactory<double, 3>(world).compressed();
+        for (auto& phi : orbs) {
+            Function<double, 3> sq = madness::copy(phi * phi);
+            sq.truncate(1e-6);
+            sq.compress();
+            rho_comp.gaxpy(1.0, sq, 2.0, true);
+        }
+        rho_comp.truncate();
+
+        Function<double, 3> rho_rec = madness::copy(rho_comp);
+        rho_rec.reconstruct();
+
+        // Tight reference Coulomb energy (truncate_mode = 1, eps = 1e-9)
+        FunctionDefaults<3>::set_truncate_mode(1);
+        Function<double, 3> rho_ref = madness::copy(rho_rec);
+        rho_ref.set_thresh(1e-8);
+        SeparatedConvolution<double, 3> op_ref = CoulombOperator(world, 1e-7, 1e-9);
+        op_ref.enable_windowed_ns(false);
+        Function<double, 3> V_ref = madness::apply(world, op_ref, std::vector<Function<double, 3>>{rho_ref})[0];
+        const double EJ_ref = 0.5 * V_ref.inner(rho_rec);
+        FunctionDefaults<3>::set_truncate_mode(0);
+
+        // Windowed NS via SeparatedConvolution bridge (eps = 1e-5, lo = 1e-5, truncate_mode = 0)
+        SeparatedConvolution<double, 3> op_win(
+            world, madness::OperatorInfo(0.0, 1e-5, 1e-5, madness::OT_G12, false, {}));
+        op_win.enable_windowed_ns(true);
+        Function<double, 3> V_win_comp =
+            madness::apply(world, op_win, std::vector<Function<double, 3>>{rho_comp})[0];
+        Function<double, 3> V_win_rec =
+            madness::apply(world, op_win, std::vector<Function<double, 3>>{rho_rec})[0];
+
+        const double EJ_win_comp = 0.5 * V_win_comp.inner(rho_comp);
+        const double EJ_win_rec = 0.5 * V_win_rec.inner(rho_rec);
+        const double dEJ_ref = std::abs(EJ_win_comp - EJ_ref);
+        const double comp_vs_rec_rel =
+            (V_win_comp - V_win_rec).norm2() / std::max(1.0, V_win_rec.norm2());
+
+        rep.check_true("Gate 4d MPQC L=100 tm=0: compressed input state preserved",
+                       rho_comp.is_compressed());
+        rep.check_le("Gate 4d MPQC L=100 tm=0: |E_J(win) - E_J(ref)| (Q=10, eps=1e-5)",
+                     dEJ_ref, 5e-6);
+        rep.check_le("Gate 4d MPQC L=100 tm=0: rel ||V(comp) - V(rec)||_2",
+                     comp_vs_rec_rel, 1e-12);
+    }
+
     rep.end_gate("Gate 4");
 }
 

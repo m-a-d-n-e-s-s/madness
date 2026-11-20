@@ -313,7 +313,9 @@ Function<R, 3> apply_windowed_impl(World& target_world,
     auto run_on_same_world = [&](const Function<R, 3>& f_same,
                                  bool inner_fence,
                                  bool destructive_same_world) -> Function<R, 3> {
-        int max_d = static_cast<int>(f_same.max_local_depth());
+        int max_d = (target_world.size() == 1)
+                        ? compute_serial_max_tree_level(f_same)
+                        : static_cast<int>(f_same.max_local_depth());
         if (target_world.size() > 1) {
             target_world.gop.max(max_d);
         }
@@ -815,7 +817,9 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     // deterministically in `0..N-1` order on the calling thread.
     std::vector<int> max_depths(N, 0);
     for (std::size_t i = 0; i < N; ++i) {
-        max_depths[i] = static_cast<int>(f_work[i].max_local_depth());
+        max_depths[i] = (target_world.size() == 1)
+                            ? compute_serial_max_tree_level(f_work[i])
+                            : static_cast<int>(f_work[i].max_local_depth());
     }
     if (target_world.size() > 1) {
         target_world.gop.max(max_depths.data(), N);

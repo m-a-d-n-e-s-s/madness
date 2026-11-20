@@ -466,7 +466,7 @@ public:
         , mu_sim_(mu_user_ * cfg.cell_width_L)
         , op_scale_(compute_op_scale(cfg.kind, cfg.cell_width_L))
         , gamma_spiky_((cfg.gamma_spiky_override > 0.0) ? cfg.gamma_spiky_override : compute_gamma_spiky(cfg.k))
-        , gamma_diff_(compute_gamma_diff(cfg.k, cfg.eps))
+        , gamma_diff_(compute_gamma_diff(cfg.k, 0.1 * cfg.eps))
         , M_(select_oversampling_M(cfg.eps, cfg.oversampling_M))
         , gc_rank_Q_(select_gc_rank_Q(cfg.k, cfg.gc_rank_Q))
         , n_max_(cfg.max_tree_level)
