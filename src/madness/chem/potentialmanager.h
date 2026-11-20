@@ -220,8 +220,10 @@ class GaussianNuclearDensityPotentialFunctor : public FunctionFunctorInterface<d
  public:
   using FunctionFunctorInterface<double,3>::operator();
 
-  GaussianNuclearDensityPotentialFunctor(const madness::Molecule& molecule, int special_level = 15)
-      : molecule(molecule), special_level_(special_level) {}
+  /// Construct Gaussian nuclear potential functor. When \c special_level < 0 (default),
+  /// automatically selects a cell-width-aware initial refinement level `>= 15` that resolves
+  /// the smallest nuclear Gaussian radius `1 / xi_max` on arbitrarily large simulation boxes.
+  GaussianNuclearDensityPotentialFunctor(const madness::Molecule& molecule, int special_level = -1);
 
   double operator()(const madness::coord_3d& R) const final;
 
@@ -248,8 +250,10 @@ class FermiNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
  public:
   using FunctionFunctorInterface<double,3>::operator();
 
-  FermiNuclearDensityFunctor(const Atom& atom, int special_level = 18)
-      : atom(atom), special_level_(special_level) {}
+  /// Construct Fermi nuclear density functor. When \c special_level < 0 (default),
+  /// automatically selects a cell-width-aware initial refinement level `>= 18` that resolves
+  /// the nuclear half-density radius on arbitrarily large simulation boxes.
+  FermiNuclearDensityFunctor(const Atom& atom, int special_level = -1);
 
   double operator()(const madness::coord_3d& R) const final;
 

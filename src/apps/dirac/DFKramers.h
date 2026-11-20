@@ -4,6 +4,7 @@
 #ifndef MADNESS_APPS_DIRAC_DFKRAMERS_H_INCLUDED
 #define MADNESS_APPS_DIRAC_DFKRAMERS_H_INCLUDED
 
+#include <madness/tensor/solvers.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/world/print.h>
@@ -315,6 +316,44 @@ symplectify_unpermuted_hermitian(const Tensor<std::complex<double>>& Q_in) {
         }
     }
     return assemble_kramers_hermitian_matrix(Q11, Q21, true);
+}
+
+/// Solve the real-Hilbert-space KAIN subspace equations (`Q(i, j) = Re(<u_i | r_j>)`)
+/// with SCF.cc-matched singular-value conditioning (`c.absmax() < cabsmax`, escalating
+/// `rcond` from `1e-12` up to `rcond_max`, and resetting stale history to the latest
+/// iterate `c = [1.0]` when the subspace becomes linearly dependent at the MRA noise floor).
+///
+/// Using real weights `c_i in R` is essential for Dirac-Fock because:
+///   1. The Hartree-Fock / Dirac-Fock BSH map `F(psi, conj(psi))` is only R-differentiable
+///      (not C-holomorphic), so `Dr[sum c_i du_i] = sum c_i Dr[du_i]` holds iff `c_i in R`.
+///   2. Time-reversal `K` is antiunitary (`K(c_i psi) = conj(c_i) K(psi)`), so real weights
+///      preserve Kramers partner covariance without injecting spurious spin-flip leakage.
+inline std::pair<Tensor<double>, bool>
+solve_real_kain_weights(const Tensor<double>& Q,
+                        double cabsmax = 3.0,
+                        double rcond_max = 0.01) {
+    const long m = Q.dim(0);
+    MADNESS_CHECK(m >= 1 && Q.dim(1) == m);
+    if (m == 1) {
+        Tensor<double> c(1L);
+        c(0L) = 1.0;
+        return {c, false};
+    }
+
+    double rcond = 1.0e-12;
+    while (true) {
+        Tensor<double> c = KAIN(Q, rcond);
+        if (c.absmax() < cabsmax) {
+            return {c, false};
+        }
+        if (rcond < rcond_max) {
+            rcond *= 100.0;
+        } else {
+            Tensor<double> c_reset(1L);
+            c_reset(0L) = 1.0;
+            return {c_reset, true};
+        }
+    }
 }
 
 } // namespace madness

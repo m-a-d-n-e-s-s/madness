@@ -212,7 +212,12 @@ Function<R, 3> apply_pure_spiky_same_world(World& target_world,
     const double eff_thresh = (thresh > 0.0) ? thresh : ff.thresh();
 
     Function<R, 3> result =
-        FunctionFactory<R, 3>(target_world).k(k).thresh(eff_thresh).pmap(ff.get_pmap()).empty();
+        FunctionFactory<R, 3>(target_world)
+            .k(k)
+            .thresh(eff_thresh)
+            .truncate_mode(ff.get_impl()->get_truncate_mode())
+            .pmap(ff.get_pmap())
+            .empty();
     auto* res_impl = result.get_impl().get();
     auto& res_coeffs = res_impl->get_coeffs();
     res_coeffs.process_pending();
@@ -660,6 +665,7 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                         slim_funcs[ai] = FunctionFactory<R, 3>(target_world)
                                              .k(cp.k)
                                              .thresh(ui.func->thresh())
+                                             .truncate_mode(ui.impl->get_truncate_mode())
                                              .pmap(pmap)
                                              .empty();
                         slim_funcs[ai].get_impl()->get_coeffs().process_pending();
@@ -844,6 +850,7 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         result[i] = FunctionFactory<R, 3>(target_world)
                         .k(op_i.k())
                         .thresh(eff_thresh[i])
+                        .truncate_mode(f_work[i].get_impl()->get_truncate_mode())
                         .pmap(f_work[i].get_pmap())
                         .empty();
         result[i].get_impl()->get_coeffs().process_pending();

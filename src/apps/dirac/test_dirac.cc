@@ -3,6 +3,7 @@
 #include "DFParameters.h"
 #include "DFRestart.h"
 #include "InitParameters.h"
+#include <madness/chem/potentialmanager.h>
 #include <madness/world/MADworld.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/parallel_archive.h>
@@ -302,6 +303,75 @@ TEST(DFKramers, QuartetDegeneracyPreservesKramersOrthogonality) {
             EXPECT_NEAR(std::abs(uk_bar(r) - expected_bar(r)), 0.0, 1.0e-14);
         }
     }
+}
+
+TEST(DFKramers, RealKainWeightsGuardNoiseFloorStagnation) {
+    // Well-conditioned 2x2 real KAIN system:
+    // u0 = 1.0, r0 = 0.5; u1 = 0.5, r1 = 0.1 -> exact linear root at u* = 0.375
+    // A = <u0 - u1 | r0 - r1> = 0.5 * 0.4 = 0.2, b = -<u0 - u1 | r1> = -0.5 * 0.1 = -0.05
+    // c0 = -0.25, c1 = 1.25 (|c|_max = 1.25 < 3.0)
+    madness::Tensor<double> Q_good(2L, 2L);
+    Q_good(0L, 0L) = 0.50; Q_good(0L, 1L) = 0.10;
+    Q_good(1L, 0L) = 0.25; Q_good(1L, 1L) = 0.05;
+    auto [c_good, reset_good] = madness::solve_real_kain_weights(Q_good);
+    EXPECT_FALSE(reset_good);
+    EXPECT_EQ(c_good.dim(0), 2L);
+    EXPECT_NEAR(c_good(0L), -0.25, 1.0e-12);
+    EXPECT_NEAR(c_good(1L), 1.25, 1.0e-12);
+
+    // Stagnated MRA noise-floor system where r1 - r2 ~ 1e-13 while u0 - u2 ~ 1e-3,
+    // which previously produced |c| >> 3 and spiked Iteration 8 density residuals.
+    madness::Tensor<double> Q_stalled(3L, 3L);
+    Q_stalled(0L, 0L) = 1.0e-4;       Q_stalled(0L, 1L) = 1.0e-6;       Q_stalled(0L, 2L) = 1.0e-6 + 1.0e-14;
+    Q_stalled(1L, 0L) = 1.0e-5;       Q_stalled(1L, 1L) = 1.0e-11;      Q_stalled(1L, 2L) = 1.0e-11 + 1.0e-19;
+    Q_stalled(2L, 0L) = 1.0e-5 - 1e-8; Q_stalled(2L, 1L) = 1.0e-11;     Q_stalled(2L, 2L) = 1.0e-11;
+    auto [c_stalled, reset_stalled] = madness::solve_real_kain_weights(Q_stalled);
+    EXPECT_LT(c_stalled.absmax(), 3.0);
+    if (reset_stalled) {
+        EXPECT_EQ(c_stalled.dim(0), 1L);
+        EXPECT_DOUBLE_EQ(c_stalled(0L), 1.0);
+    }
+}
+
+TEST(DFNuclearFunctors, OriginSafeAndCellWidthScaleAware) {
+    ASSERT_NE(test_world, nullptr);
+    madness::Molecule mol;
+    mol.add_atom(0.0, 0.0, 0.0, 10.0, 10); // Neon at origin
+
+    int prev_gauss_lvl = 0;
+    int prev_fermi_lvl = 0;
+    for (double L : {30.0, 50.0, 100.0, 200.0}) {
+        madness::FunctionDefaults<3>::set_cubic_cell(-L, L);
+        madness::GaussianNuclearDensityPotentialFunctor gfunc(mol);
+        madness::FermiNuclearDensityFunctor ffunc(mol.get_atom(0));
+
+        // Origin evaluation must be finite and smooth (no 0/0 NaN)
+        const double v0 = gfunc(madness::coord_3d{0.0, 0.0, 0.0});
+        const double v_tiny = gfunc(madness::coord_3d{1.0e-9, 0.0, 0.0});
+        EXPECT_TRUE(std::isfinite(v0));
+        EXPECT_LT(v0, -2.5e5);
+        EXPECT_NEAR(v0, v_tiny, 1.0e-6 * std::abs(v0));
+
+        // Far-field Fermi evaluation must be finite (no exp overflow NaN under -ffast-math)
+        const double f0 = ffunc(madness::coord_3d{0.0, 0.0, 0.0});
+        const double f_far = ffunc(madness::coord_3d{L, L, L});
+        EXPECT_TRUE(std::isfinite(f0));
+        EXPECT_GT(f0, 0.9);
+        EXPECT_DOUBLE_EQ(f_far, 0.0);
+
+        EXPECT_GE(gfunc.special_level(), prev_gauss_lvl);
+        EXPECT_GE(ffunc.special_level(), prev_fermi_lvl);
+        prev_gauss_lvl = gfunc.special_level();
+        prev_fermi_lvl = ffunc.special_level();
+
+        // Cell box at special_level must resolve the nuclear scale (~5e-5 Bohr for Ne)
+        const double h_g = (2.0 * L) / std::ldexp(1.0, gfunc.special_level());
+        EXPECT_LE(h_g, 1.0e-4);
+    }
+
+    // Explicit special_level override is still honored verbatim
+    madness::GaussianNuclearDensityPotentialFunctor explicit_g(mol, 16);
+    EXPECT_EQ(explicit_g.special_level(), 16);
 }
 
 int main(int argc, char** argv) {

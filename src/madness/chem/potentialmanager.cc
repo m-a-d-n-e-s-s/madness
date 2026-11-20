@@ -110,9 +110,55 @@ NuclearDensityFunctor &NuclearDensityFunctor::set_rscale(double rscale) {
   return *this;
 }
 
+namespace {
+double max_cell_width_3d() {
+  const auto& cw = madness::FunctionDefaults<3>::get_cell_width();
+  if (cw.size() < 3) return 0.0;
+  return std::max({cw(0L), cw(1L), cw(2L)});
+}
+
+double gaussian_nuclear_xi_bohr_inv(unsigned int atomic_number) {
+  const double bohr_rad_fm = madness::constants::Bohr_radius * 1e15;
+  const double A = static_cast<double>(madness::get_atomic_data(atomic_number).isotope_number);
+  return std::sqrt(3.0 / 2.0) / (0.836 * std::cbrt(A) + 0.57) * bohr_rad_fm;
+}
+
+double fermi_nuclear_c_bohr(unsigned int atomic_number) {
+  const double bohr_rad_fm = madness::constants::Bohr_radius * 1e15;
+  const double T = 2.3 / bohr_rad_fm;
+  const double A = static_cast<double>(madness::get_atomic_data(atomic_number).isotope_number);
+  if (A < 5.0) {
+    return 0.000022291 * std::cbrt(A) - 0.0000090676;
+  }
+  return std::sqrt(
+      (5.0 / 3.0) * std::pow((0.836 * std::cbrt(A) + 0.570) / bohr_rad_fm, 2.0) -
+      (7.0 / 3.0) * std::pow(M_PI * T / 4.0 / std::log(3.0), 2.0));
+}
+}  // namespace
+
+GaussianNuclearDensityPotentialFunctor::GaussianNuclearDensityPotentialFunctor(
+    const madness::Molecule& molecule, int special_level)
+    : molecule(molecule), special_level_(special_level) {
+  if (special_level_ < 0) {
+    double xi_max = 0.0;
+    for (const auto& atom : molecule.get_atoms()) {
+      if (atom.pseudo_atom) continue;
+      xi_max = std::max(xi_max, gaussian_nuclear_xi_bohr_inv(atom.atomic_number));
+    }
+    const double w_max = max_cell_width_3d();
+    if (xi_max > 0.0 && w_max > 0.0) {
+      const double target_h = 2.0 / xi_max;
+      const int auto_lvl = static_cast<int>(std::ceil(std::log2(w_max / target_h)));
+      special_level_ = std::clamp(auto_lvl, 15, static_cast<int>(MAXLEVEL) - 2);
+    } else {
+      special_level_ = 15;
+    }
+  }
+}
+
 double GaussianNuclearDensityPotentialFunctor::operator()(const madness::coord_3d& R) const {
   // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
-  const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
+  const double two_over_sqrt_pi = 2.0 / std::sqrt(M_PI);
 
   double sum = 0.0;
   for (auto&& atom : molecule.get_atoms()) {
@@ -120,41 +166,51 @@ double GaussianNuclearDensityPotentialFunctor::operator()(const madness::coord_3
     if (atom.pseudo_atom) continue;
 
     // Eqs. 1 and 11
-    auto ξ =
-        sqrt(3.0 / 2.0) /
-        (0.836 *
-              pow(madness::get_atomic_data(atom.atomic_number).isotope_number,
-                  1.0 / 3.0) +
-          0.57) *
-        bohr_rad_fm;
+    const double ξ = gaussian_nuclear_xi_bohr_inv(atom.atomic_number);
 
-    // Eq. 14
-    auto r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
-    sum += -1. * atom.atomic_number * erf(ξ * r) / r;
+    // Eq. 14 (with removable r -> 0 Taylor series avoiding 0/0 NaN at the nucleus)
+    const double r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
+    const double u = ξ * r;
+    if (u < 1.0e-4) {
+      const double u2 = u * u;
+      sum += -1.0 * atom.atomic_number * two_over_sqrt_pi * ξ *
+             (1.0 - u2 / 3.0 + (u2 * u2) / 10.0 - (u2 * u2 * u2) / 42.0);
+    } else {
+      sum += -1.0 * atom.atomic_number * std::erf(u) / r;
+    }
   }
   return sum;
+}
+
+FermiNuclearDensityFunctor::FermiNuclearDensityFunctor(const Atom& atom, int special_level)
+    : atom(atom), special_level_(special_level) {
+  if (special_level_ < 0) {
+    const double bohr_rad_fm = constants::Bohr_radius * 1e15;
+    const double T = 2.3 / bohr_rad_fm;
+    const double C = fermi_nuclear_c_bohr(atom.atomic_number);
+    const double w_max = max_cell_width_3d();
+    const double target_h = std::max(2.0 * C, T);
+    if (target_h > 0.0 && w_max > 0.0) {
+      const int auto_lvl = static_cast<int>(std::ceil(std::log2(w_max / target_h)));
+      special_level_ = std::clamp(auto_lvl, 18, static_cast<int>(MAXLEVEL) - 2);
+    } else {
+      special_level_ = 18;
+    }
+  }
 }
 
 double FermiNuclearDensityFunctor::operator()(const madness::coord_3d& R) const {
   // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
   const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
   const auto T = 2.3 / bohr_rad_fm;
+  const double C = fermi_nuclear_c_bohr(atom.atomic_number);
 
-  auto A = madness::get_atomic_data(atom.atomic_number).isotope_number;
-  double C;
-  if (A < 5) {
-    // Eq. 9
-    C = 0.000022291 * pow(A, 1.0 / 3.0) - 0.0000090676;
-  } else {
-    // Eqs. 4 and 8
-    C = sqrt((5.0 / 3.0) *
-                  pow((0.836 * pow(A, 1.0 / 3.0) + 0.570) / bohr_rad_fm, 2.0) -
-              (7.0 / 3.0) * pow(M_PI * T / 4.0 / std::log(3.0), 2.0));
-  }
-
-  // Eq. 14
-  auto r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
-  return 1.0 / (1.0 + exp(4.0 * std::log(3.0) * (r - C) / T));
+  // Eq. 14 (clamp large positive exponent for -ffast-math / -ffinite-math-only safety)
+  const double r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
+  const double arg = 4.0 * std::log(3.0) * (r - C) / T;
+  if (arg > 700.0) return 0.0;
+  if (arg < -700.0) return 1.0;
+  return 1.0 / (1.0 + std::exp(arg));
 }
 
 double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {

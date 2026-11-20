@@ -2167,6 +2167,65 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
                      comp_vs_rec_rel, 1e-12);
     }
 
+    // ------------------------------------------------------------------
+    // Gate 4e: Per-function truncate_mode=0 preservation & large-box BSH+Dx
+    //          accuracy when FunctionDefaults<3>::get_truncate_mode() == 1
+    // ------------------------------------------------------------------
+    {
+        ScopedMraDefaults guard(world);
+        FunctionDefaults<3>::set_cubic_cell(-100.0, 100.0); // width = 200.0
+        FunctionDefaults<3>::set_k(8);
+        FunctionDefaults<3>::set_thresh(1e-5);
+        FunctionDefaults<3>::set_initial_level(2);
+        FunctionDefaults<3>::set_special_level(6);
+        FunctionDefaults<3>::set_max_refine_level(30);
+        FunctionDefaults<3>::set_truncate_mode(1); // global default tm = 1
+        FunctionDefaults<3>::set_truncate_on_project(true);
+
+        const std::vector<madness::Vector<double, 3>> sp = {madness::Vector<double, 3>{0.0, 0.0, 0.0}};
+        const double mu = 1.95;
+        const double b1 = 25.0;
+        const double b2 = 0.8;
+
+        Function<double, 3> rhs_tm0 = FunctionFactory<double, 3>(world)
+            .truncate_mode(0)
+            .special_points(sp)
+            .functor([=](const coord_3d& x) {
+                const double r2 = x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
+                return 3.0 * (6.0 * b1 - 4.0 * b1 * b1 * r2 + mu * mu) * std::exp(-b1 * r2) -
+                       0.8 * (6.0 * b2 - 4.0 * b2 * b2 * r2 + mu * mu) * std::exp(-b2 * r2);
+            });
+        rhs_tm0.truncate();
+
+        Function<double, 3> dux_ex = FunctionFactory<double, 3>(world)
+            .thresh(1e-7)
+            .truncate_mode(1)
+            .special_points(sp)
+            .functor([=](const coord_3d& x) {
+                const double r2 = x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
+                return x[0] * (-6.0 * b1 * std::exp(-b1 * r2) + 1.6 * b2 * std::exp(-b2 * r2));
+            });
+
+        SeparatedConvolution<double, 3> bsh_op = BSHOperator3D(world, mu, 1e-6, 1e-5);
+        bsh_op.enable_windowed_ns(true);
+
+        Function<double, 3> u_single = madness::apply(bsh_op, rhs_tm0);
+        Function<double, 3> u_batch =
+            madness::apply(world, bsh_op, std::vector<Function<double, 3>>{rhs_tm0})[0];
+
+        madness::Derivative<double, 3> Dx(world, 0);
+        Function<double, 3> du_single = Dx(u_single);
+        const double rel_du_err =
+            (du_single - dux_ex).norm2() / std::max(1.0, dux_ex.norm2());
+
+        rep.check_true("Gate 4e L=200 tm=0: single apply preserves per-function truncate_mode=0",
+                       u_single.get_impl()->get_truncate_mode() == 0);
+        rep.check_true("Gate 4e L=200 tm=0: batch apply preserves per-function truncate_mode=0",
+                       u_batch.get_impl()->get_truncate_mode() == 0);
+        rep.check_le("Gate 4e L=200 tm=0: rel ||Dx(BSH(rhs)) - Dx(u_exact)||_2",
+                     rel_du_err, 5e-5);
+    }
+
     rep.end_gate("Gate 4");
 }
 

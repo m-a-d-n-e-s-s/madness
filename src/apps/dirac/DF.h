@@ -16,11 +16,122 @@
 #include <algorithm> 
 #include <madness/chem/molecule.h>
 #include "DFConvergence.h"
+#include "DFKramers.h"
 #include "DFParameters.h"
 #include "InitParameters.h"
 
 
 using namespace madness;
+
+/// Real-Hilbert-space, gauge-consistent KAIN nonlinear subspace solver for 4-component spinors.
+class DFKainSolver {
+private:
+     Fcwf_vector_allocator alloc_;
+     unsigned int maxsub_ = 10;
+     std::vector<std::vector<Fcwf>> ulist_;
+     std::vector<std::vector<Fcwf>> rlist_;
+     Tensor<double> Q_;
+
+     static std::vector<Fcwf> deep_copy_vec(const std::vector<Fcwf>& src) {
+          std::vector<Fcwf> dst;
+          dst.reserve(src.size());
+          for (const auto& f : src) {
+               dst.push_back(copy(f));
+          }
+          return dst;
+     }
+
+     static double real_inner_vec(std::vector<Fcwf>& a, std::vector<Fcwf>& b) {
+          return std::real(inner(a, b));
+     }
+
+public:
+     explicit DFKainSolver(const Fcwf_vector_allocator& alloc, unsigned int maxsub = 10)
+          : alloc_(alloc), maxsub_(maxsub) {}
+
+     void set_maxsub(int maxsub) {
+          maxsub_ = (maxsub > 0) ? static_cast<unsigned int>(maxsub) : 1u;
+     }
+
+     bool empty() const noexcept { return ulist_.empty(); }
+     std::size_t size() const noexcept { return ulist_.size(); }
+
+     std::vector<std::vector<Fcwf>>& get_ulist() noexcept { return ulist_; }
+     std::vector<std::vector<Fcwf>>& get_rlist() noexcept { return rlist_; }
+
+     void clear_subspace() {
+          ulist_.clear();
+          rlist_.clear();
+          Q_ = Tensor<double>();
+     }
+
+     void rebuild_Q() {
+          const long m = static_cast<long>(ulist_.size());
+          if (m == 0) {
+               Q_ = Tensor<double>();
+               return;
+          }
+          Tensor<double> Qnew(m, m);
+          for (long i = 0; i < m; ++i) {
+               for (long j = 0; j < m; ++j) {
+                    Qnew(i, j) = real_inner_vec(ulist_[i], rlist_[j]);
+               }
+          }
+          Q_ = Qnew;
+     }
+
+     std::vector<Fcwf> update(const std::vector<Fcwf>& u,
+                              const std::vector<Fcwf>& r,
+                              double cabsmax = 3.0,
+                              double rcond_max = 0.01) {
+          if (maxsub_ <= 1) {
+               return u - r;
+          }
+
+          ulist_.push_back(deep_copy_vec(u));
+          rlist_.push_back(deep_copy_vec(r));
+          const long m = static_cast<long>(ulist_.size());
+
+          Tensor<double> Qnew(m, m);
+          if (m > 1) {
+               Qnew(Slice(0, -2), Slice(0, -2)) = Q_;
+          }
+          for (long i = 0; i < m; ++i) {
+               Qnew(i, m - 1) = real_inner_vec(ulist_[i], rlist_[m - 1]);
+               if (i < m - 1) {
+                    Qnew(m - 1, i) = real_inner_vec(ulist_[m - 1], rlist_[i]);
+               }
+          }
+          Q_ = Qnew;
+
+          auto [c, reset] = solve_real_kain_weights(Q_, cabsmax, rcond_max);
+          if (reset) {
+               std::vector<Fcwf> u_last = std::move(ulist_.back());
+               std::vector<Fcwf> r_last = std::move(rlist_.back());
+               const double q_last = Q_(m - 1, m - 1);
+               ulist_.clear();
+               rlist_.clear();
+               ulist_.push_back(std::move(u_last));
+               rlist_.push_back(std::move(r_last));
+               Q_ = Tensor<double>(1L, 1L);
+               Q_(0L, 0L) = q_last;
+          }
+
+          std::vector<Fcwf> unew = alloc_();
+          const std::size_t n_cur = ulist_.size();
+          for (std::size_t s = 0; s < n_cur; ++s) {
+               const std::complex<double> cs(c(static_cast<long>(s)), 0.0);
+               unew += (ulist_[s] - rlist_[s]) * cs;
+          }
+
+          if (ulist_.size() >= maxsub_) {
+               ulist_.erase(ulist_.begin());
+               rlist_.erase(rlist_.begin());
+               Q_ = copy(Q_(Slice(1, -1), Slice(1, -1)));
+          }
+          return unew;
+     }
+};
 
 
 /// Given a molecule and nonrelativistic ground state orbitals, solve the Dirac-Hartree-Fock equations
@@ -90,8 +201,9 @@ class DF {
           //Applies the exchange operator to all of occupieds
           void exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
 
-          //diagonalizes occupieds in the Fock space. Transforms occupieds and Kpsis.
-          void diagonalize(World& world, real_function_3d& myV,real_convolution_3d& op, std::vector<Fcwf>& Kpsis);
+          //diagonalizes occupieds in the Fock space. Transforms occupieds, Kpsis, and optional KAIN subspace.
+          void diagonalize(World& world, real_function_3d& myV, real_convolution_3d& op,
+                           std::vector<Fcwf>& Kpsis, DFKainSolver* kainsolver = nullptr);
 
           // Small function to print geometry of a molecule nicely
           // Straight up stolen from Bryan
@@ -125,8 +237,7 @@ class DF {
           std::tuple<bool, double, real_function_3d>
           iterate(World &world, real_function_3d &V, real_convolution_3d &op,
                   real_function_3d &JandV, std::vector<Fcwf> &Kpsis,
-                  XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
-                                   Fcwf_vector_allocator> &kainsolver,
+                  DFKainSolver &kainsolver,
                   double &tolerance, int &iteration_number,
                   double &nuclear_repulsion_energy, real_function_3d &prev_rho);
 

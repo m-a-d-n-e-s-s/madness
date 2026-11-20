@@ -4040,7 +4040,12 @@ Function<T, 3> apply_windowed_ns_3d(
         const bool was_compressed = prepare_windowed_ns_input_3d(ff, true);
 
         Function<T, 3> result =
-            FunctionFactory<T, 3>(world).k(k).thresh(eff_thresh).pmap(ff.get_pmap()).empty();
+            FunctionFactory<T, 3>(world)
+                .k(k)
+                .thresh(eff_thresh)
+                .truncate_mode(ff.get_impl()->get_truncate_mode())
+                .pmap(ff.get_pmap())
+                .empty();
         result.get_impl()->get_coeffs().process_pending();
         if (world.size() > 1) {
             world.gop.fence();
@@ -4071,7 +4076,12 @@ Function<T, 3> apply_windowed_ns_3d(
         const bool was_compressed = prepare_windowed_ns_input_3d(f_sub, true);
 
         result =
-            FunctionFactory<T, 3>(world).k(k).thresh(eff_thresh).pmap(f_sub.get_pmap()).empty();
+            FunctionFactory<T, 3>(world)
+                .k(k)
+                .thresh(eff_thresh)
+                .truncate_mode(f_sub.get_impl()->get_truncate_mode())
+                .pmap(f_sub.get_pmap())
+                .empty();
         result.get_impl()->get_coeffs().process_pending();
         if (world.size() > 1) {
             world.gop.fence();
