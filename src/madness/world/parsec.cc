@@ -10,9 +10,7 @@
 
 // Here we initialize with the right child class
 namespace madness {
-#ifndef MADNESS_ASSERTIONS_DISABLE
     static thread_local bool within_madness_task = false;
-#endif
     /* On a thread outside PaRSEC's pool: the copy of ES[0] that schedule() made for it,
      * installed as PaRSEC's current execution stream only for the duration of a schedule */
     static thread_local parsec_execution_stream_t *non_parsec_thread_es_copy = nullptr;
@@ -35,15 +33,15 @@ namespace madness {
 
     parsec_hook_return_t run_madness_task(parsec_execution_stream_t *eu,
                                           parsec_task_t *task) {
+        (void)eu;
         PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
         assert(c);
-#ifndef MADNESS_ASSERTIONS_DISABLE
-        within_madness_task = true;
-#endif
+        struct WithinTaskScope {
+            bool prev;
+            WithinTaskScope() noexcept : prev(within_madness_task) { within_madness_task = true; }
+            ~WithinTaskScope() { within_madness_task = prev; }
+        } scope;
         c->run(TaskThreadEnv(1, 0, 0));
-#ifndef MADNESS_ASSERTIONS_DISABLE
-        within_madness_task = false;
-#endif
         return PARSEC_HOOK_RETURN_DONE;
     }
 
@@ -351,6 +349,10 @@ namespace madness {
         int rc = parsec_taskpool_test(tp);
         assert(rc >= 0);
         return rc;
+    }
+
+    bool ParsecRuntime::within_task() noexcept {
+        return within_madness_task;
     }
 
     extern "C"{

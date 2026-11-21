@@ -44,6 +44,7 @@ namespace madness{
         static void schedule(PoolTaskInterface* task);
         static int test();
         static void wait();
+        static bool within_task() noexcept;
         static parsec_task_t *task(bool is_high_priority, void *ptr);
         static void delete_parsec_task(parsec_task_t *t);
     };

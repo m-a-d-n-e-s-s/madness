@@ -294,6 +294,19 @@ struct StencilEntry1D {
         return -1;
     }
 
+    /// Dynamic half-bandwidth in `{-1, 0, 1, 2}` for Pass 4b-2 pure wavelet `(0, d_int) -> d_out`.
+    int select_bw_4b2_wav(double abs_weight,
+                          double ref_d_int,
+                          double tol_nn,
+                          double tol_sh2) const noexcept {
+        const double scale = abs_weight * ref_d_int;
+        if (!(scale > 0.0)) return -1;
+        if (m_max_ns >= 2 && scale * shell_max_4b2_wav[2] > tol_sh2) return 2;
+        if (scale * shell_l2_4b2_wav[1] > tol_nn) return 1;
+        if (scale * shell_l2_4b2_wav[0] > tol_nn) return 0;
+        return -1;
+    }
+
     /// Dynamic half-bandwidth in `{-1, 0, 1, 2}` for Pass 4b-2 internal `(s, d) -> d_out`,
     /// guaranteed `>= bw_leaf` so mixed internal+leaf neighborhoods share uniform cancellation radii.
     int select_bw_4b2_int(double abs_weight,

@@ -111,6 +111,50 @@ struct WindowedTaskDepthScope {
     WindowedTaskDepthScope& operator=(const WindowedTaskDepthScope&) = delete;
 };
 
+/// Serializes `FunctionFactory` / `WorldObject` registration (`World::make_unique_obj_id()`, which
+/// increments a non-atomic `obj_id++` counter) when callers invoke Windowed NS operators
+/// concurrently from multiple worker or TTG tasks on `world.size() == 1`. No-op on `world.size() > 1`
+/// where `WorldObject` construction is a main-thread collective.
+class SingleRankWorldObjLock {
+public:
+    explicit SingleRankWorldObjLock(const World& world) : locked_(world.size() == 1) {
+        if (locked_) mtx().lock();
+    }
+    ~SingleRankWorldObjLock() {
+        if (locked_) mtx().unlock();
+    }
+    SingleRankWorldObjLock(const SingleRankWorldObjLock&) = delete;
+    SingleRankWorldObjLock& operator=(const SingleRankWorldObjLock&) = delete;
+
+private:
+    static std::mutex& mtx() {
+        static std::mutex m;
+        return m;
+    }
+    bool locked_ = false;
+};
+
+/// Returns `true` when the calling thread may spawn tasks and synchronously wait on their `Future`:
+///   - Under PaRSEC, tasks must NEVER block on `Future::get` (`dowork=true` is forbidden inside any
+///     PaRSEC/MADNESS task and asserts master `ES[0]`, while `dowork=false` deadlocks on `es->next_task`
+///     or starves the fixed execution-stream pool). Only the top-level main thread outside any active
+///     MADNESS or TTG/PaRSEC task (`is_main_thread() && !ParsecRuntime::within_task() && !(ctx->flags & WAITING)`)
+///     spawns tasks and drives `Future::get(true)`; any call from inside a task executes inline.
+inline bool can_spawn_and_wait_parsec() noexcept {
+#ifdef HAVE_PARSEC
+    if (!is_main_thread() || g_windowed_task_depth > 0u || ParsecRuntime::within_task()) {
+        return false;
+    }
+    parsec_context_t* ctx = ParsecRuntime::context();
+    if (ctx == nullptr || (ctx->flags & PARSEC_CONTEXT_FLAG_WAITING) != 0) {
+        return false;
+    }
+    return true;
+#else
+    return true;
+#endif
+}
+
 /// Compact worker-thread slot registry decoupling per-thread scratch storage (`O(N_threads)`)
 /// from over-decomposed `madness::Range` task counts (`O(8 * N_threads)`), with full reentrancy
 /// safety whenever a thread nested-executes tasks during `Future::get` / `ThreadPool::await`.
@@ -343,6 +387,13 @@ inline void parallel_for_chunks(World& world,
         fn(0u, n_items, slot_guard.slot());
     }
 #else
+#ifdef HAVE_PARSEC
+    if (!can_spawn_and_wait_parsec()) {
+        ScopedWorkerSlot slot_guard;
+        fn(0u, n_items, slot_guard.slot());
+        return;
+    }
+#endif
     const std::size_t n_blocks = (n_items + grain - 1u) / grain;
     typename RangeBlockOp<Fn>::SharedCtx shared_ctx;
     shared_ctx.fn = &fn;
@@ -352,12 +403,7 @@ inline void parallel_for_chunks(World& world,
     const madness::Range<std::size_t> block_range(0u, n_blocks, 1);
     Future<bool> done = world.taskq.for_each(block_range, RangeBlockOp<Fn>{&shared_ctx});
     thread_purge();
-#ifdef HAVE_PARSEC
-    const bool allow_dowork = (g_windowed_task_depth == 0u);
-#else
-    constexpr bool allow_dowork = true;
-#endif
-    (void)done.get(allow_dowork);
+    (void)done.get(true);
     if (shared_ctx.captured_exc) {
         std::rethrow_exception(shared_ctx.captured_exc);
     }
@@ -378,10 +424,11 @@ inline void windowed_for_each_range(World& world,
 ///     `DQueue`) so inner `TaskAttributes::hipri()` `ForEachTask` children (`push_front`) always drain
 ///     depth-first before starting additional outer tasks, bounding concurrent workspaces to `O(N_threads)`.
 ///   - On Intel TBB, dispatches `madness::Range<std::size_t>(0, n_tasks, 1)` inside `ThreadPool::tbb_arena`.
-template <typename TaskFn>
-inline void windowed_for_each_outer_tasks(World& world,
-                                          std::size_t n_tasks,
-                                          const TaskFn& fn) {
+template <typename TaskFn, typename HeavyPredFn>
+inline void windowed_for_each_outer_tasks_if_heavy(World& world,
+                                                   std::size_t n_tasks,
+                                                   const TaskFn& fn,
+                                                   const HeavyPredFn& is_heavy) {
     if (n_tasks == 0u) return;
     if (n_tasks == 1u || ThreadPool::size() == 0u) {
         WindowedTaskDepthScope depth_scope;
@@ -391,27 +438,37 @@ inline void windowed_for_each_outer_tasks(World& world,
         return;
     }
 
+    std::size_t n_heavy = 0u;
+    for (std::size_t idx = 0; idx < n_tasks; ++idx) {
+        if (is_heavy(idx)) ++n_heavy;
+    }
+
     std::atomic<bool> has_exc{false};
     std::mutex exc_mtx;
     std::exception_ptr captured_exc;
 
     struct UnfinishedOuterTaskDec {
+        bool heavy = false;
         ~UnfinishedOuterTaskDec() {
-            g_unfinished_outer_tasks.fetch_sub(1u, std::memory_order_release);
+            if (heavy) {
+                g_unfinished_outer_tasks.fetch_sub(1u, std::memory_order_release);
+            }
         }
     };
 
 #ifdef HAVE_INTEL_TBB
     (void)world;
     if (ThreadPool::tbb_arena) {
-        g_unfinished_outer_tasks.fetch_add(n_tasks, std::memory_order_relaxed);
+        if (n_heavy > 0u) {
+            g_unfinished_outer_tasks.fetch_add(n_heavy, std::memory_order_relaxed);
+        }
         const madness::Range<std::size_t> task_range(0u, n_tasks, 1);
         ThreadPool::tbb_arena->execute([&]() {
             tbb::parallel_for(
                 task_range,
                 [&](const madness::Range<std::size_t>& r) {
                     for (std::size_t idx = r.begin(); idx != r.end(); ++idx) {
-                        UnfinishedOuterTaskDec dec_guard;
+                        UnfinishedOuterTaskDec dec_guard{is_heavy(idx)};
                         if (has_exc.load(std::memory_order_relaxed)) continue;
                         WindowedTaskDepthScope depth_scope;
                         try {
@@ -434,15 +491,25 @@ inline void windowed_for_each_outer_tasks(World& world,
         }
     }
 #else
+#ifdef HAVE_PARSEC
+    if (!can_spawn_and_wait_parsec()) {
+        WindowedTaskDepthScope depth_scope;
+        for (std::size_t idx = 0; idx < n_tasks; ++idx) {
+            fn(idx);
+        }
+        return;
+    }
+#endif
     struct OuterSharedCtx {
         const TaskFn* fn = nullptr;
+        const HeavyPredFn* is_heavy = nullptr;
         std::atomic<bool>* has_exc = nullptr;
         std::mutex* exc_mtx = nullptr;
         std::exception_ptr* captured_exc = nullptr;
-    } shared_ctx{&fn, &has_exc, &exc_mtx, &captured_exc};
+    } shared_ctx{&fn, &is_heavy, &has_exc, &exc_mtx, &captured_exc};
 
     auto outer_op = [ctx = &shared_ctx](std::size_t idx) -> bool {
-        UnfinishedOuterTaskDec dec_guard;
+        UnfinishedOuterTaskDec dec_guard{(*ctx->is_heavy)(idx)};
         if (ctx->has_exc->load(std::memory_order_relaxed)) return true;
         WindowedTaskDepthScope depth_scope;
         try {
@@ -457,26 +524,31 @@ inline void windowed_for_each_outer_tasks(World& world,
         return true;
     };
 
-    g_unfinished_outer_tasks.fetch_add(n_tasks, std::memory_order_relaxed);
+    if (n_heavy > 0u) {
+        g_unfinished_outer_tasks.fetch_add(n_heavy, std::memory_order_relaxed);
+    }
     std::vector<Future<bool>> done;
     done.reserve(n_tasks);
     for (std::size_t idx = 0; idx < n_tasks; ++idx) {
         done.push_back(world.taskq.add(outer_op, idx));
     }
     thread_purge();
-#ifdef HAVE_PARSEC
-    const bool allow_dowork = (g_windowed_task_depth == 0u);
-#else
-    constexpr bool allow_dowork = true;
-#endif
     for (auto& fut : done) {
-        (void)fut.get(allow_dowork);
+        (void)fut.get(true);
     }
 #endif
 
     if (captured_exc) {
         std::rethrow_exception(captured_exc);
     }
+}
+
+template <typename TaskFn>
+inline void windowed_for_each_outer_tasks(World& world,
+                                          std::size_t n_tasks,
+                                          const TaskFn& fn) {
+    windowed_for_each_outer_tasks_if_heavy(
+        world, n_tasks, fn, [](std::size_t) noexcept { return true; });
 }
 
 } // namespace windowed_parallel_detail

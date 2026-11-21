@@ -2146,7 +2146,7 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
 
         // Windowed NS via SeparatedConvolution bridge (eps = 1e-5, lo = 1e-5, truncate_mode = 0)
         SeparatedConvolution<double, 3> op_win(
-            world, madness::OperatorInfo(0.0, 1e-5, 1e-5, madness::OT_G12, false, {}));
+            world, madness::OperatorInfo(0.0, 1e-5, 1e-5, madness::OT_G12, false));
         op_win.enable_windowed_ns(true);
         Function<double, 3> V_win_comp =
             madness::apply(world, op_win, std::vector<Function<double, 3>>{rho_comp})[0];
@@ -2224,6 +2224,44 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
                        u_batch.get_impl()->get_truncate_mode() == 0);
         rep.check_le("Gate 4e L=200 tm=0: rel ||Dx(BSH(rhs)) - Dx(u_exact)||_2",
                      rel_du_err, 5e-5);
+
+        // Gate 4f: Concurrent invocation of scalar & batched Windowed NS apply
+        //          from inside MADNESS tasks (`world.taskq.add`) — verifies
+        //          non-blocking execution on PaRSEC, Pthreads, and TBB.
+        if (world.size() == 1) {
+            constexpr std::size_t n_nested = 8;
+            WindowedSeparatedConvolution<double, 3> wbsh_op =
+                WindowedBSHOperator(world, mu, 1e-5);
+            std::vector<Function<double, 3>> nested_out(n_nested);
+            auto nested_task = [&](std::size_t idx) -> bool {
+                if ((idx & 1u) == 0u) {
+                    nested_out[idx] = madness::apply(bsh_op, rhs_tm0, false);
+                } else {
+                    auto vb = madness::apply(
+                        world,
+                        wbsh_op,
+                        std::vector<Function<double, 3>>{rhs_tm0, rhs_tm0},
+                        false);
+                    nested_out[idx] = vb[1];
+                }
+                return true;
+            };
+            std::vector<madness::Future<bool>> futs;
+            futs.reserve(n_nested);
+            for (std::size_t idx = 0; idx < n_nested; ++idx) {
+                futs.push_back(world.taskq.add(nested_task, idx));
+            }
+            world.gop.fence();
+            double max_nested_diff = 0.0;
+            const double u_ref_norm = std::max(1e-16, u_single.norm2());
+            for (std::size_t idx = 0; idx < n_nested; ++idx) {
+                (void)futs[idx].get();
+                const double diff = (nested_out[idx] - u_single).norm2() / u_ref_norm;
+                max_nested_diff = std::max(max_nested_diff, diff);
+            }
+            rep.check_le("Gate 4f taskq-nested scalar & batch apply rel L2 diff",
+                         max_nested_diff, 1e-13);
+        }
     }
 
     rep.end_gate("Gate 4");

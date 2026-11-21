@@ -67,9 +67,9 @@ double check_and_get_cubic_cell_width_3d() {
 
 inline double select_operator_gamma_spiky_override(int k) noexcept {
     // At low wavelet order `k < 8` (e.g. loose SCF protocol `1e-4, k = 6`), floor Stage 2's
-    // box-local moment threshold `gamma_spiky` at the `k = 9` stiffness (`270.0`, keeping `W = 5`)
-    // so `erfc` boundary leakage across leaf faces drops >12x and preserves two-scale KAIN linearity.
-    return (k < 8) ? 270.0 : 0.0;
+    // box-local moment threshold `gamma_spiky` at the `k = 8` stiffness (`172.8`, keeping `W = 4`,
+    // `M = 2`) so `erfc` boundary leakage across leaf faces stays < 1e-11 without `W = 5` bloat.
+    return (k < 8) ? 172.8 : 0.0;
 }
 
 std::size_t get_multi_rank_batch_tile() noexcept {
@@ -211,13 +211,16 @@ Function<R, 3> apply_pure_spiky_same_world(World& target_world,
     const long kk = static_cast<long>(k);
     const double eff_thresh = (thresh > 0.0) ? thresh : ff.thresh();
 
-    Function<R, 3> result =
-        FunctionFactory<R, 3>(target_world)
-            .k(k)
-            .thresh(eff_thresh)
-            .truncate_mode(ff.get_impl()->get_truncate_mode())
-            .pmap(ff.get_pmap())
-            .empty();
+    Function<R, 3> result;
+    {
+        windowed_parallel_detail::SingleRankWorldObjLock obj_lock(target_world);
+        result = FunctionFactory<R, 3>(target_world)
+                     .k(k)
+                     .thresh(eff_thresh)
+                     .truncate_mode(ff.get_impl()->get_truncate_mode())
+                     .pmap(ff.get_pmap())
+                     .empty();
+    }
     auto* res_impl = result.get_impl().get();
     auto& res_coeffs = res_impl->get_coeffs();
     res_coeffs.process_pending();
@@ -585,12 +588,10 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                     cp.local_seeds.push_back(key);
                     continue;
                 }
-                const double w_0 = bplan->rem_weight_bound(0);
-                const double w_rem = bplan->rem_weight_bound(j);
-                const double w_h1 = std::sqrt(std::max(0.0, w_0 * w_rem));
+                const double w_bound = bplan->subtree_prune_op_bound(j);
                 const double loc_t =
                     ui.impl->truncate_tol(min_eff_tol, Key<3>(static_cast<Level>(j)));
-                const double dtol = (w_h1 > 0.0) ? ((0.002 * loc_t) / w_h1) : 1e300;
+                const double dtol = (w_bound > 0.0) ? ((0.02 * loc_t) / w_bound) : 1e300;
                 if (dn > dtol) {
                     cp.local_seeds.push_back(key);
                 }
@@ -662,12 +663,15 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                             }
                         }
 
-                        slim_funcs[ai] = FunctionFactory<R, 3>(target_world)
-                                             .k(cp.k)
-                                             .thresh(ui.func->thresh())
-                                             .truncate_mode(ui.impl->get_truncate_mode())
-                                             .pmap(pmap)
-                                             .empty();
+                        {
+                            windowed_parallel_detail::SingleRankWorldObjLock obj_lock(target_world);
+                            slim_funcs[ai] = FunctionFactory<R, 3>(target_world)
+                                                 .k(cp.k)
+                                                 .thresh(ui.func->thresh())
+                                                 .truncate_mode(ui.impl->get_truncate_mode())
+                                                 .pmap(pmap)
+                                                 .empty();
+                        }
                         slim_funcs[ai].get_impl()->get_coeffs().process_pending();
                     }
 
@@ -847,12 +851,15 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         eff_refine_fac[i] =
             (opts_i.dynamic_refine_factor > 0.0) ? opts_i.dynamic_refine_factor : 1.0;
 
-        result[i] = FunctionFactory<R, 3>(target_world)
-                        .k(op_i.k())
-                        .thresh(eff_thresh[i])
-                        .truncate_mode(f_work[i].get_impl()->get_truncate_mode())
-                        .pmap(f_work[i].get_pmap())
-                        .empty();
+        {
+            windowed_parallel_detail::SingleRankWorldObjLock obj_lock(target_world);
+            result[i] = FunctionFactory<R, 3>(target_world)
+                            .k(op_i.k())
+                            .thresh(eff_thresh[i])
+                            .truncate_mode(f_work[i].get_impl()->get_truncate_mode())
+                            .pmap(f_work[i].get_pmap())
+                            .empty();
+        }
         result[i].get_impl()->get_coeffs().process_pending();
     }
     if (target_world.size() > 1) {
@@ -894,6 +901,8 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                 std::min<std::size_t>(N, static_cast<std::size_t>(env_batch_workers));
         } else if (max_nodes < 1024u) {
             outer_batch_tile = N;
+        } else if (max_nodes < 8192u) {
+            outer_batch_tile = std::min<std::size_t>(N, ThreadPool::size() + 1u);
         } else if (max_nodes < 16384u) {
             outer_batch_tile = std::min<std::size_t>(N, 4u);
         } else if (max_nodes < 32768u) {
@@ -901,6 +910,16 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
         } else {
             outer_batch_tile = 1u;
         }
+#ifdef HAVE_PARSEC
+        // Under PaRSEC, outer tasks execute inner sweeps inline without nested `ForEachTask`
+        // blocking; keep `outer_batch_tile = N` for small trees (`max_nodes < 1024`, e.g., HF
+        // exchange pairs and loose-protocol orbitals) and use `outer_batch_tile = 1` on larger
+        // trees (`max_nodes >= 1024`) so all PaRSEC threads collaborate on each orbital.
+        if (!windowed_parallel_detail::can_spawn_and_wait_parsec() ||
+            (env_batch_workers == 0 && max_nodes >= 1024u)) {
+            outer_batch_tile = 1u;
+        }
+#endif
 
         if (outer_batch_tile >= 2u) {
             std::stable_sort(exec_order.begin(),
@@ -914,8 +933,10 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
     if (outer_batch_tile >= 2u) {
         for (std::size_t s0 = 0; s0 < N; s0 += outer_batch_tile) {
             const std::size_t s1 = std::min<std::size_t>(N, s0 + outer_batch_tile);
-            windowed_parallel_detail::windowed_for_each_outer_tasks(
-                target_world, s1 - s0, [&](std::size_t k_off) {
+            windowed_parallel_detail::windowed_for_each_outer_tasks_if_heavy(
+                target_world,
+                s1 - s0,
+                [&](std::size_t k_off) {
                     WindowedBatchTaskScope batch_scope;
                     const std::size_t idx = exec_order[s0 + k_off];
                     const auto& op_i = *ops[idx];
@@ -929,6 +950,12 @@ std::vector<Function<R, 3>> apply_windowed_batch_impl(
                                                      opts_i.enable_dynamic_refinement,
                                                      eff_refine_fac[idx],
                                                      opts_i.eps_loc);
+                },
+                [&](std::size_t k_off) noexcept {
+                    const auto* impl = f_work[exec_order[s0 + k_off]].get_impl().get();
+                    const std::size_t thresh_nodes =
+                        (impl->get_tree_state() == compressed) ? 32u : 256u;
+                    return impl->get_coeffs().size() >= thresh_nodes;
                 });
         }
     } else if (target_world.size() > 1) {

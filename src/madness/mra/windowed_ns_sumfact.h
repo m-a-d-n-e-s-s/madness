@@ -2236,8 +2236,8 @@ inline double tighten_loose_windowed_eps(double eps, double explicit_eps_loc = 0
     if (explicit_eps_loc > 0.0) {
         return (eps > 0.0) ? std::min(eps, explicit_eps_loc) : explicit_eps_loc;
     }
-    if (eps > 1e-5) {
-        return std::min(5e-5, std::max(1e-5, 0.1 * eps));
+    if (eps > 2e-5) {
+        return std::min(5e-5, std::max(2e-5, 0.2 * eps));
     }
     return eps;
 }
@@ -2476,21 +2476,21 @@ struct WindowedOrbitalExecContext {
             }
         }
 
-        // H1-safe operator-weighted compressed-subtree pruning tolerance (`W_H1(j) * Delta_sub(P) <= 0.002 * loc_tol_j`
-        // for `j >= 2`, with `W_H1(j) = sqrt(W_rem(0) * W_rem(j))` bounding BOTH L2 residual and H1 kinetic-energy
-        // gradient drift while pruning `vtransform` distant-atom union-skeleton cusps):
-        // strictly active only when `dynamic_refine == true` so `dynamic_refine == false` shared-tree
+        // L2 + H1-safe operator-weighted compressed-subtree pruning tolerance:
+        //   `plan.subtree_prune_op_bound(j) * Delta_sub(P) <= 0.02 * truncate_tol(prune_tol, j)`
+        // for `j >= 2`, bounding BOTH `||\delta(Gf)||_2` and `||\nabla_{user} \delta(Gf)||_2` (`<= 0.02 * tol`)
+        // without O(L^2) wide-box inflation while pruning `vtransform` distant-atom union-skeleton cusps.
+        // Strictly active only when `dynamic_refine == true` so `dynamic_refine == false` shared-tree
         // exact linearity tests keep identical input skeletons.
-        if (dynamic_refine && eff_tol > 0.0) {
+        const double prune_tol = (eff_thresh > 0.0) ? std::max(eff_tol, eff_thresh) : eff_tol;
+        if (dynamic_refine && prune_tol > 0.0) {
             subtree_d_tol.resize(static_cast<std::size_t>(n_max_tree + 1), 0.0);
-            const double w_0 = plan.rem_weight_bound(0);
             for (int j = 2; j <= n_max_tree; ++j) {
-                const double w_rem = plan.rem_weight_bound(j);
-                const double w_h1 = std::sqrt(std::max(0.0, w_0 * w_rem));
-                if (w_h1 > 0.0) {
+                const double w_bound = plan.subtree_prune_op_bound(j);
+                if (w_bound > 0.0) {
                     const double loc_t =
-                        f_impl->truncate_tol(eff_tol, Key<3>(static_cast<Level>(j)));
-                    subtree_d_tol[static_cast<std::size_t>(j)] = (0.002 * loc_t) / w_h1;
+                        f_impl->truncate_tol(prune_tol, Key<3>(static_cast<Level>(j)));
+                    subtree_d_tol[static_cast<std::size_t>(j)] = (0.02 * loc_t) / w_bound;
                 } else {
                     subtree_d_tol[static_cast<std::size_t>(j)] = 1e300;
                 }
@@ -2551,9 +2551,10 @@ struct WindowedOrbitalExecContext {
                     } else if (!dynamic_refine || st.max_s_source > 0.0) {
                         const double sqrt_nT =
                             std::sqrt(static_cast<double>(std::max<std::size_t>(1, rT.size())));
-                        const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT;
+                        const double tol_nn_T =
+                            (dynamic_refine ? 0.03 : 0.01) * loc_tol_j / sqrt_nT;
                         const double tol_sh2_T =
-                            dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT)) : (0.1 * tol_nn_T);
+                            dynamic_refine ? (0.10 * loc_tol_j / sqrt_nT) : (0.1 * tol_nn_T);
                         const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
 
                         for (const RawTermRef& rt : rT) {
@@ -2592,11 +2593,11 @@ struct WindowedOrbitalExecContext {
                     const auto& rG = raw_gamma_terms[sj];
                     const double sqrt_nG =
                         std::sqrt(static_cast<double>(std::max<std::size_t>(1, rG.size())));
-                    const double tol_nn_G = 0.01 * loc_tol_j / sqrt_nG;
+                    const double tol_nn_G =
+                        (dynamic_refine ? 0.03 : 0.01) * loc_tol_j / sqrt_nG;
                     const double tol_sh2_G =
-                        dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nG)) : (0.1 * tol_nn_G);
+                        dynamic_refine ? (0.10 * loc_tol_j / sqrt_nG) : (0.1 * tol_nn_G);
                     const double ref_s_src = dynamic_refine ? st.max_s_source : 1.0;
-                    const double ref_s_real = dynamic_refine ? st.max_s_real : 1.0;
                     const double ref_d_int = dynamic_refine ? st.max_d_int : 1.0;
 
                     for (const RawTermRef& rg : rG) {
@@ -2605,8 +2606,8 @@ struct WindowedOrbitalExecContext {
                             rg.entry->select_bw_4b1(aw, ref_d_int, tol_nn_G, tol_sh2_G);
                         const int bw_leaf =
                             rg.entry->select_bw_4b2_leaf(aw, ref_s_src, tol_nn_G, tol_sh2_G);
-                        const int bw_int = rg.entry->select_bw_4b2_int(
-                            aw, ref_s_real, ref_d_int, tol_nn_G, tol_sh2_G, bw_leaf);
+                        const int bw_int =
+                            rg.entry->select_bw_4b2_wav(aw, ref_d_int, tol_nn_G, tol_sh2_G);
 
                         if (bw_4b1 >= 0) {
                             out_radii[sj].has_4b1_terms = true;
@@ -2638,16 +2639,18 @@ struct WindowedOrbitalExecContext {
                             if (bw_leaf >= 1 || bw_int >= 1) {
                                 if (bw_leaf >= 1) {
                                     sum_sh1_ref_const += aw * rg.entry->const_wav_3d_norm[1];
+                                    sum_sh1_ref_s += aw * rg.entry->shell_l2_4b2_leaf[1];
                                 }
-                                sum_sh1_ref_s += aw * rg.entry->shell_l2_4b2_leaf[1];
-                                sum_sh1_ref_d += aw * rg.entry->shell_l2_4b2_wav[1];
+                                if (bw_int >= 1) {
+                                    sum_sh1_ref_d += aw * rg.entry->shell_l2_4b2_wav[1];
+                                }
                             }
                             if (rg.entry->m_max_ns >= 2) {
                                 const double op_4b1 = aw * rg.entry->shell_max_4b1[2];
                                 const double op_leaf = aw * rg.entry->shell_max_4b2_leaf[2];
                                 const double op_ref =
                                     aw * std::max(rg.entry->shell_max_4b2_leaf[2],
-                                                  rg.entry->shell_max_4b2_int[2]);
+                                                  rg.entry->shell_max_4b2_wav[2]);
                                 sum_sh2_4b1 += op_4b1;
                                 max_sh2_4b1 = std::max(max_sh2_4b1, sqrt_nG * op_4b1);
                                 sum_sh2_s_leaf += op_leaf;
@@ -2864,10 +2867,11 @@ struct WindowedOrbitalExecContext {
                     static_cast<double>(std::max<std::size_t>(1, raw_T_terms[sj].size())));
                 const double sqrt_nT =
                     std::sqrt(static_cast<double>(std::max<std::size_t>(1, t_list.size())));
-                const double tol_nn_T = 0.01 * loc_tol_j / sqrt_nT_raw;
+                const double tol_nn_T =
+                    (dynamic_refine ? 0.03 : 0.01) * loc_tol_j / sqrt_nT_raw;
                 const double tol_sh2_T =
-                    dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nT_raw)) : (0.1 * tol_nn_T);
-                const double svd_fac_T = dynamic_refine ? 0.025 : 0.003;
+                    dynamic_refine ? (0.10 * loc_tol_j / sqrt_nT_raw) : (0.1 * tol_nn_T);
+                const double svd_fac_T = dynamic_refine ? 0.08 : 0.003;
                 const std::size_t n_buckets_T = dynamic_refine ? kMaxNormBuckets : 1u;
 
                 double max_T_single_op = 0.0;
@@ -3032,27 +3036,64 @@ struct WindowedOrbitalExecContext {
                 static_cast<double>(std::max<std::size_t>(1, raw_gamma_terms[sj].size())));
             const double sqrt_nG =
                 std::sqrt(static_cast<double>(std::max<std::size_t>(1, g_list.size())));
-            const double tol_nn_G = 0.01 * loc_tol_j / sqrt_nG_raw;
+            const double tol_nn_G =
+                (dynamic_refine ? 0.03 : 0.01) * loc_tol_j / sqrt_nG_raw;
             const double tol_sh2_G =
-                dynamic_refine ? (loc_tol_j / (14.14 * sqrt_nG_raw)) : (0.1 * tol_nn_G);
-            const double svd_fac_G = dynamic_refine ? 0.025 : 0.003;
+                dynamic_refine ? (0.10 * loc_tol_j / sqrt_nG_raw) : (0.1 * tol_nn_G);
+            const double svd_fac_G = dynamic_refine ? 0.08 : 0.003;
             const std::size_t n_buckets = dynamic_refine ? kMaxNormBuckets : 1u;
             const bool can_refine_level = dynamic_refine && (j < max_refine_level);
+
+            // Build pure-wavelet `(0, d^j)` cubes ONCE at level `j` and share across Pass 4b-1 & Pass 4b-2.
+            double max_4b1_single_op = 0.0;
+            double max_4b2_wav_op = 0.0;
+            double max_4b2_leaf_op = 0.0;
+            for (const ActiveGammaTerm& gr : g_list) {
+                const double aw = std::abs(gr.weight_scaled);
+                for (int sh = 0; sh <= gr.bw_4b1; ++sh) {
+                    max_4b1_single_op += aw * gr.entry->shell_max_4b1[static_cast<std::size_t>(sh)];
+                }
+                for (int sh = 0; sh <= gr.bw_int; ++sh) {
+                    max_4b2_wav_op += aw * gr.entry->shell_max_4b2_wav[static_cast<std::size_t>(sh)];
+                }
+                for (int sh = 0; sh <= gr.bw_leaf; ++sh) {
+                    max_4b2_leaf_op +=
+                        aw * gr.entry->shell_max_4b2_leaf[static_cast<std::size_t>(sh)];
+                }
+            }
+            const double wav_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
+            const double max_wav_op_both = std::max(max_4b1_single_op, max_4b2_wav_op);
+
+            std::vector<const WindowedSourceEntry<T>*> shared_wav_ses;
+            std::vector<Tensor<T>> shared_wav_cubes;
+            if ((rad.has_4b1_terms && rad.m_max_4b1 >= 0) || rad.has_4b2_int_terms) {
+                for (const auto& se : ld.sources) {
+                    if (se.is_internal && se.d_normf > 0.0 && se.ns_coeff.size() == twok3 &&
+                        (!dynamic_refine || se.d_normf * max_wav_op_both > wav_src_screen_tol)) {
+                        shared_wav_ses.push_back(&se);
+                    }
+                }
+                shared_wav_cubes.resize(shared_wav_ses.size());
+                if (!shared_wav_ses.empty()) {
+                    parallel_for_chunks(
+                        exec_world,
+                        shared_wav_ses.size(),
+                        kDefaultParallelGrain,
+                        [&](std::size_t b, std::size_t e_hi, std::size_t) {
+                            for (std::size_t si = b; si < e_hi; ++si) {
+                                shared_wav_cubes[si] = windowed_halo_detail::make_pure_wavelet_cube(
+                                    shared_wav_ses[si]->ns_coeff, k);
+                            }
+                        });
+                }
+            }
 
             // -----------------------------------------------------------------
             // Pass 4b-1 (`2k -> k`, cancellation-free):
             //   `\hat{s}^j += W_p * ((P^j)^{\otimes 3} R^j_p (0, d^j))`
             // -----------------------------------------------------------------
             if (rad.has_4b1_terms && rad.m_max_4b1 >= 0) {
-                double max_4b1_single_op = 0.0;
-                for (const ActiveGammaTerm& gr : g_list) {
-                    if (gr.bw_4b1 < 0) continue;
-                    const double aw = std::abs(gr.weight_scaled);
-                    for (int sh = 0; sh <= gr.bw_4b1; ++sh) {
-                        max_4b1_single_op += aw * gr.entry->shell_max_4b1[static_cast<std::size_t>(sh)];
-                    }
-                }
-                const double p1_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
+                const double p1_src_screen_tol = wav_src_screen_tol;
 
                 std::vector<Key<3>> p1_real_tkeys;
                 std::vector<T*> p1_real_tptrs;
@@ -3083,7 +3124,7 @@ struct WindowedOrbitalExecContext {
                 merge_sorted_targets(
                     p1_real_tkeys, p1_real_tptrs, p1_virt_tkeys, p1_virt_tptrs, p1_tgt_keys, p1_tgt_ptrs);
 
-                if (!p1_tgt_keys.empty()) {
+                if (!p1_tgt_keys.empty() && !shared_wav_ses.empty()) {
                     const double max_d_M = dynamic_refine ? st.max_d_int : 1.0;
                     const std::array<double, kMaxNormBuckets> p1_brefs = {
                         max_d_M, 0.02 * max_d_M, 1e-4 * max_d_M};
@@ -3092,32 +3133,15 @@ struct WindowedOrbitalExecContext {
                     std::array<std::vector<const T*>, kMaxNormBuckets> b_src_ptrs;
                     std::array<std::vector<const Tensor<T>*>, kMaxNormBuckets> b_src_tensors;
 
-                    std::vector<const WindowedSourceEntry<T>*> active_p1_ses;
-                    for (const auto& se : ld.sources) {
-                        if (se.is_internal && se.d_normf > 0.0 && se.ns_coeff.size() == twok3 &&
-                            (!dynamic_refine || se.d_normf * max_4b1_single_op > p1_src_screen_tol)) {
-                            active_p1_ses.push_back(&se);
+                    for (std::size_t si = 0; si < shared_wav_ses.size(); ++si) {
+                        const auto& se = *shared_wav_ses[si];
+                        if (dynamic_refine && !(se.d_normf * max_4b1_single_op > p1_src_screen_tol)) {
+                            continue;
                         }
-                    }
-                    std::vector<Tensor<T>> p1_wav_cubes(active_p1_ses.size());
-                    if (!active_p1_ses.empty()) {
-                        parallel_for_chunks(
-                            exec_world,
-                            active_p1_ses.size(),
-                            kDefaultParallelGrain,
-                            [&](std::size_t b, std::size_t e_hi, std::size_t) {
-                                for (std::size_t si = b; si < e_hi; ++si) {
-                                    p1_wav_cubes[si] = windowed_halo_detail::make_pure_wavelet_cube(
-                                        active_p1_ses[si]->ns_coeff, k);
-                                }
-                            });
-                        for (std::size_t si = 0; si < active_p1_ses.size(); ++si) {
-                            const auto& se = *active_p1_ses[si];
-                            const std::size_t bi = select_norm_bucket(se.d_normf, max_d_M);
-                            b_src_keys[bi].push_back(se.key);
-                            b_src_ptrs[bi].push_back(p1_wav_cubes[si].ptr());
-                            b_src_tensors[bi].push_back(&p1_wav_cubes[si]);
-                        }
+                        const std::size_t bi = select_norm_bucket(se.d_normf, max_d_M);
+                        b_src_keys[bi].push_back(se.key);
+                        b_src_ptrs[bi].push_back(shared_wav_cubes[si].ptr());
+                        b_src_tensors[bi].push_back(&shared_wav_cubes[si]);
                     }
 
                     if (dynamic_refine) {
@@ -3254,7 +3278,6 @@ struct WindowedOrbitalExecContext {
             double eta_const_sh1 = 0.0;
             std::array<double, kSpan * kSpan * kSpan> K_leaf_sh1{};
             std::array<double, kSpan * kSpan * kSpan> K_leaf_sh2{};
-            std::array<double, kSpan * kSpan * kSpan> K_outer_int_sh1{};
             std::array<double, kSpan * kSpan * kSpan> K_unsub_s{};
             std::array<double, kSpan * kSpan * kSpan> K_wav{};
 
@@ -3297,10 +3320,6 @@ struct WindowedOrbitalExecContext {
                                         const double op_l = aw * gr.entry->opnorm_4b2_leaf(dx, dy, dz);
                                         K_leaf_sh1[idx] += op_l;
                                         K_unsub_s[idx] += op_l;
-                                    } else if (sh <= gr.bw_int) {
-                                        const double op_l = aw * gr.entry->opnorm_4b2_leaf(dx, dy, dz);
-                                        K_outer_int_sh1[idx] += op_l;
-                                        K_unsub_s[idx] += op_l;
                                     }
                                     if (sh <= gr.bw_int) {
                                         K_wav[idx] += aw * gr.entry->opnorm_4b2_wav(dx, dy, dz);
@@ -3310,8 +3329,6 @@ struct WindowedOrbitalExecContext {
                                         const double op_l = aw * gr.entry->opnorm_4b2_leaf(dx, dy, dz);
                                         K_leaf_sh2[idx] += op_l;
                                         K_unsub_s[idx] += op_l;
-                                    } else if (gr.bw_int >= 2) {
-                                        K_unsub_s[idx] += aw * gr.entry->opnorm_4b2_leaf(dx, dy, dz);
                                     }
                                     if (gr.bw_int >= 2) {
                                         K_wav[idx] += aw * gr.entry->opnorm_4b2_wav(dx, dy, dz);
@@ -3379,15 +3396,14 @@ struct WindowedOrbitalExecContext {
                                         windowed_halo_detail::scalar_abs2(se->s000 - c0));
                                     ub_sh1_sub += K_leaf_sh1[idx] * diff_s;
                                     if (se->is_internal && sh <= m_req_int) {
-                                        ub_sh1_sub += K_outer_int_sh1[idx] * se->s_normf +
-                                                      K_wav[idx] * se->d_normf;
+                                        ub_sh1_sub += K_wav[idx] * se->d_normf;
                                     }
                                 }
-                                if (se->is_internal && sh <= m_req_int) {
-                                    ub_sh1_unsub +=
-                                        K_unsub_s[idx] * se->s_normf + K_wav[idx] * se->d_normf;
-                                } else if (!se->is_internal && sh <= m_req_leaf) {
+                                if (sh <= m_req_leaf) {
                                     ub_sh1_unsub += K_leaf_sh1[idx] * se->s_normf;
+                                }
+                                if (se->is_internal && sh <= m_req_int) {
+                                    ub_sh1_unsub += K_wav[idx] * se->d_normf;
                                 }
                             } else {
                                 if (!in_dom) continue;
@@ -3495,25 +3511,12 @@ struct WindowedOrbitalExecContext {
                 p2_real_tkeys, p2_real_tptrs, p2_virt_tkeys, p2_virt_tptrs, p2_tgt_keys, p2_tgt_ptrs);
 
             if (!p2_tgt_keys.empty()) {
-                double max_4b2_int_op = 0.0;
-                double max_4b2_leaf_op = 0.0;
-                for (const ActiveGammaTerm& gr : g_list) {
-                    const double aw = std::abs(gr.weight_scaled);
-                    for (int sh = 0; sh <= gr.bw_int; ++sh) {
-                        max_4b2_int_op +=
-                            aw * gr.entry->shell_max_4b2_int[static_cast<std::size_t>(sh)];
-                    }
-                    for (int sh = 0; sh <= gr.bw_leaf; ++sh) {
-                        max_4b2_leaf_op +=
-                            aw * gr.entry->shell_max_4b2_leaf[static_cast<std::size_t>(sh)];
-                    }
-                }
-                const double p2_src_screen_tol = dynamic_refine ? (0.005 * loc_tol_j / 27.0) : 0.0;
+                const double p2_src_screen_tol = wav_src_screen_tol;
 
-                const double max_ns_M = dynamic_refine ? st.max_ns_int : 1.0;
+                const double max_d_M = dynamic_refine ? st.max_d_int : 1.0;
                 const double max_s_M = dynamic_refine ? st.max_s_source : 1.0;
                 const std::array<double, kMaxNormBuckets> int_brefs = {
-                    max_ns_M, 0.02 * max_ns_M, 1e-4 * max_ns_M};
+                    max_d_M, 0.02 * max_d_M, 1e-4 * max_d_M};
                 const std::array<double, kMaxNormBuckets> leaf_brefs = {
                     max_s_M, 0.02 * max_s_M, 1e-4 * max_s_M};
 
@@ -3523,26 +3526,36 @@ struct WindowedOrbitalExecContext {
                 std::array<std::vector<Key<3>>, kMaxNormBuckets> b_leaf_keys;
                 std::array<std::vector<const T*>, kMaxNormBuckets> b_leaf_ptrs;
 
-                for (const auto& se : ld.sources) {
-                    if (se.is_internal) {
-                        if (se.ns_normf > 0.0 && se.ns_coeff.size() == twok3 &&
-                            (!dynamic_refine || se.ns_normf * max_4b2_int_op > p2_src_screen_tol)) {
-                            const std::size_t bi = select_norm_bucket(se.ns_normf, max_ns_M);
-                            b_int_keys[bi].push_back(se.key);
-                            b_int_ptrs[bi].push_back(se.ns_coeff.ptr());
-                            b_int_tensors[bi].push_back(&se.ns_coeff);
+                // Exact linearity split `ns_in = (s_in, 0) + (0, d_in)`:
+                //   - All scaling inputs (`se.s_coeff` across internal, leaf, and virtual sources)
+                //     flow together through ONE `k -> 2k` (`R_k_to_2k`) graph (`3.43x` fewer MACs than
+                //     `2k -> 2k` and exact Theorem 3.1 cancellation across mixed internal/leaf neighbors).
+                //   - Internal wavelet details `(0, d_in)` (`shared_wav_cubes`) flow through `R` (`2k -> 2k`)
+                //     screened purely by `d_normf` (`bw_wav in {-1, 0, 1, 2}`, `min_bw = 0`).
+                if (rad.has_4b2_leaf_terms) {
+                    for (const auto& se : ld.sources) {
+                        if (se.s_normf > 0.0 && se.s_coeff.size() == kk3 &&
+                            (!dynamic_refine || se.s_normf * max_4b2_leaf_op > p2_src_screen_tol)) {
+                            const std::size_t bi = select_norm_bucket(se.s_normf, max_s_M);
+                            b_leaf_keys[bi].push_back(se.key);
+                            b_leaf_ptrs[bi].push_back(se.s_coeff.ptr());
                         }
-                    } else if (se.s_normf > 0.0 && se.s_coeff.size() == kk3 &&
-                               (!dynamic_refine ||
-                                se.s_normf * max_4b2_leaf_op > p2_src_screen_tol)) {
-                        const std::size_t bi = select_norm_bucket(se.s_normf, max_s_M);
-                        b_leaf_keys[bi].push_back(se.key);
-                        b_leaf_ptrs[bi].push_back(se.s_coeff.ptr());
                     }
                 }
 
-                // 1. Internal `(s, d) -> d_out` contractions (`bw_int in {0, 1, 2}`)
-                if (rad.has_4b2_int_terms) {
+                // 1. Pure-wavelet `(0, d) -> d_out` contractions (`bw_int in {0, 1, 2}`)
+                if (rad.has_4b2_int_terms && !shared_wav_ses.empty()) {
+                    for (std::size_t si = 0; si < shared_wav_ses.size(); ++si) {
+                        const auto& se = *shared_wav_ses[si];
+                        if (dynamic_refine && !(se.d_normf * max_4b2_wav_op > p2_src_screen_tol)) {
+                            continue;
+                        }
+                        const std::size_t bi = select_norm_bucket(se.d_normf, max_d_M);
+                        b_int_keys[bi].push_back(se.key);
+                        b_int_ptrs[bi].push_back(shared_wav_cubes[si].ptr());
+                        b_int_tensors[bi].push_back(&shared_wav_cubes[si]);
+                    }
+
                     if (dynamic_refine) {
                         merge_matching_norm_buckets<T, kMaxNormBuckets>(
                             n_buckets,
@@ -3556,21 +3569,13 @@ struct WindowedOrbitalExecContext {
                                 for (const ActiveGammaTerm& gr : g_list) {
                                     if (gr.bw_int < 0) continue;
                                     const double aw = std::abs(gr.weight_scaled);
-                                    const int bla = std::min(
-                                        gr.bw_leaf,
-                                        gr.entry->select_bw_4b2_leaf(aw, ba, tol_nn_G, tol_sh2_G));
-                                    const int blb = std::min(
-                                        gr.bw_leaf,
-                                        gr.entry->select_bw_4b2_leaf(aw, bb, tol_nn_G, tol_sh2_G));
                                     const int bia = std::min(
                                         gr.bw_int,
-                                        gr.entry->select_bw_4b2_int(
-                                            aw, ba, ba, tol_nn_G, tol_sh2_G, bla));
+                                        gr.entry->select_bw_4b2_wav(aw, ba, tol_nn_G, tol_sh2_G));
                                     const int bib = std::min(
                                         gr.bw_int,
-                                        gr.entry->select_bw_4b2_int(
-                                            aw, bb, bb, tol_nn_G, tol_sh2_G, blb));
-                                    if (bia != bib || ((bla >= 1) != (blb >= 1))) return false;
+                                        gr.entry->select_bw_4b2_wav(aw, bb, tol_nn_G, tol_sh2_G));
+                                    if (bia != bib) return false;
                                 }
                                 return true;
                             });
@@ -3594,25 +3599,18 @@ struct WindowedOrbitalExecContext {
                         for (const ActiveGammaTerm& gr : g_list) {
                             if (gr.bw_int < 0) continue;
                             const double aw = std::abs(gr.weight_scaled);
-                            const int bw_leaf_b =
-                                dynamic_refine
-                                    ? std::min(gr.bw_leaf,
-                                               gr.entry->select_bw_4b2_leaf(
-                                                   aw, bref, tol_nn_G, tol_sh2_G))
-                                    : gr.bw_leaf;
                             const int bw_int_b =
                                 dynamic_refine
                                     ? std::min(gr.bw_int,
-                                               gr.entry->select_bw_4b2_int(
-                                                   aw, bref, bref, tol_nn_G, tol_sh2_G, bw_leaf_b))
+                                               gr.entry->select_bw_4b2_wav(
+                                                   aw, bref, tol_nn_G, tol_sh2_G))
                                     : gr.bw_int;
                             if (bw_int_b < 0) continue;
 
                             PreparedP2IntTerm pi;
                             pi.gr = &gr;
-                            const int min_bw_int = (bw_leaf_b >= 1) ? 1 : 0;
                             pi.eff_bw = select_active_1d_slots(bw_int_b,
-                                                               min_bw_int,
+                                                               0,
                                                                twok,
                                                                twok,
                                                                gr.entry->R,
@@ -3977,7 +3975,16 @@ void apply_windowed_ns_3d_batch_distributed(
                 max_local_real = std::max(max_local_real, cnt);
             }
 
-            if (B >= 2u && ThreadPool::size() > 0u && max_local_real < 512u) {
+#ifdef HAVE_PARSEC
+            const bool use_outer_tasks =
+                (B >= 2u) &&
+                windowed_parallel_detail::can_spawn_and_wait_parsec() &&
+                (max_local_real < 512u);
+#else
+            const bool use_outer_tasks =
+                (B >= 2u) && (ThreadPool::size() > 0u) && (max_local_real < 512u);
+#endif
+            if (use_outer_tasks) {
                 std::vector<std::size_t> exec_order(B, 0);
                 for (std::size_t b = 0; b < B; ++b) exec_order[b] = b;
                 std::stable_sort(exec_order.begin(),
@@ -4039,13 +4046,16 @@ Function<T, 3> apply_windowed_ns_3d(
         Function<T, 3>& ff = const_cast<Function<T, 3>&>(f);
         const bool was_compressed = prepare_windowed_ns_input_3d(ff, true);
 
-        Function<T, 3> result =
-            FunctionFactory<T, 3>(world)
-                .k(k)
-                .thresh(eff_thresh)
-                .truncate_mode(ff.get_impl()->get_truncate_mode())
-                .pmap(ff.get_pmap())
-                .empty();
+        Function<T, 3> result;
+        {
+            windowed_parallel_detail::SingleRankWorldObjLock obj_lock(world);
+            result = FunctionFactory<T, 3>(world)
+                         .k(k)
+                         .thresh(eff_thresh)
+                         .truncate_mode(ff.get_impl()->get_truncate_mode())
+                         .pmap(ff.get_pmap())
+                         .empty();
+        }
         result.get_impl()->get_coeffs().process_pending();
         if (world.size() > 1) {
             world.gop.fence();
@@ -4075,13 +4085,15 @@ Function<T, 3> apply_windowed_ns_3d(
         Function<T, 3> f_sub = copy(world, f, true);
         const bool was_compressed = prepare_windowed_ns_input_3d(f_sub, true);
 
-        result =
-            FunctionFactory<T, 3>(world)
-                .k(k)
-                .thresh(eff_thresh)
-                .truncate_mode(f_sub.get_impl()->get_truncate_mode())
-                .pmap(f_sub.get_pmap())
-                .empty();
+        {
+            windowed_parallel_detail::SingleRankWorldObjLock obj_lock(world);
+            result = FunctionFactory<T, 3>(world)
+                         .k(k)
+                         .thresh(eff_thresh)
+                         .truncate_mode(f_sub.get_impl()->get_truncate_mode())
+                         .pmap(f_sub.get_pmap())
+                         .empty();
+        }
         result.get_impl()->get_coeffs().process_pending();
         if (world.size() > 1) {
             world.gop.fence();

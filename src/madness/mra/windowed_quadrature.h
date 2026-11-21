@@ -466,7 +466,7 @@ public:
         , mu_sim_(mu_user_ * cfg.cell_width_L)
         , op_scale_(compute_op_scale(cfg.kind, cfg.cell_width_L))
         , gamma_spiky_((cfg.gamma_spiky_override > 0.0) ? cfg.gamma_spiky_override : compute_gamma_spiky(cfg.k))
-        , gamma_diff_(compute_gamma_diff(cfg.k, 0.1 * cfg.eps))
+        , gamma_diff_(compute_gamma_diff(cfg.k, (cfg.k >= 8 && cfg.eps >= 5e-6) ? (0.1 * cfg.eps) : cfg.eps))
         , M_(select_oversampling_M(cfg.eps, cfg.oversampling_M))
         , gc_rank_Q_(select_gc_rank_Q(cfg.k, cfg.gc_rank_Q))
         , n_max_(cfg.max_tree_level)
@@ -819,6 +819,34 @@ public:
             return rem_weight_bounds_[idx];
         }
         return compute_rem_weight_bound(level);
+    }
+
+    /// Combined L2 -> L2 and L2 -> H1 (user-space gradient) operator norm bound on
+    /// multiwavelet details orthogonal to P_{k-1}^{\otimes 3} at tree level `level >= 0`:
+    ///   - L2 bound: rem_weight_bound(level) + eps_ * rem_weight_bound(0)
+    ///   - H1 bound: h_user / pi for BSH, 4 * h_user for Coulomb/YukawaRaw (h_user = L * 2^{-level}),
+    ///               bounding both ||\delta(Gf)||_2 and ||\nabla_{user} \delta(Gf)||_2 without O(L^2) bloat.
+    double subtree_prune_op_bound(int level) const {
+        const double w_l2 = rem_weight_bound(level) + eps_ * rem_weight_bound(0);
+        const double h_user = std::ldexp(cell_width_L_, -level);
+        double w_h1 = 0.0;
+        if (kind_ == WindowedKernelKind::BSH) {
+            w_h1 = h_user / constants::pi;
+        } else if (kind_ == WindowedKernelKind::Coulomb || kind_ == WindowedKernelKind::YukawaRaw) {
+            w_h1 = 4.0 * h_user;
+        } else {
+            const double fac = 4.0 * constants::inv_sqrt_pi / cell_width_L_;
+            double sum_rem = 0.0;
+            double sum_all = 0.0;
+            for (const WindowedQuadratureTerm& term : terms_) {
+                if (term.weight_scaled == 0.0) continue;
+                const double g_norm = fac * std::exp(term.t_p) * std::abs(term.weight_scaled);
+                sum_all += g_norm;
+                if (term.n_diff >= level) sum_rem += g_norm;
+            }
+            w_h1 = sum_rem + eps_ * sum_all;
+        }
+        return std::max(w_l2, w_h1);
     }
 
     const LegendreMomentOp& moment_op() const noexcept { return moment_op_; }
