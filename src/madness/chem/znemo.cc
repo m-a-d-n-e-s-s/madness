@@ -105,7 +105,17 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 		MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
 	}
 
-	if (param.nuclear_smoothing()>0.0) mol.set_rcut(1.0/param.nuclear_smoothing());	// Molecule stores 1/c
+	// smoothing radius of the nuclear potential: from eprec (error per atom), shrunk for the field-compressed density
+	mol.update_rcut_with_eprec(mol.get_eprec(),param.physical_B());
+	if (param.nuclear_smoothing()>0.0) {	// deprecated explicit override; Molecule stores 1/c
+		if (world.rank()==0) print("warning: nuclear_smoothing is deprecated, use eprec in the geometry block");
+		mol.set_rcut(1.0/param.nuclear_smoothing());
+	}
+	if (world.rank()==0) {
+		std::vector<double> c;
+		for (double rc : mol.get_rcut()) c.push_back(1.0/rc);
+		print("nuclear smoothing radii c",c,"eprec",mol.get_eprec(),"B",param.physical_B());
+	}
 	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, molecule().parameters.core_type()));
 	potentialmanager->make_nuclear_potential(world);
 	// the magnetic kernels act on the orbitals themselves: no nuclear correlation factor
@@ -115,7 +125,16 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 
 	if (param.use_magnetic_kernel()) {
 		MADNESS_CHECK_THROW(param.explicit_B()==0.0,"magnetic kernels need explicit_B = 0");
-		mkernel=make_magnetic_kernel(world,param.kernel_parameters());
+		MagneticKernelParameters kp=param.kernel_parameters();
+		if (kp.tmin<=0.0) {
+			// [0, tmin] is taken as tmin f: it does not resolve features below sqrt(tmin) and acts like an extra
+			// smoothing of the nuclear potential of that radius (B = 100, c = 2e-3: tmin 1e-4 errs by ~50 uEh, 1e-6 by <1)
+			double cmin=1.0;
+			for (double rc : mol.get_rcut()) cmin=std::min(cmin,1.0/rc);
+			kp.tmin=std::min(1.e-4,0.25*cmin*cmin);
+			if (world.rank()==0) print("kernel_tmin from the smallest smoothing radius",cmin,":",kp.tmin);
+		}
+		mkernel=make_magnetic_kernel(world,kp);
 		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 	}
 

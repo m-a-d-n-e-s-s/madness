@@ -73,7 +73,8 @@ std::string atomic_number_to_symbol(const unsigned int atomic_number);
 
 bool check_if_pseudo_atom(const std::string& symbol);
 
-double smoothing_parameter(double Z, double eprec);
+/// radius c of the smoothed nuclear potential for an error eprec per atom; B: magnetic field strength (a.u.)
+double smoothing_parameter(double Z, double eprec, double B=0.0);
 double smoothed_potential(double r);
 double dsmoothed_potential(double r);
 double d2smoothed_potential(double r);

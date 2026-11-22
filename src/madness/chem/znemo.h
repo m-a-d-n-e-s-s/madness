@@ -78,7 +78,7 @@ public:
         initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
         initialize<double>("thresh",-1.0,"truncation threshold; <0: dft econv");
-        initialize<double>("nuclear_smoothing",-1.0,"smoothing radius c of the nuclear potential; <0: from eprec");
+        initialize<double>("nuclear_smoothing",-1.0,"deprecated, use eprec in the geometry block; >0: override the smoothing radius c of the nuclear potential, <0: c from eprec and physical_B");
         initialize<bool>("spin_zeeman",true,"include the spin Zeeman term +-B/2");
         initialize<std::string>("guess_type","default","default (see get_initial_orbitals) or magnetic_lcao",{"default","magnetic_lcao"});
         initialize<std::string>("guess2","sigma","magnetic_lcao: second orbital sigma (+-) or pi ((x-iy) sigma_g)",{"sigma","pi"});
@@ -87,7 +87,7 @@ public:
         initialize<std::string>("kernel_quadrature","trapezoid","chain, mehler: proper-time quadrature in ln tau",{"trapezoid","gauss_legendre"});
         initialize<double>("kernel_h",0.35,"chain, mehler: trapezoid step in ln tau");
         initialize<int>("kernel_nodes",40,"chain, mehler: Gauss-Legendre nodes in ln tau");
-        initialize<double>("kernel_tmin",1.e-4,"chain, mehler: smallest tau");
+        initialize<double>("kernel_tmin",-1.0,"chain, mehler: smallest tau; <=0: min(1e-4, (c/2)^2) with c the smallest nuclear smoothing radius");
         initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
         initialize<int>("kernel_nbroaden",0,"chain, mehler: broaden passes before each convolution");
         initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");

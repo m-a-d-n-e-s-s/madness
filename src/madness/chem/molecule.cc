@@ -481,14 +481,14 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 }
 
 /// updates rcuts with given eprec
-void Molecule::update_rcut_with_eprec(double value) {
+void Molecule::update_rcut_with_eprec(double value, double B) {
   if (value != get_eprec()) {
     parameters.set_user_defined_value("eprec", value);
   }
   rcut.clear();
   rcut.reserve(atoms.size());
   for (auto &&atom : atoms) {
-    rcut.emplace_back(1.0 / smoothing_parameter(atom.q, value));
+    rcut.emplace_back(1.0 / smoothing_parameter(atom.q, value, B));
   }
   core_pot.set_eprec(value);
 }

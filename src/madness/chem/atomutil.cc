@@ -200,14 +200,23 @@ bool check_if_pseudo_atom(const std::string& symbol) {
 
 
 /// Returns radius for smoothing nuclear potential with energy precision eprec
-double smoothing_parameter(double Z, double eprec) {
+
+/// The smoothing error per electron is 8 pi |I_3| Z^2 rho(0) c^3 (the c^2 term vanishes by construction of
+/// smoothed_potential), so a magnetic field B enters only through the density at the nucleus. Relative to the
+/// field-free 1s density Z^3/pi it grows by g(beta), beta = |B|/Z^2, fitted (within 8% for beta in [1e-2, 1e4],
+/// 3% in c) to variational ground states of the hydrogen atom in a field:
+///   g(beta) = (1 + 0.2128 beta) (1 + 0.874 ln(1 + 0.3394 beta)),   g(0) = 1
+/// For c comparable to the transverse orbital size (B c ~ 1) the true error is smaller, so the radius is conservative.
+double smoothing_parameter(double Z, double eprec, double B) {
     // The min is since asymptotic form not so good at low acc.
     // The /2 is from two electrons in 1s closed shell.
     if (Z == 0.0) return 1.0;
     eprec = std::min(1e-3,eprec/2.0);
     //eprec = std::min(1e-2,eprec/2.0);
     double Z5 = Z*Z*Z*Z*Z;
-    double c = pow(eprec/(0.65*Z5),1.0/3.0);
+    const double beta = std::abs(B)/(Z*Z);
+    const double g = (1.0 + 0.2128*beta) * (1.0 + 0.874*std::log1p(0.3394*beta));
+    double c = pow(eprec/(0.65*Z5*g),1.0/3.0);
     //std::cout << "SMOOTHING " << Z << " " << c << std::endl;
     return c;
 }

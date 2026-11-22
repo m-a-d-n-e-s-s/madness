@@ -482,7 +482,8 @@ class Molecule {
 
   void set_all_coords(const madness::Tensor<double> &newcoords);
 
-  void update_rcut_with_eprec(double value);
+  /// B: magnetic field strength, shrinks the smoothing radius for the field-compressed density (see smoothing_parameter)
+  void update_rcut_with_eprec(double value, double B=0.0);
 
   void set_rcut(double value);
 
