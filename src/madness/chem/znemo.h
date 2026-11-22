@@ -60,11 +60,6 @@ public:
 	/// ctor reading out the input file
     Nemo_complex_Parameters() {
         initialize<double>("physical_B",0.0);
-        initialize<double>("explicit_B",0.0);
-        initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
-        initialize<double>("shift",0.0);
-        initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
-        initialize<bool>("use_v_vector",false);
         initialize<double>("potential_radius",-1.0,"radius R_c of the potential cut about the gauge origin: "
                 "bsh: the diamagnetic potential flattens beyond it; with cut_vector_potential: the field is cut "
                 "beyond it (flux-conserving cut of A); <0: derived");
@@ -77,22 +72,16 @@ public:
         // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH
         initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
-        initialize<double>("thresh",-1.0,"truncation threshold; <0: dft econv");
-        initialize<double>("nuclear_smoothing",-1.0,"deprecated, use eprec in the geometry block; >0: override the smoothing radius c of the nuclear potential, <0: c from eprec and physical_B");
-        initialize<bool>("spin_zeeman",true,"include the spin Zeeman term +-B/2");
         initialize<std::string>("guess_type","default","default (see get_initial_orbitals) or magnetic_lcao",{"default","magnetic_lcao"});
         initialize<std::string>("guess2","sigma","magnetic_lcao: second orbital sigma (+-) or pi ((x-iy) sigma_g)",{"sigma","pi"});
         initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
         initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
-        initialize<std::string>("kernel_quadrature","trapezoid","chain, mehler: proper-time quadrature in ln tau",{"trapezoid","gauss_legendre"});
-        initialize<double>("kernel_h",0.35,"chain, mehler: trapezoid step in ln tau");
-        initialize<int>("kernel_nodes",40,"chain, mehler: Gauss-Legendre nodes in ln tau");
-        initialize<double>("kernel_tmin",-1.0,"chain, mehler: smallest tau; <=0: min(1e-4, (c/2)^2) with c the smallest nuclear smoothing radius");
+        initialize<double>("kernel_h",-1.0,"magnetic kernels: trapezoid step in ln tau of the proper-time quadrature; "
+                "<=0: 0.35 (chain, mehler), 0.25 (ft)");
+        initialize<double>("kernel_tmin",-1.0,"magnetic kernels: smallest tau; <=0: chain, mehler: min(1e-4, (c/2)^2) "
+                "with c the smallest nuclear smoothing radius; ft: 1e-8");
         initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
-        initialize<int>("kernel_nbroaden",0,"chain, mehler: broaden passes before each convolution");
         initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
-        initialize<double>("ft_h",0.25,"ft: step in ln tau");
-        initialize<double>("ft_tmin",1.e-8,"ft: smallest tau");
         initialize<double>("ft_tmax_factor",45.0,"ft: largest tau = ft_tmax_factor/(B/2-E)");
         initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
         initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
@@ -112,8 +101,7 @@ public:
 	/// @param[in]	nuclear_rho	largest distance of a nucleus from the field axis through the gauge origin
 	void set_derived_values(const double nuclear_rho=0.0) {
 		double pb=physical_B();
-		double eb=explicit_B();
-		double remaining_B=fabs(pb-eb);
+		double remaining_B=fabs(pb);
 		double thresh=FunctionDefaults<3>::get_thresh()*0.1;
 
 		double wave_function_radius=2.0*sqrt(-log(thresh)/remaining_B);
@@ -122,7 +110,7 @@ public:
 		// cut of the vector potential: the field stays uniform over the molecule, with a margin of 6 l_B
 		if (cut_vector_potential()) potential_radius=nuclear_rho+6.0/sqrt(fabs(pb));
 
-		set_derived_value("box",std::vector<double>{box_radius,0.01});
+		box_={box_radius,0.01};
 		set_derived_value("potential_radius",potential_radius);
 		double shift=physical_B();
 		if (cut_vector_potential() and kernel()=="bsh") {
@@ -131,28 +119,24 @@ public:
 			const double R_c=get<double>("potential_radius")+potential_cut_width();
 			shift=0.5*pb-(0.125*pb*pb*R_c*R_c+0.5*fabs(pb)+1.0);
 		}
-		set_derived_value("shift",shift);
+		shift_=shift;
 
 	}
 
-	int printlevel() const {return get<int>("printlevel");}
-	double shift() const {return get<double>("shift");}
+	/// level shift of the BSH iteration, derived in set_derived_values
+	double shift() const {return shift_;}
 	double physical_B() const {return get<double>("physical_b");}
-	double explicit_B() const {return get<double>("explicit_b");}
-	std::vector<double> box() const {return get<std::vector<double> >("box");}
+	/// radius and softness of the spherical damping box of the bsh iteration, derived in set_derived_values
+	std::vector<double> box() const {return box_;}
 	double potential_radius() const {return get<double>("potential_radius");}
 	bool cut_vector_potential() const {return get<bool>("cut_vector_potential");}
 	/// edge width of the cut of the vector potential in bohr
 	double potential_cut_width() const {return get<double>("potential_cut_width")/sqrt(fabs(physical_B()));}
-	bool use_v_vector() const {return get<bool>("use_v_vector");}
 	std::vector<std::string> guess() const {return get<std::vector<std::string>>("guess");}
 	std::vector<std::string> guess_functions() const {return get<std::vector<std::string>>("guess_functions");}
 
 	std::string kernel() const {return get<std::string>("kernel");}
 	bool use_magnetic_kernel() const {return kernel()!="bsh";}
-	double thresh() const {return get<double>("thresh");}
-	double nuclear_smoothing() const {return get<double>("nuclear_smoothing");}
-	bool spin_zeeman() const {return get<bool>("spin_zeeman");}
 	std::string guess_type() const {return get<std::string>("guess_type");}
 	std::string guess2() const {return get<std::string>("guess2");}
 	double kernel_gap() const {return get<double>("kernel_gap");}
@@ -163,16 +147,12 @@ public:
 		MagneticKernelParameters p;
 		p.kind=kernel();
 		p.B=physical_B();
-		p.verbose=(printlevel()>=3);
-		p.quadrature=get<std::string>("kernel_quadrature");
-		p.h=get<double>("kernel_h");
-		p.nodes=get<int>("kernel_nodes");
-		p.tmin=get<double>("kernel_tmin");
+		const double h=get<double>("kernel_h"), tmin=get<double>("kernel_tmin");
+		if (h>0.0) p.h=p.ft_h=h;
+		p.tmin=tmin;							// <= 0: derived from the smoothing radius in Znemo
+		if (tmin>0.0) p.ft_tmin=tmin;
 		p.nlll=get<double>("kernel_nlll");
-		p.nbroaden=get<int>("kernel_nbroaden");
 		p.phase_tolfac=get<double>("phase_tolfac");
-		p.ft_h=get<double>("ft_h");
-		p.ft_tmin=get<double>("ft_tmin");
 		p.ft_tmax_factor=get<double>("ft_tmax_factor");
 		p.ft_qextra=get<double>("ft_qextra");
 		p.ft_rcut=get<double>("ft_rcut");
@@ -181,6 +161,9 @@ public:
 		return p;
 	}
 
+private:
+	double shift_=0.0;
+	std::vector<double> box_={1.0,0.01};
 };
 
 
@@ -194,7 +177,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 			lz_mo=zero_functions<double_complex,3>(world,nmo);
 			J_mo=zero_functions<double_complex,3>(world,nmo);
 			K_mo=zero_functions<double_complex,3>(world,nmo);
-			spin_zeeman_mo=zero_functions<double_complex,3>(world,nmo);
 			zeeman_R_comm=zero_functions<double_complex,3>(world,nmo);
 
 		}
@@ -206,7 +188,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 			lz_mo = ::madness::transform(world, lz_mo, U);
 			J_mo = ::madness::transform(world, J_mo, U);
 			K_mo = ::madness::transform(world, K_mo, U);
-			spin_zeeman_mo = ::madness::transform(world, spin_zeeman_mo, U);
 			zeeman_R_comm = ::madness::transform(world, zeeman_R_comm, U);
 		}
 
@@ -216,8 +197,6 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 		std::vector<complex_function_3d> lz_mo;
 		std::vector<complex_function_3d> J_mo;
 		std::vector<complex_function_3d> K_mo;
-		std::vector<complex_function_3d> spin_zeeman_mo;
-		std::vector<complex_function_3d> lz_commutator;
 		std::vector<complex_function_3d> zeeman_R_comm;
 	};
 public:
@@ -310,7 +289,6 @@ public:
 	const Molecule& molecule() const {return mol;};
 
 	/// test the identity <F| f (T + Vdia ) f |F> = <F|f^2 (T + Udia) |F>
-	bool test_U_potentials() const;
 
 	/// analyse the results only
 
@@ -474,7 +452,6 @@ public:
 			const std::vector<complex_function_3d>& psi,
 			Tensor<double>& eps,
 			const double levelshift=0.0,
-			const double spin_zeeman=0.0,
 			const double kernel_gap=1.e-3) const;
 
 	void canonicalize(std::vector<complex_function_3d>& amo,

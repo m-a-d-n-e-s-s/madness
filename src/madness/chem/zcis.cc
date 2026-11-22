@@ -192,12 +192,11 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 
 			/// zeroth order Fock operator acting on the x functions
 			Znemo::potentials pot_mo=nemo->compute_potentials(mo,totdens,x);
-			if (spin=="beta") scale(world,pot_mo.spin_zeeman_mo,-1.0);
 
 //			nemo->compute_vmat(mo,vnemo,vlznemo,dianemo,spin_zeeman_nemo,knemo,jnemo);
 
 
-			pot+=(pot_mo.vnuc_mo+pot_mo.lz_mo+pot_mo.diamagnetic_mo+pot_mo.spin_zeeman_mo
+			pot+=(pot_mo.vnuc_mo+pot_mo.lz_mo+pot_mo.diamagnetic_mo
 					-pot_mo.K_mo+pot_mo.J_mo);	// need += b/c of reference
 			truncate(world,pot);
 

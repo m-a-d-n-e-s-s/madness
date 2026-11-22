@@ -168,7 +168,7 @@ Laplace integral at t_min:
 
 | | chain | ft | mehler |
 |---|---|---|---|
-| t_min | `kernel_tmin` = 1e−4 | `ft_tmin` = 1e−8 | `kernel_tmin` = 1e−4 |
+| t_min (znemo `kernel_tmin` ≤ 0) | min(1e−4, (c/2)²) | 1e−8 | min(1e−4, (c/2)²) |
 | t_min · f in the code | `quad.tmin * a`, added unphased after the outer phase | `Psi = s0 * F` in every q mode | `quad.tmin * f` |
 | first node | slightly above t_min (Gauss–Legendre) | at t_min, weight ½ (trapezoid) | slightly above t_min |
 | how the first node is reached | one sub-step from τ = 0, with the full phase pair e^{∓iBx~y~} | independent node | independent node |
@@ -230,13 +230,17 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 | Parameter | Default | Meaning |
 |---|---|---|
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
-| `thresh` | −1 (= econv) | truncation threshold, decoupled from the energy convergence |
-| `nuclear_smoothing` | −1 (from eprec) | smoothing radius c of the nuclear potential (MADNESS `smoothed_potential`) |
-| `spin_zeeman` | true | include ±B/2 |
 | `guess_type`, `guess2` | `default`, `sigma` | `magnetic_lcao`: magnetically translated, Landau-squeezed 1s LCAO, second orbital σ_u or π = (x − iy)σ_g |
 | `kernel_gap`, `kernel_gap_start` | 1e−3, 0.05 | E ≤ B/2 − gap |
-| `kernel_nodes`, `kernel_tmin`, `kernel_nlll`, `kernel_nbroaden`, `phase_tolfac` | 40, 1e−4, 28, 0, 0.1 | chain and mehler |
-| `ft_h`, `ft_tmin`, `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 0.25, 1e−8, 45, 10, derived, derived, 3 | ft |
+| `kernel_h`, `kernel_tmin` | derived | proper-time quadrature (trapezoid in ln τ): h = 0.35 (chain, mehler), 0.25 (ft); t_min = min(1e−4, (c/2)²) (chain, mehler), 1e−8 (ft) |
+| `kernel_nlll`, `phase_tolfac` | 28, 0.1 | chain |
+| `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 45, 10, derived, derived, 3 | ft |
+
+The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
+c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
+The truncation threshold is the last value of the dft block's `protocol`, independent of `econv`.
+The spin Zeeman term ±B/2 per α/β electron is not part of the orbital energies or the iteration; it is
+added to the total energy only (printed as `spin zeeman term`). The print level is the dft block's `print_level` (3 adds timings and the kernel's own output).
 
 With a magnetic kernel znemo also uses truncate mode 0 and initial level 2, and a Coulomb operator
 precision of 0.1·thresh, as the original codes did.
@@ -252,17 +256,16 @@ dft
   maxiter 45
   nopen 2
   lo 1e-4
+  protocol [1e-4]
 end
 complex
   physical_B 10
   kernel chain_landau
-  thresh 1e-4
-  nuclear_smoothing 1e-2
-  spin_zeeman false
   guess_type magnetic_lcao
 end
 geometry
   units atomic
+  eprec 1e-6
   H  0.4 0.0 0.0
   H -0.4 0.0 0.0
 end
@@ -272,10 +275,10 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `kernel_nodes`, `kernel_tmin`, `kernel_nlll`, `phase_tolfac`, `nuclear_smoothing`, `kernel_gap` |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (Gauss–Legendre nodes), `kernel_tmin`, `kernel_nlll`, `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_type magnetic_lcao`, `guess2` |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `ft_h`, `ft_tmin`, `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
-| `magneticatom eprec=` | `nuclear_smoothing` = (eprec/1.3)^{1/3} for Z = 1 |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `kernel_h`, `kernel_tmin`, `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
+| `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python
 
