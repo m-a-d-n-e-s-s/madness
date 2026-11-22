@@ -9,6 +9,7 @@
 #include <madness/tensor/tensor_lapack.h>
 
 #include <algorithm>
+#include <limits>
 #include <string>
 
 namespace madness {
@@ -166,9 +167,13 @@ public:
     // Normalize rotations, orthonormalize rotns and translations,
     // noting may end up with a zero vector for linear molecules (including
     // before orthogonalization when aligned along a Cartesian axis).
+    // Pre-normalization `vnorm` has units of length (bohr), so only guard
+    // against zero/subnormal overflow here; the dimensionless `1e-6` cutoff
+    // after Gram-Schmidt drops linearly dependent rotations without discarding
+    // valid rotations of nearly linear bent molecules.
     for (int i = 3; i < 6; i++) {
       double vnorm = V(i, _).normf();
-      if (vnorm > 1e-6) {
+      if (vnorm > std::numeric_limits<double>::min()) {
         V(i, _).scale(1.0 / vnorm);
         for (int j = 0; j < i; j++) {
           double s = V(i, _).trace(V(j, _));

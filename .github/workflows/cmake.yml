@@ -59,7 +59,7 @@ jobs:
         -DMADNESS_WERROR=ON
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
@@ -125,7 +125,7 @@ jobs:
     # scf_lih_pbe_d3 qctest are not registered at all -- the correction would
     # have no CI coverage whatsoever.
     - name: Install simple-dftd3 (conda-forge)
-      uses: mamba-org/setup-micromamba@v2
+      uses: mamba-org/setup-micromamba@v3
       with:
         environment-name: sdftd3
         create-args: simple-dftd3
@@ -148,10 +148,10 @@ jobs:
       shell: cmake -P {0}
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+        file(APPEND "$ENV{GITHUB_OUTPUT}" "timestamp=${current_date}\n")
 
     - name: Setup ccache cache files
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ${{github.workspace}}/build/.ccache
         key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}

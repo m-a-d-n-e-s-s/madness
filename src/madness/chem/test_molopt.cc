@@ -182,13 +182,32 @@ int main(int argc, char** argv) {
     success = check_projector("linear triatomic along z", co2, 4) && success;
   }
 
-  // 4. Non-linear polyatomic H2O (3*3 - 6 = 3 internal degrees of freedom)
+  // 4. Non-linear polyatomic H2O (3*3 - 6 = 3 internal degrees of freedom),
+  //    plus a nearly linear bent triatomic (valid z-rotation of norm ~8.16e-8
+  //    bohr must still be projected out -> rank 3) vs. a strictly collinear
+  //    slightly tilted triatomic (dependent rotation -> rank 4).
   {
     const Molecule h2o({Atom(0.0, 0.0, 0.213, 8.0, 8),
                         Atom(0.0, 1.427, -0.852, 1.0, 1),
                         Atom(0.0, -1.427, -0.852, 1.0, 1)},
                        eprec);
     success = check_projector("non-linear H2O", h2o, 3) && success;
+
+    const Molecule nearly_linear_bent({Atom(0.0, 0.0, -2.0, 8.0, 8),
+                                       Atom(1.0e-7, 0.0, 0.0, 6.0, 6),
+                                       Atom(0.0, 0.0, 2.0, 8.0, 8)},
+                                      eprec);
+    success =
+        check_projector("nearly linear bent triatomic", nearly_linear_bent, 3) &&
+        success;
+
+    const Molecule collinear_slight_tilt({Atom(0.0, 0.0, 0.0, 6.0, 6),
+                                          Atom(1.0e-8, 0.0, 2.19, 8.0, 8),
+                                          Atom(-1.0e-8, 0.0, -2.19, 8.0, 8)},
+                                         eprec);
+    success = check_projector("collinear slightly tilted triatomic",
+                              collinear_slight_tilt, 4) &&
+              success;
   }
 
   // 5. End-to-end optimization of a z-aligned diatomic with spurious net force
