@@ -43,6 +43,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <madness/misc/misc.h>
 #include <madness/world/atomicint.h>
 #include <madness/world/worlddc.h>
 
@@ -414,7 +415,7 @@ namespace madness {
             const double total = sum();
             // A NaN or infinite cost anywhere reaches the root total, and would break the sort below.
             // total is broadcast, so every rank throws together.
-            MADNESS_CHECK_THROW(std::isfinite(total), "LoadBalanceDeux: the cost function returned a non-finite cost");
+            MADNESS_CHECK_THROW(madness::is_finite(total), "LoadBalanceDeux: the cost function returned a non-finite cost");
             double avg = total/(world.size()*fac);
             //if (world.rank() == 0) print_tree();
             world.gop.fence();

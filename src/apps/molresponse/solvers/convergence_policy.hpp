@@ -32,6 +32,7 @@
 // =========================================================================
 
 #include <algorithm>
+#include <madness/misc/misc.h>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -146,7 +147,7 @@ struct ConvergencePolicy {
     const double g_now  = gate_history[n - 1];
     const double g_then = gate_history[n - 1 - static_cast<std::size_t>(stall_window)];
     if (!(g_now > 1.0)) return false;                 // targets met (or NaN): not a stall
-    if (!std::isfinite(g_now) || !std::isfinite(g_then)) return false;  // no measurement yet
+    if (!madness::is_finite(g_now) || !madness::is_finite(g_then)) return false;  // no measurement yet
     return g_now > (1.0 - stall_ratio) * g_then;
   }
 

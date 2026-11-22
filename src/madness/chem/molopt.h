@@ -3,6 +3,7 @@
 
 #include "Results.h"
 #include <madness/chem/molecule.h>
+#include <madness/misc/misc.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
@@ -115,11 +116,12 @@ private:
     return gv;
   }
 
+public:
   /// Makes the projector onto independent coordinates
 
   /// For Cartesians \code P*x removes the rotations and translations;
   /// eventually will add support for redundant internal coordinates
-  Tensor<double> make_projector(const Molecule &molecule) {
+  Tensor<double> make_projector(const Molecule &molecule) const {
     const int natom = molecule.natom();
     const Tensor<double> coords = molecule.get_all_coords(); // (natom,3)
 
@@ -162,16 +164,22 @@ private:
       print(V);
 
     // Normalize rotations, orthonormalize rotns and translations,
-    // noting may end up with a zero vector for linear molecules
+    // noting may end up with a zero vector for linear molecules (including
+    // before orthogonalization when aligned along a Cartesian axis).
     for (int i = 3; i < 6; i++) {
-      V(i, _).scale(1.0 / V(i, _).normf());
-      for (int j = 0; j < i; j++) {
-        double s = V(i, _).trace(V(j, _));
-        V(i, _) -= V(j, _) * s;
-      }
       double vnorm = V(i, _).normf();
       if (vnorm > 1e-6) {
-        V(i, _) *= 1.0 / vnorm;
+        V(i, _).scale(1.0 / vnorm);
+        for (int j = 0; j < i; j++) {
+          double s = V(i, _).trace(V(j, _));
+          V(i, _) -= V(j, _) * s;
+        }
+        vnorm = V(i, _).normf();
+        if (vnorm > 1e-6) {
+          V(i, _) *= 1.0 / vnorm;
+        } else {
+          V(i, _) = 0.0;
+        }
       } else {
         V(i, _) = 0.0;
       }
@@ -185,6 +193,7 @@ private:
     return V;
   }
 
+private:
   /// print the gradient the optimizer actually works with
   ///
   /// This is the PROJECTED gradient, and it is what every convergence test
@@ -377,6 +386,8 @@ public:
       double de = e - ep;
       double dxmax = dx.absmax();
       double gmax = g.absmax();
+      MADNESS_CHECK_THROW(madness::is_finite(gmax),
+                          "MolOpt::optimize: projected gradient is not finite");
 
       bool dxconv = (iter > 0) && (dxmax < xtol);
       bool gconv = gmax < gtol;
@@ -514,6 +525,8 @@ public:
       double de = e - ep;
       double dxmax = dx.absmax();
       results.max_gradient = g.absmax();
+      MADNESS_CHECK_THROW(madness::is_finite(results.max_gradient),
+                          "MolOpt::optimize_app: projected gradient is not finite");
 
       bool dxconv = (iter > 0) && (dxmax < xtol);
       bool gconv = results.max_gradient < gtol;
