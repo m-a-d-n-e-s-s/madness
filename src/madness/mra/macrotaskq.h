@@ -850,12 +850,12 @@ public:
 		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
         universe.gop.fence();
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
-        pmap1=FunctionDefaults<1>::get_pmap();
-        pmap2=FunctionDefaults<2>::get_pmap();
-        pmap3=FunctionDefaults<3>::get_pmap();
-        pmap4=FunctionDefaults<4>::get_pmap();
-        pmap5=FunctionDefaults<5>::get_pmap();
-        pmap6=FunctionDefaults<6>::get_pmap();
+        if constexpr (mra_dimension_instantiated(1)) pmap1=FunctionDefaults<1>::get_pmap();
+        if constexpr (mra_dimension_instantiated(2)) pmap2=FunctionDefaults<2>::get_pmap();
+        if constexpr (mra_dimension_instantiated(3)) pmap3=FunctionDefaults<3>::get_pmap();
+        if constexpr (mra_dimension_instantiated(4)) pmap4=FunctionDefaults<4>::get_pmap();
+        if constexpr (mra_dimension_instantiated(5)) pmap5=FunctionDefaults<5>::get_pmap();
+        if constexpr (mra_dimension_instantiated(6)) pmap6=FunctionDefaults<6>::get_pmap();
         set_pmap(get_subworld());
 
         double cpu00=cpu_time();
@@ -892,12 +892,12 @@ public:
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();
-        FunctionDefaults<1>::set_pmap(pmap1);
-        FunctionDefaults<2>::set_pmap(pmap2);
-        FunctionDefaults<3>::set_pmap(pmap3);
-        FunctionDefaults<4>::set_pmap(pmap4);
-        FunctionDefaults<5>::set_pmap(pmap5);
-        FunctionDefaults<6>::set_pmap(pmap6);
+        if constexpr (mra_dimension_instantiated(1)) FunctionDefaults<1>::set_pmap(pmap1);
+        if constexpr (mra_dimension_instantiated(2)) FunctionDefaults<2>::set_pmap(pmap2);
+        if constexpr (mra_dimension_instantiated(3)) FunctionDefaults<3>::set_pmap(pmap3);
+        if constexpr (mra_dimension_instantiated(4)) FunctionDefaults<4>::set_pmap(pmap4);
+        if constexpr (mra_dimension_instantiated(5)) FunctionDefaults<5>::set_pmap(pmap5);
+        if constexpr (mra_dimension_instantiated(6)) FunctionDefaults<6>::set_pmap(pmap6);
         universe.gop.fence();
 		// restore targets to their original state
 		if (policy.ptr_target_distribution_policy!=Distributed) cloud.distribute_targets();
@@ -980,12 +980,12 @@ private:
 
 public:
 	void static set_pmap(World& world) {
-        FunctionDefaults<1>::set_default_pmap(world);
-        FunctionDefaults<2>::set_default_pmap(world);
-        FunctionDefaults<3>::set_default_pmap(world);
-        FunctionDefaults<4>::set_default_pmap(world);
-        FunctionDefaults<5>::set_default_pmap(world);
-        FunctionDefaults<6>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(1)) FunctionDefaults<1>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(2)) FunctionDefaults<2>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(3)) FunctionDefaults<3>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(4)) FunctionDefaults<4>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(5)) FunctionDefaults<5>::set_default_pmap(world);
+        if constexpr (mra_dimension_instantiated(6)) FunctionDefaults<6>::set_default_pmap(world);
 	}
 private:
 	std::size_t size() const {

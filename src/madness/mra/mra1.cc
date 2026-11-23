@@ -48,7 +48,7 @@ namespace madness {
     ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double_complex> > >
     GaussianConvolution1DCache<double_complex>::map = {};
 
-#ifdef FUNCTION_INSTANTIATE_1
+#ifdef MADNESS_FUNCTION_INSTANTIATE_1
 
     template void fcube<double,1>(const Key<1>&, const FunctionFunctorInterface<double,1>&, const Tensor<double>&, Tensor<double>&);
     template Tensor<double> fcube<double, 1>(Key<1> const&, double (*)(Vector<double, 1> const&), Tensor<double> const&);
