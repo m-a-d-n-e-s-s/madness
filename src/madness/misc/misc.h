@@ -36,6 +36,7 @@
 /// \brief Header to declare stuff which has not yet found a home
 
 #include <bit>
+#include <complex>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -59,6 +60,11 @@ namespace madness {
         return (std::bit_cast<std::uint32_t>(x) & exp_mask) != exp_mask;
     }
 
+    template <typename T>
+    inline constexpr bool is_finite(const std::complex<T>& z) noexcept {
+        return is_finite(z.real()) && is_finite(z.imag());
+    }
+
     /// True if `x` is NaN, even under `-ffast-math` / `-ffinite-math-only`.
     inline constexpr bool is_nan(double x) noexcept {
         static_assert(std::numeric_limits<double>::is_iec559 &&
@@ -74,6 +80,35 @@ namespace madness {
         constexpr std::uint32_t exp_mask = 0x7f800000U;
         constexpr std::uint32_t mag_mask = 0x7fffffffU;
         return (std::bit_cast<std::uint32_t>(x) & mag_mask) > exp_mask;
+    }
+
+    template <typename T>
+    inline constexpr bool is_nan(const std::complex<T>& z) noexcept {
+        return is_nan(z.real()) || is_nan(z.imag());
+    }
+
+    /// Materializes an IEEE-754 quiet NaN at runtime through a volatile integer
+    /// read so `-ffast-math` / `-ffinite-math-only` cannot fold expressions
+    /// such as `(cond) ? NaN : 1.0` at compile time.
+    template <typename T = double>
+    inline T runtime_quiet_nan() noexcept;
+
+    template <>
+    inline double runtime_quiet_nan<double>() noexcept {
+        static_assert(std::numeric_limits<double>::is_iec559 &&
+                      sizeof(double) == sizeof(std::uint64_t));
+        volatile std::uint64_t nan_bits = 0x7ff8000000000000ULL;
+        const std::uint64_t bits = nan_bits;
+        return std::bit_cast<double>(bits);
+    }
+
+    template <>
+    inline float runtime_quiet_nan<float>() noexcept {
+        static_assert(std::numeric_limits<float>::is_iec559 &&
+                      sizeof(float) == sizeof(std::uint32_t));
+        volatile std::uint32_t nan_bits = 0x7fc00000U;
+        const std::uint32_t bits = nan_bits;
+        return std::bit_cast<float>(bits);
     }
     unsigned long checksum_file(const char* filename);
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind=true);

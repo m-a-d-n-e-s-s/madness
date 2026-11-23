@@ -613,6 +613,8 @@ void test_orthonormalize_symmetric(World& world) {
 
     const double lindep=1.e-6;
     std::vector< Function<T,NDIM> > vfunc(n);
+    Tensor<T> ovlp;
+    bool conditioned = false;
 
     // Symmetric (S^{-1/2}) orthonormalization preserves dimension n rather than
     // dropping small-eigenvalue directions (unlike orthonormalize_canonical),
@@ -625,16 +627,20 @@ void test_orthonormalize_symmetric(World& world) {
             vfunc[i] = FunctionFactory<T,NDIM>(world).functor(f);
         }
         compress(world,vfunc);
-        Tensor<T> ovlp = matrix_inner(world, vfunc, vfunc, /* sym */ true);
+        ovlp = matrix_inner(world, vfunc, vfunc, /* sym */ true);
         Tensor<T> U;
         Tensor<typename Tensor<T>::scalar_type> s;
         syev(ovlp, U, s);
-        if (s(0L) > lindep * s(n - 1)) break;
+        if (s(0L) > lindep * s(n - 1)) {
+            conditioned = true;
+            break;
+        }
     }
     END_TIMER("project & compress");
+    MADNESS_CHECK(conditioned);
     
     START_TIMER;
-    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc,lindep);
+    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc, ovlp, lindep);
     END_TIMER("orthonormalize_symmetric");
 
     START_TIMER;
