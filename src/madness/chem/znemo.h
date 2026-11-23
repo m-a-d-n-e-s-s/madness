@@ -74,9 +74,7 @@ public:
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
         initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
         initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
-        initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
         initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
-        initialize<double>("ft_tmax_factor",45.0,"ft: largest tau = ft_tmax_factor/(B/2-E)");
         initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
         initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
         initialize<double>("ft_rtaper",0.0,"ft: phase taper width; 0: derived");
@@ -138,9 +136,7 @@ public:
 		MagneticKernelParameters p;
 		p.kind=kernel();
 		p.B=physical_B();
-		p.nlll=get<double>("kernel_nlll");
 		p.phase_tolfac=get<double>("phase_tolfac");
-		p.ft_tmax_factor=get<double>("ft_tmax_factor");
 		p.ft_qextra=get<double>("ft_qextra");
 		p.ft_rcut=get<double>("ft_rcut");
 		p.ft_rtaper=get<double>("ft_rtaper");

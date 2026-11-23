@@ -36,7 +36,6 @@ struct MagneticKernelParameters {
     // proper-time quadrature of all kernels, derived from lo and eps as the Coulomb and BSH fits (tau_quadrature)
     double lo = 1e-4;           ///< smallest length scale, the nuclear smoothing radius
     double eps = 1e-10;         ///< relative precision of (T_k - E)^{-1}
-    double nlll = 28.0;         ///< chain: beyond nlll/|B| only the free z motion is propagated (0: off)
     double max_btau = 2.0;      ///< chain: sub-steps with |B| dtau <= max_btau
     double phase_tolfac = 0.1;  ///< chain: phase refinement tolerance factor
     bool phase_recursive = true;
@@ -44,7 +43,6 @@ struct MagneticKernelParameters {
                                 ///  neighbours through edge terms that cancel only between boxes of equal level)
 
     // ft
-    double ft_tmax_factor = 45.0;   ///< largest tau ft_tmax_factor/(|B|/2 - E)
     double ft_period = 0.0;     ///< y-period P; 0 -> min(2 x cell width, 4 rext)
     double ft_qextra = 10.0;    ///< |q| <= |B| L/2 + qextra
     double ft_rcut = 0.0;       ///< phase cut off (erfc taper) at rho > rcut; 0 -> 1.5 sqrt(8 ln(1/thresh)/|B|)
@@ -106,7 +104,9 @@ public:
     ///  - tmin = lo^2/4: tmin f shifts the energy by -1.79 (tmin/lo^2)^2 (~ -10%) of the nuclear smoothing
     ///    error of radius lo (both scale as Z^2 rho(0) lo^3)
     ///  - the nodes cut below ln tmin sum to tmin (h/2) coth(h/2): the weight of tmin f
-    ///  - tmax = -ln(eps)/(|B|/2 - E) (chain, mehler), ft_tmax_factor/(|B|/2 - E) (ft)
+    ///  - tmax = -ln(eps)/(|B|/2 - E): the slowest component has decayed to eps
+    ///  - chain: beyond -ln(eps)/|B| only the free z motion is propagated (the excited Landau levels, which
+    ///    decay as e^{-|B| tau} relative to the lowest, are below eps)
     static double tau_step(const double eps) {
         double h = 0.5;
         for (int i = 0; i < 5; ++i) h = constants::pi * constants::pi / (std::log(4.0 * constants::pi / (eps * std::sqrt(h))));

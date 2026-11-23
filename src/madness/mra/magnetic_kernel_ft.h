@@ -16,7 +16,7 @@
 ///   4. result = e^{iBxy/2} (1/P) sum_q e^{iqy} Psi_q(x, z)     (hartree_product)
 ///
 /// with q_j = 2 pi j/P (y treated as periodic with period P) and a trapezoid rule in ln tau from tmin to
-/// tmax_factor/(|B|/2 - E), [0, tmin] added as tmin f.  Steps 2 and 4 work in the axis order (x, z, y).
+/// -ln(eps)/(|B|/2 - E) (MagneticKernel::tau_quadrature), [0, tmin] added as tmin f.  Steps 2 and 4 work in the axis order (x, z, y).
 /// Gauge origin r = 0; any orientation of the molecule; the default rcut assumes the nuclei near the z axis.
 /// Port of MagneticGreen (magnetic_green.h on magnetic-fourier) onto magnetic_primitives.h.
 
@@ -82,7 +82,7 @@ public:
     complex_function_3d apply(const complex_function_3d& f, const double E) const override {
         MADNESS_CHECK_THROW(E < bottom(), "MagneticKernelFT: require E < |B|/2");
         const double gap = bottom() - E;
-        const magnetic::TauQuadrature quad = tau_quadrature_to(p_.ft_tmax_factor / gap);
+        const magnetic::TauQuadrature quad = tau_quadrature(gap);
         std::vector<Node> nodes;
         for (const auto& qn : quad.nodes) {
             Node nd = node(qn.tau);

@@ -91,8 +91,8 @@ e^{−τT} f = e^{−iBx̃ỹ/2} G_y(2a) [ e^{+iBx̃ỹ} G_xz(2s, τ) [ e^{−iB
 - Each step is split into sub-steps with |B| Δτ ≤ `max_btau` (default 2), and adjacent y half-steps are
   merged.
 - S carries the Landau zero point e^{|B|τ/2}.
-- Beyond τ = `nlll`/|B| (default 28), only the free z motion is propagated: the excited Landau levels
-  are damped by e^{−nlll}.
+- Beyond τ = −ln(eps)/|B|, only the free z motion is propagated: the excited Landau levels are damped
+  below eps.
 
 **Axis order.** The code runs internally in the axis order (y, x, z), exactly as the Python original
 did (`mapdim` at entry and exit). Then the y convolution is a 1D low-dimensional apply on axis 0 and
@@ -153,7 +153,7 @@ bitwise (see Verification):
 | `mul_bilinear_phase` | `poly_error`: refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep); `box_phase`: refine boxes within ρ < r_ext whose phase varies by more than `dphi`, with an optional erfc taper | chain / ft |
 | `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes, `nbroaden` passes | chain |
 | `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
-| `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernel::tau_quadrature`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E) (chain, mehler), `ft_tmax_factor`/(|B|/2 − E) (ft). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
+| `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernel::tau_quadrature`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
 
 ### Short proper times
@@ -231,8 +231,8 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
 | `kernel_gap`, `kernel_gap_start` | 1e−3, 0.05 | E ≤ B/2 − gap |
-| `kernel_nlll`, `phase_tolfac` | 28, 0.1 | chain |
-| `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 45, 10, derived, derived, 3 | ft |
+| `phase_tolfac` | 0.1 | chain |
+| `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 10, derived, derived, 3 | ft |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
@@ -272,9 +272,9 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), `kernel_nlll`, `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | — (derived from thresh and eprec), `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | — (derived from thresh and eprec), `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python

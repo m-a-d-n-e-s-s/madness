@@ -10,9 +10,9 @@
 ///
 /// The bracket without its outer pair e^{-+iBx~y~/2} is the Landau-gauge propagator (chi = (B/2) x~y~), so
 /// the Landau kernel is this kernel without the outer phases.  G_E = tmin + int_tmin^tmax dtau e^{E tau}
-/// e^{-tau T} on Gauss-Legendre nodes in ln tau, the chain propagated incrementally from node to node,
-/// sub-steps with |B| dtau <= max_btau, the Landau zero point e^{|B| tau/2} carried by the propagated
-/// function, and only the free z motion beyond tau = nlll/|B|.
+/// e^{-tau T} on trapezoid nodes in ln tau (MagneticKernel::tau_quadrature), the chain propagated incrementally
+/// from node to node, sub-steps with |B| dtau <= max_btau, the Landau zero point e^{|B| tau/2} carried by the propagated
+/// function, and only the free z motion beyond tau = -ln(eps)/|B|.
 ///
 /// MADNESS layout: internal axis order (y, x, z), so the y convolution is a 1D low-dimensional apply on
 /// axis 0 and the x+z convolution a 2D one on axes (1, 2); input and output are in (x, y, z).
@@ -31,7 +31,10 @@ public:
     MagneticKernelChain(World& world, const MagneticKernelParameters& p, const MagneticGauge gauge)
         : MagneticKernel(p), world_(world), gauge_(gauge) {
         magnetic::set_lowdim_defaults_from_3d();
-        t_lll_ = (p_.nlll > 0 && p_.B != 0.0) ? p_.nlll / std::abs(p_.B) : 1e300;
+        // lowest-Landau-level switch: relative to the lowest Landau level the excited ones decay as e^{-|B| n tau},
+        // so beyond t_lll = -ln(eps)/|B| they are below eps and the transverse propagator is the LLL projector
+        // (times the zero point e^{-|B| tau/2}, carried by S): only the free z motion is propagated
+        t_lll_ = (p_.B != 0.0) ? -std::log(p_.eps) / std::abs(p_.B) : 1e300;
         phase_.o0 = p_.oy;      // internal axis 0 is y
         phase_.o1 = p_.ox;
         phase_.tolfac = p_.phase_tolfac;
@@ -59,6 +62,7 @@ public:
             const double t = nd.tau;
             // S carries the Landau zero point e^{|B| tau/2}
             const double w = std::exp(nd.log_dw + (E - bottom()) * t);
+            // full chain up to t_lll, then the free z motion only (the z heat kernel over t - tm)
             const double tm = std::min(std::max(tprev, t_lll_), t);
             if (tm > tprev) S = inner_chain(S, tm - tprev, true);
             if (t > tm) S = conv_z(S, t - tm);
@@ -129,7 +133,7 @@ private:
 
     World& world_;
     MagneticGauge gauge_;
-    double t_lll_;
+    double t_lll_;      ///< lowest-Landau-level switch -ln(eps)/|B|
     magnetic::BilinearPhase phase_;
 };
 

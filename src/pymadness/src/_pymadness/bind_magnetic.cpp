@@ -28,25 +28,25 @@ void bind_magnetic(py::module_& m) {
     py::class_<MagneticKernelParameters>(m, "MagneticKernelParameters",
         "Parameters of the magnetic kernels; the defaults are those of the original implementations")
         .def(py::init([](const std::string& kind, double B, double ox, double oy, bool verbose,
-                         double lo, double eps, double nlll, double max_btau, double phase_tolfac,
-                         bool phase_recursive, int nbroaden, double ft_tmax_factor,
+                         double lo, double eps, double max_btau, double phase_tolfac,
+                         bool phase_recursive, int nbroaden,
                          double ft_period, double ft_qextra, double ft_rcut, double ft_rtaper, double ft_dphi,
                          double ft_fq_tol, long ft_qbatch) {
                  MagneticKernelParameters p;
                  p.kind = kind; p.B = B; p.ox = ox; p.oy = oy; p.verbose = verbose;
-                 p.lo = lo; p.eps = eps; p.nlll = nlll; p.max_btau = max_btau; p.phase_tolfac = phase_tolfac;
+                 p.lo = lo; p.eps = eps; p.max_btau = max_btau; p.phase_tolfac = phase_tolfac;
                  p.phase_recursive = phase_recursive; p.nbroaden = nbroaden;
-                 p.ft_tmax_factor = ft_tmax_factor; p.ft_period = ft_period; p.ft_qextra = ft_qextra;
+                 p.ft_period = ft_period; p.ft_qextra = ft_qextra;
                  p.ft_rcut = ft_rcut; p.ft_rtaper = ft_rtaper; p.ft_dphi = ft_dphi; p.ft_fq_tol = ft_fq_tol;
                  p.ft_qbatch = ft_qbatch;
                  return p;
              }),
              py::arg("kind") = d.kind, py::arg("B") = d.B, py::arg("ox") = d.ox, py::arg("oy") = d.oy,
              py::arg("verbose") = d.verbose, py::arg("lo") = d.lo,
-             py::arg("eps") = d.eps, py::arg("nlll") = d.nlll, py::arg("max_btau") = d.max_btau,
+             py::arg("eps") = d.eps, py::arg("max_btau") = d.max_btau,
              py::arg("phase_tolfac") = d.phase_tolfac, py::arg("phase_recursive") = d.phase_recursive,
              py::arg("nbroaden") = d.nbroaden,
-             py::arg("ft_tmax_factor") = d.ft_tmax_factor, py::arg("ft_period") = d.ft_period,
+             py::arg("ft_period") = d.ft_period,
              py::arg("ft_qextra") = d.ft_qextra, py::arg("ft_rcut") = d.ft_rcut, py::arg("ft_rtaper") = d.ft_rtaper,
              py::arg("ft_dphi") = d.ft_dphi, py::arg("ft_fq_tol") = d.ft_fq_tol, py::arg("ft_qbatch") = d.ft_qbatch)
         .def_readwrite("kind", &MagneticKernelParameters::kind)
@@ -56,12 +56,10 @@ void bind_magnetic(py::module_& m) {
         .def_readwrite("verbose", &MagneticKernelParameters::verbose)
         .def_readwrite("lo", &MagneticKernelParameters::lo)
         .def_readwrite("eps", &MagneticKernelParameters::eps)
-        .def_readwrite("nlll", &MagneticKernelParameters::nlll)
         .def_readwrite("max_btau", &MagneticKernelParameters::max_btau)
         .def_readwrite("phase_tolfac", &MagneticKernelParameters::phase_tolfac)
         .def_readwrite("phase_recursive", &MagneticKernelParameters::phase_recursive)
         .def_readwrite("nbroaden", &MagneticKernelParameters::nbroaden)
-        .def_readwrite("ft_tmax_factor", &MagneticKernelParameters::ft_tmax_factor)
         .def_readwrite("ft_period", &MagneticKernelParameters::ft_period)
         .def_readwrite("ft_qextra", &MagneticKernelParameters::ft_qextra)
         .def_readwrite("ft_rcut", &MagneticKernelParameters::ft_rcut)
