@@ -763,7 +763,7 @@ double Molecule::nuclear_density_reach(std::size_t i, double rscale) const {
     const double reach = nuclear_density_reach_in_radii * rscale / rcut[i];
     // a NaN here (e.g. smoothing_parameter() of a negative charge) would be
     // dropped silently by max_nuclear_density_reach()
-    MADNESS_CHECK_THROW(std::isfinite(reach) && reach > 0.0,
+    MADNESS_CHECK_THROW(madness::is_finite(reach) && reach > 0.0,
                         "Molecule::nuclear_density_reach: the smoothing radius of a charged atom must be finite and positive");
     return reach;
 }
@@ -1156,7 +1156,7 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
     //    rc = 1.0/smoothing_parameter(q, eprec);
     //}
 
-    double dv = atoms[atom].q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
+    double dv = (r > 0.0) ? atoms[atom].q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc) : 0.0;
     //double dv = q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
     double df = field[axis];
     return dv + df;

@@ -611,20 +611,29 @@ void test_orthonormalize_symmetric(World& world) {
     if (world.rank() == 0) 
         print("testing orthonormalize_symmetric<",archive::get_type_name<T>(),">");
 
-    START_TIMER;
+    const double lindep=1.e-6;
     std::vector< Function<T,NDIM> > vfunc(n);
-    for (int i=0; i<n; ++i) {
-        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
-        vfunc[i] = FunctionFactory<T,NDIM>(world).functor(f);
-    }
-    END_TIMER("project");
 
+    // Symmetric (S^{-1/2}) orthonormalization preserves dimension n rather than
+    // dropping small-eigenvalue directions (unlike orthonormalize_canonical),
+    // so roundoff in S is amplified by s_max / s_min. Draw a linearly
+    // independent input set above `lindep`.
     START_TIMER;
-    compress(world,vfunc);
-    END_TIMER("compress");
+    for (int attempt=0; attempt<20; ++attempt) {
+        for (int i=0; i<n; ++i) {
+            ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+            vfunc[i] = FunctionFactory<T,NDIM>(world).functor(f);
+        }
+        compress(world,vfunc);
+        Tensor<T> ovlp = matrix_inner(world, vfunc, vfunc, /* sym */ true);
+        Tensor<T> U;
+        Tensor<typename Tensor<T>::scalar_type> s;
+        syev(ovlp, U, s);
+        if (s(0L) > lindep * s(n - 1)) break;
+    }
+    END_TIMER("project & compress");
     
     START_TIMER;
-    double lindep=1.e-6;
     std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc,lindep);
     END_TIMER("orthonormalize_symmetric");
 
@@ -751,7 +760,8 @@ int main(int argc, char**argv) {
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
     // if (smalltest) return 0;
-    madness::default_random_generator.setstate(int(cpu_time()*1000)%4149);
+    // Use a fixed seed so CI runs are deterministic and rank-consistent.
+    madness::default_random_generator.setstate(42);
 
 
     try {

@@ -3,6 +3,8 @@
 /// Each map is written by hand, so that every case reaches one lookup branch or one constructor
 /// check. The ranks are only labels here, checked against nproc, not against the size of the World.
 
+#include <bit>
+#include <cstdint>
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include <madness/world/test_utilities.h>
@@ -135,7 +137,11 @@ struct ZeroCost {
 
 struct NaNCost {
     double operator()(const Key<3>& key, const FunctionNode<double, 3>&) const {
-        return (key.level() == 2) ? std::nan("") : 1.0;
+        // Materialize NaN through a volatile integer read so -ffast-math
+        // (-ffinite-math-only) cannot fold `(cond) ? NaN : 1.0` to `1.0`.
+        volatile std::uint64_t nan_bits = 0x7ff8000000000000ULL;
+        const std::uint64_t bits = nan_bits;
+        return (key.level() == 2) ? std::bit_cast<double>(bits) : 1.0;
     }
 };
 

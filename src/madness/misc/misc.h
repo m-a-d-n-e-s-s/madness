@@ -35,10 +35,46 @@
 /// \file misc.h
 /// \brief Header to declare stuff which has not yet found a home
 
+#include <bit>
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace madness {
+    /// True if `x` is finite (neither NaN nor +/-Inf).
+    /// Inspects IEEE-754 bits directly so `-ffast-math` / `-ffinite-math-only`
+    /// cannot fold the check to `true`.
+    inline constexpr bool is_finite(double x) noexcept {
+        static_assert(std::numeric_limits<double>::is_iec559 &&
+                      sizeof(double) == sizeof(std::uint64_t));
+        constexpr std::uint64_t exp_mask = 0x7ff0000000000000ULL;
+        return (std::bit_cast<std::uint64_t>(x) & exp_mask) != exp_mask;
+    }
+
+    inline constexpr bool is_finite(float x) noexcept {
+        static_assert(std::numeric_limits<float>::is_iec559 &&
+                      sizeof(float) == sizeof(std::uint32_t));
+        constexpr std::uint32_t exp_mask = 0x7f800000U;
+        return (std::bit_cast<std::uint32_t>(x) & exp_mask) != exp_mask;
+    }
+
+    /// True if `x` is NaN, even under `-ffast-math` / `-ffinite-math-only`.
+    inline constexpr bool is_nan(double x) noexcept {
+        static_assert(std::numeric_limits<double>::is_iec559 &&
+                      sizeof(double) == sizeof(std::uint64_t));
+        constexpr std::uint64_t exp_mask = 0x7ff0000000000000ULL;
+        constexpr std::uint64_t mag_mask = 0x7fffffffffffffffULL;
+        return (std::bit_cast<std::uint64_t>(x) & mag_mask) > exp_mask;
+    }
+
+    inline constexpr bool is_nan(float x) noexcept {
+        static_assert(std::numeric_limits<float>::is_iec559 &&
+                      sizeof(float) == sizeof(std::uint32_t));
+        constexpr std::uint32_t exp_mask = 0x7f800000U;
+        constexpr std::uint32_t mag_mask = 0x7fffffffU;
+        return (std::bit_cast<std::uint32_t>(x) & mag_mask) > exp_mask;
+    }
     unsigned long checksum_file(const char* filename);
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind=true);
     std::istream& position_stream_to_word(std::istream& f, const std::string& tag,
