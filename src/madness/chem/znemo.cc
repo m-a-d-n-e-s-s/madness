@@ -124,14 +124,13 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	if (param.use_magnetic_kernel()) {
 		MagneticKernelParameters kp=param.kernel_parameters();
 		kp.verbose=(get_calc_param().print_level()>=3);
-		if (kp.tmin<=0.0) {
-			// [0, tmin] is taken as tmin f: it does not resolve features below sqrt(tmin) and acts like an extra
-			// smoothing of the nuclear potential of that radius (B = 100, c = 2e-3: tmin 1e-4 errs by ~50 uEh, 1e-6 by <1)
-			double cmin=1.0;
-			for (double rc : mol.get_rcut()) cmin=std::min(cmin,1.0/rc);
-			kp.tmin=std::min(1.e-4,0.25*cmin*cmin);
-			if (world.rank()==0) print("kernel_tmin from the smallest smoothing radius",cmin,":",kp.tmin);
-		}
+		// as the Coulomb and BSH operators: lo the smallest length scale (the smallest nuclear smoothing radius),
+		// eps the precision (0.001 thresh, as the BSH operators of the bsh kernel)
+		kp.lo=1.0;
+		for (double rc : mol.get_rcut()) kp.lo=std::min(kp.lo,1.0/rc);
+		kp.eps=1.e-3*thresh;
+		if (world.rank()==0) print("magnetic kernel quadrature: lo",kp.lo,"eps",kp.eps,"-> tau step",
+				MagneticKernel::tau_step(kp.eps),"tmin",0.25*kp.lo*kp.lo);
 		mkernel=make_magnetic_kernel(world,kp);
 		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 	}

@@ -74,8 +74,7 @@ int self_test(World& world, const bool with_ft, const int nbroaden) {
 
     MagneticKernelParameters p;
     p.B = B;
-    p.nodes = 50;
-    p.tmin = 1e-5;
+    p.lo = 2.0 * std::sqrt(1e-5);   // tmin = 1e-5
     p.nbroaden = nbroaden;
     auto make = [&](const std::string& kind) {
         MagneticKernelParameters q = p;
@@ -116,10 +115,8 @@ int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     MagneticKernelParameters p;
     p.kind = a.at("kernel");
     p.B = getd(a, "B", 0.0);
-    p.nodes = int(getd(a, "nodes", p.nodes));
-    if (a.count("quadrature")) p.quadrature = a.at("quadrature");
-    p.h = getd(a, "h", p.h);
-    p.tmin = getd(a, "tmin", p.tmin);
+    p.lo = getd(a, "lo", p.lo);
+    p.eps = getd(a, "eps", p.eps);
     p.ft_rcut = getd(a, "rcut", p.ft_rcut);
     p.ft_rtaper = getd(a, "rtaper", p.ft_rtaper);
     p.verbose = true;

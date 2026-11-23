@@ -61,10 +61,10 @@ Library changes the kernels rely on, both small and in `funcimpl.h` / `operator.
 
 | `kind` | Contains | Gauge | Paramagnetic term | τ quadrature | Origin |
 |---|---|---|---|---|---|
-| `chain_symmetric` | T_B | symmetric | in the kernel | Gauss–Legendre in ln τ | `MagneticGreensFunction3D` in `hydrogen_magnetic_pymadness.py` (article repo, pymadness branch `magnetic`) |
-| `chain_landau` | T_B | Landau, A_L = (−Bỹ, 0, 0) | in the kernel | Gauss–Legendre in ln τ | `Gop` of `h2p_landau.py --gauge landau` |
+| `chain_symmetric` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreensFunction3D` in `hydrogen_magnetic_pymadness.py` (article repo, pymadness branch `magnetic`) |
+| `chain_landau` | T_B | Landau, A_L = (−Bỹ, 0, 0) | in the kernel | trapezoid in ln τ | `Gop` of `h2p_landau.py --gauge landau` |
 | `ft` | T_B | symmetric, O = 0 | in the kernel | trapezoid in ln τ | `MagneticGreen` in `magnetic_green.h`, branch `magnetic-fourier` (A. Armen) |
-| `mehler` | −½∇² + B²ρ̃²/8 | symmetric | **right-hand side** | Gauss–Legendre in ln τ | new in 3D; 2D `MehlerGreensFunction2D` in `landau_mehler_pymadness.py` |
+| `mehler` | −½∇² + B²ρ̃²/8 | symmetric | **right-hand side** | trapezoid in ln τ | new in 3D; 2D `MehlerGreensFunction2D` in `landau_mehler_pymadness.py` |
 
 ### Real-space chain (`chain_symmetric`, `chain_landau`)
 
@@ -153,8 +153,7 @@ bitwise (see Verification):
 | `mul_bilinear_phase` | `poly_error`: refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep); `box_phase`: refine boxes within ρ < r_ext whose phase varies by more than `dphi`, with an optional erfc taper | chain / ft |
 | `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes, `nbroaden` passes | chain |
 | `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
-| `gauss_legendre_log` | `nodes`, `tmin`, tmax = −ln(`eps`)/(|B|/2 − E) | chain, mehler |
-| `trapezoid_log` | `ft_h`, `ft_tmin`, tmax = `ft_tmax_factor`/(|B|/2 − E) | ft |
+| `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernel::tau_quadrature`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E) (chain, mehler), `ft_tmax_factor`/(|B|/2 − E) (ft). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
 
 ### Short proper times
@@ -168,9 +167,9 @@ Laplace integral at t_min:
 
 | | chain | ft | mehler |
 |---|---|---|---|
-| t_min (znemo `kernel_tmin` ≤ 0) | min(1e−4, (c/2)²) | 1e−8 | min(1e−4, (c/2)²) |
+| t_min | lo²/4 | lo²/4 | lo²/4 |
 | t_min · f in the code | `quad.tmin * a`, added unphased after the outer phase | `Psi = s0 * F` in every q mode | `quad.tmin * f` |
-| first node | slightly above t_min (Gauss–Legendre) | at t_min, weight ½ (trapezoid) | slightly above t_min |
+| first node | at t_min, weight ½ (trapezoid) | at t_min, weight ½ | at t_min, weight ½ |
 | how the first node is reached | one sub-step from τ = 0, with the full phase pair e^{∓iBx~y~} | independent node | independent node |
 | short-time errors | inherited by all later nodes (incremental chain) | local to the node | local to the node |
 
@@ -232,7 +231,6 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
 | `kernel_gap`, `kernel_gap_start` | 1e−3, 0.05 | E ≤ B/2 − gap |
-| `kernel_h`, `kernel_tmin` | derived | proper-time quadrature (trapezoid in ln τ): h = 0.35 (chain, mehler), 0.25 (ft); t_min = min(1e−4, (c/2)²) (chain, mehler), 1e−8 (ft) |
 | `kernel_nlll`, `phase_tolfac` | 28, 0.1 | chain |
 | `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 45, 10, derived, derived, 3 | ft |
 
@@ -274,9 +272,9 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (Gauss–Legendre nodes), `kernel_tmin`, `kernel_nlll`, `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), `kernel_nlll`, `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `kernel_h`, `kernel_tmin`, `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | — (derived from thresh and eprec), `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python

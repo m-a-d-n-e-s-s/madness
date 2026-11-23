@@ -33,12 +33,9 @@ struct MagneticKernelParameters {
     double ox = 0.0, oy = 0.0;              ///< gauge origin (the FT kernel requires 0, 0)
     bool verbose = false;
 
-    // chain and mehler: quadrature in ln tau on [tmin, -ln(eps)/(|B|/2 - E)], [0, tmin] as tmin f
-    std::string quadrature = "trapezoid";   ///< trapezoid (step h, endpoint-corrected) | gauss_legendre (nodes)
-    double h = 0.35;            ///< trapezoid step in ln tau
-    int nodes = 40;             ///< gauss_legendre: number of nodes
-    double tmin = 1e-4;
-    double eps = 1e-10;
+    // proper-time quadrature of all kernels, derived from lo and eps as the Coulomb and BSH fits (tau_quadrature)
+    double lo = 1e-4;           ///< smallest length scale, the nuclear smoothing radius
+    double eps = 1e-10;         ///< relative precision of (T_k - E)^{-1}
     double nlll = 28.0;         ///< chain: beyond nlll/|B| only the free z motion is propagated (0: off)
     double max_btau = 2.0;      ///< chain: sub-steps with |B| dtau <= max_btau
     double phase_tolfac = 0.1;  ///< chain: phase refinement tolerance factor
@@ -46,10 +43,8 @@ struct MagneticKernelParameters {
     int nbroaden = 0;           ///< chain, mehler: broaden passes before each convolution (narrow kernels couple
                                 ///  neighbours through edge terms that cancel only between boxes of equal level)
 
-    // ft: trapezoid in ln tau with step ft_h on [ft_tmin, ft_tmax_factor/(|B|/2 - E)]
-    double ft_h = 0.25;
-    double ft_tmin = 1e-8;
-    double ft_tmax_factor = 45.0;
+    // ft
+    double ft_tmax_factor = 45.0;   ///< largest tau ft_tmax_factor/(|B|/2 - E)
     double ft_period = 0.0;     ///< y-period P; 0 -> min(2 x cell width, 4 rext)
     double ft_qextra = 10.0;    ///< |q| <= |B| L/2 + qextra
     double ft_rcut = 0.0;       ///< phase cut off (erfc taper) at rho > rcut; 0 -> 1.5 sqrt(8 ln(1/thresh)/|B|)
@@ -104,21 +99,29 @@ public:
     }
     complex_function_3d to_symmetric_gauge(const complex_function_3d& f) const { return from_symmetric_gauge(f, -1.0); }
 
-protected:
-    /// proper-time quadrature of the chain and mehler kernels on [tmin, -ln(eps)/gap], gap = |B|/2 - E.
-    /// trapezoid: the integrand tau e^{-kappa tau} does not vanish at the cut u = ln tmin, so the plain rule
-    /// errs by (h^2/12) F'(ln tmin) ~ (h^2/12) tmin f (first order in tmin, while tmin f itself errs only by
-    /// kappa tmin^2/2 for valence components); the leading Euler-Maclaurin term is folded into the [0, tmin]
-    /// weight, tmin -> tmin (1 + h^2/12).  The upper end needs no correction (the integrand has decayed).
-    magnetic::TauQuadrature tau_quadrature(const double gap) const {
-        const double tmax = -std::log(p_.eps) / gap;
-        if (p_.quadrature == "gauss_legendre") return magnetic::gauss_legendre_log(p_.nodes, p_.tmin, tmax);
-        MADNESS_CHECK_THROW(p_.quadrature == "trapezoid", "MagneticKernel: quadrature must be trapezoid or gauss_legendre");
-        magnetic::TauQuadrature q = magnetic::trapezoid_log(p_.h, p_.tmin, tmax);
-        q.tmin *= 1.0 + p_.h * p_.h / 12.0;
+    /// (T_k - E)^{-1} = int_0^inf e^{-tau (T_k - E)} dtau as a trapezoid rule in u = ln tau on [tmin, tmax],
+    /// [0, tmin] as tmin f.  Derived from lo and eps only, as the Coulomb and BSH fits (gfit.h):
+    ///  - step h: per spectral component kappa the integrand is e^{u - kappa e^u}, so by Poisson summation the
+    ///    relative error is 2 sum_k |Gamma(1 + 2 pi i k/h)| ~ (4 pi/sqrt h) e^{-pi^2/h} = eps, for all kappa
+    ///  - tmin = lo^2/4: tmin f shifts the energy by -1.79 (tmin/lo^2)^2 (~ -10%) of the nuclear smoothing
+    ///    error of radius lo (both scale as Z^2 rho(0) lo^3)
+    ///  - the nodes cut below ln tmin sum to tmin (h/2) coth(h/2): the weight of tmin f
+    ///  - tmax = -ln(eps)/(|B|/2 - E) (chain, mehler), ft_tmax_factor/(|B|/2 - E) (ft)
+    static double tau_step(const double eps) {
+        double h = 0.5;
+        for (int i = 0; i < 5; ++i) h = constants::pi * constants::pi / (std::log(4.0 * constants::pi / (eps * std::sqrt(h))));
+        return h;
+    }
+    double tau_min() const { return 0.25 * p_.lo * p_.lo; }
+    magnetic::TauQuadrature tau_quadrature_to(const double tmax) const {
+        const double h = tau_step(p_.eps);
+        magnetic::TauQuadrature q = magnetic::trapezoid_log(h, tau_min(), tmax);
+        q.tmin *= 0.5 * h / std::tanh(0.5 * h);
         return q;
     }
+    magnetic::TauQuadrature tau_quadrature(const double gap) const { return tau_quadrature_to(-std::log(p_.eps) / gap); }
 
+protected:
     MagneticKernelParameters p_;
 };
 

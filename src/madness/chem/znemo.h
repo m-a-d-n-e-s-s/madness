@@ -74,10 +74,6 @@ public:
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
         initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
         initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
-        initialize<double>("kernel_h",-1.0,"magnetic kernels: trapezoid step in ln tau of the proper-time quadrature; "
-                "<=0: 0.35 (chain, mehler), 0.25 (ft)");
-        initialize<double>("kernel_tmin",-1.0,"magnetic kernels: smallest tau; <=0: chain, mehler: min(1e-4, (c/2)^2) "
-                "with c the smallest nuclear smoothing radius; ft: 1e-8");
         initialize<double>("kernel_nlll",28.0,"chain: free z motion only beyond nlll/B");
         initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
         initialize<double>("ft_tmax_factor",45.0,"ft: largest tau = ft_tmax_factor/(B/2-E)");
@@ -142,10 +138,6 @@ public:
 		MagneticKernelParameters p;
 		p.kind=kernel();
 		p.B=physical_B();
-		const double h=get<double>("kernel_h"), tmin=get<double>("kernel_tmin");
-		if (h>0.0) p.h=p.ft_h=h;
-		p.tmin=tmin;							// <= 0: derived from the smoothing radius in Znemo
-		if (tmin>0.0) p.ft_tmin=tmin;
 		p.nlll=get<double>("kernel_nlll");
 		p.phase_tolfac=get<double>("phase_tolfac");
 		p.ft_tmax_factor=get<double>("ft_tmax_factor");

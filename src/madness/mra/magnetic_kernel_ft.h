@@ -82,7 +82,7 @@ public:
     complex_function_3d apply(const complex_function_3d& f, const double E) const override {
         MADNESS_CHECK_THROW(E < bottom(), "MagneticKernelFT: require E < |B|/2");
         const double gap = bottom() - E;
-        const magnetic::TauQuadrature quad = magnetic::trapezoid_log(p_.ft_h, p_.ft_tmin, p_.ft_tmax_factor / gap);
+        const magnetic::TauQuadrature quad = tau_quadrature_to(p_.ft_tmax_factor / gap);
         std::vector<Node> nodes;
         for (const auto& qn : quad.nodes) {
             Node nd = node(qn.tau);

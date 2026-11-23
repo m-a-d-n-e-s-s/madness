@@ -36,7 +36,7 @@ def main():
 
     G = {}
     for kind in mad.magnetic_kernel_names():
-        K = mad.make_magnetic_kernel(world, mad.MagneticKernelParameters(kind=kind, B=a.B, nodes=50, tmin=1e-5,
+        K = mad.make_magnetic_kernel(world, mad.MagneticKernelParameters(kind=kind, B=a.B, lo=2*np.sqrt(1e-5),
                                                                          nbroaden=6))
         g = K.to_symmetric_gauge(K.apply(K.from_symmetric_gauge(f), a.E))
         G[kind] = g
