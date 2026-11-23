@@ -66,14 +66,12 @@ public:
         initialize<bool>("cut_vector_potential",false,"bsh, mehler: flux-conserving cut of the vector potential, "
                 "A -> S(rho) A with the field B erfc((rho-R_c)/width)/2 (default R_c: max nuclear rho + 6 l_B)");
         initialize<double>("potential_cut_width",1.0,"cut_vector_potential: edge width in units of l_B = |B|^-1/2");
-        initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
-        initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
 
         // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH
         initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
-        initialize<std::string>("guess_type","default","default (see get_initial_orbitals) or magnetic_lcao",{"default","magnetic_lcao"});
-        initialize<std::string>("guess2","sigma","magnetic_lcao: second orbital sigma (+-) or pi ((x-iy) sigma_g)",{"sigma","pi"});
+        initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
+                "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
         initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
         initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
         initialize<double>("kernel_h",-1.0,"magnetic kernels: trapezoid step in ln tau of the proper-time quadrature; "
@@ -132,13 +130,10 @@ public:
 	bool cut_vector_potential() const {return get<bool>("cut_vector_potential");}
 	/// edge width of the cut of the vector potential in bohr
 	double potential_cut_width() const {return get<double>("potential_cut_width")/sqrt(fabs(physical_B()));}
-	std::vector<std::string> guess() const {return get<std::vector<std::string>>("guess");}
-	std::vector<std::string> guess_functions() const {return get<std::vector<std::string>>("guess_functions");}
 
 	std::string kernel() const {return get<std::string>("kernel");}
 	bool use_magnetic_kernel() const {return kernel()!="bsh";}
-	std::string guess_type() const {return get<std::string>("guess_type");}
-	std::string guess2() const {return get<std::string>("guess2");}
+	std::vector<int> guess_lz() const {return get<std::vector<int>>("guess_lz");}
 	double kernel_gap() const {return get<double>("kernel_gap");}
 	double kernel_gap_start() const {return get<double>("kernel_gap_start");}
 
@@ -363,52 +358,24 @@ public:
 
 	void save_orbitals(std::string suffix) const;
 
-	/// get initial orbitals from guesses
-	void get_initial_orbitals();
+	/// initial orbitals: the restart sequence of moldft and nemo, with the generalized hcore as the initial guess
+	/// @return false if the orbitals read are the answer and the SCF equations are not solved
+	bool get_initial_orbitals();
 
-	/// read the guess orbitals from a previous nemo or moldft calculation
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	read_real_guess() const;
-
-	/// read the guess orbitals from a previous nemo or moldft calculation
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	read_complex_guess() const;
-
-	/// read a list of functions for the guess
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	read_explicit_guess_functions() const;
-
-	/// read guess as projection of the orbitals onto an AO basis set (for geometry optimization)
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	read_restartaodata() const;
-
-	/// read orbitals from a znemo calculation
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	read_reference() const;
-
-	/// hcore guess including the magnetic field
+	/// hcore guess: the one-electron Hamiltonian of the solver in magnetically translated, Landau-squeezed AOs
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
 	hcore_guess() const;
 
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	custom_guess() const;
+	/// write the orbitals to <prefix>.restartdata (RestartMetadata header, representation znemo)
+	void save_orbitals() const;
 
-	void save_orbitals() const {
-		std::string name="reference";
-		print("saving orbitals to file",name);
+	/// read the orbitals from <prefix>.restartdata
+	void load_restartdata();
 
-		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
-
-		ar & amo.size() & bmo.size() & aeps & beps;
-		for (auto& a: amo) ar & a;
-		for (auto& a: bmo) ar & a;
-
-		// save AO restart data
-		MolecularOrbitals<double_complex,3> amo1, bmo1;
-		amo1.update_mos_and_eps(amo,aeps);
-		bmo1.update_mos_and_eps(bmo,beps);
-
-		MolecularOrbitals<double_complex,3>::save_restartaodata(world, mol, amo1, bmo1, aobasis);
+	/// the nuclear correlation factor for the restart header, as nemo writes it
+	std::string restart_ncf() const {
+		const auto ncf_param=param.use_magnetic_kernel() ? std::pair<std::string,double>("none",1.0) : nemo_param.ncf();
+		return ncf_param.first+":"+std::to_string(ncf_param.second);
 	}
 
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
@@ -499,9 +466,8 @@ public:
 	/// magnetic kernels: <pi phi_i|pi phi_j>/2 with pi = -i nabla + A in the gauge of the kernel
 	Tensor<double_complex> kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const;
 
-	/// LCAO of magnetically translated, Landau-squeezed 1s functions (sigma_g, sigma_u or pi)
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-	magnetic_lcao_guess() const;
+	/// the one-electron potentials (nuclear, paramagnetic, diamagnetic) applied on rhs; J and K are zero
+	potentials one_electron_potentials(const std::vector<complex_function_3d>& rhs) const;
 
 
 protected:
@@ -521,6 +487,11 @@ protected:
 	std::shared_ptr<MagneticKernel> mkernel;
 	/// magnetic kernels: sum of the kernel energies - (J - K) + E_nuc, the energy of the original drivers
 	double kernel_energy=0.0;
+
+	/// restart bookkeeping as in SCF: the energy and the precision the orbitals are converged to
+	double current_energy=1.e10;
+	double converged_for_thresh=1.e10;
+	double converged_for_dconv=1.e10;
 
 	/// the magnetic field B=rot(A)
 	coord_3d B;

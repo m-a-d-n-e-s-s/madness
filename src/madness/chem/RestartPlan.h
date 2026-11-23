@@ -277,6 +277,7 @@ first_rung_tighter_than(const std::vector<double>& protocol, const double achiev
 ///                       string skips the check
 /// @param[in] ncf        the requested nuclear correlation factor, e.g. "slater:2.0";
 ///                       empty for an engine that has none, and skips the check
+/// @param[in] magnetic_field  the requested B_z (znemo); NaN for an engine without a field, and skips the check
 inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& disk,
                                  const RestartCapabilities& can,
                                  const std::vector<double>& protocol,
@@ -285,7 +286,8 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
                                  const double eprec = 0.0,
                                  const std::string& xc = "",
                                  const std::string& ncf = "",
-                                 const std::size_t nmo_alpha = 0) {
+                                 const std::size_t nmo_alpha = 0,
+                                 const double magnetic_field = std::numeric_limits<double>::quiet_NaN()) {
 
     MADNESS_CHECK_THROW(not protocol.empty(), "empty protocol in plan_restart");
     const std::size_t last = protocol.size() - 1;
@@ -327,6 +329,10 @@ inline RestartPlan plan_restart(const RestartMode mode, const RestartSources& di
         if (not meta.ncf.empty() and not ncf.empty() and meta.ncf != ncf)
             return "archive was written with the nuclear correlation factor '" +
                    meta.ncf + "', this run uses '" + ncf + "'";
+        if (not std::isnan(meta.magnetic_field) and not std::isnan(magnetic_field) and
+                std::abs(meta.magnetic_field - magnetic_field) > 1.e-10 * std::max(1.0, std::abs(magnetic_field)))
+            return "archive was written at B = " + std::to_string(meta.magnetic_field) +
+                   ", this run uses B = " + std::to_string(magnetic_field);
         return std::string();
     };
 
@@ -616,19 +622,21 @@ inline RestartSources survey_restart_sources(World& world, const std::string& pr
 /// @param[in] can which sources the asking engine can read; see RestartCapabilities
 /// @param[in] ncf the nuclear correlation factor this run uses (SCF::restart_ncf);
 ///                empty for an engine that has none
+/// @param[in] magnetic_field B_z of this run (znemo); NaN for an engine without a field
 inline RestartPlan make_restart_plan(World& world, const RestartMode mode,
                                      const CalculationParameters& param,
                                      const Molecule& requested,
                                      const Representation wanted,
                                      const RestartCapabilities& can,
-                                     const std::string& ncf = "") {
+                                     const std::string& ncf = "",
+                                     const double magnetic_field = std::numeric_limits<double>::quiet_NaN()) {
 
     const RestartSources disk =
             survey_restart_sources(world, param.prefix(), param.nwfile() != "none");
 
     RestartPlan plan = plan_restart(mode, disk, can, param.protocol(), param.dconv(),
                                     requested, wanted, requested.parameters.eprec(),
-                                    param.xc(), ncf, std::size_t(param.nmo_alpha()));
+                                    param.xc(), ncf, std::size_t(param.nmo_alpha()), magnetic_field);
     world.gop.broadcast_serializable(plan, 0);
 
     if (world.rank() == 0 and param.print_level() > 1) {

@@ -12,6 +12,7 @@
 #include<madness/chem/masks_and_boxes.h>
 #include<madness/chem/MolecularOrbitals.h>
 #include <madness/mra/magnetic_kernels.h>
+#include <madness/chem/RestartPlan.h>
 
 
 
@@ -167,11 +168,10 @@ double Znemo::value(const Tensor<double>& x) {
 	if (need_recompute_factors_and_potentials(FunctionDefaults<3>::get_thresh()))
 		recompute_factors_and_potentials(FunctionDefaults<3>::get_thresh());
 
-	get_initial_orbitals();
-
-	iterate();
-
-	save_orbitals("final");
+	if (get_initial_orbitals()) {
+		iterate();
+		save_orbitals("final");
+	}
 	save_orbitals();
 
 	double energy=analyze();
@@ -285,6 +285,7 @@ void Znemo::iterate() {
 
 		oldenergy=energy;
 		energy=compute_energy(amo,apot,bmo,bpot,print_info.print_convergence(),false);
+		current_energy=energy;
 //		energy=compute_energy_no_confinement(amo,apot,bmo,bpot,print_info.print_convergence());	// 2.48
 
 		Tensor<double_complex> ovlp=matrix_inner(world,R2amo,amo);
@@ -314,6 +315,8 @@ void Znemo::iterate() {
 		const double denergy=mkernel ? kernel_energy-kernel_energy_old : oldenergy-energy;
 		if (std::abs(denergy)<get_calc_param().econv() and (sqrt(na*na+nb*nb)<dconv)) {
 			print("energy converged");
+			converged_for_thresh=FunctionDefaults<3>::get_thresh();
+			converged_for_dconv=dconv;
 			save_orbitals("converged");
 			converged=true;
 		}
@@ -443,44 +446,6 @@ Tensor<double_complex> Znemo::kinetic_pi_matrix(const std::vector<complex_functi
 	}
 	return t;
 }
-
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::magnetic_lcao_guess() const {
-	// as h2p_madness.py: sum_A s_A e^{-i(B/2)(A_x y - A_y x)} e^{-kappa|r-A|} e^{-(B/8)rho_A^2}, kappa = sqrt(2);
-	// second orbital sigma_u (signs + -) or pi = (x - iy) sigma_g; Landau gauge: times e^{+i(B/2) x y}
-	const double Bz=param.physical_B();
-	const double kap=std::sqrt(2.0);
-	const bool landau=mkernel and mkernel->gauge()==MagneticGauge::landau;
-	std::vector<coord_3d> nuc;
-	for (const Atom& a : mol.get_atoms()) nuc.push_back(a.get_coords());
-	auto make=[&](const std::vector<double>& signs, const bool pi) {
-		return complex_factory_3d(world).functor([=](const coord_3d& r) {
-			double_complex out=0.0;
-			for (std::size_t i=0; i<nuc.size(); ++i) {
-				const coord_3d& A=nuc[i];
-				const double dx=r[0]-A[0], dy=r[1]-A[1], dz=r[2]-A[2];
-				const double rr=std::sqrt(dx*dx+dy*dy+dz*dz);
-				const double_complex ph=std::exp(double_complex(0.0,-0.5*Bz*(A[0]*r[1]-A[1]*r[0])));
-				out+=signs[i]*ph*std::exp(-kap*rr)*std::exp(-0.125*Bz*(dx*dx+dy*dy));
-			}
-			if (pi) out*=double_complex(r[0],-r[1]);
-			if (landau) out*=std::exp(double_complex(0.0,0.5*Bz*r[0]*r[1]));
-			return out;
-		});
-	};
-	std::vector<double> plus(nuc.size(),1.0), alt(nuc.size(),1.0);
-	for (std::size_t i=1; i<nuc.size(); i+=2) alt[i]=-1.0;
-	std::vector<complex_function_3d> guess{make(plus,false), param.guess2()=="pi" ? make(plus,true) : make(alt,false)};
-	const long nmax=std::max(get_calc_param().nalpha(),get_calc_param().nbeta());
-	MADNESS_CHECK_THROW(nmax<=2,"magnetic_lcao guess: at most two orbitals per spin");
-	for (auto& g : guess) g.scale(1.0/g.norm2());
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(std::vector<complex_function_3d>(guess.begin(),guess.begin()+get_calc_param().nalpha()));
-	zmos.second.set_mos(std::vector<complex_function_3d>(guess.begin(),guess.begin()+get_calc_param().nbeta()));
-	return zmos;
-}
-
 
 double Znemo::analyze() {
 
@@ -903,316 +868,268 @@ void Znemo::do_step_restriction(const std::vector<complex_function_3d>& mo,
 }
 
 
-void Znemo::get_initial_orbitals() {
+/// the restart sequence of moldft and nemo (RestartPlan): the restartdata of a previous znemo calculation if
+/// the dft restart and the archive allow it, otherwise the orbitals of the previous geometry or the hcore guess
+/// @return false if the orbitals read are the answer (restart read_only, or auto with a converged archive)
+bool Znemo::get_initial_orbitals() {
 
-	/* possible guesses
-	 *
-	 * 1) guess_functions as specified in the user input
-	 * 2) custom guess (l,ml,exponenent) for atoms as specified in the user input
-	 * 3) reference file from a previous znemo calculation
-	 * 4) ao restart data from a previous znemo calculations
-	 * 5) restartdata file from a previous moldft calculation
-	 * 6) hcore guess
-	 */
+	// znemo reads its own restartdata only: no AO projections, no NWChem movecs (as nemo)
+	RestartPlan plan=make_restart_plan(world,restart_mode_from_string(get_calc_param().restart()),get_calc_param(),
+			mol,Representation::znemo,RestartCapabilities::restartdata_only(),restart_ncf(),param.physical_B());
 
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	bool gotit=false;
-
-	if (param.guess_type()=="magnetic_lcao") {
-		zmos=magnetic_lcao_guess();
-		gotit=true;
-	} else if (param.guess_functions().size()>0) {
-		zmos=read_explicit_guess_functions();
-		gotit=true;
-	} else if (param.guess().size()>0) {
-		zmos=custom_guess();
-		gotit=true;
+	if (plan.needs_load()) {
+		MADNESS_CHECK(plan.source==RestartSource::restartdata);
+		if (world.rank()==0) print("reading the orbitals from",get_calc_param().prefix()+".restartdata");
+		load_restartdata();
+	} else if (amo.empty() and bmo.empty()) {
+		auto zmos=hcore_guess();
+		amo=zmos.first.get_mos();
+		bmo=zmos.second.get_mos();
+		converged_for_thresh=converged_for_dconv=1.e10;
 	} else {
-
-		try {
-			zmos=read_reference();
-			gotit=true;
-		} catch (...) {
-			print("could not read reference orbitals");
-		}
-
-//		zmos=read_complex_guess();
-		if (not gotit) {
-			try {
-				zmos=read_real_guess();
-				print("successful read real guess orbitals");
-				gotit=true;
-			} catch (...) {
-				print("could not read real guess orbitals");
-			}
-		}
-		if (not gotit) {
-			try {
-				zmos=read_restartaodata();
-				gotit=true;
-			} catch (...) {
-				print("could not read ao restart data");
-			}
-		}
-		if (not gotit) {
-			try {
-				zmos=hcore_guess();
-				gotit=true;
-			} catch (...) {
-				print("could not do an hcore guess");
-			}
-		}
-	}
-	if (not gotit) {
-		MADNESS_EXCEPTION("unable to generate guess functions",1);
+		// a later geometry: the orbitals of the previous one are the better guess
+		if (world.rank()==0) print("starting from the orbitals of the previous geometry");
+		converged_for_thresh=converged_for_dconv=1.e10;
 	}
 
-	amo.clear();
-	bmo.clear();
-	for (int i=0; i<get_calc_param().nalpha(); ++i) amo.push_back(zmos.first.get_mos()[i]);
-	for (int i=0; i<get_calc_param().nbeta(); ++i) bmo.push_back(zmos.second.get_mos()[i]);
-	aeps=Tensor<double>(amo.size());
-	beps=Tensor<double>(bmo.size());
+	// reading can invalidate the plan: orbitals reprojected on reading are no longer converged
+	const double target_thresh=get_calc_param().protocol().back();
+	const double target_dconv=std::max(target_thresh,get_calc_param().dconv());
+	if (not plan.iterate and plan.mode==RestartMode::automatic
+			and not (converged_for_thresh<=target_thresh and converged_for_dconv<=target_dconv)) {
+		plan.iterate=true;
+		if (world.rank()==0) print("the orbitals had to be reprojected on reading and are no longer converged; iterating");
+	}
+	if (not plan.iterate and world.rank()==0) print("not solving the SCF equations:",plan.why);
 
-	amo=orthonormalize(amo);
-	bmo=orthonormalize(bmo);
+	MADNESS_CHECK_THROW(long(amo.size())==get_calc_param().nalpha() and long(bmo.size())==get_calc_param().nbeta(),
+			"initial orbitals: wrong number of orbitals");
+	if (aeps.size()!=long(amo.size())) aeps=Tensor<double>(amo.size());
+	if (beps.size()!=long(bmo.size())) beps=Tensor<double>(bmo.size());
+
+	if (plan.iterate) {
+		amo=orthonormalize(amo);
+		bmo=orthonormalize(bmo);
+	}
 	set_thresh(world,amo,FunctionDefaults<3>::get_thresh());
 	set_thresh(world,bmo,FunctionDefaults<3>::get_thresh());
-
+	return plan.iterate;
 }
 
 
-/// read the guess orbitals from a previous nemo or moldft calculation
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::read_real_guess() const {
+/// write <prefix>.restartdata: the RestartMetadata header (representation znemo, with B and eprec) and one
+/// block per spin as in SCF::save_mos
+void Znemo::save_orbitals() const {
+	if (not get_calc_param().save()) return;
+	const std::string name=get_calc_param().prefix()+".restartdata";
+	archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world,name.c_str(),get_calc_param().get<int>("nio"));
 
-	print("reading mos from restartdata");
-	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, "restartdata", molecule(), get_calc_param().nalpha(), get_calc_param().nbeta());
-	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
+	RestartMetadata meta;
+	meta.current_energy=current_energy;
+	meta.spin_restricted=false;
+	meta.L=get_calc_param().L();
+	meta.k=FunctionDefaults<3>::get_k();
+	meta.molecule=mol;
+	meta.xc=get_calc_param().xc();
+	meta.localize=get_calc_param().localize_method();
+	meta.converged_for_thresh=converged_for_thresh;
+	meta.converged_for_dconv=converged_for_dconv;
+	meta.representation=Representation::znemo;
+	meta.ncf=restart_ncf();
+	meta.eprec=mol.parameters.eprec();
+	meta.madness_version=MADNESS_PACKAGE_VERSION;
+	meta.magnetic_field=param.physical_B();
+	meta.write(ar);
 
-	// check for correct polynomial order
-	auto k1=amo.get_mos()[0].get_impl()->get_k();
-	auto k2=FunctionDefaults<3>::get_k();
-	MADNESS_CHECK_THROW(k1==k2,"reference polynomial order is not equal to the current polynomial order");
+	auto block=[&](const std::vector<complex_function_3d>& mo, const Tensor<double>& eps) {
+		Tensor<double> occ(long(mo.size()));
+		occ=1.0;
+		ar & (unsigned int) (mo.size());
+		ar & eps & occ & std::vector<int>(mo.size(),0);
+		for (const auto& f : mo) ar & f;
+	};
+	block(amo,aeps);
+	block(bmo,beps);
+}
 
-	// check if beta orbitals are present if they should be
-	if (get_calc_param().have_beta() and bmo.size()==0) {
-		print("reading from a closed-shell reference -> replicating alpha to beta orbitals");
-		std::vector<real_function_3d> tmp;
-		for (int i=0; i<get_calc_param().nmo_beta(); ++i) tmp.push_back(amo.get_mos()[i]);
-		bmo.set_mos(tmp);
+
+/// read <prefix>.restartdata; orbitals at another k or a looser thresh are reprojected and no longer converged
+void Znemo::load_restartdata() {
+	const std::string name=get_calc_param().prefix()+".restartdata";
+	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world,name.c_str());
+	RestartMetadata meta;
+	meta.read(ar);
+	MADNESS_CHECK_THROW(meta.representation_matches(Representation::znemo),"restartdata does not hold znemo orbitals");
+	MADNESS_CHECK_THROW(meta.L==get_calc_param().L(),"inconsistent box size in restartdata");
+	current_energy=meta.current_energy;
+	converged_for_thresh=meta.converged_for_thresh;
+	converged_for_dconv=meta.converged_for_dconv;
+
+	MolecularOrbitals<double_complex,3> a, b;
+	a.load_mos(ar,mol,get_calc_param().nalpha());
+	b.load_mos(ar,mol,get_calc_param().nbeta());
+	amo=a.get_mos();
+	bmo=b.get_mos();
+	aeps=copy(a.get_eps());
+	beps=copy(b.get_eps());
+
+	const int k=FunctionDefaults<3>::get_k();
+	const double thresh=FunctionDefaults<3>::get_thresh();
+	bool redo=false;
+	for (auto* mo : {&amo,&bmo}) {
+		for (auto& f : *mo) {
+			if (f.k()!=k) {
+				f=project(f,k,thresh,false);
+				redo=true;
+			} else if (f.thresh()*0.999>thresh) {
+				redo=true;
+			}
+		}
 	}
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	auto inv=ncf->inverse();
-	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*inv)));		// alpha
-	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*inv)));		// beta
-
-	return zmos;
-}
-
-
-/// read the guess orbitals from a previous nemo or moldft calculation
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::read_complex_guess() const {
-	print("reading mos from complex restartdata");
-	auto zmos=MolecularOrbitals<double_complex,3>::read_restartdata(world, "restartdata", molecule(), get_calc_param().nalpha(), get_calc_param().nbeta());
-	return zmos;
-}
-
-/// read a list of functions for the guess
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::read_explicit_guess_functions() const {
-	// loop over all provided functions
-        if (param.guess_functions().size()<size_t(std::max(get_calc_param().nalpha(),get_calc_param().nbeta()))) {
-		MADNESS_EXCEPTION("you did not provide enough guess functions for this calculations",1);
+	world.gop.fence();
+	if (redo) {
+		if (world.rank()==0) print("restartdata: reprojected to k",k,"thresh",thresh);
+		converged_for_thresh=converged_for_dconv=1.e10;
 	}
-	std::vector<complex_function_3d> guess_vector;
-	for (auto filename : param.guess_functions()) {
-		complex_function_3d mo=complex_factory_3d(world);
-		print("loading file",filename,"as guess function");
-		load(mo,filename);
-		guess_vector.push_back(mo);
+}
+
+
+
+
+
+namespace {
+/// phi(r) on center A, magnetically translated (London phase e^{-i(B/2)(A_x y - A_y x)}) and Landau-squeezed
+/// (e^{-(|B|/8) rho_A^2}); in the Landau gauge times e^{+i(B/2) x y}
+class magnetic_ao_functor : public FunctionFunctorInterface<double_complex,3> {
+	std::function<double_complex(const coord_3d&)> phi;
+	coord_3d A;
+	double B;
+	bool landau;
+public:
+	magnetic_ao_functor(std::function<double_complex(const coord_3d&)> phi, const coord_3d& A, double B, bool landau)
+		: phi(phi), A(A), B(B), landau(landau) {}
+	double_complex operator()(const coord_3d& r) const {
+		const double dx=r[0]-A[0], dy=r[1]-A[1];
+		double_complex out=phi(r)*std::exp(-0.125*std::abs(B)*(dx*dx+dy*dy))
+				*std::exp(double_complex(0.0,-0.5*B*(A[0]*r[1]-A[1]*r[0])));
+		if (landau) out*=std::exp(double_complex(0.0,0.5*B*r[0]*r[1]));
+		return out;
 	}
-
-	std::vector<complex_function_3d> amos,bmos;
-	for (int i=0; i<get_calc_param().nalpha(); ++i) amos.push_back(guess_vector[i]);
-	for (int i=0; i<get_calc_param().nbeta(); ++i) bmos.push_back(guess_vector[i]);
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(amos);
-	zmos.second.set_mos(bmos);
-
-	return zmos;
-}
-
-/// read a list of functions for the guess
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::read_restartaodata() const {
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-
-	print("reading orbitals ao projection from complex calculation");
-	zmos=MolecularOrbitals<double_complex,3>::read_restartaodata(world, mol, get_calc_param().have_beta());
-//		print("  .. failed ");
-//		try {
-//			print("reading orbitals ao projection from real calculation");
-//			auto mos=MolecularOrbitals<double,3>::read_restartaodata(world, mol, get_calc_param().have_beta());
-//			zmos.first.set_mos(convert<double,double_complex,3>(world,mos.first.get_mos()));
-//			zmos.second.set_mos(convert<double,double_complex,3>(world,mos.second.get_mos()));
-//
-//		} catch (...) {
-//			print("  .. failed ");
-//		}
-	return zmos;
-}
-
-/// read a list of functions for the guess
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::read_reference() const {
-	std::string name="reference";
-	print("reading orbitals from file",name);
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-
-	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
-	std::size_t namo=0, nbmo=0;
-
-	std::vector<complex_function_3d> amos,bmos;
-	Tensor<double> aeps,beps;
-
-	ar & namo & nbmo & aeps & beps;
-	amos.resize(namo);
-	bmos.resize(nbmo);
-	for (auto& a: amos) ar & a;
-	for (auto& a: bmos) ar & a;
-	zmos.first.set_mos(amos);
-	zmos.second.set_mos(bmos);
-
-	return zmos;
-}
-
-
-std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
-Znemo::custom_guess() const {
-	MADNESS_ASSERT(molecule().natom()==1);
-
-	Lz<double_complex,3> lz(world);
-
-	std::vector<std::string> guess=param.guess();
-	std::vector<complex_function_3d> guess_vector;
-	for (size_t i=0; i<guess.size(); i+=3) {
-		long l=atol(guess[i].c_str());
-		long ml=atol(guess[i+1].c_str());
-		double exponent=atof(guess[i+2].c_str());
-		print("making guess with l,ml,e",l,ml,exponent);
-
-		complex_function_3d g;
-		coord_3d origin=molecule().get_atoms()[0].get_coords();
-		if (l==0) g=complex_factory_3d(world).functor(s_orbital(exponent,origin));
-		if (l==1) g=complex_factory_3d(world).functor(p_orbital(ml,exponent,origin));
-		double norm=g.norm2();
-		g.scale(1/norm);
-		double_complex ii=inner(g,lz(g));
-		print("<p|Lz|p>, ml",ii, ml);
-
-		guess_vector.push_back(g);
-	}
-
-	std::vector<complex_function_3d> amos,bmos;
-	amos.resize(get_calc_param().nalpha());
-	bmos.resize(get_calc_param().nbeta());
-	std::copy(guess_vector.begin(),guess_vector.begin()+get_calc_param().nalpha(),amos.begin());
-	std::copy(guess_vector.begin(),guess_vector.begin()+get_calc_param().nbeta(),bmos.begin());
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(amos);
-	zmos.second.set_mos(bmos);
-
-	return zmos;
+	std::vector<coord_3d> special_points() const {return {A};}
+};
 }
 
 std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> >
 Znemo::hcore_guess() const {
 
-	print("computing mos from hcore guess");
-
-	// get the AOs from the basis set ..
-	std::vector<real_function_3d> real_aos=SCF::project_ao_basis_only(world, aobasis, mol);
-	std::vector<complex_function_3d> aos = convert<double,double_complex,3>(world,real_aos);
-
-	// .. and from the Landau wave function (the eigenfunction of the free particle in the B-field)
-    if (param.physical_B()>0.0) {
-		for (int n=0; n<2; ++n) {
-//			coord_3d origin=mol.get_atom(i).get_coords();
-			coord_3d origin;
-			double B=param.physical_B();
-			complex_function_3d f=complex_factory_3d(world).functor(landau_wave_function(n,-B,origin));
-			double fnorm=f.norm2();
-			f.scale(1.0/fnorm);
-
-			aos.push_back(conj(f));
+	// basis: the AOs of aobasis and, in a field, the s and p_{-sgn B} Slater functions e^{-sqrt(2) Z r},
+	// (x - i sgn(B) y) e^{-sqrt(2) Z r} of each nucleus; all magnetically translated and Landau-squeezed.
+	// The Hamiltonian is the one-electron part of the Fock matrix of the solver (kernel gauge, cut potentials).
+	const double Bz=param.physical_B();
+	const double sgn=(Bz<0.0) ? -1.0 : 1.0;
+	const bool landau=mkernel and mkernel->gauge()==MagneticGauge::landau;
+	std::vector<std::function<double_complex(const coord_3d&)> > phi;
+	std::vector<coord_3d> center;
+	for (int i=0; i<aobasis.nbf(mol); ++i) {
+		const AtomicBasisFunction ao=aobasis.get_atomic_basis_function(mol,i);
+		phi.push_back([ao](const coord_3d& r) {return double_complex(ao(r[0],r[1],r[2]),0.0);});
+		center.push_back(ao.get_coords_vec());
+	}
+	if (Bz!=0.0) {
+		for (const Atom& a : mol.get_atoms()) {
+			const coord_3d A=a.get_coords();
+			const double kap=std::sqrt(2.0)*a.q;
+			auto s=[A,kap](const coord_3d& r) {return double_complex(std::exp(-kap*(r-A).normf()),0.0);};
+			phi.push_back(s);
+			phi.push_back([A,kap,sgn,s](const coord_3d& r) {return double_complex(r[0]-A[0],-sgn*(r[1]-A[1]))*s(r);});
+			center.push_back(A);
+			center.push_back(A);
 		}
-    }
+	}
+	auto project=[&](const bool landau_phase) {
+		std::vector<complex_function_3d> f(phi.size());
+		for (std::size_t i=0; i<phi.size(); ++i) {
+			f[i]=complex_factory_3d(world).functor(std::shared_ptr<FunctionFunctorInterface<double_complex,3> >(
+					new magnetic_ao_functor(phi[i],center[i],Bz,landau_phase)));
+			f[i].scale(1.0/f[i].norm2());
+		}
+		return truncate(f);
+	};
+	std::vector<complex_function_3d> aos=project(landau);
+	const long nbf=aos.size();
+	std::vector<complex_function_3d> nemo_aos=(ncf->type()==NuclearCorrelationFactor::None)
+			? aos : truncate(aos*ncf->inverse());
 
-	// compute the Hamilton matrix
-
-	// nuclear and diamagnetic potential
-	real_function_3d vlocal=(potentialmanager->vnuclear()+diafac->bare_diamagnetic_potential()).truncate();
-	Tensor<double_complex> potential=matrix_inner(world,aos,vlocal*aos);
-
-	// zeeman term
-	Lz<double_complex,3> lz_operator(world,false);
-	Tensor<double_complex> lzmat=0.5*B[2]*lz_operator(aos,aos);
-	potential+=lzmat;
-
-	// kinetic term
+	// one-electron Hamiltonian and overlap as in the Fock matrix of the iteration
+	std::vector<complex_function_3d> bra=make_bra(nemo_aos);
 	Kinetic<double_complex,3> T(world);
-	Tensor<double_complex>  kinetic=T(aos,aos);
+	Tensor<double_complex> h=(mkernel ? kinetic_pi_matrix(nemo_aos) : T(bra,nemo_aos))
+			+ compute_vmat(nemo_aos,one_electron_potentials(nemo_aos));
+	Tensor<double_complex> S=matrix_inner(world,bra,nemo_aos);
+	h=0.5*(h+conj_transpose(h));
+	S=0.5*(S+conj_transpose(S));
 
-	Tensor<double_complex> fock = convert<double_complex>(kinetic) + potential;
-	fock = 0.5 * (fock + conj_transpose(fock));
+	// canonical orthogonalization (the Slater functions overlap with the AOs)
+	auto [s,U]=syev(S);
+	std::vector<long> keep;
+	for (long i=0; i<nbf; ++i) if (s(i)>1.e-6*s(nbf-1)) keep.push_back(i);
+	Tensor<double_complex> X(nbf,long(keep.size()));
+	for (std::size_t j=0; j<keep.size(); ++j) X(_,long(j))=U(_,keep[j])*(1.0/std::sqrt(s(keep[j])));
+	auto [e,Cp]=syev(Tensor<double_complex>(inner(conj_transpose(X),inner(h,X))));
+	const Tensor<double_complex> C=inner(X,Cp);
+	const long nmo=C.dim(1);
 
-	// diagonalize the Fock matrix
-	Tensor<double_complex> c;
-	Tensor<double> e;
-	Tensor<double_complex> overlap =matrix_inner(world, aos, aos, true);
-	sygvp(world, fock, overlap, 1, c, e);
-
-	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	std::vector<complex_function_3d> amo = transform(world, aos, c(_, Slice(0, get_calc_param().nmo_alpha() - 1)));
-	amo=truncate(normalize(amo));
-	zmos.first.set_mos(truncate(amo*ncf->inverse()));		// alpha
-
-	if (get_calc_param().have_beta()) {
-		std::vector<complex_function_3d>
-		bmo = transform(world, aos, c(_, Slice(0, get_calc_param().nmo_beta() - 1)));
-		bmo=truncate(normalize(bmo));
-		zmos.second.set_mos(truncate(bmo*ncf->inverse()));		// beta
+	// <L_z> of the eigenvectors (symmetric gauge, on the orbitals)
+	Tensor<double> lzexp(nmo);
+	{
+		std::vector<complex_function_3d> sym_aos=landau ? project(false) : aos;
+		Lz<double_complex,3> lz(world,false);
+		const Tensor<double_complex> Lmat=matrix_inner(world,sym_aos,lz(sym_aos));
+		const Tensor<double_complex> Smat=matrix_inner(world,sym_aos,sym_aos);
+		for (long k=0; k<nmo; ++k) {
+			const Tensor<double_complex> c=copy(C(_,k)), cc=conj(c);
+			lzexp(k)=real(cc.trace(inner(Lmat,c)))/real(cc.trace(inner(Smat,c)));
+		}
 	}
 
+	// occupied orbitals: aufbau, or the lowest with the requested L_z
+	const long nocc=std::max(get_calc_param().nalpha(),get_calc_param().nbeta());
+	MADNESS_CHECK_THROW(nocc<=nmo,"hcore guess: more occupied orbitals than basis functions");
+	const std::vector<int> want=param.guess_lz();
+	std::vector<long> pick;
+	if (want.empty()) {
+		for (long k=0; k<nocc; ++k) pick.push_back(k);
+	} else {
+		MADNESS_CHECK_THROW(long(want.size())==nocc,"hcore guess: guess_lz needs one L_z per occupied orbital");
+		for (int m : want) {
+			long k=0;
+			for (; k<nmo; ++k) if (std::abs(lzexp(k)-m)<0.25 and std::find(pick.begin(),pick.end(),k)==pick.end()) break;
+			MADNESS_CHECK_THROW(k<nmo,"hcore guess: no orbital with the requested L_z (is B along the molecular axis?)");
+			pick.push_back(k);
+		}
+	}
+	if (world.rank()==0) {
+		print("hcore guess:",nbf,"functions,",nmo,"after canonical orthogonalization (aobasis",get_calc_param().aobasis()+")");
+		print("     k      energy        <Lz>");
+		for (long k=0; k<std::min(nmo,nocc+4); ++k) {
+			const bool occ=std::find(pick.begin(),pick.end(),k)!=pick.end();
+			printf("  %4ld  %12.6f  %8.4f  %s\n",k,e(k),lzexp(k),occ ? "occupied" : "");
+		}
+	}
+
+	std::vector<complex_function_3d> mo;
+	for (long k : pick) mo.push_back(transform(world,nemo_aos,copy(C(_,Slice(k,k))))[0]);
+	mo=truncate(mo);
+	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
+	zmos.first.set_mos(std::vector<complex_function_3d>(mo.begin(),mo.begin()+get_calc_param().nalpha()));
+	zmos.second.set_mos(std::vector<complex_function_3d>(mo.begin(),mo.begin()+get_calc_param().nbeta()));
 	return zmos;
 }
 
-/// compute the potential operators applied on the orbitals
-Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
-		const real_function_3d& density,
-		const std::vector<complex_function_3d>& rhs) const {
-
-	timer potential_timer(world,print_info.print_timings());
-	std::vector<complex_function_3d> dia2mo=make_bra(mo);
-
-	// prepare exchange operator
-	Exchange<double_complex,3> K(world,get_calc_param().lo());
-	Tensor<double> occ(mo.size());
-	occ=1.0;
-    K.set_bra_and_ket(conj(world, dia2mo), mo);
-
+Znemo::potentials Znemo::one_electron_potentials(const std::vector<complex_function_3d>& rhs) const {
 	Nuclear<double_complex,3> nuc(world,ncf);
 
 	potentials pot(world,rhs.size());
-
-	pot.J_mo=(*coulop)(density)*rhs;
-	pot.K_mo=K(rhs);
 	pot.vnuc_mo=nuc(rhs);
 
 	// magnetic kernels: the paramagnetic and diamagnetic terms enter through kinetic_pi_matrix (and,
@@ -1231,6 +1148,30 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 
 	MADNESS_ASSERT(diafac->B_along_z(B));
 	pot.zeeman_R_comm = double_complex(0.0,0.5)*B[2]*(rvec[0]* ncf->U1(1)-rvec[1]* ncf->U1(0))*rhs;
+
+	truncate(world,pot.vnuc_mo);
+	truncate(world,pot.lz_mo);
+	truncate(world,pot.diamagnetic_mo);
+	return pot;
+}
+
+/// compute the potential operators applied on the orbitals
+Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3d>& mo,
+		const real_function_3d& density,
+		const std::vector<complex_function_3d>& rhs) const {
+
+	timer potential_timer(world,print_info.print_timings());
+	std::vector<complex_function_3d> dia2mo=make_bra(mo);
+
+	// prepare exchange operator
+	Exchange<double_complex,3> K(world,get_calc_param().lo());
+	Tensor<double> occ(mo.size());
+	occ=1.0;
+    K.set_bra_and_ket(conj(world, dia2mo), mo);
+
+	potentials pot=one_electron_potentials(rhs);
+	pot.J_mo=(*coulop)(density)*rhs;
+	pot.K_mo=K(rhs);
 
 	truncate(world,pot.J_mo);
 	truncate(world,pot.K_mo);

@@ -86,9 +86,7 @@ int main(int argc, char** argv) {
             if (not analyze_only) {
                 energy=znemo->value();
             } else {
-                auto zmos=znemo->read_reference();
-                for (int i=0; i<znemo->get_calc_param().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
-                for (int i=0; i<znemo->get_calc_param().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
+                znemo->load_restartdata();
                 energy=znemo->analyze();
             }
 

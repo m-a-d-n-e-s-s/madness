@@ -35,6 +35,8 @@
 #ifndef MADNESS_CHEM_RESTART_H__INCLUDED
 #define MADNESS_CHEM_RESTART_H__INCLUDED
 
+#include <cmath>
+#include <limits>
 #include <madness/chem/molecule.h>
 #include <madness/mra/mra.h>
 
@@ -94,7 +96,8 @@ inline Representation representation_from_int(const int i) {
 ///
 /// ## Versioning
 ///
-/// Version 5 appends to version 4 rather than reordering it, so the v4 layout is
+/// Version 5 appends to version 4, and version 6 (the magnetic field) to version 5, rather than reordering
+/// them, so the v4 layout is
 /// a strict prefix of v5. read() therefore dispatches on the stored version and
 /// reads the tail only when it is there; v4 archives written by any earlier
 /// MADNESS remain loadable, and the fields they lack take the defaults below.
@@ -104,7 +107,7 @@ inline Representation representation_from_int(const int i) {
 /// that means "unknown" so a v4 archive stays meaningful. Do NOT reorder.
 struct RestartMetadata {
 
-    static constexpr unsigned int CURRENT_VERSION = 5;
+    static constexpr unsigned int CURRENT_VERSION = 6;
 
     /// version of the archive this was read from, or CURRENT_VERSION for a fresh one
     unsigned int version = CURRENT_VERSION;
@@ -141,6 +144,12 @@ struct RestartMetadata {
     /// MADNESS version that wrote the archive, for provenance in bug reports
     std::string madness_version;
 
+    // --- appended in version 6 --------------------------------------------
+
+    /// z component of the external magnetic field (znemo). Changes the Hamiltonian like eprec; NaN means
+    /// not recorded (moldft, nemo, archives before version 6)
+    double magnetic_field = std::numeric_limits<double>::quiet_NaN();
+
     // NB: no truncate_mode, k-per-function, thresh-per-function or tree_state
     // here. FunctionImpl::store/load already serialize those with every orbital
     // (mra/funcimpl.h), so the loaded functions carry them -- which is how
@@ -159,17 +168,18 @@ struct RestartMetadata {
         // on Representation about never renumbering.
         const int rep = static_cast<int>(representation);
         ar & converged_for_dconv & rep & ncf & eprec & madness_version;
+        ar & magnetic_field;    // version 6 tail
     }
 
     /// read the header from the current archive position
     ///
-    /// Accepts version 4 and 5. Throws on anything else, since the field order
+    /// Accepts version 4, 5 and 6. Throws on anything else, since the field order
     /// would be unknown and the archive position left wrong for the orbitals.
     template <typename Archive>
     void read(Archive& ar) {
         ar & version;
-        MADNESS_CHECK_THROW(version == 4 or version == 5,
-                "unsupported restartdata version: only 4 and 5 can be read");
+        MADNESS_CHECK_THROW(version >= 4 and version <= 6,
+                "unsupported restartdata version: only 4, 5 and 6 can be read");
 
         ar & current_energy & spin_restricted;
         ar & L & k & molecule & xc & localize & converged_for_thresh;
@@ -179,6 +189,7 @@ struct RestartMetadata {
             ar & converged_for_dconv & rep & ncf & eprec & madness_version;
             representation = representation_from_int(rep);
         }
+        if (version >= 6) ar & magnetic_field;
         // else: the v5 members keep their defaults, which all read as "unknown"
     }
 
@@ -201,6 +212,7 @@ struct RestartMetadata {
         ss << "restartdata v" << version
            << "  representation " << madness::to_string(representation)
            << (ncf.empty() ? std::string() : "  ncf " + ncf)
+           << (std::isnan(magnetic_field) ? std::string() : "  B " + std::to_string(magnetic_field))
            << "  k " << k << "  L " << L
            << "  converged to thresh " << converged_for_thresh
            << " dconv " << converged_for_dconv

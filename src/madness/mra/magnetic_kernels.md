@@ -230,7 +230,7 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 | Parameter | Default | Meaning |
 |---|---|---|
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
-| `guess_type`, `guess2` | `default`, `sigma` | `magnetic_lcao`: magnetically translated, Landau-squeezed 1s LCAO, second orbital σ_u or π = (x − iy)σ_g |
+| `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
 | `kernel_gap`, `kernel_gap_start` | 1e−3, 0.05 | E ≤ B/2 − gap |
 | `kernel_h`, `kernel_tmin` | derived | proper-time quadrature (trapezoid in ln τ): h = 0.35 (chain, mehler), 0.25 (ft); t_min = min(1e−4, (c/2)²) (chain, mehler), 1e−8 (ft) |
 | `kernel_nlll`, `phase_tolfac` | 28, 0.1 | chain |
@@ -261,7 +261,6 @@ end
 complex
   physical_B 10
   kernel chain_landau
-  guess_type magnetic_lcao
 end
 geometry
   units atomic
@@ -276,7 +275,7 @@ Map from the original command-line options:
 | Original | znemo |
 |---|---|
 | `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (Gauss–Legendre nodes), `kernel_tmin`, `kernel_nlll`, `phase_tolfac`, `eprec` (geometry), `kernel_gap` |
-| `h2p_madness.py --guess2 sigma/pi` | `guess_type magnetic_lcao`, `guess2` |
+| `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
 | `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `kernel_h`, `kernel_tmin`, `ft_tmax_factor`, `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
