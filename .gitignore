@@ -110,8 +110,6 @@ src/apps/molresponse_v3/test_v3_solver
 
 # CMake-generated headers / configure output (only valid in build/, never source)
 src/madness/config.h
-src/madness/tensor/tensor_spec.h
-src/madness/tensor/tensoriter_spec.h
 src/madness/mra/run_test_*_mpi2.cmake
 src/madness/mra/run_test_*_mpi2.cmake.in
 

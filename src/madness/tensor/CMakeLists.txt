@@ -1,25 +1,10 @@
 # src/madness/tensor
 
-# Add targets for generated header files
-find_package(Python COMPONENTS Interpreter)
-if(TARGET Python::Interpreter)
-  add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h
-             ${CMAKE_CURRENT_SOURCE_DIR}/tensor_spec.h
-      COMMAND ${Python_EXECUTABLE} tempspec.py
-      MAIN_DEPENDENCY tempspec.py
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      COMMENT "Generating tensoriter_spec.h and tensor_spec.h")
-elseif(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tensoriter_spec.h.h
-    OR NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tensor_spec.h)
-  message(FATAL_ERROR "Python executable is not available to generate required source files")
-endif()
-
 # Source lists for MADtensor
 set(MADTENSOR_HEADERS 
-    aligned.h mxm.h mTxmq.h tensorexcept.h tensoriter_spec.h type_data.h basetensor.h
+    aligned.h mxm.h mTxmq.h tensorexcept.h type_data.h basetensor.h
     tensor.h tensor_macros.h vector_factory.h slice.h tensoriter.h
-    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
+    vmath.h systolic.h gentensor.h srconf.h distributed_matrix.h
     tensortrain.h SVDTensor.h tensor_json.hpp)
 set(MADTENSOR_SOURCES tensor.cc tensoriter.cc basetensor.cc vmath.cc mTxmq.cc)
 
