@@ -891,8 +891,7 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2
       //
       // Symmetric even though the operands are not: bra = R^2 * ket, and a common weight leaves
       // bra_i * vf_j symmetric in (i,j), which is all the triangle needs. The algorithm comes from
-      // the input instead of being fixed here, so `hfexalg multiworld` reaches nemo's SCF; the
-      // parameter defaults to the row algorithm this site hard-coded, so the default is unchanged.
+      // the input instead of being fixed here, so `hfexalg` reaches nemo's SCF.
       // The bra is the caller's R^2 nemo, the same vector the Fock matrix is built with.
       Exchange<double, 3> K = Exchange<double, 3>(world, this, R2nemo, ispin)
                                   .set_symmetric(true)
@@ -908,7 +907,8 @@ void Nemo::compute_nemo_potentials_impl(const vecfuncT &nemo, const vecfuncT &R2
       if (get_calc_param().print_level() > 9)
         taskq->print_taskq();
       taskq->run_all();
-      if (get_calc_param().hfex_apply_screen() and get_calc_param().print_level() >= 4 and
+      if (calc->xc.hf_exchange_coefficient() > 0.0 and get_calc_param().hfex_apply_screen() and
+          get_calc_param().print_level() >= 4 and
           Exchange<double, 3>::string2algorithm(get_calc_param().hfexalg()) == Exchange<double, 3>::multiworld_efficient)
         ApplyScreenStats::report(world);
 

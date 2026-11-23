@@ -178,6 +178,11 @@ public:
 
     bool is_symmetric() const;
 
+    /// Whether the exchange matrix may be computed by its triangle (the `multiworld` algorithm).
+
+    /// The triangle needs bra_i f_j = bra_j f_i for the set f the operator is applied to, i.e. the
+    /// bra a common weight of f (f itself, or R^2 f); the ket is free. Only the caller knows this,
+    /// so the flag asserts it; the operator checks no more than that f and the ket have one size.
     Exchange& set_symmetric(const bool flag);
 
     Exchange& set_algorithm(const ExchangeAlgorithm& alg);

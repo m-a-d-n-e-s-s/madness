@@ -94,12 +94,10 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     if (apply_screen_) {
         ApplyScreenStats::reset();
         static bool noted = false;      // once per process: the SCF asks every iteration
-        if (not noted and world.rank() == 0) {
-            if (algorithm_ != multiworld_efficient) {
-                std::ostringstream alg;
-                alg << algorithm_;
-                printf(" hfex_apply_screen: not used by hfexalg %s (multiworld only)\n", alg.str().c_str());
-            }
+        if (not noted and world.rank() == 0 and algorithm_ != multiworld_efficient) {
+            std::ostringstream alg;
+            alg << algorithm_;
+            printf(" hfex_apply_screen: not used by hfexalg %s (multiworld only)\n", alg.str().c_str());
             noted = true;
         }
     }
@@ -112,9 +110,11 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
             Kf = K_macrotask_efficient(vket, mul_tol);
         } else {
             // shallow copies in the permuted order: the roles keep their impls, so the owner-pinned
-            // path stores one batch set as before. The argument follows the ket only when it is the
-            // ket (the symmetric case); otherwise it keeps its order and so does the result.
-            const bool permute_vket = exchange_same_operands(vket, mo_ket);
+            // path stores one batch set as before. The symmetric tiling pairs bra_i with vf_j and
+            // mirrors the pair, so the argument follows the permutation whenever that tiling is taken
+            // (the same condition as in K_macrotask_efficient); on the general path, which sums over
+            // the operator's orbitals for every argument, it keeps its order and so does the result.
+            const bool permute_vket = is_symmetric() and vket.size() == mo_ket.size();
             vecfuncT bra_p(perm.size()), ket_p(perm.size()), vket_p = vket;
             for (std::size_t i = 0; i < perm.size(); ++i) {
                 bra_p[i] = mo_bra[perm[i]];

@@ -2387,15 +2387,20 @@ namespace madness {
         // specialized version for 3D
         if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
-            // the destination screen rides on the result for the duration of this apply (applyscreen.h);
-            // the 6D path below does not read it
+            // the destination screen rides on the result for the duration of this apply (applyscreen.h).
+            // It is set after the result exists, so a do_apply task that another rank sends here
+            // (apply_randomize) could read it while it is being set: refused rather than raced
             const bool screened = bool(screen);
+            MADNESS_CHECK_THROW(not (screened and FunctionDefaults<NDIM>::get_apply_randomize()),
+                                "apply_only: a destination screen is not supported with apply_randomize");
             if (screened) result.get_impl()->set_apply_screen(screen);
             result.get_impl()->apply(op, *f.get_impl(), fence);
             if (screened and fence) result.get_impl()->clear_apply_screen();
 
         } else {        // general version for higher dimension
 	  //bool print_timings=false;
+            MADNESS_CHECK_THROW(not bool(screen),
+                                "apply_only: a destination screen is supported on the NDIM <= 3 path only");
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);

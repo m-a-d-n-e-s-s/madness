@@ -1079,7 +1079,8 @@ template<size_t NDIM>
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         /// Bound on the size, per box, of what the result of the running apply() will be multiplied with;
         /// read by do_apply for every destination box (applyscreen.h). Set for one apply, empty otherwise;
-        /// neither serialized nor copied with the function.
+        /// neither serialized nor copied with the function. Set after construction, so it is not
+        /// synchronized against do_apply tasks sent by other ranks (apply_only refuses apply_randomize).
         apply_screen_t<NDIM> apply_screen_;
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
