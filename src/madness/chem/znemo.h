@@ -72,7 +72,6 @@ public:
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
-        initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
         initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
         initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
         initialize<double>("ft_rtaper",0.0,"ft: phase taper width; 0: derived");
@@ -132,7 +131,6 @@ public:
 		MagneticKernelParameters p;
 		p.kind=kernel();
 		p.B=physical_B();
-		p.phase_tolfac=get<double>("phase_tolfac");
 		p.ft_qextra=get<double>("ft_qextra");
 		p.ft_rcut=get<double>("ft_rcut");
 		p.ft_rtaper=get<double>("ft_rtaper");

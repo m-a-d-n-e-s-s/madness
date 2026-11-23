@@ -37,7 +37,9 @@ struct MagneticKernelParameters {
     double lo = 1e-4;           ///< smallest length scale, the nuclear smoothing radius
     double eps = 1e-10;         ///< relative precision of (T_k - E)^{-1}
     double max_btau = 2.0;      ///< chain: sub-steps with |B| dtau <= max_btau
-    double phase_tolfac = 0.1;  ///< chain: phase refinement tolerance factor
+    double phase_tolfac = 0.1;  ///< chain: the phase product errs by <= phase_tolfac x the truncation tolerance per
+                                ///  box (bound w^k/(2^{k-1} k!), w the half-range of the phase); 10x tighter
+                                ///  costs ~1/3 refinement level (k = 10), so the value is uncritical
     bool phase_recursive = true;
     int nbroaden = 0;           ///< chain, mehler: broaden passes before each convolution (narrow kernels couple
                                 ///  neighbours through edge terms that cancel only between boxes of equal level)

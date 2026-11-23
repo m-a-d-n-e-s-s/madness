@@ -230,7 +230,6 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 |---|---|---|
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
-| `phase_tolfac` | 0.1 | chain |
 | `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 10, derived, derived, 3 | ft |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
@@ -271,7 +270,7 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), `phase_tolfac`, `eprec` (geometry), — (internal) |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), — (internal, 0.1), `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
 | `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | — (derived from thresh and eprec), `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
