@@ -7,7 +7,9 @@
 #include <madness/misc/misc.h>
 #include <madness/world/MADworld.h>
 
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -20,6 +22,48 @@ bool tensor_all_finite(const Tensor<double>& t) {
     if (!is_finite(t.ptr()[i])) return false;
   }
   return true;
+}
+
+/// Builds a proper 3D rotation matrix (Rodrigues' formula) rotating around a
+/// non-Cartesian axis so all 3 lab coordinates mix strongly.
+Tensor<double> make_test_rotation_matrix() {
+  // Axis proportional to (1, 2, 3), rotation angle 1.1 rad
+  const double inv_n = 1.0 / std::sqrt(14.0);
+  const double ux = 1.0 * inv_n, uy = 2.0 * inv_n, uz = 3.0 * inv_n;
+  const double theta = 1.1;
+  const double c = std::cos(theta);
+  const double s = std::sin(theta);
+  const double omc = 1.0 - c;
+
+  Tensor<double> Q(3L, 3L);
+  Q(0, 0) = c + ux * ux * omc;
+  Q(0, 1) = ux * uy * omc - uz * s;
+  Q(0, 2) = ux * uz * omc + uy * s;
+  Q(1, 0) = uy * ux * omc + uz * s;
+  Q(1, 1) = c + uy * uy * omc;
+  Q(1, 2) = uy * uz * omc - ux * s;
+  Q(2, 0) = uz * ux * omc - uy * s;
+  Q(2, 1) = uz * uy * omc + ux * s;
+  Q(2, 2) = c + uz * uz * omc;
+  return Q;
+}
+
+/// Applies a rigid 3D rotation Q and translation shift to all atoms.
+Molecule transform_molecule(const Molecule& mol, const Tensor<double>& Q,
+                            const std::array<double, 3>& shift, double eprec) {
+  std::vector<Atom> atoms;
+  atoms.reserve(mol.natom());
+  for (std::size_t i = 0; i < mol.natom(); ++i) {
+    const Atom& a = mol.get_atom(i);
+    const double rx =
+        Q(0, 0) * a.x + Q(0, 1) * a.y + Q(0, 2) * a.z + shift[0];
+    const double ry =
+        Q(1, 0) * a.x + Q(1, 1) * a.y + Q(1, 2) * a.z + shift[1];
+    const double rz =
+        Q(2, 0) * a.x + Q(2, 1) * a.y + Q(2, 2) * a.z + shift[2];
+    atoms.emplace_back(rx, ry, rz, a.q, a.atomic_number);
+  }
+  return {atoms, eprec};
 }
 
 /// Checks that P = make_projector(mol) is finite, symmetric, idempotent
@@ -122,6 +166,83 @@ struct HarmonicDiatomicTarget {
   }
 };
 
+/// Rotationally and translationally invariant harmonic potential for a nearly
+/// linear bent triatomic (atoms 0, 1, 2 with atom 1 near the midpoint of 0-2),
+/// injecting both a spurious net translation and a spurious rigid-body force
+/// along the near-linear rotation mode around the 0-2 axis.
+struct NearLinearBentTriatomicTarget {
+  double L0 = 4.0;
+  double s0 = 0.0;
+  double b0 = 1.0e-7;
+  double k_L = 0.5;
+  double k_s = 0.4;
+  double k_b = 0.6;
+  double spurious_net_force = 2.0e-4;
+  double spurious_near_linear_rot_force = 2.0e-4;
+
+  static void decompose(const Tensor<double>& x, std::array<double, 3>& uhat,
+                        std::array<double, 3>& wperp,
+                        std::array<double, 3>& nhat, double& L, double& s,
+                        double& b) {
+    const std::array<double, 3> u = {x[6] - x[0], x[7] - x[1], x[8] - x[2]};
+    L = std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    uhat = {u[0] / L, u[1] / L, u[2] / L};
+    const std::array<double, 3> w = {x[3] - 0.5 * (x[0] + x[6]),
+                                     x[4] - 0.5 * (x[1] + x[7]),
+                                     x[5] - 0.5 * (x[2] + x[8])};
+    s = w[0] * uhat[0] + w[1] * uhat[1] + w[2] * uhat[2];
+    wperp = {w[0] - s * uhat[0], w[1] - s * uhat[1], w[2] - s * uhat[2]};
+    b = std::sqrt(wperp[0] * wperp[0] + wperp[1] * wperp[1] +
+                  wperp[2] * wperp[2]);
+    nhat = {wperp[0] / b, wperp[1] / b, wperp[2] / b};
+  }
+
+  [[nodiscard]] double value(const Tensor<double>& x) const {
+    std::array<double, 3> uhat{}, wperp{}, nhat{};
+    double L = 0.0, s = 0.0, b = 0.0;
+    decompose(x, uhat, wperp, nhat, L, s, b);
+    const double dL = L - L0;
+    const double ds = s - s0;
+    const double db = b - b0;
+    return 0.5 * k_L * dL * dL + 0.5 * k_s * ds * ds + 0.5 * k_b * db * db;
+  }
+
+  void energy_and_gradient(Molecule& mol, double& energy,
+                           Tensor<double>& gradient) const {
+    const Tensor<double> x = mol.get_all_coords().flat();
+    std::array<double, 3> uhat{}, wperp{}, nhat{};
+    double L = 0.0, s = 0.0, b = 0.0;
+    decompose(x, uhat, wperp, nhat, L, s, b);
+
+    const double fL = k_L * (L - L0);
+    const double fs = k_s * (s - s0);
+    const double fb = k_b * (b - b0);
+    energy = 0.5 * k_L * (L - L0) * (L - L0) +
+             0.5 * k_s * (s - s0) * (s - s0) +
+             0.5 * k_b * (b - b0) * (b - b0);
+
+    // Out-of-plane unit vector t = uhat x nhat; (-1/2 t, +t, -1/2 t) is an
+    // exact infinitesimal rigid rotation about uhat through the centroid.
+    const std::array<double, 3> that = {
+        uhat[1] * nhat[2] - uhat[2] * nhat[1],
+        uhat[2] * nhat[0] - uhat[0] * nhat[2],
+        uhat[0] * nhat[1] - uhat[1] * nhat[0]};
+
+    gradient = Tensor<double>(9L);
+    for (int c = 0; c < 3; ++c) {
+      const double gw = fs * uhat[c] + fb * nhat[c];
+      const double gu =
+          fL * uhat[c] + (fs / L) * wperp[c] - (fb * s / L) * nhat[c];
+      gradient[0 + c] = -0.5 * gw - gu + spurious_net_force / 3.0 -
+                        0.5 * spurious_near_linear_rot_force * that[c];
+      gradient[3 + c] = gw + spurious_net_force / 3.0 +
+                        spurious_near_linear_rot_force * that[c];
+      gradient[6 + c] = -0.5 * gw + gu + spurious_net_force / 3.0 -
+                        0.5 * spurious_near_linear_rot_force * that[c];
+    }
+  }
+};
+
 struct NonFiniteGradientTarget {
   double e0 = -1.0;
   [[nodiscard]] double value(const Tensor<double>&) const { return e0; }
@@ -173,19 +294,30 @@ int main(int argc, char** argv) {
     success = check_projector("diatomic tilted", lih_tilted, 1) && success;
   }
 
-  // 3. Linear triatomic CO2 along z (3*3 - 5 = 4 internal degrees of freedom)
+  // 3. Linear triatomic CO2 along z (3*3 - 5 = 4 internal degrees of freedom),
+  //    including ~1e-15 bohr floating-point roundoff on a single atom (must NOT
+  //    amplify roundoff into a frozen internal bending vibration).
   {
     const Molecule co2({Atom(0.0, 0.0, 0.0, 6.0, 6),
                         Atom(0.0, 0.0, 2.19, 8.0, 8),
                         Atom(0.0, 0.0, -2.19, 8.0, 8)},
                        eprec);
     success = check_projector("linear triatomic along z", co2, 4) && success;
+
+    const Molecule co2_roundoff({Atom(1.0e-15, -0.5e-15, 0.0, 6.0, 6),
+                                 Atom(0.0, 0.0, 2.19, 8.0, 8),
+                                 Atom(0.0, 0.0, -2.19, 8.0, 8)},
+                                eprec);
+    success = check_projector("linear triatomic with 1e-15 roundoff",
+                              co2_roundoff, 4) &&
+              success;
   }
 
   // 4. Non-linear polyatomic H2O (3*3 - 6 = 3 internal degrees of freedom),
-  //    plus a nearly linear bent triatomic (valid z-rotation of norm ~8.16e-8
-  //    bohr must still be projected out -> rank 3) vs. a strictly collinear
-  //    slightly tilted triatomic (dependent rotation -> rank 4).
+  //    plus a nearly linear bent triatomic (valid rotation of norm ~8.16e-8
+  //    bohr must still be projected out -> rank 3) both axis-aligned AND
+  //    rotated off-axis in 3D (verifying rotational covariance of P), vs. a
+  //    strictly collinear slightly tilted triatomic (dependent rotation -> rank 4).
   {
     const Molecule h2o({Atom(0.0, 0.0, 0.213, 8.0, 8),
                         Atom(0.0, 1.427, -0.852, 1.0, 1),
@@ -197,9 +329,36 @@ int main(int argc, char** argv) {
                                        Atom(1.0e-7, 0.0, 0.0, 6.0, 6),
                                        Atom(0.0, 0.0, 2.0, 8.0, 8)},
                                       eprec);
-    success =
-        check_projector("nearly linear bent triatomic", nearly_linear_bent, 3) &&
-        success;
+    success = check_projector("nearly linear bent triatomic (axis-aligned)",
+                              nearly_linear_bent, 3) &&
+              success;
+
+    const Tensor<double> Q = make_test_rotation_matrix();
+    const Molecule nearly_linear_bent_rot =
+        transform_molecule(nearly_linear_bent, Q, {1.3, -2.4, 0.9}, eprec);
+    success = check_projector("nearly linear bent triatomic (3D rotated)",
+                              nearly_linear_bent_rot, 3) &&
+              success;
+
+    // Verify rotational covariance: P(Q*X + shift) == diag(Q,Q,Q) P(X) diag(Q^T,Q^T,Q^T)
+    MolOpt opt(/*maxiter=*/5, 0.1, 1e-6, 1e-5, 1e-5, 1e-7, 1e-7,
+               /*print_level=*/0);
+    const Tensor<double> P0 = opt.make_projector(nearly_linear_bent);
+    const Tensor<double> Prot = opt.make_projector(nearly_linear_bent_rot);
+    Tensor<double> Qblk(9L, 9L);
+    for (int a = 0; a < 3; ++a) {
+      for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 3; ++c) {
+          Qblk(3 * a + r, 3 * a + c) = Q(r, c);
+        }
+      }
+    }
+    const Tensor<double> P_cov = inner(Qblk, inner(P0, transpose(Qblk)));
+    const double cov_err = (Prot - P_cov).absmax();
+    const bool cov_ok = cov_err < 1e-6;
+    print("nearly linear bent projector 3D covariance err=", cov_err,
+          cov_ok ? "ok" : "FAILED");
+    success = cov_ok && success;
 
     const Molecule collinear_slight_tilt({Atom(0.0, 0.0, 0.0, 6.0, 6),
                                           Atom(1.0e-8, 0.0, 2.19, 8.0, 8),
@@ -211,7 +370,9 @@ int main(int argc, char** argv) {
   }
 
   // 5. End-to-end optimization of a z-aligned diatomic with spurious net force
-  //    (gtol = 1e-6, well below the 2e-4 net force removed by the projector)
+  //    and of a 3D-rotated nearly linear bent triatomic with spurious net force
+  //    AND spurious torque along the near-linear rotation mode (gtol = 1e-6,
+  //    well below the 2e-4 spurious components removed by the projector)
   {
     Molecule lih(
         {Atom(0.0, 0.0, 0.7625, 3.0, 3), Atom(0.0, 0.0, -2.2875, 1.0, 1)},
@@ -227,6 +388,32 @@ int main(int argc, char** argv) {
           "max_g=", res.max_gradient, "r_final=", r_final,
           ok ? "ok" : "FAILED");
     success = ok && success;
+
+    const Molecule bent_init_axis({Atom(0.0, 0.0, -2.05, 8.0, 8),
+                                   Atom(1.2e-7, 0.0, 0.04, 6.0, 6),
+                                   Atom(0.0, 0.0, 2.05, 8.0, 8)},
+                                  eprec);
+    const Tensor<double> Q = make_test_rotation_matrix();
+    const Molecule bent_init =
+        transform_molecule(bent_init_axis, Q, {-0.8, 1.5, 2.2}, eprec);
+    NearLinearBentTriatomicTarget bent_target;
+    MolOpt bent_opt(/*maxiter=*/25, 0.2, 1e-12, 1e-8, 1e-8, 1e-14, 1e-10,
+                    /*print_level=*/0, "bfgs");
+    const OptimizationResults bent_res =
+        bent_opt.optimize_app(bent_init, bent_target);
+    std::array<double, 3> uhat{}, wperp{}, nhat{};
+    double L_final = 0.0, s_final = 0.0, b_final = 0.0;
+    NearLinearBentTriatomicTarget::decompose(
+        bent_res.final_geometry.get_all_coords().flat(), uhat, wperp, nhat,
+        L_final, s_final, b_final);
+    const bool bent_ok =
+        bent_res.nsteps > 0 && is_finite(bent_res.max_gradient) &&
+        bent_res.max_gradient < 1e-8 && std::abs(L_final - 4.0) < 1e-7 &&
+        std::abs(s_final - 0.0) < 1e-7 && std::abs(b_final - 1.0e-7) < 1e-9;
+    print("3D near-linear bent optimize_app: nsteps=", bent_res.nsteps,
+          "max_g=", bent_res.max_gradient, "L=", L_final, "s=", s_final,
+          "b=", b_final, bent_ok ? "ok" : "FAILED");
+    success = bent_ok && success;
   }
 
   // 6. Non-finite gradient must throw rather than silently force convergence

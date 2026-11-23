@@ -9,7 +9,6 @@
 #include <madness/tensor/tensor_lapack.h>
 
 #include <algorithm>
-#include <limits>
 #include <string>
 
 namespace madness {
@@ -124,10 +123,12 @@ public:
   /// eventually will add support for redundant internal coordinates
   Tensor<double> make_projector(const Molecule &molecule) const {
     const int natom = molecule.natom();
+    if (natom == 0)
+      return Tensor<double>(0L, 0L);
     const Tensor<double> coords = molecule.get_all_coords(); // (natom,3)
 
-    // Construct normalized vectors in V in the direction of the translations
-    // and infinitesimal rotations
+    // Construct vectors in V in the direction of the translations
+    // and infinitesimal rotations about the centroid
     Tensor<double> V(6, natom, 3); // First 3 translations, second 3 rotations
 
     for (int k = 0; k < 3; k++) // Translations already orthonormal
@@ -159,34 +160,52 @@ public:
 
     V = V.reshape(6, 3 * natom);
 
-    if (print_level > 1)
+    if (print_level > 1) {
       print("V before orthonormal");
-    if (print_level > 1)
       print(V);
+    }
 
-    // Normalize rotations, orthonormalize rotns and translations,
-    // noting may end up with a zero vector for linear molecules (including
-    // before orthogonalization when aligned along a Cartesian axis).
-    // Pre-normalization `vnorm` has units of length (bohr), so only guard
-    // against zero/subnormal overflow here; the dimensionless `1e-6` cutoff
-    // after Gram-Schmidt drops linearly dependent rotations without discarding
-    // valid rotations of nearly linear bent molecules.
+    // Remove any floating-point translational residual from the rotation
+    // generators before computing their singular values.
     for (int i = 3; i < 6; i++) {
-      double vnorm = V(i, _).normf();
-      if (vnorm > std::numeric_limits<double>::min()) {
-        V(i, _).scale(1.0 / vnorm);
-        for (int j = 0; j < i; j++) {
-          double s = V(i, _).trace(V(j, _));
-          V(i, _) -= V(j, _) * s;
+      for (int j = 0; j < 3; j++) {
+        double proj = V(i, _).trace(V(j, _));
+        V(i, _) -= V(j, _) * proj;
+      }
+    }
+
+    // Orthonormalize the rotational subspace via SVD of the (3, 3*natom)
+    // rotation block rather than sequential lab-axis Gram-Schmidt. Under any
+    // 3D rigid rotation of the molecule, the singular values of R are strictly
+    // invariant: linear molecules have one zero singular value (all three for
+    // a single atom), whereas nearly linear bent molecules retain a non-zero
+    // third singular value proportional to the bend displacement regardless of
+    // molecular orientation in space, without amplifying ~1e-15 coordinate
+    // roundoff into a frozen internal bending mode.
+    const Tensor<double> R = copy(V(Slice(3, 5), _));
+    Tensor<double> U, s, VT;
+    svd(R, U, s, VT);
+    if (print_level > 1)
+      print("rotation singular values", s);
+
+    constexpr double rel_tol = 1.0e-12;
+    const double smax = s(0L);
+    for (int m = 0; m < 3; m++) {
+      const int row = 3 + m;
+      if (smax > 0.0 && s(static_cast<long>(m)) > rel_tol * smax) {
+        V(row, _) = VT(m, _);
+        for (int j = 0; j < row; j++) {
+          double proj = V(row, _).trace(V(j, _));
+          V(row, _) -= V(j, _) * proj;
         }
-        vnorm = V(i, _).normf();
-        if (vnorm > 1e-6) {
-          V(i, _) *= 1.0 / vnorm;
+        double vnorm = V(row, _).normf();
+        if (vnorm > 0.5) {
+          V(row, _) *= 1.0 / vnorm;
         } else {
-          V(i, _) = 0.0;
+          V(row, _) = 0.0;
         }
       } else {
-        V(i, _) = 0.0;
+        V(row, _) = 0.0;
       }
     }
 
