@@ -325,15 +325,13 @@ void Znemo::iterate() {
 		// the spin Zeeman term +-B/2 is a constant per spin: it is not part of the orbital energies (and drops out
 		// of the iteration), only of the total energy (compute_energy)
 		const double levelshifta=param.shift();
-		// magnetic kernels: the range of G(E) along B grows as 1/sqrt(B/2 - E); keep guess energies further away
-		const double kgap=(iter==0) ? param.kernel_gap_start() : param.kernel_gap();
 		if (mkernel and iter==0) {
 			akeps=copy(aeps);	// Tensor assignment is shallow: the kernel energies must not alias the Fock diagonal
 			bkeps=copy(beps);
 		}
 		std::vector<complex_function_3d> resa=mkernel
-				? compute_residuals(Vnemoa,amo,akeps,0.0,kgap)
-				: compute_residuals(Vnemoa,amo,aeps,levelshifta,kgap);	// 2.16
+				? compute_residuals(Vnemoa,amo,akeps,0.0)
+				: compute_residuals(Vnemoa,amo,aeps,levelshifta);	// 2.16
 
 		Tensor<double> normsa=real(inner(world,make_bra(resa),resa));
 		na=sqrt(normsa.sumsq());
@@ -351,8 +349,8 @@ void Znemo::iterate() {
 		if (have_beta()) {
 			const double levelshiftb=param.shift();
 			std::vector<complex_function_3d> resb=mkernel
-					? compute_residuals(Vnemob,bmo,bkeps,0.0,kgap)
-					: compute_residuals(Vnemob,bmo,beps,levelshiftb,kgap);
+					? compute_residuals(Vnemob,bmo,bkeps,0.0)
+					: compute_residuals(Vnemob,bmo,beps,levelshiftb);
 			if (not mkernel) truncate(world,resb);	// the kernel residual is already truncated at 0.1*thresh
 			Tensor<double> normsb=real(inner(world,make_bra(resb),resb));
 			nb=sqrt(normsb.sumsq());
@@ -1204,8 +1202,7 @@ Znemo::compute_residuals(
 		const std::vector<complex_function_3d>& Vpsi,
 		const std::vector<complex_function_3d>& psi,
 		Tensor<double>& eps,
-		double levelshift,
-		const double kernel_gap) const {
+		double levelshift) const {
 	timer residual_timer(world,print_info.print_timings());
 
 	double tol = FunctionDefaults < 3 > ::get_thresh();
@@ -1213,9 +1210,14 @@ Znemo::compute_residuals(
     std::vector<complex_function_3d> tmp;
     if (mkernel) {
     	// tmp = -(T_k - E)^{-1} Vpsi
-    	const double emax=mkernel->bottom()-kernel_gap;
+    	// G(E) needs E < |B|/2, and its range along B grows as 1/sqrt(2(|B|/2 - E)) (and with it the memory: at
+    	// B = 10, E = B/2 - 1e-3 exceeded 45 GB). An energy bound by at least 1e-3 is used as it is; one closer to
+    	// the threshold is no bound-state estimate (a guess) and is replaced by |B|/2 - 0.05 (decay length 3 bohr)
+    	const double bottom=mkernel->bottom();
     	Tensor<double> E(eps.size());
-    	for (int i=0; i<eps.size(); ++i) E(i)=std::min(eps(i),emax);
+    	for (int i=0; i<eps.size(); ++i) E(i)=(eps(i)<bottom-1.e-3) ? eps(i) : bottom-0.05;
+    	if ((world.rank()==0) and (eps.size()>0) and (eps.max()>=bottom-1.e-3))
+    		print("kernel energies at the Landau threshold |B|/2 replaced by |B|/2 - 0.05:",eps,"->",E);
     	for (int i=0; i<eps.size(); ++i) eps(i)=E(i);	// the update below starts from the energy used
     	if ((world.rank()==0) and (print_info.print_convergence())) print("kernel energies",E);
     	tmp=mkernel->apply(-1.0*Vpsi,E);

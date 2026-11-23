@@ -72,8 +72,6 @@ public:
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
-        initialize<double>("kernel_gap",1.e-3,"magnetic kernels: G(E) applied with E <= B/2 - kernel_gap");
-        initialize<double>("kernel_gap_start",0.05,"magnetic kernels: the same in the first iteration (guess energies)");
         initialize<double>("phase_tolfac",0.1,"chain: phase refinement tolerance factor");
         initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
         initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
@@ -128,8 +126,6 @@ public:
 	std::string kernel() const {return get<std::string>("kernel");}
 	bool use_magnetic_kernel() const {return kernel()!="bsh";}
 	std::vector<int> guess_lz() const {return get<std::vector<int>>("guess_lz");}
-	double kernel_gap() const {return get<double>("kernel_gap");}
-	double kernel_gap_start() const {return get<double>("kernel_gap_start");}
 
 	/// the parameters of the magnetic kernel (field along z, gauge origin r = 0)
 	MagneticKernelParameters kernel_parameters() const {
@@ -406,8 +402,7 @@ public:
 			const std::vector<complex_function_3d>& Vpsi,
 			const std::vector<complex_function_3d>& psi,
 			Tensor<double>& eps,
-			const double levelshift=0.0,
-			const double kernel_gap=1.e-3) const;
+			const double levelshift=0.0) const;
 
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
