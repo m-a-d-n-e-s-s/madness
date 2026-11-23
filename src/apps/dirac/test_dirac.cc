@@ -4,6 +4,7 @@
 #include "DFRestart.h"
 #include "InitParameters.h"
 #include <madness/chem/potentialmanager.h>
+#include <madness/misc/misc.h>
 #include <madness/world/MADworld.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/parallel_archive.h>
@@ -348,14 +349,14 @@ TEST(DFNuclearFunctors, OriginSafeAndCellWidthScaleAware) {
         // Origin evaluation must be finite and smooth (no 0/0 NaN)
         const double v0 = gfunc(madness::coord_3d{0.0, 0.0, 0.0});
         const double v_tiny = gfunc(madness::coord_3d{1.0e-9, 0.0, 0.0});
-        EXPECT_TRUE(std::isfinite(v0));
+        EXPECT_TRUE(madness::is_finite(v0));
         EXPECT_LT(v0, -2.5e5);
         EXPECT_NEAR(v0, v_tiny, 1.0e-6 * std::abs(v0));
 
         // Far-field Fermi evaluation must be finite (no exp overflow NaN under -ffast-math)
         const double f0 = ffunc(madness::coord_3d{0.0, 0.0, 0.0});
         const double f_far = ffunc(madness::coord_3d{L, L, L});
-        EXPECT_TRUE(std::isfinite(f0));
+        EXPECT_TRUE(madness::is_finite(f0));
         EXPECT_GT(f0, 0.9);
         EXPECT_DOUBLE_EQ(f_far, 0.0);
 

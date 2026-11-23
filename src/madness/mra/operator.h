@@ -39,6 +39,7 @@
 
 #include <type_traits>
 #include <limits.h>
+#include <madness/misc/misc.h>
 #include <madness/mra/adquad.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
@@ -288,8 +289,8 @@ namespace madness {
                 if (is_custom_gaussian) {
                     const long n_terms = stored_exponents.size();
                     for (long idx = 0; idx < n_terms; ++idx) {
-                        if (!(stored_exponents(idx) > 0.0) || !std::isfinite(stored_exponents(idx)) ||
-                            !std::isfinite(stored_coeffs(idx))) {
+                        if (!(stored_exponents(idx) > 0.0) || !madness::is_finite(stored_exponents(idx)) ||
+                            !madness::is_finite(stored_coeffs(idx))) {
                             return false;
                         }
                     }

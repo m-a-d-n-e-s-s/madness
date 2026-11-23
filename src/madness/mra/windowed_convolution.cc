@@ -1093,7 +1093,7 @@ WindowedSeparatedConvolution<Q, NDIM>::WindowedSeparatedConvolution(
     for (long idx = 0; idx < n_terms; ++idx) {
         const double c_val = coeff(idx);
         const double e_val = expnt(idx);
-        MADNESS_CHECK_THROW(e_val > 0.0 && std::isfinite(e_val) && std::isfinite(c_val),
+        MADNESS_CHECK_THROW(e_val > 0.0 && madness::is_finite(e_val) && madness::is_finite(c_val),
                             "WindowedSeparatedConvolution: custom Gaussian exponents must be finite and > 0");
         custom_coeffs_user_[static_cast<std::size_t>(idx)] = c_val;
         custom_expnts_user_[static_cast<std::size_t>(idx)] = e_val;
@@ -1256,8 +1256,8 @@ get_or_make(World& world,
     }
     const long n_terms = stored_coeffs.size();
     for (long idx = 0; idx < n_terms; ++idx) {
-        if (!(stored_exponents(idx) > 0.0) || !std::isfinite(stored_exponents(idx)) ||
-            !std::isfinite(stored_coeffs(idx))) {
+        if (!(stored_exponents(idx) > 0.0) || !madness::is_finite(stored_exponents(idx)) ||
+            !madness::is_finite(stored_coeffs(idx))) {
             return nullptr;
         }
     }

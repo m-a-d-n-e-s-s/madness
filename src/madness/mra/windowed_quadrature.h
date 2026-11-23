@@ -40,6 +40,7 @@
 
 #include <madness/madness_config.h>
 #include <madness/constants.h>
+#include <madness/misc/misc.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/mTxmq.h>
 #include <madness/tensor/tensor.h>
@@ -527,8 +528,8 @@ public:
             for (std::size_t idx = 0; idx < n_custom; ++idx) {
                 const double c_user = cfg.custom_coeffs_user[idx];
                 const double alpha_user = cfg.custom_expnts_user[idx];
-                MADNESS_CHECK(alpha_user > 0.0 && std::isfinite(alpha_user));
-                MADNESS_CHECK(std::isfinite(c_user));
+                MADNESS_CHECK(alpha_user > 0.0 && madness::is_finite(alpha_user));
+                MADNESS_CHECK(madness::is_finite(c_user));
                 if (c_user == 0.0) continue;
 
                 const double log_alpha_user = std::log(alpha_user);
@@ -615,9 +616,10 @@ public:
                 const double tp = static_cast<double>(p) * delta_t_;
 
                 double mu_arg = 0.0;
+                bool mu_arg_huge = false;
                 if (mu_sim_ > 0.0) {
                     if (-2.0 * tp > 700.0) {
-                        mu_arg = std::numeric_limits<double>::infinity();
+                        mu_arg_huge = true;
                     } else {
                         mu_arg = 0.25 * mu_sim_ * mu_sim_ * std::exp(-2.0 * tp);
                     }
@@ -625,7 +627,7 @@ public:
 
                 double c_sim = 0.0;
                 double w_sim = 0.0;
-                if (std::isfinite(mu_arg) && mu_arg < 700.0) {
+                if (!mu_arg_huge && madness::is_finite(mu_arg) && mu_arg < 700.0) {
                     if (tp - mu_arg > -740.0 && tp - mu_arg < 705.0) {
                         c_sim = (2.0 * delta_t_ * constants::inv_sqrt_pi) * std::exp(tp - mu_arg);
                     }

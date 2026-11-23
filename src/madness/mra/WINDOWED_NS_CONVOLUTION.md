@@ -738,5 +738,24 @@ All suites below were executed under uniform `1` MPI process $\times$ `10` pinne
 | `madqc` `water2` | 47.30 | 55.40 | **46.80** | **1.01x** | `1.3e-6` |
 | **`madqc` `sr` (`Z=38`)** | 719.90 | 249.50 | **220.50** | **3.26x** | `3.6e-6` |
 | `DFdriver` (`edr`) `he` / `be` | 29.66 / 86.79 | 12.82 / 34.34 | **11.47 / 31.94** | **2.59x / 2.72x** | `1.3e-8` |
-| **`DFdriver` (`edr`) `ne`** | 610.23 | 202.71 | **197.75** | **3.09x** | `1.6e-6` |
+| `DFdriver` (`edr`) `ne` | 610.23 | 202.71 | **197.75** | **3.09x** | `1.6e-6` |
 | `DFdriver` (`bsh`) `he` / `be` | 29.64 / 86.96 | 12.73 / 34.10 | **11.40 / 31.77** | **2.60x / 2.74x** | `1.3e-8` |
+
+#### 6.8.4 Rebase onto `master`, Relaxed-Math Finiteness Integration (`PR #856`) & 2-Node DGX `water47` Reassessment
+
+`pr-large-exponent-ops` was rebased onto `master` (`9914c902c`, incorporating upstream PRs `#847` `LBDeuxPmap`, `#849` `parsec-foreign-threads`, `#850` slice length, `#851/#852` nuclear density reach, `#853/#854` `size_t` / `>INT_MAX` RMI messages, and `#856` `-ffast-math`-safe IEEE-754 bit-level `madness::is_finite` / `madness::is_nan`):
+- **Relaxed-Math Finiteness Integration (`misc.h`)**: Replaced `std::isfinite` and `std::numeric_limits<double>::infinity()` sentinels across `windowed_quadrature.h`, `operator.h`, `windowed_convolution.cc`, `test_windowed_convolution.cc`, and `test_dirac.cc` with `madness::is_finite` (plus explicit `mu_arg_huge` range flags), ensuring runtime parameter validation, operator-bridge guards, and test assertions remain active under `-DMADNESS_RELAXED_MATH=fast` (`-ffast-math` / `-ffinite-math-only`).
+- **PaRSEC Foreign-Thread Compatibility (`parsec.cc`)**: Merged `ParsecRuntime::within_task()` cleanly alongside PR `#849`'s `non_parsec_thread_es_copy` per-foreign-thread execution streams.
+
+##### 2-Node DGX Cluster `water5` & `water47` Reassessment (`4` MPI $\times$ `8` Pthreads Across `dgx2` + `dgx`, `235` MOs)
+
+| Structure ($N_{\text{MO}}$) | Mode | Iters (`1e-4`+`1e-6`) | Total Wall (s) | `1e-4` Span (`Coul` / `K` / `BSH`) (s) | **`1e-6` Span (`Coul` / `K` / `BSH`) (s)** | Final MO Boxes (`1e-6`) | Max Host RSS (MB) | Converged $E_{\text{tot}}$ (Ha) |
+| :--- | :--- | :---: | ---: | :---: | :---: | ---: | ---: | ---: |
+| **`water5`** (`25`) | Rebased Before (`NS=0`) | `8+2` | `93.70` | `48.90` (`1.41` / `29.27` / `4.61`) | `35.10` (`1.36` / `23.75` / `3.03`) | `44,496` | `4,945.6` | `-380.38040855` |
+| | Prior After (`NS=1`) | `8+2` | `89.50` | `54.70` (`1.98` / `34.58` / `10.24`) | `30.40` (`0.94` / `20.19` / `3.45`) | `37,496` | `4,824.0` | `-380.38041468` |
+| | **Rebased After (`NS=1`)** | **`8+2`** | **`86.80` (`1.08x`)** | **`47.80`** (`1.78` / **`27.03`** / **`5.73`**) | **`29.40` (`1.19x`)** (**`0.82`** / **`19.62`** / `3.07`) | **`37,496` (`-15.7%`)** | **`4,812.1` (`-2.7%`)** | **`-380.38041475`** (`-6.2 μEₕ`) |
+| **`water47`** (`235`) | Baseline Before (`NS=0`) | `14+3` | `5,456.60` | `3,186.50` (`8.85` / `2636.25` / `136.43`) | `2,209.70` (`10.41` / `1876.53` / `144.78`) | `654,912` | `65,899.0` | `-3575.06782624` |
+| | Prior After (`NS=1`) | `14+3` | `5,869.90` (`0.93x`) | `3,601.10` (`22.74` / `2886.01` / `356.76`) | `2,261.80` (`9.95` / `1939.64` / `146.25`) | `634,960` | `60,646.0` | `-3575.06784622` |
+| | **Rebased After (`NS=1`)** | **`14+3`** | **`5,484.30` (`1.00x`)** | **`3,249.00`** (`18.87` / `2688.47` / **`145.95`**) | **`2,172.70` (`1.02x`)** (**`8.59`** / **`1866.06`** / **`125.71`**) | **`635,008` (`-3.0%`)** | **`62,512.7` (`-5.1%`)** | **`-3575.06784685`** (`-20.6 μEₕ`) |
+
+- On **`water47`** (`141` atoms, `470` electrons, `235` MOs), the multi-center refinements cut `MADNESS_WINDOWED_NS=1` wall time by **`385.6 s` (`6.4 min`)** (`5,869.9 s -> 5,484.3 s`, `1.00x` parity with Legacy `5,456.6 s`), accelerating `1e-4` `Apply BSH` by **`2.44x`** (`356.76 s -> 145.95 s`) and outperforming Legacy across all three operators in the `1e-6` production protocol (`2,172.7 s` vs. `2,209.7 s`) while saving **`-3.39 GB` (`-5.1%`) Peak Host RSS** and **`-3.0%` MO leaf boxes**.

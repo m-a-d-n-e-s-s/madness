@@ -184,7 +184,7 @@ public:
     }
 
     bool check_le(const std::string& label, double metric, double bound) {
-        int local_fail = (!std::isfinite(metric) || !(metric <= bound)) ? 1 : 0;
+        int local_fail = (!madness::is_finite(metric) || !(metric <= bound)) ? 1 : 0;
         world_.gop.max(local_fail);
         ++total_checks_;
         if (local_fail != 0) {
@@ -868,8 +868,8 @@ void run_gate1(World& world, const SuiteOptions& opts, GateReporter& rep) {
             for (const int lvl : gc_levels) {
                 const GCLevelRule& rule = plan.gc_rule(lvl);
                 for (const GCNode& node : rule.nodes) {
-                    if (!std::isfinite(node.gamma_tilde) || !std::isfinite(node.weight_hat) ||
-                        !std::isfinite(node.weight_scaled) || node.gamma_tilde < 0.99 * plan.gamma_spiky() ||
+                    if (!madness::is_finite(node.gamma_tilde) || !madness::is_finite(node.weight_hat) ||
+                        !madness::is_finite(node.weight_scaled) || node.gamma_tilde < 0.99 * plan.gamma_spiky() ||
                         node.weight_hat < 0.0) {
                         gc_finite_ok = false;
                     }
@@ -1866,7 +1866,7 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
         const long leaked_world_objs = static_cast<long>(after_world_objs) - static_cast<long>(base_world_objs);
 
         rep.check_true("Zero leaked FunctionImpl objects after repeated Windowed NS applies",
-                       leaked_funcs == 0 && std::isfinite(accum_trace),
+                       leaked_funcs == 0 && madness::is_finite(accum_trace),
                        "base=" + std::to_string(base_funcs) + " after=" + std::to_string(after_funcs));
         rep.check_le("MemoryMeasurer leaked memory_GB delta", leaked_gb, 1e-15);
         rep.check_true("Zero leaked WorldObject IDs (halo/context containers)",
@@ -1955,7 +1955,7 @@ void run_gate4(World& world, const SuiteOptions& opts, GateReporter& rep, Parity
         }
 
         rep.check_true("special_level(23) cusp projection: finite norm & charge",
-                       std::isfinite(sp_norm2) && std::isfinite(sp_charge));
+                       madness::is_finite(sp_norm2) && madness::is_finite(sp_charge));
         rep.check_true("special_level(23) cusp projection: max_depth >= 23",
                        sp_depth >= 23, "max_depth=" + std::to_string(sp_depth));
         rep.check_le("special_level(23) cusp projection: L2 norm rel error",
