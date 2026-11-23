@@ -6,6 +6,11 @@ on:
     branches:
       - master
 
+# deploy pushes to gh-pages with GITHUB_TOKEN; declare it explicitly so this
+# keeps working when the org/repo default token is read-only
+permissions:
+  contents: write
+
 jobs:
   doxygen:
     runs-on: ubuntu-latest
