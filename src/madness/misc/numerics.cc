@@ -4,12 +4,17 @@
 
 #include <madness/misc/misc.h>
 
+#include <cmath>
 #include <limits>
 
 namespace madness {
     // Soft equality check
     bool nearlyEqual(double a, double b, double epsilon) {
-        // Handle equality (also covers infinity)
+        if (madness::is_nan(a) || madness::is_nan(b)) return false;
+        if (!madness::is_finite(a) || !madness::is_finite(b)) {
+            return !madness::is_finite(a) && !madness::is_finite(b) &&
+                   (std::signbit(a) == std::signbit(b));
+        }
         if (a == b) return true;
 
         double diff = std::abs(a - b);

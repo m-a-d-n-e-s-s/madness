@@ -1,5 +1,6 @@
 #include <madness/madness_config.h>
 #include<madness/chem/xcfunctional.h>
+#include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 #include <iostream>
 #include <string>
@@ -10,16 +11,6 @@
 #include <madness/world/MADworld.h>
 #include <xc.h>
 #include <xc_funcs.h>
-
-// This function is here because compiling with -ffast-math breaks the C
-// function isnan. Also, there is a bug in some compilers where isnan is
-// undefined when <cmath> is included.
-namespace {
-    inline int isnan_x(double x) {
-        volatile double y = x;
-        return x != y;
-    }
-}
 
 namespace madness {
 
@@ -863,6 +854,9 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             }
         }
     }
+    for (long j=0; j<np; j++) {
+        if (madness::is_nan(res[j])) MADNESS_EXCEPTION("NaN in xcfunctional::exc",1);
+    }
     return result;
 }
 
@@ -1045,7 +1039,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(
     for (Tensor<double>& rr : result) {
         double * MADNESS_RESTRICT res = rr.ptr();
         for (long j=0; j<np; j++) {
-            if (isnan_x(res[j])) MADNESS_EXCEPTION("NaN in xcfunctional::vxc",1);
+            if (madness::is_nan(res[j])) MADNESS_EXCEPTION("NaN in xcfunctional::vxc",1);
         }
     }
 
@@ -1189,7 +1183,7 @@ std::vector<madness::Tensor<double> > XCfunctional::fxc_apply(
 
             // check for NaNs
             double * MADNESS_RESTRICT res = result[j].ptr();
-            for (long jj=0; jj<np; jj++) if (isnan_x(res[jj]))
+            for (long jj=0; jj<np; jj++) if (madness::is_nan(res[jj]))
                 MADNESS_EXCEPTION("NaN in xcfunctional::fxc_apply",1);
 
         }

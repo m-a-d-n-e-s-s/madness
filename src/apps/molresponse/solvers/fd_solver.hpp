@@ -219,9 +219,18 @@ private:
     out.gate_thresh  = thr;
     double g = 0.0;
     for (std::size_t c = 0; c < out.last_bsh_residual.size(); ++c) {
+      if (!madness::is_finite(out.last_bsh_residual[c])) {
+        g = std::numeric_limits<double>::infinity();
+        break;
+      }
       g = std::max(g, out.last_bsh_residual[c] / targets_.bsh_residual);
-      if (out.iter > 1 && c < out.last_density_residual.size())
+      if (out.iter > 1 && c < out.last_density_residual.size()) {
+        if (!madness::is_finite(out.last_density_residual[c])) {
+          g = std::numeric_limits<double>::infinity();
+          break;
+        }
         g = std::max(g, out.last_density_residual[c] / targets_.density_residual);
+      }
     }
     out.gate_history.push_back(g);
     out.stalled = !out.diverged && policy_.plateau(out.gate_history);
@@ -377,7 +386,7 @@ public:
 
     // Explosion guard
     for (double r : out.last_bsh_residual) {
-      if (r > policy_.explosion_guard) { out.diverged = true; break; }
+      if (!madness::is_finite(r) || r > policy_.explosion_guard) { out.diverged = true; break; }
     }
 
     // Property trace (after KAIN: this is the iterate that will be saved).
@@ -401,12 +410,18 @@ public:
     if (s.last_bsh_residual.empty()) return false;
 
     double mx_bsh = 0.0;
-    for (double r : s.last_bsh_residual) mx_bsh = std::max(mx_bsh, r);
+    for (double r : s.last_bsh_residual) {
+      if (!madness::is_finite(r)) return false;
+      mx_bsh = std::max(mx_bsh, r);
+    }
     if (mx_bsh >= targets_.bsh_residual) return false;
 
     if (s.iter <= 1) return true;
     double mx_drho = 0.0;
-    for (double r : s.last_density_residual) mx_drho = std::max(mx_drho, r);
+    for (double r : s.last_density_residual) {
+      if (!madness::is_finite(r)) return false;
+      mx_drho = std::max(mx_drho, r);
+    }
     return mx_drho < targets_.density_residual;
   }
 

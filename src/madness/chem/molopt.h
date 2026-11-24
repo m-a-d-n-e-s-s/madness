@@ -165,15 +165,6 @@ public:
       print(V);
     }
 
-    // Remove any floating-point translational residual from the rotation
-    // generators before computing their singular values.
-    for (int i = 3; i < 6; i++) {
-      for (int j = 0; j < 3; j++) {
-        double proj = V(i, _).trace(V(j, _));
-        V(i, _) -= V(j, _) * proj;
-      }
-    }
-
     // Orthonormalize the rotational subspace via SVD of the (3, 3*natom)
     // rotation block rather than sequential lab-axis Gram-Schmidt. Under any
     // 3D rigid rotation of the molecule, the singular values of R are strictly
@@ -198,12 +189,7 @@ public:
           double proj = V(row, _).trace(V(j, _));
           V(row, _) -= V(j, _) * proj;
         }
-        double vnorm = V(row, _).normf();
-        if (vnorm > 0.5) {
-          V(row, _) *= 1.0 / vnorm;
-        } else {
-          V(row, _) = 0.0;
-        }
+        V(row, _) *= 1.0 / V(row, _).normf();
       } else {
         V(row, _) = 0.0;
       }
@@ -281,6 +267,8 @@ private:
 
     // Compute energy at new point
     energy1 = target.value(x + a1 * dx);
+    MADNESS_CHECK_THROW(madness::is_finite(energy1),
+                        "MolOpt::line_search: energy is not finite");
 
     // Fit to a parabola using energy0, g0, energy1
     hess = 2.0 * (energy1 - energy0 - a1 * dxgrad) / (a1 * a1);
@@ -407,11 +395,13 @@ public:
       if (print_level > 0)
         print_gradient(molecule, graw, g);
 
+      MADNESS_CHECK_THROW(madness::is_finite(e),
+                          "MolOpt::optimize: energy is not finite");
+      MADNESS_CHECK_THROW(madness::is_finite(graw) && madness::is_finite(g),
+                          "MolOpt::optimize: gradient is not finite");
       double de = e - ep;
       double dxmax = dx.absmax();
       double gmax = g.absmax();
-      MADNESS_CHECK_THROW(madness::is_finite(gmax),
-                          "MolOpt::optimize: projected gradient is not finite");
 
       bool dxconv = (iter > 0) && (dxmax < xtol);
       bool gconv = gmax < gtol;
@@ -546,11 +536,13 @@ public:
       if (print_level > 0)
         print_gradient(molecule, graw, g);
 
+      MADNESS_CHECK_THROW(madness::is_finite(e),
+                          "MolOpt::optimize_app: energy is not finite");
+      MADNESS_CHECK_THROW(madness::is_finite(graw) && madness::is_finite(g),
+                          "MolOpt::optimize_app: gradient is not finite");
       double de = e - ep;
       double dxmax = dx.absmax();
       results.max_gradient = g.absmax();
-      MADNESS_CHECK_THROW(madness::is_finite(results.max_gradient),
-                          "MolOpt::optimize_app: projected gradient is not finite");
 
       bool dxconv = (iter > 0) && (dxmax < xtol);
       bool gconv = results.max_gradient < gtol;

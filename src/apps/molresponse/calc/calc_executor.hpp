@@ -1633,9 +1633,11 @@ private:
       if (!b.contains("roots") || !b["roots"].is_array()) continue;
 
       for (size_t i = 0; i < b["roots"].size(); ++i) {
-        const double w = b["roots"][i].value(
-            "omega", std::numeric_limits<double>::quiet_NaN());
-        if (!(w == w)) continue;                         // skip NaN omega
+        const auto &rj = b["roots"][i];
+        const double w = (rj.contains("omega") && rj["omega"].is_number())
+                             ? rj["omega"].get<double>()
+                             : madness::runtime_quiet_nan();
+        if (!madness::is_finite(w)) continue;            // skip missing/non-finite omega
         const double fd_freq = sym.es_freq_factor * w;   // e.g. ωₙ/2 (off-pole)
         CalcNode c;
         // A derived FD at ω = factor·(root energy) is an ordinary FD point ->
@@ -1743,7 +1745,9 @@ inline void assemble_beta(ExecutorContext &ctx, const ResponsePlan &plan,
       const bool acc = e.value("accepted", false);
       a["converged"]    = e.value("converged", false) && !acc;
       a["accepted"]     = acc;
-      a["bsh_residual"] = e.value("bsh_residual", 0.0);
+      a["bsh_residual"] = (e.contains("bsh_residual") && e["bsh_residual"].is_number())
+                              ? e["bsh_residual"].get<double>()
+                              : 0.0;
     }
     return a;
   };
@@ -2312,7 +2316,9 @@ inline void assemble_alpha(ExecutorContext &ctx, const ResponsePlan &plan,
           const auto &e = meta.json()["fd_states"][chan][sk][fkey];
           ac = e.value("accepted",  false) ? 1 : 0;
           cv = (e.value("converged", false) && !ac) ? 1 : 0;
-          rs = e.value("bsh_residual", 0.0);
+          rs = (e.contains("bsh_residual") && e["bsh_residual"].is_number())
+                   ? e["bsh_residual"].get<double>()
+                   : 0.0;
         }
       }
       world.gop.broadcast_serializable(sk, 0);

@@ -17,13 +17,6 @@ using namespace madness;
 
 namespace {
 
-bool tensor_all_finite(const Tensor<double>& t) {
-  for (long i = 0; i < t.size(); ++i) {
-    if (!is_finite(t.ptr()[i])) return false;
-  }
-  return true;
-}
-
 /// Builds a proper 3D rotation matrix (Rodrigues' formula) rotating around a
 /// non-Cartesian axis so all 3 lab coordinates mix strongly.
 Tensor<double> make_test_rotation_matrix() {
@@ -76,7 +69,7 @@ bool check_projector(const std::string& label, const Molecule& mol,
   const int n = 3 * static_cast<int>(mol.natom());
 
   bool ok = (P.ndim() == 2 && P.dim(0) == n && P.dim(1) == n) &&
-            tensor_all_finite(P);
+            is_finite(P);
   if (!ok) {
     print("FAILED:", label, "projector dimensions or finiteness");
     return false;
@@ -194,7 +187,23 @@ struct NearLinearBentTriatomicTarget {
     wperp = {w[0] - s * uhat[0], w[1] - s * uhat[1], w[2] - s * uhat[2]};
     b = std::sqrt(wperp[0] * wperp[0] + wperp[1] * wperp[1] +
                   wperp[2] * wperp[2]);
-    nhat = {wperp[0] / b, wperp[1] / b, wperp[2] / b};
+    if (b > 0.0) {
+      nhat = {wperp[0] / b, wperp[1] / b, wperp[2] / b};
+    } else {
+      // Any unit vector orthogonal to uhat suffices when b == 0.
+      const int min_axis =
+          (std::abs(uhat[0]) <= std::abs(uhat[1]) &&
+           std::abs(uhat[0]) <= std::abs(uhat[2]))
+              ? 0
+              : (std::abs(uhat[1]) <= std::abs(uhat[2]) ? 1 : 2);
+      std::array<double, 3> e = {0.0, 0.0, 0.0};
+      e[min_axis] = 1.0;
+      const double dot = e[0] * uhat[0] + e[1] * uhat[1] + e[2] * uhat[2];
+      const std::array<double, 3> p = {
+          e[0] - dot * uhat[0], e[1] - dot * uhat[1], e[2] - dot * uhat[2]};
+      const double pn = std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+      nhat = {p[0] / pn, p[1] / pn, p[2] / pn};
+    }
   }
 
   [[nodiscard]] double value(const Tensor<double>& x) const {
@@ -244,15 +253,41 @@ struct NearLinearBentTriatomicTarget {
 };
 
 struct NonFiniteGradientTarget {
+  long nan_index = 2;
+  long dim = 6;
+  double base_grad = 0.0;
   double e0 = -1.0;
   [[nodiscard]] double value(const Tensor<double>&) const { return e0; }
   void energy_and_gradient(Molecule&, double& energy,
                            Tensor<double>& gradient) const {
     energy = e0;
+    gradient = Tensor<double>(dim);
+    for (long i = 0; i < dim; ++i) gradient[i] = base_grad * ((i % 2 == 0) ? 1.0 : -1.0);
+    gradient[nan_index] = runtime_quiet_nan();
+  }
+};
+
+struct NonFiniteEnergyTarget {
+  [[nodiscard]] double value(const Tensor<double>&) const { return -1.0; }
+  void energy_and_gradient(Molecule&, double& energy,
+                           Tensor<double>& gradient) const {
+    energy = runtime_quiet_nan();
     gradient = Tensor<double>(6L);
-    volatile std::uint64_t nan_bits = 0x7ff8000000000000ULL;
-    const std::uint64_t bits = nan_bits;
-    gradient[2] = std::bit_cast<double>(bits);
+    gradient[2] = 0.05;
+    gradient[5] = -0.05;
+  }
+};
+
+struct NonFiniteLineSearchEnergyTarget {
+  [[nodiscard]] double value(const Tensor<double>&) const {
+    return runtime_quiet_nan();
+  }
+  void energy_and_gradient(Molecule&, double& energy,
+                           Tensor<double>& gradient) const {
+    energy = -1.0;
+    gradient = Tensor<double>(6L);
+    gradient[2] = 0.05;
+    gradient[5] = -0.05;
   }
 };
 
@@ -373,7 +408,7 @@ int main(int argc, char** argv) {
   //    and of a 3D-rotated nearly linear bent triatomic with spurious net force
   //    AND spurious torque along the near-linear rotation mode (gtol = 1e-6,
   //    well below the 2e-4 spurious components removed by the projector)
-  {
+  try {
     Molecule lih(
         {Atom(0.0, 0.0, 0.7625, 3.0, 3), Atom(0.0, 0.0, -2.2875, 1.0, 1)},
         eprec);
@@ -414,25 +449,188 @@ int main(int argc, char** argv) {
           "max_g=", bent_res.max_gradient, "L=", L_final, "s=", s_final,
           "b=", b_final, bent_ok ? "ok" : "FAILED");
     success = bent_ok && success;
+
+    // Also verify decompose handles exact collinearity (b == 0) finitely
+    Tensor<double> collinear_x(9L);
+    collinear_x[0] = 0.0; collinear_x[1] = 0.0; collinear_x[2] = -2.0;
+    collinear_x[3] = 0.0; collinear_x[4] = 0.0; collinear_x[5] = 0.0;
+    collinear_x[6] = 0.0; collinear_x[7] = 0.0; collinear_x[8] = 2.0;
+    NearLinearBentTriatomicTarget::decompose(collinear_x, uhat, wperp, nhat,
+                                             L_final, s_final, b_final);
+    const bool b0_ok = (b_final == 0.0) && is_finite(nhat[0]) &&
+                       is_finite(nhat[1]) && is_finite(nhat[2]);
+    print("NearLinearBentTriatomicTarget::decompose at b=0:",
+          b0_ok ? "ok" : "FAILED");
+    success = b0_ok && success;
+  } catch (const MadnessException& ex) {
+    print("FAILED: unexpected MadnessException in end-to-end optimize_app:",
+          ex.msg);
+    success = false;
   }
 
-  // 6. Non-finite gradient must throw rather than silently force convergence
+  // 6. Non-finite gradient and energy detection:
+  //    - Directly test madness::is_finite(const Tensor<T>&) on vectors where
+  //      Tensor::absmax() returns a finite value despite a non-leading NaN
+  //      (and on leading-NaN, complex, empty, and non-contiguous slice views).
+  //    - Verify MolOpt::optimize and MolOpt::optimize_app throw on non-finite
+  //      gradients and non-finite initial or line-search energies rather than
+  //      silently forcing convergence. (Note: dense inner(P, graw) multiplies
+  //      every P(i, j) * graw[j] without skipping zeros, so 0 * NaN = NaN
+  //      propagates into all entries of g; MolOpt checks both graw and g.)
+  //    - Verify QuasiNewton and SteepestDescent (which do not project by P)
+  //      reject a [0.1, 0.1, NaN] gradient where g.absmax() is finite.
   {
-    Molecule lih(
+    // Direct test of the Tensor::absmax() NaN blind spot on [0.1, NaN, 0.2]:
+    // std::max(result, std::abs(x)) keeps result when x is NaN, so absmax()
+    // returns finite 0.2, whereas madness::is_finite(tail_nan) returns false.
+    Tensor<double> tail_nan(3L);
+    tail_nan[0] = 0.1;
+    tail_nan[1] = runtime_quiet_nan();
+    tail_nan[2] = 0.2;
+    Tensor<double> lead_nan(3L);
+    lead_nan[0] = runtime_quiet_nan();
+    lead_nan[1] = 0.1;
+    lead_nan[2] = 0.2;
+    Tensor<double> all_ok(3L);
+    all_ok[0] = 0.1;
+    all_ok[1] = -0.3;
+    all_ok[2] = 0.2;
+
+    // Non-contiguous slice view (column 1 of a 3x2 matrix has stride 2)
+    Tensor<double> mat(3L, 2L);
+    mat = 1.0;
+    Tensor<double> col0 = mat(_, 0);
+    Tensor<double> col1 = mat(_, 1);
+    const bool slice_clean_ok = !col1.iscontiguous() && is_finite(col1);
+    mat(1, 1) = runtime_quiet_nan();
+    const bool slice_nan_ok = is_finite(col0) && !is_finite(col1);
+
+    Tensor<double_complex> cten(2L);
+    cten[0] = double_complex(1.0, 2.0);
+    cten[1] = double_complex(1.0, runtime_quiet_nan());
+
+    const bool tensor_finite_ok =
+        is_finite(Tensor<double>()) && is_finite(all_ok) &&
+        is_finite(tail_nan.absmax()) && !is_finite(tail_nan) &&
+        !is_finite(lead_nan) && slice_clean_ok && slice_nan_ok &&
+        !is_finite(cten);
+    print("Tensor is_finite vs absmax on [0.1, NaN, 0.2] and slices:",
+          tensor_finite_ok ? "ok" : "FAILED");
+    success = tensor_finite_ok && success;
+
+    const Molecule lih(
         {Atom(0.0, 0.0, 0.7625, 3.0, 3), Atom(0.0, 0.0, -2.2875, 1.0, 1)},
         eprec);
-    NonFiniteGradientTarget bad_target;
-    MolOpt opt(/*maxiter=*/5, 0.1, 1e-5, 1e-4, 1e-4, 1e-6, 1e-5,
-               /*print_level=*/0, "bfgs");
-    bool threw = false;
-    try {
-      (void)opt.optimize_app(lih, bad_target);
-    } catch (const MadnessException&) {
-      threw = true;
+    const Molecule h2o({Atom(0.0, 0.0, 0.213, 8.0, 8),
+                        Atom(0.0, 1.427, -0.852, 1.0, 1),
+                        Atom(0.0, -1.427, -0.852, 1.0, 1)},
+                       eprec);
+
+    auto expect_throws = [&](const char* label, const Molecule& mol,
+                             auto& bad_target) {
+      bool threw_app = false;
+      bool threw_opt = false;
+      {
+        MolOpt opt(/*maxiter=*/5, 0.1, 1e-5, 1e-4, 1e-4, 1e-6, 1e-5,
+                   /*print_level=*/0, "bfgs");
+        try {
+          (void)opt.optimize_app(mol, bad_target);
+        } catch (const MadnessException&) {
+          threw_app = true;
+        }
+      }
+      {
+        MolOpt opt(/*maxiter=*/5, 0.1, 1e-5, 1e-4, 1e-4, 1e-6, 1e-5,
+                   /*print_level=*/0, "bfgs");
+        try {
+          (void)opt.optimize(mol, bad_target);
+        } catch (const MadnessException&) {
+          threw_opt = true;
+        }
+      }
+      const bool ok = threw_app && threw_opt;
+      print(label, ok ? "ok" : "FAILED");
+      success = ok && success;
+    };
+
+    // NaN in internal z-component of z-aligned diatomic
+    NonFiniteGradientTarget bad_grad_z{/*nan_index=*/2, /*dim=*/6, 0.0};
+    expect_throws("non-finite gradient (z component) throws:", lih, bad_grad_z);
+
+    // NaN in x-component of z-aligned diatomic (rigid-body direction)
+    NonFiniteGradientTarget bad_grad_x{/*nan_index=*/0, /*dim=*/6, 0.05};
+    expect_throws("non-finite gradient (x component) throws:", lih, bad_grad_x);
+
+    // NaN in trailing element of 3-atom H2O raw gradient
+    NonFiniteGradientTarget bad_grad_tail{/*nan_index=*/8, /*dim=*/9, 0.05};
+    expect_throws("non-finite gradient (trailing element) throws:", h2o,
+                  bad_grad_tail);
+
+    NonFiniteEnergyTarget bad_energy;
+    expect_throws("non-finite energy throws:", lih, bad_energy);
+
+    NonFiniteLineSearchEnergyTarget bad_ls_energy;
+    expect_throws("non-finite line_search energy throws:", lih, bad_ls_energy);
+
+    // Verify is_nan / is_finite / nearlyEqual on real/complex NaN and +/-Inf
+    const double qnan_d = runtime_quiet_nan<double>();
+    const float qnan_f = runtime_quiet_nan<float>();
+    const std::complex<double> qnan_c(1.0, qnan_d);
+    volatile double pos_inf_v = std::numeric_limits<double>::infinity();
+    const double pos_inf = pos_inf_v;
+    const double neg_inf = -pos_inf;
+    const bool nan_helpers_ok =
+        is_nan(qnan_d) && !is_finite(qnan_d) && is_nan(qnan_f) &&
+        !is_finite(qnan_f) && is_nan(qnan_c) && !is_finite(qnan_c) &&
+        !is_nan(pos_inf) && !is_finite(pos_inf) &&
+        !is_nan(std::complex<double>(1.0, -2.0)) &&
+        is_finite(std::complex<double>(1.0, -2.0)) &&
+        !nearlyEqual(qnan_d, qnan_d) && !nearlyEqual(qnan_d, 1.0) &&
+        nearlyEqual(pos_inf, pos_inf) && nearlyEqual(neg_inf, neg_inf) &&
+        !nearlyEqual(pos_inf, neg_inf) && !nearlyEqual(pos_inf, 1.0) &&
+        nearlyEqual(1.0, 1.0 + 1e-12);
+    print("is_nan / is_finite / runtime_quiet_nan / nearlyEqual helpers:",
+          nan_helpers_ok ? "ok" : "FAILED");
+    success = nan_helpers_ok && success;
+
+    // Verify QuasiNewton and SteepestDescent also reject non-finite values/gradients
+    struct BadOptTarget : public OptimizationTargetInterface {
+      bool nan_grad = false;
+      bool provides_gradient() const override { return true; }
+      double value(const Tensor<double>&) override {
+        return nan_grad ? 1.0 : runtime_quiet_nan();
+      }
+      Tensor<double> gradient(const Tensor<double>& x) override {
+        Tensor<double> g(x.dim(0));
+        g = 0.1;
+        if (nan_grad) g[x.dim(0) - 1] = runtime_quiet_nan();
+        return g;
+      }
+    };
+    bool qn_sd_ok = true;
+    for (bool ng : {false, true}) {
+      auto t = std::make_shared<BadOptTarget>();
+      t->nan_grad = ng;
+      bool qn_threw = false, sd_threw = false;
+      try {
+        Tensor<double> x(3L);
+        QuasiNewton qn(t);
+        (void)qn.optimize(x);
+      } catch (const MadnessException&) {
+        qn_threw = true;
+      }
+      try {
+        Tensor<double> x(3L);
+        SteepestDescent sd(t);
+        (void)sd.optimize(x);
+      } catch (const MadnessException&) {
+        sd_threw = true;
+      }
+      qn_sd_ok = qn_sd_ok && qn_threw && sd_threw;
     }
-    print("non-finite gradient throws MadnessException:",
-          threw ? "ok" : "FAILED");
-    success = threw && success;
+    print("QuasiNewton / SteepestDescent non-finite rejection:",
+          qn_sd_ok ? "ok" : "FAILED");
+    success = qn_sd_ok && success;
   }
 
   // 7. Molecule::nuclear_attraction_potential_derivative at r == 0 is finite

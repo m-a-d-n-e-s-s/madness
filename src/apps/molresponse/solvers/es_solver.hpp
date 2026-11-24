@@ -502,7 +502,7 @@ private:
         (print_level_ >= PrintLevel::Verbose) ? 1 : 0;
     if (!kain_held_off(out)) kain_.apply(x_pre_bsh, out.roots, kain_diag);
     for (double r : out.last_bsh_residual) {
-      if (r > policy_.explosion_guard) { out.diverged = true; break; }
+      if (!madness::is_finite(r) || r > policy_.explosion_guard) { out.diverged = true; break; }
     }
     update_stall(out, in);
     print_iter_banner(out);
@@ -755,7 +755,7 @@ public:
     // policy_.explosion_guard, mark the state diverged and let iterate<>
     // stop. Legacy iterate_excited.cc:164 uses the same heuristic.
     for (double r : out.last_bsh_residual) {
-      if (r > policy_.explosion_guard) { out.diverged = true; break; }
+      if (!madness::is_finite(r) || r > policy_.explosion_guard) { out.diverged = true; break; }
     }
 
     if (time_phases_ && world_.rank() == 0) {
@@ -1026,7 +1026,8 @@ public:
 
     // ---- explosion guard (active) -----------------------------------------
     for (int i : act)
-      if (out.last_bsh_residual[i] > policy_.explosion_guard) {
+      if (!madness::is_finite(out.last_bsh_residual[i]) ||
+          out.last_bsh_residual[i] > policy_.explosion_guard) {
         out.diverged = true;
         break;
       }
@@ -1081,6 +1082,8 @@ public:
     for (std::size_t s = 0; s < M; ++s) {
       if (s < out.locked.size() && out.locked[s]) continue;
       if (s >= out.last_omega_residual.size() ||
+          !madness::is_finite(out.last_density_residual[s]) ||
+          !madness::is_finite(out.last_omega_residual[s]) ||
           out.last_omega_residual[s] >= 1.0e8) {           // sentinel: no dw yet
         g = std::numeric_limits<double>::infinity(); any = true; break;
       }
@@ -1108,8 +1111,11 @@ public:
     if (out.iter <= std::max(1, policy_.min_iters_before_conv)) return false;
     if (s >= static_cast<int>(out.last_density_residual.size())) return false;
     if (s >= static_cast<int>(out.last_omega_residual.size()))   return false;
-    return out.last_density_residual[s] < targets_.density_residual &&
-           out.last_omega_residual[s]   < targets_.omega_residual;
+    const double drho = out.last_density_residual[s];
+    const double dw   = out.last_omega_residual[s];
+    return madness::is_finite(drho) && madness::is_finite(dw) &&
+           drho < targets_.density_residual &&
+           dw   < targets_.omega_residual;
   }
 
   /// Converged: diverged, OR every root passes es_root_converged (energy +

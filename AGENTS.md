@@ -9,7 +9,7 @@ organized, and the project-specific gotchas that are easy to get wrong.
 
 **How to use this file.** Treat it as a starting map, not authority. The code is the source of truth — when this file disagrees with what `grep`/`Read` show you, trust the code and flag the discrepancy so this file can be updated.
 
-_Last reviewed against master:_ 2026-04-23.
+_Last reviewed against master:_ 2026-11-24.
 
 ## Platforms
 
@@ -267,6 +267,46 @@ Pick by *why* you're checking, not by what's short to type:
 - **`MADNESS_ASSERT_NOEXCEPT`** — use inside `noexcept` functions where a
   throwing `MADNESS_ASSERT` would call `std::terminate`.
 
+### Floating-point finiteness and `-ffast-math`
+
+MADNESS supports `-DMADNESS_RELAXED_MATH=fast` (`-ffast-math`), which is enabled
+in self-hosted Release CI and implies `-ffinite-math-only`, `-fno-signed-zeros`,
+`-fassociative-math`, and `-ffp-contract=fast`. Follow these rules whenever
+writing or reviewing numerical, I/O, or test code:
+
+- **Never use `std::isnan`, `std::isinf`, `std::isfinite`, or `std::fpclassify`,
+  and never use IEEE self-comparison or negated-comparison idioms** (`x != x`,
+  `!(x == x)`, `!(x < tol)`). Under `-ffinite-math-only`, compilers fold these
+  to compile-time `false`/`true` constants without inspecting the value. Never
+  suppress `-Wtautological-constant-compare` or `-Wnan-infinity-disabled` with
+  pragmas — those warnings mean the check is a no-op.
+- **Always use `madness::is_finite(x)` and `madness::is_nan(x)`** from
+  `<madness/misc/misc.h>` (overloaded for `float`, `double`, and
+  `std::complex<T>`, plus `madness::is_finite(const Tensor<T>&)` in
+  `<madness/tensor/tensor.h>`), which inspect IEEE-754 bit patterns via
+  `std::bit_cast`. To test specifically for `+/-Inf`, write
+  `!madness::is_finite(x) && !madness::is_nan(x)`.
+- **Check vectors/tensors elementwise (`madness::is_finite(tensor)`) rather than
+  after `std::max` or `Tensor::absmax` reductions.** `std::max(acc, x)` returns
+  `acc` when `x` is `NaN` even in strict IEEE-754, so `absmax()` on
+  `[0.1, NaN, ...]` returns finite `0.1`, and on AArch64 `-ffast-math` lowers
+  `max` to `fmaxnm`, which drops a leading `NaN` too.
+- **Guard iterative solver and optimizer values, residuals, and line-search
+  evaluations** with `madness::is_finite` before convergence (`std::abs(de) < etol`)
+  or divergence (`r > explosion_guard`) tests, so a `NaN` from a diverged step
+  cannot fold into false convergence or slip past `r > guard`.
+- **Never serialize potentially non-finite floats directly into
+  `nlohmann::json`.** `nlohmann::json` is header-only and guards its Grisu2
+  serializer (`dump_float`) with `std::isfinite(x)`, which folds away under
+  `-ffast-math` and writes corrupt numeric literals instead of `null`. Emit
+  `madness::is_finite(v) ? json(v) : json(nullptr)` explicitly, and guard
+  nullable reads (`j.contains(k) && j[k].is_number()`) because
+  `j.value(k, 0.0)` throws `type_error.302` when `j[k]` is `null`.
+- **Materialize test `NaN` inputs with `madness::runtime_quiet_nan<T>()`**
+  (`<madness/misc/misc.h>`) rather than `std::nan("")` or
+  `std::numeric_limits<T>::quiet_NaN()`, which compilers constant-fold across
+  conditionals under `-ffast-math`.
+
 ### CMake harness
 
 MADNESS is designed to be consumed by parent projects both as an installed
@@ -440,6 +480,12 @@ catch because its matrix is narrow. Flag these; don't nitpick style
   one GENTENSOR cell; ask the author to verify with
   `-DENABLE_GENTENSOR=ON` locally if the change could affect the
   compressed-tensor path.
+- **`-ffast-math`-unsafe finiteness/NaN checks.** Flag any use of
+  `std::isnan`, `std::isinf`, `std::isfinite`, `std::fpclassify`, `x != x` /
+  `!(x == x)`, `std::nan` / `quiet_NaN()`, `NaN`-swallowing `std::max` /
+  `Tensor::absmax` reductions, or unguarded non-finite `nlohmann::json` float
+  serialization; push for `madness::is_finite`, `madness::is_nan`, and
+  `madness::runtime_quiet_nan` (`<madness/misc/misc.h>`).
 
 ## Documentation
 

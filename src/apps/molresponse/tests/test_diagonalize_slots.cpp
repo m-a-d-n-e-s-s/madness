@@ -24,6 +24,7 @@
 
 #include "../kernels/response_space_ops.hpp"
 
+#include <madness/misc/misc.h>
 #include <madness/world/MADworld.h>
 
 #include <cmath>
@@ -106,7 +107,7 @@ int main(int argc, char **argv) {
             "rank-deficient: omega_ascending padded to expanded dim");
       bool finite = true;
       for (long i = 0; i < 3; ++i)
-        if (!std::isfinite(r.omega(i))) finite = false;
+        if (!madness::is_finite(r.omega(i))) finite = false;
       check(finite, "rank-deficient: all omega finite (bounded placeholder)");
     }
 

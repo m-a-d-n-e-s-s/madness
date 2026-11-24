@@ -146,7 +146,6 @@ public:
 
 
 private:
-
     bool optimize_quasi_newton(Tensor<double>& x) {
 
         if(parameters.printtest())  target->test_gradient(x, parameters.value_precision());
@@ -187,6 +186,8 @@ private:
             Tensor<double> gradient;
 
             target->value_and_gradient(x, f, gradient);
+            MADNESS_CHECK_THROW(madness::is_finite(f) && madness::is_finite(gradient),
+                                "MolecularOptimizer::optimize_quasi_newton: energy or gradient is not finite");
 //            print("gopt: new energy",f);
 //            const double rawgnorm = gradient.normf()/sqrt(gradient.size());
 //            print("gopt: raw gradient norm ",rawgnorm);
@@ -194,6 +195,8 @@ private:
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
+            MADNESS_CHECK_THROW(madness::is_finite(gradient),
+                                "MolecularOptimizer::optimize_quasi_newton: projected gradient is not finite");
             gnorm = gradient.normf()/sqrt(gradient.size());
 //            print("gopt: projected gradient norm ",gnorm);
 //            const double gradratio=rawgnorm/gnorm;
@@ -272,6 +275,8 @@ private:
 
             // compute energy and gradient
             target->value_and_gradient(x, energy, gradient);
+            MADNESS_CHECK_THROW(madness::is_finite(energy) && madness::is_finite(gradient),
+                                "MolecularOptimizer::optimize_conjugate_gradients: energy or gradient is not finite");
 //            print("gopt: new energy",energy);
             gnorm = gradient.normf()/sqrt(gradient.size());
 //            print("gopt: raw gradient norm ",gnorm);
@@ -279,6 +284,8 @@ private:
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
+            MADNESS_CHECK_THROW(madness::is_finite(gradient),
+                                "MolecularOptimizer::optimize_conjugate_gradients: projected gradient is not finite");
             gnorm = gradient.normf()/sqrt(gradient.size());
 //            print("gopt: projected gradient norm ",gnorm);
 

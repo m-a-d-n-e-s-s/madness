@@ -545,6 +545,45 @@ bool test_quoted_list(World& world) {
 	return true;
 }
 
+bool test_infinity_parameter(World& world) {
+	print("entering test_infinity_parameter");
+	struct InfParams : public QCCalculationParametersBase {
+		using QCCalculationParametersBase::read_input_and_commandline_options;
+		InfParams() {
+			initialize<double>("rcut", std::numeric_limits<double>::infinity(), "cutoff radius");
+		}
+		std::string get_tag() const override { return "infgrp"; }
+		double rcut() const { return get<double>("rcut"); }
+	};
+
+	InfParams def_param;
+	if (madness::is_finite(def_param.rcut()) || madness::is_nan(def_param.rcut())) {
+		throw std::runtime_error("default rcut should be +infinity");
+	}
+	// JSON dump + parse round-trip must produce valid JSON even under -ffast-math
+	const std::string dumped = def_param.to_json().dump();
+	const auto parsed = nlohmann::json::parse(dumped);
+	if (!parsed["parameters"]["rcut"].is_null()) {
+		throw std::runtime_error("infinite parameter should serialize to JSON null, got: " + dumped);
+	}
+	InfParams from_j;
+	from_j.from_json(parsed["parameters"]);
+	if (madness::is_finite(from_j.rcut()) || madness::is_nan(from_j.rcut())) {
+		throw std::runtime_error("from_json failed to restore +infinity parameter");
+	}
+
+	// Deck parsing of `inf`
+	inputfile ifile("input_inf", "infgrp\n  rcut inf\nend");
+	InfParams deck_param;
+	commandlineparser parser;
+	parser.set_keyval("input", "input_inf");
+	deck_param.read_input_and_commandline_options(world, parser, "infgrp");
+	if (madness::is_finite(deck_param.rcut()) || madness::is_nan(deck_param.rcut())) {
+		throw std::runtime_error("reading `rcut inf` failed to produce +infinity");
+	}
+	return true;
+}
+
 
 
 int main(int argc, char** argv) {
@@ -574,6 +613,7 @@ int main(int argc, char** argv) {
 		test_derived(world);
 		test_group_header(world);
 		test_quoted_list(world);
+		test_infinity_parameter(world);
 
 
 	} catch (std::exception& e) {
