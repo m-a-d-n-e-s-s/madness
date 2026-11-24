@@ -854,6 +854,9 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             }
         }
     }
+    for (long j=0; j<np; j++) {
+        if (madness::is_nan(res[j])) MADNESS_EXCEPTION("NaN in xcfunctional::exc",1);
+    }
     return result;
 }
 

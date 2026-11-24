@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
         // state and a function built at the active protocol.
         real_function_3d v = real_factory_3d(world).f(gauss1);
         const double ip = inner(r->state.responses[0].x_alpha[0], v);
-        EXPECT(std::isfinite(ip) && std::abs(ip) > 0.0,
+        EXPECT(madness::is_finite(ip) && std::abs(ip) > 0.0,
                "mixed-provenance inner() succeeds (no k-mismatch abort)");
       }
     }

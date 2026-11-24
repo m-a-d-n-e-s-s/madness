@@ -22,8 +22,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     // t1.set_cout_to_terminal();
     print("testing the representation of the function:   phi(1) phi(2) f(1,2)");
     print("by computing the norm of the projection : r(1) =  phi(1) int one(1) phi(2) f(1,2) d2");
-    madness::default_random_generator.setstate(int(cpu_time())%4149);
-    madness::default_random_generator.setstate(int(cpu_time())%4149);
+    madness::default_random_generator.setstate(42);
     std::string id=unique_fileid();
 
     constexpr std::size_t LDIM=2;
@@ -765,7 +764,7 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
 
     for (const auto &p : grid) {
         // find nearest center
-        double mind = std::numeric_limits<double>::infinity();
+        double mind = std::numeric_limits<double>::max();
         size_t best = 0;
         for (size_t ic=0; ic<atomic_sites.size(); ++ic) {
             double d = (p - atomic_sites[ic]).normf();
@@ -838,7 +837,7 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
             // every point must be at least as close to one of the two centers
             // as to any other (trivially true with two centers, but exercise
             // the predicate)
-            if (!std::isfinite(d0) || !std::isfinite(d1)) { all_in_some_cell = false; break; }
+            if (!madness::is_finite(d0) || !madness::is_finite(d1)) { all_in_some_cell = false; break; }
         }
         t1.checkpoint(all_in_some_cell, "voronoi: all kept points have finite distances to both centers");
 
@@ -846,16 +845,29 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
         //     because the overlap region is depleted
         std::vector<Vector<double,LDIM>> single = {Vector<double,LDIM>(0.0)};
         molecular_grid<LDIM> mgrid_single(single, parameters);
-        auto grid_single = mgrid_single.get_grid();
-        print("voronoi: single =", grid_single.size(),
-              " two-close-centers =", grid_close.size(),
-              " 2 * single =", 2 * grid_single.size());
         if (parameters.gridtype() == "random") {
+            // randomgrid draws via std::random_device; average several independent
+            // trials so small-sample negative-binomial variance (~15% per draw at
+            // LDIM=1) cannot randomly dip 2*single below a single grid_close draw.
+            constexpr int ntrials = 8;
+            size_t sum_single = 0, sum_close = 0;
+            for (int t = 0; t < ntrials; ++t) {
+                sum_single += mgrid_single.get_grid().size();
+                sum_close += mgrid_close.get_grid().size();
+            }
+            print("voronoi (8-trial sum): single =", sum_single,
+                  " two-close-centers =", sum_close,
+                  " 2 * single =", 2 * sum_single);
             // with random sampling the expected loss is roughly the mass of
             // each Gaussian beyond the bisector. For centers separated by
-            // 0.5*radius and variance ~radius this is non-trivial.
-            t1.checkpoint(grid_close.size() < 2 * grid_single.size(),
+            // 0.5*radius and variance ~radius this is non-trivial (~35%).
+            t1.checkpoint(sum_close < 2 * sum_single,
                           "voronoi: combined point count below 2x single-center");
+        } else {
+            auto grid_single = mgrid_single.get_grid();
+            print("voronoi: single =", grid_single.size(),
+                  " two-close-centers =", grid_close.size(),
+                  " 2 * single =", 2 * grid_single.size());
         }
 
         // (c) no point in grid_close lies strictly closer to a third probe
@@ -1402,7 +1414,7 @@ int test_invrsq_operator(World& world) {
     double phi_norm = phi.norm2(); phi.scale(1.0/phi_norm);
     LRFunctorF12<double,6> functor(coulomb, phi, phi);
     double fn = functor.norm2();
-    bool norm_ok = std::isfinite(fn) && fn > 0.0;
+    bool norm_ok = madness::is_finite(fn) && fn > 0.0;
     print("LRFunctorF12(Coulomb, phi, phi).norm2() =", fn);
     t.checkpoint(norm_ok, "Pythagoras norm2 for Coulomb functor finite and positive");
 

@@ -307,7 +307,8 @@ int main(int argc, char **argv) {
         printf("  %-28s ||  ||=%10.6f  ||  ||=%10.6f\n", "Q(P,Q) - Q(V^{bc})", ndpx, ndqy);
         printf("  relative:  ||Q(P)-Vx||/||Vx|| = %.3e   ||Q(Q)-Vy||/||Vy|| = %.3e   tol=%.1e   %s\n",
                relx5, rely5, tol5, ok5 ? "PASS" : "FAIL");
-        if (!(rel < 200.0 * t && relf < 200.0 * t)) rc = 1;   // sticky: keep gate-4/5 verdicts
+        if (!madness::is_finite(rel) || !madness::is_finite(relf) ||
+            !(rel < 200.0 * t && relf < 200.0 * t)) rc = 1;   // sticky: keep gate-4/5 verdicts
         print("\n", rc == 0 ? "PQ_SOURCE_SPEC VALIDATED" : "PQ_SOURCE_SPEC FAILED");
       }
       world.gop.broadcast(rc, 0);

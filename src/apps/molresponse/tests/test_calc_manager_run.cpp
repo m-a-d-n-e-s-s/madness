@@ -577,8 +577,10 @@ int main(int argc, char **argv) {
             if (es_ok && j["excited_states"][top_key].contains("roots"))
               for (const auto &r : j["excited_states"][top_key]["roots"]) {
                 const double w =
-                    r.value("omega", std::numeric_limits<double>::quiet_NaN());
-                if (w == w)
+                    (r.contains("omega") && r["omega"].is_number())
+                        ? r["omega"].get<double>()
+                        : madness::runtime_quiet_nan();
+                if (madness::is_finite(w))
                   want_fkeys.insert(ResponseMetadata::freq_key(0.5 * w));
               }
             const int want_derived = static_cast<int>(want_fkeys.size()) *

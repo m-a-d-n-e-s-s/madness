@@ -536,18 +536,65 @@ int main(int argc, char** argv) {
     NonFiniteLineSearchEnergyTarget bad_ls_energy;
     expect_throws("non-finite line_search energy throws:", lih, bad_ls_energy);
 
-    // Verify is_nan / is_finite on real and complex runtime_quiet_nan
+    // Verify is_nan / is_finite / nearlyEqual on real/complex NaN and +/-Inf
     const double qnan_d = runtime_quiet_nan<double>();
     const float qnan_f = runtime_quiet_nan<float>();
     const std::complex<double> qnan_c(1.0, qnan_d);
+    volatile double pos_inf_v = std::numeric_limits<double>::infinity();
+    const double pos_inf = pos_inf_v;
+    const double neg_inf = -pos_inf;
     const bool nan_helpers_ok =
         is_nan(qnan_d) && !is_finite(qnan_d) && is_nan(qnan_f) &&
         !is_finite(qnan_f) && is_nan(qnan_c) && !is_finite(qnan_c) &&
+        !is_nan(pos_inf) && !is_finite(pos_inf) &&
         !is_nan(std::complex<double>(1.0, -2.0)) &&
-        is_finite(std::complex<double>(1.0, -2.0));
-    print("is_nan / is_finite / runtime_quiet_nan helpers:",
+        is_finite(std::complex<double>(1.0, -2.0)) &&
+        !nearlyEqual(qnan_d, qnan_d) && !nearlyEqual(qnan_d, 1.0) &&
+        nearlyEqual(pos_inf, pos_inf) && nearlyEqual(neg_inf, neg_inf) &&
+        !nearlyEqual(pos_inf, neg_inf) && !nearlyEqual(pos_inf, 1.0) &&
+        nearlyEqual(1.0, 1.0 + 1e-12);
+    print("is_nan / is_finite / runtime_quiet_nan / nearlyEqual helpers:",
           nan_helpers_ok ? "ok" : "FAILED");
     success = nan_helpers_ok && success;
+
+    // Verify QuasiNewton and SteepestDescent also reject non-finite values/gradients
+    struct BadOptTarget : public OptimizationTargetInterface {
+      bool nan_grad = false;
+      bool provides_gradient() const override { return true; }
+      double value(const Tensor<double>&) override {
+        return nan_grad ? 1.0 : runtime_quiet_nan();
+      }
+      Tensor<double> gradient(const Tensor<double>& x) override {
+        Tensor<double> g(x.dim(0));
+        g = 0.1;
+        if (nan_grad) g[x.dim(0) - 1] = runtime_quiet_nan();
+        return g;
+      }
+    };
+    bool qn_sd_ok = true;
+    for (bool ng : {false, true}) {
+      auto t = std::make_shared<BadOptTarget>();
+      t->nan_grad = ng;
+      bool qn_threw = false, sd_threw = false;
+      try {
+        Tensor<double> x(3L);
+        QuasiNewton qn(t);
+        (void)qn.optimize(x);
+      } catch (const MadnessException&) {
+        qn_threw = true;
+      }
+      try {
+        Tensor<double> x(3L);
+        SteepestDescent sd(t);
+        (void)sd.optimize(x);
+      } catch (const MadnessException&) {
+        sd_threw = true;
+      }
+      qn_sd_ok = qn_sd_ok && qn_threw && sd_threw;
+    }
+    print("QuasiNewton / SteepestDescent non-finite rejection:",
+          qn_sd_ok ? "ok" : "FAILED");
+    success = qn_sd_ok && success;
   }
 
   // 7. Molecule::nuclear_attraction_potential_derivative at r == 0 is finite

@@ -172,6 +172,9 @@ void save_es_roots(madness::World &world,
     // slot_permutation[slot] = stable_index — the cross-protocol root map.
     j["slot_permutation"] = stable_index;
 
+    auto finite_or_null = [](double v) -> nlohmann::json {
+      return madness::is_finite(v) ? nlohmann::json(v) : nlohmann::json(nullptr);
+    };
     nlohmann::json roots_arr = nlohmann::json::array();
     const long n_omega = state.omega.size();
     for (int s = 0; s < n_roots; ++s) {
@@ -182,16 +185,16 @@ void save_es_roots(madness::World &world,
       entry["display_name"] =
           (static_cast<size_t>(s) < display_names.size()) ? display_names[s]
                                                           : std::string();
-      entry["omega"] = (s < n_omega) ? state.omega(s)
-                                     : std::numeric_limits<double>::quiet_NaN();
+      entry["omega"] = (s < n_omega) ? finite_or_null(state.omega(s))
+                                     : nlohmann::json(nullptr);
       entry["bsh_residual"] =
           (static_cast<size_t>(s) < state.last_bsh_residual.size())
-              ? state.last_bsh_residual[s]
-              : std::numeric_limits<double>::quiet_NaN();
+              ? finite_or_null(state.last_bsh_residual[s])
+              : nlohmann::json(nullptr);
       entry["density_residual"] =
           (static_cast<size_t>(s) < state.last_density_residual.size())
-              ? state.last_density_residual[s]
-              : std::numeric_limits<double>::quiet_NaN();
+              ? finite_or_null(state.last_density_residual[s])
+              : nlohmann::json(nullptr);
       entry["file"] = detail_save_load::root_file(s);
       entry["coeffs"] = root_coeffs[static_cast<size_t>(s)];
       entry["bytes"]  = root_coeffs[static_cast<size_t>(s)] * sizeof(double);
@@ -341,9 +344,12 @@ load_es_roots(madness::World &world, const std::string &dir) {
               std::to_string(slot) + " (expected " + std::to_string(s) +
               ") in " + dir + "/roots.json");
         }
-        omega_recorded(s)         = e.value("omega", 0.0);
-        bsh_residual_recorded[s]  = e.value("bsh_residual", 0.0);
-        drho_residual_recorded[s] = e.value("density_residual", 0.0);
+        auto num_or = [](const nlohmann::json &obj, const char *k, double def) {
+          return (obj.contains(k) && obj[k].is_number()) ? obj[k].get<double>() : def;
+        };
+        omega_recorded(s)         = num_or(e, "omega", 0.0);
+        bsh_residual_recorded[s]  = num_or(e, "bsh_residual", 0.0);
+        drho_residual_recorded[s] = num_or(e, "density_residual", 0.0);
         // Stable identity: legacy files predate it — fall back to slot so
         // the loaded bundle still carries a well-formed identity vector.
         stable_index_recorded[s]  = e.value("stable_index", s);

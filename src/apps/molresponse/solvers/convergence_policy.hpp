@@ -146,8 +146,8 @@ struct ConvergencePolicy {
     if (n <= static_cast<std::size_t>(stall_window)) return false;
     const double g_now  = gate_history[n - 1];
     const double g_then = gate_history[n - 1 - static_cast<std::size_t>(stall_window)];
-    if (!(g_now > 1.0)) return false;                 // targets met (or NaN): not a stall
     if (!madness::is_finite(g_now) || !madness::is_finite(g_then)) return false;  // no measurement yet
+    if (g_now <= 1.0) return false;                   // targets met: not a stall
     return g_now > (1.0 - stall_ratio) * g_then;
   }
 

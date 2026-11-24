@@ -91,44 +91,44 @@ static const FDRef FD_REFS[] = {
   //
   // ---- H2 RHF (k=8 fixture) ----
   // α_xx = α_yy by symmetry; α_zz is the parallel direction.
-  {"H2",  1, "static", 0.0000, 0, std::nan(""), 4.615629498931, "aug-cc-pVQZ", ""},
-  {"H2",  1, "static", 0.0000, 2, std::nan(""), 6.455562574995, "aug-cc-pVQZ", ""},
-  {"H2",  1, "full",   0.0400, 0, std::nan(""), 4.639605330052, "aug-cc-pVQZ", ""},
-  {"H2",  1, "full",   0.0400, 2, std::nan(""), 6.495415513427, "aug-cc-pVQZ", ""},
-  {"H2",  1, "full",   0.0656, 0, std::nan(""), 4.680754908456, "aug-cc-pVQZ", ""},
-  {"H2",  1, "full",   0.0656, 2, std::nan(""), 6.563975177480, "aug-cc-pVQZ", ""},
+  {"H2",  1, "static", 0.0000, 0, madness::runtime_quiet_nan(), 4.615629498931, "aug-cc-pVQZ", ""},
+  {"H2",  1, "static", 0.0000, 2, madness::runtime_quiet_nan(), 6.455562574995, "aug-cc-pVQZ", ""},
+  {"H2",  1, "full",   0.0400, 0, madness::runtime_quiet_nan(), 4.639605330052, "aug-cc-pVQZ", ""},
+  {"H2",  1, "full",   0.0400, 2, madness::runtime_quiet_nan(), 6.495415513427, "aug-cc-pVQZ", ""},
+  {"H2",  1, "full",   0.0656, 0, madness::runtime_quiet_nan(), 4.680754908456, "aug-cc-pVQZ", ""},
+  {"H2",  1, "full",   0.0656, 2, madness::runtime_quiet_nan(), 6.563975177480, "aug-cc-pVQZ", ""},
   // ---- H2O RHF (geometry: O on z, H in y-z plane; C2 axis = z) ----
-  {"H2O", 5, "static", 0.0000, 0, std::nan(""), 7.847668958740, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "static", 0.0000, 1, std::nan(""), 9.189420520225, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "static", 0.0000, 2, std::nan(""), 8.488078839469, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0400, 0, std::nan(""), 7.889312581818, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0400, 1, std::nan(""), 9.223199511206, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0400, 2, std::nan(""), 8.524442446141, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0656, 0, std::nan(""), 7.961721918531, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0656, 1, std::nan(""), 9.281008699488, "aug-cc-pVQZ", ""},
-  {"H2O", 5, "full",   0.0656, 2, std::nan(""), 8.587021478808, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "static", 0.0000, 0, madness::runtime_quiet_nan(), 7.847668958740, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "static", 0.0000, 1, madness::runtime_quiet_nan(), 9.189420520225, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "static", 0.0000, 2, madness::runtime_quiet_nan(), 8.488078839469, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0400, 0, madness::runtime_quiet_nan(), 7.889312581818, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0400, 1, madness::runtime_quiet_nan(), 9.223199511206, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0400, 2, madness::runtime_quiet_nan(), 8.524442446141, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0656, 0, madness::runtime_quiet_nan(), 7.961721918531, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0656, 1, madness::runtime_quiet_nan(), 9.281008699488, "aug-cc-pVQZ", ""},
+  {"H2O", 5, "full",   0.0656, 2, madness::runtime_quiet_nan(), 8.587021478808, "aug-cc-pVQZ", ""},
   // ---- Li UHF (atom, spherically symmetric: α_xx = α_yy = α_zz) ----
   // n_alpha = 2 (1s, 2s↑), n_beta = 1 (1s↓). DALTON @ aug-cc-pVQZ.
   // ω=0.0656 deliberately omitted: it's right at the 2s→2p pole
   // (Dalton gives α≈3596 at that frequency — sub-1% basis differences
   // diverge there, so it's not a useful comparison point).
-  {"Li",  2, "static", 0.0000, 0, std::nan(""), 170.0017472721, "aug-cc-pVQZ", ""},
-  {"Li",  2, "static", 0.0000, 1, std::nan(""), 170.0017472721, "aug-cc-pVQZ", ""},
-  {"Li",  2, "static", 0.0000, 2, std::nan(""), 170.0017472721, "aug-cc-pVQZ", ""},
-  {"Li",  2, "full",   0.0400, 0, std::nan(""), 262.3065652631, "aug-cc-pVQZ", ""},
-  {"Li",  2, "full",   0.0400, 1, std::nan(""), 262.3065652631, "aug-cc-pVQZ", ""},
-  {"Li",  2, "full",   0.0400, 2, std::nan(""), 262.3065652631, "aug-cc-pVQZ", ""},
+  {"Li",  2, "static", 0.0000, 0, madness::runtime_quiet_nan(), 170.0017472721, "aug-cc-pVQZ", ""},
+  {"Li",  2, "static", 0.0000, 1, madness::runtime_quiet_nan(), 170.0017472721, "aug-cc-pVQZ", ""},
+  {"Li",  2, "static", 0.0000, 2, madness::runtime_quiet_nan(), 170.0017472721, "aug-cc-pVQZ", ""},
+  {"Li",  2, "full",   0.0400, 0, madness::runtime_quiet_nan(), 262.3065652631, "aug-cc-pVQZ", ""},
+  {"Li",  2, "full",   0.0400, 1, madness::runtime_quiet_nan(), 262.3065652631, "aug-cc-pVQZ", ""},
+  {"Li",  2, "full",   0.0400, 2, madness::runtime_quiet_nan(), 262.3065652631, "aug-cc-pVQZ", ""},
   // ---- C2H4 RHF (geometry: C=C along z, H in y-z plane) ----
   // Strong z-polarization from the π system; x is out-of-plane.
-  {"C2H4", 8, "static", 0.0000, 0, std::nan(""), 23.007427109450, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "static", 0.0000, 1, std::nan(""), 24.805237569200, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "static", 0.0000, 2, std::nan(""), 37.026818276860, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0400, 0, std::nan(""), 23.214891500110, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0400, 1, std::nan(""), 24.940308248400, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0400, 2, std::nan(""), 37.497540248800, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0656, 0, std::nan(""), 23.580863199260, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0656, 1, std::nan(""), 25.172962001480, "aug-cc-pVQZ", ""},
-  {"C2H4", 8, "full",   0.0656, 2, std::nan(""), 38.335555432940, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "static", 0.0000, 0, madness::runtime_quiet_nan(), 23.007427109450, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "static", 0.0000, 1, madness::runtime_quiet_nan(), 24.805237569200, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "static", 0.0000, 2, madness::runtime_quiet_nan(), 37.026818276860, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0400, 0, madness::runtime_quiet_nan(), 23.214891500110, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0400, 1, madness::runtime_quiet_nan(), 24.940308248400, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0400, 2, madness::runtime_quiet_nan(), 37.497540248800, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0656, 0, madness::runtime_quiet_nan(), 23.580863199260, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0656, 1, madness::runtime_quiet_nan(), 25.172962001480, "aug-cc-pVQZ", ""},
+  {"C2H4", 8, "full",   0.0656, 2, madness::runtime_quiet_nan(), 38.335555432940, "aug-cc-pVQZ", ""},
 };
 static const FDRef* find_ref(long n_alpha, const std::string& type,
                               double omega, int axis) {
@@ -726,9 +726,9 @@ int main(int argc, char **argv) {
               " — running without comparison.");
       }
       if (ref) {
-        if (!std::isnan(ref->alpha_legacy)) {
+        if (!madness::is_nan(ref->alpha_legacy)) {
           const double err = std::abs(alpha - ref->alpha_legacy);
-          const bool ok    = err < tol;
+          const bool ok    = madness::is_finite(err) && err < tol;
           if (world.rank() == 0) {
             print("\n=== PASS/FAIL  vs legacy fd_solve (", ref->name, ") ===");
             print("  [", (ok ? "PASS" : "FAIL"), "]  alpha  ref=",
@@ -737,7 +737,7 @@ int main(int argc, char **argv) {
           }
           rc = ok ? 0 : 1;
         }
-        if (!std::isnan(ref->alpha_dalton)) {
+        if (!madness::is_nan(ref->alpha_dalton)) {
           const double err     = std::abs(alpha - ref->alpha_dalton);
           const double pct_err = 100.0 * err / std::abs(ref->alpha_dalton);
           if (world.rank() == 0) {

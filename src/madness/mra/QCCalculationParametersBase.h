@@ -475,12 +475,34 @@ namespace madness {
 
     public:
 
+        template <typename T>
+        static json param_value_to_json(const T& v) {
+            if constexpr (std::is_floating_point<T>::value) {
+                return madness::is_finite(v) ? json(v) : json(nullptr);
+            } else {
+                return json(v);
+            }
+        }
+
+        template <typename T>
+        static void set_one_from_json(QCParameter& parameter, const nlohmann::json& value) {
+            if constexpr (std::is_floating_point<T>::value) {
+                if (value.is_null()) {
+                    parameter.set_user_defined_value(
+                        QCCalculationParametersBase::tostring(std::numeric_limits<T>::infinity()));
+                    return;
+                }
+            }
+            parameter.set_user_defined_value(
+                QCCalculationParametersBase::tostring(value.get<T>()));
+        }
+
         template <typename... Types>
         bool try_set_from_json(QCParameter& parameter, const nlohmann::json& value) {
             bool success = false;
             (void)std::initializer_list<int>{
                 (parameter.get_type() == std::type_index(typeid(Types)).name()
-                    ? (parameter.set_user_defined_value(QCCalculationParametersBase::tostring(value.get<Types>())), success = true, 0)
+                    ? (set_one_from_json<Types>(parameter, value), success = true, 0)
                     : 0)...
             };
             return success;
@@ -505,7 +527,9 @@ namespace madness {
         void qcparameter_to_json(json& j, const std::pair<std::string, QCParameter>& p,
                                  const std::tuple<Types...>&) const {
             (void)std::initializer_list<int>{
-                (check_type_silent<Types>(p.second) ? (j[p.first] = get<Types>(p.first), 0) : 0)...
+                (check_type_silent<Types>(p.second)
+                    ? (j[p.first] = param_value_to_json(get<Types>(p.first)), 0)
+                    : 0)...
             };
         }
 
@@ -648,14 +672,12 @@ namespace madness {
         template <typename T>
         static typename std::enable_if<std::is_floating_point<T>::value, void>::type
         overwrite_if_inf(std::string& str, const T& arg) {
-            MADNESS_PRAGMA_CLANG(diagnostic push)
-            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
-            if (std::isinf(arg)) {
+            if (!madness::is_finite(arg) && !madness::is_nan(arg)) {
                 std::stringstream ss;
-                ss << std::numeric_limits<T>::infinity();
+                ss << (std::signbit(arg) ? -std::numeric_limits<T>::infinity()
+                                         : std::numeric_limits<T>::infinity());
                 str = ss.str();
             }
-            MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
         template <typename T>

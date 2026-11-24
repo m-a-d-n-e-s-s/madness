@@ -781,13 +781,13 @@ seed_fd_from_dalton(madness::World &world, GroundState &gs,
       const auto &v = v_of(axis);
       const double ax_val =
           is_static ? -4.0 * inner(x, v) : -2.0 * (inner(x, v) + inner(y, v));
-      double dal = std::numeric_limits<double>::quiet_NaN();
+      double dal = madness::runtime_quiet_nan();
       if (world.rank() == 0) {
         auto it = dal_alpha.find({axis, std::lround(freq * 1e5)});
         if (it != dal_alpha.end()) dal = it->second;
         const char ax_c = "xyz"[axis];
         char msg[160];
-        if (dal == dal)
+        if (!madness::is_nan(dal))
           std::snprintf(msg, sizeof msg,
                         "seed-implied alpha_%c%c = %.6f  (DALTON <<A;A>> = %.6f)",
                         ax_c, ax_c, ax_val, dal);

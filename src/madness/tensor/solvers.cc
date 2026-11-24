@@ -30,9 +30,22 @@
 
   $Id$
 */
+#include <madness/misc/misc.h>
 #include <madness/tensor/solvers.h>
 
 namespace madness {
+
+    namespace {
+        bool tensor_all_finite(const Tensor<double>& t) {
+            const Tensor<double> c = t.iscontiguous() ? t : copy(t);
+            const double* p = c.ptr();
+            const long n = c.size();
+            for (long i = 0; i < n; ++i) {
+                if (!madness::is_finite(p[i])) return false;
+            }
+            return true;
+        }
+    }
 
 
     double OptimizationTargetInterface::test_gradient(Tensor<double>& x, double value_precision, bool doprint) {
@@ -81,12 +94,16 @@ namespace madness {
         double  fnew;
         Tensor<double> g;
         target->value_and_gradient(x,f,g);
+        MADNESS_CHECK_THROW(madness::is_finite(f) && tensor_all_finite(g),
+                            "SteepestDescent::optimize: objective value or gradient is not finite");
         gnorm = g.normf();
         for (int i=0; i<100; ++i) {
             while (1) {
                 Tensor<double> gnew;
                 x.gaxpy(1.0, g, -step);
                 target->value_and_gradient(x,fnew,gnew);
+                MADNESS_CHECK_THROW(madness::is_finite(fnew) && tensor_all_finite(gnew),
+                                    "SteepestDescent::optimize: objective value or gradient is not finite");
                 if (fnew < f) {
                     f = fnew;
                     g = gnew;
@@ -97,6 +114,8 @@ namespace madness {
                 print("reducing step size", f, fnew, step);
             }
             Tensor<double> g = target->gradient(x);
+            MADNESS_CHECK_THROW(tensor_all_finite(g),
+                                "SteepestDescent::optimize: gradient is not finite");
             gnorm = g.normf();
             print("iteration",i,"value",f,"gradient",gnorm);
             if (converged()) break;
@@ -124,6 +143,8 @@ namespace madness {
         }
 
         f1 = target1->value(x + a1 * dx);
+        MADNESS_CHECK_THROW(madness::is_finite(f1),
+                            "QuasiNewton::line_search: objective value is not finite");
 
         // Fit to a parabola using f0, g0, f1
         hess = 2.0*(f1-f0-a1*dxgrad)/(a1*a1);
@@ -299,6 +320,8 @@ namespace madness {
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
+            MADNESS_CHECK_THROW(madness::is_finite(f) && tensor_all_finite(g),
+                                "QuasiNewton::optimize: objective value or gradient is not finite");
             gnorm = g.normf();
             printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;

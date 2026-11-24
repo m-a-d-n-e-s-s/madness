@@ -131,7 +131,10 @@ The following CMake cache variables turn features on and off.
 * MADNESS_RELAXED_MATH --- floating-point optimizations [default=`strict`]: `strict` (IEEE-754), `relaxed`
   (`-fassociative-math -fno-signed-zeros -fno-trapping-math -ffp-contract=fast`: lets the compiler vectorize
   reductions and fuse multiply-adds, keeps NaN/Inf semantics) or `fast` (`-ffast-math`). The relaxed modes change
-  results in the last digits from build to build, so numerical references produced under `strict` may drift.
+  results in the last digits from build to build, so numerical references produced under `strict` may drift. Note
+  that `fast` enables `-ffinite-math-only`, so MADNESS source code must use `madness::is_finite` and
+  `madness::is_nan` (`<madness/misc/misc.h>`) rather than `std::isfinite` / `std::isnan` / `std::isinf` (see
+  `AGENTS.md`).
 
 ## External libraries
 

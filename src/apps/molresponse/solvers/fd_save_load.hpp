@@ -187,11 +187,14 @@ void save_fd_state(madness::World &world,
       meta.set_protocol(key, thresh, k_now, /*index=*/-1);
     }
 
-    const double bsh_res =
-        state.last_bsh_residual.empty()
-            ? 0.0
-            : *std::max_element(state.last_bsh_residual.begin(),
-                                state.last_bsh_residual.end());
+    double bsh_res = 0.0;
+    for (double r : state.last_bsh_residual) {
+      if (!madness::is_finite(r)) {
+        bsh_res = madness::runtime_quiet_nan();
+        break;
+      }
+      bsh_res = std::max(bsh_res, r);
+    }
 
     nlohmann::json entry = {
         {"freq",         freq},
@@ -209,7 +212,8 @@ void save_fd_state(madness::World &world,
         // the targets. Pairs with `accepted` the same way maxiter does.
         {"stalled",      state.stalled},
         {"iter",         state.iter},
-        {"bsh_residual", bsh_res},
+        {"bsh_residual", madness::is_finite(bsh_res) ? nlohmann::json(bsh_res)
+                                                     : nlohmann::json(nullptr)},
         {"seed",         seed},   // initial-guess origin: source/fd_restart/es_root
         {"archive",      archive_basename},
         // Which physical file family holds the archive ("native"/"hdf5") —
@@ -314,7 +318,9 @@ load_fd_state(madness::World &world,
             " in " + meta_path);
       }
       const auto &e = j["fd_states"][pdesc][key][fkey];
-      bsh_res       = e.value("bsh_residual", 0.0);
+      bsh_res       = (e.contains("bsh_residual") && e["bsh_residual"].is_number())
+                          ? e["bsh_residual"].get<double>()
+                          : 0.0;
       iter_at_save  = e.value("iter", 0);
       converged_int = e.value("converged", false) ? 1 : 0;
       writer_nproc  = e.value("writer_nproc", 0);
