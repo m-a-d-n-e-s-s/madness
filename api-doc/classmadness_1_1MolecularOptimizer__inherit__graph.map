@@ -1,0 +1,5 @@
+<map id="madness::MolecularOptimizer" name="madness::MolecularOptimizer">
+<area shape="rect" id="Node000001" title="Molecular optimizer derived from the QuasiNewton optimizer." alt="" coords="5,81,222,109"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers." alt="" coords="8,5,219,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,47,116,82,111,79,112,51"/>
+</map>

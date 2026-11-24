@@ -1,0 +1,10 @@
+<map id="Getting started with MADNESS" name="Getting started with MADNESS">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,186,157,231"/>
+<area shape="rect" id="Node000002" href="$group__gstart__basics.html" title=" " alt="" coords="242,5,374,33"/>
+<area shape="rect" id="Node000003" href="$group__gstart__comp__run.html" title=" " alt="" coords="224,57,392,102"/>
+<area shape="rect" id="Node000008" href="$group__gstart__env__var.html" title=" " alt="" coords="221,126,394,171"/>
+<area shape="rect" id="Node000004" href="$group__gstart__functions.html" title=" " alt="" coords="233,195,383,222"/>
+<area shape="rect" id="Node000005" href="$group__gstart__io.html" title=" " alt="" coords="257,247,359,274"/>
+<area shape="rect" id="Node000006" href="$group__gstart__load__balance.html" title=" " alt="" coords="205,299,411,326"/>
+<area shape="rect" id="Node000007" href="$group__gstart__think__madness.html" title=" " alt="" coords="227,351,389,378"/>
+</map>

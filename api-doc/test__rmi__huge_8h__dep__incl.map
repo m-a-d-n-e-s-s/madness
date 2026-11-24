@@ -1,0 +1,7 @@
+<map id="test_rmi_huge.h" name="test_rmi_huge.h">
+<area shape="rect" id="Node000001" title="Messages too large for an MPI count of bytes, sent as the argument of a remote task." alt="" coords="96,5,223,33"/>
+<area shape="rect" id="Node000002" href="$test__rmi__huge_8cc.html" title="Messages that RMI cannot give to MPI as a plain count of bytes; see test_rmi_huge...." alt="" coords="5,81,138,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="135,43,89,83,86,78,130,44"/>
+<area shape="rect" id="Node000003" href="$test__rmi__huge__large_8cc.html" title="One message of more than INT_MAX bytes; takes about 9 GiB. See test_rmi_huge.h." alt="" coords="161,81,334,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="188,41,235,81,229,81,186,46"/>
+</map>

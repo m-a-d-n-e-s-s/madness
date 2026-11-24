@@ -1,0 +1,5 @@
+<map id="madness::SDFSphere" name="madness::SDFSphere">
+<area shape="rect" id="Node000001" title="A spherical surface (3 dimensions)." alt="" coords="49,81,208,109"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1SignedDFInterface.html" title=" " alt="" coords="5,5,252,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,47,131,82,126,79,127,51"/>
+</map>

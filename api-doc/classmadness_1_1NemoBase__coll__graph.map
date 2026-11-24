@@ -1,0 +1,41 @@
+<map id="madness::NemoBase" name="madness::NemoBase">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1043,403,1202,431"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1MolecularOptimizationTargetInterface.html" title=" " alt="" coords="651,395,888,439"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="903,414,1045,417,1039,417,903,420"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="270,395,482,439"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="497,414,654,417,648,417,497,420"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1World.html" title="A parallel world class." alt="" coords="707,223,832,251"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="799,258,851,298,913,337,995,374,1073,403,1068,402,993,379,910,342,848,302,798,264"/>
+<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="736,205,748,199,769,196,790,199,802,205,806,214,801,225,797,221,801,214,799,208,788,204,770,202,749,204,738,210"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="1024,79,1220,107"/>
+<area shape="poly" id="edge16_Node000013_Node000004" title=" " alt="" coords="818,214,911,176,1083,108,1088,106,913,181,820,219"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces." alt="" coords="1018,275,1227,303"/>
+<area shape="poly" id="edge19_Node000016_Node000004" title=" " alt="" coords="807,256,857,281,912,299,946,304,981,306,1050,303,1044,304,981,311,946,310,911,305,854,286,807,262"/>
+<area shape="rect" id="Node000005" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="319,16,432,44"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="440,47,532,79,629,125,701,175,755,223,750,222,698,179,626,130,530,84,441,52"/>
+<area shape="poly" id="edge15_Node000013_Node000005" title=" " alt="" coords="447,18,555,7,693,3,768,5,845,12,921,23,994,41,1091,78,1086,79,993,46,920,29,844,17,768,11,693,8,556,13,449,23"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="249,288,502,333"/>
+<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="517,297,627,279,681,265,732,251,727,252,682,270,628,285,518,302"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="257,112,494,157"/>
+<area shape="poly" id="edge7_Node000004_Node000007" title=" " alt="" coords="509,151,628,178,687,199,740,222,734,223,685,204,627,184,510,157"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World." alt="" coords="272,180,479,208"/>
+<area shape="poly" id="edge8_Node000004_Node000008" title=" " alt="" coords="495,204,709,229,704,231,495,210"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter." alt="" coords="5,172,200,217"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="214,192,274,193,269,196,216,197"/>
+<area shape="rect" id="Node000010" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy." alt="" coords="26,120,179,148"/>
+<area shape="poly" id="edge10_Node000008_Node000010" title=" " alt="" coords="176,150,250,166,303,179,298,181,248,172,178,155"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface." alt="" coords="273,236,478,264"/>
+<area shape="poly" id="edge11_Node000004_Node000011" title=" " alt="" coords="493,249,627,246,709,242,704,244,627,251,494,254"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="12,240,193,268"/>
+<area shape="poly" id="edge12_Node000011_Node000012" title=" " alt="" coords="208,250,275,250,270,253,210,255"/>
+<area shape="poly" id="edge13_Node000004_Node000013" title=" " alt="" coords="1102,117,1056,165,1026,188,995,206,954,221,912,231,833,239,832,234,911,225,953,216,993,201,1024,183,1052,161,1097,120"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="668,34,871,61"/>
+<area shape="poly" id="edge14_Node000013_Node000014" title=" " alt="" coords="886,52,994,64,1062,78,1057,79,993,69,886,57"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="694,86,845,113"/>
+<area shape="poly" id="edge17_Node000013_Node000015" title=" " alt="" coords="860,95,1026,94,1021,96,861,101"/>
+<area shape="poly" id="edge18_Node000004_Node000016" title=" " alt="" coords="1000,273,911,262,833,250,832,244,912,257,1005,272"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1Function.html" title=" " alt="" coords="692,484,847,529"/>
+<area shape="poly" id="edge20_Node000001_Node000017" title=" " alt="" coords="862,507,927,503,993,489,1024,477,1054,461,1100,432,1105,431,1057,466,1026,482,994,495,928,508,863,513"/>
+<area shape="rect" id="Node000018" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="280,484,472,529"/>
+<area shape="poly" id="edge21_Node000017_Node000018" title=" " alt="" coords="487,504,695,506,690,506,487,509"/>
+</map>

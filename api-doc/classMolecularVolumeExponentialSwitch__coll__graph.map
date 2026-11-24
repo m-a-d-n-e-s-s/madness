@@ -1,0 +1,10 @@
+<map id="MolecularVolumeExponentialSwitch" name="MolecularVolumeExponentialSwitch">
+<area shape="rect" id="Node000001" title="Switches between positive values Vint and Vext with special log derivative." alt="" coords="17,200,228,245"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,197,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="107,64,123,200,117,200,103,67"/>
+<area shape="rect" id="Node000003" href="$classMolecularVolumeComplementMask.html" title=" " alt="" coords="138,99,392,127"/>
+<area shape="poly" id="edge4_Node000003_Node000002" title=" " alt="" coords="157,55,241,98,236,100,157,60"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="238,136,153,202,150,197,233,137"/>
+<area shape="rect" id="Node000004" href="$classMolecularMaskBase.html" title=" " alt="" coords="221,14,373,42"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="288,54,272,100,268,97,285,58"/>
+</map>

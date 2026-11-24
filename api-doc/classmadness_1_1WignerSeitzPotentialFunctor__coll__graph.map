@@ -1,0 +1,18 @@
+<map id="madness::WignerSeitzPotentialFunctor" name="madness::WignerSeitzPotentialFunctor">
+<area shape="rect" id="Node000001" title="Functor for evaluating the Wigner&#45;Seitz potential in a simulation cell." alt="" coords="1031,101,1255,146"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="709,5,901,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="911,52,1007,78,1074,101,1068,101,1006,84,910,57"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="731,147,879,175"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="894,152,1006,141,1027,141,1033,140,1007,146,895,157"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="341,107,545,135"/>
+<area shape="poly" id="edge7_Node000001_Node000004" title=" " alt="" coords="561,116,569,116,788,113,1007,116,1033,119,1027,119,1007,121,788,119,569,121,561,121"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="533,135,570,141,734,157,729,158,569,146,533,141"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,107,230,135"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="245,118,343,120,338,122,245,124"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="363,179,523,223"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="538,191,652,179,728,172,734,172,653,185,539,196"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,187,292,215"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="307,198,365,201,360,201,307,204"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1BoundaryConditions.html" title=" " alt="" coords="676,199,934,227"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="928,193,1006,175,1089,147,1094,146,1007,181,929,199"/>
+</map>

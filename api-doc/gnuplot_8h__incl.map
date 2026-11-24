@@ -1,0 +1,23 @@
+<map id="gnuplot.h" name="gnuplot.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="453,5,535,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,79,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="450,26,299,48,94,83,93,78,298,43,455,25"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="102,81,198,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="454,32,213,83,212,78,451,27"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="222,81,310,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="456,33,322,78,320,73,451,34"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="333,81,394,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="473,33,401,76,399,71,468,34"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="418,81,482,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="488,32,467,70,464,65,484,35"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="507,81,572,109"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="503,31,526,69,521,67,501,36"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="596,81,658,109"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="519,31,593,74,588,73,517,36"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="682,81,762,109"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="535,31,670,76,665,76,534,36"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="786,81,844,109"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="536,26,639,47,774,81,768,80,638,52,535,31"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="868,81,930,109"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="536,23,673,43,856,80,850,80,672,49,536,28"/>
+</map>

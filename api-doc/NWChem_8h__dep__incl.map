@@ -1,0 +1,25 @@
+<map id="NWChem.h" name="NWChem.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="314,5,408,33"/>
+<area shape="rect" id="Node000002" href="$InitParameters_8h.html" title=" " alt="" coords="97,81,225,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="309,40,198,83,196,78,313,37"/>
+<area shape="rect" id="Node000007" href="$NWChem_8cc.html" title=" " alt="" coords="250,81,350,109"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="342,43,312,83,309,79,338,47"/>
+<area shape="rect" id="Node000008" href="$madchem_8h.html" title=" " alt="" coords="374,81,473,109"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="383,42,415,81,410,80,381,48"/>
+<area shape="rect" id="Node000012" href="$molecularbasis_8cc.html" title=" " alt="" coords="497,81,636,109"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="412,36,532,80,527,81,412,41"/>
+<area shape="rect" id="Node000003" href="$DF_8h.html" title=" " alt="" coords="58,157,107,184"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="134,122,98,158,94,154,138,118"/>
+<area shape="rect" id="Node000006" href="$test__dirac_8cc.html" title=" " alt="" coords="131,157,234,184"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="170,121,181,157,176,156,168,126"/>
+<area shape="rect" id="Node000004" href="$DF_8cc.html" title=" " alt="" coords="5,232,61,260"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="68,197,44,234,40,230,62,198"/>
+<area shape="rect" id="Node000005" href="$DFdriver_8cc.html" title=" " alt="" coords="84,232,179,260"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="101,195,126,232,120,232,98,200"/>
+<area shape="rect" id="Node000009" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="278,157,340,184"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="393,116,331,159,328,154,388,118"/>
+<area shape="rect" id="Node000010" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="364,157,483,184"/>
+<area shape="poly" id="edge9_Node000008_Node000010" title=" " alt="" coords="425,122,426,158,421,155,422,127"/>
+<area shape="rect" id="Node000011" href="$simple__hf_8cpp.html" title=" " alt="" coords="507,157,618,184"/>
+<area shape="poly" id="edge10_Node000008_Node000011" title=" " alt="" coords="462,114,540,156,535,156,461,119"/>
+</map>

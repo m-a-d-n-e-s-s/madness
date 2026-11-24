@@ -1,0 +1,13 @@
+<map id="misc.h" name="misc.h">
+<area shape="rect" id="Node000001" title="Header to declare stuff which has not yet found a home." alt="" coords="164,5,229,33"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,81,44,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="167,36,59,82,57,77,165,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="68,81,133,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="182,33,131,74,128,69,177,34"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="157,81,236,109"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="198,32,199,67,194,64,195,35"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="261,81,319,109"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="214,31,264,71,259,71,212,36"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="343,81,402,109"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="229,31,332,75,326,76,227,36"/>
+</map>

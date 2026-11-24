@@ -1,0 +1,7 @@
+<map id="operands" name="operands">
+<area shape="rect" id="Node000001" title="the operands of T1, T2, T4 at k 8, thresh 1e&#45;6" alt="" coords="61,262,142,289"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Function.html" title=" " alt="" coords="24,99,179,144"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="104,159,104,262,99,261,99,161"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,5,198,50"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="102,63,104,99,99,98,101,68"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="madness::LRFunctorF12&lt; T, NDIM, LDIM &gt;::MacroTaskLRFInner" name="madness::LRFunctorF12&lt; T, NDIM, LDIM &gt;::MacroTaskLRFInner">
+<area shape="rect" id="Node000001" title="macrotask for \sum_ia premultiply_ia * f12 * postmultiply_ia * rhs, batched over rhs" alt="" coords="21,81,243,143"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1MacroTaskOperationBase.html" title=" " alt="" coords="5,5,259,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="134,47,134,82,130,79,130,51"/>
+</map>

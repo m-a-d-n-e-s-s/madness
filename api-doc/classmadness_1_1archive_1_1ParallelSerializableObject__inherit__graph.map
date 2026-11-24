@@ -1,0 +1,75 @@
+<map id="madness::archive::ParallelSerializableObject" name="madness::archive::ParallelSerializableObject">
+<area shape="rect" id="Node000001" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,1267,198,1311"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,5,434,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="102,1251,118,996,147,618,167,428,190,260,215,132,229,88,244,61,260,46,281,37,278,41,263,51,248,64,234,90,220,133,195,261,172,428,153,619,123,996,107,1251"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,75,434,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="100,1251,100,1025,105,864,116,689,133,515,159,355,175,284,195,222,218,170,244,130,260,116,281,106,278,111,263,120,248,133,222,172,200,224,181,285,164,356,138,516,121,690,111,864,106,1025,105,1251"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,144,439,189"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="100,1251,103,1037,109,886,120,722,137,559,163,409,179,343,198,285,219,237,244,199,258,187,277,177,274,182,261,191,248,203,224,239,203,287,184,345,168,410,142,560,125,723,114,886,108,1037,105,1251"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,213,434,258"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="100,1251,105,1050,112,908,124,756,141,604,166,464,182,402,200,348,220,303,244,269,260,255,281,245,278,249,263,259,248,272,225,306,205,350,187,404,172,465,147,604,129,756,117,909,110,1050,106,1252"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,283,439,327"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="101,1251,107,1061,115,930,128,788,146,647,170,518,186,462,203,412,222,370,244,338,258,325,277,316,274,321,261,330,248,341,227,373,208,414,191,463,176,520,151,648,133,789,121,930,113,1061,106,1251"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Function.html" title=" " alt="" coords="273,352,442,413"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="102,1251,111,1077,135,831,153,704,177,587,207,491,224,453,244,423,274,401,272,405,248,427,229,455,212,493,182,589,159,705,140,831,117,1078,107,1251"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1Function.html" title=" " alt="" coords="273,437,442,498"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="102,1251,114,1092,140,871,159,758,182,654,210,569,226,535,244,509,274,487,271,491,248,512,231,537,215,571,187,656,164,759,145,872,120,1093,108,1251"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,523,434,567"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="103,1251,116,1104,143,903,161,801,184,708,211,631,227,601,244,578,260,564,281,555,278,559,263,569,248,581,231,604,216,633,189,709,167,802,148,904,121,1104,108,1251"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1Function.html" title=" " alt="" coords="273,592,442,653"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="104,1251,121,1121,150,946,169,857,191,777,216,710,244,663,274,642,272,646,248,667,220,712,196,778,174,859,155,947,126,1122,109,1252"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,677,434,722"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="105,1251,123,1134,153,979,172,901,193,831,217,773,244,733,260,719,281,710,278,715,263,724,248,736,222,775,198,833,177,903,158,980,128,1135,110,1252"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,747,434,791"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="100,1251,105,1160,113,1102,125,1040,144,976,169,913,202,854,244,802,260,789,281,780,278,784,263,793,248,806,206,857,173,915,149,978,131,1041,118,1103,111,1161,105,1251"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,816,434,861"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="102,1251,112,1172,134,1071,153,1017,176,964,207,915,244,871,260,859,281,850,278,854,263,863,248,875,211,918,181,967,158,1019,139,1072,117,1173,107,1252"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,885,434,930"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="105,1251,119,1184,144,1101,162,1057,184,1015,212,975,244,940,260,928,282,920,278,924,263,933,247,944,216,979,189,1018,167,1060,149,1103,124,1186,110,1252"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,955,434,999"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="109,1251,127,1197,154,1132,193,1067,217,1036,244,1010,282,990,279,994,247,1014,221,1040,197,1070,159,1135,132,1199,115,1252"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,1024,434,1069"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="116,1252,137,1211,165,1165,201,1119,244,1079,281,1061,278,1065,247,1083,205,1122,169,1168,141,1214,121,1253"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,1093,439,1138"/>
+<area shape="poly" id="edge16_Node000001_Node000017" title=" " alt="" coords="127,1254,178,1199,210,1172,244,1148,277,1134,274,1138,247,1153,213,1176,182,1203,132,1256"/>
+<area shape="rect" id="Node000018" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,1163,439,1207"/>
+<area shape="poly" id="edge17_Node000001_Node000018" title=" " alt="" coords="157,1258,245,1217,280,1206,277,1210,247,1222,161,1261"/>
+<area shape="rect" id="Node000019" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,1232,439,1277"/>
+<area shape="poly" id="edge18_Node000001_Node000019" title=" " alt="" coords="211,1272,277,1263,273,1267,215,1276"/>
+<area shape="rect" id="Node000020" href="$classmadness_1_1Function.html" title=" " alt="" coords="276,1301,439,1346"/>
+<area shape="poly" id="edge19_Node000001_Node000020" title=" " alt="" coords="212,1302,277,1311,273,1314,215,1306"/>
+<area shape="rect" id="Node000021" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,1371,434,1415"/>
+<area shape="poly" id="edge20_Node000001_Node000021" title=" " alt="" coords="158,1316,247,1356,282,1369,277,1372,245,1361,160,1321"/>
+<area shape="rect" id="Node000022" href="$classmadness_1_1Function.html" title=" " alt="" coords="280,1440,434,1485"/>
+<area shape="poly" id="edge21_Node000001_Node000022" title=" " alt="" coords="129,1321,182,1375,213,1402,247,1425,282,1442,277,1445,244,1430,210,1406,178,1379,131,1326"/>
+<area shape="rect" id="Node000023" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="246,1509,469,1570"/>
+<area shape="poly" id="edge22_Node000001_Node000023" title=" " alt="" coords="119,1323,142,1364,171,1409,206,1455,247,1495,265,1507,260,1509,244,1499,202,1459,166,1412,138,1366,120,1328"/>
+<area shape="rect" id="Node000024" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="263,1595,452,1639"/>
+<area shape="poly" id="edge23_Node000001_Node000024" title=" " alt="" coords="111,1324,130,1382,156,1451,195,1521,220,1552,247,1580,265,1593,260,1595,244,1584,215,1556,191,1523,152,1453,125,1384,111,1329"/>
+<area shape="rect" id="Node000025" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="248,1664,466,1725"/>
+<area shape="poly" id="edge24_Node000001_Node000025" title=" " alt="" coords="107,1324,123,1394,148,1481,166,1526,189,1571,216,1613,248,1650,262,1662,257,1664,244,1654,211,1616,184,1573,162,1528,143,1482,118,1395,108,1329"/>
+<area shape="rect" id="Node000026" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="263,1749,452,1794"/>
+<area shape="poly" id="edge25_Node000001_Node000026" title=" " alt="" coords="104,1324,114,1410,135,1520,153,1578,177,1635,209,1688,248,1735,265,1749,260,1751,244,1739,204,1691,173,1637,148,1580,130,1521,109,1411,104,1329"/>
+<area shape="rect" id="Node000027" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="256,1819,458,1863"/>
+<area shape="poly" id="edge26_Node000001_Node000027" title=" " alt="" coords="102,1324,108,1422,115,1484,127,1550,144,1619,170,1686,204,1749,248,1804,263,1817,258,1819,244,1808,199,1752,165,1688,139,1620,121,1551,110,1485,103,1423,102,1330"/>
+<area shape="rect" id="Node000028" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="263,1888,452,1933"/>
+<area shape="poly" id="edge27_Node000001_Node000028" title=" " alt="" coords="107,1324,127,1450,156,1614,175,1696,196,1771,221,1832,248,1874,265,1888,260,1890,244,1877,216,1835,191,1773,169,1698,151,1615,121,1450,107,1329"/>
+<area shape="rect" id="Node000029" href="$classmadness_1_1CCFunction.html" title="structure for a CC Function 3D which holds an index and a type" alt="" coords="277,1957,438,2002"/>
+<area shape="poly" id="edge28_Node000001_Node000029" title=" " alt="" coords="106,1325,124,1464,151,1648,170,1742,192,1826,218,1896,233,1923,248,1943,261,1955,279,1965,274,1967,258,1959,244,1947,228,1926,213,1898,187,1828,165,1743,146,1649,118,1464,106,1330"/>
+<area shape="rect" id="Node000030" href="$classmadness_1_1CCPair.html" title=" " alt="" coords="292,2026,422,2054"/>
+<area shape="poly" id="edge29_Node000001_Node000030" title=" " alt="" coords="105,1324,120,1477,145,1683,163,1788,187,1883,215,1961,230,1990,248,2012,268,2027,294,2036,289,2038,266,2032,244,2016,226,1993,210,1963,181,1884,158,1789,139,1684,114,1478,105,1330"/>
+<area shape="rect" id="Node000031" href="$classmadness_1_1CCPairFunction.html" title="a 6D function, either in full or low rank form, possibly including an 2&#45;particle function" alt="" coords="265,2077,450,2122"/>
+<area shape="poly" id="edge30_Node000001_Node000031" title=" " alt="" coords="105,1324,119,1485,144,1706,162,1818,185,1921,214,2006,230,2038,248,2063,267,2080,262,2081,244,2067,226,2041,209,2008,180,1923,157,1819,138,1707,113,1485,105,1329"/>
+<area shape="rect" id="Node000032" href="$structmadness_1_1CC__vecfunction.html" title="A helper structure which holds a map of functions." alt="" coords="263,2146,452,2174"/>
+<area shape="poly" id="edge31_Node000001_Node000032" title=" " alt="" coords="104,1324,115,1499,124,1616,137,1741,155,1865,179,1978,210,2070,228,2106,248,2132,265,2147,260,2148,244,2136,223,2109,205,2073,174,1979,150,1866,132,1742,118,1616,109,1499,104,1330"/>
+<area shape="rect" id="Node000033" href="$classmadness_1_1ElectronPair.html" title="enhanced POD for the pair functions" alt="" coords="275,2198,440,2226"/>
+<area shape="poly" id="edge32_Node000001_Node000033" title=" " alt="" coords="104,1324,113,1508,121,1632,134,1766,152,1898,177,2018,191,2071,208,2117,227,2155,248,2183,260,2194,277,2203,271,2204,257,2198,244,2187,222,2157,203,2119,186,2072,171,2019,147,1898,129,1766,116,1633,108,1508,103,1330"/>
+<area shape="rect" id="Node000034" href="$classmadness_1_1Function.html" title="A multiresolution adaptive numerical function." alt="" coords="280,2249,434,2294"/>
+<area shape="poly" id="edge33_Node000001_Node000034" title=" " alt="" coords="103,1324,113,1516,121,1648,133,1789,151,1929,176,2057,191,2114,208,2163,227,2204,248,2235,263,2248,282,2260,277,2261,260,2253,244,2239,222,2207,203,2165,186,2115,171,2059,146,1930,128,1789,115,1648,107,1517,103,1330"/>
+<area shape="rect" id="Node000035" href="$classmadness_1_1LowRankFunction.html" title="LowRankFunction represents a hi&#45;dimensional (NDIM) function as a sum of products of low&#45;dimensional (..." alt="" coords="256,2319,458,2363"/>
+<area shape="poly" id="edge34_Node000001_Node000035" title=" " alt="" coords="103,1324,110,1529,117,1670,129,1822,147,1973,172,2112,187,2173,205,2226,225,2271,248,2305,261,2318,256,2318,244,2308,221,2273,200,2228,182,2175,167,2113,142,1974,124,1822,112,1670,105,1529,103,1330"/>
+<area shape="rect" id="Node000036" href="$classmadness_1_1MolecularOrbitals.html" title=" " alt="" coords="256,2388,459,2433"/>
+<area shape="poly" id="edge35_Node000001_Node000036" title=" " alt="" coords="103,1324,108,1541,114,1691,125,1854,143,2017,168,2167,184,2232,203,2290,224,2338,248,2374,261,2388,256,2387,244,2377,219,2340,198,2292,179,2234,163,2168,137,2018,120,1855,109,1692,103,1541,102,1330"/>
+<area shape="rect" id="Node000037" href="$classmadness_1_1WorldContainer.html" title="Makes a distributed container with specified attributes." alt="" coords="256,2457,458,2502"/>
+<area shape="poly" id="edge36_Node000001_Node000037" title=" " alt="" coords="102,1324,106,1553,111,1713,121,1887,138,2061,164,2221,181,2291,200,2353,222,2404,248,2443,261,2457,256,2456,244,2447,218,2407,195,2355,175,2293,159,2222,133,2062,116,1888,106,1714,101,1553,102,1330"/>
+</map>

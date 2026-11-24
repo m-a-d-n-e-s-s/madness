@@ -1,0 +1,11 @@
+<map id="madness::guessfactory::PolynomialFunctor" name="madness::guessfactory::PolynomialFunctor">
+<area shape="rect" id="Node000001" title="Project a general 3D polynomial to the MRA Grid." alt="" coords="592,43,764,87"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="19,5,211,50"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="226,18,388,16,479,21,568,32,607,42,601,42,568,37,478,26,388,21,226,23"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1guessfactory_1_1GaussFunctor.html" title=" " alt="" coords="322,43,494,87"/>
+<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="226,39,324,53,319,55,226,44"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="510,62,594,65,589,65,510,68"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Vector.html" title=" " alt="" coords="5,88,225,116"/>
+<area shape="poly" id="edge5_Node000001_Node000004" title=" " alt="" coords="210,116,273,124,345,129,420,129,494,122,560,106,619,88,625,88,562,111,494,127,420,134,345,134,273,129,210,122"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="240,85,297,78,324,77,319,78,298,83,240,91"/>
+</map>

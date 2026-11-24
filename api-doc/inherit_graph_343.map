@@ -1,0 +1,11 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,76,197,120"/>
+<area shape="rect" id="Node000001" href="$classCusp.html" title="exp(&#45;Z r), refined to level 15 at the origin: a nuclear cusp" alt="" coords="278,5,331,33"/>
+<area shape="poly" id="edge327_Node000000_Node000001" title=" " alt="" coords="174,67,280,28,275,31,176,72"/>
+<area shape="rect" id="Node000002" href="$classGauss.html" title="exp(&#45;a |r&#45;R|^2)" alt="" coords="274,57,335,85"/>
+<area shape="poly" id="edge328_Node000000_Node000002" title=" " alt="" coords="211,81,276,74,271,76,212,86"/>
+<area shape="rect" id="Node000003" href="$classGaussPotential.html" title="the Coulomb potential of exp(&#45;a r^2): (pi/a)^{3/2} erf(sqrt(a) r) / r, 2 pi/a at the origin" alt="" coords="245,109,364,137"/>
+<area shape="poly" id="edge329_Node000000_Node000003" title=" " alt="" coords="212,109,247,115,242,116,212,114"/>
+<area shape="rect" id="Node000004" href="$classSlater.html" title="c * exp(&#45;a |r&#45;R|), cusped at R" alt="" coords="275,161,334,189"/>
+<area shape="poly" id="edge330_Node000000_Node000004" title=" " alt="" coords="177,124,277,163,272,165,176,129"/>
+</map>
