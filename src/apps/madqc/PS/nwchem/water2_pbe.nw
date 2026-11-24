@@ -1,0 +1,26 @@
+title "water2 GTH-PBE on O, AE on H"
+echo
+start water2_pbe
+memory stack 1500 mb heap 1500 mb global 1000 mb
+
+geometry units bohr noautoz nocenter noautosym
+  H  -3.70186011075500     -0.06059028899871      1.37109835461971
+  H  -1.14798027983604      0.02070194978576      0.10614969633645
+  O  -2.90821859864409      0.00859447445236     -0.22172345689761
+  H   3.26470409525617      1.44020185984707     -0.66497005972273
+  H   3.22068292499060     -1.41303137750844     -0.75428607566744
+  O   2.70377479750559     -0.00700332504847      0.21447446745186
+end
+
+nwpw
+  simulation_cell
+    boundary_conditions aperiodic
+    SC 22.0
+    ngrid 128 128 128
+  end
+  xc pbe96
+  mult 1
+  lmbfgs
+  tolerances 1.0d-7 1.0d-7
+end
+task pspw energy

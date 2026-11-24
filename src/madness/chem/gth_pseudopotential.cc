@@ -1,16 +1,42 @@
 
 #include<madness/chem/gth_pseudopotential.h>
+#include<cstdlib>
+#include<fstream>
 
 
 namespace madness {
 
+    std::string resolve_gth_filename(const std::string& filename) {
+        {
+            std::ifstream f(filename.c_str());
+            if (f.good()) return filename;
+        }
+        if (const char* env_dir = std::getenv("MRA_CHEMDATA_DIR")) {
+            std::string cand = std::string(env_dir) + "/" + filename;
+            std::ifstream f(cand.c_str());
+            if (f.good()) return cand;
+        }
+#ifdef MRA_CHEMDATA_DIR
+        {
+            std::string cand = std::string(MRA_CHEMDATA_DIR) + "/" + filename;
+            std::ifstream f(cand.c_str());
+            if (f.good()) return cand;
+        }
+        {
+            std::string cand = std::string(MRA_CHEMDATA_DIR) + "/../../apps/moldft/" + filename;
+            std::ifstream f(cand.c_str());
+            if (f.good()) return cand;
+        }
+#endif
+        return filename;
+    }
 
     double get_charge_from_file(const std::string filename, unsigned int atype) {
-        bool debug = true;
-       
-        TiXmlDocument doc(filename);
+        bool debug = false;
+        std::string resolved = resolve_gth_filename(filename);
+        TiXmlDocument doc(resolved);
         if (!doc.LoadFile()) {
-            MADNESS_EXCEPTION("Failed to load GTH pseudopotential file", 0);
+            MADNESS_EXCEPTION(("Failed to load GTH pseudopotential file: " + resolved).c_str(), 0);
         }
 
         bool success = false;
@@ -21,6 +47,7 @@ namespace madness {
             }
             else if (strcmp(node->Value(), "atom") == 0) {
                 const char* symbol = node->Attribute("symbol");
+                if (symbol && std::string(symbol).find('-') != std::string::npos) continue;
                 unsigned int atn = symbol_to_atomic_number(symbol);
                 if (atype == atn) {
                     success = true;

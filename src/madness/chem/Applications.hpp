@@ -577,6 +577,10 @@ private:
     h["dispersion"] = cp.dispersion();
     h["dispersion_functional"] = cp.dispersion_functional();
     h["dispersion_atm"] = cp.dispersion_atm();
+    const auto &mol = params_.get<Molecule>();
+    h["pure_ae"] = mol.parameters.pure_ae();
+    h["psp_calc"] = mol.parameters.psp_calc();
+    h["psp_file"] = mol.parameters.psp_file();
     if constexpr (!std::is_same_v<Calc, SCF>) {
       // Same spelling SCF::restart_ncf uses, so the checkpoint and the
       // restartdata header agree on what "the same ncf" means.
