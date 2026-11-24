@@ -71,8 +71,9 @@ struct R_times_arg_div_R {
 			numerator+=Ri_div_Rmax*ui;
 			denominator+=Ri_div_Rmax;
 		}
-        MADNESS_ASSERT(!madness::is_nan(numerator/denominator));
-        return numerator/denominator;
+        const double result = numerator / denominator;
+        MADNESS_CHECK(!madness::is_nan(result));
+        return result;
 	}
 };
 
@@ -100,7 +101,7 @@ struct harmonic_potential_boxed : public FunctionFunctorInterface<double,3> {
 		coord_3d xyz_boxed=xyz*max_of_x_1_smooth::compute_factor(r,tightness,radius);
 		xyz_boxed[2]=0.0;
 		double result=inner(xyz_boxed,xyz_boxed);
-		MADNESS_ASSERT(!madness::is_nan(result));
+		MADNESS_CHECK(!madness::is_nan(result));
 		return result;
 	}
 

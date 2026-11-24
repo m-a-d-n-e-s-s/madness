@@ -102,7 +102,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             f[i] = xf + cf;
             if (madness::is_nan(f[i])) {
                 print("bad 1?", ra, rb);
-                throw "numerical error in lda functional";
+                MADNESS_EXCEPTION("NaN in xcfunctional::exc", 1);
             }
         }
     }
@@ -115,7 +115,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             f[i] = q1 + q2;
             if (madness::is_nan(f[i])) {
                 print("bad? 2", r);
-                throw "numerical error in lda functional";
+                MADNESS_EXCEPTION("NaN in xcfunctional::exc", 1);
             }
         }
     }
@@ -145,7 +145,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
             f[i] = xdfdr[ispin] + cdfdr[ispin];
             if (madness::is_nan(f[i])) {
                 print("bad? 3", ra, rb);
-                throw "numerical error in lda functional";
+                MADNESS_EXCEPTION("NaN in xcfunctional::vxc", 1);
             }
         }
     }
@@ -159,7 +159,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
             f[i] = dq1 + dq2;
             if (madness::is_nan(f[i])) {
                 print("bad? 4", r);
-                throw "numerical error in lda functional";
+                MADNESS_EXCEPTION("NaN in xcfunctional::vxc", 1);
             }
         }
     }

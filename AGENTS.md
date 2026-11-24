@@ -282,14 +282,15 @@ writing or reviewing numerical, I/O, or test code:
   pragmas — those warnings mean the check is a no-op.
 - **Always use `madness::is_finite(x)` and `madness::is_nan(x)`** from
   `<madness/misc/misc.h>` (overloaded for `float`, `double`, and
-  `std::complex<T>`), which inspect IEEE-754 bit patterns via `std::bit_cast`.
-  To test specifically for `+/-Inf`, write
+  `std::complex<T>`, plus `madness::is_finite(const Tensor<T>&)` in
+  `<madness/tensor/tensor.h>`), which inspect IEEE-754 bit patterns via
+  `std::bit_cast`. To test specifically for `+/-Inf`, write
   `!madness::is_finite(x) && !madness::is_nan(x)`.
-- **Check vectors/tensors elementwise rather than after `std::max` or
-  `Tensor::absmax` reductions.** `std::max(acc, x)` returns `acc` when `x` is
-  `NaN` even in strict IEEE-754, and on AArch64 `-ffast-math` lowers `max` to
-  `fmaxnm`, which drops a leading `NaN` too. Subspace projections (`inner(P, g)`)
-  with zero rows can also zero out `NaN` components.
+- **Check vectors/tensors elementwise (`madness::is_finite(tensor)`) rather than
+  after `std::max` or `Tensor::absmax` reductions.** `std::max(acc, x)` returns
+  `acc` when `x` is `NaN` even in strict IEEE-754, so `absmax()` on
+  `[0.1, NaN, ...]` returns finite `0.1`, and on AArch64 `-ffast-math` lowers
+  `max` to `fmaxnm`, which drops a leading `NaN` too.
 - **Guard iterative solver and optimizer values, residuals, and line-search
   evaluations** with `madness::is_finite` before convergence (`std::abs(de) < etol`)
   or divergence (`r > explosion_guard`) tests, so a `NaN` from a diverged step

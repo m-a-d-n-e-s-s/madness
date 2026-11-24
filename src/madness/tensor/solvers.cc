@@ -35,18 +35,6 @@
 
 namespace madness {
 
-    namespace {
-        bool tensor_all_finite(const Tensor<double>& t) {
-            const Tensor<double> c = t.iscontiguous() ? t : copy(t);
-            const double* p = c.ptr();
-            const long n = c.size();
-            for (long i = 0; i < n; ++i) {
-                if (!madness::is_finite(p[i])) return false;
-            }
-            return true;
-        }
-    }
-
 
     double OptimizationTargetInterface::test_gradient(Tensor<double>& x, double value_precision, bool doprint) {
         const double eps = pow(value_precision,0.3333);
@@ -94,7 +82,7 @@ namespace madness {
         double  fnew;
         Tensor<double> g;
         target->value_and_gradient(x,f,g);
-        MADNESS_CHECK_THROW(madness::is_finite(f) && tensor_all_finite(g),
+        MADNESS_CHECK_THROW(madness::is_finite(f) && madness::is_finite(g),
                             "SteepestDescent::optimize: objective value or gradient is not finite");
         gnorm = g.normf();
         for (int i=0; i<100; ++i) {
@@ -102,7 +90,7 @@ namespace madness {
                 Tensor<double> gnew;
                 x.gaxpy(1.0, g, -step);
                 target->value_and_gradient(x,fnew,gnew);
-                MADNESS_CHECK_THROW(madness::is_finite(fnew) && tensor_all_finite(gnew),
+                MADNESS_CHECK_THROW(madness::is_finite(fnew) && madness::is_finite(gnew),
                                     "SteepestDescent::optimize: objective value or gradient is not finite");
                 if (fnew < f) {
                     f = fnew;
@@ -114,7 +102,7 @@ namespace madness {
                 print("reducing step size", f, fnew, step);
             }
             Tensor<double> g = target->gradient(x);
-            MADNESS_CHECK_THROW(tensor_all_finite(g),
+            MADNESS_CHECK_THROW(madness::is_finite(g),
                                 "SteepestDescent::optimize: gradient is not finite");
             gnorm = g.normf();
             print("iteration",i,"value",f,"gradient",gnorm);
@@ -320,7 +308,7 @@ namespace madness {
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
-            MADNESS_CHECK_THROW(madness::is_finite(f) && tensor_all_finite(g),
+            MADNESS_CHECK_THROW(madness::is_finite(f) && madness::is_finite(g),
                                 "QuasiNewton::optimize: objective value or gradient is not finite");
             gnorm = g.normf();
             printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);

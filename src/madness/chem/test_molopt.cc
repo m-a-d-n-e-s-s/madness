@@ -17,13 +17,6 @@ using namespace madness;
 
 namespace {
 
-bool tensor_all_finite(const Tensor<double>& t) {
-  for (long i = 0; i < t.size(); ++i) {
-    if (!is_finite(t.ptr()[i])) return false;
-  }
-  return true;
-}
-
 /// Builds a proper 3D rotation matrix (Rodrigues' formula) rotating around a
 /// non-Cartesian axis so all 3 lab coordinates mix strongly.
 Tensor<double> make_test_rotation_matrix() {
@@ -76,7 +69,7 @@ bool check_projector(const std::string& label, const Molecule& mol,
   const int n = 3 * static_cast<int>(mol.natom());
 
   bool ok = (P.ndim() == 2 && P.dim(0) == n && P.dim(1) == n) &&
-            tensor_all_finite(P);
+            is_finite(P);
   if (!ok) {
     print("FAILED:", label, "projector dimensions or finiteness");
     return false;
@@ -475,11 +468,56 @@ int main(int argc, char** argv) {
     success = false;
   }
 
-  // 6. Non-finite gradient (including in a zeroed projector subspace or in a
-  //    non-leading element where Tensor::absmax would return a finite value)
-  //    and non-finite energy (initial or in line_search) must throw in both
-  //    optimize and optimize_app rather than silently forcing convergence.
+  // 6. Non-finite gradient and energy detection:
+  //    - Directly test madness::is_finite(const Tensor<T>&) on vectors where
+  //      Tensor::absmax() returns a finite value despite a non-leading NaN
+  //      (and on leading-NaN, complex, empty, and non-contiguous slice views).
+  //    - Verify MolOpt::optimize and MolOpt::optimize_app throw on non-finite
+  //      gradients and non-finite initial or line-search energies rather than
+  //      silently forcing convergence. (Note: dense inner(P, graw) multiplies
+  //      every P(i, j) * graw[j] without skipping zeros, so 0 * NaN = NaN
+  //      propagates into all entries of g; MolOpt checks both graw and g.)
+  //    - Verify QuasiNewton and SteepestDescent (which do not project by P)
+  //      reject a [0.1, 0.1, NaN] gradient where g.absmax() is finite.
   {
+    // Direct test of the Tensor::absmax() NaN blind spot on [0.1, NaN, 0.2]:
+    // std::max(result, std::abs(x)) keeps result when x is NaN, so absmax()
+    // returns finite 0.2, whereas madness::is_finite(tail_nan) returns false.
+    Tensor<double> tail_nan(3L);
+    tail_nan[0] = 0.1;
+    tail_nan[1] = runtime_quiet_nan();
+    tail_nan[2] = 0.2;
+    Tensor<double> lead_nan(3L);
+    lead_nan[0] = runtime_quiet_nan();
+    lead_nan[1] = 0.1;
+    lead_nan[2] = 0.2;
+    Tensor<double> all_ok(3L);
+    all_ok[0] = 0.1;
+    all_ok[1] = -0.3;
+    all_ok[2] = 0.2;
+
+    // Non-contiguous slice view (column 1 of a 3x2 matrix has stride 2)
+    Tensor<double> mat(3L, 2L);
+    mat = 1.0;
+    Tensor<double> col0 = mat(_, 0);
+    Tensor<double> col1 = mat(_, 1);
+    const bool slice_clean_ok = !col1.iscontiguous() && is_finite(col1);
+    mat(1, 1) = runtime_quiet_nan();
+    const bool slice_nan_ok = is_finite(col0) && !is_finite(col1);
+
+    Tensor<double_complex> cten(2L);
+    cten[0] = double_complex(1.0, 2.0);
+    cten[1] = double_complex(1.0, runtime_quiet_nan());
+
+    const bool tensor_finite_ok =
+        is_finite(Tensor<double>()) && is_finite(all_ok) &&
+        is_finite(tail_nan.absmax()) && !is_finite(tail_nan) &&
+        !is_finite(lead_nan) && slice_clean_ok && slice_nan_ok &&
+        !is_finite(cten);
+    print("Tensor is_finite vs absmax on [0.1, NaN, 0.2] and slices:",
+          tensor_finite_ok ? "ok" : "FAILED");
+    success = tensor_finite_ok && success;
+
     const Molecule lih(
         {Atom(0.0, 0.0, 0.7625, 3.0, 3), Atom(0.0, 0.0, -2.2875, 1.0, 1)},
         eprec);
@@ -515,17 +553,15 @@ int main(int argc, char** argv) {
       success = ok && success;
     };
 
-    // NaN in z-component of z-aligned diatomic
+    // NaN in internal z-component of z-aligned diatomic
     NonFiniteGradientTarget bad_grad_z{/*nan_index=*/2, /*dim=*/6, 0.0};
     expect_throws("non-finite gradient (z component) throws:", lih, bad_grad_z);
 
-    // NaN in x-component of z-aligned diatomic (annihilated by P along x/y)
+    // NaN in x-component of z-aligned diatomic (rigid-body direction)
     NonFiniteGradientTarget bad_grad_x{/*nan_index=*/0, /*dim=*/6, 0.05};
-    expect_throws("non-finite gradient (projected-out x component) throws:",
-                  lih, bad_grad_x);
+    expect_throws("non-finite gradient (x component) throws:", lih, bad_grad_x);
 
-    // NaN in trailing element on planar yz H2O where P(0, 8) == 0 so g[0] stays
-    // finite while g[8] is NaN (Tensor::absmax returns finite |g[0]|)
+    // NaN in trailing element of 3-atom H2O raw gradient
     NonFiniteGradientTarget bad_grad_tail{/*nan_index=*/8, /*dim=*/9, 0.05};
     expect_throws("non-finite gradient (trailing element) throws:", h2o,
                   bad_grad_tail);

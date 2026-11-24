@@ -204,17 +204,6 @@ public:
   }
 
 private:
-  static bool all_finite(const Tensor<double> &t) {
-    const Tensor<double> c = t.iscontiguous() ? t : copy(t);
-    const double *p = c.ptr();
-    const long n = c.size();
-    for (long i = 0; i < n; ++i) {
-      if (!madness::is_finite(p[i]))
-        return false;
-    }
-    return true;
-  }
-
   /// print the gradient the optimizer actually works with
   ///
   /// This is the PROJECTED gradient, and it is what every convergence test
@@ -408,7 +397,7 @@ public:
 
       MADNESS_CHECK_THROW(madness::is_finite(e),
                           "MolOpt::optimize: energy is not finite");
-      MADNESS_CHECK_THROW(all_finite(graw) && all_finite(g),
+      MADNESS_CHECK_THROW(madness::is_finite(graw) && madness::is_finite(g),
                           "MolOpt::optimize: gradient is not finite");
       double de = e - ep;
       double dxmax = dx.absmax();
@@ -549,7 +538,7 @@ public:
 
       MADNESS_CHECK_THROW(madness::is_finite(e),
                           "MolOpt::optimize_app: energy is not finite");
-      MADNESS_CHECK_THROW(all_finite(graw) && all_finite(g),
+      MADNESS_CHECK_THROW(madness::is_finite(graw) && madness::is_finite(g),
                           "MolOpt::optimize_app: gradient is not finite");
       double de = e - ep;
       double dxmax = dx.absmax();

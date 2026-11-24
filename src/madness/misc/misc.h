@@ -41,6 +41,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 namespace madness {
     /// True if `x` is finite (neither NaN nor +/-Inf).
@@ -91,24 +92,21 @@ namespace madness {
     /// read so `-ffast-math` / `-ffinite-math-only` cannot fold expressions
     /// such as `(cond) ? NaN : 1.0` at compile time.
     template <typename T = double>
-    inline T runtime_quiet_nan() noexcept;
-
-    template <>
-    inline double runtime_quiet_nan<double>() noexcept {
-        static_assert(std::numeric_limits<double>::is_iec559 &&
-                      sizeof(double) == sizeof(std::uint64_t));
-        volatile std::uint64_t nan_bits = 0x7ff8000000000000ULL;
-        const std::uint64_t bits = nan_bits;
-        return std::bit_cast<double>(bits);
-    }
-
-    template <>
-    inline float runtime_quiet_nan<float>() noexcept {
-        static_assert(std::numeric_limits<float>::is_iec559 &&
-                      sizeof(float) == sizeof(std::uint32_t));
-        volatile std::uint32_t nan_bits = 0x7fc00000U;
-        const std::uint32_t bits = nan_bits;
-        return std::bit_cast<float>(bits);
+    inline T runtime_quiet_nan() noexcept {
+        static_assert(std::is_same_v<T, double> || std::is_same_v<T, float>,
+                      "runtime_quiet_nan<T>() only supports float and double");
+        static_assert(std::numeric_limits<T>::is_iec559);
+        if constexpr (std::is_same_v<T, double>) {
+            static_assert(sizeof(double) == sizeof(std::uint64_t));
+            volatile std::uint64_t nan_bits = 0x7ff8000000000000ULL;
+            const std::uint64_t bits = nan_bits;
+            return std::bit_cast<double>(bits);
+        } else if constexpr (std::is_same_v<T, float>) {
+            static_assert(sizeof(float) == sizeof(std::uint32_t));
+            volatile std::uint32_t nan_bits = 0x7fc00000U;
+            const std::uint32_t bits = nan_bits;
+            return std::bit_cast<float>(bits);
+        }
     }
     unsigned long checksum_file(const char* filename);
     std::istream& position_stream(std::istream& f, const std::string& tag, bool rewind=true);

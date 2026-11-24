@@ -33,6 +33,7 @@
 #define MADNESS_TENSOR_TENSOR_H__INCLUDED
 
 #include <madness/madness_config.h>
+#include <madness/misc/misc.h>
 #include <madness/misc/ran.h>
 #include <madness/world/posixmem.h>
 #include <madness/world/thread_specific.h>
@@ -2816,6 +2817,18 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         Tensor<T> result(n,n);
         for (long i=0; i<n; ++i) result(i,i) = T(1);
         return result;
+    }
+
+    /// True if every element of `t` is finite (neither NaN nor +/-Inf), even
+    /// under `-ffast-math` / `-ffinite-math-only`. Iterates in place over both
+    /// contiguous tensors and non-contiguous slice views without copying.
+    ///
+    /// \ingroup tensor
+    template <class T>
+    bool is_finite(const Tensor<T>& t) {
+        if (t.size() == 0) return true;
+        UNARY_OPTIMIZED_ITERATOR(const T, t, if (!madness::is_finite(*_p0)) return false);
+        return true;
     }
 
 }
