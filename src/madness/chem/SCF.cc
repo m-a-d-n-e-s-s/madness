@@ -1551,7 +1551,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         Exchange<double, 3> K(world, this, ispin);
 
         K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
-        // symmetric requires bra == ket == argument; with virtuals present
+        // the symmetric tiling needs the bra a common weight of the argument
+        // (here bra = ket = the occupied amo); with virtuals present
         // (nvalpha/nvbeta > 0) the argument vector is longer than K's occupied
         // bra/ket and the symmetric pair batching must not be used.
         long nocc_in_k = 0;
@@ -1563,6 +1564,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_batch_granularity(param.hfex_granularity());
         K.set_accumulation_mode(param.hfex_accumulation());
         K.set_cost_aware_assignment(param.hfex_cost_aware());
+        K.set_apply_screen(param.hfex_apply_screen());
+        K.set_mo_order(param.hfex_mo_order());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);

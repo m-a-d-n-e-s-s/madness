@@ -3,6 +3,7 @@
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>
 #include <madness/mra/macrotaskpartitioner.h>
+#include <sstream>
 
 using namespace madness;
 
@@ -90,11 +91,44 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Truncation and addition doesn't commute, so truncation is done after the final accumulation.
     // Other truncations are elementwise and are not affected.
     reset_timer();
+    if (apply_screen_) {
+        ApplyScreenStats::reset();
+        static bool noted = false;      // once per process: the SCF asks every iteration
+        if (not noted and world.rank() == 0 and algorithm_ != multiworld_efficient) {
+            std::ostringstream alg;
+            alg << algorithm_;
+            printf(" hfex_apply_screen: not used by hfexalg %s (multiworld only)\n", alg.str().c_str());
+            noted = true;
+        }
+    }
     statistics=gather_statistics();
     double cpu0=wall_time();
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
-        Kf = K_macrotask_efficient(vket, mul_tol);
+        const std::vector<std::size_t> perm = mo_order_permutation();
+        if (perm.empty()) {
+            Kf = K_macrotask_efficient(vket, mul_tol);
+        } else {
+            // shallow copies in the permuted order: the roles keep their impls, so the owner-pinned
+            // path stores one batch set as before. The symmetric tiling pairs bra_i with vf_j and
+            // mirrors the pair, so the argument follows the permutation whenever that tiling is taken
+            // (the same condition as in K_macrotask_efficient); on the general path, which sums over
+            // the operator's orbitals for every argument, it keeps its order and so does the result.
+            const bool permute_vket = is_symmetric() and vket.size() == mo_ket.size();
+            vecfuncT bra_p(perm.size()), ket_p(perm.size()), vket_p = vket;
+            for (std::size_t i = 0; i < perm.size(); ++i) {
+                bra_p[i] = mo_bra[perm[i]];
+                ket_p[i] = mo_ket[perm[i]];
+                if (permute_vket) vket_p[i] = vket[perm[i]];
+            }
+            const vecfuncT Kf_p = K_macrotask_efficient(vket_p, bra_p, ket_p, mul_tol);
+            if (permute_vket) {
+                Kf.resize(Kf_p.size());
+                for (std::size_t i = 0; i < perm.size(); ++i) Kf[perm[i]] = Kf_p[i];
+            } else {
+                Kf = Kf_p;
+            }
+        }
     } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute) {
         Kf = K_macrotask_efficient_row(vket, mul_tol);
     } else if (algorithm_ == small_memory) {
@@ -117,6 +151,8 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     elapsed_time=cpu1-cpu0;
 
     if (printtimings_detail()) print_timer(world);
+    // with a user-provided task queue the tiles run after this call returns: the caller reports then
+    if (apply_screen_ and printtimings_detail() and not taskq) ApplyScreenStats::report(world);
     return Kf;
 }
 
@@ -134,6 +170,14 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
 template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
+    return K_macrotask_efficient(vf, mo_bra, mo_ket, mul_tol);
+}
+
+/// the same, on the bra and ket given rather than the operator's own (the orbital order of the batches)
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> >
+Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const vecfuncT& bra, const vecfuncT& ket,
+                                                       const double mul_tol) const {
 
     if (world.rank()==0 and printdebug()) print("\nentering macrotask_efficient version:");
 
@@ -141,12 +185,15 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     const long nresult = vf.size();
     // Whether the tiles may exploit the i-j symmetry. MAD_EXCH_FORCE_GENERAL takes it away from an
     // application that is entitled to it, which computes the same numbers down the general path and
-    // so tests that path against a known answer; see exch_force_general_path.
-    const bool symmetric = is_symmetric() and not exch_force_general_path();
+    // so tests that path against a known answer; see exch_force_general_path. The symmetric tiling
+    // walks the operator's kets as the set it is applied to, so it needs vf and ket of one size;
+    // any other set takes the general path, which is right for every bra, ket and vf.
+    const bool symmetric = is_symmetric() and not exch_force_general_path() and vf.size() == ket.size();
     // printlevel rather than printdebug(), which is >= 10: this has to be visible at the level a
     // validation run uses, or a forced run reads as a normal one
     if (symmetric != is_symmetric() and world.rank() == 0 and printlevel >= 4)
-        print("MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path");
+        print(exch_force_general_path() ? "MAD_EXCH_FORCE_GENERAL is set: routing exchange through the general path"
+                                        : "exchange applied to a ket set of another size: routing through the general path");
 
     // Whether tasks are pinned to the ranks owning their batches. Both symmetries support it now:
     // the symmetric grid shares one stored set across all three operand roles, and the asymmetric
@@ -159,9 +206,9 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, symmetric,
                                   owner_pinned, batch_granularity_,
                                   world.rank(), accumulation_mode_, cost_aware_assign_,
-                                  exchange_batch_salt(mo_ket),
-                                  exchange_same_operands(mo_bra, mo_ket),
-                                  exchange_same_operands(vf, mo_ket));
+                                  exchange_batch_salt(ket),
+                                  exchange_same_operands(bra, ket),
+                                  exchange_same_operands(vf, ket), apply_screen_);
     // The owner-pinned path stores the orbitals as batches itself and fetches the two it
     // needs per task, so the cloud must hold pointers rather than copy every operand into
     // every subworld. Pinning therefore fixes the storage policy.
@@ -174,7 +221,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
                  : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(policy));
 
     // deferred execution if a taskq is provided by the user
-    vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
+    vecfuncT Kf = mtask(vf, bra, ket);
     world.gop.fence();
 
     // Every tile ran on exactly one rank, so summing the per-rank cost buffers unions them and
@@ -272,7 +319,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo_bra, const vecfuncT& mo_ket,
                                   const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
-                                  const bool symmetric, const double mul_tol) {
+                                  const bool symmetric, const double mul_tol, const bool apply_screen) {
 
     double cpu0 = cpu_time();
     const long nf = vket.size();
@@ -295,7 +342,23 @@ Exchange<T, NDIM>::ExchangeImpl::compute_K_tile(World& world, const vecfuncT& mo
     mul1_timer += long((cpu1 - cpu0) * 1000l);
 
     cpu0 = cpu_time();
-    psif = apply(world, *poisson.get(), psif);
+    if (apply_screen) {
+        // psif[ij] = P(bra_i vket_j) is multiplied by ket_i and, when the symmetry is used, by ket_j; the
+        // kets' sup bounds are built once
+        const exchange_sup_bounds_t<NDIM> sup = exchange_sup_bounds(world, mo_ket);
+        std::vector<apply_screen_t<NDIM>> screens;
+        for (int i = 0; i < nocc; ++i) {
+            const int jtop = symmetric ? i + 1 : nf;
+            for (int j = 0; j < jtop; ++j) {
+                exchange_sup_bounds_t<NDIM> s{sup[i]};
+                if (symmetric and i != j) s.push_back(sup[j]);
+                screens.push_back(exchange_apply_screen<NDIM>(std::move(s)));
+            }
+        }
+        psif = apply(world, *poisson.get(), psif, screens);
+    } else {
+        psif = apply(world, *poisson.get(), psif);
+    }
     truncate(world, psif);
     cpu1 = cpu_time();
     apply_timer += long((cpu1 - cpu0) * 1000l);
@@ -367,6 +430,12 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
     vecfuncT resultcolumn(nrow);                                                   // maps to the row range
     vecfuncT resultrow = zero_functions_compressed<T, NDIM>(subworld, ncolumn);    // maps to the column range
     auto poisson = set_poisson(subworld, lo);
+    const bool screen = apply_screen_;
+    // the multipliers' sup bounds, once for the tile
+    const exchange_sup_bounds_t<NDIM> sup_rows = screen ? exchange_sup_bounds(subworld, ket_rows)
+                                                        : exchange_sup_bounds_t<NDIM>();
+    const exchange_sup_bounds_t<NDIM> sup_columns = screen ? exchange_sup_bounds(subworld, ket_columns)
+                                                           : exchange_sup_bounds_t<NDIM>();
 
     // per-stage wall, for the profiler only; `tick` is a no-op when it is off
     const bool prof_on = profile_active();
@@ -385,7 +454,14 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 
         cpu0 = cpu_time();
         w0 = prof_on ? wall_time() : 0.0;
-        Nij = apply(subworld, *poisson.get(), Nij);
+        if (screen) {
+            // N_ij is multiplied by ket_rows[irow] (into column j) and by ket_columns[j] (into row irow)
+            std::vector<apply_screen_t<NDIM>> screens(ncolumn);
+            for (long j = 0; j < ncolumn; ++j) screens[j] = exchange_apply_screen<NDIM>({sup_rows[irow], sup_columns[j]});
+            Nij = apply(subworld, *poisson.get(), Nij, screens);
+        } else {
+            Nij = apply(subworld, *poisson.get(), Nij);
+        }
         tick(prof_.apply_wall, w0);
         w0 = prof_on ? wall_time() : 0.0;
         truncate(subworld, Nij);
@@ -493,6 +569,18 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_accumulation_mode(const int mode) {
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_cost_aware_assignment(const bool flag) {
     impl->set_cost_aware_assignment(flag);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_mo_order(const std::string& order) {
+    impl->set_mo_order(order);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_apply_screen(const bool flag) {
+    impl->set_apply_screen(flag);
     return *this;
 }
 

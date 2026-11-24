@@ -178,6 +178,11 @@ public:
 
     bool is_symmetric() const;
 
+    /// Whether the exchange matrix may be computed by its triangle (the `multiworld` algorithm).
+
+    /// The triangle needs bra_i f_j = bra_j f_i for the set f the operator is applied to, i.e. the
+    /// bra a common weight of f (f itself, or R^2 f); the ket is free. Only the caller knows this,
+    /// so the flag asserts it; the operator checks no more than that f and the ket have one size.
     Exchange& set_symmetric(const bool flag);
 
     Exchange& set_algorithm(const ExchangeAlgorithm& alg);
@@ -200,6 +205,13 @@ public:
 
     /// place tasks by their measured cost rather than by counting them
     Exchange& set_cost_aware_assignment(const bool flag);
+
+    /// the order of the orbitals in the exchange batches: as_is, shuffle or balanced (hfexalg=multiworld)
+    Exchange& set_mo_order(const std::string& order);
+
+    /// skip the Poisson apply where the multiplier is negligible in the destination box (hfexalg multiworld
+    /// only; applyscreen.h). Off unless set.
+    Exchange& set_apply_screen(bool flag);
 
     Exchange& set_taskq(std::shared_ptr<MacroTaskQ> taskq1) {
         this->taskq=taskq1;

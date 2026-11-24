@@ -2377,7 +2377,8 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true,
+               const apply_screen_t<NDIM>& screen = apply_screen_t<NDIM>()) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         constexpr std::size_t OPDIM=opT::opdim;
@@ -2386,10 +2387,16 @@ namespace madness {
         // specialized version for 3D
         if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
-            result.get_impl()->apply(op, *f.get_impl(), fence);
+            // the tasks of this apply carry the destination screen (applyscreen.h); it does not travel
+            // to another rank, which is where apply_randomize would send some of them
+            MADNESS_CHECK_THROW(not (bool(screen) and FunctionDefaults<NDIM>::get_apply_randomize()),
+                                "apply_only: a destination screen is not supported with apply_randomize");
+            result.get_impl()->apply(op, *f.get_impl(), fence, ApplyScreenHandle<NDIM>(screen));
 
         } else {        // general version for higher dimension
 	  //bool print_timings=false;
+            MADNESS_CHECK_THROW(not bool(screen),
+                                "apply_only: a destination screen is supported on the NDIM <= 3 path only");
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);

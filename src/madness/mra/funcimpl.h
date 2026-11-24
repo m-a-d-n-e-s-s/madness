@@ -49,6 +49,8 @@
 #include <madness/mra/displacements.h>
 
 #include <madness/mra/leafop.h>
+#include <madness/mra/applyscreen.h>
+#include <madness/mra/supbound.h>
 
 #include <array>
 #include <iostream>
@@ -5241,6 +5243,44 @@ template<size_t NDIM>
 
         Future<double> norm_tree_spawn(const keyT& key);
 
+        /// Bounds on sup|f| per box (supbound.h): every local leaf, from its coefficients, and every local
+        /// interior node whose children all have one, as the max over them. Any other box, i.e. one with
+        /// leaves on another rank, answers unbounded. The tree must be reconstructed or redundant (only the
+        /// leaves' coefficients are read). Local, no communication; the bounds are not kept with the function.
+        SupBoundMap<NDIM> sup_bound_map() const {
+            MADNESS_CHECK_THROW(is_reconstructed() or is_redundant(),
+                                "sup_bound_map: the function must be reconstructed or redundant");
+            const Tensor<double> weights = SupBoundMap<NDIM>::leaf_weights(k);
+            typename SupBoundMap<NDIM>::mapT bound;
+            bound.reserve(coeffs.size());
+            std::vector<std::vector<keyT>> interior;    // the local interior nodes, per level
+            for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_children()) {
+                    if (interior.size() <= std::size_t(key.level())) interior.resize(key.level() + 1);
+                    interior[key.level()].push_back(key);
+                } else {
+                    bound[key] = node.has_coeff()
+                            ? SupBoundMap<NDIM>::leaf_bound(key, node.coeff().full_tensor(), weights) : 0.0;
+                }
+            }
+            // from the deepest level up, so that the children are done before their parent
+            for (long n = long(interior.size()) - 1; n >= 0; --n) {
+                for (const keyT& key : interior[n]) {
+                    double s = 0.0;
+                    bool complete = true;
+                    for (KeyChildIterator<NDIM> kit(key); kit and complete; ++kit) {
+                        const auto child = bound.find(kit.key());
+                        complete = (child != bound.end());
+                        if (complete) s = std::max(s, child->second);
+                    }
+                    if (complete) bound[key] = s;
+                }
+            }
+            return SupBoundMap<NDIM>(std::move(bound));
+        }
+
         /// truncate using a tree in reconstructed form
 
         /// must be invoked where key is local
@@ -5436,9 +5476,12 @@ template<size_t NDIM>
         /// @param[in] op	the operator to act on the source function
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
+        /// @param[in] screen	bound on the size, per destination box, of what the result will be
+        ///                 multiplied with (applyscreen.h); empty applies unscreened
         template <typename opT, typename R>
-        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
+        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c, const ApplyScreenHandle<NDIM>& screen) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+            long screen_blocks = 0, screen_skipped = 0;   // this task's counts for ApplyScreenStats
 
           // working assumption here WAS that the operator is
           // isotropic and monotonically decreasing with distance
@@ -5583,17 +5626,36 @@ template<size_t NDIM>
                 const double opnorm = op->norm(key.level(), displacement, source);
 
                 if (cnorm * opnorm > tol / fac) {
+                  // The destination screen (applyscreen.h; Yanai et al. 2004, eq. 17): the result is
+                  // multiplied with a function whose largest magnitude in the destination box the screen
+                  // bounds by dn, capped at one, so the block is needed only to the accuracy tol/fac/dn.
+                  // A skipped block still counts as used by the shell loop: its own estimate was
+                  // significant, and a later shell may reach boxes where the multiplier is large.
+                  double dn = 1.0;
+                  if (screen) {
+                    ++screen_blocks;
+                    dn = std::min(1.0, screen(dest));
+                    if (cnorm * opnorm * dn <= tol / fac) {
+                      ++screen_skipped;
+                      nused++;
+                      continue;
+                    }
+                  }
                   tensorT result =
-                      op->apply(source, displacement, c, tol / fac / cnorm);
-                  if (result.normf() > 0.3 * tol / fac) {
+                      op->apply(source, displacement, c, tol / fac / (cnorm * dn));
+                  const double rnorm = result.normf();
+                  if (rnorm * dn > 0.3 * tol / fac) {
                     if (coeffs.is_local(dest))
                       coeffs.send(dest, &nodeT::accumulate2, result, coeffs,
                                   dest);
                     else
                       coeffs.task(dest, &nodeT::accumulate2, result, coeffs,
                                   dest);
-                    nused++;
                   }
+                  // The shell loop sees the block as the unscreened apply would: a kept block whose
+                  // product with the multiplier is too small to accumulate can still be significant
+                  // on its own, and the shell after it may reach boxes where the multiplier is large.
+                  if (rnorm > 0.3 * tol / fac) nused++;
                 }
               }
             }
@@ -5653,12 +5715,19 @@ template<size_t NDIM>
                 [](const auto &displacement) -> std::uint64_t { return 0; },
                 default_skip_predicate);
           }
+          if (screen) {
+            ApplyScreenStats::blocks += screen_blocks;
+            ApplyScreenStats::skipped += screen_skipped;
+          }
         }
 
 
         /// apply an operator on f to return this
+
+        /// `screen`, if given, is carried by every task of this apply (applyscreen.h)
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence,
+                   const ApplyScreenHandle<NDIM>& screen = ApplyScreenHandle<NDIM>()) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
             for (const auto& [key, node]: f.coeffs) {
@@ -5666,7 +5735,7 @@ template<size_t NDIM>
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 //                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor(), screen);
                     }
                 }
             }
