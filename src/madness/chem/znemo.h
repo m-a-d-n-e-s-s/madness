@@ -72,7 +72,8 @@ public:
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
-        initialize<double>("ft_qextra",10.0,"ft: |q| <= B L/2 + qextra");
+        initialize<double>("ft_qextra",-1.0,"ft: |q| <= B L/2 + qextra; <0: the window from the nuclear cusps "
+                "(cut-off error a third of the ft precision floor)");
         initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
         initialize<double>("ft_rtaper",0.0,"ft: phase taper width; 0: derived");
         initialize<double>("ft_dphi",3.0,"ft: phase variation per box");

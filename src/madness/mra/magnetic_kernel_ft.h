@@ -48,7 +48,7 @@ public:
         const double rext = rcut_ + 3 * rtaper_;
         const double L = std::min(std::max(std::abs(lo_), std::abs(hi_)), rext);
         period_ = p_.ft_period > 0 ? p_.ft_period : std::min(2.0 * (hi_ - lo_), 4.0 * rext);
-        const double qmax = std::abs(B) * L / 2 + p_.ft_qextra;
+        const double qmax = std::max(std::abs(B) * L / 2 + p_.ft_qextra, p_.ft_qmin);
         const long J = long(std::ceil(qmax * period_ / constants::pi / 2));
         for (long j = -J; j <= J; ++j) q_.push_back(2 * constants::pi * j / period_);
 

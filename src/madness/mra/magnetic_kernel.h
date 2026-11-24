@@ -46,7 +46,8 @@ struct MagneticKernelParameters {
 
     // ft
     double ft_period = 0.0;     ///< y-period P; 0 -> min(2 x cell width, 4 rext)
-    double ft_qextra = 10.0;    ///< |q| <= |B| L/2 + qextra
+    double ft_qextra = 10.0;    ///< |q| <= max(|B| L/2 + qextra, qmin)
+    double ft_qmin = 0.0;       ///< smallest |q| window (znemo: from the nuclear cusps, see Znemo)
     double ft_rcut = 0.0;       ///< phase cut off (erfc taper) at rho > rcut; 0 -> 1.5 sqrt(8 ln(1/thresh)/|B|)
     double ft_rtaper = 0.0;     ///< taper width; 0 -> min(0.5, rcut/4)
     double ft_dphi = 3.0;       ///< refine until the phase varies by <= dphi per box

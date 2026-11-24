@@ -207,6 +207,11 @@ bool check_if_pseudo_atom(const std::string& symbol) {
 /// 3% in c) to variational ground states of the hydrogen atom in a field:
 ///   g(beta) = (1 + 0.2128 beta) (1 + 0.874 ln(1 + 0.3394 beta)),   g(0) = 1
 /// For c comparable to the transverse orbital size (B c ~ 1) the true error is smaller, so the radius is conservative.
+double nuclear_density_field_factor(double Z, double B) {
+    const double beta = std::abs(B)/(Z*Z);
+    return (1.0 + 0.2128*beta) * (1.0 + 0.874*std::log1p(0.3394*beta));
+}
+
 double smoothing_parameter(double Z, double eprec, double B) {
     // The min is since asymptotic form not so good at low acc.
     // The /2 is from two electrons in 1s closed shell.
@@ -214,8 +219,7 @@ double smoothing_parameter(double Z, double eprec, double B) {
     eprec = std::min(1e-3,eprec/2.0);
     //eprec = std::min(1e-2,eprec/2.0);
     double Z5 = Z*Z*Z*Z*Z;
-    const double beta = std::abs(B)/(Z*Z);
-    const double g = (1.0 + 0.2128*beta) * (1.0 + 0.874*std::log1p(0.3394*beta));
+    const double g = nuclear_density_field_factor(Z, B);
     double c = pow(eprec/(0.65*Z5*g),1.0/3.0);
     //std::cout << "SMOOTHING " << Z << " " << c << std::endl;
     return c;

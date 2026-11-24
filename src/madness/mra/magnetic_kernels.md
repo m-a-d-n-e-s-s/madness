@@ -117,7 +117,10 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 
 **Settings and costs.**
 - y is treated as periodic with period P, and the modes are processed in batches (`ft_qbatch`).
-- The cost scales with the number of q modes, about (|B| r_ext/2 + `ft_qextra`) P/π.
+- The cost scales with the number of q modes, about qmax P/π. qmax = max(|B| r_ext/2 + `ft_qextra`, Q): znemo derives
+  Q from the nuclear cusps (`ft_qextra` < 0, the default). Cutting |q| > Q drops the cusp momenta of Vψ and raises the
+  energy by (4/3) S/Q³, S = Σ_A n_A Z_A² ρ_A(0) (ρ_A(0) = Z_A³ g(|B|/Z_A²)/π, n_A = min(2, Z_A)); Q is chosen for a
+  third of the ft precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
 - The default `ft_rcut` assumes the nuclei lie near the z axis. Pass `ft_rcut` and `ft_rtaper` for
   off-axis nuclei at strong field, as Armen's B = 425 jobs did (rcut 1.0, rtaper 0.1).
 - Armen's `magnetic/README.md` and `magnetic/docs/parameters_physics.pdf` on `magnetic-fourier`
@@ -230,7 +233,7 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 |---|---|---|
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
-| `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | 10, derived, derived, 3 | ft |
+| `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | derived, derived, derived, 3 | ft |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).

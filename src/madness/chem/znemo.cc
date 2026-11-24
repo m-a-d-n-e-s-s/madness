@@ -131,6 +131,25 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 		kp.eps=1.e-3*thresh;
 		if (world.rank()==0) print("magnetic kernel quadrature: lo",kp.lo,"eps",kp.eps,"-> tau step",
 				MagneticKernel::tau_step(kp.eps),"tmin",0.25*kp.lo*kp.lo);
+		if (kp.kind=="ft" and kp.ft_qextra<0.0) {
+			// the y-wavenumber cut |q| > Q drops the cusp momenta of V psi at each nucleus, raising the energy by
+			// (4/3) S/Q^3, S = sum_A n_A Z_A^2 rho_A(0) (rho_A(0) = Z_A^3 g/pi, n_A = min(2, Z_A) electrons at the
+			// nucleus; verified for H at B = 1, 10). The ft kernel has a precision floor of the same origin (the cusp
+			// in the 2D modes), 79 uEh S^0.75 (thresh/1e-4)^0.69 (fit, H at B = 1-100, thresh 1e-4-1e-5); the cut is
+			// set to a third of it (errors add in quadrature: +5%), plus the phase shift |B x_A|/2 of the nucleus
+			double s=0.0, xmax=0.0;
+			for (const Atom& a : mol.get_atoms()) {
+				const double Z=a.q;
+				if (Z<=0.0) continue;
+				s+=std::min(2.0,Z)*std::pow(Z,5)*nuclear_density_field_factor(Z,param.physical_B())/constants::pi;
+				xmax=std::max(xmax,std::abs(a.x));
+			}
+			const double floor=79.e-6*std::pow(s,0.75)*std::pow(thresh/1.e-4,0.69);
+			kp.ft_qextra=0.0;
+			kp.ft_qmin=std::cbrt(4.0*s/(3.0*floor/3.0))+0.5*std::abs(param.physical_B())*xmax;
+			if (world.rank()==0) print("ft: y-wavenumber window from the nuclear cusps, qmin =",kp.ft_qmin,
+					"(estimated precision floor",floor,")");
+		}
 		mkernel=make_magnetic_kernel(world,kp);
 		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 	}

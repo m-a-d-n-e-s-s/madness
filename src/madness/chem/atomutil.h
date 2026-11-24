@@ -75,6 +75,9 @@ bool check_if_pseudo_atom(const std::string& symbol);
 
 /// radius c of the smoothed nuclear potential for an error eprec per atom; B: magnetic field strength (a.u.)
 double smoothing_parameter(double Z, double eprec, double B=0.0);
+
+/// field factor g(|B|/Z^2) of the 1s density at the nucleus, rho(0) = Z^3 g/pi (fit, see smoothing_parameter)
+double nuclear_density_field_factor(double Z, double B);
 double smoothed_potential(double r);
 double dsmoothed_potential(double r);
 double d2smoothed_potential(double r);
