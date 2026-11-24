@@ -110,7 +110,7 @@ outputs:
 
 about:
   home: https://github.com/m-a-d-n-e-s-s/madness
-  license: GPL-2.0-or-later
+  license: MIT
   license_file: LICENSE
   summary: 'MADNESS: Multiresolution Adaptive Numerical Environment for Scientific Simulation'
   description: |
