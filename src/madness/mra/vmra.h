@@ -2093,8 +2093,8 @@ namespace madness {
     /// Applies an operator to a vector of functions, screened by where each result is needed --- q[i] = apply(op,f[i])
 
     /// `screens[i]` bounds the size, per box, of what q[i] will be multiplied with (apply_screen_t,
-    /// applyscreen.h); FunctionImpl::do_apply reads it for every destination box, and it is dropped
-    /// again after the fence. An empty vector applies without a screen.
+    /// applyscreen.h); the tasks of the i-th apply carry it and FunctionImpl::do_apply reads it for
+    /// every destination box. An empty vector applies without a screen.
     template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
@@ -2121,7 +2121,6 @@ namespace madness {
         }
 
         world.gop.fence();
-        for (auto& r : result) r.get_impl()->clear_apply_screen();
 
         // restores promise of logical constness
         if (op.destructive()) {

@@ -784,7 +784,11 @@ public:
     /// shuffle, a fixed random permutation; balanced, the orbitals dealt into the batches by their
     /// coefficient count, largest first, each into the batch with the smallest load so far, so that
     /// every batch carries the same share of the deep core orbitals. The permutation is applied to the
-    /// argument, the bra and the ket alike, with shallow copies, and the result is permuted back.
+    /// bra and the ket, with shallow copies, and to the argument on the symmetric path, where the result
+    /// is permuted back; the general path sums over the operator's orbitals for every argument, which
+    /// keeps its order. balanced derives its order from the current node counts at every application,
+    /// while the cost-aware placement reuses the per-tile costs of the previous one, which are
+    /// meaningful only as long as the order did not change in between.
     ExchangeImpl& set_mo_order(const std::string& order) {
         MADNESS_CHECK_THROW(order == "as_is" or order == "shuffle" or order == "balanced",
                             "exchange: the orbital order must be as_is, shuffle or balanced");

@@ -12,8 +12,8 @@
 /// computes a kept block with its per-term tolerance loosened by the same factor, and accumulates it only
 /// if its norm times the factor is significant; a skipped block still counts as used by the shell loop.
 /// A skipped block leaves at most the block's share of the tolerance in the product function, since
-/// ||s du||_2 <= sup|s| ||du||_2. The screen rides on the result of one apply (apply_only, and the vector
-/// apply(world, op, f, screens)); without one, do_apply is unchanged.
+/// ||s du||_2 <= sup|s| ||du||_2. The tasks of one apply carry the screen (ApplyScreenHandle; apply_only,
+/// and the vector apply(world, op, f, screens)); without one, do_apply is unchanged.
 
 #include <madness/mra/key.h>
 #include <madness/mra/supbound.h>
@@ -32,6 +32,27 @@ namespace madness {
     /// per destination box, a bound on the size of what the result of the apply will be multiplied with
     template <std::size_t NDIM>
     using apply_screen_t = std::function<double(const Key<NDIM>&)>;
+
+    /// The screen as the tasks of an apply carry it: shared ownership, so the screen lives as long as
+    /// any task of the apply does, and nothing is stored on the function. Empty means no screen. The
+    /// tasks stay on the rank that creates them (apply_only refuses apply_randomize), so the handle
+    /// does not travel.
+    template <std::size_t NDIM>
+    class ApplyScreenHandle {
+        std::shared_ptr<const apply_screen_t<NDIM>> screen_;
+    public:
+        ApplyScreenHandle() = default;
+        explicit ApplyScreenHandle(const apply_screen_t<NDIM>& screen)
+            : screen_(screen ? std::make_shared<const apply_screen_t<NDIM>>(screen) : nullptr) {}
+
+        explicit operator bool() const { return bool(screen_); }
+        double operator()(const Key<NDIM>& key) const { return (*screen_)(key); }
+
+        template <typename Archive>
+        void serialize(Archive&) {
+            MADNESS_EXCEPTION("no serialization of ApplyScreenHandle: the apply screen stays on its rank", 1);
+        }
+    };
 
     /// Counters of the apply screen, process-wide: the blocks that passed the source test while a screen
     /// was installed and the ones it skipped, and the sup bounds built for screens with the time it took.

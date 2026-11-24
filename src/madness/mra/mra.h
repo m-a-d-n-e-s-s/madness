@@ -2387,15 +2387,11 @@ namespace madness {
         // specialized version for 3D
         if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
-            // the destination screen rides on the result for the duration of this apply (applyscreen.h).
-            // It is set after the result exists, so a do_apply task that another rank sends here
-            // (apply_randomize) could read it while it is being set: refused rather than raced
-            const bool screened = bool(screen);
-            MADNESS_CHECK_THROW(not (screened and FunctionDefaults<NDIM>::get_apply_randomize()),
+            // the tasks of this apply carry the destination screen (applyscreen.h); it does not travel
+            // to another rank, which is where apply_randomize would send some of them
+            MADNESS_CHECK_THROW(not (bool(screen) and FunctionDefaults<NDIM>::get_apply_randomize()),
                                 "apply_only: a destination screen is not supported with apply_randomize");
-            if (screened) result.get_impl()->set_apply_screen(screen);
-            result.get_impl()->apply(op, *f.get_impl(), fence);
-            if (screened and fence) result.get_impl()->clear_apply_screen();
+            result.get_impl()->apply(op, *f.get_impl(), fence, ApplyScreenHandle<NDIM>(screen));
 
         } else {        // general version for higher dimension
 	  //bool print_timings=false;

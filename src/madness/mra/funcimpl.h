@@ -1077,11 +1077,6 @@ template<size_t NDIM>
         const Tensor<double> cell;          ///< the size of the root cell in each dimension, unchangeable
         int max_refine_level; ///< Do not refine below this level
         int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
-        /// Bound on the size, per box, of what the result of the running apply() will be multiplied with;
-        /// read by do_apply for every destination box (applyscreen.h). Set for one apply, empty otherwise;
-        /// neither serialized nor copied with the function. Set after construction, so it is not
-        /// synchronized against do_apply tasks sent by other ranks (apply_only refuses apply_randomize).
-        apply_screen_t<NDIM> apply_screen_;
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
@@ -5481,8 +5476,10 @@ template<size_t NDIM>
         /// @param[in] op	the operator to act on the source function
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
+        /// @param[in] screen	bound on the size, per destination box, of what the result will be
+        ///                 multiplied with (applyscreen.h); empty applies unscreened
         template <typename opT, typename R>
-        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
+        void do_apply(const opT* op, const keyT& key, const Tensor<R>& c, const ApplyScreenHandle<NDIM>& screen) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             long screen_blocks = 0, screen_skipped = 0;   // this task's counts for ApplyScreenStats
 
@@ -5635,9 +5632,9 @@ template<size_t NDIM>
                   // A skipped block still counts as used by the shell loop: its own estimate was
                   // significant, and a later shell may reach boxes where the multiplier is large.
                   double dn = 1.0;
-                  if (apply_screen_) {
+                  if (screen) {
                     ++screen_blocks;
-                    dn = std::min(1.0, apply_screen_(dest));
+                    dn = std::min(1.0, screen(dest));
                     if (cnorm * opnorm * dn <= tol / fac) {
                       ++screen_skipped;
                       nused++;
@@ -5718,21 +5715,19 @@ template<size_t NDIM>
                 [](const auto &displacement) -> std::uint64_t { return 0; },
                 default_skip_predicate);
           }
-          if (apply_screen_) {
+          if (screen) {
             ApplyScreenStats::blocks += screen_blocks;
             ApplyScreenStats::skipped += screen_skipped;
           }
         }
 
 
-        /// install the destination screen that do_apply reads during the next apply() (applyscreen.h)
-        void set_apply_screen(apply_screen_t<NDIM> screen) { apply_screen_ = std::move(screen); }
-        void clear_apply_screen() { apply_screen_ = nullptr; }
-        bool has_apply_screen() const { return bool(apply_screen_); }
-
         /// apply an operator on f to return this
+
+        /// `screen`, if given, is carried by every task of this apply (applyscreen.h)
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence,
+                   const ApplyScreenHandle<NDIM>& screen = ApplyScreenHandle<NDIM>()) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
             for (const auto& [key, node]: f.coeffs) {
@@ -5740,7 +5735,7 @@ template<size_t NDIM>
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 //                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor(), screen);
                     }
                 }
             }
