@@ -19,7 +19,7 @@
 namespace madness {
 
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
-                    calc_param(world,parser) {
+                    nemo_param(world,parser), calc_param(world,parser) {
 	calc_param.set_derived_value("k",9);
 	calc_param.read_input_and_commandline_options(world,parser,"dft");
 
@@ -116,10 +116,11 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	}
 	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, molecule().parameters.core_type()));
 	potentialmanager->make_nuclear_potential(world);
-	// the magnetic kernels act on the orbitals themselves: no nuclear correlation factor
-	const std::pair<std::string,double> ncf_param=param.use_magnetic_kernel()
-			? std::pair<std::string,double>("none",1.0) : nemo_param.ncf();
-    construct_nuclear_correlation_factor(mol, potentialmanager, ncf_param);
+	// the magnetic kernels act on the orbitals, or with a nuclear correlation factor (nemo block, ncf) on the nemos F = psi/R: then
+	// R^{-1} (pi^2/2) R F = pi^2/2 F + U1.grad F + i U1.A F - (grad^2 R/2R) F, U1 = -grad R/R, so the kernel
+	// G_B(E) is unchanged and its right-hand side is U2 F + U1.grad F + i U1.A F + (J - K) F (Nuclear(ncf),
+	// zeeman_R_comm), with the metric R^2 in the Fock matrix and the energy
+    construct_nuclear_correlation_factor(mol, potentialmanager, nemo_param.ncf());
 
 	if (param.use_magnetic_kernel()) {
 		MagneticKernelParameters kp=param.kernel_parameters();
@@ -131,7 +132,24 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 		kp.eps=1.e-3*thresh;
 		if (world.rank()==0) print("magnetic kernel quadrature: lo",kp.lo,"eps",kp.eps,"-> tau step",
 				MagneticKernel::tau_step(kp.eps),"tmin",0.25*kp.lo*kp.lo);
-		if (kp.kind=="ft" and kp.ft_qextra<0.0) {
+		const bool nemo=(ncf->type()!=NuclearCorrelationFactor::None);
+		if (kp.kind=="ft" and kp.ft_qextra<0.0 and nemo) {
+			// nemo: the cusp is gone; the leading non-smooth term of U F is U1.grad F ~ Z (r^ . d), d = grad F at the
+			// nucleus, |g^(p)|^2 = 64 pi^2 Z^2 (d.p)^2/p^6, so the cut |p_y| > Q costs (32/45) Z^2 |d|^2/Q^5 (verified
+			// for a p orbital at B = 1: Q^-5, 20 vs 25 uEh at Q = 8); with |d|^2 <= 2 n_A rho_A(0) (p-like, worst
+			// case; s orbitals have d = 0): Q = [64 S/(45 dE)]^(1/5), dE = 0.1 thresh (the precision floor of the
+			// nemo right-hand side is below 0.1 uEh at B <= 10)
+			double s=0.0, xmax=0.0;
+			for (const Atom& a : mol.get_atoms()) {
+				const double Z=a.q;
+				if (Z<=0.0) continue;
+				s+=std::min(2.0,Z)*std::pow(Z,5)*nuclear_density_field_factor(Z,param.physical_B())/constants::pi;
+				xmax=std::max(xmax,std::abs(a.x));
+			}
+			kp.ft_qextra=0.0;
+			kp.ft_qmin=std::pow(64.0*s/(45.0*0.1*thresh),0.2)+0.5*std::abs(param.physical_B())*xmax;
+			if (world.rank()==0) print("ft (nemo): y-wavenumber window, qmin =",kp.ft_qmin);
+		} else if (kp.kind=="ft" and kp.ft_qextra<0.0) {
 			// the y-wavenumber cut |q| > Q drops the cusp momenta of V psi at each nucleus, raising the energy by
 			// (4/3) S/Q^3, S = sum_A n_A Z_A^2 rho_A(0) (rho_A(0) = Z_A^3 g/pi, n_A = min(2, Z_A) electrons at the
 			// nucleus; verified for H at B = 1, 10). The ft kernel has a precision floor of the same origin (the cusp
@@ -150,6 +168,7 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 			if (world.rank()==0) print("ft: y-wavenumber window from the nuclear cusps, qmin =",kp.ft_qmin,
 					"(estimated precision floor",floor,")");
 		}
+		kernel_param_=kp;
 		mkernel=make_magnetic_kernel(world,kp);
 		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 	}
@@ -344,6 +363,14 @@ void Znemo::iterate() {
 		// the spin Zeeman term +-B/2 is a constant per spin: it is not part of the orbital energies (and drops out
 		// of the iteration), only of the total energy (compute_energy)
 		const double levelshifta=param.shift();
+		if (mkernel and ncf->type()!=NuclearCorrelationFactor::None) {
+			std::vector<complex_function_3d> g=Vnemoa;
+			for (auto& f : Vnemob) g.push_back(f);
+			Tensor<double> E(long(g.size()));
+			for (long i=0; i<aeps.size(); ++i) E(i)=aeps(i);
+			for (long i=0; i<beps.size(); ++i) E(aeps.size()+i)=beps(i);
+			adapt_kernel_tmin(g,E,iter==0);
+		}
 		if (mkernel and iter==0) {
 			akeps=copy(aeps);	// Tensor assignment is shallow: the kernel energies must not alias the Fock diagonal
 			bkeps=copy(beps);
@@ -441,26 +468,66 @@ std::vector<complex_function_3d> Znemo::assemble_rhs(const potentials& pot,
 	return v;
 }
 
+std::vector<complex_function_3d> Znemo::pi_apply(const std::vector<complex_function_3d>& f, const int axis) const {
+	const MagneticKernel& K=*mkernel;
+	complex_derivative_3d D=free_space_derivative<double_complex,3>(world,axis);
+	std::vector<complex_function_3d> pf=apply(world,D,f);
+	scale(world,pf,double_complex(0.0,-1.0));
+	// symmetric gauge: A_x, A_y; Landau gauge: A_x only
+	const bool have_A=(param.physical_B()!=0.0) and (axis==0 or (axis==1 and K.gauge()==MagneticGauge::symmetric));
+	if (have_A) {
+		real_function_3d A=real_factory_3d(world).functor([&K,axis](const coord_3d& r) {return K.vector_potential(r)[axis];});
+		pf=pf+A*f;
+	}
+	return pf;
+}
+
+/// <psi_i|pi^2/2|psi_j> = (1/2) <pi psi_i|pi psi_j>, Hermitian; with a correlation factor (psi = R F) without
+/// differentiating the cusp of R: pi (R F) = R (pi + i U1) F, U1 = -grad R/R, so the matrix is
+/// (1/2) sum_d <R^2 w_id|w_jd>, w_d = (pi_d + i U1_d) F (contains L_z and A^2 through pi)
 Tensor<double_complex> Znemo::kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const {
-	MADNESS_CHECK_THROW(mkernel and ncf->type()==NuclearCorrelationFactor::None,
-			"kinetic_pi_matrix: magnetic kernels only, without a nuclear correlation factor");
+	MADNESS_CHECK_THROW(mkernel,"kinetic_pi_matrix: magnetic kernels only");
 	Tensor<double_complex> t(mo.size(),mo.size());
 	if (mo.size()==0) return t;
-	const MagneticKernel& K=*mkernel;
+	const bool nemo=kernel_nemo();
 	for (int axis=0; axis<3; ++axis) {
-		// pi_axis phi = -i d_axis phi + A_axis phi
-		complex_derivative_3d D=free_space_derivative<double_complex,3>(world,axis);
-		std::vector<complex_function_3d> pmo=apply(world,D,mo);
-		scale(world,pmo,double_complex(0.0,-1.0));
-		// symmetric gauge: A_x, A_y; Landau gauge: A_x only
-		const bool have_A=(param.physical_B()!=0.0) and (axis==0 or (axis==1 and K.gauge()==MagneticGauge::symmetric));
-		if (have_A) {
-			real_function_3d A=real_factory_3d(world).functor([&K,axis](const coord_3d& r) {return K.vector_potential(r)[axis];});
-			pmo=pmo+A*mo;
-		}
-		t+=0.5*matrix_inner(world,pmo,pmo);
+		std::vector<complex_function_3d> w=pi_apply(mo,axis);
+		if (nemo) w=w+double_complex(0.0,1.0)*(ncf->U1(axis)*mo);
+		t+=0.5*matrix_inner(world,nemo ? make_bra(w) : w,w);
 	}
 	return t;
+}
+
+/// nemo right-hand sides g = U F are cusp-free: replacing int_0^tmin e^{-tau (T-E)} g by tmin g shifts the energy by
+/// -(tmin^2/2) C, C = <g|T - E|g> = (1/2)|pi g|^2 - E |g|^2, finite (the bare cusp makes it diverge, hence
+/// tmin = lo^2/4 there). tmin = sqrt(2 dE/max_i C_i), not below the bare value; the kernel is rebuilt with
+/// lo = 2 sqrt(tmin). dE = 0.001 thresh: the kernel-consistent energy is more sensitive to tmin than -(tmin^2/2) C
+/// suggests (H atom, B = 100, chain, thresh 1e-4: dE = 0.1 / 0.01 / 0.001 thresh -> E_k - exact = -257 (ft) / +19.7
+/// / +4.6 uEh, bare +2.2 uEh at 4.8x the wall time). C grows as the orbitals contract, so it is re-evaluated in
+/// every iteration: tmin may grow in the first one only, and shrinks later when needed.
+void Znemo::adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const Tensor<double>& E, const bool first) {
+	if (not mkernel or ncf->type()==NuclearCorrelationFactor::None or g.empty()) return;
+	double cmax=0.0;
+	std::vector<double> pn(g.size(),0.0);
+	for (int axis=0; axis<3; ++axis) {
+		const std::vector<double> n=norm2s(world,pi_apply(g,axis));
+		for (std::size_t i=0; i<g.size(); ++i) pn[i]+=n[i]*n[i];
+	}
+	const std::vector<double> gn=norm2s(world,g);
+	for (std::size_t i=0; i<g.size(); ++i) cmax=std::max(cmax,0.5*pn[i]-std::min(E(long(i)),mkernel->bottom())*gn[i]*gn[i]);
+	const double thresh=FunctionDefaults<3>::get_thresh();
+	double lo_bare=1.0;
+	for (double rc : mol.get_rcut()) lo_bare=std::min(lo_bare,1.0/rc);
+	const double tmin_bare=0.25*lo_bare*lo_bare;
+	const double tmin_now=0.25*kernel_param_.lo*kernel_param_.lo;
+	const double tmin=std::max(tmin_bare,std::sqrt(2.0*1.e-3*thresh/std::max(cmax,1.e-10)));
+	if (world.rank()==0 and print_info.print_convergence())
+		print("nemo: C = <g|T-E|g> =",cmax,"-> tmin",tmin,"(current",tmin_now,", bare",tmin_bare,")");
+	if ((first and tmin>1.01*tmin_now) or tmin<0.7*tmin_now) {
+		if (world.rank()==0) print("nemo: kernel rebuilt with tmin",tmin);
+		kernel_param_.lo=2.0*std::sqrt(tmin);
+		mkernel=make_magnetic_kernel(world,kernel_param_);
+	}
 }
 
 double Znemo::analyze() {
@@ -680,13 +747,16 @@ double Znemo::compute_energy(const std::vector<complex_function_3d>& amo, const 
     	diamagnetic=fac*(inner(world,dia2amo,apot.diamagnetic_mo).sum()+inner(world,dia2bmo,bpot.diamagnetic_mo).sum());
     }
 
-    double_complex nuclear_potential=fac*(inner(world,dia2amo,apot.vnuc_mo).sum()+inner(world,dia2bmo,bpot.vnuc_mo).sum());
+    const bool sym=kernel_nemo();	// symmetric kinetic term: bare V, no R commutator (see compute_vmat)
+    double_complex nuclear_potential=sym
+    		? fac*(inner(world,dia2amo,apot.vbare_mo).sum()+inner(world,dia2bmo,bpot.vbare_mo).sum())
+    		: fac*(inner(world,dia2amo,apot.vnuc_mo).sum()+inner(world,dia2bmo,bpot.vnuc_mo).sum());
     double_complex lz=fac*(inner(world,dia2amo,apot.lz_mo).sum()+inner(world,dia2bmo,bpot.lz_mo).sum());
     // spin Zeeman term +B/2 per alpha and -B/2 per beta electron: in the total energy only
     const double_complex spin_zeeman=0.5*B[2]*fac*(double(amo.size())-double(bmo.size()));
     double_complex coulomb=fac*0.5*(inner(world,dia2amo,apot.J_mo).sum()+inner(world,dia2bmo,bpot.J_mo).sum());
     double_complex exchange=fac*0.5*(inner(world,dia2amo,apot.K_mo).sum()+inner(world,dia2bmo,bpot.K_mo).sum());
-    double_complex zeeman_R_comm=fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
+    double_complex zeeman_R_comm=sym ? 0.0 : fac*(inner(world,dia2amo,apot.zeeman_R_comm).sum()+inner(world,dia2bmo,bpot.zeeman_R_comm).sum());
 
     double_complex energy=kinetic + nuclear_potential + mol.nuclear_repulsion_energy() +
     		diamagnetic + lz + spin_zeeman + coulomb - exchange + zeeman_R_comm;
@@ -1161,9 +1231,15 @@ Znemo::potentials Znemo::one_electron_potentials(const std::vector<complex_funct
 	}
 
 	if (not mkernel) pot.diamagnetic_mo=diafac->apply_potential(rhs);
+	if (kernel_nemo()) pot.vbare_mo=truncate(potentialmanager->vnuclear()*rhs);
 
 	MADNESS_ASSERT(diafac->B_along_z(B));
-	pot.zeeman_R_comm = double_complex(0.0,0.5)*B[2]*(rvec[0]* ncf->U1(1)-rvec[1]* ncf->U1(0))*rhs;
+	// i U1.A F: symmetric gauge about r = 0 i (B/2)(x U1_y - y U1_x); Landau gauge of the kernel (A = (-B y, 0, 0))
+	// -i B y U1_x
+	if (mkernel and mkernel->gauge()==MagneticGauge::landau)
+		pot.zeeman_R_comm = double_complex(0.0,-1.0)*B[2]*(rvec[1]*ncf->U1(0))*rhs;
+	else
+		pot.zeeman_R_comm = double_complex(0.0,0.5)*B[2]*(rvec[0]* ncf->U1(1)-rvec[1]* ncf->U1(0))*rhs;
 
 	truncate(world,pot.vnuc_mo);
 	truncate(world,pot.lz_mo);
@@ -1204,12 +1280,14 @@ Tensor<double_complex> Znemo::compute_vmat(const std::vector<complex_function_3d
 
 	std::vector<complex_function_3d> dia2mo=make_bra(mo);
 	truncate(world,dia2mo);
-	Tensor<double_complex> Vnucmat=matrix_inner(world,dia2mo,pot.vnuc_mo);
+	// kernels with a correlation factor: the symmetric kinetic term contains U1.grad + i U1.A + U2 - V
+	const bool sym=kernel_nemo();
+	Tensor<double_complex> Vnucmat=matrix_inner(world,dia2mo,sym ? pot.vbare_mo : pot.vnuc_mo);
 	Tensor<double_complex> lzmat=matrix_inner(world,dia2mo,pot.lz_mo);
 	Tensor<double_complex> diamat=matrix_inner(world,dia2mo,pot.diamagnetic_mo);
 	Tensor<double_complex> Kmat=matrix_inner(world,dia2mo,pot.K_mo);
 	Tensor<double_complex> Jmat=matrix_inner(world,dia2mo,pot.J_mo);
-	Tensor<double_complex> ZRcom_mat=matrix_inner(world,dia2mo,pot.zeeman_R_comm);
+	Tensor<double_complex> ZRcom_mat=sym ? Tensor<double_complex>(mo.size(),mo.size()) : matrix_inner(world,dia2mo,pot.zeeman_R_comm);
 
 	Tensor<double_complex> vmat=Vnucmat+lzmat+diamat-Kmat+Jmat+ZRcom_mat;
 	return vmat;

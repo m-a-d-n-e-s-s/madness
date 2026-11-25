@@ -156,6 +156,7 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 			J_mo=zero_functions<double_complex,3>(world,nmo);
 			K_mo=zero_functions<double_complex,3>(world,nmo);
 			zeeman_R_comm=zero_functions<double_complex,3>(world,nmo);
+			vbare_mo=zero_functions<double_complex,3>(world,nmo);
 
 		}
 
@@ -167,6 +168,7 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 			J_mo = ::madness::transform(world, J_mo, U);
 			K_mo = ::madness::transform(world, K_mo, U);
 			zeeman_R_comm = ::madness::transform(world, zeeman_R_comm, U);
+			vbare_mo = ::madness::transform(world, vbare_mo, U);
 		}
 
 
@@ -176,6 +178,9 @@ class Znemo : public NemoBase, public QCPropertyInterface {
 		std::vector<complex_function_3d> J_mo;
 		std::vector<complex_function_3d> K_mo;
 		std::vector<complex_function_3d> zeeman_R_comm;
+		/// magnetic kernels with a correlation factor: the bare (smoothed) nuclear potential on the nemos, for the
+		/// Fock matrix and the energy with the symmetric kinetic term (kinetic_pi_matrix)
+		std::vector<complex_function_3d> vbare_mo;
 	};
 public:
 	struct timer {
@@ -357,8 +362,7 @@ public:
 
 	/// the nuclear correlation factor for the restart header, as nemo writes it
 	std::string restart_ncf() const {
-		const auto ncf_param=param.use_magnetic_kernel() ? std::pair<std::string,double>("none",1.0) : nemo_param.ncf();
-		return ncf_param.first+":"+std::to_string(ncf_param.second);
+		return nemo_param.ncf().first+":"+std::to_string(nemo_param.ncf().second);
 	}
 
 	void do_step_restriction(const std::vector<complex_function_3d>& mo,
@@ -448,6 +452,15 @@ public:
 	/// magnetic kernels: <pi phi_i|pi phi_j>/2 with pi = -i nabla + A in the gauge of the kernel
 	Tensor<double_complex> kinetic_pi_matrix(const std::vector<complex_function_3d>& mo) const;
 
+	/// magnetic kernels with a nuclear correlation factor: symmetric kinetic term, bare V in the Fock matrix
+	bool kernel_nemo() const {return mkernel and ncf and ncf->type()!=NuclearCorrelationFactor::None;}
+
+	/// pi_d f = -i d_d f + A_d f in the gauge of the kernel
+	std::vector<complex_function_3d> pi_apply(const std::vector<complex_function_3d>& f, const int axis) const;
+
+	/// nemo: tmin from the right-hand sides g_i of the first iteration (see the definition)
+	void adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const Tensor<double>& E, const bool first);
+
 	/// the one-electron potentials (nuclear, paramagnetic, diamagnetic) applied on rhs; J and K are zero
 	potentials one_electron_potentials(const std::vector<complex_function_3d>& rhs) const;
 
@@ -459,7 +472,7 @@ protected:
     AtomicBasisSet aobasis;
     printleveler print_info=printleveler(2);
 
-	/// standard calculation parameters
+	/// standard calculation parameters; nemo_param: the nuclear correlation factor (nemo block, ncf)
     Nemo::NemoCalculationParameters nemo_param;
 	CalculationParameters calc_param;
 
@@ -467,6 +480,8 @@ protected:
 
 	/// magnetic Green's-function kernel (complex block: kernel != bsh)
 	std::shared_ptr<MagneticKernel> mkernel;
+	/// its parameters (rebuilt with the tmin of the nemo right-hand side, adapt_kernel_tmin)
+	MagneticKernelParameters kernel_param_;
 	/// magnetic kernels: sum of the kernel energies - (J - K) + E_nuc, the energy of the original drivers
 	double kernel_energy=0.0;
 

@@ -197,6 +197,34 @@ Laplace integral at t_min:
   node count with it. A much smaller t_min makes the chain trees and memory explode
   (`notes/hydrogen_solvers_handoff.md`).
 
+### Regularized right-hand side (nemo block, `ncf`)
+
+With a nuclear correlation factor R (the `ncf` of the nemo block, as in nemo: default `(slater, 2.0)`, `(none, 1.0)` for the
+bare orbitals) the kernels act on the nemos F = ψ/R. Since R is real,
+
+```
+R⁻¹ (π²/2) R F = (π²/2) F + U₁·∇F + i U₁·A F + (U₂ − V) F,   U₁ = −∇R/R
+```
+
+so the kernel G_B(E) is unchanged and its right-hand side is U₂F + U₁·∇F + iU₁·A F + (J − K)F (`Nuclear(ncf)`
+and `zeeman_R_comm`, the latter in the gauge of the kernel), with the metric R² in the Fock matrix and the energy. The kinetic matrix is symmetric, π(RF) = R(π + iU₁)F:
+T_ij = ½ Σ_d ⟨R² w_id|w_jd⟩, w_d = (π_d + iU₁_d)F (`kinetic_pi_matrix`); the Fock matrix and the energy then take the
+bare smoothed potential V and no R commutator.
+
+The bare right-hand side Vψ carries the nuclear cusp, |ĝ(p)|² ∝ Z²ρ(0)/p⁴; it sets tmin = lo²/4 (lo the smoothing
+radius), the ft window, (4/3)S/Q³, and the ft precision floor. With R the cusp is gone: the leading non-smooth term is
+U₁·∇F ≈ Z r̂·d (d = ∇F at the nucleus; d = 0 for s orbitals), |ĝ|² ∝ Z²|d|²/p⁶, so
+
+- ft window: the cut costs (32/45) Z²|d|²/Q⁵; with |d|² ≤ 2n_Aρ_A(0), Q = [64 S/(45·0.1 thresh)]^{1/5};
+- tmin: ⟨g|T − E|g⟩ = C is finite and the energy shift is −(tmin²/2) C: tmin = √(2·0.001 thresh/C), with C from the
+  right-hand sides of every iteration (`adapt_kernel_tmin`: tmin grows in the first, shrinks later when C grows),
+  no longer tied to the smoothing radius. (0.1 and 0.01 thresh left the kernel-consistent energy up to 25× further
+  off than predicted; with 0.001 thresh H at B = 100 matches bare accuracy, E_k +4.6 vs +2.2 µEh, at 1/5 the time.)
+
+Single applications ⟨g|G g⟩ on model right-hand sides of the H atom (thresh 1e−5; `test_magnetic_kernels mode=cusp`
+in the experimental worktree): ft cut and floor −1150 → −25 (p) / +0.3 (s) µEh at qextra 0, B = 1; floor 9 / 21 / 100
+µEh (bare) → below 0.3 µEh (p, s at B ≤ 10); chain at tmin 1e−3: +82 (bare) → +1.2 (p) / +3.5 (s) µEh at B = 1.
+
 ## Using the kernels
 
 ### C++
