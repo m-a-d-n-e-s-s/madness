@@ -23,50 +23,47 @@ void bind_magnetic(py::module_& m) {
         .value("poly_error", magnetic::PhaseRefinement::poly_error)
         .value("box_phase", magnetic::PhaseRefinement::box_phase);
 
-    // all fields read-write, keyword construction with the C++ defaults
-    const MagneticKernelParameters d;
+    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. origin=[x, y, z],
+    // lo=, nbroaden=, ft_qextra=); the derived ones are set by make_magnetic_kernel
     py::class_<MagneticKernelParameters>(m, "MagneticKernelParameters",
-        "Parameters of the magnetic kernels; the defaults are those of the original implementations")
-        .def(py::init([](const std::string& kind, double B, double ox, double oy, bool verbose,
-                         double lo, double eps, double max_btau, double phase_tolfac,
-                         bool phase_recursive, int nbroaden,
-                         double ft_period, double ft_qextra, double ft_rcut, double ft_rtaper, double ft_dphi,
-                         double ft_fq_tol, long ft_qbatch) {
+        "Parameters of the magnetic kernels (input block magnetic_kernel); derived ones from B, thresh and the nuclei")
+        .def(py::init([](bool verbose, py::kwargs kwargs) {
                  MagneticKernelParameters p;
-                 p.kind = kind; p.B = B; p.ox = ox; p.oy = oy; p.verbose = verbose;
-                 p.lo = lo; p.eps = eps; p.max_btau = max_btau; p.phase_tolfac = phase_tolfac;
-                 p.phase_recursive = phase_recursive; p.nbroaden = nbroaden;
-                 p.ft_period = ft_period; p.ft_qextra = ft_qextra;
-                 p.ft_rcut = ft_rcut; p.ft_rtaper = ft_rtaper; p.ft_dphi = ft_dphi; p.ft_fq_tol = ft_fq_tol;
-                 p.ft_qbatch = ft_qbatch;
+                 for (auto item : kwargs) {
+                     const py::handle v = item.second;
+                     p.set_user_value(std::string(py::str(item.first)),
+                                      py::isinstance<py::bool_>(v) ? (v.cast<bool>() ? "true" : "false")
+                                                                   : std::string(py::str(v)));
+                 }
+                 p.verbose = verbose;
                  return p;
              }),
-             py::arg("kind") = d.kind, py::arg("B") = d.B, py::arg("ox") = d.ox, py::arg("oy") = d.oy,
-             py::arg("verbose") = d.verbose, py::arg("lo") = d.lo,
-             py::arg("eps") = d.eps, py::arg("max_btau") = d.max_btau,
-             py::arg("phase_tolfac") = d.phase_tolfac, py::arg("phase_recursive") = d.phase_recursive,
-             py::arg("nbroaden") = d.nbroaden,
-             py::arg("ft_period") = d.ft_period,
-             py::arg("ft_qextra") = d.ft_qextra, py::arg("ft_rcut") = d.ft_rcut, py::arg("ft_rtaper") = d.ft_rtaper,
-             py::arg("ft_dphi") = d.ft_dphi, py::arg("ft_fq_tol") = d.ft_fq_tol, py::arg("ft_qbatch") = d.ft_qbatch)
-        .def_readwrite("kind", &MagneticKernelParameters::kind)
-        .def_readwrite("B", &MagneticKernelParameters::B)
-        .def_readwrite("ox", &MagneticKernelParameters::ox)
-        .def_readwrite("oy", &MagneticKernelParameters::oy)
+             py::arg("verbose") = false)
+        .def_property_readonly("origin", [](const MagneticKernelParameters& p) {
+                 const coord_3d o = p.origin();
+                 return std::array<double, 3>{o[0], o[1], o[2]}; })
         .def_readwrite("verbose", &MagneticKernelParameters::verbose)
-        .def_readwrite("lo", &MagneticKernelParameters::lo)
-        .def_readwrite("eps", &MagneticKernelParameters::eps)
-        .def_readwrite("max_btau", &MagneticKernelParameters::max_btau)
-        .def_readwrite("phase_tolfac", &MagneticKernelParameters::phase_tolfac)
-        .def_readwrite("phase_recursive", &MagneticKernelParameters::phase_recursive)
-        .def_readwrite("nbroaden", &MagneticKernelParameters::nbroaden)
-        .def_readwrite("ft_period", &MagneticKernelParameters::ft_period)
-        .def_readwrite("ft_qextra", &MagneticKernelParameters::ft_qextra)
-        .def_readwrite("ft_rcut", &MagneticKernelParameters::ft_rcut)
-        .def_readwrite("ft_rtaper", &MagneticKernelParameters::ft_rtaper)
-        .def_readwrite("ft_dphi", &MagneticKernelParameters::ft_dphi)
-        .def_readwrite("ft_fq_tol", &MagneticKernelParameters::ft_fq_tol)
-        .def_readwrite("ft_qbatch", &MagneticKernelParameters::ft_qbatch);
+        .def("set_derived_values", [](MagneticKernelParameters& p, double B, py::object thresh,
+                                      const std::vector<std::tuple<double, double, double, double>>& nuclei,
+                                      bool cusp_free) {
+                 std::vector<MagneticKernelNucleus> nuc;
+                 for (const auto& [Z, x, c, rho0] : nuclei) nuc.push_back({Z, x, c, rho0});
+                 p.set_derived_values(B, thresh.is_none() ? FunctionDefaults<3>::get_thresh() : thresh.cast<double>(),
+                                      nuc, cusp_free);
+             }, py::arg("B"), py::arg("thresh") = py::none(),
+             py::arg("nuclei") = std::vector<std::tuple<double, double, double, double>>(), py::arg("cusp_free") = false,
+             "derived parameters for the field B; nuclei: list of (Z, x, smoothing radius c, rho(0))")
+        .def_property_readonly("lo", &MagneticKernelParameters::lo)
+        .def_property_readonly("eps", &MagneticKernelParameters::eps)
+        .def_property_readonly("tau_step", &MagneticKernelParameters::tau_step)
+        .def_property_readonly("tmin", &MagneticKernelParameters::tmin)
+        .def_property_readonly("t_lll", &MagneticKernelParameters::t_lll)
+        .def_property_readonly("ft_qmax", &MagneticKernelParameters::ft_qmax)
+        .def_property_readonly("ft_rcut", &MagneticKernelParameters::ft_rcut)
+        .def_property_readonly("ft_rtaper", &MagneticKernelParameters::ft_rtaper)
+        .def_property_readonly("ft_period", &MagneticKernelParameters::ft_period)
+        .def("tmin_cusp_free", &MagneticKernelParameters::tmin_cusp_free, py::arg("C"))
+        .def("__str__", [](const MagneticKernelParameters& p) { return p.print_to_string(); });
 
     py::class_<MagneticKernel, std::shared_ptr<MagneticKernel>>(m, "MagneticKernel",
         "(T_k - E)^{-1} for an electron in a field B along z, pi = p + A (magnetic_kernels.md)")
@@ -82,6 +79,7 @@ void bind_magnetic(py::module_& m) {
             return K.apply(f, t);
         }, py::arg("f"), py::arg("E"), "[(T_k - E_i)^{-1} f_i]")
         .def("bottom", &MagneticKernel::bottom, "inf spec T_k = |B|/2")
+        .def("B", &MagneticKernel::B, "field along z")
         .def("absorbs_paramagnetic", &MagneticKernel::absorbs_paramagnetic)
         .def("absorbs_diamagnetic", &MagneticKernel::absorbs_diamagnetic)
         .def("gauge", &MagneticKernel::gauge)
@@ -95,11 +93,22 @@ void bind_magnetic(py::module_& m) {
             return K.to_symmetric_gauge(f);
         }, py::arg("f"), "e^{-i chi} f; untruncated");
 
-    m.def("make_magnetic_kernel", [](World& world, const MagneticKernelParameters& p) {
+    m.def("make_magnetic_kernel", [](World& world, const std::string& kind, double B, py::object params,
+                                     py::object thresh,
+                                     const std::vector<std::tuple<double, double, double, double>>& nuclei,
+                                     bool cusp_free) {
+        MagneticKernelParameters p = params.is_none() ? MagneticKernelParameters() : params.cast<MagneticKernelParameters>();
+        std::vector<MagneticKernelNucleus> nuc;
+        for (const auto& [Z, x, c, rho0] : nuclei) nuc.push_back({Z, x, c, rho0});
+        p.set_derived_values(B, thresh.is_none() ? FunctionDefaults<3>::get_thresh() : thresh.cast<double>(), nuc,
+                             cusp_free);
         py::gil_scoped_release release;
-        return make_magnetic_kernel(world, p);
-    }, py::arg("world"), py::arg("params"),
-       "kernel of kind params.kind (ft, chain_symmetric, chain_landau, mehler); FunctionDefaults3D must be set");
+        return make_magnetic_kernel(world, kind, B, p);
+    }, py::arg("world"), py::arg("kind"), py::arg("B"), py::arg("params") = py::none(), py::arg("thresh") = py::none(),
+       py::arg("nuclei") = std::vector<std::tuple<double, double, double, double>>(), py::arg("cusp_free") = false,
+       "kernel of the given kind (ft, chain_symmetric, chain_landau, mehler) in the field B along z; the derived\n"
+       "parameters of params are set for B, thresh (default FunctionDefaults3D) and the nuclei (Z, x, c, rho(0));\n"
+       "FunctionDefaults3D must be set");
     m.def("magnetic_kernel_names", &magnetic_kernel_names);
 
     m.def("mul_bilinear_phase", [](const complex_function_3d& f, double kappa, double o0, double o1,

@@ -73,14 +73,11 @@ int self_test(World& world, const bool with_ft, const int nbroaden) {
     t.set_cout_to_terminal();
 
     MagneticKernelParameters p;
-    p.B = B;
-    p.lo = 2.0 * std::sqrt(1e-5);   // tmin = 1e-5
-    p.nbroaden = nbroaden;
-    auto make = [&](const std::string& kind) {
-        MagneticKernelParameters q = p;
-        q.kind = kind;
-        return make_magnetic_kernel(world, q);
-    };
+    p.set_user_value("lo", "6.324555320336759e-3");   // tmin = lo^2/4 = 1e-5
+    p.set_user_value("eps", "1e-10");
+    p.set_user_value("nbroaden", std::to_string(nbroaden));
+    p.set_derived_values(B, FunctionDefaults<3>::get_thresh());
+    auto make = [&](const std::string& kind) { return make_magnetic_kernel(world, kind, B, p); };
     const auto ft = make("ft"), sym = make("chain_symmetric"), lan = make("chain_landau"), meh = make("mehler");
     const double tol = 10 * FunctionDefaults<3>::get_thresh();
 
@@ -113,22 +110,22 @@ int self_test(World& world, const bool with_ft, const int nbroaden) {
 
 int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     MagneticKernelParameters p;
-    p.kind = a.at("kernel");
-    p.B = getd(a, "B", 0.0);
-    p.lo = getd(a, "lo", p.lo);
-    p.eps = getd(a, "eps", p.eps);
-    p.ft_rcut = getd(a, "rcut", p.ft_rcut);
-    p.ft_rtaper = getd(a, "rtaper", p.ft_rtaper);
+    for (const auto& [arg, key] : std::vector<std::pair<std::string, std::string>>{
+             {"lo", "lo"}, {"eps", "eps"}, {"rcut", "ft_rcut"}, {"rtaper", "ft_rtaper"}})
+        if (a.count(arg)) p.set_user_value(key, a.at(arg));
+    const std::string kind = a.at("kernel");
+    const double B = getd(a, "B", 0.0);
+    p.set_derived_values(B, FunctionDefaults<3>::get_thresh());
     p.verbose = true;
     const double E = getd(a, "E", 0.0);
-    auto K = make_magnetic_kernel(world, p);
+    auto K = make_magnetic_kernel(world, kind, B, p);
     complex_function_3d f = complex_factory_3d(world);
     load(f, a.at("in"));
     const double w0 = wall_time();
     const complex_function_3d g = K->apply(f, E);
     if (world.rank() == 0)
-        printf("apply %s B=%g E=%g: |f| = %.12e  |G f| = %.12e  <f|G f> = %.12e %+.12e i  wall %.1f s\n", p.kind.c_str(),
-               p.B, E, f.norm2(), g.norm2(), std::real(inner(f, g)), std::imag(inner(f, g)), wall_time() - w0);
+        printf("apply %s B=%g E=%g: |f| = %.12e  |G f| = %.12e  <f|G f> = %.12e %+.12e i  wall %.1f s\n", kind.c_str(),
+               B, E, f.norm2(), g.norm2(), std::real(inner(f, g)), std::imag(inner(f, g)), wall_time() - w0);
     if (a.count("out")) save(g, a.at("out"));
     return 0;
 }

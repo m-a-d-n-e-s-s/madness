@@ -61,6 +61,14 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 		mol.print();
 	}
 
+	update_smoothing_radii();
+	if (param.use_magnetic_kernel()) {
+		MagneticKernelParameters kp(world,parser);
+		set_kernel_derived_values(kp,FunctionDefaults<3>::get_thresh());
+		if (world.rank()==0) kp.print("magnetic_kernel","end");
+		mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
+	}
+
 	B={0,0,param.physical_B()};
 
 
@@ -76,7 +84,6 @@ bool Znemo::need_recompute_factors_and_potentials(const double thresh) const {
 	if ((not (potentialmanager.get() and potentialmanager->vnuclear().is_initialized()))
 	        		or (potentialmanager->vnuclear().thresh()>thresh)) need=true;
     if (not diafac.get()) need=true;
-    if (param.use_magnetic_kernel() and not mkernel) need=true;
     return need;
 }
 
@@ -84,7 +91,7 @@ void Znemo::invalidate_factors_and_potentials() {
     NemoBase::invalidate_factors_and_potentials();
 	diafac.reset();
 	potentialmanager.reset();
-	mkernel.reset();
+	// mkernel holds the input parameters: rebuilt in recompute_factors_and_potentials when they change
 }
 
 void Znemo::recompute_factors_and_potentials(const double thresh) {
@@ -107,13 +114,7 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 		MADNESS_EXCEPTION("the molecule of the reference calculation was reoriented\n\n",1);
 	}
 
-	// smoothing radius of the nuclear potential: from eprec (error per atom), shrunk for the field-compressed density
-	mol.update_rcut_with_eprec(mol.get_eprec(),param.physical_B());
-	if (world.rank()==0) {
-		std::vector<double> c;
-		for (double rc : mol.get_rcut()) c.push_back(1.0/rc);
-		print("nuclear smoothing radii c",c,"eprec",mol.get_eprec(),"B",param.physical_B());
-	}
+	update_smoothing_radii();
 	potentialmanager=std::shared_ptr<PotentialManager>(new PotentialManager(mol, molecule().parameters.core_type()));
 	potentialmanager->make_nuclear_potential(world);
 	// the magnetic kernels act on the orbitals, or with a nuclear correlation factor (nemo block, ncf) on the nemos F = psi/R: then
@@ -123,53 +124,12 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
     construct_nuclear_correlation_factor(mol, potentialmanager, nemo_param.ncf());
 
 	if (param.use_magnetic_kernel()) {
-		MagneticKernelParameters kp=param.kernel_parameters();
-		kp.verbose=(get_calc_param().print_level()>=3);
-		// as the Coulomb and BSH operators: lo the smallest length scale (the smallest nuclear smoothing radius),
-		// eps the precision (0.001 thresh, as the BSH operators of the bsh kernel)
-		kp.lo=1.0;
-		for (double rc : mol.get_rcut()) kp.lo=std::min(kp.lo,1.0/rc);
-		kp.eps=1.e-3*thresh;
-		if (world.rank()==0) print("magnetic kernel quadrature: lo",kp.lo,"eps",kp.eps,"-> tau step",
-				MagneticKernel::tau_step(kp.eps),"tmin",0.25*kp.lo*kp.lo);
-		const bool nemo=(ncf->type()!=NuclearCorrelationFactor::None);
-		if (kp.kind=="ft" and kp.ft_qextra<0.0 and nemo) {
-			// nemo: the cusp is gone; the leading non-smooth term of U F is U1.grad F ~ Z (r^ . d), d = grad F at the
-			// nucleus, |g^(p)|^2 = 64 pi^2 Z^2 (d.p)^2/p^6, so the cut |p_y| > Q costs (32/45) Z^2 |d|^2/Q^5 (verified
-			// for a p orbital at B = 1: Q^-5, 20 vs 25 uEh at Q = 8); with |d|^2 <= 2 n_A rho_A(0) (p-like, worst
-			// case; s orbitals have d = 0): Q = [64 S/(45 dE)]^(1/5), dE = 0.1 thresh (the precision floor of the
-			// nemo right-hand side is below 0.1 uEh at B <= 10)
-			double s=0.0, xmax=0.0;
-			for (const Atom& a : mol.get_atoms()) {
-				const double Z=a.q;
-				if (Z<=0.0) continue;
-				s+=std::min(2.0,Z)*std::pow(Z,5)*nuclear_density_field_factor(Z,param.physical_B())/constants::pi;
-				xmax=std::max(xmax,std::abs(a.x));
-			}
-			kp.ft_qextra=0.0;
-			kp.ft_qmin=std::pow(64.0*s/(45.0*0.1*thresh),0.2)+0.5*std::abs(param.physical_B())*xmax;
-			if (world.rank()==0) print("ft (nemo): y-wavenumber window, qmin =",kp.ft_qmin);
-		} else if (kp.kind=="ft" and kp.ft_qextra<0.0) {
-			// the y-wavenumber cut |q| > Q drops the cusp momenta of V psi at each nucleus, raising the energy by
-			// (4/3) S/Q^3, S = sum_A n_A Z_A^2 rho_A(0) (rho_A(0) = Z_A^3 g/pi, n_A = min(2, Z_A) electrons at the
-			// nucleus; verified for H at B = 1, 10). The ft kernel has a precision floor of the same origin (the cusp
-			// in the 2D modes), 79 uEh S^0.75 (thresh/1e-4)^0.69 (fit, H at B = 1-100, thresh 1e-4-1e-5); the cut is
-			// set to a third of it (errors add in quadrature: +5%), plus the phase shift |B x_A|/2 of the nucleus
-			double s=0.0, xmax=0.0;
-			for (const Atom& a : mol.get_atoms()) {
-				const double Z=a.q;
-				if (Z<=0.0) continue;
-				s+=std::min(2.0,Z)*std::pow(Z,5)*nuclear_density_field_factor(Z,param.physical_B())/constants::pi;
-				xmax=std::max(xmax,std::abs(a.x));
-			}
-			const double floor=79.e-6*std::pow(s,0.75)*std::pow(thresh/1.e-4,0.69);
-			kp.ft_qextra=0.0;
-			kp.ft_qmin=std::cbrt(4.0*s/(3.0*floor/3.0))+0.5*std::abs(param.physical_B())*xmax;
-			if (world.rank()==0) print("ft: y-wavenumber window from the nuclear cusps, qmin =",kp.ft_qmin,
-					"(estimated precision floor",floor,")");
+		MagneticKernelParameters kp=mkernel->parameters();
+		set_kernel_derived_values(kp,thresh);
+		if (kp!=mkernel->parameters()) {
+			if (world.rank()==0) kp.print("magnetic_kernel","end");
+			mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),kp);
 		}
-		kernel_param_=kp;
-		mkernel=make_magnetic_kernel(world,kp);
 		if (world.rank()==0) print("magnetic kernel",mkernel->name(),"for B =",param.physical_B());
 	}
 
@@ -177,6 +137,27 @@ void Znemo::recompute_factors_and_potentials(const double thresh) {
 	const double ceps=param.use_magnetic_kernel() ? 0.1*FunctionDefaults<3>::get_thresh() : get_calc_param().econv();
 	coulop=std::shared_ptr<real_convolution_3d>(CoulombOperatorPtr(world,get_calc_param().lo(),ceps));
 
+}
+
+void Znemo::update_smoothing_radii() {
+	mol.update_rcut_with_eprec(mol.get_eprec(),param.physical_B());
+	if (world.rank()==0) {
+		std::vector<double> c;
+		for (double rc : mol.get_rcut()) c.push_back(1.0/rc);
+		print("nuclear smoothing radii c",c,"eprec",mol.get_eprec(),"B",param.physical_B());
+	}
+}
+
+void Znemo::set_kernel_derived_values(MagneticKernelParameters& kp, const double thresh) const {
+	std::vector<MagneticKernelNucleus> nuclei;
+	const std::vector<double> rcut=mol.get_rcut();
+	for (std::size_t i=0; i<mol.natom(); ++i) {
+		const Atom& a=mol.get_atom(i);
+		if (a.q<=0.0) continue;
+		nuclei.push_back({a.q,a.x,1.0/rcut[i],std::pow(a.q,3)*nuclear_density_field_factor(a.q,param.physical_B())/constants::pi});
+	}
+	kp.set_derived_values(param.physical_B(),thresh,nuclei,nemo_param.ncf().first!="none");
+	kp.verbose=(get_calc_param().print_level()>=3);
 }
 
 bool Znemo::test() const {
@@ -498,15 +479,12 @@ Tensor<double_complex> Znemo::kinetic_pi_matrix(const std::vector<complex_functi
 	return t;
 }
 
-/// nemo right-hand sides g = U F are cusp-free: replacing int_0^tmin e^{-tau (T-E)} g by tmin g shifts the energy by
-/// -(tmin^2/2) C, C = <g|T - E|g> = (1/2)|pi g|^2 - E |g|^2, finite (the bare cusp makes it diverge, hence
-/// tmin = lo^2/4 there). tmin = sqrt(2 dE/max_i C_i), not below the bare value; the kernel is rebuilt with
-/// lo = 2 sqrt(tmin). dE = 0.001 thresh: the kernel-consistent energy is more sensitive to tmin than -(tmin^2/2) C
-/// suggests (H atom, B = 100, chain, thresh 1e-4: dE = 0.1 / 0.01 / 0.001 thresh -> E_k - exact = -257 (ft) / +19.7
-/// / +4.6 uEh, bare +2.2 uEh at 4.8x the wall time). C grows as the orbitals contract, so it is re-evaluated in
-/// every iteration: tmin may grow in the first one only, and shrinks later when needed.
+/// nemo right-hand sides g = U F are cusp-free: tmin = MagneticKernelParameters::tmin_cusp_free(max_i C_i),
+/// C = <g|T - E|g> = (1/2)|pi g|^2 - E |g|^2, not below the bare value lo^2/4. C grows as the orbitals contract,
+/// so it is re-evaluated in every iteration: tmin may grow in the first one only, and shrinks later when needed.
 void Znemo::adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const Tensor<double>& E, const bool first) {
 	if (not mkernel or ncf->type()==NuclearCorrelationFactor::None or g.empty()) return;
+	if (mkernel->parameters().is_user_defined("tmin")) return;
 	double cmax=0.0;
 	std::vector<double> pn(g.size(),0.0);
 	for (int axis=0; axis<3; ++axis) {
@@ -515,18 +493,17 @@ void Znemo::adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const T
 	}
 	const std::vector<double> gn=norm2s(world,g);
 	for (std::size_t i=0; i<g.size(); ++i) cmax=std::max(cmax,0.5*pn[i]-std::min(E(long(i)),mkernel->bottom())*gn[i]*gn[i]);
-	const double thresh=FunctionDefaults<3>::get_thresh();
-	double lo_bare=1.0;
-	for (double rc : mol.get_rcut()) lo_bare=std::min(lo_bare,1.0/rc);
-	const double tmin_bare=0.25*lo_bare*lo_bare;
-	const double tmin_now=0.25*kernel_param_.lo*kernel_param_.lo;
-	const double tmin=std::max(tmin_bare,std::sqrt(2.0*1.e-3*thresh/std::max(cmax,1.e-10)));
+	const MagneticKernelParameters& p=mkernel->parameters();
+	const double tmin_bare=0.25*p.lo()*p.lo();
+	const double tmin_now=p.tmin();
+	const double tmin=std::max(tmin_bare,p.tmin_cusp_free(cmax));
 	if (world.rank()==0 and print_info.print_convergence())
 		print("nemo: C = <g|T-E|g> =",cmax,"-> tmin",tmin,"(current",tmin_now,", bare",tmin_bare,")");
 	if ((first and tmin>1.01*tmin_now) or tmin<0.7*tmin_now) {
 		if (world.rank()==0) print("nemo: kernel rebuilt with tmin",tmin);
-		kernel_param_.lo=2.0*std::sqrt(tmin);
-		mkernel=make_magnetic_kernel(world,kernel_param_);
+		MagneticKernelParameters q=p;
+		q.set_derived_value("tmin",tmin);
+		mkernel=make_magnetic_kernel(world,param.kernel(),param.physical_B(),q);
 	}
 }
 

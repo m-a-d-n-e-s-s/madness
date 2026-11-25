@@ -67,16 +67,12 @@ public:
                 "A -> S(rho) A with the field B erfc((rho-R_c)/width)/2 (default R_c: max nuclear rho + 6 l_B)");
         initialize<double>("potential_cut_width",1.0,"cut_vector_potential: edge width in units of l_B = |B|^-1/2");
 
-        // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH
+        // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the defaults keep the free BSH;
+        // the kernel parameters are in the magnetic_kernel block (MagneticKernelParameters)
         initialize<std::string>("kernel","bsh","Green's function: bsh (free BSH, all magnetic terms on the right-hand side) "
                 "or a magnetic kernel: ft, chain_symmetric, chain_landau, mehler",{"bsh","ft","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
-        initialize<double>("ft_qextra",-1.0,"ft: |q| <= B L/2 + qextra; <0: the window from the nuclear cusps "
-                "(cut-off error a third of the ft precision floor)");
-        initialize<double>("ft_rcut",0.0,"ft: phase cut-off radius; 0: derived");
-        initialize<double>("ft_rtaper",0.0,"ft: phase taper width; 0: derived");
-        initialize<double>("ft_dphi",3.0,"ft: phase variation per box");
     }
 
 	Nemo_complex_Parameters(World& world, const commandlineparser& parser) : Nemo_complex_Parameters() {
@@ -127,17 +123,6 @@ public:
 	bool use_magnetic_kernel() const {return kernel()!="bsh";}
 	std::vector<int> guess_lz() const {return get<std::vector<int>>("guess_lz");}
 
-	/// the parameters of the magnetic kernel (field along z, gauge origin r = 0)
-	MagneticKernelParameters kernel_parameters() const {
-		MagneticKernelParameters p;
-		p.kind=kernel();
-		p.B=physical_B();
-		p.ft_qextra=get<double>("ft_qextra");
-		p.ft_rcut=get<double>("ft_rcut");
-		p.ft_rtaper=get<double>("ft_rtaper");
-		p.ft_dphi=get<double>("ft_dphi");
-		return p;
-	}
 
 private:
 	double shift_=0.0;
@@ -458,8 +443,14 @@ public:
 	/// pi_d f = -i d_d f + A_d f in the gauge of the kernel
 	std::vector<complex_function_3d> pi_apply(const std::vector<complex_function_3d>& f, const int axis) const;
 
-	/// nemo: tmin from the right-hand sides g_i of the first iteration (see the definition)
+	/// nemo: tmin from the right-hand sides g_i (see the definition)
 	void adapt_kernel_tmin(const std::vector<complex_function_3d>& g, const Tensor<double>& E, const bool first);
+
+	/// smoothing radii of the nuclear potentials: from eprec (error per atom), shrunk for the field-compressed density
+	void update_smoothing_radii();
+
+	/// derived parameters of the magnetic kernel from the molecule, the complex and the nemo block
+	void set_kernel_derived_values(MagneticKernelParameters& kp, const double thresh) const;
 
 	/// the one-electron potentials (nuclear, paramagnetic, diamagnetic) applied on rhs; J and K are zero
 	potentials one_electron_potentials(const std::vector<complex_function_3d>& rhs) const;
@@ -478,10 +469,9 @@ protected:
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
 
-	/// magnetic Green's-function kernel (complex block: kernel != bsh)
+	/// magnetic Green's-function kernel (complex block: kernel != bsh), holding its parameters (magnetic_kernel
+	/// block); rebuilt when the derived parameters change (recompute_factors_and_potentials, adapt_kernel_tmin)
 	std::shared_ptr<MagneticKernel> mkernel;
-	/// its parameters (rebuilt with the tmin of the nemo right-hand side, adapt_kernel_tmin)
-	MagneticKernelParameters kernel_param_;
 	/// magnetic kernels: sum of the kernel energies - (J - K) + E_nuc, the energy of the original drivers
 	double kernel_energy=0.0;
 

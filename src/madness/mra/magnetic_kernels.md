@@ -117,8 +117,8 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 
 **Settings and costs.**
 - y is treated as periodic with period P, and the modes are processed in batches (`ft_qbatch`).
-- The cost scales with the number of q modes, about qmax P/π. qmax = max(|B| r_ext/2 + `ft_qextra`, Q): znemo derives
-  Q from the nuclear cusps (`ft_qextra` < 0, the default). Cutting |q| > Q drops the cusp momenta of Vψ and raises the
+- The cost scales with the number of q modes, about qmax P/π. `ft_qmax` = max(|B| L/2 + `ft_qextra`, Q + |B x_A|/2),
+  L = min(cell half width, r_ext): Q from the nuclear cusps (`ft_qextra` < 0, the default). Cutting |q| > Q drops the cusp momenta of Vψ and raises the
   energy by (4/3) S/Q³, S = Σ_A n_A Z_A² ρ_A(0) (ρ_A(0) = Z_A³ g(|B|/Z_A²)/π, n_A = min(2, Z_A)); Q is chosen for a
   third of the ft precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
 - The default `ft_rcut` assumes the nuclei lie near the z axis. Pass `ft_rcut` and `ft_rtaper` for
@@ -156,7 +156,7 @@ bitwise (see Verification):
 | `mul_bilinear_phase` | `poly_error`: refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep); `box_phase`: refine boxes within ρ < r_ext whose phase varies by more than `dphi`, with an optional erfc taper | chain / ft |
 | `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes, `nbroaden` passes | chain |
 | `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
-| `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernel::tau_quadrature`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
+| `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernelParameters::set_derived_values`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
 
 ### Short proper times
@@ -232,10 +232,9 @@ in the experimental worktree): ft cut and floor −1150 → −25 (p) / +0.3 (s)
 ```cpp
 #include <madness/mra/magnetic_kernels.h>
 FunctionDefaults<3>::set_cubic_cell(-L, L);      // cubic cell; k and thresh as usual
-MagneticKernelParameters p;
-p.kind = "chain_landau";
-p.B = 10.0;
-auto K = make_magnetic_kernel(world, p);         // sets FunctionDefaults<1>, <2> to match
+MagneticKernelParameters p;                      // or p(world, parser): the magnetic_kernel block
+p.set_derived_values(10.0, FunctionDefaults<3>::get_thresh());   // B; + nuclei, cusp_free
+auto K = make_magnetic_kernel(world, "chain_landau", 10.0, p);   // sets FunctionDefaults<1>, <2> to match
 complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bottom()
 ```
 
@@ -247,7 +246,8 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
   `mehler`, the paramagnetic term stays on the right-hand side).
 - **Energy and Fock matrix.** They use ½⟨π_dφ_i|π_dφ_j⟩, with π = −i∇ + A in the kernel's gauge.
 - **Spin Zeeman.** The spin Zeeman term ±B/2 moves into the energy argument of G.
-- **No NCF, no box.** No nuclear correlation factor and no confining box are used.
+- **NCF, no box.** The nuclear correlation factor is the `ncf` of the nemo block (see "Regularized right-hand
+  side"); no confining box is used.
 - **Kernel energies.** As in the original drivers, the kernel energies E_i are started from the Fock
   matrix and updated by E − Re⟨Vψ|ψ − ψ̃⟩/‖ψ̃‖². An energy bound by at least 10⁻³
   is used as it is; one closer to |B|/2 is replaced by |B|/2 − 0.05 (internal; the output reports it).
@@ -261,7 +261,28 @@ complex_function_3d g = K->apply(f, E);          // (T_k - E)^{-1} f, E < K->bot
 |---|---|---|
 | `kernel` | `bsh` | `bsh`, `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge, cut potentials) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
-| `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` | derived, derived, derived, 3 | ft |
+
+### The `magnetic_kernel` block
+
+`MagneticKernelParameters`; the kind and the field are those of the `complex` block (`kernel`, `physical_B`),
+passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters are set in
+`MagneticKernelParameters::set_derived_values` (formulas there) and may be overridden like any other parameter.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `origin` | `[0, 0, 0]` | gauge origin (x, y; ft: 0) |
+| `lo` | derived: min_A c_A | smallest length scale |
+| `eps` | derived: 10⁻³ thresh | precision of (T_k − E)⁻¹ |
+| `tau_step` | derived: (4π/√h) e^{−π²/h} = eps | step h in ln τ |
+| `tmin` | derived: lo²/4; nemo: adapted, √(2 eps/C) | proper-time cut-off |
+| `t_lll` | derived: −ln(eps)/\|B\| | chain: lowest Landau level only beyond |
+| `max_btau`, `phase_tolfac`, `phase_recursive`, `nbroaden` | 2, 0.1, true, 0 | chain sub-steps, phase refinement, broadening |
+| `ft_qextra` | −1 | ≥ 0: \|q\| ≤ \|B\| L/2 + qextra; < 0: from the nuclear cusps |
+| `ft_qmax` | derived (see "Fourier approach") | y-wavenumber window |
+| `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | phase cylinder and taper |
+| `ft_period` | derived: min(2 × cell width, 4 r_ext) | y-period |
+| `ft_dphi`, `ft_qbatch` | 3, 64 | phase refinement, batch size |
+| `ft_fq_tol` | derived: 0.01 thresh | dropped modes |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
@@ -301,16 +322,16 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | — (derived from thresh and eprec), — (internal, 0.1), `eprec` (geometry), — (internal) |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), `phase_tolfac`, `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | — (derived from thresh and eprec), `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qextra`, `ft_rcut`, `ft_rtaper`, `ft_dphi` (magnetic_kernel block) |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python
 
 ```python
 import pymadness as mad
-K = mad.make_magnetic_kernel(world, mad.MagneticKernelParameters(kind="ft", B=10.0))
+K = mad.make_magnetic_kernel(world, "ft", 10.0)   # optional: params=mad.MagneticKernelParameters(lo=...), nuclei=
 g = K.apply(f, E)                       # or K.apply([f1, f2], [E1, E2])
 ```
 

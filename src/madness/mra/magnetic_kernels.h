@@ -14,13 +14,15 @@ namespace madness {
 /// the names accepted by make_magnetic_kernel
 inline std::vector<std::string> magnetic_kernel_names() { return {"ft", "chain_symmetric", "chain_landau", "mehler"}; }
 
-/// kernel of kind p.kind; requires FunctionDefaults<3> (cubic cell, k, thresh) to be set
-inline std::shared_ptr<MagneticKernel> make_magnetic_kernel(World& world, const MagneticKernelParameters& p) {
-    if (p.kind == "ft") return std::make_shared<MagneticKernelFT>(world, p);
-    if (p.kind == "chain_symmetric") return std::make_shared<MagneticKernelChain>(world, p, MagneticGauge::symmetric);
-    if (p.kind == "chain_landau") return std::make_shared<MagneticKernelChain>(world, p, MagneticGauge::landau);
-    if (p.kind == "mehler") return std::make_shared<MagneticKernelMehler>(world, p);
-    MADNESS_EXCEPTION(("make_magnetic_kernel: unknown kernel " + p.kind).c_str(), 1);
+/// kernel of the given kind in the field B along z, parameters p (derived for B: set_derived_values);
+/// requires FunctionDefaults<3> (cubic cell, k, thresh) to be set
+inline std::shared_ptr<MagneticKernel> make_magnetic_kernel(World& world, const std::string& kind, const double B,
+                                                            const MagneticKernelParameters& p) {
+    if (kind == "ft") return std::make_shared<MagneticKernelFT>(world, B, p);
+    if (kind == "chain_symmetric") return std::make_shared<MagneticKernelChain>(world, B, p, MagneticGauge::symmetric);
+    if (kind == "chain_landau") return std::make_shared<MagneticKernelChain>(world, B, p, MagneticGauge::landau);
+    if (kind == "mehler") return std::make_shared<MagneticKernelMehler>(world, B, p);
+    MADNESS_EXCEPTION(("make_magnetic_kernel: unknown kernel " + kind).c_str(), 1);
 }
 
 }  // namespace madness

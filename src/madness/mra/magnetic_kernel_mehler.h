@@ -22,7 +22,7 @@ namespace madness {
 
 class MagneticKernelMehler : public MagneticKernel {
 public:
-    MagneticKernelMehler(World& world, const MagneticKernelParameters& p) : MagneticKernel(p), world_(world) {}
+    MagneticKernelMehler(World& world, const double B, const MagneticKernelParameters& p) : MagneticKernel(B, p), world_(world) {}
 
     bool absorbs_paramagnetic() const override { return false; }
     std::string name() const override { return "mehler"; }
@@ -33,7 +33,7 @@ public:
         MADNESS_CHECK_THROW(gap > 0.0, "MagneticKernelMehler: require E < |B|/2");
         const magnetic::TauQuadrature quad = tau_quadrature(gap);
         const double thresh = FunctionDefaults<3>::get_thresh();
-        const double ox = p_.ox, oy = p_.oy;
+        const double ox = p_.origin()[0], oy = p_.origin()[1];
 
         complex_function_3d out = quad.tmin * f;
         out.compress();
@@ -50,7 +50,7 @@ public:
             });
             complex_function_3d t = g * f;
             t.truncate(thresh);
-            magnetic::broaden_until_stable(t, p_.nbroaden);
+            magnetic::broaden_until_stable(t, p_.nbroaden());
             t = madness::apply(*op, t);
             t = g * t;
             t.truncate(thresh);

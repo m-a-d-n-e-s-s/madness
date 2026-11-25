@@ -28,17 +28,17 @@ namespace madness {
 
 class MagneticKernelChain : public MagneticKernel {
 public:
-    MagneticKernelChain(World& world, const MagneticKernelParameters& p, const MagneticGauge gauge)
-        : MagneticKernel(p), world_(world), gauge_(gauge) {
+    MagneticKernelChain(World& world, const double B, const MagneticKernelParameters& p, const MagneticGauge gauge)
+        : MagneticKernel(B, p), world_(world), gauge_(gauge) {
         magnetic::set_lowdim_defaults_from_3d();
         // lowest-Landau-level switch: relative to the lowest Landau level the excited ones decay as e^{-|B| n tau},
         // so beyond t_lll = -ln(eps)/|B| they are below eps and the transverse propagator is the LLL projector
         // (times the zero point e^{-|B| tau/2}, carried by S): only the free z motion is propagated
-        t_lll_ = (p_.B != 0.0) ? -std::log(p_.eps) / std::abs(p_.B) : 1e300;
-        phase_.o0 = p_.oy;      // internal axis 0 is y
-        phase_.o1 = p_.ox;
-        phase_.tolfac = p_.phase_tolfac;
-        phase_.recursive = p_.phase_recursive;
+        t_lll_ = p_.t_lll();
+        phase_.o0 = p_.origin()[1];      // internal axis 0 is y
+        phase_.o1 = p_.origin()[0];
+        phase_.tolfac = p_.phase_tolfac();
+        phase_.recursive = p_.phase_recursive();
     }
 
     bool absorbs_paramagnetic() const override { return true; }
@@ -46,7 +46,7 @@ public:
     std::string name() const override { return gauge_ == MagneticGauge::landau ? "chain_landau" : "chain_symmetric"; }
 
     complex_function_3d apply(const complex_function_3d& f, const double E) const override {
-        const double B = p_.B;
+        const double B = B_;
         const double gap = bottom() - E;
         MADNESS_CHECK_THROW(gap > 0.0, "MagneticKernelChain: require E < |B|/2");
         const magnetic::TauQuadrature quad = tau_quadrature(gap);
@@ -78,8 +78,8 @@ public:
     /// e^{+iBx~y~/2} e^{-tau T} e^{-iBx~y~/2} a in the internal order (the chain without its outer phases);
     /// rescale: times e^{|B| tau/2}, per sub-step
     complex_function_3d inner_chain(const complex_function_3d& a, const double tau, const bool rescale) const {
-        const double B = p_.B;
-        const long nstep = std::max(1L, long(std::ceil(std::abs(B) * tau / p_.max_btau - 1e-12)));
+        const double B = B_;
+        const long nstep = std::max(1L, long(std::ceil(std::abs(B) * tau / p_.max_btau() - 1e-12)));
         const auto [A, S] = magnetic::splitting_coefficients(B, tau / nstep);
         complex_function_3d f = conv_y(a, 2 * A);
         for (long istep = 0; istep < nstep; ++istep) {
@@ -103,17 +103,17 @@ private:
         return r;
     }
     complex_function_3d conv_y(const complex_function_3d& a, const double var) const {
-        complex_function_3d r = magnetic::gauss_conv_1d(a, 0, var, p_.nbroaden);
+        complex_function_3d r = magnetic::gauss_conv_1d(a, 0, var, p_.nbroaden());
         r.truncate(thresh());
         return r;
     }
     complex_function_3d conv_z(const complex_function_3d& a, const double var) const {
-        complex_function_3d r = magnetic::gauss_conv_1d(a, 2, var, p_.nbroaden);
+        complex_function_3d r = magnetic::gauss_conv_1d(a, 2, var, p_.nbroaden());
         r.truncate(thresh());
         return r;
     }
     complex_function_3d conv_xz(const complex_function_3d& a, const double var_x, const double var_z) const {
-        complex_function_3d r = magnetic::gauss_conv_2d(a, 1, var_x, var_z, p_.nbroaden);
+        complex_function_3d r = magnetic::gauss_conv_2d(a, 1, var_x, var_z, p_.nbroaden());
         r.truncate(thresh());
         return r;
     }

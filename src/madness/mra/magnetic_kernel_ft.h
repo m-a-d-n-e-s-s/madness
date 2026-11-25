@@ -31,29 +31,26 @@ class MagneticKernelFT : public MagneticKernel {
 public:
     using operator2dT = SeparatedConvolution<double, 2>;
 
-    MagneticKernelFT(World& world, const MagneticKernelParameters& p) : MagneticKernel(p), world_(world) {
-        MADNESS_CHECK_THROW(p_.ox == 0.0 && p_.oy == 0.0, "MagneticKernelFT: the gauge origin must be r = 0");
+    MagneticKernelFT(World& world, const double B, const MagneticKernelParameters& p) : MagneticKernel(B, p), world_(world) {
+        MADNESS_CHECK_THROW(p_.origin()[0] == 0.0 && p_.origin()[1] == 0.0, "MagneticKernelFT: the gauge origin must be r = 0");
         magnetic::set_lowdim_defaults_from_3d();
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         lo_ = cell(0, 0);
         hi_ = cell(0, 1);
-        const double B = p_.B;
         const double thr = FunctionDefaults<3>::get_thresh();
         // the phase is stored only on the cylinder rho < rcut (+ erfc taper): f and G f decay as
-        // e^{-|B| rho^2/4} across B, and a full-cell 3D phase refines everywhere (memory)
-        rcut_ = p_.ft_rcut > 0 ? p_.ft_rcut : (B == 0.0 ? 1e10 : 1.5 * std::sqrt(8.0 * std::log(1.0 / thr) / std::abs(B)));
-        rtaper_ = p_.ft_rtaper > 0 ? p_.ft_rtaper : std::min(0.5, rcut_ / 4);
-        // ft lives on |x|, |y| < rext: y-wavenumbers up to |B| rext/2 + those of f, and the period
-        // P = 4 rext keeps the y-images of ft and of G ft apart (P <= 2 x cell width)
+        // e^{-|B| rho^2/4} across B, and a full-cell 3D phase refines everywhere (memory); ft lives on
+        // |x|, |y| < rext; window, period and cut-offs: MagneticKernelParameters::set_derived_values
+        rcut_ = p_.ft_rcut();
+        rtaper_ = p_.ft_rtaper();
         const double rext = rcut_ + 3 * rtaper_;
-        const double L = std::min(std::max(std::abs(lo_), std::abs(hi_)), rext);
-        period_ = p_.ft_period > 0 ? p_.ft_period : std::min(2.0 * (hi_ - lo_), 4.0 * rext);
-        const double qmax = std::max(std::abs(B) * L / 2 + p_.ft_qextra, p_.ft_qmin);
+        period_ = p_.ft_period();
+        const double qmax = p_.ft_qmax();
         const long J = long(std::ceil(qmax * period_ / constants::pi / 2));
         for (long j = -J; j <= J; ++j) q_.push_back(2 * constants::pi * j / period_);
 
         phase_.refinement = magnetic::PhaseRefinement::box_phase;
-        phase_.dphi = p_.ft_dphi;
+        phase_.dphi = p_.ft_dphi();
         phase_.rext = rext;
         phase_.tol = 0.1 * thr;
         phase_.rcut = rcut_;
@@ -107,7 +104,7 @@ private:
 
     /// mask exponents m, b, d and log c of node tau (finite at B = 0)
     Node node(const double tau) const {
-        const double B = p_.B, x = 0.5 * B * tau;
+        const double B = B_, x = 0.5 * B * tau;
         Node nd;
         nd.tau = tau;
         nd.m = magnetic::mehler_m(B, tau);
@@ -139,7 +136,7 @@ private:
 
     complex_function_3d apply_nodes(const complex_function_3d& f, const std::vector<Node>& nodes, const double s0) const {
         const double thresh = FunctionDefaults<3>::get_thresh();
-        const double fq_tol = (p_.ft_fq_tol > 0 ? p_.ft_fq_tol : 0.01 * thresh) * f.norm2();
+        const double fq_tol = p_.ft_fq_tol() * f.norm2();
         std::vector<std::shared_ptr<operator2dT>> ops;
         // unnormalized exp(-c dx^2 - dz^2/(2 tau)) on the (x, z) plane
         for (const Node& nd : nodes)
@@ -147,7 +144,7 @@ private:
 
         // step 1, and (x, y, z) -> (x, z, y)
         complex_function_3d ft = copy(f);
-        magnetic::mul_bilinear_phase_inplace(ft, phase_.with_kappa(-0.5 * p_.B));
+        magnetic::mul_bilinear_phase_inplace(ft, phase_.with_kappa(-0.5 * B_));
         complex_function_3d fxzy = mapdim(ft, std::vector<long>{0, 2, 1});
         fxzy.reconstruct();
 
@@ -158,7 +155,7 @@ private:
         const double wall0 = wall_time();
         double wall_proj = 0.0;
         const std::size_t nq = q_.size();
-        const std::size_t batch = p_.ft_qbatch > 0 ? std::size_t(p_.ft_qbatch) : nq;
+        const std::size_t batch = p_.ft_qbatch() > 0 ? std::size_t(p_.ft_qbatch()) : nq;
         for (std::size_t j0 = 0; j0 < nq; j0 += batch) {
             const std::size_t j1 = std::min(nq, j0 + batch);
             // step 2: F_q(x, z) = int dy e^{-iqy} ft   (project_out does not conjugate)
@@ -227,7 +224,7 @@ private:
         complex_function_3d rxzy = hartree_product(left, right);
         complex_function_3d result = mapdim(rxzy, std::vector<long>{0, 2, 1});
         result.scale(1.0 / period_);
-        magnetic::mul_bilinear_phase_inplace(result, phase_.with_kappa(0.5 * p_.B));
+        magnetic::mul_bilinear_phase_inplace(result, phase_.with_kappa(0.5 * B_));
         return result;
     }
 
