@@ -20,7 +20,7 @@ void bind_magnetic(py::module_& m) {
         .value("landau", MagneticGauge::landau);
 
 
-    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. lo=, ft_qextra=);
+    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. lo=, ft_qmax=);
     // the derived ones are set by make_magnetic_kernel
     py::class_<MagneticKernelParameters>(m, "MagneticKernelParameters",
         "Parameters of the magnetic kernels (input block magnetic_kernel); derived ones from B, thresh and the nuclei")
@@ -55,7 +55,7 @@ void bind_magnetic(py::module_& m) {
         .def_property_readonly("ft_qmax", &MagneticKernelParameters::ft_qmax)
         .def_property_readonly("ft_rcut", &MagneticKernelParameters::ft_rcut)
         .def_property_readonly("ft_rtaper", &MagneticKernelParameters::ft_rtaper)
-        .def_property_readonly("ft_period", &MagneticKernelParameters::ft_period)
+        .def_property_readonly("ft_qstep", &MagneticKernelParameters::ft_qstep)
         .def("tmin_cusp_free", &MagneticKernelParameters::tmin_cusp_free, py::arg("C"))
         .def("__str__", [](const MagneticKernelParameters& p) { return p.print_to_string(); });
 

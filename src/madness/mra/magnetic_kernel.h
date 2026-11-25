@@ -55,11 +55,10 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         initialize<double>("t_lll", 1.e300, "chain: only the lowest Landau level beyond t_lll (derived)");
         initialize<double>("max_btau", 2.0, "chain: sub-steps with |B| dtau <= max_btau");
         // ft
-        initialize<double>("ft_qextra", -1.0, "ft: |q| <= |B| L/2 + qextra; <0: from the nuclear cusps (ft_qmax)");
         initialize<double>("ft_qmax", 0.0, "ft: y-wavenumber window |q| <= qmax (derived)");
         initialize<double>("ft_rcut", 1.e10, "ft: radius of the cylinder holding f and G f (derived)");
         initialize<double>("ft_rtaper", 0.5, "ft: edge width of the y-window (derived)");
-        initialize<double>("ft_period", 0.0, "ft: y-period (derived)");
+        initialize<double>("ft_qstep", 1.0, "ft: y-wavenumber step 2 pi/P, P the y-period (derived)");
         initialize<long>("ft_qbatch", 64, "ft: q-modes processed together; 0: all");
     }
 
@@ -76,7 +75,7 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
 
     /// \param B           field along z
     /// \param thresh      truncation threshold of the orbitals
-    /// \param nuclei      the nuclei; none: lo as set, the ft window from qextra = 10 (smooth f)
+    /// \param nuclei      the nuclei; none: lo as set, the ft window |B| L/2 + 10 (smooth f)
     /// \param cusp_free   the right-hand side carries no nuclear cusp (nemo, F = psi/R)
     void set_derived_values(const double B, const double thresh,
                             const std::vector<MagneticKernelNucleus>& nuclei = {}, const bool cusp_free = false) {
@@ -106,20 +105,20 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         // min(0.5, rcut/4)
         set_derived_value("ft_rcut", absB > 0.0 ? 1.5 * std::sqrt(8.0 * std::log(1.0 / thresh) / absB) : 1.e10);
         set_derived_value("ft_rtaper", std::min(0.5, ft_rcut() / 4.0));
-        // ft lives on |x|, |y| < rext = rcut + 3 rtaper: the period P = min(2 x cell width, 4 rext) keeps the
-        // y-images of ft and G ft apart; y-wavenumbers up to |B| L/2, L = min(cell half width, rext)
+        // ft lives on |x|, |y| < rext = rcut + 3 rtaper: the y-period P = min(2 x cell width, 4 rext) keeps the
+        // y-images of ft and G ft apart, q step 2 pi/P; y-wavenumbers up to |B| L/2, L = min(cell half width, rext)
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         const double rext = ft_rcut() + 3.0 * ft_rtaper();
         const double L = std::min(std::max(std::abs(cell(0, 0)), std::abs(cell(0, 1))), rext);
-        set_derived_value("ft_period", std::min(2.0 * (cell(0, 1) - cell(0, 0)), 4.0 * rext));
-        // plus those of f: qextra >= 0 as given; else the cusp momenta of the right-hand side at each nucleus,
+        set_derived_value("ft_qstep", 2.0 * constants::pi / std::min(2.0 * (cell(0, 1) - cell(0, 0)), 4.0 * rext));
+        // plus those of f: the cusp momenta of the right-hand side at each nucleus (no nuclei: 10),
         // shifted by the phase |B x_A|/2, with S = sum_A n_A Z_A^2 rho_A(0), n_A = min(2, Z_A):
         //  - bare V psi: the cut |q| > Q raises the energy by (4/3) S/Q^3; set to a third of the ft precision floor
         //    79 uEh S^0.75 (thresh/1e-4)^0.69 (fit, H at B = 1-100, thresh 1e-4-1e-5; errors add in quadrature)
         //  - cusp-free U F: the leading non-smooth term U1.grad F ~ Z r^.d costs (32/45) Z^2 |d|^2/Q^5, |d|^2 <=
         //    2 n_A rho_A(0) (p-like, worst case): Q = [64 S/(45 dE)]^(1/5), dE = 0.1 thresh
-        double qmax = 0.5 * absB * L + (ft_qextra() >= 0.0 ? ft_qextra() : (nuclei.empty() ? 10.0 : 0.0));
-        if (ft_qextra() < 0.0 and not nuclei.empty()) {
+        double qmax = 0.5 * absB * L + (nuclei.empty() ? 10.0 : 0.0);
+        if (not nuclei.empty()) {
             double S = 0.0, xmax = 0.0;
             for (const auto& n : nuclei) {
                 S += std::min(2.0, n.Z) * n.Z * n.Z * n.rho0;
@@ -143,11 +142,10 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
     double tmin() const { return get<double>("tmin"); }
     double t_lll() const { return get<double>("t_lll"); }
     double max_btau() const { return get<double>("max_btau"); }
-    double ft_qextra() const { return get<double>("ft_qextra"); }
     double ft_qmax() const { return get<double>("ft_qmax"); }
     double ft_rcut() const { return get<double>("ft_rcut"); }
     double ft_rtaper() const { return get<double>("ft_rtaper"); }
-    double ft_period() const { return get<double>("ft_period"); }
+    double ft_qstep() const { return get<double>("ft_qstep"); }
     long ft_qbatch() const { return get<long>("ft_qbatch"); }
 
     /// set a parameter from its string representation (user-defined precedence; Python bindings, tests)

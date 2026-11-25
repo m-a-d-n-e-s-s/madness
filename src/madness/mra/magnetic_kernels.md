@@ -115,12 +115,12 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 4. Assemble Σ_q e^{iqy} Ψ_q (`hartree_product`), then multiply by e^{+iBxy/2}.
 
 **Settings and costs.**
-- y is treated as periodic with period P, and the modes are processed in batches (`ft_qbatch`).
-- The cost scales with the number of q modes, about qmax P/π. `ft_qmax` = max(|B| L/2 + `ft_qextra`, Q + |B x_A|/2),
-  L = min(cell half width, r_ext): Q from the nuclear cusps (`ft_qextra` < 0, the default). Cutting |q| > Q drops the cusp momenta of Vψ and raises the
+- y is treated as periodic with period P = 2π/`ft_qstep`, and the modes are processed in batches (`ft_qbatch`).
+- The cost scales with the number of q modes, about 2 qmax/qstep. `ft_qmax` = max(|B| L/2, Q + |B x_A|/2),
+  L = min(cell half width, r_ext), Q from the nuclear cusps; set `ft_qmax` to override. Cutting |q| > Q drops the cusp momenta of Vψ and raises the
   energy by (4/3) S/Q³, S = Σ_A n_A Z_A² ρ_A(0) (ρ_A(0) = Z_A³ g(|B|/Z_A²)/π, n_A = min(2, Z_A)); Q is chosen for a
   third of the ft precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
-- `ft_rcut` and `ft_rtaper` set the y-extent r_ext = rcut + 3 rtaper of f and G f: the period, the q window and the
+- `ft_rcut` and `ft_rtaper` set the y-extent r_ext = rcut + 3 rtaper of f and G f: the period (q step), the q window and the
   y-window of step 4 (|y| < rcut + 9 rtaper). The default rcut assumes the nuclei lie near the z axis.
 - Armen's `magnetic/README.md` and `magnetic/docs/parameters_physics.pdf` on `magnetic-fourier`
   explain every parameter.
@@ -274,10 +274,9 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 | `tmin` | derived: lo²/4; nemo: adapted, √(2 eps/C) | proper-time cut-off |
 | `t_lll` | derived: −ln(eps)/\|B\| | chain: lowest Landau level only beyond |
 | `max_btau` | 2 | chain sub-steps |
-| `ft_qextra` | −1 | ≥ 0: \|q\| ≤ \|B\| L/2 + qextra; < 0: from the nuclear cusps |
-| `ft_qmax` | derived (see "Fourier approach") | y-wavenumber window |
+| `ft_qmax` | derived: max(\|B\| L/2, Q_cusp + \|B\| x_max/2) (see "Fourier approach") | y-wavenumber window |
 | `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
-| `ft_period` | derived: min(2 × cell width, 4 r_ext) | y-period |
+| `ft_qstep` | derived: 2π/P, P = min(2 × cell width, 4 r_ext) | y-wavenumber step (P: y-period) |
 | `ft_qbatch` | 64 | batch size |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
@@ -318,7 +317,7 @@ Map from the original command-line options:
 |---|---|
 | `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), — (fixed, 0.1), `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qextra`, `ft_rcut`, `ft_rtaper`, — (magnetic_kernel block) |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qmax` (derived; qmax = \|B\| L/2 + qextra), `ft_rcut`, `ft_rtaper`, — (magnetic_kernel block) |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python

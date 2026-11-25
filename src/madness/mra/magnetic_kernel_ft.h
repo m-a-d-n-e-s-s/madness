@@ -15,7 +15,7 @@
 ///   3. Psi_q = sum_tau w g_q(x) * [(N_x K_z) * (g_q(x) F_q)]   (x mask, 2D separable convolution, x mask)
 ///   4. result = e^{iBxy/2} (1/P) sum_q e^{iqy} Psi_q(x, z)     (hartree_product)
 ///
-/// with q_j = 2 pi j/P (y treated as periodic with period P) and a trapezoid rule in ln tau from tmin to
+/// with q_j = j qstep (y treated as periodic with period P = 2 pi/qstep) and a trapezoid rule in ln tau from tmin to
 /// -ln(eps)/(|B|/2 - E) (MagneticKernel::tau_quadrature), [0, tmin] added as tmin f.  Steps 2 and 4 work in the axis order (x, z, y).
 /// Gauge origin r = 0; any orientation of the molecule; the default rcut (the y-extent of f and G f) assumes the
 /// nuclei near the z axis.
@@ -37,14 +37,14 @@ public:
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         lo_ = cell(0, 0);
         hi_ = cell(0, 1);
-        // f and G f decay as e^{-|B| rho^2/4} across B: ft lives on |x|, |y| < rext; window, period and
+        // f and G f decay as e^{-|B| rho^2/4} across B: ft lives on |x|, |y| < rext; window, q step and
         // cylinder: MagneticKernelParameters::set_derived_values
         rcut_ = p_.ft_rcut();
         rtaper_ = p_.ft_rtaper();
-        period_ = p_.ft_period();
-        const double qmax = p_.ft_qmax();
-        const long J = long(std::ceil(qmax * period_ / constants::pi / 2));
-        for (long j = -J; j <= J; ++j) q_.push_back(2 * constants::pi * j / period_);
+        const double qstep = p_.ft_qstep();
+        period_ = 2 * constants::pi / qstep;
+        const long J = long(std::ceil(p_.ft_qmax() / qstep));
+        for (long j = -J; j <= J; ++j) q_.push_back(j * qstep);
 
 
         // step 4 uses e^{iqy} windowed to |y| < rcut + 9 rtaper: every term of the q-sum is then local in y
