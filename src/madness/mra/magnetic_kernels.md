@@ -43,7 +43,7 @@ G(E) = (T − E)⁻¹ = ∫₀^∞ dτ e^{Eτ} e^{−τT}      (E < inf spec T)
 | `magnetic_primitives.h` | Shared pieces: Gaussian convolutions on one or two axes of a 3D function (low-dimensional apply), one-term anisotropic Gaussian operators (2D or 3D), the bilinear phase e^{iκ(x₀−o₀)(x₁−o₁)} with two refinement policies, Mehler and splitting coefficients, and the τ quadratures. |
 | `magnetic_kernel.h` | `MagneticKernelParameters`, the abstract `MagneticKernel` (`apply`, `bottom`, `absorbs_paramagnetic`, `absorbs_diamagnetic`, `gauge`, `vector_potential`, gauge transformations). |
 | `magnetic_kernel_chain.h` | `MagneticKernelChain`: real-space splitting chain, symmetric or Landau gauge. |
-| `magnetic_kernel_ft.h` | `MagneticKernelFT`: Fourier approach. |
+| `magnetic_kernel_fourier.h` | `MagneticKernelFourier`: Fourier approach. |
 | `magnetic_kernel_mehler.h` | `MagneticKernelMehler`: diamagnetic (harmonic-oscillator) kernel. |
 | `magnetic_kernels.h` | Includes all of the above; `make_magnetic_kernel(world, params)`. |
 | `test_magnetic_kernels.cc` | Unit test (`ctest -R mra_magnetic`) and a driver for comparisons: `mode=make / apply / compare`. |
@@ -55,7 +55,7 @@ Library changes the kernels rely on, both small and in `funcimpl.h` / `operator.
 - **Low-dimensional apply on full tensors** for any operator dimension below the function dimension:
   `SeparatedConvolution::norm_lowdim` and `apply2_lowdim_full`, with the displacement loop continued
   outward while contributions are significant. Used by the chain kernels.
-- **`hartree_product` / `project_out` with mixed dimensions** (2D × 1D ↔ 3D). Used by the FT kernel.
+- **`hartree_product` / `project_out` with mixed dimensions** (2D × 1D ↔ 3D). Used by the Fourier kernel.
 
 ## The kernels
 
@@ -63,7 +63,7 @@ Library changes the kernels rely on, both small and in `funcimpl.h` / `operator.
 |---|---|---|---|---|---|
 | `chain_symmetric` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreensFunction3D` in `hydrogen_magnetic_pymadness.py` (article repo, pymadness branch `magnetic`) |
 | `chain_landau` | T_B | Landau, A_L = (−By, 0, 0) | in the kernel | trapezoid in ln τ | `Gop` of `h2p_landau.py --gauge landau` |
-| `ft` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreen` in `magnetic_green.h`, branch `magnetic-fourier` (A. Armen) |
+| `fourier` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreen` in `magnetic_green.h`, branch `magnetic-fourier` (A. Armen) |
 | `mehler` | −½∇² + B²ρ²/8 | symmetric | **right-hand side** | trapezoid in ln τ | new in 3D; 2D `MehlerGreensFunction2D` in `landau_mehler_pymadness.py` |
 
 ### Real-space chain (`chain_symmetric`, `chain_landau`)
@@ -98,7 +98,7 @@ e^{−τT} f = e^{−iBxy/2} G_y(2a) [ e^{+iBxy} G_xz(2s, τ) [ e^{−iBxy} G_y(
 did (`mapdim` at entry and exit). Then the y convolution is a 1D low-dimensional apply on axis 0 and
 the x+z convolution a 2D one on axes (1, 2).
 
-### Fourier approach (`ft`)
+### Fourier approach (`fourier`)
 
 T_B = T⊥ − ½∂_z², and T⊥ separates in the y wavenumber q, by the Mehler factorization with frequency
 B in x for each q:
@@ -115,12 +115,12 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 4. Assemble Σ_q e^{iqy} Ψ_q (`hartree_product`), then multiply by e^{+iBxy/2}.
 
 **Settings and costs.**
-- y is treated as periodic with period P = 2π/`ft_qstep`, and the modes are processed in batches (`ft_qbatch`).
-- The cost scales with the number of q modes, about 2 qmax/qstep. `ft_qmax` = max(|B| L/2, Q + |B x_A|/2),
-  L = min(cell half width, r_ext), Q from the nuclear cusps; set `ft_qmax` to override. Cutting |q| > Q drops the cusp momenta of Vψ and raises the
+- y is treated as periodic with period P = 2π/`fourier_qstep`, and the modes are processed in batches (`fourier_qbatch`).
+- The cost scales with the number of q modes, about 2 qmax/qstep. `fourier_qmax` = max(|B| L/2, Q + |B x_A|/2),
+  L = min(cell half width, r_ext), Q from the nuclear cusps; set `fourier_qmax` to override. Cutting |q| > Q drops the cusp momenta of Vψ and raises the
   energy by (4/3) S/Q³, S = Σ_A n_A Z_A² ρ_A(0) (ρ_A(0) = Z_A³ g(|B|/Z_A²)/π, n_A = min(2, Z_A)); Q is chosen for a
-  third of the ft precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
-- `ft_rcut` and `ft_rtaper` set the y-extent r_ext = rcut + 3 rtaper of f and G f: the period (q step), the q window and the
+  third of the fourier precision floor 79 µEh S^0.75 (thresh/1e−4)^0.69 (fit, H atom, B = 1–100), plus |B x_A|/2.
+- `fourier_rcut` and `fourier_rtaper` set the y-extent r_ext = rcut + 3 rtaper of f and G f: the period (q step), the q window and the
   y-window of step 4 (|y| < rcut + 9 rtaper). The default rcut assumes the nuclei lie near the z axis.
 - Armen's `magnetic/README.md` and `magnetic/docs/parameters_physics.pdf` on `magnetic-fourier`
   explain every parameter.
@@ -151,9 +151,9 @@ bitwise (see Verification):
 
 | Primitive | Policies / parameters | Used by |
 |---|---|---|
-| `mul_bilinear_phase` | refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep) | chain, ft |
+| `mul_bilinear_phase` | refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep) | chain, fourier |
 | `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes | chain |
-| `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
+| `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | fourier (2D), mehler (3D) |
 | `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernelParameters::set_derived_values`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
 
@@ -166,7 +166,7 @@ Laplace integral at t_min:
 ∫₀^{t_min} dτ e^{Eτ} e^{−τT} f  ≈  t_min · f        (heat kernel → δ, e^{Eτ} → 1)
 ```
 
-| | chain | ft | mehler |
+| | chain | fourier | mehler |
 |---|---|---|---|
 | t_min | lo²/4 | lo²/4 | lo²/4 |
 | t_min · f in the code | `quad.tmin * a`, added unphased after the outer phase | `Psi = s0 * F` in every q mode | `quad.tmin * f` |
@@ -210,17 +210,17 @@ T_ij = ½ Σ_d ⟨R² w_id|w_jd⟩, w_d = (π_d + iU₁_d)F (`kinetic_pi_matrix`
 bare smoothed potential V and no R commutator.
 
 The bare right-hand side Vψ carries the nuclear cusp, |ĝ(p)|² ∝ Z²ρ(0)/p⁴; it sets tmin = lo²/4 (lo the smoothing
-radius), the ft window, (4/3)S/Q³, and the ft precision floor. With R the cusp is gone: the leading non-smooth term is
+radius), the fourier window, (4/3)S/Q³, and the fourier precision floor. With R the cusp is gone: the leading non-smooth term is
 U₁·∇F ≈ Z r̂·d (d = ∇F at the nucleus; d = 0 for s orbitals), |ĝ|² ∝ Z²|d|²/p⁶, so
 
-- ft window: the cut costs (32/45) Z²|d|²/Q⁵; with |d|² ≤ 2n_Aρ_A(0), Q = [64 S/(45·0.1 thresh)]^{1/5};
+- fourier window: the cut costs (32/45) Z²|d|²/Q⁵; with |d|² ≤ 2n_Aρ_A(0), Q = [64 S/(45·0.1 thresh)]^{1/5};
 - tmin: ⟨g|T − E|g⟩ = C is finite and the energy shift is −(tmin²/2) C: tmin = √(2·0.001 thresh/C), with C from the
   right-hand sides of every iteration (`adapt_kernel_tmin`: tmin grows in the first, shrinks later when C grows),
   no longer tied to the smoothing radius. (0.1 and 0.01 thresh left the kernel-consistent energy up to 25× further
   off than predicted; with 0.001 thresh H at B = 100 matches bare accuracy, E_k +4.6 vs +2.2 µEh, at 1/5 the time.)
 
 Single applications ⟨g|G g⟩ on model right-hand sides of the H atom (thresh 1e−5; `test_magnetic_kernels mode=cusp`
-in the experimental worktree): ft cut and floor −1150 → −25 (p) / +0.3 (s) µEh at qextra 0, B = 1; floor 9 / 21 / 100
+in the experimental worktree): fourier cut and floor −1150 → −25 (p) / +0.3 (s) µEh at qextra 0, B = 1; floor 9 / 21 / 100
 µEh (bare) → below 0.3 µEh (p, s at B ≤ 10); chain at tmin 1e−3: +82 (bare) → +1.2 (p) / +3.5 (s) µEh at B = 1.
 
 ## Using the kernels
@@ -257,7 +257,7 @@ znemo iterates with a magnetic kernel (`kernel`, default `chain_symmetric`):
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `kernel` | `chain_symmetric` | `ft`, `chain_symmetric`, `chain_landau`, `mehler` |
+| `kernel` | `chain_symmetric` | `fourier`, `chain_symmetric`, `chain_landau`, `mehler` |
 | `guess_lz` | `[]` | initial orbitals: the restart sequence of moldft and nemo (dft `restart`: `auto` reads `<prefix>.restartdata` of a previous znemo calculation at the same geometry, eprec and B, and does not iterate if it is converged; `iterate`, `read_only`, `none` as in moldft), otherwise the hcore guess: diagonalize the one-electron Hamiltonian of the solver (kernel gauge) in magnetically translated, Landau-squeezed AOs of `aobasis` plus, in a field, the s and p₋ = (x − i sgn B · y) Slater functions e^{−√2 Z r} of each nucleus; `guess_lz` picks the occupied orbitals by L_z (B along a linear molecule; e.g. `[0, -1]` for σ_g π_u), empty: aufbau |
 
 ### The `magnetic_kernel` block
@@ -274,10 +274,10 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 | `tmin` | derived: lo²/4; nemo: adapted, √(2 eps/C) | proper-time cut-off |
 | `t_lll` | derived: −ln(eps)/\|B\| | chain: lowest Landau level only beyond |
 | `max_btau` | 2 | chain sub-steps |
-| `ft_qmax` | derived: max(\|B\| L/2, Q_cusp + \|B\| x_max/2) (see "Fourier approach") | y-wavenumber window |
-| `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
-| `ft_qstep` | derived: 2π/P, P = min(2 × cell width, 4 r_ext) | y-wavenumber step (P: y-period) |
-| `ft_qbatch` | 64 | batch size |
+| `fourier_qmax` | derived: max(\|B\| L/2, Q_cusp + \|B\| x_max/2) (see "Fourier approach") | y-wavenumber window |
+| `fourier_rcut`, `fourier_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
+| `fourier_qstep` | derived: 2π/P, P = min(2 × cell width, 4 r_ext) | y-wavenumber step (P: y-period) |
+| `fourier_qbatch` | 64 | batch size |
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
@@ -317,14 +317,14 @@ Map from the original command-line options:
 |---|---|
 | `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), — (fixed, 0.1), `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
-| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qmax` (derived; qmax = \|B\| L/2 + qextra), `ft_rcut`, `ft_rtaper`, — (magnetic_kernel block) |
+| `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `fourier_qmax` (derived; qmax = \|B\| L/2 + qextra), `fourier_rcut`, `fourier_rtaper`, — (magnetic_kernel block) |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
 
 ### Python
 
 ```python
 import pymadness as mad
-K = mad.make_magnetic_kernel(world, "ft", 10.0)   # optional: params=mad.MagneticKernelParameters(lo=...), nuclei=
+K = mad.make_magnetic_kernel(world, "fourier", 10.0)   # optional: params=mad.MagneticKernelParameters(lo=...), nuclei=
 g = K.apply(f, E)                       # or K.apply([f1, f2], [E1, E2])
 ```
 
@@ -338,13 +338,13 @@ See `src/pymadness/examples/magnetic_kernels.py`.
   `magnetic-fourier`) and against the pure-Python chain (`chain_ref.py` in
   `/huge/aiuser/flbiai/test/magnetic_kernel/`).
 - Results:
-  - ft: 6e−16 (bitwise);
+  - fourier: 6e−16 (bitwise);
   - chain_symmetric: 1.1e−12;
   - chain_landau: 1.2e−12.
 
 **2. Kernels against each other.** `ctest -R mra_magnetic`, B = 2, thresh 1e−4.
 - Test functions: an axial Gaussian, an m = −1 Gaussian, an off-axis Gaussian.
-- ft vs chain_symmetric, Landau (conjugated) vs symmetric, and Mehler vs symmetric (m = 0): all agree
+- fourier vs chain_symmetric, Landau (conjugated) vs symmetric, and Mehler vs symmetric (m = 0): all agree
   to 1.7–6.2e−4 relative, below 10·thresh.
 - The weak resolvent identity ⟨f|(T_B − E)Gf⟩ = ⟨f|f⟩ holds to 1e−6 to 3e−6.
 - The pairwise differences level off at about 3e−5 as thresh decreases: the edge-term error of narrow
@@ -364,7 +364,7 @@ the B ≤ 100 scan (`h2_h2plus_field_scan.md`) and new runs of the original code
 - `notes/magnetic_greens_function.md`: the magnetic Green's function, the gauge phase, the
   decomposition of T_B.
 - `notes/magnetic_kernel_realspace_splitting.md`: the exact three-factor product (chain).
-- `notes/magnetic_kernels_common_origin.md`: ft, chain_symmetric and chain_landau derived from one
+- `notes/magnetic_kernels_common_origin.md`: fourier, chain_symmetric and chain_landau derived from one
   Mehler factorization; why the z Gaussian is merged into the x convolution.
 - `notes/mra_magnetic_scheme.md`: the MRA scheme of the chain (sub-steps, LLL shortcut, gauges);
   `notes/decoupling_magnetic_phase.md`.

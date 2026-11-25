@@ -2,13 +2,13 @@
 /// \brief Consistency of the magnetic Green's-function kernels (magnetic_kernels.h)
 ///
 /// Without arguments: self-consistency tests at B = 2 (see magnetic_kernels.md, "Verification"):
-///   - ft vs chain_symmetric on an axial (m = 0), an m = -1 and an off-axis (London phase) Gaussian;
+///   - fourier vs chain_symmetric on an axial (m = 0), an m = -1 and an off-axis (London phase) Gaussian;
 ///   - chain_landau conjugated to the symmetric gauge vs chain_symmetric;
 ///   - mehler vs chain_symmetric on the m = 0 function (Lz = 0: the kernels coincide);
 ///   - the weak resolvent identity <f|(T_B - E) G f> = <f|f>.
 /// mode=make / apply / compare: write a test function, apply one kernel to a saved function and save the
 /// result, compare two saved functions (comparison with the original implementations), e.g.
-///   test_magnetic_kernels mode=apply kernel=ft B=10 E=4 k=10 thresh=1e-5 L=20 in=f out=gf
+///   test_magnetic_kernels mode=apply kernel=fourier B=10 E=4 k=10 thresh=1e-5 L=20 in=f out=gf
 
 #include <madness/mra/magnetic_kernels.h>
 #include <madness/mra/vmra.h>
@@ -67,7 +67,7 @@ double_complex weak_resolvent(World& world, const complex_function_3d& f, const 
     return kin - E * inner(f, g);
 }
 
-int self_test(World& world, const bool with_ft) {
+int self_test(World& world, const bool with_fourier) {
     const double B = 2.0, E = 0.0;
     test_output t("magnetic kernels, B = 2");
     t.set_cout_to_terminal();
@@ -77,7 +77,7 @@ int self_test(World& world, const bool with_ft) {
     p.set_user_value("eps", "1e-10");
     p.set_derived_values(B, FunctionDefaults<3>::get_thresh());
     auto make = [&](const std::string& kind) { return make_magnetic_kernel(world, kind, B, p); };
-    const auto ft = make("ft"), sym = make("chain_symmetric"), lan = make("chain_landau"), meh = make("mehler");
+    const auto fourier = make("fourier"), sym = make("chain_symmetric"), lan = make("chain_landau"), meh = make("mehler");
     const double tol = 10 * FunctionDefaults<3>::get_thresh();
 
     const complex_function_3d f0 = gaussian(world, 1.0, 0, {0, 0, 0}, B);
@@ -86,14 +86,14 @@ int self_test(World& world, const bool with_ft) {
 
     for (const auto& [name, f] : std::vector<std::pair<std::string, complex_function_3d>>{{"m=0", f0}, {"m=-1", f1}, {"off-axis", f2}}) {
         const complex_function_3d gs = sym->apply(f, E);
-        const double dft = with_ft ? rel_diff(ft->apply(f, E), gs) : 0.0;
+        const double dfourier = with_fourier ? rel_diff(fourier->apply(f, E), gs) : 0.0;
         const complex_function_3d gl = lan->to_symmetric_gauge(lan->apply(lan->from_symmetric_gauge(f), E));
         const double dl = rel_diff(gl, gs);
         const double_complex lhs = weak_resolvent(world, f, gs, B, E), rhs = inner(f, f);
         const double dres = std::abs(lhs - rhs) / std::abs(rhs);
         if (world.rank() == 0)
-            printf("  %-8s |G_sym f| = %.8f  ft-sym %.2e  landau-sym %.2e  resolvent %.2e\n", name.c_str(), gs.norm2(), dft, dl, dres);
-        t.checkpoint(dft < tol, name + " ft vs chain_symmetric");
+            printf("  %-8s |G_sym f| = %.8f  fourier-sym %.2e  landau-sym %.2e  resolvent %.2e\n", name.c_str(), gs.norm2(), dfourier, dl, dres);
+        t.checkpoint(dfourier < tol, name + " fourier vs chain_symmetric");
         t.checkpoint(dl < tol, name + " chain_landau vs chain_symmetric");
         t.checkpoint(dres < 100 * tol, name + " weak resolvent identity");
         if (name == "m=0") {
@@ -110,7 +110,7 @@ int self_test(World& world, const bool with_ft) {
 int apply_mode(World& world, const std::map<std::string, std::string>& a) {
     MagneticKernelParameters p;
     for (const auto& [arg, key] : std::vector<std::pair<std::string, std::string>>{
-             {"lo", "lo"}, {"eps", "eps"}, {"rcut", "ft_rcut"}, {"rtaper", "ft_rtaper"}})
+             {"lo", "lo"}, {"eps", "eps"}, {"rcut", "fourier_rcut"}, {"rtaper", "fourier_rtaper"}})
         if (a.count(arg)) p.set_user_value(key, a.at(arg));
     const std::string kind = a.at("kernel");
     const double B = getd(a, "B", 0.0);
@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
         if (mode == "apply") success = apply_mode(world, a);
         else if (mode == "make") success = make_mode(world, a);
         else if (mode == "compare") success = compare_mode(world, a);
-        else success = self_test(world, getd(a, "ft", 1.0) != 0.0);
+        else success = self_test(world, getd(a, "fourier", 1.0) != 0.0);
     }
     world.gop.fence();
     finalize();

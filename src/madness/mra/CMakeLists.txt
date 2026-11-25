@@ -12,7 +12,7 @@ set(MADMRA_HEADERS
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
     commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h composite_product_op.h
     interpolation_1d.h phandler.h magnetic_primitives.h magnetic_kernel.h magnetic_kernel_chain.h
-    magnetic_kernel_ft.h magnetic_kernel_mehler.h magnetic_kernels.h)
+    magnetic_kernel_fourier.h magnetic_kernel_mehler.h magnetic_kernels.h)
 
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 

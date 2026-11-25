@@ -20,7 +20,7 @@ void bind_magnetic(py::module_& m) {
         .value("landau", MagneticGauge::landau);
 
 
-    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. lo=, ft_qmax=);
+    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. lo=, fourier_qmax=);
     // the derived ones are set by make_magnetic_kernel
     py::class_<MagneticKernelParameters>(m, "MagneticKernelParameters",
         "Parameters of the magnetic kernels (input block magnetic_kernel); derived ones from B, thresh and the nuclei")
@@ -52,10 +52,10 @@ void bind_magnetic(py::module_& m) {
         .def_property_readonly("tau_step", &MagneticKernelParameters::tau_step)
         .def_property_readonly("tmin", &MagneticKernelParameters::tmin)
         .def_property_readonly("t_lll", &MagneticKernelParameters::t_lll)
-        .def_property_readonly("ft_qmax", &MagneticKernelParameters::ft_qmax)
-        .def_property_readonly("ft_rcut", &MagneticKernelParameters::ft_rcut)
-        .def_property_readonly("ft_rtaper", &MagneticKernelParameters::ft_rtaper)
-        .def_property_readonly("ft_qstep", &MagneticKernelParameters::ft_qstep)
+        .def_property_readonly("fourier_qmax", &MagneticKernelParameters::fourier_qmax)
+        .def_property_readonly("fourier_rcut", &MagneticKernelParameters::fourier_rcut)
+        .def_property_readonly("fourier_rtaper", &MagneticKernelParameters::fourier_rtaper)
+        .def_property_readonly("fourier_qstep", &MagneticKernelParameters::fourier_qstep)
         .def("tmin_cusp_free", &MagneticKernelParameters::tmin_cusp_free, py::arg("C"))
         .def("__str__", [](const MagneticKernelParameters& p) { return p.print_to_string(); });
 
@@ -100,7 +100,7 @@ void bind_magnetic(py::module_& m) {
         return make_magnetic_kernel(world, kind, B, p);
     }, py::arg("world"), py::arg("kind"), py::arg("B"), py::arg("params") = py::none(), py::arg("thresh") = py::none(),
        py::arg("nuclei") = std::vector<std::tuple<double, double, double, double>>(), py::arg("cusp_free") = false,
-       "kernel of the given kind (ft, chain_symmetric, chain_landau, mehler) in the field B along z; the derived\n"
+       "kernel of the given kind (fourier, chain_symmetric, chain_landau, mehler) in the field B along z; the derived\n"
        "parameters of params are set for B, thresh (default FunctionDefaults3D) and the nuclei (Z, x, c, rho(0));\n"
        "FunctionDefaults3D must be set");
     m.def("magnetic_kernel_names", &magnetic_kernel_names);

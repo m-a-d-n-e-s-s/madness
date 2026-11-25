@@ -7,7 +7,7 @@
 ///   T_B = 1/2 (p + A)^2 = -1/2 nabla^2 + (B/2) Lz + (B^2/8) rho^2      (symmetric gauge, A = (B/2)(-y, x, 0))
 ///
 /// Each kernel applies (T_k - E)^{-1} for E < bottom() = |B|/2, where
-///   - ft, chain_symmetric:  T_k = T_B in the symmetric gauge,
+///   - fourier, chain_symmetric:  T_k = T_B in the symmetric gauge,
 ///   - chain_landau:         T_k = T_B in the Landau gauge A_L = (-B y, 0, 0) = A - grad chi, chi = (B/2) x y,
 ///                           acting on phi_L = e^{+i chi} phi_sym,
 ///   - mehler:               T_k = -1/2 nabla^2 + (B^2/8) rho^2  (the paramagnetic (B/2) Lz stays on the right-hand side).
@@ -31,7 +31,7 @@ enum class MagneticGauge { symmetric, landau };
 /// a nucleus as seen by the derived kernel parameters
 struct MagneticKernelNucleus {
     double Z = 0.0;     ///< nuclear charge
-    double x = 0.0;     ///< x coordinate (the ft y-wavenumbers carry its phase |B x|/2)
+    double x = 0.0;     ///< x coordinate (the fourier y-wavenumbers carry its phase |B x|/2)
     double c = 1.0;     ///< smoothing radius of the nuclear potential
     double rho0 = 0.0;  ///< 1s density at the nucleus in the field, Z^3 g(|B|/Z^2)/pi
 };
@@ -48,18 +48,18 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
 
     MagneticKernelParameters() {
         // proper-time quadrature of all kernels: derived from lo and eps, as the Coulomb and BSH fits (gfit.h)
-        initialize<double>("lo", 1.e-4, "smallest length scale: the smallest nuclear smoothing radius (derived)");
-        initialize<double>("eps", 1.e-7, "precision of (T_k - E)^{-1}: 1e-3 thresh (derived)");
-        initialize<double>("tau_step", 0.5, "step h of the trapezoid rule in ln tau (derived)");
-        initialize<double>("tmin", 2.5e-9, "proper-time cut-off: int_0^tmin as tmin f (derived; nemo: adapted)");
-        initialize<double>("t_lll", 1.e300, "chain: only the lowest Landau level beyond t_lll (derived)");
+        initialize<double>("lo", 1.e-4, "smallest length scale: the smallest nuclear smoothing radius");
+        initialize<double>("eps", 1.e-7, "precision of (T_k - E)^{-1}: 1e-3 thresh");
+        initialize<double>("tau_step", 0.5, "step h of the trapezoid rule in ln tau");
+        initialize<double>("tmin", 2.5e-9, "proper-time cut-off: int_0^tmin as tmin f");
+        initialize<double>("t_lll", 1.e300, "chain: only the lowest Landau level beyond t_lll");
         initialize<double>("max_btau", 2.0, "chain: sub-steps with |B| dtau <= max_btau");
-        // ft
-        initialize<double>("ft_qmax", 0.0, "ft: y-wavenumber window |q| <= qmax (derived)");
-        initialize<double>("ft_rcut", 1.e10, "ft: radius of the cylinder holding f and G f (derived)");
-        initialize<double>("ft_rtaper", 0.5, "ft: edge width of the y-window (derived)");
-        initialize<double>("ft_qstep", 1.0, "ft: y-wavenumber step 2 pi/P, P the y-period (derived)");
-        initialize<long>("ft_qbatch", 64, "ft: q-modes processed together; 0: all");
+        // fourier
+        initialize<double>("fourier_qstep", 1.0, "y-wavenumber step");
+        initialize<double>("fourier_qmax", 0.0, "y-wavenumber window |q| <= qmax");
+        initialize<double>("fourier_rcut", 1.e10, "radius of the cylinder holding f and G f");
+        initialize<double>("fourier_rtaper", 0.5, "edge width of the y-window");
+        initialize<long>("fourier_qbatch", 64, "q-modes processed together; 0: all");
     }
 
     MagneticKernelParameters(World& world, const commandlineparser& parser) : MagneticKernelParameters() {
@@ -75,7 +75,7 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
 
     /// \param B           field along z
     /// \param thresh      truncation threshold of the orbitals
-    /// \param nuclei      the nuclei; none: lo as set, the ft window |B| L/2 + 10 (smooth f)
+    /// \param nuclei      the nuclei; none: lo as set, the fourier window |B| L/2 + 10 (smooth f)
     /// \param cusp_free   the right-hand side carries no nuclear cusp (nemo, F = psi/R)
     void set_derived_values(const double B, const double thresh,
                             const std::vector<MagneticKernelNucleus>& nuclei = {}, const bool cusp_free = false) {
@@ -101,19 +101,19 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
         // lowest, are below eps; only the free z motion is propagated
         set_derived_value("t_lll", absB > 0.0 ? -std::log(eps()) / absB : 1.e300);
 
-        // ft: f and G f decay as e^{-|B| rho^2/4}: cylinder rcut = 1.5 sqrt(8 ln(1/thresh)/|B|), edge width
+        // fourier: f and G f decay as e^{-|B| rho^2/4}: cylinder rcut = 1.5 sqrt(8 ln(1/thresh)/|B|), edge width
         // min(0.5, rcut/4)
-        set_derived_value("ft_rcut", absB > 0.0 ? 1.5 * std::sqrt(8.0 * std::log(1.0 / thresh) / absB) : 1.e10);
-        set_derived_value("ft_rtaper", std::min(0.5, ft_rcut() / 4.0));
-        // ft lives on |x|, |y| < rext = rcut + 3 rtaper: the y-period P = min(2 x cell width, 4 rext) keeps the
-        // y-images of ft and G ft apart, q step 2 pi/P; y-wavenumbers up to |B| L/2, L = min(cell half width, rext)
+        set_derived_value("fourier_rcut", absB > 0.0 ? 1.5 * std::sqrt(8.0 * std::log(1.0 / thresh) / absB) : 1.e10);
+        set_derived_value("fourier_rtaper", std::min(0.5, fourier_rcut() / 4.0));
+        // f_L = e^{-iBxy/2} f lives on |x|, |y| < rext = rcut + 3 rtaper: the y-period P = min(2 x cell width, 4 rext) keeps the
+        // y-images of f_L and G f_L apart, q step 2 pi/P; y-wavenumbers up to |B| L/2, L = min(cell half width, rext)
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
-        const double rext = ft_rcut() + 3.0 * ft_rtaper();
+        const double rext = fourier_rcut() + 3.0 * fourier_rtaper();
         const double L = std::min(std::max(std::abs(cell(0, 0)), std::abs(cell(0, 1))), rext);
-        set_derived_value("ft_qstep", 2.0 * constants::pi / std::min(2.0 * (cell(0, 1) - cell(0, 0)), 4.0 * rext));
+        set_derived_value("fourier_qstep", 2.0 * constants::pi / std::min(2.0 * (cell(0, 1) - cell(0, 0)), 4.0 * rext));
         // plus those of f: the cusp momenta of the right-hand side at each nucleus (no nuclei: 10),
         // shifted by the phase |B x_A|/2, with S = sum_A n_A Z_A^2 rho_A(0), n_A = min(2, Z_A):
-        //  - bare V psi: the cut |q| > Q raises the energy by (4/3) S/Q^3; set to a third of the ft precision floor
+        //  - bare V psi: the cut |q| > Q raises the energy by (4/3) S/Q^3; set to a third of the fourier precision floor
         //    79 uEh S^0.75 (thresh/1e-4)^0.69 (fit, H at B = 1-100, thresh 1e-4-1e-5; errors add in quadrature)
         //  - cusp-free U F: the leading non-smooth term U1.grad F ~ Z r^.d costs (32/45) Z^2 |d|^2/Q^5, |d|^2 <=
         //    2 n_A rho_A(0) (p-like, worst case): Q = [64 S/(45 dE)]^(1/5), dE = 0.1 thresh
@@ -128,7 +128,7 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
             const double Q = cusp_free ? std::pow(64.0 * S / (45.0 * 0.1 * thresh), 0.2) : std::cbrt(4.0 * S / floor);
             qmax = std::max(qmax, Q + 0.5 * absB * xmax);
         }
-        set_derived_value("ft_qmax", qmax);
+        set_derived_value("fourier_qmax", qmax);
     }
 
     /// tmin for a cusp-free right-hand side g: int_0^tmin e^{-tau (T-E)} g ~ tmin g shifts the energy by
@@ -142,11 +142,11 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
     double tmin() const { return get<double>("tmin"); }
     double t_lll() const { return get<double>("t_lll"); }
     double max_btau() const { return get<double>("max_btau"); }
-    double ft_qmax() const { return get<double>("ft_qmax"); }
-    double ft_rcut() const { return get<double>("ft_rcut"); }
-    double ft_rtaper() const { return get<double>("ft_rtaper"); }
-    double ft_qstep() const { return get<double>("ft_qstep"); }
-    long ft_qbatch() const { return get<long>("ft_qbatch"); }
+    double fourier_qmax() const { return get<double>("fourier_qmax"); }
+    double fourier_rcut() const { return get<double>("fourier_rcut"); }
+    double fourier_rtaper() const { return get<double>("fourier_rtaper"); }
+    double fourier_qstep() const { return get<double>("fourier_qstep"); }
+    long fourier_qbatch() const { return get<long>("fourier_qbatch"); }
 
     /// set a parameter from its string representation (user-defined precedence; Python bindings, tests)
     void set_user_value(const std::string& key, const std::string& value) {

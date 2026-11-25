@@ -1,4 +1,4 @@
-/// \file magnetic_kernel_ft.h
+/// \file magnetic_kernel_fourier.h
 /// \brief Fourier approach: (T_B - E)^{-1} by a Fourier separation in y (A. Armen, branch magnetic-fourier)
 ///
 /// T_B = T_perp(x, y) - 1/2 d^2/dz^2, so e^{-tau T_B} = U_perp(tau) K_z(tau), and U_perp separates exactly as
@@ -10,8 +10,8 @@
 /// i.e. the Mehler factorization with frequency B in x for each y wavenumber q, with the mask written as
 /// m (x - X_q)^2 = m x^2 + b q x + d q^2, b = tanh(B tau/2), d = tanh(B tau/2)/(2B).  Applied to f:
 ///
-///   1. ft = e^{-iBxy/2} f
-///   2. F_q(x, z) = int dy e^{-iqy} ft(x, y, z)                 (project_out, per q)
+///   1. f_L = e^{-iBxy/2} f                                       (Landau gauge A = (0, Bx, 0))
+///   2. F_q(x, z) = int dy e^{-iqy} f_L(x, y, z)                 (project_out, per q)
 ///   3. Psi_q = sum_tau w g_q(x) * [(N_x K_z) * (g_q(x) F_q)]   (x mask, 2D separable convolution, x mask)
 ///   4. result = e^{iBxy/2} (1/P) sum_q e^{iqy} Psi_q(x, z)     (hartree_product)
 ///
@@ -21,29 +21,29 @@
 /// nuclei near the z axis.
 /// Port of MagneticGreen (magnetic_green.h on magnetic-fourier) onto magnetic_primitives.h.
 
-#ifndef MADNESS_MRA_MAGNETIC_KERNEL_FT_H__INCLUDED
-#define MADNESS_MRA_MAGNETIC_KERNEL_FT_H__INCLUDED
+#ifndef MADNESS_MRA_MAGNETIC_KERNEL_FOURIER_H__INCLUDED
+#define MADNESS_MRA_MAGNETIC_KERNEL_FOURIER_H__INCLUDED
 
 #include <madness/mra/magnetic_kernel.h>
 
 namespace madness {
 
-class MagneticKernelFT : public MagneticKernel {
+class MagneticKernelFourier : public MagneticKernel {
 public:
     using operator2dT = SeparatedConvolution<double, 2>;
 
-    MagneticKernelFT(World& world, const double B, const MagneticKernelParameters& p) : MagneticKernel(B, p), world_(world) {
+    MagneticKernelFourier(World& world, const double B, const MagneticKernelParameters& p) : MagneticKernel(B, p), world_(world) {
         magnetic::set_lowdim_defaults_from_3d();
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         lo_ = cell(0, 0);
         hi_ = cell(0, 1);
-        // f and G f decay as e^{-|B| rho^2/4} across B: ft lives on |x|, |y| < rext; window, q step and
+        // f and G f decay as e^{-|B| rho^2/4} across B: f_L lives on |x|, |y| < rext; window, q step and
         // cylinder: MagneticKernelParameters::set_derived_values
-        rcut_ = p_.ft_rcut();
-        rtaper_ = p_.ft_rtaper();
-        const double qstep = p_.ft_qstep();
+        rcut_ = p_.fourier_rcut();
+        rtaper_ = p_.fourier_rtaper();
+        const double qstep = p_.fourier_qstep();
         period_ = 2 * constants::pi / qstep;
-        const long J = long(std::ceil(p_.ft_qmax() / qstep));
+        const long J = long(std::ceil(p_.fourier_qmax() / qstep));
         for (long j = -J; j <= J; ++j) q_.push_back(j * qstep);
 
 
@@ -60,15 +60,15 @@ public:
             }));
         }
         if (p_.verbose && world_.rank() == 0)
-            print("MagneticKernelFT: B =", B, " cell [", lo_, ",", hi_, "]  period =", period_, " modes =", q_.size(),
+            print("MagneticKernelFourier: B =", B, " cell [", lo_, ",", hi_, "]  period =", period_, " modes =", q_.size(),
                   " qmax =", q_.back(), " rcut =", rcut_, " rtaper =", rtaper_);
     }
 
     bool absorbs_paramagnetic() const override { return true; }
-    std::string name() const override { return "ft"; }
+    std::string name() const override { return "fourier"; }
 
     complex_function_3d apply(const complex_function_3d& f, const double E) const override {
-        MADNESS_CHECK_THROW(E < bottom(), "MagneticKernelFT: require E < |B|/2");
+        MADNESS_CHECK_THROW(E < bottom(), "MagneticKernelFourier: require E < |B|/2");
         const double gap = bottom() - E;
         const magnetic::TauQuadrature quad = tau_quadrature(gap);
         std::vector<Node> nodes;
@@ -80,7 +80,7 @@ public:
             if (nd.log_w > -60.0) nodes.push_back(nd);
         }
         if (p_.verbose && world_.rank() == 0)
-            print("MagneticKernelFT: E =", E, " nodes =", nodes.size(), "of", quad.nodes.size());
+            print("MagneticKernelFourier: E =", E, " nodes =", nodes.size(), "of", quad.nodes.size());
         return apply_nodes(f, nodes, quad.tmin);
     }
 
@@ -136,9 +136,9 @@ private:
             ops.push_back(magnetic::gauss_product_operator<2>(world_, {nd.log_c, -std::log(2 * nd.tau)}));
 
         // step 1, and (x, y, z) -> (x, z, y)
-        complex_function_3d ft = copy(f);
-        magnetic::mul_bilinear_phase_inplace(ft, phase_.with_kappa(-0.5 * B_));
-        complex_function_3d fxzy = mapdim(ft, std::vector<long>{0, 2, 1});
+        complex_function_3d fL = copy(f);
+        magnetic::mul_bilinear_phase_inplace(fL, phase_.with_kappa(-0.5 * B_));
+        complex_function_3d fxzy = mapdim(fL, std::vector<long>{0, 2, 1});
         fxzy.reconstruct();
 
         // the modes are processed in batches: each step below is one vector operation over the batch
@@ -148,10 +148,10 @@ private:
         const double wall0 = wall_time();
         double wall_proj = 0.0;
         const std::size_t nq = q_.size();
-        const std::size_t batch = p_.ft_qbatch() > 0 ? std::size_t(p_.ft_qbatch()) : nq;
+        const std::size_t batch = p_.fourier_qbatch() > 0 ? std::size_t(p_.fourier_qbatch()) : nq;
         for (std::size_t j0 = 0; j0 < nq; j0 += batch) {
             const std::size_t j1 = std::min(nq, j0 + batch);
-            // step 2: F_q(x, z) = int dy e^{-iqy} ft   (project_out does not conjugate)
+            // step 2: F_q(x, z) = int dy e^{-iqy} f_L   (project_out does not conjugate)
             const double wp = wall_time();
             std::vector<complex_function_2d> Fall = project_out_y(fxzy, j0, j1);
             const std::vector<double> nall = norm2s(world_, Fall);
@@ -211,7 +211,7 @@ private:
             }
         }
         if (p_.verbose && world_.rank() == 0)
-            print("MagneticKernelFT: kept", left.size(), "of", q_.size(), "modes, applied", napplied,
+            print("MagneticKernelFourier: kept", left.size(), "of", q_.size(), "modes, applied", napplied,
                   "(node, q) terms, skipped", nskip, " wall: project", wall_proj, "s, modes", wall_time() - wall0, "s");
         // step 4, and (x, z, y) -> (x, y, z)
         complex_function_3d rxzy = hartree_product(left, right);
@@ -230,4 +230,4 @@ private:
 
 }  // namespace madness
 
-#endif  // MADNESS_MRA_MAGNETIC_KERNEL_FT_H__INCLUDED
+#endif  // MADNESS_MRA_MAGNETIC_KERNEL_FOURIER_H__INCLUDED

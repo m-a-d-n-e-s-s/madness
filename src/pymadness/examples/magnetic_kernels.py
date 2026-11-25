@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The magnetic Green's-function kernels (madness/mra/magnetic_kernels.h) from Python.
 
-Applies (T_k - E)^{-1} of all four kernels (ft, chain_symmetric, chain_landau, mehler) to a Gaussian on the
+Applies (T_k - E)^{-1} of all four kernels (fourier, chain_symmetric, chain_landau, mehler) to a Gaussian on the
 field axis (Lz = 0, where all four coincide) and prints the relative differences, which are of the order of
 the truncation threshold.  The Landau-gauge kernel acts on e^{+i chi} f and is transformed back.
 

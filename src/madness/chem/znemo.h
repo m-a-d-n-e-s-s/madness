@@ -62,8 +62,8 @@ public:
 
         // magnetic Green's-function kernels (madness/mra/magnetic_kernels.md); the kernel parameters are in the
         // magnetic_kernel block (MagneticKernelParameters)
-        initialize<std::string>("kernel","chain_symmetric","magnetic Green's function: ft, chain_symmetric, "
-                "chain_landau, mehler",{"ft","chain_symmetric","chain_landau","mehler"});
+        initialize<std::string>("kernel","chain_symmetric","magnetic Green's function: fourier, chain_symmetric, "
+                "chain_landau, mehler",{"fourier","chain_symmetric","chain_landau","mehler"});
         initialize<std::vector<int> >("guess_lz",std::vector<int>(),"hcore guess: L_z of the occupied orbitals (alpha in "
                 "order, beta the first nbeta; B along a linear molecule only); empty: aufbau");
     }

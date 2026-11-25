@@ -102,7 +102,7 @@ inline TauQuadrature trapezoid_log(const double h, const double tmin, const doub
 // =====================================================================================
 
 /// FunctionDefaults<1> and <2> with the cell, k and thresh of the cubic FunctionDefaults<3>
-/// (required by the low-dimensional apply and by the 1D/2D functions of the FT kernel)
+/// (required by the low-dimensional apply and by the 1D/2D functions of the Fourier kernel)
 inline void set_lowdim_defaults_from_3d() {
     const Tensor<double> cell = FunctionDefaults<3>::get_cell();
     const double lo = cell(0, 0), hi = cell(0, 1);
