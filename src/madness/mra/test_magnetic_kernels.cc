@@ -67,7 +67,7 @@ double_complex weak_resolvent(World& world, const complex_function_3d& f, const 
     return kin - E * inner(f, g);
 }
 
-int self_test(World& world, const bool with_ft, const int nbroaden) {
+int self_test(World& world, const bool with_ft) {
     const double B = 2.0, E = 0.0;
     test_output t("magnetic kernels, B = 2");
     t.set_cout_to_terminal();
@@ -75,7 +75,6 @@ int self_test(World& world, const bool with_ft, const int nbroaden) {
     MagneticKernelParameters p;
     p.set_user_value("lo", "6.324555320336759e-3");   // tmin = lo^2/4 = 1e-5
     p.set_user_value("eps", "1e-10");
-    p.set_user_value("nbroaden", std::to_string(nbroaden));
     p.set_derived_values(B, FunctionDefaults<3>::get_thresh());
     auto make = [&](const std::string& kind) { return make_magnetic_kernel(world, kind, B, p); };
     const auto ft = make("ft"), sym = make("chain_symmetric"), lan = make("chain_landau"), meh = make("mehler");
@@ -181,7 +180,7 @@ int main(int argc, char** argv) {
         if (mode == "apply") success = apply_mode(world, a);
         else if (mode == "make") success = make_mode(world, a);
         else if (mode == "compare") success = compare_mode(world, a);
-        else success = self_test(world, getd(a, "ft", 1.0) != 0.0, int(getd(a, "nbroaden", 6)));
+        else success = self_test(world, getd(a, "ft", 1.0) != 0.0);
     }
     world.gop.fence();
     finalize();

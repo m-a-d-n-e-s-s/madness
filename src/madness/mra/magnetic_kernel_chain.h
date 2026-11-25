@@ -6,9 +6,9 @@
 /// with each e^{-c pi^2} a Gaussian convolution conjugated by a phase, and the free z motion merged into
 /// the x convolution:
 ///
-///   e^{-tau T} f = e^{-iBx~y~/2} G_y(2a) [e^{+iBx~y~} G_xz(2s, tau) [e^{-iBx~y~} G_y(2a) [e^{+iBx~y~/2} f]]].
+///   e^{-tau T} f = e^{-iBxy/2} G_y(2a) [e^{+iBxy} G_xz(2s, tau) [e^{-iBxy} G_y(2a) [e^{+iBxy/2} f]]].
 ///
-/// The bracket without its outer pair e^{-+iBx~y~/2} is the Landau-gauge propagator (chi = (B/2) x~y~), so
+/// The bracket without its outer pair e^{-+iBxy/2} is the Landau-gauge propagator (chi = (B/2) xy), so
 /// the Landau kernel is this kernel without the outer phases.  G_E = tmin + int_tmin^tmax dtau e^{E tau}
 /// e^{-tau T} on trapezoid nodes in ln tau (MagneticKernel::tau_quadrature), the chain propagated incrementally
 /// from node to node, sub-steps with |B| dtau <= max_btau, the Landau zero point e^{|B| tau/2} carried by the propagated
@@ -35,10 +35,6 @@ public:
         // so beyond t_lll = -ln(eps)/|B| they are below eps and the transverse propagator is the LLL projector
         // (times the zero point e^{-|B| tau/2}, carried by S): only the free z motion is propagated
         t_lll_ = p_.t_lll();
-        phase_.o0 = p_.origin()[1];      // internal axis 0 is y
-        phase_.o1 = p_.origin()[0];
-        phase_.tolfac = p_.phase_tolfac();
-        phase_.recursive = p_.phase_recursive();
     }
 
     bool absorbs_paramagnetic() const override { return true; }
@@ -75,7 +71,7 @@ public:
         return mapdim(result, swap_xy);
     }
 
-    /// e^{+iBx~y~/2} e^{-tau T} e^{-iBx~y~/2} a in the internal order (the chain without its outer phases);
+    /// e^{+iBxy/2} e^{-tau T} e^{-iBxy/2} a in the internal order (the chain without its outer phases);
     /// rescale: times e^{|B| tau/2}, per sub-step
     complex_function_3d inner_chain(const complex_function_3d& a, const double tau, const bool rescale) const {
         const double B = B_;
@@ -95,7 +91,7 @@ public:
 private:
     double thresh() const { return FunctionDefaults<3>::get_thresh(); }
 
-    /// a e^{i kappa x~ y~}, truncated (internal order)
+    /// a e^{i kappa x y}, truncated (internal order)
     complex_function_3d mulphase(const complex_function_3d& a, const double kappa) const {
         if (kappa == 0.0) return a;
         complex_function_3d r = magnetic::mul_bilinear_phase(a, phase_.with_kappa(kappa));
@@ -103,17 +99,17 @@ private:
         return r;
     }
     complex_function_3d conv_y(const complex_function_3d& a, const double var) const {
-        complex_function_3d r = magnetic::gauss_conv_1d(a, 0, var, p_.nbroaden());
+        complex_function_3d r = magnetic::gauss_conv_1d(a, 0, var);
         r.truncate(thresh());
         return r;
     }
     complex_function_3d conv_z(const complex_function_3d& a, const double var) const {
-        complex_function_3d r = magnetic::gauss_conv_1d(a, 2, var, p_.nbroaden());
+        complex_function_3d r = magnetic::gauss_conv_1d(a, 2, var);
         r.truncate(thresh());
         return r;
     }
     complex_function_3d conv_xz(const complex_function_3d& a, const double var_x, const double var_z) const {
-        complex_function_3d r = magnetic::gauss_conv_2d(a, 1, var_x, var_z, p_.nbroaden());
+        complex_function_3d r = magnetic::gauss_conv_2d(a, 1, var_x, var_z);
         r.truncate(thresh());
         return r;
     }

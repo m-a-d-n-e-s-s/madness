@@ -1,11 +1,11 @@
 /// \file magnetic_kernel_mehler.h
-/// \brief Mehler kernel: (T_HO - E)^{-1} with T_HO = -1/2 nabla^2 + (B^2/8) rho~^2, the diamagnetic part of T_B
+/// \brief Mehler kernel: (T_HO - E)^{-1} with T_HO = -1/2 nabla^2 + (B^2/8) rho^2, the diamagnetic part of T_B
 ///
-/// T_HO is a 2D harmonic oscillator of frequency w = |B|/2 in (x~, y~) plus the free z motion; its heat
+/// T_HO is a 2D harmonic oscillator of frequency w = |B|/2 in (x, y) plus the free z motion; its heat
 /// kernel factorizes exactly at rank 1 (Mehler),
 ///
-///   <r|e^{-tau T_HO}|r'> = (c/pi) (2 pi tau)^{-1/2} g(rho~) exp(-c |rho - rho'|^2 - (z-z')^2/(2 tau)) g(rho~'),
-///   g = exp(-m rho~^2),  m = (w/2) tanh(w tau/2),  c = w/(2 sinh(w tau)),
+///   <r|e^{-tau T_HO}|r'> = (c/pi) (2 pi tau)^{-1/2} g(rho) exp(-c |rho - rho'|^2 - (z-z')^2/(2 tau)) g(rho'),
+///   g = exp(-m rho^2),  m = (w/2) tanh(w tau/2),  c = w/(2 sinh(w tau)),
 ///
 /// so G_E = tmin + sum_n w_n g_n K_n g_n with one 3D Gaussian convolution K_n per node, Gauss-Legendre in
 /// ln tau on [tmin, -ln(eps)/(w - E)] (the nodes of the chain kernel).  inf spec T_HO = w = |B|/2 = inf spec T_B.
@@ -33,7 +33,6 @@ public:
         MADNESS_CHECK_THROW(gap > 0.0, "MagneticKernelMehler: require E < |B|/2");
         const magnetic::TauQuadrature quad = tau_quadrature(gap);
         const double thresh = FunctionDefaults<3>::get_thresh();
-        const double ox = p_.origin()[0], oy = p_.origin()[1];
 
         complex_function_3d out = quad.tmin * f;
         out.compress();
@@ -44,13 +43,11 @@ public:
             const double log_w = nd.log_dw + E * tau + log_c - std::log(constants::pi) - 0.5 * std::log(2 * constants::pi * tau);
             if (log_w < -60.0) continue;
             const auto op = magnetic::gauss_product_operator<3>(world_, {log_c, log_c, -std::log(2 * tau)});
-            real_function_3d g = real_factory_3d(world_).functor([m, ox, oy](const coord_3d& r) {
-                const double xt = r[0] - ox, yt = r[1] - oy;
-                return std::exp(-m * (xt * xt + yt * yt));
+            real_function_3d g = real_factory_3d(world_).functor([m](const coord_3d& r) {
+                return std::exp(-m * (r[0] * r[0] + r[1] * r[1]));
             });
             complex_function_3d t = g * f;
             t.truncate(thresh);
-            magnetic::broaden_until_stable(t, p_.nbroaden());
             t = madness::apply(*op, t);
             t = g * t;
             t.truncate(thresh);

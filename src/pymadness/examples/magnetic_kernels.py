@@ -36,7 +36,7 @@ def main():
 
     G = {}
     for kind in mad.magnetic_kernel_names():
-        K = mad.make_magnetic_kernel(world, kind, a.B, mad.MagneticKernelParameters(lo=2*np.sqrt(1e-5), nbroaden=6))
+        K = mad.make_magnetic_kernel(world, kind, a.B, mad.MagneticKernelParameters(lo=2*np.sqrt(1e-5)))
         g = K.to_symmetric_gauge(K.apply(K.from_symmetric_gauge(f), a.E))
         G[kind] = g
         print(f"{kind:16s} gauge {K.gauge().name:9s} paramagnetic in kernel {K.absorbs_paramagnetic()!s:5s}"

@@ -1,13 +1,14 @@
 /// \file magnetic_kernel.h
 /// \brief Common interface of the Green's-function kernels for an electron in a uniform magnetic field
 ///
-/// Conventions (all kernels): atomic units, B along +z, pi = p + A, gauge origin O = (ox, oy),
+/// Conventions (all kernels): atomic units, B along +z, pi = p + A, gauge origin at r = 0 (the centre of the cell;
+/// move the nuclei to move it),
 ///
-///   T_B = 1/2 (p + A)^2 = -1/2 nabla^2 + (B/2) Lz + (B^2/8) rho^2      (symmetric gauge, A = (B/2)(-y~, x~, 0))
+///   T_B = 1/2 (p + A)^2 = -1/2 nabla^2 + (B/2) Lz + (B^2/8) rho^2      (symmetric gauge, A = (B/2)(-y, x, 0))
 ///
-/// with x~ = x - ox, y~ = y - oy.  Each kernel applies (T_k - E)^{-1} for E < bottom() = |B|/2, where
+/// Each kernel applies (T_k - E)^{-1} for E < bottom() = |B|/2, where
 ///   - ft, chain_symmetric:  T_k = T_B in the symmetric gauge,
-///   - chain_landau:         T_k = T_B in the Landau gauge A_L = (-B y~, 0, 0) = A - grad chi, chi = (B/2) x~ y~,
+///   - chain_landau:         T_k = T_B in the Landau gauge A_L = (-B y, 0, 0) = A - grad chi, chi = (B/2) x y,
 ///                           acting on phi_L = e^{+i chi} phi_sym,
 ///   - mehler:               T_k = -1/2 nabla^2 + (B^2/8) rho^2  (the paramagnetic (B/2) Lz stays on the right-hand side).
 /// Theory, provenance and parameters: magnetic_kernels.md.
@@ -47,17 +48,12 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
 
     MagneticKernelParameters() {
         // proper-time quadrature of all kernels: derived from lo and eps, as the Coulomb and BSH fits (gfit.h)
-        initialize<std::vector<double>>("origin", {0.0, 0.0, 0.0}, "gauge origin; only x, y matter (ft: 0)");
         initialize<double>("lo", 1.e-4, "smallest length scale: the smallest nuclear smoothing radius (derived)");
         initialize<double>("eps", 1.e-7, "precision of (T_k - E)^{-1}: 1e-3 thresh (derived)");
         initialize<double>("tau_step", 0.5, "step h of the trapezoid rule in ln tau (derived)");
         initialize<double>("tmin", 2.5e-9, "proper-time cut-off: int_0^tmin as tmin f (derived; nemo: adapted)");
         initialize<double>("t_lll", 1.e300, "chain: only the lowest Landau level beyond t_lll (derived)");
         initialize<double>("max_btau", 2.0, "chain: sub-steps with |B| dtau <= max_btau");
-        initialize<double>("phase_tolfac", 0.1, "chain, ft: the phase product errs by <= phase_tolfac x the truncation "
-                "tolerance per box (10x tighter costs ~1/3 refinement level at k = 10: uncritical)");
-        initialize<bool>("phase_recursive", true, "chain, ft: recursive phase refinement");
-        initialize<int>("nbroaden", 0, "chain, mehler: broaden passes before each convolution");
         // ft
         initialize<double>("ft_qextra", -1.0, "ft: |q| <= |B| L/2 + qextra; <0: from the nuclear cusps (ft_qmax)");
         initialize<double>("ft_qmax", 0.0, "ft: y-wavenumber window |q| <= qmax (derived)");
@@ -144,20 +140,12 @@ struct MagneticKernelParameters : public QCCalculationParametersBase {
     /// (H, B = 100, chain, thresh 1e-4: 0.1 / 0.01 / 0.001 thresh -> E_k -257 / +19.7 / +4.6 uEh, bare +2.2)
     double tmin_cusp_free(const double C) const { return std::sqrt(2.0 * eps() / std::max(C, 1.e-10)); }
 
-    coord_3d origin() const {
-        const auto o = get<std::vector<double>>("origin");
-        MADNESS_CHECK_THROW(o.size() == 3, "MagneticKernelParameters: origin needs 3 coordinates");
-        return coord_3d(o);
-    }
     double lo() const { return get<double>("lo"); }
     double eps() const { return get<double>("eps"); }
     double tau_step() const { return get<double>("tau_step"); }
     double tmin() const { return get<double>("tmin"); }
     double t_lll() const { return get<double>("t_lll"); }
     double max_btau() const { return get<double>("max_btau"); }
-    double phase_tolfac() const { return get<double>("phase_tolfac"); }
-    bool phase_recursive() const { return get<bool>("phase_recursive"); }
-    int nbroaden() const { return get<int>("nbroaden"); }
     double ft_qextra() const { return get<double>("ft_qextra"); }
     double ft_qmax() const { return get<double>("ft_qmax"); }
     double ft_rcut() const { return get<double>("ft_rcut"); }
@@ -205,20 +193,15 @@ public:
 
     /// vector potential of the kernel's gauge at r
     std::array<double, 3> vector_potential(const coord_3d& r) const {
-        const coord_3d o = p_.origin();
-        const double xt = r[0] - o[0], yt = r[1] - o[1];
-        if (gauge() == MagneticGauge::landau) return {-B_ * yt, 0.0, 0.0};
-        return {-0.5 * B_ * yt, 0.5 * B_ * xt, 0.0};
+        if (gauge() == MagneticGauge::landau) return {-B_ * r[1], 0.0, 0.0};
+        return {-0.5 * B_ * r[1], 0.5 * B_ * r[0], 0.0};
     }
 
-    /// e^{+i chi} f (to the kernel's gauge from the symmetric one), chi = (B/2) x~ y~; identity for the
+    /// e^{+i chi} f (to the kernel's gauge from the symmetric one), chi = (B/2) x y; identity for the
     /// symmetric gauge.  sign = -1: back to the symmetric gauge.  Untruncated.
     complex_function_3d from_symmetric_gauge(const complex_function_3d& f, const double sign = 1.0) const {
         if (gauge() == MagneticGauge::symmetric || B_ == 0.0) return copy(f);
-        magnetic::BilinearPhase ph(sign * 0.5 * B_, p_.origin()[0], p_.origin()[1]);
-        ph.tolfac = p_.phase_tolfac();
-        ph.recursive = p_.phase_recursive();
-        return magnetic::mul_bilinear_phase(f, ph);
+        return magnetic::mul_bilinear_phase(f, magnetic::BilinearPhase(sign * 0.5 * B_));
     }
     complex_function_3d to_symmetric_gauge(const complex_function_3d& f) const { return from_symmetric_gauge(f, -1.0); }
 

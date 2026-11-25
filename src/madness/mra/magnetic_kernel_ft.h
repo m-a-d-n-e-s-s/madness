@@ -33,7 +33,6 @@ public:
     using operator2dT = SeparatedConvolution<double, 2>;
 
     MagneticKernelFT(World& world, const double B, const MagneticKernelParameters& p) : MagneticKernel(B, p), world_(world) {
-        MADNESS_CHECK_THROW(p_.origin()[0] == 0.0 && p_.origin()[1] == 0.0, "MagneticKernelFT: the gauge origin must be r = 0");
         magnetic::set_lowdim_defaults_from_3d();
         const Tensor<double> cell = FunctionDefaults<3>::get_cell();
         lo_ = cell(0, 0);
@@ -47,8 +46,6 @@ public:
         const long J = long(std::ceil(qmax * period_ / constants::pi / 2));
         for (long j = -J; j <= J; ++j) q_.push_back(2 * constants::pi * j / period_);
 
-        phase_.tolfac = p_.phase_tolfac();
-        phase_.recursive = p_.phase_recursive();
 
         // step 4 uses e^{iqy} windowed to |y| < rcut + 9 rtaper: every term of the q-sum is then local in y
         const double yw = rcut_ + 9 * rtaper_, rt = rtaper_;

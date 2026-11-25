@@ -20,8 +20,8 @@ void bind_magnetic(py::module_& m) {
         .value("landau", MagneticGauge::landau);
 
 
-    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. origin=[x, y, z],
-    // lo=, nbroaden=, ft_qextra=); the derived ones are set by make_magnetic_kernel
+    // keyword construction: verbose; any other keyword sets that parameter (user-defined, e.g. lo=, ft_qextra=);
+    // the derived ones are set by make_magnetic_kernel
     py::class_<MagneticKernelParameters>(m, "MagneticKernelParameters",
         "Parameters of the magnetic kernels (input block magnetic_kernel); derived ones from B, thresh and the nuclei")
         .def(py::init([](bool verbose, py::kwargs kwargs) {
@@ -36,9 +36,6 @@ void bind_magnetic(py::module_& m) {
                  return p;
              }),
              py::arg("verbose") = false)
-        .def_property_readonly("origin", [](const MagneticKernelParameters& p) {
-                 const coord_3d o = p.origin();
-                 return std::array<double, 3>{o[0], o[1], o[2]}; })
         .def_readwrite("verbose", &MagneticKernelParameters::verbose)
         .def("set_derived_values", [](MagneticKernelParameters& p, double B, py::object thresh,
                                       const std::vector<std::tuple<double, double, double, double>>& nuclei,
@@ -84,7 +81,7 @@ void bind_magnetic(py::module_& m) {
         .def("from_symmetric_gauge", [](const MagneticKernel& K, const complex_function_3d& f) {
             py::gil_scoped_release release;
             return K.from_symmetric_gauge(f);
-        }, py::arg("f"), "e^{+i chi} f, chi = (B/2) x~ y~ (identity in the symmetric gauge); untruncated")
+        }, py::arg("f"), "e^{+i chi} f, chi = (B/2) x y (identity in the symmetric gauge); untruncated")
         .def("to_symmetric_gauge", [](const MagneticKernel& K, const complex_function_3d& f) {
             py::gil_scoped_release release;
             return K.to_symmetric_gauge(f);
@@ -108,14 +105,12 @@ void bind_magnetic(py::module_& m) {
        "FunctionDefaults3D must be set");
     m.def("magnetic_kernel_names", &magnetic_kernel_names);
 
-    m.def("mul_bilinear_phase", [](const complex_function_3d& f, double kappa, double o0, double o1,
-                                   double tolfac, bool recursive) {
+    m.def("mul_bilinear_phase", [](const complex_function_3d& f, double kappa, double tolfac, bool recursive) {
         py::gil_scoped_release release;
-        magnetic::BilinearPhase p(kappa, o0, o1);
+        magnetic::BilinearPhase p(kappa);
         p.tolfac = tolfac; p.recursive = recursive;
         return magnetic::mul_bilinear_phase(f, p);
-    }, py::arg("f"), py::arg("kappa"), py::arg("o0") = 0.0, py::arg("o1") = 0.0,
-       py::arg("tolfac") = 0.1, py::arg("recursive") = true,
-       "f e^{i kappa (x0-o0)(x1-o1)} (axes 0, 1), the tree of f refined where the phase is not resolved;\n"
+    }, py::arg("f"), py::arg("kappa"), py::arg("tolfac") = 0.1, py::arg("recursive") = true,
+       "f e^{i kappa x0 x1} (axes 0, 1), the tree of f refined where the phase is not resolved;\n"
        "untruncated (magnetic_primitives.h)");
 }

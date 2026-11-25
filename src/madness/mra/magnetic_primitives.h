@@ -4,7 +4,7 @@
 /// All kernels are proper-time (Laplace) quadratures over heat-kernel factors built from
 ///   - normalized Gaussian convolutions on one or two axes of a 3D function (low-dimensional apply),
 ///   - one-term separated Gaussian operators with anisotropic exponents (2D or 3D),
-///   - pointwise multiplication by a bilinear phase e^{i kappa (x0-o0)(x1-o1)}, applied on the
+///   - pointwise multiplication by a bilinear phase e^{i kappa x0 x1}, applied on the
 ///     values at the quadrature points after refining the tree where the phase is not resolved,
 ///   - a tau quadrature (Gauss-Legendre or trapezoid in u = ln tau).
 /// See magnetic_kernels.md for the theory and the provenance of each piece.
@@ -138,34 +138,22 @@ void check_lowdim_defaults(const Function<T, NDIM>& f, const int first, const ch
                          "D k must equal the function's k").c_str());
 }
 
-/// refine significant leaves next to refined neighbors until the tree is stable (at most npass passes)
-template <typename T, std::size_t NDIM>
-void broaden_until_stable(const Function<T, NDIM>& f, const int npass) {
-    for (int pass = 0; pass < npass; ++pass) {
-        const std::size_t size0 = f.size();
-        f.broaden();
-        if (f.size() == size0) break;
-    }
-}
-
 /// convolution of a 3D function along one axis (0 or 2) with the normalized Gaussian of variance v
 template <typename T>
-Function<T, 3> gauss_conv_1d(const Function<T, 3>& f, const int axis, const double variance, const int nbroaden = 0) {
+Function<T, 3> gauss_conv_1d(const Function<T, 3>& f, const int axis, const double variance) {
     MADNESS_CHECK_THROW(axis == 0 || axis == 2, "gauss_conv_1d: axis must be the first or the last axis");
     check_lowdim_defaults<1>(f, axis, "gauss_conv_1d");
     const double width = FunctionDefaults<3>::get_cell_width()[axis];
     SeparatedConvolution<double, 1> op(f.world(),
         std::vector<ConvolutionND<double, 1>>{ConvolutionND<double, 1>(gauss_kernel_1d(f.k(), width, variance))}, f.k());
     op.set_particle(axis == 0 ? 1 : 2);
-    broaden_until_stable(f, nbroaden);
     return madness::apply(op, f);
 }
 
 /// convolution of a 3D function along axes (first, first+1), first = 0 or 1, with the product of
 /// normalized Gaussians of variances v0, v1; the remaining axis is a spectator
 template <typename T>
-Function<T, 3> gauss_conv_2d(const Function<T, 3>& f, const int first, const double v0, const double v1,
-                             const int nbroaden = 0) {
+Function<T, 3> gauss_conv_2d(const Function<T, 3>& f, const int first, const double v0, const double v1) {
     MADNESS_CHECK_THROW(first == 0 || first == 1, "gauss_conv_2d: first must be 0 or 1");
     check_lowdim_defaults<2>(f, first, "gauss_conv_2d");
     const auto& width = FunctionDefaults<3>::get_cell_width();
@@ -174,7 +162,6 @@ Function<T, 3> gauss_conv_2d(const Function<T, 3>& f, const int first, const dou
     conv.setop(1, gauss_kernel_1d(f.k(), width[first + 1], v1));
     SeparatedConvolution<double, 2> op(f.world(), std::vector<ConvolutionND<double, 2>>{conv}, f.k());
     op.set_particle(first == 0 ? 1 : 2);
-    broaden_until_stable(f, nbroaden);
     return madness::apply(op, f);
 }
 
@@ -200,17 +187,18 @@ std::shared_ptr<SeparatedConvolution<double, NDIM>> gauss_product_operator(World
 }
 
 // =====================================================================================
-// Bilinear phase e^{i kappa (x0-o0)(x1-o1)} on axes 0 and 1
+// Bilinear phase e^{i kappa x0 x1} on axes 0 and 1
 // =====================================================================================
 
 struct BilinearPhase {
-    double kappa = 0.0, o0 = 0.0, o1 = 0.0;   ///< theta = kappa (x0-o0)(x1-o1)
+    double kappa = 0.0;                       ///< theta = kappa x0 x1
     double tolfac = 0.1;                      ///< refine where the best degree-(k-1) fit of the phase misses
-                                              ///  tolfac*truncate_tol relative to the box norm
+                                              ///  tolfac*truncate_tol relative to the box norm (10x tighter
+                                              ///  costs ~1/3 refinement level at k = 10: uncritical)
     bool recursive = true;                    ///< one recursive sweep (single process) or passes
 
     BilinearPhase() = default;
-    BilinearPhase(double kappa, double o0, double o1) : kappa(kappa), o0(o0), o1(o1) {}
+    explicit BilinearPhase(double kappa) : kappa(kappa) {}
     BilinearPhase with_kappa(double k) const { BilinearPhase p(*this); p.kappa = k; return p; }
 };
 
@@ -220,7 +208,7 @@ namespace detail {
 /// with theta varying by 2w over a box has error ~ w^k / (2^(k-1) k!)
 template <typename T, std::size_t NDIM>
 struct PolyErrorRefineOp {
-    double kappa = 0.0, o0 = 0.0, o1 = 0.0, tolfac = 0.1;
+    double kappa = 0.0, tolfac = 0.1;
 
     bool operator()(const FunctionImpl<T, NDIM>* impl, const Key<NDIM>& key, const FunctionNode<T, NDIM>& node) const {
         const double tol = tolfac * impl->truncate_tol(impl->get_thresh(), key);
@@ -232,8 +220,8 @@ struct PolyErrorRefineOp {
         double tmin = 1e300, tmax = -1e300;
         for (int c0 = 0; c0 < 2; ++c0) {
             for (int c1 = 0; c1 < 2; ++c1) {
-                const double x0 = cell(0, 0) + width[0] * h * (key.translation()[0] + c0) - o0;
-                const double x1 = cell(1, 0) + width[1] * h * (key.translation()[1] + c1) - o1;
+                const double x0 = cell(0, 0) + width[0] * h * (key.translation()[0] + c0);
+                const double x1 = cell(1, 0) + width[1] * h * (key.translation()[1] + c1);
                 tmin = std::min(tmin, kappa * x0 * x1);
                 tmax = std::max(tmax, kappa * x0 * x1);
             }
@@ -245,13 +233,13 @@ struct PolyErrorRefineOp {
         for (int i = 1; i <= k; ++i) err *= w / i;
         return cnorm * err > tol;
     }
-    template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1 & tolfac; }
+    template <typename Archive> void serialize(Archive& ar) { ar & kappa & tolfac; }
 };
 
 /// values at the quadrature points times e^{i theta}
 template <std::size_t NDIM>
 struct PhaseValueOp {
-    double kappa = 0.0, o0 = 0.0, o1 = 0.0;
+    double kappa = 0.0;
 
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& values) const {
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
@@ -261,8 +249,8 @@ struct PhaseValueOp {
         const double h = std::pow(0.5, key.level());
         std::vector<double> x0(k), x1(k);
         for (int i = 0; i < k; ++i) {
-            x0[i] = cell(0, 0) + width[0] * h * (key.translation()[0] + qx(i)) - o0;
-            x1[i] = cell(1, 0) + width[1] * h * (key.translation()[1] + qx(i)) - o1;
+            x0[i] = cell(0, 0) + width[0] * h * (key.translation()[0] + qx(i));
+            x1[i] = cell(1, 0) + width[1] * h * (key.translation()[1] + qx(i));
         }
         const long rest = values.size() / (long(k) * k);    // remaining dimensions, contiguous
         double_complex* v = values.ptr();
@@ -275,7 +263,7 @@ struct PhaseValueOp {
             }
         }
     }
-    template <typename Archive> void serialize(Archive& ar) { ar & kappa & o0 & o1; }
+    template <typename Archive> void serialize(Archive& ar) { ar & kappa; }
 };
 
 /// out-of-place form of PhaseValueOp for madness::unary_op (values in, new values out)
@@ -333,7 +321,7 @@ void refine_recursive(const Function<T, NDIM>& g, const opT& op, const bool recu
 template <std::size_t NDIM>
 PhaseValueOp<NDIM> value_op(const BilinearPhase& p) {
     PhaseValueOp<NDIM> vop;
-    vop.kappa = p.kappa; vop.o0 = p.o0; vop.o1 = p.o1;
+    vop.kappa = p.kappa;
     return vop;
 }
 
@@ -345,7 +333,7 @@ void refine_for_phase(const Function<double_complex, NDIM>& f, const BilinearPha
     f.reconstruct();
     MADNESS_CHECK_THROW(p.tolfac > 0.0, "refine_for_phase: tolfac must be positive");
     detail::PolyErrorRefineOp<double_complex, NDIM> rop;
-    rop.kappa = p.kappa; rop.o0 = p.o0; rop.o1 = p.o1; rop.tolfac = p.tolfac;
+    rop.kappa = p.kappa; rop.tolfac = p.tolfac;
     detail::refine_recursive(f, rop, p.recursive);
 }
 

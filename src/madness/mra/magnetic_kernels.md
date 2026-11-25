@@ -14,13 +14,13 @@ diamagnetic term B²ρ²/8 on the right-hand side, and both grow with the field.
 the magnetic kinetic operator itself:
 
 ```
-T_B = ½ (p + A)² = −½∇² + (B/2) L_z + (B²/8) ρ²,     A = (B/2)(−ỹ, x̃, 0)
+T_B = ½ (p + A)² = −½∇² + (B/2) L_z + (B²/8) ρ²,     A = (B/2)(−y, x, 0)
 ```
 
 ### Conventions
 
 - atomic units; B along +z; π = p + A, so the lowest Landau level has m ≤ 0;
-- gauge origin O = (o_x, o_y), with x̃ = x − o_x and ỹ = y − o_y (znemo and the FT kernel use O = 0);
+- gauge origin at r = 0, the centre of the simulation cell (move the nuclei to move it);
 - inf spec T_B = |B|/2, and every kernel requires E < |B|/2.
 
 ### How all four kernels are built
@@ -62,9 +62,9 @@ Library changes the kernels rely on, both small and in `funcimpl.h` / `operator.
 | `kind` | Contains | Gauge | Paramagnetic term | τ quadrature | Origin |
 |---|---|---|---|---|---|
 | `chain_symmetric` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreensFunction3D` in `hydrogen_magnetic_pymadness.py` (article repo, pymadness branch `magnetic`) |
-| `chain_landau` | T_B | Landau, A_L = (−Bỹ, 0, 0) | in the kernel | trapezoid in ln τ | `Gop` of `h2p_landau.py --gauge landau` |
-| `ft` | T_B | symmetric, O = 0 | in the kernel | trapezoid in ln τ | `MagneticGreen` in `magnetic_green.h`, branch `magnetic-fourier` (A. Armen) |
-| `mehler` | −½∇² + B²ρ̃²/8 | symmetric | **right-hand side** | trapezoid in ln τ | new in 3D; 2D `MehlerGreensFunction2D` in `landau_mehler_pymadness.py` |
+| `chain_landau` | T_B | Landau, A_L = (−By, 0, 0) | in the kernel | trapezoid in ln τ | `Gop` of `h2p_landau.py --gauge landau` |
+| `ft` | T_B | symmetric | in the kernel | trapezoid in ln τ | `MagneticGreen` in `magnetic_green.h`, branch `magnetic-fourier` (A. Armen) |
+| `mehler` | −½∇² + B²ρ²/8 | symmetric | **right-hand side** | trapezoid in ln τ | new in 3D; 2D `MehlerGreensFunction2D` in `landau_mehler_pymadness.py` |
 
 ### Real-space chain (`chain_symmetric`, `chain_landau`)
 
@@ -79,11 +79,11 @@ Each factor e^{−cπ²} is a normalized Gaussian of variance 2c, conjugated by 
 is merged into the x convolution:
 
 ```
-e^{−τT} f = e^{−iBx̃ỹ/2} G_y(2a) [ e^{+iBx̃ỹ} G_xz(2s, τ) [ e^{−iBx̃ỹ} G_y(2a) [ e^{+iBx̃ỹ/2} f ]]]
+e^{−τT} f = e^{−iBxy/2} G_y(2a) [ e^{+iBxy} G_xz(2s, τ) [ e^{−iBxy} G_y(2a) [ e^{+iBxy/2} f ]]]
 ```
 
 **Chain.**
-- The bracket without its outer pair e^{∓iBx̃ỹ/2} is the Landau-gauge propagator, with χ = (B/2)x̃ỹ and
+- The bracket without its outer pair e^{∓iBxy/2} is the Landau-gauge propagator, with χ = (B/2)xy and
   φ_L = e^{+iχ}φ_sym. So `chain_landau` is the same code without the two outer phase multiplications.
   This removes the London plane wave from off-axis orbitals; see `notes/mra_magnetic_scheme.md` §4 and
   the He₂ notes.
@@ -109,7 +109,7 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 ```
 
 **Steps.**
-1. Multiply by e^{−iBxy/2}, refined as in the chain kernels (`phase_tolfac`).
+1. Multiply by e^{−iBxy/2}, refined as in the chain kernels.
 2. Fourier project in y, giving F_q(x, z) (`project_out`).
 3. Per q and node: x mask, then a 2D (x, z) Gaussian, then x mask.
 4. Assemble Σ_q e^{iqy} Ψ_q (`hartree_product`), then multiply by e^{+iBxy/2}.
@@ -127,22 +127,21 @@ X_q = −q/B,  g = e^{−m u²},  N = √(c/π) e^{−c d²},  m = (B/2) tanh(B�
 
 ### Mehler kernel (`mehler`)
 
-T_HO = −½∇² + (B²/8)ρ̃² is a 2D oscillator of frequency w = |B|/2, plus the free z motion. Its heat
+T_HO = −½∇² + (B²/8)ρ² is a 2D oscillator of frequency w = |B|/2, plus the free z motion. Its heat
 kernel factorizes at rank 1 (`notes/mehler_kernel_factorization.md`):
 
 ```
-⟨r|e^{−τT_HO}|r'⟩ = (c/π)(2πτ)^{−1/2} g(ρ̃) e^{−c|ρ−ρ'|² − (z−z')²/2τ} g(ρ̃'),
-g = e^{−m ρ̃²},  m = (w/2) tanh(wτ/2),  c = w/(2 sinh wτ)
+⟨r|e^{−τT_HO}|r'⟩ = (c/π)(2πτ)^{−1/2} g(ρ) e^{−c|ρ−ρ'|² − (z−z')²/2τ} g(ρ'),
+g = e^{−m ρ²},  m = (w/2) tanh(wτ/2),  c = w/(2 sinh wτ)
 ```
 
 so each node is one 3D anisotropic Gaussian convolution between two masks.
 
 **Properties.**
 - inf spec T_HO = |B|/2 = inf spec T_B.
-- On functions with L_z = 0 about O, the Mehler kernel equals G_B.
+- On functions with L_z = 0 about the z axis, the Mehler kernel equals G_B.
 - The paramagnetic term is not in the kernel. znemo adds 0.5 B L_z φ to the right-hand side.
-- The notes report slow convergence at strong field for this route (150–245 iterations);
-  `kernel_nbroaden` and a level shift are the knobs.
+- The notes report slow convergence at strong field for this route (150–245 iterations).
 
 ### Shared primitives and the original policies
 
@@ -153,7 +152,7 @@ bitwise (see Verification):
 | Primitive | Policies / parameters | Used by |
 |---|---|---|
 | `mul_bilinear_phase` | refine where the best degree-(k−1) fit of the phase misses `tolfac`·truncate_tol relative to the box norm (one recursive sweep) | chain, ft |
-| `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes, `nbroaden` passes | chain |
+| `gauss_conv_1d`, `gauss_conv_2d` | normalized Gaussians on outer axes | chain |
 | `gauss_product_operator<NDIM>` | unnormalized anisotropic one-term operator, exponent floor 1e−10 | ft (2D), mehler (3D) |
 | `trapezoid_log` | step h from `eps`, t_min = `lo`²/4 (`MagneticKernelParameters::set_derived_values`, derived as the Coulomb and BSH fits: relative error (4π/√h) e^{−π²/h} = eps for every spectral component; t_min·f shifts the energy by ≈ −10 % of the nuclear smoothing error of radius lo); tmax = −ln(eps)/(|B|/2 − E). znemo: lo = smallest smoothing radius, eps = 0.001 thresh | all |
 | `mehler_m`, `mehler_log_c`, `splitting_coefficients` | stable for Bτ → 0 and Bτ → ∞ | all |
@@ -269,13 +268,12 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `origin` | `[0, 0, 0]` | gauge origin (x, y; ft: 0) |
 | `lo` | derived: min_A c_A | smallest length scale |
 | `eps` | derived: 10⁻³ thresh | precision of (T_k − E)⁻¹ |
 | `tau_step` | derived: (4π/√h) e^{−π²/h} = eps | step h in ln τ |
 | `tmin` | derived: lo²/4; nemo: adapted, √(2 eps/C) | proper-time cut-off |
 | `t_lll` | derived: −ln(eps)/\|B\| | chain: lowest Landau level only beyond |
-| `max_btau`, `phase_tolfac`, `phase_recursive`, `nbroaden` | 2, 0.1, true, 0 | chain sub-steps, phase refinement (chain, ft), broadening |
+| `max_btau` | 2 | chain sub-steps |
 | `ft_qextra` | −1 | ≥ 0: \|q\| ≤ \|B\| L/2 + qextra; < 0: from the nuclear cusps |
 | `ft_qmax` | derived (see "Fourier approach") | y-wavenumber window |
 | `ft_rcut`, `ft_rtaper` | derived: 1.5 √(8 ln(1/thresh)/\|B\|), min(0.5, rcut/4) | y-extent of f and G f, window edge |
@@ -285,7 +283,7 @@ passed to `make_magnetic_kernel` and `set_derived_values`. Derived parameters ar
 
 The smoothing radius c of the nuclear potential comes from `eprec` in the geometry block and the field:
 c = [min(1e−3, eprec/2)/(0.65 Z⁵ g(|B|/Z²))]^{1/3}, g(β) = (1 + 0.2128β)(1 + 0.874 ln(1 + 0.3394β)).
-The truncation threshold is the last value of the dft block's `protocol`, independent of `econv`.
+The truncation threshold is the last value of the dft block's `protocol`; `econv` defaults to 0.1·thresh.
 The spin Zeeman term ±B/2 per α/β electron is not part of the orbital energies or the iteration; it is
 added to the total energy only (printed as `spin zeeman term`). The print level is the dft block's `print_level` (3 adds timings and the kernel's own output).
 
@@ -298,7 +296,6 @@ Example, triplet H₂ at B = 10 with the bond perpendicular to B:
 dft
   k 10
   l 20
-  econv 3e-7
   dconv 5.5e-3
   maxiter 45
   nopen 2
@@ -321,7 +318,7 @@ Map from the original command-line options:
 
 | Original | znemo |
 |---|---|
-| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), `phase_tolfac`, `eprec` (geometry), — (internal) |
+| `h2p_madness.py --nodes --tmin --nlll --phase-tolfac --c --gap` | `tau_step`, `tmin`, `t_lll` (derived from thresh and eprec), — (fixed, 0.1), `eprec` (geometry), — (internal) |
 | `h2p_madness.py --guess2 sigma/pi` | `guess_lz` (π: `[0, -1]`) |
 | `magneticatom h= tmin= tmax_factor= qextra= rcut= rtaper= dphi=` | `tau_step`, `tmin` (derived), — (derived), `ft_qextra`, `ft_rcut`, `ft_rtaper`, — (magnetic_kernel block) |
 | `magneticatom eprec=` | `eprec` (geometry); znemo adds the field dependence of c |
@@ -348,14 +345,13 @@ See `src/pymadness/examples/magnetic_kernels.py`.
   - chain_symmetric: 1.1e−12;
   - chain_landau: 1.2e−12.
 
-**2. Kernels against each other.** `ctest -R mra_magnetic`, B = 2, thresh 1e−4, nbroaden 6.
+**2. Kernels against each other.** `ctest -R mra_magnetic`, B = 2, thresh 1e−4.
 - Test functions: an axial Gaussian, an m = −1 Gaussian, an off-axis Gaussian.
 - ft vs chain_symmetric, Landau (conjugated) vs symmetric, and Mehler vs symmetric (m = 0): all agree
   to 1.7–6.2e−4 relative, below 10·thresh.
 - The weak resolvent identity ⟨f|(T_B − E)Gf⟩ = ⟨f|f⟩ holds to 1e−6 to 3e−6.
-- With `nbroaden` = 0 (the original setting), the pairwise differences level off at about 3e−5 as
-  thresh decreases. That is the edge-term error of narrow kernels between boxes of different level;
-  `nbroaden` = 6 removes it (Landau vs symmetric: 3e−5 → 4e−6 at thresh 1e−6).
+- The pairwise differences level off at about 3e−5 as thresh decreases: the edge-term error of narrow
+  kernels between boxes of different level.
 
 **3. SCF.** The triplet-H₂ test is in `/huge/aiuser/flbiai/test/magnetic_kernel/`, with references from
 the B ≤ 100 scan (`h2_h2plus_field_scan.md`) and new runs of the original codes.
